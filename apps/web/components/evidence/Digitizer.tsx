@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { DocumentView } from "@/lib/brief";
 import { BROWSER_TOKEN, apiFile, send, type Schema } from "@/lib/api";
 import { useMutation, useResource } from "@/lib/hooks";
+import { Banner } from "@/components/kit";
 
 type Mode = "x1" | "x2" | "y1" | "y2" | "points" | "crop";
 type Box = [number, number, number, number];   // left, top, right, bottom as fractions of the page (or image)
@@ -254,7 +255,7 @@ export function Digitizer({ projectId, documents, onSaved, initial }: {
               <input placeholder="Figure 2" value={units.locator} onChange={(e) => setUnits({ ...units, locator: e.target.value })} className="w-90" />
             </div>
           </fieldset>
-          {error && <div className="banner err">{error}</div>}
+          {error && <Banner tone="err">{error}</Banner>}
           <button className="btn primary" disabled={!calibrated || total === 0 || !study.study_id || !study.n || !study.dose_mg}
                   onClick={save} data-testid="digitize-save">Save the digitized dataset</button>
         </div>

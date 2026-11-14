@@ -1,10 +1,13 @@
 import Link from "next/link";
 
 import { preloadSteps, Stepper } from "@/components/kit/Stepper";
+import { OpenDecisionButton } from "@/components/campaign/OpenDecisionButton";
 import { RunCampaignButton } from "@/components/RunCampaignButton";
 import { MembersPanel } from "@/components/members/MembersPanel";
 import { SystemPanel } from "@/components/system/SystemPanel";
 import { ApiProblem, Card, RiskChip, StatusChip } from "@/components/ui";
+import { serverGet } from "@/lib/api";
+import { getSteps } from "@/lib/pipeline";
 import { getCampaigns, getProject, getStudies } from "@/lib/reads";
 import { Hero } from "@/components/kit";
 import { StepBlocked } from "@/components/kit/StepBlocked";
@@ -16,10 +19,11 @@ function points(study: { profile?: { times: number[] } | null }) {
 export default async function ProjectPage({ params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = await params;
   preloadSteps(projectId); // the step bar's read runs beside the page's own, not after them (audit item 9)
-  const [live, liveStudies, liveCampaigns] = await Promise.all([
+  const [live, liveStudies, liveCampaigns, liveSteps] = await Promise.all([
     getProject(projectId),
     getStudies(projectId),
     getCampaigns(projectId),
+    getSteps(projectId),
   ]);
   const project = live.data;
   if (!project) {
@@ -33,44 +37,56 @@ export default async function ProjectPage({ params }: { params: Promise<{ projec
   const studies = liveStudies.data;
   const campaigns = liveCampaigns.data;
   const questions = project.questions ?? [];
-  const compound = project.compounds[0] ?? "";
-  const question = questions[0];
-  const runnable = Boolean(question && compound && studies && studies.length > 0);
+  // The owner's decision 2 (2026-11-11): a campaign starts only from the MAP signed on Review & sign, with the inputs
+  // that signature staged. The plan is read only once Review & sign is done (the steps say so from a signed, current MAP);
+  // a signed MAP with deviations still waiting for their signature does not run (D-14). The read-only route: a viewer
+  // may open Run too, and a page that only shows the plan never uses the canvas route that can write one.
+  const reviewDone = liveSteps.data?.find((s) => s.step === "review")?.state === "done";
+  const plan = reviewDone ? await serverGet("/api/v1/projects/{project_id}/plan:view", { project_id: projectId }) : null;
+  const map = plan?.data?.signed ? plan.data.map : null;
+  const pendingDeviations = (plan?.data?.deviations ?? []).filter((d) => !d.signature_id);
+  const campaign = map && !pendingDeviations.length ? map.campaign : null;
 
   return (
     <main>
-      <Hero tone="run" eyebrow="Step 4 of 4" title={project.name}
-            lede="Compounds and the questions of interest they answer. Each question carries its own ICH M15 assessment table."
+      <Hero tone="run" eyebrow="Step 4 of 4 · Run" title={<>Run · {project.name}</>}
+            lede="Start the modeling campaign from the signed plan and follow it here. The project's compounds, observed studies and members are below."
             actions={<RiskChip rating={project.risk} />} />
       <Stepper projectId={project.id} current="run" />
       {(liveStudies.problem || liveCampaigns.problem) && (
         <ApiProblem problem={(liveStudies.problem ?? liveCampaigns.problem)!} />
       )}
 
-      {!runnable && !liveStudies.problem && (
-        // a campaign cannot start yet: what is missing, in words, and the way there (not a page that just lacks its button)
-        <StepBlocked projectId={project.id} step="run" title="A campaign can run once these are in place" testId="run-blocked"
+      {liveSteps.problem && <ApiProblem problem={liveSteps.problem} />}
+      {plan?.problem && <ApiProblem problem={plan.problem} />}
+
+      {!campaign && !liveSteps.problem && !plan?.problem && (
+        // nothing runs without the MAP signed on Review & sign: what it waits on, in words, and the way there
+        <StepBlocked projectId={project.id} step="run" waitOn="review" title="A campaign runs from the MAP signed on Review & sign"
+                     testId="run-blocked"
                      fallback={(
                        <>
-                         <ul>
-                           {!question && <li>a question of interest (set on Start)</li>}
-                           {!compound && <li>a compound with its parameter framework</li>}
-                           {!(studies && studies.length) && <li>at least one observed study to fit and validate against (added on Inputs)</li>}
-                         </ul>
-                         <Link className="btn primary" href={`/projects/${project.id}/inputs?tab=studies`}>Go to Inputs</Link>
+                         <p className="muted">
+                           MAP v{map?.map_version ?? "?"} is signed, and {pendingDeviations.length} deviation
+                           {pendingDeviations.length === 1 ? " waits" : "s wait"} for the MIDD lead&apos;s signature. A campaign
+                           starts once they are signed into a new MAP version.
+                         </p>
+                         <Link className="btn primary" href={`/projects/${project.id}/plan`} data-testid="step-blocked-go">
+                           Go to Review &amp; sign</Link>
                        </>
                      )} />
       )}
 
-      {runnable && (
+      {campaign && map && (
         <Card title="Run a modeling campaign" action={<span className="muted">MS-01 · S0 → S7</span>}>
-          <p className="muted mt-0">
-            Generates the Model Analysis Plan from this project&apos;s CPF and {studies!.length} observed
-            study(ies), records the Part 11 signature, then runs the stage loop on the OSP engine — building
-            the model, simulating, scoring it against the acceptance tier, and either passing or stopping to
-            ask you for a signed decision, on whatever page you are on.
+          <p className="muted mt-0" data-testid="run-from-map">
+            Starts from MAP v{map.map_version ?? map.version}, signed on Review &amp; sign
+            ({map.map_sha256.slice(0, 12)}), with the inputs that signature staged. The stage loop runs on the OSP
+            engine: it builds the model, simulates, scores it against the acceptance tier, and either passes or stops to
+            ask you for a signed decision, on whatever page you are on. A change to the plan is made and signed on{" "}
+            <Link href={`/projects/${project.id}/plan`}>Review &amp; sign</Link>.
           </p>
-          <RunCampaignButton projectId={project.id} questionId={question!.id} compound={compound} />
+          <RunCampaignButton projectId={project.id} campaign={campaign} />
         </Card>
       )}
 
@@ -97,7 +113,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ projec
                 {/* a summary: the first ten; the whole list, sortable and filtered, is on Inputs (audit item 11) */}
                 {studies.slice(0, 10).map((s) => (
                   <tr key={s.study_id}>
-                    <td><code>{s.study_id}</code></td>
+                    <td><strong className="overflow-anywhere">{s.study_id}</strong></td>
                     <td>{s.route?.replace("_", " ") ?? "—"}</td>
                     <td className="num">{s.dose_mg} mg</td>
                     <td className="num">{points(s)}</td>
@@ -131,7 +147,11 @@ export default async function ProjectPage({ params }: { params: Promise<{ projec
               {campaigns.map((c) => (
                 <tr key={c.id}>
                   <td><Link href={`/campaigns/${c.id}`}><code>{c.id}</code></Link></td>
-                  <td>{c.status ? <StatusChip status={c.status} /> : "—"}</td>
+                  <td>
+                    {c.status ? <StatusChip status={c.status} /> : "—"}
+                    {/* the waiting decision, one click away from its row (it may have been put off) */}
+                    {c.status === "ESCALATED" && <> <OpenDecisionButton campaignId={c.id} /></>}
+                  </td>
                   <td>{c.currentStage}</td>
                   <td>{c.compound}</td>
                 </tr>

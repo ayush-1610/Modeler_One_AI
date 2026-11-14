@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { Banner } from "@/components/kit";
 import { PeekButton } from "@/components/kit/SourcePeek";
 import { Card } from "@/components/ui";
 import { send, type Envelope, type Schema } from "@/lib/api";
@@ -47,7 +48,7 @@ export function FileTagLine({ file, onRetag }: { file: ClientFile; onRetag: Reta
           </span>
         </div>
       )}
-      {error && <div className="banner err">{error}</div>}
+      {error && <Banner tone="err">{error}</Banner>}
     </div>
   );
 }
@@ -84,7 +85,7 @@ function SheetLine({ t, read, proposed, byCode, reading, onRead, onClassify }: {
                     onClick={async () => { const e = await onClassify(category, reason); setError(e); if (!e) setChanging(false); }}>Set</button>
           </div>
         )}
-        {error && <div className="banner err">{error}</div>}
+        {error && <Banner tone="err">{error}</Banner>}
       </td>
       <td>{read ? <span className="chip low">read ✓{read > 1 ? ` (${read})` : ""}</span>
                : byCode ? <span className="chip medium" title="read on arrival; what the sheet does not say is asked on its study's or product's card">
@@ -148,7 +149,7 @@ function DocumentReading({ projectId, file, agents, running, agentReading, act }
           {last.summary && <p className="muted m-4-0-0">{last.summary}</p>}
         </div>
       )}
-      {notice && <div className="banner ok">{notice}</div>}
+      {notice && <Banner tone="ok">{notice}</Banner>}
     </div>
   );
 }
@@ -218,11 +219,11 @@ function FileCard({ projectId, file, agents, running, agentReading, act, onRetag
         <ul className="flags" aria-label="Problems found">{file.issues.map((i, k) => <li key={k}><code>{i.location}</code> {i.message}</li>)}</ul>
       )}
       {file.brief_mismatches.length > 0 && (
-        <div className="banner warn mt-6">
+        <Banner tone="warn" className="mt-6">
           Not in the brief: {file.brief_mismatches.join(" · ")}. Check with the client or update the brief.
-        </div>
+        </Banner>
       )}
-      {notice && <div className="banner ok">{notice}</div>}
+      {notice && <Banner tone="ok">{notice}</Banner>}
       {reading && (
         <SheetReader key={reading} projectId={projectId} file={file} sheet={reading} last={last} remember={remember}
                      onClose={() => setReading(null)} onSaved={async (m) => { setReading(null); await onSaved(m); }} />
@@ -275,7 +276,7 @@ function ProfileRow({ p, onPropose }: { p: Profile; onPropose: (formulation: str
             <button className="btn" disabled={!name.trim()} onClick={async () => setError(await onPropose(name))}>Propose as release model</button>
           </div>
         )}
-        {error && <div className="banner err">{error}</div>}
+        {error && <Banner tone="err">{error}</Banner>}
       </td>
     </tr>
   );

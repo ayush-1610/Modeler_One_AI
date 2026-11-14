@@ -59,7 +59,8 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         {/* the sidebar is inside the providers too: its "Add data" card changes the project and refreshes the page */}
         <Providers>
           <Motion />
-          {/* an open escalation asks for its signed decision on any page (the review inbox is gone, 2026-11-11) */}
+          {/* an open escalation asks for its signed decision on its own project's pages and shows a count on every other page
+              (the review inbox is gone; decision 1 of 2026-11-11) */}
           <EscalationPopup />
           <div className="app">
             <Nav user={user} />

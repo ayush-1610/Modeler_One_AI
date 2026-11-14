@@ -40,7 +40,8 @@ test("open P4 items are settled on the Model inputs page", async ({ page, reques
 
   await page.goto(`/projects/${projectId}/inputs`);
   const missing = page.getByTestId("still-missing");
-  await expect(missing).toContainText("Still missing to run");
+  // the panel names the next step, Review & sign, not the run (audit 2, item 10)
+  await expect(missing).toContainText("Still needed before Review & sign");
   await expect(missing.getByTestId("missing-conflict-bind.fu")).toBeVisible();
   await shot(page, "1-todo");
 

@@ -85,14 +85,19 @@ export function scrollFx(main: HTMLElement): () => void {  // `main`: the page a
   const reduce = reducedMotion();
   const timers: number[] = [];
   const seen = new WeakSet<Element>();
+  // what waits to fade in carries `.reveal-pending` (opacity 0, design.css), not an inline style, so print and save-as-PDF
+  // show it (the print rule) and tooling can turn it off
+  const PENDING = "reveal-pending";
+  const pending = new Set<HTMLElement>();
   const settle = (el: HTMLElement) => {
-    // the reveal's inline styles go once it has played
-    timers.push(window.setTimeout(() => { el.style.transition = ""; el.style.opacity = ""; }, 900));
+    // the reveal's inline transition goes once it has played
+    timers.push(window.setTimeout(() => { el.style.transition = ""; }, 900));
   };
+  const show = (el: HTMLElement) => { pending.delete(el); el.classList.remove(PENDING); };
   const reveal = (el: HTMLElement, i: number) => {
     timers.push(window.setTimeout(() => {
       el.style.transition = `opacity 800ms ${EASE}`;
-      el.style.opacity = "1";
+      show(el);
       settle(el);
     }, i * 90));
   };
@@ -105,6 +110,17 @@ export function scrollFx(main: HTMLElement): () => void {  // `main`: the page a
       reveal(e.target as HTMLElement, batch++);
     }
   }, { threshold: 0.06, rootMargin: "0px 0px -5% 0px" });
+  // safety net: anything still hidden on screen after 1.8 s is shown (an observer can miss a fast layout change); it runs
+  // only while something waits
+  let net = 0;
+  const check = () => {
+    pending.forEach((el) => {
+      if (!el.isConnected) { pending.delete(el); return; }
+      const r = el.getBoundingClientRect();
+      if (r.top < window.innerHeight && r.bottom > 0) { io.unobserve(el); reveal(el, 0); }
+    });
+    if (!pending.size) { window.clearInterval(net); net = 0; }
+  };
   const SELECTOR = "section, details, .card, .input-block, [data-reveal]";
   const prepare = () => {
     if (reduce) return;
@@ -116,22 +132,19 @@ export function scrollFx(main: HTMLElement): () => void {  // `main`: the page a
       if (el.getBoundingClientRect().top < window.innerHeight) return;
       // a fade in place, never a rise: a figure being digitized or a drop target must not move under the pointer, or a
       // point would be recorded where the person did not click
-      el.style.opacity = "0";
+      el.classList.add(PENDING);
+      pending.add(el);
       io.observe(el);
     });
+    if (pending.size && !net) net = window.setInterval(check, 1800);
   };
   prepare();
   let queued = 0;
   const mo = new MutationObserver(() => { if (!queued) queued = requestAnimationFrame(() => { queued = 0; prepare(); }); });
   mo.observe(main, { childList: true, subtree: true });
-  // safety net: anything still hidden on screen after 1.8 s is shown (an observer can miss a fast layout change)
-  const net = window.setInterval(() => {
-    main.querySelectorAll<HTMLElement>(SELECTOR).forEach((el) => {
-      if (el.style.opacity !== "0") return;
-      const r = el.getBoundingClientRect();
-      if (r.top < window.innerHeight && r.bottom > 0) { io.unobserve(el); reveal(el, 0); }
-    });
-  }, 1800);
+  // a printout or a saved PDF holds the whole page: everything still waiting is shown at once, without the fade
+  const beforePrint = () => { pending.forEach((el) => { io.unobserve(el); show(el); }); };
+  window.addEventListener("beforeprint", beforePrint);
 
   let ticking = false;
   const onScroll = () => {
@@ -161,7 +174,9 @@ export function scrollFx(main: HTMLElement): () => void {  // `main`: the page a
   onScroll();
   return () => {
     io.disconnect(); mo.disconnect(); cancelAnimationFrame(queued); window.clearInterval(net); timers.forEach((t) => window.clearTimeout(t));
+    pending.forEach(show);
     window.removeEventListener("scroll", onScroll);
+    window.removeEventListener("beforeprint", beforePrint);
   };
 }
 

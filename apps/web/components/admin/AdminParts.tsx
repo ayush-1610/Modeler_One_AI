@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 
 import { Card } from "@/components/ui";
 import { PRICED_AS, percent, tokens, usd, when, type LimitRow, type PricedAs, type Usage, type UsageGroup } from "@/lib/admin";
+import { Banner } from "@/components/kit";
 
 /** The console's pages, and (on the pages with costs) the model the costs are priced at: a link per model, since the
  *  page is read on the server. */
@@ -103,7 +104,7 @@ export function LimitWarnings({ warnings, month, priced }: { warnings: LimitRow[
   if (warnings.length === 0) return null;
   const reached = warnings.some((w) => w.level === "over");
   return (
-    <div className={`banner ${reached ? "err" : "warn"} mb-16`} data-testid="limit-warnings">
+    <Banner tone={reached ? "err" : "warn"} className="mb-16" testId="limit-warnings">
       <strong>{reached ? "A monthly limit is reached" : "A monthly limit is near"}</strong> ({month}; you are warned at 80 % and
       at 100 %; the agents keep running, and the companies&apos; people see nothing of it):
       <ul className="plain-list m-6-0-0">
@@ -117,6 +118,6 @@ export function LimitWarnings({ warnings, month, priced }: { warnings: LimitRow[
         ))}
       </ul>
       <Link href={`/admin/limits?priced_as=${priced}`}>Open the limits</Link>
-    </div>
+    </Banner>
   );
 }

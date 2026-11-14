@@ -11,15 +11,21 @@ function head(text: string, max: number): { lead: string; rest: number } {
   return { lead: `${text.slice(0, max).trimEnd()}…`, rest: text.length - max };
 }
 
-export function Clip({ text, max = MAX, testId }: { text: string | null | undefined; max?: number; testId?: string }) {
+/** `lead`, when given, says what the text is (a structured value's one-line summary) and the whole text is behind it. */
+export function Clip({ text, max = MAX, testId, lead: said }: {
+  text: string | null | undefined; max?: number; testId?: string; lead?: string;
+}) {
   if (!text) return <span className="muted">—</span>;
-  if (text.length <= max) return <span data-testid={testId}>{text}</span>;
-  const { lead, rest } = head(text, max);
+  if (said === undefined && text.length <= max) return <span data-testid={testId}>{text}</span>;
+  const { lead, rest } = said === undefined ? head(text, max) : { lead: said, rest: text.length };
+  // a given summary is not the start of the text: say the whole length, never "+ N" as if N more followed it
+  const more = said === undefined ? `+ ${rest.toLocaleString()} characters · show all`
+                                  : `show the full text (${text.length.toLocaleString()} characters)`;
   return (
     <details className="clip" data-testid={testId}>
       <summary>
         <span className="clip-lead">{lead}</span>{" "}
-        <span className="clip-more">+ {rest.toLocaleString()} characters · show all</span>
+        <span className="clip-more">{more}</span>
       </summary>
       <pre className="clip-full">{text}</pre>
     </details>

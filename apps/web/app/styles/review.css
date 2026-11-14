@@ -13,7 +13,7 @@
 
 /* the studies under the canvas */
 #review-studies .table-scroll { margin-top: 12px; }
-#review-studies tr.left-out td { color: var(--ink-faint); }
+#review-studies tr.left-out td { color: var(--ink-quiet); }
 
 /* the review table */
 .review-filters { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
@@ -21,7 +21,7 @@
   border: 1px solid var(--line); background: var(--surface); color: var(--ink-dim); display: inline-flex; gap: 6px; align-items: center; }
 .review-filters button[aria-pressed="true"] { border-color: var(--sim); color: var(--brand-ink); font-weight: 600;
   background: color-mix(in srgb, var(--sim) 12%, var(--surface)); }
-.review-filters .count { font: 500 11.5px/1 var(--font-mono, ui-monospace, monospace); color: var(--ink-faint); }
+.review-filters .count { font: 500 11.5px/1 var(--font-mono, ui-monospace, monospace); color: var(--ink-quiet); }
 .review-table td { vertical-align: top; font-size: 13.5px; }
 .review-table tr.waiting td:first-child { box-shadow: inset 3px 0 0 var(--warn); }
 .review-source { max-width: 420px; }

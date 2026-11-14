@@ -98,8 +98,10 @@ export default async function HistoryPage({
               {listed.map((a) => (
                 <tr key={`${a.kind}/${a.id}`}>
                   <td>
+                    {/* the kind is a small prefix the id can break after, so on a phone the column is as wide as the
+                        short id ('ev-08e7f62a22'), not the whole 'evidence/…' path (audit 2, item 8) */}
                     <Link href={here({ kind: a.kind, id: a.id })}>
-                      <code>{a.kind}/{a.id}</code>
+                      <code><span className="artifact-kind">{a.kind}/</span><wbr />{a.id}</code>
                     </Link>
                   </td>
                   <td className="num">v{a.version}</td>

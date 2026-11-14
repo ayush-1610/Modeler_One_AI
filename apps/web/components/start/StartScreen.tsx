@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
 
-import { Hero } from "@/components/kit";
+import { Banner, Hero } from "@/components/kit";
 import { SourcePeek } from "@/components/kit/SourcePeek";
 import { DrugAndFiles } from "@/components/start/Blocks";
 import { RiskPicker } from "@/components/start/RiskPicker";
@@ -47,10 +47,10 @@ export function StartScreen({ projectId, steps }: { projectId: string; steps?: R
   if (page.problem || !view) {
     return (
       <>
-        <Hero tone="start" eyebrow="Step 1 of 4" title="Start" lede={lede} />
+        <Hero tone="start" eyebrow="Step 1 of 4 · Start" title="Start" lede={lede} />
         {steps}
         <div className="start-screen">
-          {page.problem ? <div className="banner err">{page.problem}</div> : <p className="muted">Loading the project…</p>}
+          {page.problem ? <Banner tone="err">{page.problem}</Banner> : <p className="muted">Loading the project…</p>}
         </div>
       </>
     );
@@ -93,7 +93,7 @@ export function StartScreen({ projectId, steps }: { projectId: string; steps?: R
 
   return (
     <>
-    <Hero tone="start" eyebrow="Step 1 of 4" title={<>Start · {view.brief.drug_name}</>} lede={lede}
+    <Hero tone="start" eyebrow="Step 1 of 4 · Start" title={<>Start · {view.brief.drug_name}</>} lede={lede}
           actions={(
             <button type="button" className="btn" disabled={busy || view.extraction_running} onClick={readAgain} data-testid="start-read">
               {view.extraction_running ? "Reading the proposal…" : "Read the proposal again"}

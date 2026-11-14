@@ -8,6 +8,7 @@ import { useState } from "react";
 import { Card } from "@/components/ui";
 import { send, type Schema } from "@/lib/api";
 import { when } from "@/lib/admin";
+import { Banner } from "@/components/kit";
 
 type Page = Schema<"AgentsPage">;
 type Row = Page["agents"][number];
@@ -80,7 +81,7 @@ function AgentEditor({ row, page, onSaved }: { row: Row; page: Page; onSaved: (p
                        data-testid={`agent-reason-${row.agent}`} /></label>
       <button type="button" className="btn primary" disabled={busy || !changed || !reason.trim() || (needsModel && !model.trim())}
               onClick={() => void save()} data-testid={`agent-save-${row.agent}`}>Save</button>
-      {problem && <span className="banner err" data-testid={`agent-problem-${row.agent}`}>{problem}</span>}
+      {problem && <span className="banner err" role="alert" data-testid={`agent-problem-${row.agent}`}>{problem}</span>}
     </div>
   );
 }
@@ -156,8 +157,8 @@ function SwitchEveryAgent({ page, onSaved }: { page: Page; onSaved: (p: Page) =>
         <button type="submit" className="btn primary" data-testid="switch-submit"
                 disabled={busy || !usable || !reason.trim() || (needsModel && !model.trim())}>Switch every agent</button>
       </form>
-      {problem && <div className="banner err" style={{ marginTop: 10 }} data-testid="switch-problem">{problem}</div>}
-      {done && <div className="banner ok" style={{ marginTop: 10 }} data-testid="switch-done">{done}</div>}
+      {problem && <Banner tone="err" className="mt-10" testId="switch-problem">{problem}</Banner>}
+      {done && <Banner tone="ok" className="mt-10" testId="switch-done">{done}</Banner>}
     </Card>
   );
 }

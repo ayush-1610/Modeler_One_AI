@@ -62,8 +62,8 @@ test.beforeAll(() => {
 // the S4/S5 signature this flow leaves waiting would otherwise ask over the next specs' pages
 test.afterAll(() => dropEscalations((r) => r.campaignId === ID));
 
-// A waiting decision is asked as a dialog on any page (escalation-popup.spec.ts); the review inbox it was decided in
-// before is gone (2026-11-11), so this flow puts it off, reads the page, opens it again and decides it in the dialog.
+// A waiting decision is asked as a dialog on its campaign's own page (escalation-popup.spec.ts); the review inbox it was
+// decided in before is gone (2026-11-11), so this flow puts it off, reads the page, opens it again and decides it there.
 async function decideLater(page: Page) {
   await page.getByTestId("escalation-popup").getByTestId("escalation-later").click();
   await expect(page.getByTestId("escalation-popup")).toHaveCount(0);
@@ -78,7 +78,8 @@ test("an S5 failure: the diagnosis, learn not achievable, a signed limitation", 
   // the banner opens the decision again, in place
   await page.getByTestId("feedback-pending").getByTestId("open-decision").click();
   const card = page.getByTestId("escalation-popup");
-  await expect(card).toContainText(`campaign ${ID}, stage S5`);
+  await expect(card.getByTestId("escalation-campaign")).toContainText(ID);
+  await expect(card.locator(".dialog-title")).toContainText("stage S5");
   await expect(card.getByTestId("feedback-diagnosis")).toContainText("over-predicted");
   await expect(card.getByTestId("ms01-suggestion")).toContainText("record a limitation");
   await expect(card.getByTestId("decision-select").locator("option[value=learn]")).toBeDisabled();
@@ -90,10 +91,13 @@ test("an S5 failure: the diagnosis, learn not achievable, a signed limitation", 
   await card.locator("textarea").first().fill("fed claims are withdrawn from the context of use");
   await card.getByTestId("decision-sign").click();
   await page.getByTestId("decision-confirm").click();
-  // the dialog reads the open escalations again: the S5 decision is gone and the S4/S5 evaluation now waits for its
-  // signature, asked in the same place
-  await expect(page.getByRole("dialog", { name: `Your decision is needed: campaign ${ID}, stage S6` })).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByRole("dialog", { name: `Your decision is needed: campaign ${ID}, stage S5` })).toHaveCount(0);
+  // the signed result stays on screen (item 5 of the 2026-11-11 audit: it no longer gives way to the next decision by
+  // itself); the S4/S5 evaluation now waits for its signature, and is asked in the same place on the person's click
+  await expect(card.getByTestId("decision-recorded")).toContainText("Signed:");
+  await expect(card.getByTestId("escalation-next")).toContainText("1 waiting", { timeout: 30_000 });
+  await card.getByTestId("escalation-next").click();
+  await expect(page.getByRole("dialog", { name: /^Your decision is needed · .*stage S6/ })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: /stage S5/ })).toHaveCount(0);
 
   await page.goto(`/campaigns/${ID}`);
   await decideLater(page);                                                  // the S4/S5 signature now waits

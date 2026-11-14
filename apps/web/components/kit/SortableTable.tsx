@@ -84,6 +84,8 @@ export type SortableRow = {
   /** the words the text filter searches */
   filter?: string;
   keep?: boolean; testId?: string; id?: string; className?: string;
+  /** a cell's own class, in place of its column's (a text value in a numeric column is not right-aligned) */
+  cellClassName?: (string | undefined)[];
 };
 
 export function SortableTable({ columns, rows, testId, label, noun = "rows", pageSize = null, tail = false, filterPlaceholder, tableClassName }: {
@@ -112,7 +114,8 @@ export function SortableTable({ columns, rows, testId, label, noun = "rows", pag
             {view.visible.map((r) => (
               <tr key={r.key} data-testid={r.testId} id={r.id} className={r.className}>
                 {r.cells.map((cell, i) => (
-                  <td key={columns[i]?.key ?? i} className={[columns[i]?.numeric ? "num" : "", columns[i]?.className ?? ""].join(" ").trim() || undefined}>
+                  <td key={columns[i]?.key ?? i}
+                      className={r.cellClassName?.[i] ?? ([columns[i]?.numeric ? "num" : "", columns[i]?.className ?? ""].join(" ").trim() || undefined)}>
                     {cell}
                   </td>
                 ))}

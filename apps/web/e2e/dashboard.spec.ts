@@ -2,6 +2,7 @@
 // project's card shows its four steps and opens the step that waits, and the sidebar is a rail that opens on hover and can be pinned.
 import { expect, test } from "@playwright/test";
 
+import { dropEscalations, seedReadRoot } from "./fixtures/escalations";
 import { AUTH } from "./fixtures/inputs";
 
 test("the dashboard reads each project's steps, filters by them, and the sidebar opens and pins", async ({ page, request }) => {
@@ -39,7 +40,8 @@ test("the dashboard reads each project's steps, filters by them, and the sidebar
   await expect(page.getByTestId("sidebar")).not.toHaveClass(/open/);
   // named on the rail too (this was the "Review inbox" link, removed 2026-11-11; escalation-popup.spec.ts checks that an
   // escalation's attention item opens its campaign)
-  await expect(nav.getByRole("link", { name: "Start from proposal" })).toBeVisible();
+  // one name for the creation page, the dashboard's "+ New project" (audit 2, item 10)
+  await expect(nav.getByRole("link", { name: "New project" })).toBeVisible();
   await page.getByTestId("sidebar").hover();
   await expect(page.getByTestId("sidebar")).toHaveClass(/open/);
   await page.getByTestId("nav-pin").click();
@@ -55,4 +57,42 @@ test("the dashboard reads each project's steps, filters by them, and the sidebar
   // inside a project, the sidebar holds its own pages, History among them
   await page.goto(`/projects/${projectId}/start`);
   await expect(page.getByTestId("nav-history")).toHaveAttribute("href", `/projects/${projectId}/history`);
+});
+
+// Decision 1 of 2026-11-11: the dashboard is not a campaign's own page, so an open escalation never opens its dialog
+// here by itself; the corner control counts it, and opens the dialog on this page (software test data in the read root).
+test("the dashboard counts a waiting decision and never opens its dialog by itself", async ({ page, request }) => {
+  const name = `Dash decision ${Date.now()}`;
+  const created = await request.post("/api/v1/projects", { headers: AUTH, data: { name, compound: "Dashol" } });
+  const projectId = (await created.json()).data.id as string;
+  const id = `camp-dash-${Date.now()}`;
+  const stage = (s: string, status: string) => ({ stage: s, label: s, status, rounds: [], notes: [] });
+  seedReadRoot("campaigns", {
+    id, project: projectId, compound: "Dashol", question: "exposure", modelRisk: "medium", budgetSeconds: 3600,
+    elapsedSeconds: 60, currentStage: "S2", status: "ESCALATED", stages: [stage("S0", "PASSED"), stage("S2", "ESCALATED")],
+    gof: [], engine: { kind: "software-fixture", command: "seeded" },
+  });
+  seedReadRoot("escalations", {
+    id: `${id}-S2`, campaignId: id, stage: "S2", reasonCode: "ROUNDS_EXHAUSTED", evidence: "Seeded for the dashboard test.",
+    options: [{ id: "abort", label: "Stop the campaign", requiresSignature: true }],
+  });
+  try {
+    await page.goto("/");
+    await expect(page.getByRole("heading", { name: "Dashboard", level: 1 })).toBeVisible();
+    const waiting = page.getByTestId("escalation-waiting");
+    await expect(waiting).toContainText(/\d+ decisions? waiting · Open/);
+    await expect(page.getByTestId("escalation-popup")).toHaveCount(0);
+    // the project's next action is the decision, on the campaign's page, and it is listed once in "Needs your attention",
+    // by the escalation, in words (item 5 of the 2026-11-11 audit)
+    const card = page.getByTestId(`project-card-${projectId}`);
+    await expect(card).toContainText("Make the decision");
+    await expect(card).toHaveAttribute("href", `/campaigns/${id}`);
+    const listed = page.getByTestId("dash-attention").getByRole("link").filter({ hasText: name });
+    await expect(listed).toHaveCount(1);
+    await expect(listed).toContainText("Rounds exhausted");
+    await waiting.click();
+    await expect(page.getByTestId("escalation-popup")).toBeVisible();     // still decidable from here
+  } finally {
+    dropEscalations((r) => r.campaignId === id);
+  }
 });

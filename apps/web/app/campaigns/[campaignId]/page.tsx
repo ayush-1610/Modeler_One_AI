@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { AutoRefresh } from "@/components/AutoRefresh";
 import { FoldError } from "@/components/FoldError";
 import { PackageDownloads } from "@/components/PackageDownloads";
@@ -6,9 +8,12 @@ import { ConcentrationTimePlot } from "@/components/ConcentrationTimePlot";
 import { FeedbackDiagnosisView, FeedbackTimeline } from "@/components/campaign/Feedback";
 import { InfluenceHeatMap, LedgerTable } from "@/components/campaign/History";
 import { VbeCard } from "@/components/campaign/Vbe";
+import { EscalationsExpected } from "@/components/campaign/EscalationPopup";
+import { EngineWarning } from "@/components/campaign/EngineWarning";
 import { OpenDecisionButton } from "@/components/campaign/OpenDecisionButton";
-import { getCampaign } from "@/lib/reads";
-import { Hero } from "@/components/kit";
+import { getCampaign, getEscalations } from "@/lib/reads";
+import { reasonSentence } from "@/lib/reason";
+import { Banner, Hero } from "@/components/kit";
 import { SortableTable } from "@/components/kit/SortableTable";
 
 // the stages in pipeline order, for sorting the round history by stage
@@ -21,22 +26,31 @@ function mmss(s: number) {
 
 export default async function CampaignPage({ params }: { params: Promise<{ campaignId: string }> }) {
   const { campaignId } = await params;
-  const live = await getCampaign(campaignId);
+  const [live, liveEscalations] = await Promise.all([getCampaign(campaignId), getEscalations()]);
   const c = live.data;
   if (!c) {
-    // Never a sample campaign in its place: say what is actually the case, and keep checking.
+    // Never a sample campaign in its place: say what is actually the case. A campaign just started is checked for half a
+    // minute and then said not to be recorded (a mistyped or deleted id must not promise it will appear); an API that does
+    // not answer is asked again less and less often, up to every 30 s.
     return (
       <main>
         <Hero tone="run" eyebrow="Campaign" title={<code>{campaignId}</code>} />
         {live.notFound ? (
-          <div className="banner warn" data-testid="campaign-pending">
-            This campaign is not recorded yet. A campaign you have just started appears within a few seconds;
-            this page checks again on its own. If it never appears, the API log says why it did not start.
-          </div>
+          <AutoRefresh active giveUpAfterMs={30_000} gaveUp={
+            <div className="banner warn" role="status" data-testid="campaign-not-found">
+              No campaign with this id is recorded. Open it from its project&apos;s Run step, or from <Link href="/">Projects</Link>.
+            </div>}>
+            <Banner tone="warn" testId="campaign-pending">
+              This campaign is not recorded yet. A campaign you have just started appears within a few seconds; this page
+              checks again on its own for half a minute.
+            </Banner>
+          </AutoRefresh>
         ) : (
-          <ApiProblem problem={live.problem ?? "The campaign could not be read."} />
+          <>
+            <ApiProblem problem={live.problem ?? "The campaign could not be read."} />
+            <AutoRefresh active backoff />
+          </>
         )}
-        <AutoRefresh active />
       </main>
     );
   }
@@ -53,6 +67,10 @@ export default async function CampaignPage({ params }: { params: Promise<{ campa
     : [];
   const testOnly = Object.entries(c.realData ?? {}).filter(([, d]) => d.judged > 0 && !d.passable);
   const fmt = (v: number) => (Math.abs(v) >= 1000 ? v.toFixed(0) : v.toPrecision(3));
+  // a decision this campaign waits for: the page says so and opens it (the dialog may have been put off); the
+  // external-validation banner below already does when that is the reason
+  const waitingOn = (liveEscalations.data ?? []).find((e) => e.campaignId === c.id) ?? null;
+  const decisionBanner = !c.feedbackPending && (waitingOn !== null || (c.status === "ESCALATED" && liveEscalations.problem !== null));
   const cycles = (c.cycle ?? 1) > 1; // a feedback cycle ran: rounds and changes say which cycle they belong to
 
   return (
@@ -66,26 +84,28 @@ export default async function CampaignPage({ params }: { params: Promise<{ campa
           <span data-testid="internal-target"> and, for the internal studies, |prediction error| ≤ {c.internalTargetPe} % (the signed MAP)</span>
         )}
       </p>
-      {c.engine && c.engine.kind !== "pksim" && (
-        <div className="banner err mb-14" data-testid="engine-warning">
-          {c.engine.kind === "software-fixture"
-            ? <>Not a PBPK result: this campaign ran on a software test fixture (<code>{c.engine.command}</code>). Its
-                curves are synthetic; it checks the software path only. Run on PK-Sim for model evidence.</>
-            : <>The engine this campaign ran on is not identified as PK-Sim (<code>{c.engine.command}</code>). Treat
-                its numbers as unverified.</>}
-        </div>
-      )}
+      <EngineWarning engine={c.engine} />
       {c.engine?.kind === "pksim" && (
         <p className="muted fs-12 mt-0">Engine: PK-Sim (<code>{c.engine.command}</code>)</p>
       )}
       {testOnly.length > 0 && (
-        <div className="banner err mb-14" data-testid="real-data-warning">
+        <Banner tone="err" className="mb-14" testId="real-data-warning">
           <strong>TEST ONLY: no real observed data.</strong> {testOnly.map(([stage, d]) => `${stage}: ${d.label}`).join(" · ")}.
           {" "}A verdict judged on synthetic, illustrative or unrecorded data is not evidence; the S4/S5 evaluation cannot be
           signed in a project that is not exploratory.
+        </Banner>
+      )}
+      {decisionBanner && (
+        <div className="banner warn mb-14" role="status" data-testid="escalation-pending">
+          {waitingOn
+            ? <>Stage {waitingOn.stage} is waiting for your signed decision: {reasonSentence(waitingOn.reasonCode)}.{" "}
+                <OpenDecisionButton campaignId={c.id} /></>
+            : <>Stage {c.currentStage} stopped for a decision, but the open decisions could not be read
+                {" "}({liveEscalations.problem}). <OpenDecisionButton campaignId={c.id} /></>}
         </div>
       )}
       <AutoRefresh active={c.status === "RUNNING" || c.status === "QUEUED"} />
+      {(c.status === "RUNNING" || c.status === "QUEUED") && <EscalationsExpected />}
 
       <Card title="Stage progress" action={<span className="muted">current: {c.currentStage}</span>}>
         <div className="timeline">
@@ -159,10 +179,10 @@ export default async function CampaignPage({ params }: { params: Promise<{ campa
           {(c.feedback?.length ?? 0) > 0 && <FeedbackTimeline decisions={c.feedback!} />}
           {c.feedbackPending && (
             <>
-              <div className="banner warn m-8-0" data-testid="feedback-pending">
+              <Banner tone="warn" className="m-8-0" testId="feedback-pending">
                 External validation failed: a signed decision is needed — record a limitation, learn from the failing
                 study, bring new evidence, or stop. <OpenDecisionButton campaignId={c.id} />
-              </div>
+              </Banner>
               <FeedbackDiagnosisView diagnosis={c.feedbackPending} />
             </>
           )}

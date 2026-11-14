@@ -10,6 +10,7 @@ import { useState } from "react";
 
 import { Dialog } from "@/components/kit/Dialog";
 import { useResource } from "@/lib/hooks";
+import { Banner } from "@/components/kit";
 
 export type PeekSource = {
   doc_sha256?: string | null;
@@ -114,8 +115,8 @@ function StoredPage({ projectId, source }: { projectId: string; source: PeekSour
         <a className="btn small" href={`/api/v1/projects/${projectId}/documents/${source.doc_sha256}/raw`} target="_blank" rel="noreferrer">
           Open the original</a>
       </div>
-      {doc?.warnings.map((w) => <div key={w} className="banner warn">{w}</div>)}
-      {problem && <div className="banner err">{problem}</div>}
+      {doc?.warnings.map((w) => <Banner key={w} tone="warn">{w}</Banner>)}
+      {problem && <Banner tone="err">{problem}</Banner>}
       {!page ? <p className="muted">Loading the source…</p>
         : table ? <Grid text={page.text} quote={quote} locator={source.locator} />
           : <pre className="doc-page">{highlight(page.text, quote)}</pre>}

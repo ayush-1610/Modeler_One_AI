@@ -32,30 +32,57 @@ function Pick({ path, options, labels, stored, save, testId }: {
   path: string; options: string[]; labels: Record<string, string>; stored: unknown; save: Save; testId: string;
 }) {
   const [value, setValue] = useState<unknown>(stored);
-  return <Seg options={options} labels={labels} value={value} testId={testId}
-              onPick={(v) => { setValue(v); void save([{ path, status: "EDITED", value: v }]); }} />;
+  const [problem, setProblem] = useState<string | null>(null);
+  // a refused save puts the stored choice back and says why, under the choice (2026-11-11 audit 2, item 7)
+  return (
+    <>
+      <Seg options={options} labels={labels} value={value} testId={testId}
+           onPick={async (v) => {
+             setValue(v);
+             const refused = await save([{ path, status: "EDITED", value: v }]);
+             setProblem(refused);
+             if (refused) setValue(stored);
+           }} />
+      {problem && <InlineIssue severity="error" testId={`${testId}-problem`}>Not saved: {problem}</InlineIssue>}
+    </>
+  );
 }
 
 /** The formulation types, ticked at once and saved as a whole (none ticked clears the field). */
 function Formulations({ def, stored, save }: { def: FieldDef; stored: unknown; save: Save }) {
   const [value, setValue] = useState<unknown>(stored);
+  const [problem, setProblem] = useState<string | null>(null);
   const path = "scope.formulation_types";
-  return <ValueInput def={def} value={value} testId="pick-formulation_types" onChange={(v) => {
-    setValue(v);
-    void save([Array.isArray(v) && v.length ? { path, status: "EDITED", value: v } : { path, status: "MISSING" }]);
-  }} />;
+  return (
+    <>
+      <ValueInput def={def} value={value} testId="pick-formulation_types" onChange={async (v) => {
+        setValue(v);
+        const refused = await save([Array.isArray(v) && v.length ? { path, status: "EDITED", value: v } : { path, status: "MISSING" }]);
+        setProblem(refused);
+        if (refused) setValue(stored);
+      }} />
+      {problem && <InlineIssue severity="error" testId="pick-formulation_types-problem">Not saved: {problem}</InlineIssue>}
+    </>
+  );
 }
 
 /** A scenario's dose, edited where its route is (page review 1: it was in the notes). */
 function Dose({ path, index, stored, save }: { path: string; index: number; stored: number | null; save: Save }) {
   const [text, setText] = useState(stored == null ? "" : String(stored));
+  const [problem, setProblem] = useState<string | null>(null);
   const changed = text.trim() !== (stored == null ? "" : String(stored));
+  // a refused dose keeps what was typed, marked invalid, with the reason under it: never dropped silently (audit 2, item 7)
   return (
     <span className="route-dose">
       <input type="number" min={0} step="any" value={text} aria-label={`Dose of scenario ${index + 1} (mg)`} className="w-90"
-             data-testid={`dose-${index}`} onChange={(e) => setText(e.target.value)}
-             onBlur={() => changed && save([text.trim() ? { path, status: "EDITED", value: Number(text) } : { path, status: "MISSING" }])} />
+             data-testid={`dose-${index}`} aria-invalid={problem ? true : undefined}
+             onChange={(e) => { setText(e.target.value); setProblem(null); }}
+             onBlur={async () => {
+               if (!changed) return;
+               setProblem(await save([text.trim() ? { path, status: "EDITED", value: Number(text) } : { path, status: "MISSING" }]));
+             }} />
       <span className="muted"> mg</span>
+      {problem && <InlineIssue severity="error" testId={`dose-${index}-problem`}>The dose is not saved: {problem}</InlineIssue>}
     </span>
   );
 }

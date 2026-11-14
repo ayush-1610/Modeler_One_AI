@@ -106,7 +106,7 @@ test("sign-in through Keycloak, and a signature asks for the password and the au
 
   // the decision is asked in the pop-up, on this page
   const card = page.getByTestId("escalation-popup");
-  await expect(card).toContainText(`campaign ${ID}, stage S2`);
+  await expect(card.getByTestId("escalation-campaign")).toContainText(ID);   // the title names the project and stage (audit 2, item 5)
   await card.getByTestId("decision-select").selectOption("abort");
   await card.locator("textarea").first().fill("the sign-in test stops this seeded campaign");
   await card.getByTestId("decision-sign").click();
@@ -127,7 +127,8 @@ test("sign-in through Keycloak, and a signature asks for the password and the au
 
   // the decision was sent again with the step-up and accepted: the escalation is gone
   await expect(page.getByTestId("step-up-dialog")).toHaveCount(0);
-  await expect(page.getByRole("dialog", { name: `Your decision is needed: campaign ${ID}, stage S2` })).toHaveCount(0);
+  await expect(card.getByTestId("decision-recorded")).toContainText("Signed:");   // kept on screen until closed (audit 2, item 5)
+  await expect(page.getByRole("dialog", { name: /^Your decision is needed/ })).toHaveCount(0);
 
   // a second signature asks for both again (nothing is reused, 21 CFR 11.200)
   const again = page.evaluate(async (project) => (await fetch(`/api/v1/projects/${project}/signatures`, {

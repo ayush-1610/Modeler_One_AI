@@ -11,6 +11,7 @@ import { useState } from "react";
 
 import { PeekButton, type PeekSource } from "@/components/kit/SourcePeek";
 import { send, type Schema } from "@/lib/api";
+import { reducedMotion } from "@/lib/motion";
 
 import type { Profile } from "@/components/client/types";
 
@@ -228,7 +229,7 @@ export function ConfirmGroups({ projectId, groups, run }: { projectId: string; g
   const isOpen = (g: Group) => toggled[g.id] ?? (!oneByOne || g.id === current.id);
   const show = (g: Group) => {
     setToggled({ ...toggled, [g.id]: true });
-    window.setTimeout(() => document.getElementById(`group-${g.id}`)?.scrollIntoView({ block: "start", behavior: "smooth" }), 50);
+    window.setTimeout(() => document.getElementById(`group-${g.id}`)?.scrollIntoView({ block: "start", behavior: reducedMotion() ? "auto" : "smooth" }), 50);
   };
   return (
     <section className="confirm-groups" aria-label="The client's data" data-testid="client-groups">

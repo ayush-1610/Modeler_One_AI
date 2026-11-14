@@ -1,5 +1,6 @@
 // The change ledger and the influence map (plan §12.3 N5, N6; T-54): which parameter change moved which verdict,
 // and which parameters each study's simulation contains and responds to.
+import { breakable } from "@/components/kit";
 import type { InfluenceMap, LedgerEntry } from "@/lib/types";
 
 const num = (v: number | string | null | undefined) =>
@@ -59,7 +60,7 @@ export function InfluenceHeatMap({ map }: { map: InfluenceMap }) {
           <tbody>
             {map.parameters.map((p) => (
               <tr key={p}>
-                <td><code>{p}</code> <span className="muted">{map.status?.[p]?.toLowerCase()}
+                <td><code>{breakable(p)}</code> <span className="muted">{map.status?.[p]?.toLowerCase()}
                   {map.fitted_at_stage?.[p] ? ` at ${map.fitted_at_stage[p]}` : ""}</span></td>
                 {map.studies.map((s) => {
                   const cell = map.cells[p]?.[s];

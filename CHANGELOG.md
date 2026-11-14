@@ -15,6 +15,275 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Fixed — Audit 2 review: viewer-safe Run read, harvested-unit check on the server, control edge and focus ring, honest names (web, API)
+Review of the audit 2 commits (`docs/plans/2026-11-11-frontend-audit-2.md`). **What:** the Run page reads the signed
+plan through the read-only `GET …/plan:view` (Reader) instead of the canvas route `GET …/plan` (Writer, and able to
+write a default plan), so a viewer opening Run after Review & sign no longer gets a 403 banner in place of the run card.
+`POST …/evidence/{id}:decide` checks a typed PK-Sim value against the parameter's harvested units whatever the item holds
+(`inputs.harvested_units`, split out of `pksim_units`), so a re-decide of an accepted value takes no free-text unit; for a
+parameter with no harvested unit it takes only the source's own number in its own unit, and never overwrites a value
+already converted (before, both cases stored any `value_pksim` / `unit_pksim` sent and cleared `needs_conversion`).
+`--control-border` is opaque `#86868b` (3.6:1 on the card, 3.3:1 on the page; the `rgba(0,0,0,0.1)` it was is about
+1.25:1 against the comment's "3:1"). The dashboard / library / table search fields no longer set `outline: none` and
+keep the 2 px focus ring. The concentration–time chart drops `role="img"` from the Plotly surface (it hid the modebar's
+download control); the figure is described by a summary (`aria-describedby`), and its caption names only the kinds
+plotted. A held value's Accept is named after the value it records (the typed PK-Sim value and unit, or the target
+alone until both are given), and its reason field after the target, not the evidence id. The escalation's "why another
+learn cycle" reason has a visible label with the required mark. `Clip` with a summary says "show the full text (N
+characters)" instead of "+ N characters". **Why:** findings of the audit 2 review. **Impact:** no API contract change
+(the 422 is the existing refusal); no SME content touched. **Tests:** `test_plan_api` (a viewer reads `plan:view` after
+the signature, `GET …/plan` stays 403), `test_inputs_api` (re-decide with a non-harvested unit, a parameter with no
+harvested unit, a converted value not overwritten); e2e `a11y-pass` (control edge ≥ 3:1 on card and page, search focus
+ring 2 px), `held-value-pksim-unit` (Accept and reason names; `inputs-populations` now finds Accept by the target alone), `campaign-monitor` (summary, no `role="img"`, caption
+names only the kinds drawn; this asserted the surface's aria-label before), `cpf-page` (the Clip wording).
+
+### Fixed — Accessibility and wording pass: motion that stops, AA contrast, outline, chart text alternative, one name per step (web)
+Frontend audit 2, item 10 (`docs/plans/2026-11-11-frontend-audit-2.md`). **What:** the hero curve draws once (2.4 s)
+instead of every 7 s forever (WCAG 2.2.2); both reduced-motion blocks now also set `animation-iteration-count: 1` and
+`scroll-behavior: auto`, stop the hero curve at its drawn state and the skeleton sweep (they flickered at 0.01 ms per
+cycle), and the three JS `scrollIntoView` calls jump under reduced motion. Small text no longer uses `--ink-faint`
+(2.99:1): 13 rules move to `--ink-quiet` (4.66:1). `--pass-ink` #17663a and `--warn-ink` #9a4500 (were 4.03 and 4.29:1
+on their 12 px chip tints over `--bg`, now 5.35 and 5.37:1), a `--brand-ink-chip` #0058b0 for `.chip.brand` (5.29:1),
+and `--ink-2` for the filter counts (6.34:1); there is no dark theme to re-check. `SidePanel` takes a `level`; the Inputs
+rail's panels and "Readiness and sources" are h2, so Inputs has no h1 → h3 jump. Escape closes the phone menu and returns
+focus to its toggle. The raw `.banner` divs become the kit `<Banner>` (role alert for errors, status otherwise; it gains
+`className`), and the inline span/li banners get role alert. The goodness-of-fit chart has a figcaption, a labelled
+`role="img"` plot, a "The data" table of every point it draws, powers-of-ten ticks (no '100µ' beside µmol/l), a band in
+the series' own token colour without its own legend entry, 'Predicted' / 'Observed' legend names (the study on hover, or
+in the name when the chart has several) and a modebar with only the download. One step pattern, "Step n of 4 · <label>",
+on every step page and its loading skeleton; the Run page reads "Run · <project>" with a lede about the run; the creation
+page is "New project" (nav, head; its button "Open Start"). Labels lose internal codes: "Draft the rationale" (A5 in the
+tooltip), "Missing before the model can be built", "Everything the model build needs", "fitted" and "ready to build" on
+the compound page (the PK-Sim origin in the chip's title). Inputs › Studies uses the Plan's `ROLE_LABEL` (no more
+"SUPPORTIVE · supportive"), a no-break space in "n 6" and "10 mg", and one-line link buttons and chips. `.cols-2` aligns
+its cards to the top (the one-row Compounds card no longer stretches ~600 px), and study ids on the project overview are
+plain text, as on Inputs. CPF values keep their full stored precision (the skeptic's correction). **Why:** each was low
+to medium, but most touched every page. **Impact:** wording and styling only; no data, route or API change.
+**Tests:** new `e2e/a11y-pass.spec.ts` (no `color: var(--ink-faint)` text rule; the hero curve plays once and not at all
+under reduced motion, with no infinite animation left; Escape closes the phone menu and refocuses its toggle; no heading
+skip on the three Inputs tabs and the "Step 2 of 4 · Inputs" eyebrow); `campaign-monitor.spec.ts` checks the chart's
+caption, label, data table and that no y tick ends in an SI suffix. `shell`, `dashboard` and `inputs-todo` specs updated
+for the renamed nav item and side panel (deliberate wording changes, commented).
+
+### Fixed — Resilience: honest liveness, polling that recovers, read timeouts, plain outage messages (web)
+Frontend audit 2, item 9 (`docs/plans/2026-11-11-frontend-audit-2.md`). **What:** the sidebar's liveness tests the
+last read's failure before its cached answer, so it no longer says "live" after the API stops. A polled `useResource`
+read that fails keeps polling at a doubling interval capped at 30 s (it stopped for good before, so the decision pop-up,
+the liveness and a run's progress never recovered without a reload); `useResource` also returns `updatedAt` and `stale`.
+Every GET (`serverGet`, the browser's `get`) gives up after 45 s (`NEXT_PUBLIC_MODELER_READ_TIMEOUT_S` /
+`MODELER_READ_TIMEOUT_S`) with one sentence ("The API did not answer within 45 s; what is shown may be out of date.");
+writes and multipart uploads keep the proxy's long timeout. A bare 5xx now reads "The API is not answering right now
+(HTTP 500); what is shown may be out of date." for a read; "Try fewer files at once" is kept for uploads only, and the
+MODELER_API_BASE operator hint no longer reaches the browser. `AutoRefresh` skips hidden tabs (one refresh on return),
+backs off to 30 s while the API does not answer, and can give up: a campaign id that is not recorded is checked for
+30 s, then the page says "No campaign with this id is recorded." instead of promising it will appear. The
+goodness-of-fit plot keeps the person's zoom and pan (`uirevision`), re-plots only when the series' content changes,
+is purged on unmount and says "The plot could not be loaded; reload the page." when Plotly fails to load. Sections
+waiting to fade in carry `.reveal-pending` instead of an inline opacity; a print rule and a `beforeprint` handler show
+them, and the 1.8 s safety-net interval runs only while something waits. **Why:** the API outage states lied (live
+when down, never recovering), a hung API left pages loading for minutes, every outage gave upload and operator advice,
+a wrong campaign id polled forever, the running campaign's plot reset the zoom under the pointer every 2.5 s, and a
+printed or PDF-saved page lost every section not scrolled to. **Impact:** web only; no API or science change.
+**Tests:** new `e2e/resilience.spec.ts` (liveness after a later failure, recovery of a first failed poll, the one-line
+read failure, the not-recorded campaign giving up, print and `beforeprint` showing pending sections).
+
+### Fixed — Phone layout: no sideways page, a 44 px step bar, wide tables that show their key column and their action (web)
+Frontend audit 2, item 8 (`docs/plans/2026-11-11-frontend-audit-2.md`). **What:** `.table-scroll` and the panels that
+scroll a table (`.card:has(> table)`, `.card:has(table)` at ≤900px) are now `position: relative`, so absolutely
+positioned content inside them (the sr-only column-header text) is contained. The Library was 603 px wide at 390 px.
+At ≤760px the step bar is one row 44 px tall: numbered dots, with the current step's name and state. Other steps' names
+stay in the DOM for screen readers. The line saying what the step waits on is no longer held in view; the bar's wrap is
+`display: contents`, so only the row is sticky. The step bar no longer covers the top 193 px of an 844 px screen.
+`scroll-padding-top` is 128 px at ≤760px and 138 px at ≤900px (96 px before), so in-page jumps land below the bars.
+`.table-scroll` has a CSS-only edge shadow where more columns are hidden (`background-attachment: local`/`scroll`, no
+motion). At ≤760px its first column is sticky, 120–140 px wide, and its text wraps rather than being cut to an ellipsis.
+The Library's Withdraw/Restore button is under the document's name, at every width, and the Actions column is gone.
+The button keeps its test id and is now named "Withdraw <file>". History shows the artifact kind as a small muted
+prefix the id can break after, so the column is as wide as the short id. The full `kind/id` text is unchanged. On the
+campaign influence map, the parameter path breaks only after '.' and '|' (`breakable()` from the CPF page, now in the
+kit). The sticky 140 px name column overrides the 220 px minimum on a phone, so heat cells are on screen beside it.
+**Why:** this is the owner's phone-layout item. Sideways scrolling, a bar covering a quarter of the screen, and
+off-screen actions with no cue made the step pages hard to use on a phone. **Impact:** layout only. No value, API or
+signature flow changed. **Tests:** new `e2e/phone-layout.spec.ts` covers three things. First, Library `scrollWidth` is
+exactly 390, and Withdraw and the name column stay on screen after scrolling sideways. Second, on Start and History the
+step bar is ≤48 px tall and held at ≤120 px from the top, and `scroll-padding-top` ≥ its bottom. Third, other steps'
+labels are clipped but still in the DOM. `campaign-monitor.spec.ts` now also reloads the campaign at 390. It checks
+that the name column is ≤141 px, that a heat cell is in view, and that the page is ≤390 wide. The Populations
+390-width guard already exists (item 2).
+
+### Fixed — Forms: one base control style, visible required reasons, validation that never drops typed data (web)
+- **What:** (audit 2, item 7) a base rule in `design.css`, at `:where()` specificity, gives every bare text field, select
+  and textarea `font: inherit`, 14 px, 7 × 10 px padding, the control border and radius tokens and hover / focus / invalid
+  borders; there is no global min-height, so the compact client-data `.rf` fields and the scoped Start rules are unchanged;
+  `.table-tools` search fields join the pill style. New kit `ReasonField` (visible label "Reason, kept in the audit trail ·
+  required", `aria-required`), `LabeledControl` and `WaitingFor` (what a disabled action still waits for, in words). Used
+  for every reason on Inputs (keep one, correct, accept / reject, exclude a source, choose a process, leave a study out)
+  and on Review & sign (accept / reject a plan change, acknowledge a warning, a parameter's fit, the food-effect question).
+  Populations: each individual field has a visible label with its unit, `inputMode=decimal`, required marks on population,
+  sex and mean age, and Save stays disabled while a typed field is not a finite number or age from ≤ mean ≤ age to does not
+  hold; what is missing is listed beside the button. Studies' typed table: every field labelled (including "Time unit" and
+  "Concentration unit"), a "Still needed: …" list from the same checks as the button, and a per-field note for a dose or
+  n that is not a number. The fit form refuses non-numeric bounds (they were sent as NaN). Start: a refused route / model
+  choice (Pick), formulation types or scenario dose now shows the refusal under the control; Pick and formulations go back
+  to the stored value, the dose keeps what was typed and is marked `aria-invalid`.
+- **Why:** bare controls rendered at the browser default (about 21 px tall at 13.33 px; 288 such controls on Populations);
+  every Accept / Reject was gated on a placeholder-only "why"; the individual form sent "70 kg" as `null` and still said the
+  individual was entered; "Add the study" was disabled behind nine unstated conditions; Start's saves dropped their errors.
+- **Impact:** web only, no API change. Placeholders and aria-labels are kept, so the existing selectors still hold.
+- **Tests:** new `e2e/forms.spec.ts`: visible text controls are ≥ 28 px tall on Start, Inputs (Studies, Populations), Run,
+  Review & sign and Library (fails on the old CSS with a 21 px dose field on Start); the typed table names what it still
+  needs; "70 kg" keeps Save disabled and says why; the age range is checked; reason fields carry the required label.
+
+### Changed — Escalation dialog: names the project and engine, links the campaign, keeps the signed result on screen (web)
+- **What:** (audit 2, item 5) the decision dialog's title is "Your decision is needed · <project> · stage <stage>" (the
+  project is read client-side from the campaign and project records, no API change); the campaign id sits once in a muted
+  mono line under it, with the compound and a "See the campaign" link that puts the decision off before it navigates.
+  When the campaign ran on a software fixture (`engine.kind !== "pksim"`) the dialog shows the same "Not a PBPK result"
+  banner as the campaign page (now one `EngineWarning` component); when the campaign record cannot be read it says the
+  engine is not known. After a decision is signed, the dialog keeps it on screen with the signature's manifestation and
+  offers "Close" and "Next decision (n waiting)"; the next decision opens only on that click (`EscalationDecision` gains
+  `onSubmit`/`onDecided`/`actions`). "Sign & submit" moves into the dialog's action row beside "Decide later", with what is
+  still missing named next to it; Decision, Rationale and the measured-value fields (parameter, value, unit, source) have
+  labels tied to their controls. The reason code reads as a sentence ("Rounds exhausted", `lib/reason.ts`) in the
+  dialog and on the dashboard. `.dialog-title` wraps (`overflow-wrap: anywhere`) and `.dialog.wide` is capped at
+  `min(90vh, 100dvh - 32px)`. The campaign page shows "Stage X is waiting for your signed decision" with "Open the
+  decision" when an escalation is open (and the external-validation banner is not already shown); the project's Campaigns
+  table has "Open the decision" on escalated rows. On the dashboard a project with an open escalation has "Make the
+  decision" → `/campaigns/<id>` as its next action and is listed once in "Needs your attention".
+- **Why:** a Part 11 decision was signed from a dialog that named only a 32-character id (clipped on a phone), gave no
+  project, no way to the GoF plot and rounds, and no warning that the sweep's escalation came from a stub-engine campaign
+  (CLAUDE.md: fixture numbers are never PBPK evidence). The signed confirmation unmounted at once and the next decision,
+  possibly another project's, replaced the dialog under the pointer.
+- **Impact:** web only; how a decision is signed (step-up, the confirmation dialog, the API call) is unchanged. The
+  rationale stays optional (making it required needs the owner). The campaign id is shown in full, wrapped, rather than
+  shortened, so the record the person signs is identifiable.
+- **Tests:** `e2e/escalation-popup.spec.ts` (title, engine warning, engine unknown, campaign-page banner and table action,
+  a decided escalation kept until "Next decision", a 390 px guard: no sideways scroll, title wraps, action row on
+  screen); `e2e/dashboard.spec.ts` ("Make the decision", listed once, reason in words); `e2e/feedback.spec.ts` and
+  `e2e/oidc-signing.spec.ts` follow the new title and the "Next decision" click.
+
+### Changed — Run starts only from the MAP signed on Review & sign; the plan signature is confirmed first (web)
+- **What:** (audit 2, item 6 a–c; the owner's decision 2 of 2026-11-11) the Run step's "Run campaign" no longer generates
+  a fresh default MAP (`campaign:prepare`), signs it (`map_approval`, "Approved") and starts it in one click. The project
+  page reads the steps on the server and, once Review & sign is done, the plan: the Run card shows only for a signed,
+  current MAP with no deviation waiting, says which MAP version (and hash) it starts from, and its one button posts the
+  inputs that plan:sign staged (`map.campaign`) to `POST /projects/{id}/campaigns`. Otherwise `<StepBlocked step="run"
+  waitOn="review">` says what Review & sign still waits on and links there (StepBlocked gains `waitOn`). The plan's own
+  "Run the campaign (P6)" button becomes a "Go to Run" link, so one start remains. "Approve and Sign" is now "Sign the
+  plan (MAP)" (the dashboard's next action uses the same label) and opens an "Electronic signature" dialog first, as an
+  escalation's decision does: the compound, the MAP version (or the deviations and the version they supersede), the
+  meaning "Approved" (MIDD lead) and that the signature comes from step-up, never a password; Cancel signs nothing. The
+  plan's messages are `{ok, text}` in the kit `<Banner>`, so a refused signature, draft or rebase is an error with
+  role=alert, not a green note; the rebase's refusal, which was dropped, is shown. `prepareCampaign` and `signMap` are
+  removed from `lib/writes.ts`; the API routes stay for scripts and CI. No API change.
+- **Why:** the one-click start signed a second, unreviewed MAP and bypassed Review & sign, the one review D-27 relies
+  on, and there were two run buttons with different meanings. Part 11 §11.50 favours stating what is signed and its
+  meaning before signing.
+- **Impact:** a template-loaded project with no signed plan can no longer be run from the web app; it is run through the
+  API's scripted route, as the reference runs and CI do. Not done here (item 6 d–e): the Plan page's 409 read on the
+  server, the keyboard "Move…" on study chips, the kit Dialog for the move and kit Tabs for the diagrams.
+- **Tests:** `e2e/model-plan.spec.ts`: the Run step is blocked and links to Review & sign before the signature and while
+  a deviation waits; the confirmation names MAP v1 / the deviation into v2; Cancel signs nothing; a refused signature
+  shows with role=alert and the `err` tone; the run starts from the Run step and shows "MAP v2". `e2e/campaign-monitor.spec.ts`:
+  the template project's Run step is blocked with no Run button, and both runs start through the scripted API route.
+
+### Changed — Inputs › Populations: each held value once, on its row; profiles clipped; settled individuals one line (web)
+- **What:** (audit 2, item 2) the Populations tab renders its values in one `InputRows` call, so a held `indiv.*` value's
+  Accept/Reject sits on its row once (it was drawn twice, each copy with its own buttons). The individual's values are
+  folded by organ, from the harvested path's own container (open while a value waits, 20 rows at a time). Rows and cards
+  are titled with a readable name built only from the path's own segments ("Liver · EHC continuous fraction"); the full
+  id is shown once. The held-value message is dropped when the row already shows it, and Decide no longer repeats the
+  target. Flag codes are said as sentences, the code kept in a title. String values (the `expr.profile.*` documents,
+  ~37k characters) go through the kit `<Clip max={40}>`. The 40 study individuals page by 20 under a filter; the open ones
+  (not stated, healthy adult default) stay pinned and open, the entered and published ones are one line with an Edit
+  disclosure. After a decision focus goes to the next held value's "why" field (never its Accept), Accept/Reject carry
+  per-value names, and a refused decision or save is shown in its row (`InlineIssue`) as well as in the banner. CSS:
+  `.input-value{min-width:0;overflow-wrap:anywhere}`, hairline `.todo-item` rows, wrapping paths and `minw-*` overrides
+  at ≤760 px, controls at least 32 px tall in held rows and individual forms.
+- **Why:** the tab was 44,224 px at 1280 and 809 px wide on a phone, with every held value decidable twice.
+- **Impact:** with the published Dapagliflozin model, 7,921 px at 1280 and scrollWidth 390 at 390 px. No API change; no
+  value is converted or accepted for the person; motion unchanged (opacity-only reveal).
+- **Tests:** new `e2e/inputs-populations.spec.ts` (todo-review and its Accept/Reject once, the readable name, clipped
+  documents, settled individuals with no form, height < 12,000 at 1280, scrollWidth ≤ 390, focus after a decision);
+  held-value-pksim-unit, inputs-todo, inputs-workspace, published-model, model-inputs, target-size, value-reuse,
+  inputs-data-cards, compound-sources, studies-client-sheets, inputs-files-by-area, client-confirm, source-peek pass.
+
+### Fixed — a held number with no automatic conversion is accepted on its row, typed in a harvested PK-Sim unit (web + API read)
+- **What.** On Inputs, a held number with no PK-Sim value (flag `needs_conversion`) now shows two labelled controls in
+  its row: *Value in PK-Sim's unit* (`inputMode=decimal`, always empty, never prefilled or converted) and *PK-Sim unit*
+  (nothing chosen at first). Visible text replaces the hover title: "No automatic conversion: type the value in PK-Sim's
+  unit to accept it." Accept turns on once a reason, a finite number and a unit are given, and sends
+  `{state: ACCEPTED, reason, value_pksim, unit_pksim}`; each value is still accepted one at a time. The units come
+  from a new read-only field, `allowed_units`, on each evidence row of `GET/POST …/inputs` (`inputs.pksim_units`). It
+  lists only units harvested for that parameter. A process parameter gets the unit PK-Sim's harvested process table
+  places it in (`process_bindings`, e.g. Km → `µmol/l`). A published snapshot's value at an Individual or Simulation
+  path (`indiv.*`, `sim.*`) gets the snapshot's own unit (`""` = dimensionless). Otherwise the field is `null`, and the
+  row says that no PK-Sim unit is harvested for this parameter, so it cannot be accepted there and must be corrected or
+  rejected. `…/evidence/{id}:decide` refuses (422) a typed value whose unit is not among the harvested ones, and stores
+  the dimensionless `""` as no unit.
+- **Why.** Owner's decision 3 of 2026-11-11: the person types the value in PK-Sim's unit, and the unit comes only from
+  the harvested PK-Sim units (CLAUDE.md: never invent units; nothing is converted). Until now Accept was permanently
+  disabled on these rows, and its tooltip pointed to a "Literature page" that R5 removed. So every published-model
+  `indiv.*` value stayed in "Still missing to run" for good, and Inputs could not finish for a project that imports a
+  published OSP snapshot. Owner's decision 4: the `InputsWorkspace` comment saying "nothing is accepted here, the one
+  review is at the MAP signature" was stale. It now says that values are accepted per value on Inputs and that the
+  MAP signature covers the inputs as a whole.
+- **Impact.** API contract: an additive response field (`EvidenceView.allowed_units`); `docs/api/openapi.json` and
+  `apps/web/lib/api-types.ts` are regenerated. No locked file changed, and no PK-Sim name, path or unit was added: the
+  units are read from the harvested process table and from the snapshot itself. A value whose parameter has no harvested
+  unit stays held, as before.
+- **Tests.** `services/api/tests/test_inputs_api.py::test_a_held_number_without_its_pksim_value_offers_only_harvested_units_and_takes_the_typed_value`
+  checks the units offered, the 422 on a unit that was not harvested, and the stored acceptance. A new e2e spec,
+  `e2e/held-value-pksim-unit.spec.ts`, accepts the published Dapagliflozin model's EHC continuous fraction through the
+  UI: the field starts empty, only the harvested unit is offered, Accept stays off for "1,0" and while no unit is chosen,
+  and the stored value is the typed one. `inputs-todo.spec.ts` and `published-model.spec.ts` still pass.
+
+### Fixed — the compound CPF page: a number is never split, a structured value is one summary line, the page stays short (web only)
+- **What.** The CPF table's Value cell now branches on the value (`compounds/[compound]/page.tsx`). A number, or a string
+  that reads as one, shows on one line (nowrap, tabular figures) exactly as stored: no rounding, since the CPF is the
+  system of record. A structured value (a string starting with `{` or `[`, e.g. `expr.profile.<molecule>`) is one line,
+  `structured value · …`, built only from keys the document holds (`Category Healthy · Molecule CYP3A4 · Parameters: 15
+  entries`; fallback `N entries`), with the verbatim stored text one click away in the kit `Clip` box (now capped at
+  `min(60ch, 80vw)` wide). Other text (method names) wraps in a left-aligned, non-numeric cell. Parameter ids break only
+  after `.` and `|` (`<wbr>`), not mid-word. `kit.css` drops `overflow-wrap:anywhere; max-width:16ch` from the value and
+  id cells. `.prov` tags take the `.chip` pill geometry and never wrap. Kit: `Clip` takes an optional `lead`;
+  `SortableTable` rows take an optional per-cell `cellClassName`.
+- **Why.** Frontend audit 2, item 3: the page was 79,498 px tall at 1280 (170,739 px at 390) for 42 parameters because
+  each expression profile (2.4k–12k characters of JSON) was printed in a 16ch cell, and numbers broke mid-digit
+  (`0.22100414 / 53`, `3.96846947 / 92e-05`), so a reviewer could misread a stored value.
+- **Impact.** The published Dapagliflozin CPF page is 4,874 px at 1280; every value is still shown in full and
+  unchanged. No API change.
+- **Tests.** New `e2e/cpf-page.spec.ts` (the OSP Dapagliflozin reference CPF): page height under 15,000 px at 1280,
+  each structured value summarised once with its verbatim text behind it, every number one line and equal to the stored
+  value, provenance tags nowrap, no sideways page scroll at 390. `table-sort` and `protected-text` specs still pass.
+
+### Changed — the escalation pop-up asks on the campaign's own project and counts elsewhere; "Decide later" holds for the tab (web only)
+Plan `docs/plans/2026-11-11-frontend-audit-2.md`, work item 4, under the owner's decision 1 of 2026-11-11.
+- **What.** `EscalationPopup` opens the decision dialog by itself only on the escalated campaign's own page
+  (`/campaigns/<id>`) and its project's pages (the project's campaigns, read from `/api/v1/campaigns?project=`). Every
+  other page (the dashboard, Start, the Library, another project), and a project page whose campaigns cannot be read,
+  shows the corner control "N decisions waiting · Open", which is a button right after the skip link in the tab order
+  and opens the dialog on any page, so every escalation stays decidable from anywhere. "Decide later" keeps the put-off
+  escalation ids in `sessionStorage` (`modeler:decide-later`, every read and write in try/catch): a reload or a deep link
+  in the same tab shows the count, not the dialog; ids that are no longer open are dropped, so a new escalation (another
+  stage) asks again; reopening from the control or the campaign page's "Open the decision" clears them. The open
+  escalations are placed again on each navigation, and the dialog does not open when a pointer button is down, another
+  dialog is open, or the person has pressed a pointer or a key on the page since navigating (the first placement used to
+  skip this guard, so a click already started could land on the backdrop of a late dialog). Escalations are read every
+  15 s, and every 5 s only on a running or queued campaign's page (`<EscalationsExpected />`); the sidebar's liveness
+  observes the same read instead of adding its own poll (two observers on one key polled every 5 s on every page).
+- **Why.** The dialog opened over every page on every full load, including another project's Start and Inputs, and
+  "Decide later" was forgotten on reload and on every deep link (audit 2: decisions findings 1, 2 and 6, workflow-copy,
+  perf-errors). The decision itself is unchanged: still the signed `EscalationDecision`, the signature from the step-up;
+  putting it off decides nothing and the escalation stays open and audited on the server.
+- **Impact.** No API change. `sessionStorage` is per tab, so a new tab asks again on the campaign's own pages.
+- **Tests.** `e2e/escalation-popup.spec.ts` rewritten for the rule: another project, Start and the dashboard show the
+  count and no dialog; the own project asks; a reload and a deep link after "Decide later" show the count; the control is
+  reached with Tab and opens the dialog with Enter; a new tab asks again; a new test holds the first read back until a
+  click is made and checks the dialog goes to the count (it fails without the guard). The signed-decision, step-up and
+  unreadable-campaign tests are kept. `e2e/dashboard.spec.ts` adds a seeded escalation: the dashboard counts it, opens no
+  dialog by itself, and the control opens it. Ran escalation-popup, dashboard, feedback, campaign-monitor and model-plan.
+
 ### Fixed — the engine labels a geometric SD as geometric (D1b; locked `run_pi.R`; science; pending approval and server evidence, 2026-11-13)
 Plan `docs/plans/2026-11-12-client-data-intake-redesign.md` (L-c); contract `docs/plans/2026-11-12-intake-contracts.md`
 §8.3. **A locked-file change** (owner's decision 7): its own PR from `origin/main`, merged only with the owner's

@@ -9,6 +9,7 @@ import { useState } from "react";
 import { ApiProblem, Card } from "@/components/ui";
 import { send } from "@/lib/api";
 import { useMutation, useResource } from "@/lib/hooks";
+import { Banner } from "@/components/kit";
 
 export function MembersPanel({ projectId }: { projectId: string }) {
   const { data, problem } = useResource("/api/v1/projects/{project_id}/members", { project_id: projectId });
@@ -51,10 +52,10 @@ export function MembersPanel({ projectId }: { projectId: string }) {
           </p>
         )}
         {data.managed && !data.you_change_it && (
-          <p className="banner warn mt-0" data-testid="members-read-only">
+          <Banner tone="warn" className="mt-0" testId="members-read-only">
             Shared with you to read. Only the owner, {data.owner_name}, changes this project
             {" "}(a reviewer can still sign it).
-          </p>
+          </Banner>
         )}
         <table>
           <thead><tr><th>Member</th><th>Added by</th><th>Since</th><th /></tr></thead>

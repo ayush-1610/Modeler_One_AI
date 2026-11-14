@@ -16,7 +16,14 @@ export type Resource<T> = {
   data: T | null;
   /** Why it could not be read; the page shows it instead of sample data. */
   problem: string | null;
+  /** When the answer on screen was read (ms since the epoch); null before the first answer. */
+  updatedAt: number | null;
+  /** The last read failed although an earlier answer is still shown: that answer may be out of date. */
+  stale: boolean;
 };
+
+/** The longest wait between reads of a polled resource while the API does not answer. */
+const MAX_BACKOFF_MS = 30_000;
 
 type ResourceOptions<D, T> = {
   query?: Record<string, string | undefined>;
@@ -45,10 +52,20 @@ export function useResource<R extends RouteFor<"get">, T = Data<R, "get">>(
     },
     select,
     enabled,
-    refetchInterval: poll ? (q) => (q.state.data !== undefined && poll(q.state.data) ? interval : false) : false,
+    // a polled read that failed keeps trying, at a doubling interval up to 30 s, so a page (the decision pop-up, the
+    // sidebar's liveness, a run's progress) recovers by itself once the API answers again; it never stops for good
+    refetchInterval: poll ? (q) => {
+      if (q.state.status === "error") return Math.min(MAX_BACKOFF_MS, interval * 2 ** Math.max(1, q.state.fetchFailureCount));
+      return q.state.data !== undefined && poll(q.state.data) ? interval : false;
+    } : false,
     placeholderData: keepPrevious ? keepPreviousData : undefined,
   });
-  return { data: result.data ?? null, problem: result.error?.message ?? null };
+  return {
+    data: result.data ?? null,
+    problem: result.error?.message ?? null,
+    updatedAt: result.dataUpdatedAt || null,
+    stale: result.isError && result.data !== undefined,
+  };
 }
 
 /** Read the page's resources again, after a refusal that says the server moved on (a run already going elsewhere). */

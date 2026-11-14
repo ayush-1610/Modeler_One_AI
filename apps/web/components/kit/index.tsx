@@ -3,7 +3,13 @@
 
 // Stepper (a server component) is imported from its own file.
 
-import type { ReactNode } from "react";
+import type { ReactNode, Ref } from "react";
+
+/** A PK-Sim path or parameter id that breaks only after its '.' and '|' separators, never inside a word (the CPF page,
+ *  the campaign's influence map on a phone). */
+export function breakable(id: string): ReactNode {
+  return id.split(/(?<=[.|])/).flatMap((part, i) => (i ? [<wbr key={i} />, part] : [part]));
+}
 
 /** Each area's hue for the head's wash and its curve (the "Modeler One App" design, plan 2026-11-06-app-design-merge). */
 const HUES = { projects: 211, new: 160, start: 211, inputs: 190, review: 265, run: 150, inbox: 28, library: 280, history: 220, admin: 340 } as const;
@@ -54,13 +60,15 @@ export function PageShell({ eyebrow, title, lede, actions, side, steps, tone, ch
   );
 }
 
-/** A box of the side panel: a short heading and what it says. */
-export function SidePanel({ title, tone, children, testId }: {
-  title: string; tone?: "warn" | "ok"; children: ReactNode; testId?: string;
+/** A box of the side panel: a short heading and what it says. `level` 2 where the panel is the first thing under the
+ *  page's h1 (the Inputs rail), so the outline never jumps from h1 to h3; it looks the same at either level. */
+export function SidePanel({ title, tone, children, testId, level = 3 }: {
+  title: string; tone?: "warn" | "ok"; children: ReactNode; testId?: string; level?: 2 | 3;
 }) {
+  const Heading = level === 2 ? "h2" : "h3";
   return (
     <section className={`side-panel${tone ? ` ${tone}` : ""}`} data-testid={testId}>
-      <h3>{title}</h3>
+      <Heading className="side-panel-title">{title}</Heading>
       {children}
     </section>
   );
@@ -84,9 +92,52 @@ export function InlineIssue({ severity = "warn", children, testId }: {
   return <p className={`inline-issue ${severity}`} role={severity === "error" ? "alert" : undefined} data-testid={testId}>{children}</p>;
 }
 
+/** The reason a recorded decision carries (accept, reject, correct, exclude, choose…): a visible label that says it is
+ *  kept in the audit trail and is required, so the action's disabled state is never explained by a placeholder alone
+ *  (2026-11-11 audit 2, item 7). The placeholder stays as an example of what to write. */
+export function ReasonField({ value, onChange, placeholder = "why", ariaLabel, className, inputRef, autoFocus, why, testId,
+  label = "Reason, kept in the audit trail" }: {
+  value: string; onChange: (v: string) => void; placeholder?: string; ariaLabel?: string; className?: string;
+  inputRef?: Ref<HTMLInputElement>; autoFocus?: boolean;
+  /** marks the input for "focus the next reason" after a decision (InputsTodo afterThis) */
+  why?: string; testId?: string; label?: string;
+}) {
+  return (
+    <label className={`reason-field${className ? ` ${className}` : ""}`}>
+      <span className="ctl-label">{label} <span className="req">· required</span></span>
+      <input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} aria-label={ariaLabel}
+             aria-required ref={inputRef} autoFocus={autoFocus} data-why={why} data-testid={testId} />
+    </label>
+  );
+}
+
+/** A small control with its name (and unit) shown above it, so a filled-in field can still be told apart from its
+ *  neighbours. `required` adds the same "· required" mark as ReasonField. */
+export function LabeledControl({ label, required, className, children }: {
+  label: ReactNode; required?: boolean; className?: string; children: ReactNode;
+}) {
+  return (
+    <label className={`ctl-field${className ? ` ${className}` : ""}`}>
+      <span className="ctl-label">{label}{required && <span className="req"> · required</span>}</span>
+      {children}
+    </label>
+  );
+}
+
+/** What a disabled action still waits for, said beside it (never only in a title tooltip). */
+export function WaitingFor({ children, testId }: { children: ReactNode; testId?: string }) {
+  return <span className="waiting-for" data-testid={testId}>{children}</span>;
+}
+
 /** A result or a refusal the person should hear about: a note for what went fine or a caution, an alert for a refusal. */
-export function Banner({ tone, children, testId }: { tone: "ok" | "warn" | "err"; children: ReactNode; testId?: string }) {
-  return <div className={`banner ${tone}`} role={tone === "err" ? "alert" : "status"} data-testid={testId}>{children}</div>;
+export function Banner({ tone, children, testId, className }: {
+  tone: "ok" | "warn" | "err"; children: ReactNode; testId?: string; className?: string;
+}) {
+  return (
+    <div className={`banner ${tone}${className ? ` ${className}` : ""}`} role={tone === "err" ? "alert" : "status"} data-testid={testId}>
+      {children}
+    </div>
+  );
 }
 
 export type Column<T> = { key: string; label: string; numeric?: boolean; render: (row: T) => ReactNode };

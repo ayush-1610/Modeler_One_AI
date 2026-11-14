@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -45,12 +45,13 @@ function Logo() {
   );
 }
 
-/** Whether the API answers: its open-escalations read (the same read the decision pop-up polls), every half minute.
- *  The review inbox it once counted for is gone (2026-11-11): a decision is asked on the page the person is on. */
+/** Whether the API answers: its open-escalations read. This observes the read the decision pop-up (root layout) already
+ *  polls, every 15 s (5 s on a running campaign's page); it adds no poll of its own. The review inbox it once counted
+ *  for is gone (2026-11-11). */
 function useApiLive(): boolean | null {
-  const esc = useResource("/api/v1/escalations", {}, { select: (d) => d.escalations.length, poll: () => true, interval: 30_000 });
-  // the API answered (live) or not; null until the first answer
-  return esc.data !== null ? true : esc.problem ? false : null;
+  const esc = useResource("/api/v1/escalations", {}, { select: (d) => d.escalations.length });
+  // the last read failed (not live, even with an earlier answer still cached), the API answered (live), or neither yet
+  return esc.problem ? false : esc.data !== null ? true : null;
 }
 
 type Item = { href: string; label: string; icon: string; active: boolean; testId?: string };
@@ -101,12 +102,13 @@ export function Nav({ user }: { user?: string | null }) {
 
   const work: Item[] = [
     { href: "/", label: "Projects", icon: ICONS.projects, active: is("/") || Boolean(open) },
-    { href: "/projects/start", label: "Start from proposal", icon: ICONS.start, active: is("/projects/start") },
+    { href: "/projects/start", label: "New project", icon: ICONS.start, active: is("/projects/start") },
   ];
   // the console's link only for the platform's owner (the API's own answer; it refuses everyone else in any case)
   const admin = useResource("/api/v1/me", {}, { select: (d) => d.admin }).data === true;
   const projectHref = open ? `/projects/${encodeURIComponent(open)}` : "";
   const isOpen = pinned || hover || keys;
+  const menuButton = useRef<HTMLButtonElement>(null);
 
   return (
     <aside className={`sidebar${isOpen ? " open" : ""}${pinned ? " pinned" : ""}${menu ? " menu-open" : ""}`} data-testid="sidebar"
@@ -116,7 +118,9 @@ export function Nav({ user }: { user?: string | null }) {
            onClickCapture={(e) => { if ((e.target as Element).closest("a, .nav-action")) { setHover(false); setKeys(false); setMenu(false); } }}
            onMouseMove={(e) => { const r = e.currentTarget.getBoundingClientRect(); e.currentTarget.style.setProperty("--my", `${(e.clientY - r.top).toFixed(0)}px`); }}
            onFocus={(e) => setKeys((e.target as Element).matches(":focus-visible"))}
-           onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setKeys(false); }}>
+           onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setKeys(false); }}
+           // Escape closes the phone menu and gives focus back to its toggle
+           onKeyDown={(e) => { if (menu && e.key === "Escape") { setMenu(false); menuButton.current?.focus(); } }}>
       <div className="brand">
         <Logo />
         <span className="nav-text">Modeler One</span>
@@ -124,7 +128,7 @@ export function Nav({ user }: { user?: string | null }) {
                 title="Keep the panel open" data-testid="nav-pin">
           <Icon d={ICONS.collapse} />
         </button>
-        <button type="button" className="nav-menu" onClick={() => setMenu(!menu)} aria-expanded={menu} aria-controls="nav-panel"
+        <button type="button" className="nav-menu" ref={menuButton} onClick={() => setMenu(!menu)} aria-expanded={menu} aria-controls="nav-panel"
                 aria-label={menu ? "Close the menu" : "Open the menu"} data-testid="nav-menu">
           <Icon d={menu ? "M6 6l12 12 M18 6L6 18" : "M4 7h16 M4 12h16 M4 17h16"} />
         </button>

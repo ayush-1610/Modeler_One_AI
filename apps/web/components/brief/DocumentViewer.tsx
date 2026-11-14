@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import type { DocumentView } from "@/lib/brief";
 import { useResource } from "@/lib/hooks";
+import { Banner } from "@/components/kit";
 
 /** Highlight `quote` inside `text`, tolerating whitespace differences (the citation check normalizes whitespace). */
 function highlight(text: string, quote: string | null) {
@@ -60,8 +61,8 @@ export function DocumentViewer({
           </span>
         )}
       </div>
-      {doc?.warnings.map((w) => <div key={w} className="banner warn mb-8">{w}</div>)}
-      {problem && <div className="banner err">{problem}</div>}
+      {doc?.warnings.map((w) => <Banner key={w} tone="warn" className="mb-8">{w}</Banner>)}
+      {problem && <Banner tone="err">{problem}</Banner>}
       <pre className="doc-page">{page ? highlight(page.text, quote) : "…"}</pre>
     </section>
   );

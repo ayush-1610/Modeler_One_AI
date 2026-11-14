@@ -1,27 +1,10 @@
-// Client-side write helpers for the campaign's preparation and start, the MAP signature and the escalations, through the
-// one client in lib/api.ts, each typed by its route; signatures, the campaign start and the escalation decision answer
-// without the envelope and go through `post`.
+// Client-side write helpers for the campaign start and the escalations, through the one client in lib/api.ts, each typed by
+// its route; the campaign start and the escalation decision answer without the envelope and go through `post`.
 
-import { post, send, type Narrow, type Schema } from "@/lib/api";
+import { post, type Narrow, type Schema } from "@/lib/api";
 
-export type PrepareResult = Schema<"CampaignInputs">;
-
-export function prepareCampaign(projectId: string, questionId: string, body: Schema<"PrepareRequest">) {
-  return send("post", "/api/v1/projects/{project_id}/questions/{question_id}/campaign:prepare",
-              { project_id: projectId, question_id: questionId }, body);
-}
-
-/** Sign the MAP (Part 11). Returns whether the signature was accepted (loa2 step-up satisfied), and why not. */
-export async function signMap(
-  projectId: string,
-  body: { record_id: string; record_sha256: string },
-): Promise<{ ok: boolean; error?: string }> {
-  const env = await post("/api/v1/projects/{project_id}/signatures", { project_id: projectId }, {
-    meaning: "Approved", record_type: "map_approval", record_id: body.record_id, record_sha256: body.record_sha256,
-  });
-  return { ok: !env.errors.length, error: env.errors[0]?.message };
-}
-
+// The campaign starts from the MAP signed on Review & sign (plan:sign stages its inputs; the owner's decision 2 of
+// 2026-11-11). campaign:prepare and a bare map_approval signature stay in the API for scripts and CI, not in the web app.
 export async function startCampaign(
   projectId: string,
   body: Schema<"CampaignStartRequest">,

@@ -57,7 +57,7 @@ from modeler_project.evidence_register import (
     items,
     propose,
 )
-from modeler_project.inputs import refresh_inputs
+from modeler_project.inputs import harvested_units, refresh_inputs
 from modeler_project.published_model import propose_published_model
 from modeler_project.requirements import RequirementMatrix
 from modeler_project.value_reuse import offer_view, reuse, same_drug
@@ -276,9 +276,28 @@ class Decision(BaseModel):
 @router.post("/projects/{project_id}/evidence/{evidence_id}:decide", **answers(EvidencePage))
 def decide_evidence(project_id: str, evidence_id: str, body: Decision, principal: Writer, store: StoreDep) -> dict[str, Any]:
     ws = workspace_for(project_id, principal, store)
+    unit_pksim = body.unit_pksim or None   # "" is the dimensionless unit, stored as no unit
+    if body.value_pksim is not None and (version := ws.latest(ArtifactKind.EVIDENCE, evidence_id)) is not None:
+        # a value typed in PK-Sim's unit: only a unit harvested for its parameter (owner's decision 3 of 2026-11-11)
+        # checked against the parameter's harvested units, not against what the item holds now: a re-decide of a value
+        # already accepted takes no free-text unit either. With no harvested unit, nothing is typed: a value with no
+        # PK-Sim value yet is taken only as the source states it (its own number in its own unit), and one already
+        # converted is never overwritten, so no other number and no unit nobody harvested is stored (audit 2 review)
+        item = EvidenceItem.from_content(version.content)
+        allowed = harvested_units(item)
+        if allowed is None:
+            if (item.value_pksim is not None or body.value_pksim != item.value
+                    or (unit_pksim or None) != (item.unit or None)):
+                raise HTTPException(status_code=422, detail="no PK-Sim unit is harvested for this parameter, so no value "
+                                                            "in another unit or of another size can be given here: correct "
+                                                            "it to the parameter it belongs to, or reject it")
+        elif (unit_pksim or "") not in allowed:
+            listed = ", ".join(f"'{u}'" if u else "dimensionless" for u in allowed)
+            raise HTTPException(status_code=422, detail=f"{body.unit_pksim or 'no unit'} is not a PK-Sim unit harvested for "
+                                                        f"this parameter; give the value in {listed}")
     try:
         decide(ws, evidence_id, state=EvidenceState(body.state), reason=body.reason, by=principal.user_id,
-               value_pksim=body.value_pksim, unit_pksim=body.unit_pksim)
+               value_pksim=body.value_pksim, unit_pksim=unit_pksim)
     except EvidenceError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     refresh_inputs(ws, by=principal.user_id)   # the inputs follow every change (redesign §3.2)

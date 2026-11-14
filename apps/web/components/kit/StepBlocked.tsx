@@ -12,10 +12,13 @@ import { plain } from "@/lib/plain";
 
 const ORDER: StepId[] = ["start", "inputs", "review", "run"];
 
-export function StepBlocked({ projectId, step, title, detail, fallback, testId }: {
+export function StepBlocked({ projectId, step, waitOn, title, detail, fallback, testId }: {
   projectId: string;
   /** The step this page belongs to; the first earlier step that is not done is the one to finish. */
   step: StepId;
+  /** The one earlier step this step waits on, when it is not simply the first unfinished one: Run starts only from the MAP
+   *  signed on Review & sign (the owner's decision 2 of 2026-11-11), so it names that step whatever Start says. */
+  waitOn?: StepId;
   title: string;
   /** What the API said, kept as the record of why (shown small, under the list). */
   detail?: string | null;
@@ -24,7 +27,7 @@ export function StepBlocked({ projectId, step, title, detail, fallback, testId }
   testId?: string;
 }) {
   const steps = useResource("/api/v1/projects/{project_id}/steps", { project_id: projectId }, { select: (d) => d.steps.map((s) => ({ ...s, reasons: s.reasons.map(plain) })) });
-  const before = (steps.data ?? []).filter((s) => ORDER.indexOf(s.step) < ORDER.indexOf(step));
+  const before = (steps.data ?? []).filter((s) => waitOn ? s.step === waitOn : ORDER.indexOf(s.step) < ORDER.indexOf(step));
   const waiting = before.find((s) => s.state !== "done") ?? null;
   return (
     <section className="card step-blocked" data-testid={testId ?? "step-blocked"}>

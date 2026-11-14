@@ -2703,6 +2703,8 @@ export interface components {
          * @description A source the selection did not keep (D-32): how far it stands from the kept value.
          */
         AlternativeView: {
+            /** Allowed Units */
+            allowed_units: string[] | null;
             /** Conditions */
             conditions: {
                 [key: string]: unknown;
@@ -5358,6 +5360,8 @@ export interface components {
          * @description An evidence item as the page shows it (`inputs.evidence_view`): the value in both units, its source and grade.
          */
         EvidenceView: {
+            /** Allowed Units */
+            allowed_units: string[] | null;
             /** Conditions */
             conditions: {
                 [key: string]: unknown;

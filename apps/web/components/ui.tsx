@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 
 import type { Rating } from "@/lib/api";
+import { Banner } from "@/components/kit";
 
 const RATINGS: readonly string[] = ["low", "medium", "high"] satisfies Rating[];
 
@@ -27,8 +28,9 @@ const PROV_CLASS: Record<string, string> = {
 
 export function ProvenanceChip({ source }: { source: string }) {
   const cls = PROV_CLASS[source] ?? "";
-  const label = source === "ParameterIdentification" ? "fitted (PI)" : source;
-  return <span className={`prov ${cls}`}>{label}</span>;
+  // the PK-Sim origin stays in the title; the label is the word a reader uses
+  const label = source === "ParameterIdentification" ? "fitted" : source;
+  return <span className={`prov ${cls}`} title={label === source ? undefined : source}>{label}</span>;
 }
 
 export function Completeness({ value }: { value: number }) {
@@ -69,5 +71,5 @@ export function Card({ title, action, children }: { title?: string; action?: Rea
 
 /** What stopped a page from showing live data. Never paired with sample data. */
 export function ApiProblem({ problem }: { problem: string }) {
-  return <div className="banner err mb-14" data-testid="api-problem">{problem}</div>;
+  return <Banner tone="err" className="mb-14" testId="api-problem">{problem}</Banner>;
 }

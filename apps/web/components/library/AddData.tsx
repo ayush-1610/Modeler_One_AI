@@ -12,7 +12,7 @@
 import Link from "next/link";
 import { useState } from "react";
 
-import { InlineIssue } from "@/components/kit";
+import { Banner, InlineIssue } from "@/components/kit";
 import { Dialog } from "@/components/kit/Dialog";
 import { ReadingStatus } from "@/components/inputs/ReadingTray";
 import { TagProposals, type UploadedFile } from "@/components/library/TagProposals";
@@ -209,10 +209,10 @@ export function AddData({ projectId, step: initial, onClose }: { projectId: stri
       {problem && <InlineIssue severity="error">{problem}</InlineIssue>}
       <TagProposals projectId={projectId} files={uploaded} testId="add-data-tag-proposals" />
       {added.length > 0 && (
-        <div className="banner ok add-data-done" data-testid="add-data-done">
+        <Banner tone="ok" className="add-data-done" testId="add-data-done">
           {added.join(" · ")}.{" "}
           <Link href={`/projects/${encodeURIComponent(projectId)}/library`} onClick={onClose}>See them in the library</Link>
-        </div>
+        </Banner>
       )}
       {added.length > 0 && <ReadingStatus projectId={projectId} onOpen={onClose} />}
       <div className="dialog-actions">

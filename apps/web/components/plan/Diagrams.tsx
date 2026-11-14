@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { Banner, LabeledControl, ReasonField, WaitingFor } from "@/components/kit";
 import type { Schema } from "@/lib/api";
 import { ROLE_LABEL, type ParamNode, type PlanView } from "@/lib/plan";
 
@@ -10,6 +11,9 @@ import { ROLE_LABEL, type ParamNode, type PlanView } from "@/lib/plan";
 
 type FitSave = (parameter: string, fit: { stages: string[]; lower: number; upper: number; scale: "linear" | "log"; reason: string }) => Promise<string | null>;
 type FitRemove = (parameter: string, reason: string) => Promise<string | null>;
+
+// a bound must be a finite number: "1e-3" is, "0.1 l/h" is not (it was sent as NaN)
+const bad = (v: string) => !Number.isFinite(Number(v.trim())) || v.trim() === "";
 
 function FitForm({ p, onSave, onRemove }: { p: ParamNode; onSave: FitSave; onRemove: FitRemove }) {
   const numeric = typeof p.value === "number";
@@ -38,19 +42,30 @@ function FitForm({ p, onSave, onRemove }: { p: ParamNode; onSave: FitSave; onRem
           <option value="log">log</option><option value="linear">linear</option>
         </select>
       </div>
-      <div className="row gap-4">
-        <input value={lower} onChange={(e) => setLower(e.target.value)} placeholder="lower" className="w-80" aria-label="lower bound" />
-        <input value={upper} onChange={(e) => setUpper(e.target.value)} placeholder="upper" className="w-80" aria-label="upper bound" />
-        <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="why (required)" className="flex-1" />
+      <div className="ctl-row">
+        <LabeledControl label="Lower bound" className="w-95">
+          <input value={lower} onChange={(e) => setLower(e.target.value)} placeholder="lower" aria-label="lower bound" inputMode="decimal"
+                 aria-invalid={bad(lower)} />
+        </LabeledControl>
+        <LabeledControl label="Upper bound" className="w-95">
+          <input value={upper} onChange={(e) => setUpper(e.target.value)} placeholder="upper" aria-label="upper bound" inputMode="decimal"
+                 aria-invalid={bad(upper)} />
+        </LabeledControl>
+        <ReasonField value={reason} onChange={setReason} placeholder="why (required)" className="flex-1 minw-160"
+                     ariaLabel={`reason for the fit of ${p.id}`} />
       </div>
       <div className="row gap-4">
-        <button className="btn tiny primary" disabled={!reason.trim() || !stages.length}
+        <button className="btn tiny primary" disabled={!reason.trim() || !stages.length || bad(lower) || bad(upper)}
                 onClick={async () => setError(await onSave(p.id, { stages, lower: Number(lower), upper: Number(upper), scale, reason }))}>Save</button>
         {p.fit && <button className="btn tiny" disabled={!reason.trim()} onClick={async () => setError(await onRemove(p.id, reason))}>Fix again</button>}
         <button className="btn tiny" onClick={() => setOpen(false)}>Close</button>
+        {(!reason.trim() || !stages.length || bad(lower) || bad(upper)) && (
+          <WaitingFor>To save: {[!stages.length && "a stage", (bad(lower) || bad(upper)) && "both bounds as numbers",
+                                 !reason.trim() && "a reason"].filter(Boolean).join(", ")}.</WaitingFor>
+        )}
       </div>
       <p className="muted fs-11 m-0">* not an MS-01 candidate at that stage (the validator warns)</p>
-      {error && <div className="banner err">{error}</div>}
+      {error && <Banner tone="err">{error}</Banner>}
     </div>
   );
 }
@@ -108,12 +123,13 @@ export function D2Absorption({ view, onFit, onUnfit, onStructure }: {
         <span className={`chip ${d.food_effect_in_question ? "medium" : "neutral"}`}>
           {d.food_effect_in_question ? "the question — fed predicted, never fitted (MS-01 rule 5)" : "not the question"}
         </span>
-        <input placeholder="why change it" value={reason} onChange={(e) => setReason(e.target.value)} className="w-200" />
+        <ReasonField placeholder="why change it" value={reason} onChange={setReason} className="w-200"
+                     ariaLabel="reason to change the food-effect question" />
         <button className="btn tiny" disabled={!reason.trim()}
                 onClick={async () => setError(await onStructure("food_effect_in_question", !d.food_effect_in_question, reason))}>
           {d.food_effect_in_question ? "Not the question" : "Make it the question"}
         </button>
-        {error && <span className="banner err">{error}</span>}
+        {error && <span className="banner err" role="alert">{error}</span>}
       </div>
       <div className="flow">
         <div className="flow-col"><h4>Solubility · permeability</h4>

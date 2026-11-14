@@ -12,6 +12,7 @@ import { TabPanel, Tabs } from "@/components/kit/Tabs";
 import { narrow, send, type Envelope, type Narrow, type Schema } from "@/lib/api";
 import { TAG_LABELS } from "@/lib/fileTags";
 import { useMutation, useRefresh, useResource } from "@/lib/hooks";
+import { reducedMotion } from "@/lib/motion";
 import { type ArtifactView, STEP_ROUTES } from "@/lib/pipeline";
 
 import { ConfirmGroups } from "./ClientConfirm";
@@ -19,7 +20,7 @@ import { ReadingTray } from "./ReadingTray";
 import { ClientRequest } from "./ClientRequest";
 import { StudyIndividuals } from "./IndividualsTab";
 import { InputRows, type Row } from "./InputRows";
-import { LABEL, ORDER, type Run, TITLE, type TodoItem } from "./InputsTodo";
+import { ORDER, readable, type Run, TITLE, type TodoItem } from "./InputsTodo";
 import { AccessRequests } from "./ObservedDatasets";
 import { type Options, StudiesTab } from "./StudiesTab";
 import { AREA_LABEL, fileArea, FilesBar, FilesHere, whereShown } from "./TabFiles";
@@ -150,7 +151,9 @@ function FilesDrawer({ projectId, files, onClose, onRetag, onOpen }: {
 
 /** Step 2 · Inputs (redesign §3.2): one workspace in PK-Sim's building blocks. Values flow in from every source not
  *  excluded and the source-selection rule keeps one per input (D-32); the side list says what is still missing to run,
- *  and each item opens where it is settled. Nothing is accepted here: the one review is at the MAP signature (D-27). */
+ *  and each item opens where it is settled. A value held for a check is accepted or rejected here, one value at a time,
+ *  each with the person's reason (owner's decision 4 of 2026-11-11); the MAP signature on Review & sign then covers the
+ *  inputs as a whole. */
 export function InputsWorkspace({ projectId, initialTab = "compound", steps }: { projectId: string; initialTab?: Tab; steps?: ReactNode }) {
   const page = useResource("/api/v1/projects/{project_id}/inputs", { project_id: projectId }, { select: (d) => narrow<View>(d) });
   const client = useResource("/api/v1/projects/{project_id}/client-data", { project_id: projectId },
@@ -212,8 +215,8 @@ export function InputsWorkspace({ projectId, initialTab = "compound", steps }: {
 
   if (page.problem || !view) {
     return (
-      <PageShell tone="inputs" steps={steps} eyebrow="Step 2 of 4" title="Inputs">
-        {page.problem ? <div className="banner err">{page.problem}</div> : <p className="muted">Loading the inputs…</p>}
+      <PageShell tone="inputs" steps={steps} eyebrow="Step 2 of 4 · Inputs" title="Inputs">
+        {page.problem ? <Banner tone="err">{page.problem}</Banner> : <p className="muted">Loading the inputs…</p>}
       </PageShell>
     );
   }
@@ -259,13 +262,13 @@ export function InputsWorkspace({ projectId, initialTab = "compound", steps }: {
 
   function open(t: TodoItem) {
     setTab((t.tab ?? "compound") as Tab);
-    window.setTimeout(() => document.getElementById(`todo-${t.kind}-${t.target}`)?.scrollIntoView({ block: "center", behavior: "smooth" }), 50);
+    window.setTimeout(() => document.getElementById(`todo-${t.kind}-${t.target}`)?.scrollIntoView({ block: "center", behavior: reducedMotion() ? "auto" : "smooth" }), 50);
   }
 
   return (
     <PageShell
       tone="inputs" steps={steps}
-      eyebrow="Step 2 of 4"
+      eyebrow="Step 2 of 4 · Inputs"
       title="Inputs"
       lede={<>Every value not excluded flows in; where sources give several, one is kept by source and grade and the others
         stay listed for the review. Values are never averaged.<span className="hero-note">Source selection rules: {view.selection_rule}</span></>}
@@ -306,13 +309,13 @@ export function InputsWorkspace({ projectId, initialTab = "compound", steps }: {
         </button>
         <div className="rail-side">
           {todo.length > 0 ? (
-            <SidePanel title={`Still missing to run (${todo.length})`} tone="warn" testId="still-missing">
+            <SidePanel title={`Still needed before Review & sign (${todo.length})`} tone="warn" testId="still-missing" level={2}>
               <ul className="missing-list">
                 {todo.map((t, i) => (
                   <li key={`${t.kind}-${t.target}-${i}`}>
                     <button type="button" className="link-btn" onClick={() => open(t)} data-testid={`missing-${t.kind}-${t.target}`}>
                       {TITLE[t.kind]}{t.kind === "confirm" ? ` · ${(review.data?.groups ?? []).find((g) => g.id === t.target)?.title ?? t.target}`
-                        : t.kind !== "datasets" && t.kind !== "check" ? ` · ${LABEL[t.target] ?? t.target}` : ""}
+                        : t.kind !== "datasets" && t.kind !== "check" ? ` · ${readable(t.target)}` : ""}
                     </button>
                     <span className="muted"> · {TAB_LABEL[(t.tab ?? "compound") as Tab]}</span>
                   </li>
@@ -321,17 +324,17 @@ export function InputsWorkspace({ projectId, initialTab = "compound", steps }: {
               <ClientRequest projectId={projectId} />
             </SidePanel>
           ) : readiness?.ready ? (
-            <SidePanel title="Inputs are ready" tone="ok" testId="inputs-ready">
-              <p className="m-0-0-8">Everything S0 needs is here, and every planned simulation builds.</p>
+            <SidePanel title="Inputs are ready" tone="ok" testId="inputs-ready" level={2}>
+              <p className="m-0-0-8">Everything the model build needs is here, and every planned simulation builds.</p>
               <Link className="btn primary" href={STEP_ROUTES.review(projectId)}>Go to Review &amp; sign</Link>
             </SidePanel>
           ) : (
-            <SidePanel title="Assembling" testId="assembling"><p className="m-0">The inputs are being put together.</p></SidePanel>
+            <SidePanel title="Assembling" testId="assembling" level={2}><p className="m-0">The inputs are being put together.</p></SidePanel>
           )}
           {/* the checks and where values come from, folded: the to-do above is what the page is for (2026-11-11 audit, item 4) */}
           <details className="side-panel inputs-more" data-testid="inputs-more">
             <summary>
-              <span className="inputs-more-title">Readiness and sources</span>
+              <h2 className="inputs-more-title">Readiness and sources</h2>
               {readiness && (() => {
                 const open = readiness.checks.filter((c) => !c.ok).length;
                 return <span className={`chip ${open ? "high" : "low"}`}>{open ? `${open} check${open === 1 ? "" : "s"} open` : "all checks ok"}</span>;
@@ -407,13 +410,13 @@ export function InputsWorkspace({ projectId, initialTab = "compound", steps }: {
                      fields={["kind", "age_range", "sex", "ethnicity", "impairment_class", "genotype", "species"]}
                      title="The populations the proposal names"
                      lede="The populations the predictions are made for; each study below is simulated in its own individual." />
-          {panelTodo("individuals").filter((t) => t.kind !== "demographics").length > 0 && (
-            <InputRows rows={[]} todo={panelTodo("individuals").filter((t) => t.kind !== "demographics")} projectId={projectId} run={run} empty="" />
-          )}
           <h3>Each study&apos;s individual</h3>
           <StudyIndividuals studies={studies} projectId={projectId} run={run} options={options} />
           <h3>Values set on the individual</h3>
-          <InputRows rows={rows("individuals")} todo={[]} projectId={projectId} run={run}
+          {/* one call: a held value's Accept/Reject sits on its row, once (the 2026-11-11 audit 2, item 2); only an item
+              about no row of this tab stays a card of its own */}
+          <InputRows rows={rows("individuals")} todo={panelTodo("individuals").filter((t) => t.kind !== "demographics")} byOrgan
+                     projectId={projectId} run={run}
                      empty="None: enzyme and transporter expression and individual values appear here when a source gives them." />
         </TabPanel>
       )}
@@ -456,7 +459,7 @@ export function InputsWorkspace({ projectId, initialTab = "compound", steps }: {
                                 setDrawer(false);
                                 setOnlyToConfirm(false);
                                 setTab(area);
-                                window.setTimeout(() => document.getElementById(`client-file-${f.id}`)?.scrollIntoView({ block: "start", behavior: "smooth" }), 80);
+                                window.setTimeout(() => document.getElementById(`client-file-${f.id}`)?.scrollIntoView({ block: "start", behavior: reducedMotion() ? "auto" : "smooth" }), 80);
                               }} />}
     </PageShell>
   );
