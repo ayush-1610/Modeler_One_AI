@@ -15,6 +15,11 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — the mapping rules never read a period as an arm (integrator, 2026-11-14) — science change
+- **What:** `mapping.rules.ARM_SHAPE` (the arm a caption names, added with the seam fixes) leaves out the word "period". "Study 230-26, Period 2" names no arm; "Period 2, Treatment T" reads the arm "Treatment T" (before: no arm, two names). The field registry's cue still finds the line.
+- **Why:** in a crossover each period holds every treatment, and a period has its own label (`EntityRef.period`). Reading "Period 1" as the arm would put two treatments' values on one arm named after the period.
+- **Impact:** the rule path only (no approved mapping, no model): a table captioned with a period alone gets no arm from the rules, so two such tables of one study are a listed conflict a person settles, as designed. Contract §13 records this and W's mapping order (approved cache versions, then the rules recomputed, then a non-rule proposal, then the model). Tests: `test_mapping_rules.py` (the arm shape; a period beside an arm).
+
 ### Fixed — re-checking prose anchors, and two points of the synthetic truth (seam group c, 2026-11-14)
 Three findings of the seam probe that ran the merged builds together. Each was reproduced first.
 - **What (SEAM-6, science: what counts as "the value is still there" after a re-parse):** `source.check_anchors` now finds a prose value inside its quote.

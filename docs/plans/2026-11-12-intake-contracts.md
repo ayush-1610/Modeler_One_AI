@@ -2750,3 +2750,61 @@ difference is listed here so a builder who reads only this document is not misle
      edits. It is built in parallel with W.
   2. D6-API: the routes, views, `dataset_points`, admin and client_api. It is built on W and D6-PM merged.
   3. D6-web: the components, admin page and e2e. It is built on D6-API merged, with the API types regenerated.
+
+**Seam fixes, group a (2026-11-13), as the code governs.**
+- **Unassigned (§4.5, §6.3, replaces the wording above):** `values(unassigned=True)`, `is_unassigned` and `CoverageSummary.values_unassigned` mean "no study and no product, and not a compound field". A batch is not a subject: a value that names a batch and no product is on the "study not stated" list and blocks with `UNASSIGNED_VALUES` until an `Assignment` gives it its product (and batch). The compound subject is unchanged (`in_subject`: a compound field with no study, product or batch).
+- **The read side computes conflicts and pending links (§4.5, §6.3, §6.6):**
+  - `LedgerView.conflicts()` and `LedgerView.pending_links()` work on the snapshot for any reader, and `Ledger` inherits them. D5's functions take a plain `LedgerView`.
+  - `find_conflicts` lives in `PM/ledger_view.py`. `LedgerView(ws, *, rules=None)`.
+  - `pending_links()` reads the link confirmations and alias lines the fold read and today's review record once per snapshot: after writing a `LinkConfirmation`, refresh or use a new view.
+- **Identity of an extract after a re-parse (§6.3):** a region's id is D2's and may change in a re-parse while every cell stays (a PDF table's id hashes its box). The ledger knows the table by its cells.
+  - An extract of the same file and mapping id read under another parser version whose values equal the new ones by place is the same extract, whatever its region id: nothing is written, and it keeps its id, its old anchors, its old region id and its confirmation.
+  - A new extract supersedes every active extract of its region id, and every active extract read under another parser version that has a value in one of the region's cells (`ledger.cells_in_common`: the same place; for a PDF cell the same page and boxes overlapping by at least half, never the table number).
+  - `Ledger.retire_regions(..., found=None)`: `found` is the ids of the file's active values that `check_anchors` found again. An extract all of whose active values are among them is kept. An extract the same `Ledger` has just recorded under that parser version is never retired. Without either, the region id decides as before, and the same table recorded again is set proposed again.
+  - W keeps one `Ledger` per run (record, then retire), or passes `found`.
+  - Open: a `RegionDecision` is keyed by region id and does not follow such a change; a PDF whose cells are renumbered is superseded although `check_anchors` finds every value.
+- **Truth convention (§7, §10):** `write_truth` also writes the `lloq` fact of a "<x" cell that no LLOQ line or column of its table states for the same (study, analyte, matrix), at the cell, with its column's unit and the unit cell among its locators. It is no `TruthValue` and has no key in `write_truth`'s answer. The template's truth ledger holds one value more than `template.values`, which D0 counts outside the key.
+
+**Seam fixes, group b: the mapper (2026-11-13), as the code governs.**
+- **§6.2 `MappingCache.propose`:** the text says "the same spec as the latest version: that entry". The code returns the stored version whose spec equals the new one, whichever version it is (newest approved, else newest proposed, else newest rejected), and appends nothing. It may still be a rejected version; callers check `status()`.
+- **§6.2 new `MappingCache.candidates(fingerprint) -> list[tuple[MappingEntry, str]]`:** approved versions newest first, then proposed newest first, never a rejected one. `lookup` is its first element (signature and meaning unchanged).
+- **§6.2 mapping order:** "cache (`lookup`...)" now reads: W tries `candidates` in order and uses the first whose spec has no error-severity finding on this grid; only then `map_by_rule`.
+  - **Open, for the integrator and W:** a version can validate on a table it reads worse than that table's own rule spec (fewer constants cited; a `last_data_row` from a smaller table). "First that passes, newest first" then picks it. Proposed: prefer the passing candidate that reads most, or use the cache only for approved and non-rule versions and recompute the rules each run (`propose` now makes that idempotent).
+- **§6.2 `map_by_rule`: a rule spec holds no value of its own table.**
+  - A name constant is cited with no pattern (the cell is the name) or with one of `rules.SHAPES[field]` (study_id, analyte, batch, product, medium, apparatus, treatment); a name no shape reads is left out with a note.
+  - `below_lloq_tokens` and `missing_tokens` are the rule's vocabulary (`recipe.DEFAULT_BELOW_LLOQ_TOKENS`, `sheet_form.MISSING_TOKENS`), plus any other non-numeric "<..." token the form found.
+  - The analyte may be one name built on the drug's ("Exampleamide-M1"): the table's own analyte is kept.
+  - Beyond today's form, the rules read a `treatment` constant where the caption or a line above names exactly one arm (`rules.ARM_SHAPE`, on a line `fields`' cue for `treatment` finds; concentration tables only). No arm is guessed.
+  - A value column of today's form whose header names only a spread or a count is left out (unaccounted, counted). With no subject's column left, the spec is the mean profile (`pk_summary`); with no value column at all, `map_by_rule` returns None.
+- **§6.2 `validate_spec`, `LAYOUT` gains one case:** a `value` column under a header that names only a spread kind or only a count (`validate.not_a_value_header`; `reading.spread_only`, `reading.count_only`), whatever its typed statistic. Not refused: a header that also names a statistic ("Mean (SD)", "Mean ± SD"), a label with a number ("SE-101"), a count header over a column of an integer field (the template's Studies "n"). Row rules are not checked this way.
+- **§4.4 unchanged:** `Constant.pattern` None still means the whole cited text; the shapes are ordinary patterns that pass `reading.pattern_problem`.
+- **Open (owner or SME):** the registry's cue for `treatment` includes "period", so a caption's "Period 1" is read as an arm; in a crossover a period is not an arm.
+
+**Seam fixes, group c: re-checked anchors and the truth (2026-11-14), as the code governs.**
+- **§6.1 `check_anchors`:** a prose fact's item is (id, the anchor of the value's own span, the quote). It is found when
+  the quote lies over the span (the span's text in the quote, the quote's text before and after it standing before and
+  after the span in the document). The place is checked: a span that holds another number of the same quote is
+  `text_differs`. A PDF span is sized by the span, not by the verbatim.
+- **§4.2 `OutsideItem.furniture`** also marks, in a `client_template` document, a README cell that still holds the
+  template's own text for that cell (`client_template.README`). The sheet is never set aside as a whole.
+- **Truth (`modeler_intake.synthetic`):** `SyntheticFile.furniture` lists the template's own cells with a number; the
+  template's `outside` is empty as shipped. The Word report's prose dose carries no study-label locator.
+
+**Integrator decisions after the seam fixes (2026-11-14).**
+- **W's mapping order (§6.2, §6.5), replacing "cache, rule, LLM":**
+  1. the **approved** versions of `MappingCache.candidates(fingerprint)` that have no error-severity finding from
+     `validate_spec` on this grid. Among several, the one that leaves the fewest numeric cells unaccounted, then the one
+     that reads the most constants, then the newest. A person approved the layout's reading, so it governs;
+  2. else `map_by_rule`, recomputed on every run (it is deterministic, and `propose` returns the stored version of an
+     equal spec, so a re-run appends nothing); never a rejected version;
+  3. else a **proposed** candidate whose origin is not a rule (an earlier LLM or person's spec), the same choice among
+     several;
+  4. else the LLM (agents on), else `unread` with the reason.
+  A proposed rule version is never taken from the cache in place of the table's own rule spec: a version made for
+  another table of the layout can validate here and read less (fewer constants cited, a shorter last data row).
+- **The rules never read a period as an arm.** `rules.ARM_SHAPE` leaves out the registry cue's word "period": a period
+  holds every treatment of a crossover and has its own label. "Period 2, Treatment T" reads the arm "Treatment T".
+- **Open (not fixed):** a `RegionDecision` and a `RegionOutcome` are keyed by D2's region id, so a person's region
+  decision made before a re-parse that renames a PDF region stops applying (the region shows as unread again,
+  visibly). The seam review's interface lens (rules implemented twice, type agreement between builds) has not run; it
+  is part of the final review of the whole change.

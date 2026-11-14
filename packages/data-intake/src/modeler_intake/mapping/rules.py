@@ -99,8 +99,9 @@ _APPARATUS_SHAPE = (rf"(?i){_WHOLE[0]}(usp\s?(?:apparatus\s?)?(?:type\s?)?(?:iii
 # The arm a caption names ("Cohort 1", "Treatment A", "Arm B", "Group 2"): one of the words the field registry's cue for
 # `treatment` announces an arm with (never a second list), and the short name after it (a number, or a capital letter
 # with at most one digit). Not a plural ("Cohorts 1 and 2"), and not the first of a range or a list ("Cohort 1-3",
-# "Cohort 1 and 2", "Treatment A/B"): those name more than one arm.
-_ARM_WORDS = "|".join(re.findall(r"\\b([a-z]+)s\?\\b", fields.FIELDS["treatment"].cue))
+# "Cohort 1 and 2", "Treatment A/B"): those name more than one arm. A period is not an arm (in a crossover each period
+# holds every treatment, and it has its own label, `EntityRef.period`): "Period 1" finds the line but names no arm.
+_ARM_WORDS = "|".join(w for w in re.findall(r"\\b([a-z]+)s\?\\b", fields.FIELDS["treatment"].cue) if w != "period")
 ARM_SHAPE = (rf"{_WHOLE[0]}((?i:{_ARM_WORDS})\s+(?:\d\d?\d?|[A-Z]\d?)){_WHOLE[1]}"
              r"(?!\s?(?:&|/|-|–|and\b|or\b|to\b)\s?(?:\d|[A-Z]\b))")
 SHAPES: Mapping[str, tuple[str, ...]] = {

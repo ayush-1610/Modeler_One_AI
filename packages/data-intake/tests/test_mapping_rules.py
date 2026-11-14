@@ -574,7 +574,8 @@ def test_the_rules_read_the_arm_a_caption_or_a_line_above_names(caption, above, 
     "Study 230-26: Exampleamide plasma concentrations by treatment group",          # the words, no name
     "Study 230-26: Exampleamide plasma concentrations after treatment a week later",
     "Study 230-26: Exampleamide plasma concentrations, group mean",
-    "Study 230-26, Period 2, Treatment T: Exampleamide plasma concentrations",      # two names: which is the arm?
+    "Study 230-26, Period 2: Exampleamide plasma concentrations",                   # a period is not an arm
+    "Study 230-26, Period 1, Treatment T and Treatment R: Exampleamide plasma concentrations",
 ])
 def test_no_arm_is_guessed_where_the_caption_states_none_or_more_than_one(caption):
     grid, region = _summary(caption)
@@ -585,10 +586,19 @@ def test_no_arm_is_guessed_where_the_caption_states_none_or_more_than_one(captio
 
 
 def test_the_arm_shape_is_built_on_the_field_registrys_cue_for_treatment():
-    """The words that announce an arm are the registry's (`fields`: arm, treatment, cohort, group, period), never a
-    second list: the shape reads one of them and the short name after it."""
+    """The words that announce an arm are the registry's (`fields`: arm, treatment, cohort, group), never a second
+    list: the shape reads one of them and the short name after it. The registry's fifth word, period, finds the line
+    but names no arm: a period holds every treatment of a crossover and has its own label."""
     words = re.findall(r"\\b([a-z]+)s\?\\b", fields.FIELDS["treatment"].cue)
     assert "|".join(rf"\b{w}s?\b" for w in words) == fields.FIELDS["treatment"].cue and len(words) == 5
     assert pattern_problem(ARM_SHAPE) is None and re.compile(ARM_SHAPE).groups == 1
     for word in words:
-        assert [m.group(1) for m in re.finditer(ARM_SHAPE, f"Study 230-26, {word.title()} 2 (30 mg)")] == [f"{word.title()} 2"]
+        found = [m.group(1) for m in re.finditer(ARM_SHAPE, f"Study 230-26, {word.title()} 2 (30 mg)")]
+        assert found == ([] if word == "period" else [f"{word.title()} 2"])
+
+
+def test_a_period_beside_an_arm_leaves_the_arm_read():
+    grid, region = _summary("Study 230-26, Period 2, Treatment T: Exampleamide plasma concentrations")
+    mapped = map_by_rule(grid, region, filename="report.xlsx", drug=synthetic.DRUG)
+    assert mapped is not None
+    assert {r.labels["arm"] for r in execute(mapped.spec, grid).rows} == {"Treatment T"}
