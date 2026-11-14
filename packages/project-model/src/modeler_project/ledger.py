@@ -2,8 +2,8 @@
 
 `Ledger` is a `LedgerView` (the read side's fold, a snapshot) that also writes; after each write it calls `refresh()`,
 so its next read folds again. It writes two chained logs (`ledger/facts.jsonl`: fact, extract, status;
-`ledger/entities.jsonl`: entity, alias, merge) and content-addressed extract files, and implements `conflicts()` and
-`pending_links()`, which the read side leaves to it.
+`ledger/entities.jsonl`: entity, alias, merge) and content-addressed extract files. `conflicts()` and
+`pending_links()` are the read side's (`ledger_view`): any `LedgerView` gives them, and this class inherits them.
 
 What a mapped table becomes (`record_extraction`):
 - its numeric rows: ONE `TableExtract` (column-wise, one entry per value with its own locator: `tx-<16 hex>#<i>`);
@@ -18,7 +18,7 @@ A table that names no study gives values with no study: kept, never guessed from
 
 Identity, so that a re-run is idempotent (a batch is not atomic: every writer decides from what is there, under the
 log's lock):
-- an extract: one active extract per (file, region). An active extract of the same file, region and mapping id (any
+- an extract: one active extract per table of a file. An active extract of the same file, region and mapping id (any
   version, §6.3) whose values equal the new ones (entity ids followed through merges; locators by their identity, a
   PDF box aside; the parser version aside) is kept and nothing is written, whatever the delivery, run or mapping
   version: the same bytes again, a re-parse whose anchors all hold, the same values after an entity merge, a new
@@ -26,7 +26,13 @@ log's lock):
   level follows that version's decision). Otherwise the new extract supersedes every earlier active extract of that
   region: a new mapping version that reads a value differently, a value moved by a re-parse. An extract whose region
   is gone after a re-parse is retired with a status line (`retire_regions`, reason "region gone after re-parse"); an
-  earlier extract code set aside (superseded, retired) whose values are recorded again is the active one again;
+  earlier extract code set aside (superseded, retired) whose values are recorded again is the active one again.
+  A region's id is the parser's (a PDF table's hashes its box), so a re-parse may give one table another id while
+  every cell stays where it was. The table is then known by its cells, not its id: an extract of the same file and
+  mapping id read under another parser version whose values equal the new ones by place is that extract (kept,
+  nothing written, its confirmation still bound), whatever its region id; `retire_regions` does not retire an extract
+  all of whose values `check_anchors` found again; and a new extract supersedes an active extract read under another
+  parser version that reads one of its cells (`cells_in_common`), so one table never has two active extracts;
 - a fact: the same field at the same place (its anchor's identity; for a table's fact, the study, arm, product and
   batch it is about; its analyte, labels, conditions and time) read by the same mapping (any version) with the same
   content is written once; another content there supersedes the active fact. Two tables that cite one line read it
@@ -42,7 +48,6 @@ owners.
 
 from __future__ import annotations
 
-import math
 import re
 import unicodedata
 from collections.abc import Callable, Collection, Mapping, Sequence
@@ -51,20 +56,18 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict
 
-from modeler_intake.anchors import anchor_text, canonical, check_id, parse_locator, sha256_of
+from modeler_intake.anchors import PdfCell, anchor_text, canonical, check_id, parse_locator
 from modeler_intake.document_reading import name_key
-from modeler_intake.fields import CONDITION_FIELDS, LABEL_FIELDS, DocumentRole, SpreadKind, Statistic, known_unit, read_choice
+from modeler_intake.fields import CONDITION_FIELDS, LABEL_FIELDS, DocumentRole, SpreadKind, Statistic, read_choice
 from modeler_intake.fields import field as field_def
 from modeler_intake.mapping_spec import ExtractedRow, ExtractResult, ProseFact
 from modeler_intake.source_model import Region, RegionGrid
 from modeler_project import ledger_compute, ledger_links
 from modeler_project.intake_records import Choice, FileRecord, LinkConfirmation, MappingEntry
 from modeler_project.intake_rules import IntakeRules
-from modeler_project.intake_rules import rules as load_rules
 from modeler_project.intake_store import ChainEntry
 from modeler_project.ledger_entities import EntityBook, follow_ref, home_file, label_key, merge, now, resolve
 from modeler_project.ledger_models import (
-    Conflict,
     EntityRef,
     EntityType,
     ExtractRef,
@@ -73,15 +76,13 @@ from modeler_project.ledger_models import (
     Merge,
     Method,
     ModelUse,
-    PendingLink,
     Relation,
     StatusChange,
     TableExtract,
     ValueState,
 )
-from modeler_project.ledger_view import LedgerView, is_compound_field, is_spread_fact
+from modeler_project.ledger_view import _NAMING, LedgerView, _label, _reading, _unit_key, is_compound_field
 from modeler_project.workspace import Workspace
-from pbpk_domain.units import UnitError, minutes_per
 
 REGION_GONE = "region gone after re-parse"
 # the reason a table's fact is set aside when a later recording of its region under the same mapping no longer reads it
@@ -93,9 +94,6 @@ _TABLE_METHOD: Mapping[str, Method] = MappingProxyType(
     {"workbook": "cell", "delimited": "cell", "pdfplumber": "pdf_table", "docx": "docx_table"})
 _LOCATOR_METHOD: Mapping[str, Method] = MappingProxyType(
     {"sheet_cell": "cell", "pdf_cell": "pdf_table", "docx_cell": "docx_table"})
-# a constant that names an entity of every row: field -> the label role it fills
-_NAMING: Mapping[str, str] = MappingProxyType(
-    {"study_id": "study", "treatment": "arm", "analyte": "analyte", "product": "product", "batch": "batch"})
 _ENTITY_PARTS: tuple[EntityType, ...] = ("study", "arm", "product", "batch", "analyte")
 # the roles of a value's label cells (TableExtract.entity_locators); every other role is a qualifier or a condition.
 # A key-value table's label cell is the role "parameter" (contracts §13)
@@ -105,6 +103,10 @@ _LEVEL_PARTS: Mapping[str, tuple[EntityType, ...]] = MappingProxyType({
     "study": ("study",), "arm": ("study", "arm"), "product": ("product",), "batch": ("product", "batch"),
     "analyte": ("study", "analyte"), "compound": ()})
 _BOX = re.compile(r"@-?\d+\.\d{2},-?\d+\.\d{2},-?\d+\.\d{2},-?\d+\.\d{2}$")
+# Across parser versions, two PDF cells of one page are one cell when their boxes overlap by at least half: the rule by
+# which `check_anchors` finds a value again after a re-parse (contracts §6.1). A PDF cell's own numbers (table, row,
+# column) are the parser's: one that finds another table on the page numbers the others anew
+_SAME_PDF_CELL = 0.5
 _LOCATOR_COLUMNS = ("locator", "time_locator", "time_actual_locator", "unit_locator", "spread_locator", "n_locator",
                     "lloq_locator")
 # what makes two facts the same content: everything but who, when, which delivery or run, which agent run, and what
@@ -153,6 +155,43 @@ def anchor_place(anchor: str) -> str:
     return f"{head.split('@', 1)[0]}#{place(locator)}"
 
 
+def _box_share(a: Sequence[float], b: Sequence[float]) -> float:
+    """The share of the smaller box that two boxes have in common: the anchor check's measure
+    (`modeler_intake.source.pdf.overlap`; computed here so that the ledger does not load the parsers)."""
+    width = min(a[2], b[2]) - max(a[0], b[0])
+    height = min(a[3], b[3]) - max(a[1], b[1])
+    if width <= 0 or height <= 0:
+        return 0.0
+    smaller = min((a[2] - a[0]) * (a[3] - a[1]), (b[2] - b[0]) * (b[3] - b[1]))
+    return width * height / smaller if smaller > 0 else 0.0
+
+
+def cells_in_common(old: Sequence[str], new: Sequence[str]) -> bool:
+    """Whether two sets of cells of one file, located under two parser versions (locator texts), have a cell in common:
+    the same place (§4.1's identity) for a sheet or Word cell; for a PDF cell the same page and boxes that overlap by
+    at least half, as `check_anchors` finds a value again, never its table, row and column numbers."""
+    boxes: dict[int, list[Sequence[float]]] = {}
+    places: set[str] = set()
+    for text in new:
+        if not text:
+            continue
+        locator = parse_locator(text)
+        if isinstance(locator, PdfCell):
+            boxes.setdefault(locator.page, []).append(locator.box)
+        else:
+            places.add(place(text))
+    for text in old:
+        if not text:
+            continue
+        locator = parse_locator(text)
+        if isinstance(locator, PdfCell):
+            if any(_box_share(locator.box, box) >= _SAME_PDF_CELL for box in boxes.get(locator.page, ())):
+                return True
+        elif place(text) in places:
+            return True
+    return False
+
+
 def _follow_relation(relation: Any, merged: Mapping[str, str]) -> Any:
     if not relation:
         return relation
@@ -198,9 +237,9 @@ def _group(body: Mapping[str, Any]) -> str | None:
 
 def _comparable(extract: TableExtract, merged: Mapping[str, str]) -> str:
     """An extract's content as the identity rule compares it: entity ids through merges, locators by identity, the
-    parser and its version aside, the mapping by its id (any version, §6.3)."""
+    parser, its version and the region id it gave the table aside, the mapping by its id (any version, §6.3)."""
     body = extract.model_dump(mode="json")
-    for name in ("schema_id", "parser", "parser_version"):
+    for name in ("schema_id", "parser", "parser_version", "region_id"):
         body.pop(name, None)
     body["mapping"] = extract.mapping.mapping_id
     body["entities"] = [follow_ref(e, merged).model_dump(mode="json") for e in extract.entities]
@@ -337,146 +376,32 @@ class _Names:
         return EntityRef(**parts, **written)
 
 
-# --- conflicts ----------------------------------------------------------------------------------------------------
-
-
-def _label(text: str | None) -> str | None:
-    return name_key(text) if text else None
-
-
-def _entity_key(entity: EntityRef, analytes: Mapping[str, str] | None = None) -> tuple[Any, ...]:
-    """An entity as conflicts compare it. The analyte of a study's (or a product's) value by its name (`analytes`:
-    analyte id -> `label_key`): analytes are resolved inside their file, so one study's analyte named in two files is
-    two entities, and their values must still meet. A value of no study and no product keeps its analyte's id: two
-    files' unassigned values are never one entity."""
-    matrix = (read_choice("matrix", entity.matrix) or name_key(entity.matrix)) if entity.matrix else None
-    analyte: Any = entity.analyte
-    if analyte is not None and analytes and (entity.study or entity.product) and analyte in analytes:
-        analyte = ("name", analytes[analyte])
-    return (entity.study, entity.arm, entity.product, entity.batch, analyte, _label(entity.subject),
-            _label(entity.period), _label(entity.sequence), _label(entity.occasion), _label(entity.vessel), matrix)
-
-
-def _condition_value(text: str) -> str:
-    try:
-        return repr(float(str(text).strip().replace(",", ".")))
-    except ValueError:
-        return " ".join(str(text).casefold().split())
-
-
-def _unit_key(field: str, unit: str | None) -> tuple[str, str]:
-    """A unit as conflicts compare it: its canonical spelling in the table of the field's class, else its text."""
-    known = known_unit(field, unit) if unit else None
-    return ("known", known) if known is not None else ("text", (unit or "").strip())
-
-
-def _reading(value: ValueState) -> tuple[Any, ...]:
-    found = field_def(value.field)
-    raw = value.value
-    if isinstance(raw, bool):
-        read: Any = ("bool", raw)
-    elif isinstance(raw, int | float):
-        read = ("number", float(f"{float(raw):.12g}"))
-    elif isinstance(raw, str):
-        kind = found.value if found is not None else "text"
-        read = ("text", label_key(raw) if kind == "name" else raw if kind == "choice" else " ".join(raw.casefold().split()))
-    else:
-        read = None
-    uloq = float(f"{value.uloq:.12g}") if value.uloq is not None else None
-    return (read, value.censored, uloq)
-
-
-def _minutes(value: ValueState) -> tuple[str, float] | None:
-    """A value's time in minutes when its unit converts to a finite number, else as written (its unit in the key)."""
-    if value.time is None:
-        return None
-    if value.time_unit:
-        try:
-            minutes = value.time * minutes_per(value.time_unit)
-        except UnitError:
-            return (f"as written:{value.time_unit}", value.time)
-        if math.isfinite(minutes):
-            return ("min", minutes)
-        return (f"as written:{value.time_unit}", value.time)
-    return ("as written:", value.time)
-
-
-def find_conflicts(values: Sequence[ValueState], *, resolution_min: float,
-                   analytes: Mapping[str, str] | None = None) -> list[Conflict]:
-    """Two or more active values with the same entity (labels included; a study's analyte by its name, `analytes`),
-    field, time (`time_resolution_min` apart at most, after conversion to minutes), statistic, conditions and relation
-    that differ: a `unit` conflict when their units differ (nothing converted), else a `value` conflict. All are kept
-    and listed. A spread fact, a value that states nothing (a missing token) and a derived fact beside its own input
-    take no part; nor do a naming fact (a study id, a treatment, an analyte, a product or a batch named by a table)
-    and a link fact: two names on one entity come from an anchored link, an alias or a merge, decisions of their own,
-    never from the data disagreeing. Nor does an `lloq` fact: it is written per (study, analyte, matrix), and two arms
-    of one study may state two LLOQs (two assays); D5 compares LLOQs per profile, (study, arm, analyte, matrix)
-    (`ONE_LLOQ_PER_PROFILE`, `LLOQ_UNIT_DIFFERS`, §6.3)."""
-    groups: dict[str, list[tuple[tuple[str, float] | None, ValueState]]] = {}
-    keys: dict[str, list[Any]] = {}
-    for value in values:
-        if value.status not in _ACTIVE or is_spread_fact(value) or value.field in _NAMING \
-                or value.field.startswith("link.") or value.field == "lloq":
-            continue
-        if value.value is None and not value.censored and value.uloq is None:
-            continue
-        time = _minutes(value)
-        relation = None
-        if value.relation is not None:
-            relation = [value.relation.kind, list(_entity_key(value.relation.other)), value.relation.parameter]
-        key = [list(_entity_key(value.entity, analytes)), value.field, value.statistic,
-               sorted((name, _condition_value(v)) for name, v in value.conditions.items()), relation,
-               time[0] if time else None]
-        text = canonical(key)
-        keys[text] = key
-        groups.setdefault(text, []).append((time, value))
-    out: list[Conflict] = []
-    for text, members in groups.items():
-        members.sort(key=lambda m: (m[0][1] if m[0] else 0.0))
-        clusters: list[list[tuple[tuple[str, float] | None, ValueState]]] = []
-        for member in members:
-            time = member[0]
-            if clusters and (time is None or abs(time[1] - clusters[-1][0][0][1]) <= resolution_min):
-                clusters[-1].append(member)
-            else:
-                clusters.append([member])
-        for cluster in clusters:
-            if len(cluster) < 2:
-                continue
-            ids = {v.id for _t, v in cluster}
-            taking = [v for _t, v in cluster if not (v.method == "derived" and any(i in ids for i in v.derived_from))]
-            if len(taking) < 2:
-                continue
-            if len({_unit_key(v.field, v.unit) for v in taking}) > 1:
-                kind = "unit"
-            elif len({_reading(v) for v in taking}) > 1:
-                kind = "value"
-            else:
-                continue
-            first = cluster[0][0]
-            conflict_id = "cx-" + sha256_of([keys[text], first[1] if first else None])[:10]
-            out.append(Conflict(id=conflict_id, entity=taking[0].entity, field=taking[0].field,
-                                time=taking[0].time, values=tuple(v.id for v in taking), kind=kind))
-    return out
-
-
 # --- the ledger -------------------------------------------------------------------------------------------------
 
 
 class Ledger(LedgerView):
-    """The ledger's write side (see the module docstring); also the read side's `conflicts()` and `pending_links()`."""
+    """The ledger's write side (see the module docstring). Its `conflicts()` and `pending_links()` are the read side's
+    (`LedgerView`), computed on this ledger's snapshot with its rules."""
 
     def __init__(self, ws: Workspace, *, rules: IntakeRules | None = None):
-        super().__init__(ws)
-        self.rules = rules                                  # None: the rules file (intake_rules.rules())
-        self._aliases: dict[str, Any] | None = None          # read with the snapshot, dropped with it
+        super().__init__(ws, rules=rules)                   # None: the rules file (intake_rules.rules())
+        self._versions: dict[str, str] = {}                 # extract id -> the parser version it was read under
+        # (file, parser version) -> the extracts this ledger's recordings gave for that parse (written, or kept)
+        self._recorded: dict[tuple[str, str], set[str]] = {}
 
-    def refresh(self) -> None:
-        super().refresh()
-        self._aliases = None
+    def _parser_version(self, extract_id: str) -> str:
+        """The parser version an extract a line names was read under (its file is written once: it never changes)."""
+        if extract_id not in self._versions:
+            self._versions[extract_id] = self.store._extract_file(extract_id).parser_version
+        return self._versions[extract_id]
 
-    def _rules(self) -> IntakeRules:
-        return self.rules or load_rules()
+    def _moved_here(self, ref: ExtractRef, parser_version: str, cells: Sequence[str]) -> bool:
+        """Whether an extract of the file recorded under ANOTHER region id is of the table these cells are: only an
+        extract read under another parser version can be (within one version a region's id is its table's), and it is
+        when one of its values stands in one of the cells (`cells_in_common`)."""
+        if self._parser_version(ref.id) == parser_version:
+            return False
+        return cells_in_common(self.store._extract_file(ref.id).locator, cells)
 
     # --- recording a table --------------------------------------------------------------------------------------
 
@@ -579,22 +504,32 @@ class Ledger(LedgerView):
         if numeric:
             extract = _extract(numeric, file_sha256=sha, context=context, region_id=region.id, mapping=use,
                                kind=mapping.spec.kind, decimal=result.decimal, anchor=anchor)
-            extract_id, superseded, _written = self._write_extract(extract, delivery=context.delivery, run_id=context.run_id)
+            extract_id, superseded, _written = self._write_extract(
+                extract, delivery=context.delivery, run_id=context.run_id, cells=[c.locator for c in grid.cells.values()])
+            self._recorded.setdefault((sha, context.parser_version), set()).add(extract_id)
         written = self._write_facts(facts)
         ids = list(dict.fromkeys([*names.links, *(w[0] for w in written)]))
         own = {place(c.locator) for c in (*grid.cells.values(), *grid.caption)}
         lines = {place(c.locator) for line in (*grid.above, *grid.below) for c in line} - own
+        # with an extract, `_write_extract` has settled the table's earlier extracts; with none (no numeric value is
+        # read any more), the region's cells say which earlier extract of another region id was this table's
         retired = self._retire_unread(file_sha256=sha, region_id=region.id, mapping=use, own=own, lines=lines,
-                                      kept={*ids, *([extract_id] if extract_id else [])})
+                                      kept={*ids, *([extract_id] if extract_id else [])},
+                                      parser_version=context.parser_version,
+                                      cells=() if extract_id else [c.locator for c in grid.cells.values()])
         self.refresh()
         return Recorded(extract=extract_id, facts=tuple(ids), entities=tuple(names.entities),
                         superseded=(*superseded, *(w[1] for w in written if w[1] and w[2]), *retired))
 
     def _retire_unread(self, *, file_sha256: str, region_id: str, mapping: MappingUse, own: Collection[str],
-                       lines: Collection[str], kept: Collection[str]) -> list[str]:
+                       lines: Collection[str], kept: Collection[str], parser_version: str,
+                       cells: Sequence[str]) -> list[str]:
         """After a recording of a region: what an earlier recording of it under the same mapping wrote and this one no
         longer reads is set aside with a status line (reason NOT_READ_AGAIN), so a constant a corrected mapping version
-        stops reading does not stay active. An extract is the region's by its region id. A table's fact of the same
+        stops reading does not stay active. An extract is the region's by its region id, or, read under another parser
+        version than `parser_version` (a re-parse may give the region another id), by a value that stands in one of
+        the region's `cells` (`_moved_here`; given only when this recording has no extract of its own, which would
+        have superseded it). A table's fact of the same
         mapping is the region's when its anchor is one of the region's own places (`own`: its cells and caption, which
         no other region has); at a line above or below it (`lines`, which a neighbouring table of the same layout may
         cite too), only when an earlier version of the mapping read it, so two such tables never set each other's
@@ -609,8 +544,9 @@ class Ledger(LedgerView):
         def decide(entries: list[ChainEntry]) -> list[tuple[str, Any]]:
             book = _FactsBook(entries)
             targets = [ref.id for _seq, ref in book.extracts
-                       if ref.file_sha256 == file_sha256 and ref.region_id == region_id
-                       and ref.mapping.mapping_id == mapping.mapping_id and ref.id not in kept and book.active(ref.id)]
+                       if ref.file_sha256 == file_sha256 and ref.mapping.mapping_id == mapping.mapping_id
+                       and ref.id not in kept and book.active(ref.id)
+                       and (ref.region_id == region_id or (cells and self._moved_here(ref, parser_version, cells)))]
             for body in book.facts:
                 used = body.get("mapping")
                 if body["id"] in kept or not used or used.get("mapping_id") != mapping.mapping_id \
@@ -930,31 +866,10 @@ class Ledger(LedgerView):
         return made
 
     def _link_confirmations(self) -> list[LinkConfirmation]:
+        """review.jsonl's `link` lines as they are now (a write decides on the log, not on a request's snapshot)."""
         return [LinkConfirmation.model_validate(line.body) for line in self.store.review.entries("link")]
 
-    def _alias_sources(self) -> dict[str, Any]:
-        """Today's review record and the ledger's alias lines: the aliases `resolve` reads, for the candidates of an
-        ambiguous study label (read once per snapshot)."""
-        from modeler_project.client_data import review_record
-
-        if self._aliases is None:
-            self._aliases = {"review": review_record(self.ws),
-                             "aliases": EntityBook(self.store.entities.entries()).aliases}
-        return self._aliases
-
-    # --- conflicts, choices and pending links --------------------------------------------------------------------
-
-    def conflicts(self, *, study: str | None = None, product: str | None = None) -> list[Conflict]:
-        """The open conflicts (`find_conflicts`), of one study or product (ids followed through merges) or all."""
-        analytes = {e.id: label_key(e.label) for e in self.entities("analyte")}
-        found = find_conflicts(self.values(), resolution_min=self._rules().ledger.time_resolution_min, analytes=analytes)
-        if study is not None:
-            entity = self.entity(study)
-            found = [c for c in found if c.entity.study == (entity.id if entity else study)]
-        if product is not None:
-            entity = self.entity(product)
-            found = [c for c in found if c.entity.product == (entity.id if entity else product)]
-        return found
+    # --- choices (conflicts() and pending_links() are the read side's, inherited) ----------------------------------
 
     def apply_choice(self, choice: Choice) -> list[StatusChange]:
         """Settle a conflict as a person chose (the review's `choice` line, written and audited by its owner): every
@@ -987,27 +902,32 @@ class Ledger(LedgerView):
             self.retire_orphans()                           # a derived fact never outlives its input
         return changes
 
-    def pending_links(self, *, study: str | None = None) -> list[PendingLink]:
-        """The cross-file links waiting for a reviewer, refused, or ambiguous (`ledger_links.pending_links`), of one
-        study (the study whose values wait: the one receiving them, or a file's own study whose label names others)
-        or all."""
-        found = ledger_links.pending_links(self, self._link_confirmations(), **self._alias_sources())
-        if study is None:
-            return found
-        entity = self.entity(study)
-        target = entity.id if entity is not None else study
-        return [p for p in found if p.study == target]
-
     # --- a re-parse ----------------------------------------------------------------------------------------------------
 
-    def retire_regions(self, *, file_sha256: str, parser_version: str, regions: Collection[str],
-                       by: str = "code") -> list[StatusChange]:
+    def retire_regions(self, *, file_sha256: str, parser_version: str, regions: Collection[str], by: str = "code",
+                       found: Collection[str] | None = None) -> list[StatusChange]:
         """After a re-parse under `parser_version`: every active extract of this file recorded under another parser
         version whose region is not among `regions` (the new document's region ids) is retired with a status line,
-        reason "region gone after re-parse" (W lists it as an anchor problem). Idempotent."""
+        reason "region gone after re-parse" (W lists it as an anchor problem). Idempotent.
+
+        A region's id is the parser's, and a re-parse may change it while every cell stays (a PDF table's id hashes its
+        box). So an extract whose region id is not among `regions` is still kept when its table is known to be there:
+        - this ledger's own recordings under `parser_version` gave it (`record_extraction` kept it for a region of the
+          new document, by its cells: `_write_extract`). A run that records the new document and then calls this, with
+          the same `Ledger`, retires nothing it has just read again;
+        - `found` names every active value of it. `found`: the ids of the values `check_anchors` found again in the new
+          document, each at its place with the same text (the active values of the file read under another parser
+          version that gave no `AnchorProblem`). §6.3: such an extract stays, and nothing is written. Give `found` when
+          this is called before the recordings, or by another `Ledger` than the one that recorded.
+        Without either, the region id alone decides, as before; the same table recorded again later is then set
+        proposed again (two status lines, where the cases above write none)."""
         check_id("sha256", file_sha256)
         keep = frozenset(regions)
-        found: list[StatusChange] = []
+        recorded = frozenset(self._recorded.get((file_sha256, parser_version), ()))
+        again = frozenset(found) if found is not None else None
+        self.refresh()
+        active = {v.id for v in self.values(file_sha256=file_sha256)} if again is not None else set()
+        retired: list[StatusChange] = []
 
         def decide(entries: list[ChainEntry]) -> list[tuple[str, Any]]:
             book = _FactsBook(entries)
@@ -1015,10 +935,14 @@ class Ledger(LedgerView):
             for _seq, ref in book.extracts:
                 if ref.file_sha256 != file_sha256 or ref.region_id in keep or not book.active(ref.id):
                     continue
-                if self.store.extract(ref.id).parser_version == parser_version:
+                if ref.id in recorded or self._parser_version(ref.id) == parser_version:
                     continue
+                if again is not None:
+                    values = [value for i in range(ref.n) if (value := f"{ref.id}#{i}") in active]
+                    if values and again.issuperset(values):
+                        continue                              # every value is found again at its place: it stays
                 change = StatusChange(target=ref.id, status="excluded", reason=REGION_GONE, by=by, at=now())
-                found.append(change)
+                retired.append(change)
                 rows.append(("status", change.model_dump(mode="json")))
             return rows
 
@@ -1027,7 +951,7 @@ class Ledger(LedgerView):
             if not self.store.facts.append_if(decide):
                 break
         self.refresh()
-        return found
+        return retired
 
     # --- the writes ----------------------------------------------------------------------------------------------------
 
@@ -1108,7 +1032,7 @@ class Ledger(LedgerView):
             results[i] = (first[0], None, False)
         return [r for r in results if r is not None]
 
-    def _write_extract(self, extract: TableExtract, *, delivery: str, run_id: str | None
+    def _write_extract(self, extract: TableExtract, *, delivery: str, run_id: str | None, cells: Sequence[str] = ()
                        ) -> tuple[str, tuple[str, ...], bool]:
         """Append the extract once (the module docstring's identity): (its id, what it supersedes, written now). The
         file is written under the lock, just before the line that names it.
@@ -1116,7 +1040,13 @@ class Ledger(LedgerView):
         An extract of the region with these values that the ledger keeps (not superseded; a person's exclusion stands)
         is the one: nothing is written. An earlier one with these values that code set aside (superseded by a later
         recording: a rollback; retired when its region was gone and found again) is the one again: set proposed when
-        code excluded it, and the extracts recorded after it excluded (an excluded item supersedes nothing)."""
+        code excluded it, and the extracts recorded after it excluded (an excluded item supersedes nothing).
+
+        The table is the region's by its region id, or, for an extract read under another parser version (a re-parse
+        may give the table another id while its cells stay), by its cells: one with these values, equal by place, is
+        the one, as above; and an active one a value of which stands in a cell of the region (`cells`: the region's
+        cells, else this extract's value cells; `_moved_here`) is of this table and is superseded with the region's
+        own, so a table whose id changed never has two active extracts."""
         merged = EntityBook(self.store.entities.entries()).merged
         wanted = _comparable(extract, merged)
         out: list[tuple[str, tuple[str, ...], bool]] = []
@@ -1125,21 +1055,34 @@ class Ledger(LedgerView):
         def equal(ref: ExtractRef) -> bool:
             if ref.id not in compared:
                 compared[ref.id] = ref.mapping.mapping_id == extract.mapping.mapping_id and _comparable(
-                    self.store.extract(ref.id), merged) == wanted
+                    self.store._extract_file(ref.id), merged) == wanted
             return compared[ref.id]
 
-        def decide(entries: list[ChainEntry]) -> list[tuple[str, Any]]:
-            book = _FactsBook(entries)
-            mine = [ref for _seq, ref in book.extracts
-                    if ref.file_sha256 == extract.file_sha256 and ref.region_id == extract.region_id]
-            same = [ref for ref in mine if equal(ref)]
+        def kept(book: _FactsBook, same: list[ExtractRef]) -> bool:
             for ref in same:
                 # the one the ledger keeps, or one a person excluded (that stands): nothing is written
                 if not book.set_aside_by_code(ref.id) and (ref.id not in book.superseded_by
                                                            or book.status.get(ref.id) == "excluded"):
                     out.append((ref.id, (), False))
+                    return True
+            return False
+
+        def decide(entries: list[ChainEntry]) -> list[tuple[str, Any]]:
+            book = _FactsBook(entries)
+            of_file = [ref for _seq, ref in book.extracts if ref.file_sha256 == extract.file_sha256]
+            same = [ref for ref in of_file if ref.region_id == extract.region_id and equal(ref)]
+            if kept(book, same):
+                return []
+            # the table under another region id: only an extract read under another parser version can be it
+            elsewhere = [ref for ref in of_file if ref.region_id != extract.region_id
+                         and self._parser_version(ref.id) != extract.parser_version]
+            if not same:
+                same = [ref for ref in elsewhere if (ref.n, ref.kind) == (extract.n, extract.kind) and equal(ref)]
+                if kept(book, same):
                     return []
-            active = [ref for ref in mine if book.active(ref.id)]
+            moved = {ref.id for ref in elsewhere if book.active(ref.id)
+                     and self._moved_here(ref, extract.parser_version, cells or extract.locator)}
+            active = [ref for ref in of_file if book.active(ref.id) and (ref.region_id == extract.region_id or ref.id in moved)]
             back = same[-1] if same else None
             if back is not None:
                 rows: list[tuple[str, Any]] = []
@@ -1153,6 +1096,7 @@ class Ledger(LedgerView):
                 out.append((back.id, tuple(later), bool(rows)))
                 return rows
             extract_id, content_sha256 = self.store.put_extract(extract)      # never a line's id: that one is equal
+            self._versions[extract_id] = extract.parser_version
             ref = ExtractRef(id=extract_id, content_sha256=content_sha256, file_sha256=extract.file_sha256,
                              region_id=extract.region_id, mapping=extract.mapping, kind=extract.kind, n=extract.n,
                              studies=tuple(sorted({e.study for e in extract.entities if e.study})),

@@ -4,13 +4,17 @@ A `LedgerView` is a SNAPSHOT: it folds the logs once, lazily, on first use, read
 head and its values describe one state. One instance per request: a route and every function it calls share it. It
 reads the ledger's two logs and the extracts they name, the `decision` lines of mappings.jsonl (which mapping versions
 are approved) and the `confirmation`, `link` and `assignment` lines of review.jsonl. `conflicts()` and
-`pending_links()` are D4's (`ledger.Ledger`); here they raise NotImplementedError. A subclass that writes calls
-`refresh()` after a write, so the next read folds again.
+`pending_links()` are computed on that snapshot, for any reader (the write side, `ledger.Ledger`, inherits them):
+`conflicts()` by `find_conflicts` below, at the rules file's time resolution; `pending_links()` by
+`ledger_links.pending_links`, from the link confirmations and the alias lines the fold read and today's review record
+(read once per snapshot). A subclass that writes calls `refresh()` after a write, so the next read folds again.
 
 Subjects (§6.6): a study, a product, and the project's compound. `values(study=S)` and `values(product=P)` are the
 values whose entity names S or P; `values(compound=True)` the values of a compound-level field (a CPF id) with no
-study, product or batch. `values(unassigned=True)` is the "study not stated" list: values with no study, no product
-and no batch whose field is not compound-level (a product's dissolution and a compound's logP have their own subject).
+study, product or batch. `values(unassigned=True)` is the "study not stated" list: values with no study and no product
+whose field is not compound-level (a product's dissolution and a compound's logP have their own subject). A batch is
+not a subject: a value that names a batch and no product (a caption that states the batch only) is on that list until
+a person gives it its product.
 
 The rules the fold applies (and the ledger's writes keep):
 - status is never stored on a fact. `superseded`: a later item that is not excluded names it in `supersedes` (a fact
@@ -35,14 +39,24 @@ The rules the fold applies (and the ledger's writes keep):
 
 from __future__ import annotations
 
+import math
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Protocol
+from types import MappingProxyType
+from typing import Any, Protocol
 
-from modeler_intake.anchors import AnchorError, anchor_text, parse_anchor, parse_locator, sha256_of
+from modeler_intake.anchors import AnchorError, anchor_text, canonical, parse_anchor, parse_locator, sha256_of
+from modeler_intake.document_reading import name_key
 from modeler_intake.fields import field as field_def
+from modeler_intake.fields import known_unit, read_choice
+from modeler_project import ledger_links
 from modeler_project.intake_records import Assignment, Confirmation, LinkConfirmation, MappingDecision
+from modeler_project.intake_rules import IntakeRules
+from modeler_project.intake_rules import rules as load_rules
 from modeler_project.intake_store import GENESIS, ChainEntry, IntakeStore
+from modeler_project.ledger_entities import label_key
 from modeler_project.ledger_models import (
+    Alias,
     ChainHead,
     Conflict,
     CrossFile,
@@ -60,10 +74,15 @@ from modeler_project.ledger_models import (
     ValueState,
 )
 from modeler_project.workspace import Workspace
+from pbpk_domain.units import UnitError, minutes_per
 
 _LEVELS: tuple[EvidenceLevel, ...] = ("digitized", "prose", "new_mapping", "approved_mapping", "person_confirmed")
 _TABLE_METHOD: dict[str, Method] = {"sheet_cell": "cell", "pdf_cell": "pdf_table", "docx_cell": "docx_table"}
 _ENTITY_PARTS = ("study", "arm", "product", "batch", "analyte")
+_ACTIVE = ("proposed", "confirmed")
+# a constant that names an entity of every row: field -> the label role it fills (the write side reads it too)
+_NAMING: Mapping[str, str] = MappingProxyType(
+    {"study_id": "study", "treatment": "arm", "analyte": "analyte", "product": "product", "batch": "batch"})
 
 
 class LedgerReader(Protocol):
@@ -78,7 +97,7 @@ class LedgerReader(Protocol):
     def values(self, *, study: str | None = None, product: str | None = None, field: str | None = None,
                file_sha256: str | None = None, unassigned: bool = False, compound: bool = False,
                active: bool = True) -> list[ValueState]: ...
-        # unassigned: no study, product or batch, and not a compound field; compound: the compound subject's values
+        # unassigned: no study and no product, and not a compound field; compound: the compound subject's values
 
     def value(self, value_id: str) -> ValueState | None: ...
 
@@ -117,8 +136,10 @@ def in_subject(entity: EntityRef, field: str, subject_type: str, subject: str) -
 
 
 def is_unassigned(entity: EntityRef, field: str) -> bool:
-    """A value of no subject, shown as "study not stated" (§6.3): no study, no product, no batch, not a compound field."""
-    return entity.study is None and entity.product is None and entity.batch is None and not is_compound_field(field)
+    """A value of no subject, shown as "study not stated" (§6.3): no study, no product, not a compound field. A batch
+    alone does not assign a value: a batch is not a subject (`in_subject` knows a study, a product and the compound),
+    so a value that names a batch and no product is on no card, and must be on this list to be assigned or excluded."""
+    return entity.study is None and entity.product is None and not is_compound_field(field)
 
 
 @dataclass(frozen=True)
@@ -128,6 +149,8 @@ class _Snapshot:
     entities: dict[str, Entity]          # id -> entity, in log order
     merged: dict[str, str]               # from id -> into id
     values: dict[str, ValueState]        # value id -> state, in log order
+    link_confirmations: tuple[LinkConfirmation, ...]    # review.jsonl's `link` lines, in log order
+    aliases: tuple[Alias, ...]           # entities.jsonl's `alias` lines, in log order
 
 
 @dataclass
@@ -147,10 +170,12 @@ class _Raw:
 class LedgerView:
     """The read side, a per-request snapshot of the ledger (see the module docstring)."""
 
-    def __init__(self, ws: Workspace):
+    def __init__(self, ws: Workspace, *, rules: IntakeRules | None = None):
         self.ws = ws
         self.store = IntakeStore(ws)
+        self.rules = rules                                  # None: the rules file (intake_rules.rules())
         self._snapshot: _Snapshot | None = None
+        self._review: dict[str, Any] | None = None          # today's review record, read once per snapshot
 
     # --- LedgerReader --------------------------------------------------------------------------------------------------
 
@@ -189,10 +214,28 @@ class LedgerView:
         return self._fold().values.get(value_id)
 
     def conflicts(self, *, study: str | None = None, product: str | None = None) -> list[Conflict]:
-        raise NotImplementedError("conflicts are the ledger's (modeler_project.ledger.Ledger)")
+        """The open conflicts of the snapshot (`find_conflicts`, at `ledger.time_resolution_min` of the rules), of one
+        study or product (ids followed through merges) or all."""
+        analytes = {e.id: label_key(e.label) for e in self.entities("analyte")}
+        found = find_conflicts(self.values(), resolution_min=self._rules().ledger.time_resolution_min, analytes=analytes)
+        if study is not None:
+            entity = self.entity(study)
+            found = [c for c in found if c.entity.study == (entity.id if entity else study)]
+        if product is not None:
+            entity = self.entity(product)
+            found = [c for c in found if c.entity.product == (entity.id if entity else product)]
+        return found
 
     def pending_links(self, *, study: str | None = None) -> list[PendingLink]:
-        raise NotImplementedError("pending links are the ledger's (modeler_project.ledger.Ledger)")
+        """The cross-file links of the snapshot waiting for a reviewer, refused, or ambiguous
+        (`ledger_links.pending_links`), of one study (the study whose values wait: the one receiving them, or a file's
+        own study whose label names others) or all."""
+        found = ledger_links.pending_links(self, self._fold().link_confirmations, **self._alias_sources())
+        if study is None:
+            return found
+        entity = self.entity(study)
+        target = entity.id if entity is not None else study
+        return [p for p in found if p.study == target]
 
     def digest(self, *, study: str | None = None, product: str | None = None, compound: bool = False) -> str:
         """sha256 over the sorted (id, value, unit, anchor) of the subject's active values: a study's, a product's or
@@ -205,6 +248,21 @@ class LedgerView:
     def refresh(self) -> None:
         """Drop the snapshot: the next read folds the logs again (the ledger's write side calls it after a write)."""
         self._snapshot = None
+        self._review = None
+
+    def _rules(self) -> IntakeRules:
+        return self.rules or load_rules()
+
+    def _alias_sources(self) -> dict[str, Any]:
+        """Today's review record and the ledger's alias lines: the aliases `ledger_entities.resolve` reads, for the
+        candidates of an ambiguous study label. The alias lines are the snapshot's; the review record is read once
+        per snapshot."""
+        from modeler_project.client_data import review_record
+
+        snap = self._fold()
+        if self._review is None:
+            self._review = review_record(self.ws)
+        return {"review": self._review, "aliases": snap.aliases}
 
     # --- the fold ------------------------------------------------------------------------------------------------------
 
@@ -222,12 +280,15 @@ class LedgerView:
                  "mappings": _head(mapping_lines).hash, "review": _head(review_lines).hash}
         entities: dict[str, Entity] = {}
         merges: list[Merge] = []
+        aliases: list[Alias] = []
         for line in entity_lines:
             if line.kind == "entity":
                 entity = Entity.model_validate(line.body)
                 entities[entity.id] = entity
             elif line.kind == "merge":
                 merges.append(Merge.model_validate(line.body))
+            elif line.kind == "alias":
+                aliases.append(Alias.model_validate(line.body))
         merged = {m.from_id: m.into_id for m in merges}
 
         decisions: dict[tuple[str, int], str] = {}
@@ -240,12 +301,14 @@ class LedgerView:
 
         confirmations: list[Confirmation] = []
         links: dict[tuple[str, str], LinkConfirmation] = {}
+        link_confirmations: list[LinkConfirmation] = []
         assignments: list[Assignment] = []
         for line in review_lines:
             if line.kind == "confirmation":
                 confirmations.append(Confirmation.model_validate(line.body))
             elif line.kind == "link":
                 link = LinkConfirmation.model_validate(line.body)
+                link_confirmations.append(link)
                 links[(_follow(merged, link.study), link.file_sha256)] = link
             elif line.kind == "assignment":
                 assignments.append(Assignment.model_validate(line.body))
@@ -410,7 +473,8 @@ class LedgerView:
             values[raw.id] = ValueState(
                 **raw.state, entity=raw.entity, cross_file=cross.get(raw.id), status=status, status_reason=reason,
                 superseded_by=by, confirmation=bound.get(raw.id), level=level(raw.id))
-        return _Snapshot(head=_head(fact_lines), heads=heads, entities=entities, merged=merged, values=values)
+        return _Snapshot(head=_head(fact_lines), heads=heads, entities=entities, merged=merged, values=values,
+                         link_confirmations=tuple(link_confirmations), aliases=tuple(aliases))
 
 
 def _head(entries: list[ChainEntry]) -> ChainHead:
@@ -474,4 +538,127 @@ def _extract_raws(ref: ExtractRef, x: TableExtract, seq: int, approved: set[tupl
             compute=None, table_kind=x.kind, delivery=ref.delivery)
         out.append(_Raw(id=value_id, seq=seq, entity=x.entities[x.entity_ix[i]], state=state, extract=ref.id,
                         derived_from=(), method=state["method"], approved=is_approved))
+    return out
+
+
+# --- conflicts -------------------------------------------------------------------------------------------------------
+
+
+def _label(text: str | None) -> str | None:
+    return name_key(text) if text else None
+
+
+def _entity_key(entity: EntityRef, analytes: Mapping[str, str] | None = None) -> tuple[Any, ...]:
+    """An entity as conflicts compare it. The analyte of a study's (or a product's) value by its name (`analytes`:
+    analyte id -> `label_key`): analytes are resolved inside their file, so one study's analyte named in two files is
+    two entities, and their values must still meet. A value of no study and no product keeps its analyte's id: two
+    files' unassigned values are never one entity."""
+    matrix = (read_choice("matrix", entity.matrix) or name_key(entity.matrix)) if entity.matrix else None
+    analyte: Any = entity.analyte
+    if analyte is not None and analytes and (entity.study or entity.product) and analyte in analytes:
+        analyte = ("name", analytes[analyte])
+    return (entity.study, entity.arm, entity.product, entity.batch, analyte, _label(entity.subject),
+            _label(entity.period), _label(entity.sequence), _label(entity.occasion), _label(entity.vessel), matrix)
+
+
+def _condition_value(text: str) -> str:
+    try:
+        return repr(float(str(text).strip().replace(",", ".")))
+    except ValueError:
+        return " ".join(str(text).casefold().split())
+
+
+def _unit_key(field: str, unit: str | None) -> tuple[str, str]:
+    """A unit as conflicts compare it: its canonical spelling in the table of the field's class, else its text."""
+    known = known_unit(field, unit) if unit else None
+    return ("known", known) if known is not None else ("text", (unit or "").strip())
+
+
+def _reading(value: ValueState) -> tuple[Any, ...]:
+    found = field_def(value.field)
+    raw = value.value
+    if isinstance(raw, bool):
+        read: Any = ("bool", raw)
+    elif isinstance(raw, int | float):
+        read = ("number", float(f"{float(raw):.12g}"))
+    elif isinstance(raw, str):
+        kind = found.value if found is not None else "text"
+        read = ("text", label_key(raw) if kind == "name" else raw if kind == "choice" else " ".join(raw.casefold().split()))
+    else:
+        read = None
+    uloq = float(f"{value.uloq:.12g}") if value.uloq is not None else None
+    return (read, value.censored, uloq)
+
+
+def _minutes(value: ValueState) -> tuple[str, float] | None:
+    """A value's time in minutes when its unit converts to a finite number, else as written (its unit in the key)."""
+    if value.time is None:
+        return None
+    if value.time_unit:
+        try:
+            minutes = value.time * minutes_per(value.time_unit)
+        except UnitError:
+            return (f"as written:{value.time_unit}", value.time)
+        if math.isfinite(minutes):
+            return ("min", minutes)
+        return (f"as written:{value.time_unit}", value.time)
+    return ("as written:", value.time)
+
+
+def find_conflicts(values: Sequence[ValueState], *, resolution_min: float,
+                   analytes: Mapping[str, str] | None = None) -> list[Conflict]:
+    """Two or more active values with the same entity (labels included; a study's analyte by its name, `analytes`),
+    field, time (`time_resolution_min` apart at most, after conversion to minutes), statistic, conditions and relation
+    that differ: a `unit` conflict when their units differ (nothing converted), else a `value` conflict. All are kept
+    and listed. A spread fact, a value that states nothing (a missing token) and a derived fact beside its own input
+    take no part; nor do a naming fact (a study id, a treatment, an analyte, a product or a batch named by a table)
+    and a link fact: two names on one entity come from an anchored link, an alias or a merge, decisions of their own,
+    never from the data disagreeing. Nor does an `lloq` fact: it is written per (study, analyte, matrix), and two arms
+    of one study may state two LLOQs (two assays); D5 compares LLOQs per profile, (study, arm, analyte, matrix)
+    (`ONE_LLOQ_PER_PROFILE`, `LLOQ_UNIT_DIFFERS`, §6.3)."""
+    groups: dict[str, list[tuple[tuple[str, float] | None, ValueState]]] = {}
+    keys: dict[str, list[Any]] = {}
+    for value in values:
+        if value.status not in _ACTIVE or is_spread_fact(value) or value.field in _NAMING \
+                or value.field.startswith("link.") or value.field == "lloq":
+            continue
+        if value.value is None and not value.censored and value.uloq is None:
+            continue
+        time = _minutes(value)
+        relation = None
+        if value.relation is not None:
+            relation = [value.relation.kind, list(_entity_key(value.relation.other)), value.relation.parameter]
+        key = [list(_entity_key(value.entity, analytes)), value.field, value.statistic,
+               sorted((name, _condition_value(v)) for name, v in value.conditions.items()), relation,
+               time[0] if time else None]
+        text = canonical(key)
+        keys[text] = key
+        groups.setdefault(text, []).append((time, value))
+    out: list[Conflict] = []
+    for text, members in groups.items():
+        members.sort(key=lambda m: (m[0][1] if m[0] else 0.0))
+        clusters: list[list[tuple[tuple[str, float] | None, ValueState]]] = []
+        for member in members:
+            time = member[0]
+            if clusters and (time is None or abs(time[1] - clusters[-1][0][0][1]) <= resolution_min):
+                clusters[-1].append(member)
+            else:
+                clusters.append([member])
+        for cluster in clusters:
+            if len(cluster) < 2:
+                continue
+            ids = {v.id for _t, v in cluster}
+            taking = [v for _t, v in cluster if not (v.method == "derived" and any(i in ids for i in v.derived_from))]
+            if len(taking) < 2:
+                continue
+            if len({_unit_key(v.field, v.unit) for v in taking}) > 1:
+                kind = "unit"
+            elif len({_reading(v) for v in taking}) > 1:
+                kind = "value"
+            else:
+                continue
+            first = cluster[0][0]
+            conflict_id = "cx-" + sha256_of([keys[text], first[1] if first else None])[:10]
+            out.append(Conflict(id=conflict_id, entity=taking[0].entity, field=taking[0].field,
+                                time=taking[0].time, values=tuple(v.id for v in taking), kind=kind))
     return out

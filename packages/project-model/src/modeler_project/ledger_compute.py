@@ -15,7 +15,7 @@ from another file through a link code made (a cross-file value) is not used, as 
 person confirmed that (study, file) link (`ledger_links.link_settled`, the owner's condition 4): a derived fact carries
 no `cross_file` of its own, so it must never stand where its input still waits for a reviewer. A derived fact an input
 of which is no longer active, or waits for its link again, is set aside (`orphans`). A derived fact never conflicts with
-its input (`ledger.find_conflicts`), and it is always verified with its inputs (the spot check).
+its input (`ledger_view.find_conflicts`), and it is always verified with its inputs (the spot check).
 """
 
 from __future__ import annotations

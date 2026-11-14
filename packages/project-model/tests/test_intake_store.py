@@ -19,7 +19,9 @@ from pydantic import ValidationError
 from modeler_intake import synthetic
 from modeler_intake.anchors import AnchorError, anchor_text, canonical, parse_anchor, parse_locator, same_place, sha256_of
 from modeler_intake.source_model import SourceDocument
-from modeler_project.intake_fixtures import PARSER_VERSION, TRUTH_MODEL, truth_key, write_truth
+from modeler_project.client_data import update_review
+from modeler_project.intake_checks import run_checks
+from modeler_project.intake_fixtures import PARSER_VERSION, TRUTH_MODEL, _token_lloqs, truth_key, write_truth
 from modeler_project.intake_records import (
     Assignment,
     Confirmation,
@@ -33,7 +35,9 @@ from modeler_project.intake_records import (
 )
 from modeler_project.intake_rules import RULES_SHA256, RULES_STATUS, RULES_VERSION, IntakeRules, rules
 from modeler_project.intake_store import ChainedLog, IntakeStore
+from modeler_project.ledger import Ledger
 from modeler_project.ledger_models import (
+    Alias,
     Entity,
     EntityRef,
     ExtractRef,
@@ -43,9 +47,13 @@ from modeler_project.ledger_models import (
     StatusChange,
     TableExtract,
 )
-from modeler_project.ledger_view import LedgerReader, LedgerView, is_spread_fact
+from modeler_project.ledger_view import LedgerReader, LedgerView, in_subject, is_spread_fact, is_unassigned
+from modeler_project.scorecard import scorecard
 from modeler_project.store import FileProjectStore
+from modeler_project.study_requirements import requirement_status
 from modeler_project.workspace import Workspace
+
+from .test_ledger_support import record_rows
 
 pytestmark = pytest.mark.req("T-47", "T-05", "F-404")
 
@@ -390,6 +398,13 @@ def test_the_ledger_view_folds_supersession_exclusion_assignment_links_and_level
     assert {corrected, f"{second}#2", point, crossed, link} <= active and dose not in active and f"{second}#1" not in active
     assert view.heads().keys() == {"facts", "entities", "mappings", "review"}
     assert view.head() == IntakeStore(ws).facts.head()
+    # conflicts and pending links, on the same snapshot: the corrected dose beside file B's, st-2's two n; file B's
+    # values on st-1 (its link fact and its dose) wait for a reviewer
+    assert sorted((c.field, c.entity.study, tuple(sorted(c.values))) for c in view.conflicts()) == [
+        ("dose", "st-1", tuple(sorted((corrected, crossed)))), ("n", "st-2", tuple(sorted((unapproved, prose))))]
+    (waiting,) = view.pending_links()
+    assert (waiting.state, waiting.study, waiting.file_sha256, waiting.link_fact, waiting.values) == (
+        "unconfirmed", "st-1", B, link, 2)
 
     # later: a merge, an assignment, a refused link, a confirmation
     book.store.entities.append("merge", Merge(type="study", from_id="st-3", into_id="st-1", link_fact=None, why="one study",
@@ -422,10 +437,14 @@ def test_the_ledger_view_folds_supersession_exclusion_assignment_links_and_level
     assert LedgerView(ws).digest(study="st-2") == before and LedgerView(ws).value(prose).level == "person_confirmed"
     book.status(prose, "excluded", "a duplicate")
     assert LedgerView(ws).digest(study="st-2") != before
-    with pytest.raises(NotImplementedError):
-        LedgerView(ws).conflicts()
-    with pytest.raises(NotImplementedError):
-        LedgerView(ws).pending_links()
+    # the read side computes conflicts and pending links itself: the refused link of file B to st-1 with its three
+    # values (the link fact, B's dose, the merged study's value) and, B's dose being excluded by the refusal, no conflict
+    final = LedgerView(ws)
+    assert final.conflicts() == []
+    (refused,) = final.pending_links()
+    assert (refused.state, refused.study, refused.file_sha256, refused.link_fact, refused.values) == (
+        "refused", "st-1", B, link, 3)
+    assert final.pending_links(study="st-3") == [refused] and final.pending_links(study="st-2") == []
 
 
 def _confirm(book: _Book, id: str, subject_type: str, subject: str, facts: tuple[str, ...], *,
@@ -482,6 +501,41 @@ def test_subjects_unassigned_values_and_the_current_confirmation(ws):
     assert (view.value(dissolved).status, view.value(strength).confirmation) == ("proposed", "cf-5")
 
 
+def test_a_batch_alone_assigns_no_value(ws):
+    """A batch is not a subject (§6.6: a study, a product, the compound). A value whose entity names a batch and no
+    product (a table whose caption names the batch only) is on no card, so it must be on the "study not stated" list,
+    where a person assigns it its product; otherwise it is on neither and nobody can confirm, assign or land it."""
+    book = _Book(ws)
+
+    def fact(field: str, value, entity: EntityRef, cell: str) -> str:
+        return book.store.facts.append("fact", lambda seq: Fact(
+            id=f"f-{seq}", delivery="dl-1", entity=entity, field=field, value=value, method="cell", by="code", at=AT,
+            anchor=anchor_text(A, "workbook", "1.0", f"s:'T'!{cell}")).model_dump(mode="json")).body["id"]
+
+    batch_only = fact("percent_dissolved", 85.0, EntityRef(batch="ba-1", vessel="1"), "A1")
+    with_product = fact("percent_dissolved", 86.0, EntityRef(product="pr-1", batch="ba-1", vessel="1"), "A2")
+    with_study = fact("percent_dissolved", 87.0, EntityRef(study="st-1", batch="ba-1"), "A3")
+    logp = fact("phys.logp", 2.1, EntityRef(), "A4")
+    assert is_unassigned(EntityRef(batch="ba-1"), "percent_dissolved")
+    assert not is_unassigned(EntityRef(product="pr-1", batch="ba-1"), "percent_dissolved")
+    assert not is_unassigned(EntityRef(study="st-1", batch="ba-1"), "percent_dissolved")
+    assert not is_unassigned(EntityRef(), "phys.logp")                 # a compound field has its own subject
+    view = LedgerView(ws)
+    assert [v.id for v in view.values(unassigned=True)] == [batch_only]
+    # in_subject is as it was: the batch-only value is on no study's, product's or the compound's card
+    assert not any(in_subject(view.value(batch_only).entity, "percent_dissolved", kind, subject)
+                   for kind, subject in (("study", "st-1"), ("product", "pr-1"), ("compound", "compound")))
+    # every active value is on a card or on the list, never on neither
+    on_a_card = {v.id for v in (*view.values(study="st-1"), *view.values(product="pr-1"), *view.values(compound=True))}
+    assert on_a_card == {with_product, with_study, logp}
+    assert on_a_card | {v.id for v in view.values(unassigned=True)} == {v.id for v in view.values()}
+    # a person gives it its product (and the batch with it): it leaves the list for the product's card
+    book.review("assignment", Assignment(id="as-1", targets=(batch_only,), product="pr-1", batch="ba-1", why="the CoA",
+                                         by="u", at=AT))
+    view = LedgerView(ws)
+    assert view.values(unassigned=True) == [] and batch_only in {v.id for v in view.values(product="pr-1")}
+
+
 def test_an_assignment_names_a_study_a_product_or_both(ws):
     # §13 integrator decision: a product- or batch-level value of no subject can be given its product and batch
     with pytest.raises(ValidationError):
@@ -512,6 +566,88 @@ def test_an_assignment_names_a_study_a_product_or_both(ws):
     book.review("assignment", Assignment(id="as-3", targets=(both,), study="st-1", why="no arm", by="u", at=AT))
     assert LedgerView(ws).value(both).entity.model_dump(include={"study", "arm", "product"}) == {
         "study": "st-1", "arm": None, "product": None}
+
+
+def _study_id(reader: LedgerReader, label: str) -> str:
+    (found,) = [e.id for e in reader.entities("study") if e.label == label]
+    return found
+
+
+def test_the_read_side_gives_the_conflicts_and_the_pending_links_the_ledger_gives(ws):
+    """§6.6: every review function takes the request's one `LedgerView`, a plain snapshot. Its `conflicts()` and
+    `pending_links()` are computed on that snapshot (the link confirmations and alias lines from the lines the fold
+    read, today's review record once) and equal the write side's on the same state: a study's, a product's and the
+    compound's conflicts; an unconfirmed link, a label a review alias makes ambiguous and one a ledger alias does."""
+    one, two, three, four, five, six = (c * 64 for c in "123456")
+    ledger = Ledger(ws)
+    tablet = ("product", f"{synthetic.DRUG} IR tablet", None)
+    record_rows(ledger, sha=one, sheet="S1", region="rg-0000000001", caption="Study 230-40, 50 mg, IR tablet 50 mg, logP 2.1",
+                constants=(("study_id", "230-40", None), ("dose", 50.0, "mg"), tablet, ("strength_mg", 50.0, None),
+                           ("phys.logp", 2.1, None)))
+    record_rows(ledger, sha=one, sheet="S2", region="rg-0000000002", caption="Study 230-40, 60 mg, IR tablet 60 mg, logP 2.4",
+                constants=(("study_id", "230-40", None), ("dose", 60.0, "mg"), tablet, ("strength_mg", 60.0, None),
+                           ("phys.logp", 2.4, None)))
+    # file two's own study names protocol 230-40: merged by its explicit link, its values wait for a reviewer
+    record_rows(ledger, sha=two, sheet="T", region="rg-0000000003", caption="Study LOC-7 (protocol 230-40), n = 24",
+                constants=(("study_id", "LOC-7", None), ("link.protocol", "230-40", None), ("n", 24.0, None)))
+    (merged,) = ledger.link_files()
+    # a label that names two studies of other files, one of them through an alias of today's review record
+    record_rows(ledger, sha=three, sheet="Cover", region="rg-0000000004", caption="Study 230-23",
+                constants=(("study_id", "230-23", None),))
+    record_rows(ledger, sha=four, sheet="Cover", region="rg-0000000005", caption="Study EXA 230-23 EU",
+                constants=(("study_id", "EXA 230-23 EU", None),))
+    update_review(ws, lambda record: ({**record, "aliases": {"EXA/230-23 (EU)": "230-23"}}, "linked on Inputs"), by="u-1")
+    record_rows(ledger, sha=five, sheet="Cover", region="rg-0000000006", caption="Study EXA/230-23 (EU)",
+                constants=(("study_id", "EXA/230-23 (EU)", None),))
+    # a study a ledger alias line sends to a study of another file
+    record_rows(ledger, sha=six, sheet="Cover", region="rg-0000000007", caption="Study ZZ-9",
+                constants=(("study_id", "ZZ-9", None),))
+    main, plain, coded, slashed, lone = (_study_id(ledger, label) for label in (
+        "230-40", "230-23", "EXA 230-23 EU", "EXA/230-23 (EU)", "ZZ-9"))
+    IntakeStore(ws).entities.append("alias", Alias(type="study", key=ledger.entity(lone).key, entity=main,
+                                                    source="person", by="u-1", at=AT).model_dump(mode="json"))
+    (product,) = [e.id for e in ledger.entities("product")]
+
+    view, written = LedgerView(ws), Ledger(ws)
+    conflicts = view.conflicts()
+    assert conflicts == written.conflicts()
+    assert sorted((c.field, c.kind, c.entity.study, c.entity.product) for c in conflicts) == [
+        ("dose", "value", main, None), ("phys.logp", "value", None, None), ("strength_mg", "value", None, product)]
+    assert all(len(c.values) == 2 and all(view.value(i).status == "proposed" for i in c.values) for c in conflicts)
+    assert [c.field for c in view.conflicts(study=main)] == ["dose"] == [c.field for c in written.conflicts(study=main)]
+    assert view.conflicts(study=merged.from_id) == view.conflicts(study=main)          # an id followed through its merge
+    assert [c.field for c in view.conflicts(product=product)] == ["strength_mg"]
+    assert view.conflicts(product=product) == written.conflicts(product=product)
+    assert view.conflicts(study="st-999") == [] and view.conflicts(product="pr-999") == []
+
+    links = view.pending_links()
+    assert links == written.pending_links()
+    assert sorted((p.state, p.study, p.file_sha256, p.candidates) for p in links) == sorted([
+        ("unconfirmed", main, two, (main,)), ("ambiguous", slashed, five, tuple(sorted((plain, coded)))),
+        ("ambiguous", coded, four, (plain,)), ("ambiguous", lone, six, (main,))])
+    assert view.pending_links(study=main) == written.pending_links(study=main) != []
+    assert view.pending_links(study=merged.from_id) == view.pending_links(study=main)
+    assert view.pending_links(study=plain) == []                    # the first study of a label waits on nothing
+
+    # D5's functions take the plain view (requirement status, the checks and the scorecard all ask for the conflicts)
+    requirements = requirement_status(view, main, brief=None, matrix=None)
+    checks = run_checks(view, subject_type="study", subject=main, requirements=requirements.items)
+    assert "CONFLICT_OPEN" in {c.code for c in checks}
+    card = scorecard(view, subject_type="study", subject=main, coverage=(), requirements=requirements.items,
+                     gaps=requirements.routing.gaps, checks=checks)
+    assert card.conflicts == tuple(view.conflicts(study=main)) and card.links == tuple(view.pending_links(study=main))
+    assert "LINK_UNCONFIRMED" in {b.code for b in card.blockers}
+
+    # a snapshot: a confirmation written later is seen by the next view, and by this one once it is refreshed
+    IntakeStore(ws).review.append("link", LinkConfirmation(id="lk-1", link_fact=None, study=main, file_sha256=two,
+                                                           confirmed=True, why="the same protocol", by="u-1",
+                                                           at=AT).model_dump(mode="json"))
+    assert view.pending_links() == links
+    later = LedgerView(ws).pending_links()
+    assert later == Ledger(ws).pending_links() and [p for p in links if p not in later] == [
+        p for p in links if p.state == "unconfirmed"]
+    view.refresh()
+    assert view.pending_links() == later
 
 
 def test_the_snapshot_is_one_state_and_refresh_reads_again(ws, monkeypatch):
@@ -625,6 +761,68 @@ def test_write_truth_round_trips_through_the_ledger_view(ws):
     unapproved = Workspace(ws.store, "t1", "p-new")
     write_truth(unapproved, files[:1], approved=False)
     assert {v.level for v in LedgerView(unapproved).values()} == {"new_mapping"}
+
+
+def test_write_truth_writes_every_stated_lloq_once_as_a_fact_a_tokens_included(ws):
+    """§6.3: every stated LLOQ is an `lloq` fact, once per (study, analyte, matrix): the pipeline's ledger holds one for
+    the template's "<0.5" cell, which no LLOQ line states, so the truth ledger does too (the tests of D5, W and D6 count
+    what the pipeline writes). A token that repeats its table's line states nothing new."""
+    template = synthetic.template_workbook()
+    ids = write_truth(ws, [template])
+    store, view = IntakeStore(ws), LedgerView(ws)
+    (cell,) = [t for t in template.values if t.value.startswith("<")]
+    (token,) = [v for v in view.values(field="lloq") if v.anchor == view.value(ids[truth_key(template, cell)]).anchor]
+    at = dict(cell.locators)
+    assert token.id.startswith("f-") and token.id not in ids.values()               # a fact of its own, no truth value
+    assert (token.value, token.unit, token.verbatim, token.method, token.level) == (0.5, cell.unit, "<0.5", "cell",
+                                                                                   "approved_mapping")
+    assert token.entity == EntityRef(study=view.value(ids[truth_key(template, cell)]).entity.study)
+    assert view.entity(token.entity.study).label == cell.study == "EXA-101"
+    assert {role: parse_anchor(a).locator for role, a in token.locators.items()} == {
+        "study": parse_locator(at["study"]), "unit": parse_locator(at["unit"])}
+    assert token.mapping == view.value(ids[truth_key(template, cell)]).mapping
+    assert len(view.values()) == len(template.values) + 1
+    head = store.facts.head()
+    assert write_truth(ws, [template]) == ids and store.facts.head() == head             # written once
+    # the delivery's "<0.5" cells repeat their table's LLOQ line: the lines are the only lloq facts
+    other = Workspace(ws.store, "t1", "p-delivery")
+    files = synthetic.delivery()
+    write_truth(other, files)
+    lines = [t for f in files for t in f.values if t.field == "lloq"]
+    tokens = [t for f in files for t in f.values if t.value.startswith("<")]
+    assert tokens and len(LedgerView(other).values(field="lloq")) == len(lines) == 4
+
+
+def test_a_tokens_lloq_is_stated_once_per_study_analyte_matrix_number_and_unit():
+    def value(cell: str, text: str, *, unit: str = "ng/mL", cites: str | None = None) -> synthetic.TruthValue:
+        locators = (("lloq", cites or f"s:'T'!{cell}"),) if text.startswith("<") or cites else ()
+        return synthetic.TruthValue(table="t", field="concentration", study="S", arm="", analyte="A", matrix="plasma",
+                                    subject="1", time="1", time_unit="h", value=text, unit=unit, locator=f"s:'T'!{cell}",
+                                    locators=locators)
+
+    parent, metabolite = EntityRef(study="st-1", analyte="an-1", matrix="plasma"), EntityRef(study="st-1", analyte="an-2",
+                                                                                           matrix="plasma")
+    subject = parent.model_copy(update={"subject": "1"})
+
+    def stated(values, refs, lines=(), lloqs=None):
+        return [(v.locator, entity, number, unit) for v, entity, number, unit in _token_lloqs(values, refs, lines, lloqs or {})]
+
+    # two tokens of one profile state one LLOQ, at the first cell, on (study, analyte, matrix) only
+    assert stated([value("B2", "<0.5"), value("B3", "<0.5"), value("B4", "7.9")], [subject] * 3) == [
+        ("s:'T'!B2", parent, 0.5, "ng/mL")]
+    # another number, another analyte and another unit each state their own
+    assert stated([value("B2", "<0.5"), value("B3", "<1.0"), value("C2", "<0.5"), value("D2", "<0.5", unit="µg/L")],
+                  [parent, parent, metabolite, parent]) == [
+        ("s:'T'!B2", parent, 0.5, "ng/mL"), ("s:'T'!B3", parent, 1.0, "ng/mL"), ("s:'T'!C2", metabolite, 0.5, "ng/mL"),
+        ("s:'T'!D2", parent, 0.5, "µg/L")]
+    # "ng/mL" and "ng/ml" are one unit (the field's table); a token that repeats the table's line states nothing new,
+    # whether the line is a truth value of its own or only cited by a BLQ beside it; another profile's token still does
+    assert stated([value("B2", "<0.5"), value("B3", "<0.5", unit="ng/ml")], [parent, parent]) == [
+        ("s:'T'!B2", parent, 0.5, "ng/mL")]
+    assert stated([value("B2", "<0.5"), value("C2", "<0.5")], [parent, metabolite], lines=[(parent, 0.5)]) == [
+        ("s:'T'!C2", metabolite, 0.5, "ng/mL")]
+    assert stated([value("B2", "BLQ", cites="s:'T'!A9"), value("B3", "<0.5"), value("B4", "<0.2")], [parent] * 3,
+                  lloqs={"s:'T'!A9": ("0.5", "ng/mL")}) == [("s:'T'!B4", parent, 0.2, "ng/mL")]
 
 
 # --- the rules file ------------------------------------------------------------------------------------------------

@@ -19,6 +19,12 @@ condition cells of its own row ("parameter" included for a key_value table). A c
 `lloq` cell states: the number of a "<0.5" cell, else the table's LLOQ line (§5's example); a BLQ with no LLOQ cell
 has none (BLQ_WITHOUT_LLOQ is then real).
 
+Every stated LLOQ is an `lloq` fact, once per (study, analyte, matrix), number and unit (§6.3), as the ledger writes
+it. A table's LLOQ line is a truth value of its own. A "<0.5" cell states one too: when no line or column of its table
+states that number for the same (study, analyte, matrix), the first such cell gets an `lloq` fact, at the cell, with
+its column's unit and the unit cell among its locators (`_token_lloqs`). That fact is no `TruthValue`, so it has no
+key in `write_truth`'s answer: the ledger then holds one value more than the truth lists.
+
 It is a fixture, not the pipeline: no parse, no mapping, no rule. The parser version is
 `synthetic.TRUTH_PARSER_VERSION`, and a mapping's fingerprint is the sha256 of its spec, not D3's layout fingerprint
 (a test that needs the mapping cache to find a table preloads it through `MappingCache` itself). D4's own tests do not
@@ -35,7 +41,7 @@ from typing import Any
 
 from modeler_intake.anchors import anchor_text, sha256_of
 from modeler_intake.document_reading import name_key
-from modeler_intake.fields import LABEL_FIELDS, field, read_choice
+from modeler_intake.fields import LABEL_FIELDS, field, known_unit, read_choice
 from modeler_intake.source_model import GridCell
 from modeler_intake.synthetic import PARSERS, TRUTH_PARSER_VERSION, SyntheticFile, TruthTable, TruthValue, truth_grid
 from modeler_project.intake_records import FileRecord, MappingDecision, MappingEntry
@@ -299,6 +305,40 @@ def _censoring(value: TruthValue, lloqs: dict[str, tuple[str, str]]
     return number, censored, lloq, lloq_unit, uloq
 
 
+def _stating(ref: EntityRef, number: float) -> tuple[Any, ...]:
+    """What an LLOQ states, its unit aside: the (study, analyte, matrix) it is of and its number."""
+    return (ref.study, ref.analyte, name_key(ref.matrix) if ref.matrix else None, float(f"{number:.12g}"))
+
+
+def _token_lloqs(numeric: Sequence[TruthValue], refs: Sequence[EntityRef], lines: Sequence[tuple[EntityRef, float]],
+                 lloqs: dict[str, tuple[str, str]]) -> list[tuple[TruthValue, EntityRef, float, str | None]]:
+    """The LLOQs a table's "<x" cells state (§6.3): (the first cell that states it, its (study, analyte, matrix), the
+    number, the unit), once per (study, analyte, matrix), number and unit. A token that repeats the number a line or a
+    column of its table states for the same (study, analyte, matrix) states nothing new: `lines` are the table's LLOQ
+    lines, and a value that cites an LLOQ cell other than its own adds that cell's number for its own entity."""
+    stated = {_stating(ref, number) for ref, number in lines}
+    tokens = []
+    for value, ref in zip(numeric, refs, strict=True):
+        cited = dict(value.locators).get("lloq")
+        _number_read, _censored, lloq, lloq_unit, _uloq = _censoring(value, lloqs)
+        if lloq is None or not cited:
+            continue
+        if cited != value.locator:
+            stated.add(_stating(ref, lloq))                  # a line or a column's own LLOQ, cited by this value
+        else:
+            tokens.append((value, EntityRef(study=ref.study, analyte=ref.analyte, matrix=ref.matrix), lloq, lloq_unit))
+    out = []
+    seen: set[tuple[Any, ...]] = set()
+    for value, entity, lloq, unit in tokens:
+        known = known_unit("lloq", unit) if unit else None
+        key = (*_stating(entity, lloq), ("known", known) if known is not None else ("text", (unit or "").strip()))
+        if key in seen or _stating(entity, lloq) in stated:
+            continue
+        seen.add(key)
+        out.append((value, entity, lloq, unit))
+    return out
+
+
 def _fact_value(value: TruthValue) -> float | int | str | None:
     found = field(value.field)
     if found is not None and found.value in ("number", "integer"):
@@ -311,7 +351,8 @@ def _fact_value(value: TruthValue) -> float | int | str | None:
 
 def write_truth(ws: Workspace, files: Sequence[SyntheticFile], *, delivery: str = "dl-1", approved: bool = True) -> dict[str, str]:
     """Write the truth of these files into the project's ledger; return truth value -> value id (keys: `truth_key`).
-    Numeric values of a table are the i-th values of its extract ("tx-...#i"); every other value is a fact ("f-n")."""
+    Numeric values of a table are the i-th values of its extract ("tx-...#i"); every other value is a fact ("f-n").
+    The `lloq` fact of a "<x" cell that no LLOQ line states (the module docstring) is written too, with no key."""
     writer = _Writer(ws, delivery, approved)
     store = writer.store
     if not store.available:
@@ -352,6 +393,7 @@ def write_truth(ws: Workspace, files: Sequence[SyntheticFile], *, delivery: str 
             numeric = [v for v in table_values if v.locator in body and (found := field(v.field)) is not None
                        and found.value in ("number", "integer")]
             method = _TABLE_METHOD.get(parser, "cell")
+            refs: list[EntityRef] = []
             if numeric:
                 refs = [writer.entity_ref(v, anchor_of, file_sha, method) for v in numeric]
                 extract_id = writer.extract(file_sha, parser, table, grid.region_id, mapping, numeric, refs, texts, lloqs)
@@ -360,6 +402,17 @@ def write_truth(ws: Workspace, files: Sequence[SyntheticFile], *, delivery: str 
                 if value in numeric:
                     continue
                 out[truth_key(file, value)] = _write_fact(writer, value, anchor_of, file_sha, texts, lloqs, mapping, method)
+            lines = [(writer.entity_ref(v, anchor_of, file_sha, method), number) for v in table_values
+                     if v.field == "lloq" and v not in numeric and (number := _reading(v.value)[0]) is not None]
+            for value, entity, lloq, unit in _token_lloqs(numeric, refs, lines, lloqs):
+                at = dict(value.locators)
+                cells = {part: at[part] for part in ("study", "analyte", "matrix") if part in at and getattr(entity, part)}
+                if unit is not None and unit == (value.unit or None) and "unit" in at:
+                    cells["unit"] = at["unit"]                 # a token takes its column's unit: the unit cell is cited
+                writer.fact(Fact(id="", delivery=delivery, entity=entity, field="lloq", value=lloq, unit=unit,
+                                 verbatim=texts[value.locator], anchor=anchor_of[value.locator],
+                                 locators={role: anchor_of[loc] for role, loc in cells.items()}, method=method,
+                                 mapping=mapping, by="code", at=_now()))
         for value in file.values:
             if value.table == "":
                 line = next((p for p in file.prose if re.search(rf"(?<!\S){re.escape(value.value)}", p)), value.value)

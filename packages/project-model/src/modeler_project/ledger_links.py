@@ -24,13 +24,15 @@ n) only once a person confirmed that (study, file) link (`link_settled`).
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from modeler_intake.anchors import sha256_of
 from modeler_project.intake_records import LinkConfirmation
 from modeler_project.ledger_entities import home_file, label_key, now, review_targets
 from modeler_project.ledger_models import Alias, Entity, Merge, PendingLink, ValueState
-from modeler_project.ledger_view import LedgerReader
+
+if TYPE_CHECKING:                       # the read side imports this module (LedgerView.pending_links): typing only
+    from modeler_project.ledger_view import LedgerReader
 
 EXPLICIT = ("link.protocol", "link.cross_reference")
 # the values a study's home file states that name it, besides its label

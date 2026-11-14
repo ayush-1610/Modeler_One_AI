@@ -11,8 +11,9 @@ origin is) is used or excluded by a stated rule, else it is silent loss. So
 Unread prose is listed, not counted. A file's coverage also lists its content outside every region by page or sheet
 and its unresolved anchors; `outside_numeric` counts the outside items with a number that are neither page furniture,
 nor cited by a mapped region's constant (`RegionOutcome.cited`), nor accepted as not data by a `RegionDecision` of scope
-`outside`. `values_unassigned` (the active values of the file with no study, product or batch that are not a
-compound's: `ledger_view.is_unassigned`) is given by the caller from the ledger, as `values_unassigned` counts them.
+`outside`. `values_unassigned` (the active values of the file with no study and no product that are not a compound's,
+a value that names a batch alone included: `ledger_view.is_unassigned`) is given by the caller from the ledger, as
+`values_unassigned` counts them.
 
 No grid is needed: `outcome_from` turns the mapper's in-memory `ExtractResult` into the compact `RegionOutcome` the
 pipeline stores, and `file_coverage` counts from the outcomes and `Region.numeric_cells` alone. The coverage file
@@ -182,8 +183,9 @@ def silent_loss(coverages: Iterable[CoverageSummary]) -> int:
 
 def values_unassigned(reader: LedgerReader, file_sha256: str) -> int:
     """What a caller gives `file_coverage` as `values_unassigned`: the file's active values that belong to no subject
-    (`ledger_view.is_unassigned`: no study, product or batch, and not a compound field). A product's dissolution and
-    a compound's logP have their own subject; a derived spread fact is never a value of its own."""
+    (`ledger_view.is_unassigned`: no study and no product, and not a compound field; a batch alone is no subject). A
+    product's dissolution and a compound's logP have their own subject; a derived spread fact is never a value of its
+    own."""
     return sum(1 for v in reader.values(file_sha256=file_sha256)
                if is_unassigned(v.entity, v.field) and not is_spread_fact(v))
 

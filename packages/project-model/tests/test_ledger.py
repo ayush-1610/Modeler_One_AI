@@ -12,7 +12,16 @@ import threading
 import pytest
 
 from modeler_intake import synthetic
-from modeler_intake.anchors import ID_PATTERNS, AnchorError, parse_anchor, parse_locator, same_place
+from modeler_intake.anchors import (
+    ID_PATTERNS,
+    AnchorError,
+    PdfCell,
+    PdfSpan,
+    format_locator,
+    parse_anchor,
+    parse_locator,
+    same_place,
+)
 from modeler_intake.mapping_spec import (
     ColumnMap,
     Constant,
@@ -22,17 +31,22 @@ from modeler_intake.mapping_spec import (
     MappingSpec,
     ProseFact,
 )
+from modeler_intake.source_model import GridCell, RegionGrid
 from modeler_intake.synthetic import truth_grid
+from modeler_project.coverage import values_unassigned
 from modeler_project.intake_fixtures import TRUTH_MODEL, truth_key, write_truth
+from modeler_project.intake_records import Assignment, Confirmation, CoverageSummary
 from modeler_project.intake_store import IntakeStore
-from modeler_project.ledger import NOT_READ_AGAIN, REGION_GONE, Ledger
-from modeler_project.ledger_entities import merge
+from modeler_project.ledger import NOT_READ_AGAIN, REGION_GONE, ExtractionContext, Ledger, _box_share, cells_in_common
+from modeler_project.ledger_entities import merge, resolve
 from modeler_project.ledger_view import LedgerView
+from modeler_project.scorecard import scorecard
 from modeler_project.workspace import Workspace
 
 from .test_ledger_support import (
     approve,
     context,
+    file_record,
     grid_from_rows,
     make_ws,
     mapping_entry,
@@ -232,6 +246,300 @@ def test_an_extract_whose_region_is_gone_after_a_reparse_is_retired_with_the_rea
     assert ledger.retire_regions(file_sha256=A, parser_version="1.0", regions=[]) == []    # not after a re-parse
 
 
+# --- a re-parse that gives a region another id (SEAM-5) -------------------------------------------------------------
+
+
+def _renamed(ws: Workspace, ledger: Ledger):
+    """A small table recorded under parser version 1.0 as region rg-00000000aa, its study confirmed by a person; and
+    `record(version, region_id, ...)`, which records the same sheet again as another parse gives it."""
+    rows, spec = _small()
+    entry = mapping_entry(spec)
+
+    def record(version: str, region_id: str, *, rows=rows, entry=entry, first_cell: str | None = None):
+        grid = grid_from_rows(rows, sha=A, caption=("Study 230-29, 25 mg",), parser_version=version, region_id=region_id,
+                              first_cell=first_cell)
+        return ledger.record_extraction(region=region_of(grid), grid=grid, mapping=entry, result=_small_result(grid),
+                                        context=sheet_context(A, parser_version=version))
+
+    first = record("1.0", "rg-00000000aa")
+    (study,) = ledger.entities("study")
+    record_ = {"facts": [[f, "x", None] for f in first.facts], "extracts": [[first.extract, "x"]], "excluded": []}
+    IntakeStore(ws).review.append("confirmation", Confirmation(
+        id="cf-1", subject_type="study", subject=study.id, record_sha256="0" * 64, record=record_, signature_id="sig-1",
+        manifestation="Reviewed", by="u-1", printed_name="U", at="2026-11-13T10:00:00.000Z").model_dump(mode="json"))
+    ledger.refresh()
+    assert {v.status for v in ledger.values(study=study.id)} == {"confirmed"}
+    return first, study.id, record, spec
+
+
+def _table_values(ledger: Ledger) -> list:
+    return ledger.values(file_sha256=A, field="concentration")
+
+
+def test_a_reparse_that_gives_a_region_another_id_writes_nothing_when_every_value_is_found_at_its_place(ws):
+    """§6.3: after a re-parse, when every value of an extract is found again the extract stays and nothing is written.
+    A region's id is D2's (a PDF table's hashes its box), so a new parser version may give the same table another id:
+    recording it again (the same file and mapping, every value equal by place) is the same extract, whatever its
+    region id, and the study's confirmation stays bound."""
+    ledger = Ledger(ws)
+    first, study, record, _spec = _renamed(ws, ledger)
+    digest, heads = ledger.digest(study=study), _heads(ws)
+    again = record("1.1", "rg-00000000bb")                    # the same cells, another region id, a new parser version
+    assert (again.extract, again.facts, again.superseded) == (first.extract, first.facts, ())
+    assert _heads(ws) == heads and ledger.digest(study=study) == digest
+    values = _table_values(ledger)
+    assert [v.id for v in values] == [f"{first.extract}#{i}" for i in range(3)]         # once, not twice
+    assert {(v.status, v.confirmation) for v in values} == {("confirmed", "cf-1")}
+    assert {parse_anchor(v.anchor).parser_version for v in values} == {"1.0"}             # the old anchors are kept
+    # the run then retires the regions the new document no longer has (W: after its recordings, with the same Ledger):
+    # the extract's region id is not one of them, but this ledger has just read its table again
+    assert ledger.retire_regions(file_sha256=A, parser_version="1.1", regions=["rg-00000000bb"]) == []
+    assert _heads(ws) == heads
+    # another Ledger (a later run, or a caller that retires before it records) says what check_anchors found again
+    later = Ledger(ws)
+    found = [v.id for v in later.values(file_sha256=A)]
+    assert later.retire_regions(file_sha256=A, parser_version="1.1", regions=["rg-00000000bb"], found=found) == []
+    assert record("1.1", "rg-00000000bb").extract == first.extract and _heads(ws) == heads
+    assert {(v.status, v.confirmation) for v in _table_values(ledger)} == {("confirmed", "cf-1")}
+
+
+def test_retire_regions_keeps_an_extract_only_when_every_value_of_it_was_found_again(ws):
+    ledger = Ledger(ws)
+    first, _study, _record, _spec = _renamed(ws, ledger)
+    ids = [v.id for v in _table_values(ledger)]
+    heads = _heads(ws)
+    assert ledger.retire_regions(file_sha256=A, parser_version="1.1", regions=["rg-00000000bb"], found=ids) == []
+    assert ledger.retire_regions(file_sha256=A, parser_version="1.1", regions=[], found=ids) == [] and _heads(ws) == heads
+    # a value a person excluded is no longer checked (it is not active): the others found are enough
+    ledger.exclude(ids[2], why="a re-assay", by="u-1")
+    assert ledger.retire_regions(file_sha256=A, parser_version="1.1", regions=["rg-00000000bb"], found=ids[:2]) == []
+    # one value was not found (it moved, or its text differs): the region is gone, as before, with the reason
+    (retired,) = ledger.retire_regions(file_sha256=A, parser_version="1.1", regions=["rg-00000000bb"], found=ids[:1])
+    assert (retired.target, retired.reason) == (first.extract, REGION_GONE)
+    assert _table_values(ledger) == []
+
+
+def test_retire_regions_called_as_before_retires_by_region_id_and_the_same_table_recorded_again_is_back(ws):
+    """Without what check_anchors found, `retire_regions` judges by region id alone (the call W knows today). The
+    same table recorded under its new id is then the same extract again: set proposed, no second extract, and the
+    confirmation binds it as before."""
+    ledger = Ledger(ws)
+    first, _study, record, _spec = _renamed(ws, ledger)
+    (retired,) = ledger.retire_regions(file_sha256=A, parser_version="1.1", regions=["rg-00000000bb"])
+    assert (retired.target, retired.reason) == (first.extract, REGION_GONE) and _table_values(ledger) == []
+    back = record("1.1", "rg-00000000bb")
+    assert back.extract == first.extract and back.superseded == ()
+    assert len(IntakeStore(ws).facts.entries("extract")) == 1
+    assert {(v.id.split("#")[0], v.status, v.confirmation) for v in _table_values(ledger)} == {
+        (first.extract, "confirmed", "cf-1")}
+    # read again by this ledger under 1.1, it is not retired a second time; under a later version nothing has read it
+    assert ledger.retire_regions(file_sha256=A, parser_version="1.1", regions=["rg-00000000bb"]) == []
+    (later,) = ledger.retire_regions(file_sha256=A, parser_version="1.2", regions=["rg-00000000bb"])
+    assert (later.target, later.reason) == (first.extract, REGION_GONE)
+
+
+def test_a_region_with_another_id_whose_values_moved_or_changed_still_supersedes(ws):
+    """The other half of §6.3: a table whose values moved, or are read differently, is a new extract that supersedes the
+    earlier one, also when the re-parse gave its region another id; never two active extracts of one table."""
+    ledger = Ledger(ws)
+    first, _study, record, spec = _renamed(ws, ledger)
+    kept = record("1.1", "rg-00000000bb")                      # the id changed, the cells did not: the same extract
+    assert kept.extract == first.extract
+    # later, under the new id: a mapping version that reads the means as geometric means
+    rows, _spec = _small()
+    changed = mapping_entry(spec, version=2)
+    grid = grid_from_rows(rows, sha=A, caption=("Study 230-29, 25 mg",), parser_version="1.1", region_id="rg-00000000bb")
+    result = _small_result(grid)
+    result = result.model_copy(update={"rows": tuple(r.model_copy(update={"statistic": "geometric_mean"}) for r in result.rows)})
+    second = ledger.record_extraction(region=region_of(grid), grid=grid, mapping=changed, result=result,
+                                      context=sheet_context(A, parser_version="1.1"))
+    assert second.extract != first.extract and second.superseded == (first.extract,)
+    values = _table_values(ledger)
+    assert [v.id for v in values] == [f"{second.extract}#{i}" for i in range(3)]         # one active extract
+    assert {v.statistic for v in values} == {"geometric_mean"} and {v.status for v in values} == {"proposed"}
+    assert all(v.status == "superseded" and v.superseded_by == second.extract
+               for v in ledger.values(active=False) if v.id.startswith(f"{first.extract}#"))
+    # a further re-parse: yet another id, and the table one row lower (every value moved)
+    moved = record("1.2", "rg-00000000cc", entry=changed, first_cell="A3")
+    assert moved.extract not in (first.extract, second.extract)
+    active = {v.id.split("#")[0] for v in _table_values(ledger)}
+    assert active == {moved.extract}
+    # and a region that is really gone is retired with the reason: nothing of it was found, and nothing records it
+    # (retiring an extract brings back the one it superseded, so each earlier reading of the table is retired in turn)
+    gone = ledger.retire_regions(file_sha256=A, parser_version="1.3", regions=["rg-00000000dd"], found=[])
+    assert [(c.target, c.reason) for c in gone] == [(e, REGION_GONE) for e in (moved.extract, second.extract, first.extract)]
+    assert _table_values(ledger) == []
+
+
+def test_a_table_under_another_region_id_is_known_by_the_regions_cells_not_only_by_those_read_as_values(ws):
+    """After a re-parse gave the region another id, a mapping version that reads another column of the table (no value
+    cell in common with the earlier extract) still supersedes it: the earlier values stand in cells of this region."""
+    ledger = Ledger(ws)
+    first, _study, _record, spec = _renamed(ws, ledger)
+    rows, _spec = _small()
+    grid = grid_from_rows(rows, sha=A, caption=("Study 230-29, 25 mg",), parser_version="1.1", region_id="rg-00000000bb")
+    caption = grid.caption[0]
+    other_column = ExtractResult(
+        rows=tuple(ExtractedRow(field="concentration", labels={}, value=float(grid.cell(r, 1).value),
+                                verbatim=grid.cell(r, 1).text, locator=grid.cell(r, 1).locator, unit="ng/mL",
+                                unit_locator=grid.cell(1, 2).locator, statistic="arithmetic_mean") for r in (2, 3, 4)),
+        cell_use=(), findings=(), constants=(ExtractedConstant(field="study_id", value="230-29", verbatim=caption.text,
+                                                              locator=caption.locator),))
+    second = ledger.record_extraction(region=region_of(grid), grid=grid, mapping=mapping_entry(spec, version=2),
+                                      result=other_column, context=sheet_context(A, parser_version="1.1"))
+    assert second.extract != first.extract and second.superseded == (first.extract,)
+    assert {v.id.split("#")[0] for v in _table_values(ledger)} == {second.extract}
+    cells = {v.id.split("#")[0]: parse_anchor(v.anchor).locator.cell[0] for v in ledger.values(file_sha256=A, active=False)
+             if v.field == "concentration"}
+    assert cells == {first.extract: "B", second.extract: "A"}            # no value cell in common
+
+
+def test_a_region_with_another_id_keeps_a_persons_exclusion_and_loses_its_extract_when_nothing_is_read_any_more(ws):
+    ledger = Ledger(ws)
+    first, _study, record, spec = _renamed(ws, ledger)
+    # a person excluded the table: the exclusion stands when the table comes back under another region id
+    ledger.exclude(first.extract, why="a draft table", by="u-1")
+    heads = _heads(ws)
+    again = record("1.1", "rg-00000000bb")
+    assert again.extract == first.extract and _heads(ws) == heads and _table_values(ledger) == []
+    # another ledger: under the new id, a mapping version that reads no numeric value any more (every row a note)
+    other = Workspace(ws.store, "t1", "p2")
+    ledger = Ledger(other)
+    first, _study, record, spec = _renamed(other, ledger)
+    assert record("1.1", "rg-00000000bb").extract == first.extract
+    rows, _spec = _small()
+    grid = grid_from_rows(rows, sha=A, caption=("Study 230-29, 25 mg",), parser_version="1.1", region_id="rg-00000000bb")
+    nothing = _small_result(grid).model_copy(update={"rows": ()})
+    emptied = ledger.record_extraction(region=region_of(grid), grid=grid, mapping=mapping_entry(spec, version=2),
+                                       result=nothing, context=sheet_context(A, parser_version="1.1"))
+    assert emptied.extract is None and emptied.superseded == (first.extract,)
+    gone = [v for v in ledger.values(active=False) if v.id.startswith(f"{first.extract}#")]
+    assert len(gone) == 3 and all(v.status == "excluded" and v.status_reason.startswith(NOT_READ_AGAIN) for v in gone)
+
+
+def test_cells_in_common_follows_the_anchor_checks_rule():
+    """Across parser versions a sheet or Word cell is its place, and a PDF cell its page and box (the half-overlap by
+    which `check_anchors` finds a value again), measured as D2 measures it."""
+    from modeler_intake.source.pdf import overlap
+
+    def pdf(table: int, row: int, box: tuple[float, float, float, float], page: int = 1) -> str:
+        return format_locator(PdfCell(page=page, table=table, row=row, column=2, box=box))
+
+    box = (100.0, 200.0, 140.0, 212.0)
+    for other in ((100.6, 200.6, 140.6, 212.6), (120.0, 200.0, 160.0, 212.0), (121.0, 200.0, 161.0, 212.0),
+                  (100.0, 212.0, 140.0, 224.0), (0.0, 0.0, 600.0, 800.0), (100.0, 200.0, 100.0, 212.0)):
+        assert _box_share(box, other) == overlap(box, other)
+    assert cells_in_common([pdf(1, 2, box)], [pdf(2, 2, (100.6, 200.6, 140.6, 212.6))])       # renumbered, the same box
+    assert cells_in_common([pdf(1, 2, box)], [pdf(1, 2, (120.0, 200.0, 160.0, 212.0))])       # half of it
+    assert not cells_in_common([pdf(1, 2, box)], [pdf(1, 2, (121.0, 200.0, 161.0, 212.0))])   # less than half
+    assert not cells_in_common([pdf(1, 2, box)], [pdf(1, 2, (100.0, 400.0, 140.0, 412.0))])   # the same numbers, elsewhere
+    assert not cells_in_common([pdf(1, 2, box)], [pdf(1, 2, box, page=2)])                    # another page
+    assert cells_in_common(["s:'T'!B2", "s:'T'!B3"], ["s:'T'!B3"]) and not cells_in_common(["s:'T'!B2"], ["s:'U'!B2"])
+    assert cells_in_common(["d:t:1/r:2/c:2"], ["d:t:1/r:2/c:2"]) and not cells_in_common(["d:t:1/r:2/c:2"], ["d:t:2/r:2/c:2"])
+    assert not cells_in_common([], ["s:'T'!B3"]) and not cells_in_common(["s:'T'!B3"], [])
+
+
+def test_two_pdf_tables_renumbered_by_a_reparse_are_told_apart_by_their_boxes_not_their_numbers(ws):
+    """A PDF cell's place is (page, table, row, column), and a parser that finds one more table on a page numbers the
+    others anew. Across parser versions a cell is the same cell when its box overlaps by half (`check_anchors`' rule):
+    the first table's new reading supersedes the first table's extract, never the second table's, whose old numbers
+    it now carries."""
+    sha = "c" * 64
+
+    def table(version: str, number: int, top: float, region_id: str, study: str, shift: float = 0.0) -> tuple:
+        cells = {}
+        texts = [["Time (h)", "Conc (ng/mL)"], ["1", "4.2"], ["2", "7.9"]]
+        for r, row in enumerate(texts, start=1):
+            for c, text in enumerate(row, start=1):
+                box = (50.0 + 100 * (c - 1) + shift, top + 12 * (r - 1) + shift, 140.0 + 100 * (c - 1) + shift,
+                       top + 12 * r + shift)
+                cells[(r, c)] = GridCell(text=text, value=text, type="text" if r == 1 else "number",
+                                         locator=format_locator(PdfCell(page=1, table=number, row=r, column=c, box=box)))
+        caption = GridCell(text=f"Study {study}", value=f"Study {study}", type="text", locator=format_locator(
+            PdfSpan(page=1, first_word=int(top), last_word=int(top) + 1, box=(50.0, top - 14, 200.0, top - 2))))
+        grid = RegionGrid(file_sha256=sha, parser="pdfplumber", parser_version=version, region_id=region_id, n_rows=3,
+                          n_cols=2, cells=cells, caption=(caption,))
+        rows = tuple(ExtractedRow(field="concentration", labels={}, time=float(grid.cell(r, 1).text), time_unit="h",
+                                  time_locator=grid.cell(r, 1).locator, value=float(grid.cell(r, 2).text),
+                                  verbatim=grid.cell(r, 2).text, locator=grid.cell(r, 2).locator, unit="ng/mL",
+                                  unit_locator=grid.cell(1, 2).locator, statistic="arithmetic_mean") for r in (2, 3))
+        result = ExtractResult(rows=rows, cell_use=(), findings=(), constants=(ExtractedConstant(
+            field="study_id", value=study, verbatim=caption.text, locator=caption.locator),))
+        ctx = ExtractionContext(delivery="dl-1", run_id=None, file=file_record(sha, "report.pdf"), parser="pdfplumber",
+                                parser_version=version)
+        return grid, result, ctx
+
+    ledger = Ledger(ws)
+    _rows, spec = _small()
+    entry = mapping_entry(spec)
+
+    def record(*args, **kwargs):
+        grid, result, ctx = table(*args, **kwargs)
+        return ledger.record_extraction(region=region_of(grid, where=f"p:1/t:{args[1]}"), grid=grid, mapping=entry,
+                                        result=result, context=ctx)
+
+    upper = record("1.0", 1, 100.0, "rg-0000000a01", "230-41")
+    lower = record("1.0", 2, 300.0, "rg-0000000a02", "230-42")
+    # version 1.1 finds a table above them (tables 2 and 3 now), and its boxes are 0.6 pt off: other region ids
+    again = record("1.1", 2, 100.0, "rg-0000000b01", "230-41", shift=0.6)
+    assert again.extract != upper.extract and again.superseded == (upper.extract,)      # moved: it supersedes its own
+    by_extract = {v.id.split("#")[0] for v in ledger.values(file_sha256=sha, field="concentration")}
+    assert by_extract == {again.extract, lower.extract}                                  # the lower table is untouched
+    below = record("1.1", 3, 300.0, "rg-0000000b02", "230-42", shift=0.6)
+    assert below.superseded == (lower.extract,)
+    assert {v.id.split("#")[0] for v in ledger.values(file_sha256=sha, field="concentration")} == {again.extract, below.extract}
+
+
+def test_a_pdf_reparse_that_moves_every_table_box_keeps_what_check_anchors_finds_again(ws, monkeypatch):
+    """D2 and D4 together (SEAM-5). A PDF table's region id hashes its box rounded to whole points, and the parser
+    version names the PDF library: an upgrade that makes every box 0.6 pt larger gives every table another region id,
+    while `check_anchors` finds every value again. The ledger then keeps every extract and writes nothing."""
+    import modeler_intake.source.parse as source_parse
+    import modeler_intake.source.pdf as source_pdf
+    from modeler_intake.mapping.execute import execute
+    from modeler_intake.source import check_anchors, parse_document, region_grid
+
+    pdf = synthetic.pdf_report(unruled_table=False)
+    sha = sha_of(pdf)
+    ledger = Ledger(ws)
+    entries = {t.where: mapping_entry(t.spec) for t in pdf.tables}
+
+    def run(doc) -> list:
+        ctx = ExtractionContext(delivery="dl-1", run_id=None, file=file_record(sha, pdf.name, size=len(pdf.data)),
+                                parser=doc.parser, parser_version=doc.parser_version)
+        out = []
+        for region in doc.regions:
+            if region.kind == "table":
+                grid = region_grid(doc, region.id)
+                entry = entries[region.where]
+                out.append(ledger.record_extraction(region=region, grid=grid, mapping=entry,
+                                                    result=execute(entry.spec, grid), context=ctx))
+        return out
+
+    doc = parse_document(pdf.data, pdf.name)
+    first = run(doc)
+    assert len(first) == 3 and all(r.extract for r in first)
+    heads = _heads(ws)
+    original = source_pdf.pdf_table_region_id
+    monkeypatch.setattr(source_pdf, "pdf_table_region_id",
+                        lambda page, box, first_row, file_sha: original(page, tuple(v + 0.6 for v in box), first_row, file_sha))
+    monkeypatch.setattr(source_parse, "SOURCE_VERSION", "1.1")
+    new = parse_document(pdf.data, pdf.name)
+    old_ids, new_ids = ({r.id for r in d.regions if r.kind == "table"} for d in (doc, new))
+    assert new.parser_version != doc.parser_version and not old_ids & new_ids            # every table: another id
+    items = [(v.id, v.anchor, v.verbatim) for v in ledger.values(file_sha256=sha, active=False) if v.anchor]
+    problems = check_anchors(new, items)
+    assert problems == [] and len(items) > 40
+    again = run(new)                                                 # recorded again under the new ids: the same extracts
+    assert [r.extract for r in again] == [r.extract for r in first] and _heads(ws) == heads
+    regions = [r.id for r in new.regions]
+    assert ledger.retire_regions(file_sha256=sha, parser_version=new.parser_version, regions=regions) == []
+    found = {item[0] for item in items} - {p.id for p in problems}
+    assert Ledger(ws).retire_regions(file_sha256=sha, parser_version=new.parser_version, regions=regions, found=found) == []
+    assert _heads(ws) == heads
+    assert {parse_anchor(v.anchor).parser_version for v in ledger.values(file_sha256=sha)} == {doc.parser_version}
+
+
 # --- facts ---------------------------------------------------------------------------------------------------------
 
 
@@ -314,6 +622,39 @@ def test_a_value_with_no_study_is_kept_and_nothing_is_guessed_from_the_file_name
     assert {v.id for v in ledger.values(unassigned=True)} >= {v.id for v in values}
     assert ledger.entities("study") == []                       # "concentrations" (the file's stem) names nothing
     assert all(v.entity.analyte is not None and v.entity.matrix == "plasma" for v in values)
+
+
+def test_a_table_that_names_a_batch_and_no_product_gives_unassigned_values_and_the_blocker(ws):
+    """A dissolution table whose mapping reads the batch from the caption and not the product (D3's rule does so): the
+    batch is an entity with no parent, and its values belong to no study, product or the compound. They are on the
+    "study not stated" list, the file's coverage counts them, and the scorecard blocks on them (UNASSIGNED_VALUES)
+    until a person gives them their product."""
+    workbook = synthetic.messy_workbook()
+    ledger = Ledger(ws)
+    recorded = record_table(ledger, workbook, "dissolution-vessels", drop=("product",))
+    values = [v for v in ledger.values() if v.id.startswith(f"{recorded.extract}#")]
+    (batch,) = ledger.entities("batch")
+    assert len(values) == 36 and ledger.entities("product") == [] and (batch.label, batch.parent) == ("L2301", None)
+    assert all((v.entity.study, v.entity.product, v.entity.batch) == (None, None, batch.id) for v in values)
+    named = [ledger.value(f) for f in recorded.facts]             # the batch's naming fact stands with them
+    assert [v.field for v in named] == ["batch"]
+    waiting = {v.id for v in (*values, *named)}
+    assert {v.id for v in ledger.values(unassigned=True)} == waiting
+    assert values_unassigned(ledger, sha_of(workbook)) == len(waiting) == 37
+    summary = CoverageSummary(state="read", regions=1, regions_mapped=1, regions_excluded=0, regions_unread=0,
+                              numeric_cells=36, cells_used=36, cells_excluded=0, cells_silent=0, silent_loss=0,
+                              outside_items=0, values_unassigned=values_unassigned(ledger, sha_of(workbook)))
+    card = scorecard(ledger, subject_type="compound", subject="compound", coverage=[summary], requirements=(), gaps=(),
+                     checks=())
+    assert [b.code for b in card.blockers] == ["UNASSIGNED_VALUES"]
+    # a person assigns them their product: they leave the list for the product's card, and the blocker is gone
+    product = resolve(ledger, type="product", label=f"{synthetic.DRUG} IR tablet", source=None, file_sha256=None, by="u-1")[0]
+    IntakeStore(ws).review.append("assignment", Assignment(
+        id="as-1", targets=(recorded.extract, *recorded.facts), product=product.id, batch=batch.id, why="the CoA names it",
+        by="u-1", at="2026-11-13T10:00:00.000Z").model_dump(mode="json"))
+    ledger.refresh()
+    assert ledger.values(unassigned=True) == [] and values_unassigned(ledger, sha_of(workbook)) == 0
+    assert {v.id for v in ledger.values(product=product.id)} == waiting
 
 
 # --- a person's entry and an exclusion -----------------------------------------------------------------------------
@@ -483,14 +824,76 @@ def test_the_writes_follow_the_shared_truth_convention(ws):
 
 def test_a_filled_template_follows_the_convention_and_its_token_lloq_is_a_fact(ws):
     """The template's record tables (Studies, Product), its long tables with actual times and BLQ flags, its
-    dissolution conditions and urine intervals: the same values as the truth. One more: the "<0.5" written in the
-    individual listing states an LLOQ, written once as an `lloq` fact (contracts §6.3), which the truth leaves out."""
+    dissolution conditions and urine intervals: the same values as the truth. The "<0.5" written in the individual
+    listing states an LLOQ, written once as an `lloq` fact (contracts §6.3): by the ledger and by the truth alike."""
     template = synthetic.template_workbook()
-    ledger, _truth, extra = _against_the_truth(ws, (template,), "truth-template")
-    (token,) = extra
+    ledger, truth, extra = _against_the_truth(ws, (template,), "truth-template")
+    assert extra == [] and len(ledger.values()) == len(truth.values())
+    (token,) = [v for v in ledger.values(field="lloq") if v.verbatim == "<0.5"]
     assert (token.field, token.value, token.unit, token.verbatim) == ("lloq", 0.5, "ng/ml", "<0.5")   # the unit as written
     assert parse_anchor(token.anchor).locator.sheet == "PK_Individual"
     assert ledger.entity(token.entity.study).label == "EXA-101"
+    (stated,) = [v for v in truth.values(field="lloq") if v.anchor == token.anchor]
+    assert {k: getattr(stated, k) for k in _COMPARED} == {k: getattr(token, k) for k in _COMPARED}
+    assert _labels(truth, stated) == _labels(ledger, token)
+
+
+def _held(view: LedgerView) -> dict:
+    """What a ledger holds, by (field, anchor): each value as a reviewer would compare it."""
+    out = {}
+    for value in view.values():
+        key = (value.field, value.anchor)
+        assert key not in out, key
+        out[key] = {**{k: getattr(value, k) for k in _COMPARED}, "entity": _labels(view, value),
+                    "cross_file": value.cross_file is not None}
+    return out
+
+
+def test_the_truth_ledger_holds_what_the_executor_and_the_ledger_write_the_lloq_facts_included(ws):
+    """D0, D5, W and D6 build their tests on `write_truth`; the pipeline's ledger is what D3's executor reads from a
+    table and `record_extraction` writes. Over every truth table of the delivery and the filled template the two hold
+    the same values, both ways: the same field at the same anchor with the same value, unit, text, entity, locators
+    and qualifiers. That includes §6.3's `lloq` facts, which the truth writes by its own rule: one per stated LLOQ per
+    (study, analyte, matrix), a "<0.5" token's too, with its column's unit and the unit cell among its locators."""
+    from modeler_intake.mapping.execute import execute
+
+    files = (*synthetic.delivery(), synthetic.template_workbook())
+    ledger = Ledger(ws)
+    for file in files:
+        for table in file.tables:
+            if table.spec.kind == "not_data":
+                continue
+            grid = truth_grid(file, table.id)
+            entry = mapping_entry(table.spec, first_seen=(sha_of(file), grid.region_id))
+            approve(ws, entry)
+            ledger.record_extraction(region=region_of(grid, table.kind, table.where), grid=grid, mapping=entry,
+                                     result=execute(entry.spec, grid), context=context(file))
+        if prose_of(file):
+            ledger.record_prose(facts=prose_of(file), model=TRUTH_MODEL, context=context(file))
+    truth_ws = Workspace(ws.store, "t1", "truth-all")
+    ids = write_truth(truth_ws, files)
+    truth = LedgerView(truth_ws)
+    written, expected = _held(ledger), _held(truth)
+    assert sorted(written, key=str) == sorted(expected, key=str)          # the same values, neither holds one more
+    for key in expected:
+        assert written[key] == expected[key], key
+    assert len(ledger.values()) == len(truth.values()) == len(expected)
+    # every stated LLOQ once per (study, analyte, matrix): the lines the delivery's tables state, and the template's
+    # token, which no line states (so the truth holds one value more than its TruthValues)
+    lloqs = {key: value for key, value in expected.items() if key[0] == "lloq" and value["table_kind"] is None}
+    assert sorted((v["entity"]["study"], v["entity"]["analyte"], v["entity"]["matrix"], v["value"], v["unit"], v["verbatim"])
+                  for v in lloqs.values()) == sorted([
+        ("230-23", synthetic.DRUG, "plasma", 0.5, "ng/mL", "LLOQ = 0.5 ng/mL"),
+        ("230-23", synthetic.METABOLITE, "plasma", 0.2, "ng/mL", "LLOQ = 0.2 ng/mL"),
+        ("231-24", synthetic.DRUG, "plasma", 0.5, "ng/mL", "LLOQ = 0.5 ng/mL"),
+        ("230-25", synthetic.DRUG, "plasma", 0.5, "ng/mL", lloqs[next(k for k in lloqs if "p:3" in k[1])]["verbatim"]),
+        ("EXA-101", None, None, 0.5, "ng/ml", "<0.5")], key=str)
+    (token,) = [key for key, value in lloqs.items() if value["verbatim"] == "<0.5"]
+    assert set(expected[token]["locators"]) == {"study", "unit"} and parse_anchor(token[1]).locator.sheet == "PK_Individual"
+    # besides its TruthValues the truth writes that fact and the synopsis PDF's link to the workbook's study
+    assert len(ids) == sum(len(f.values) for f in files)
+    beside = [v for v in truth.values() if v.id not in set(ids.values())]
+    assert sorted((v.field, v.verbatim) for v in beside) == [("link.study_id", "230-23"), ("lloq", "<0.5")]
 
 
 # --- identity across tables and mapping versions --------------------------------------------------------------------

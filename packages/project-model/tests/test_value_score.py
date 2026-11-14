@@ -128,9 +128,15 @@ def test_the_template_truth_scores_100_percent_on_its_own(tmp_path):
     template = synthetic.template_workbook()
     ws = Workspace(FileProjectStore(tmp_path), "t1", "p1")
     write_truth(ws, [template])
-    scored = score(load_key(key_from_truth([template]), "truth.xlsx"), from_ledger(ws))
+    extracted = from_ledger(ws)
+    scored = score(load_key(key_from_truth([template]), "truth.xlsx"), extracted)
     assert _clean(scored["totals"], len(template.values)), scored["totals"]
-    assert scored["totals"]["outside_key"] == 0
+    # the one value read beyond the truth is the `lloq` fact of the listing's "<0.5" cell (§6.3: every stated LLOQ is
+    # a fact, which the truth ledger holds as the pipeline's does): it restates that cell, the analysts do not write
+    # it, so it is outside the key, not unexpected
+    outside = [e for e in extracted if not any(r["found"] and r["found"]["id"] == e.id for r in scored["rows"])]
+    assert [(e.field, e.value, e.verbatim) for e in outside] == [("lloq", "0.5", "<0.5")]
+    assert scored["totals"]["outside_key"] == 1
 
 
 # --- errors, each under its verdict, field and study ----------------------------------------------------------------

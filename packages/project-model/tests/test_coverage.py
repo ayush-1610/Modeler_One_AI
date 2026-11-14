@@ -354,3 +354,10 @@ def test_values_unassigned_counts_the_values_of_no_subject(tmp_path):
     reader = LedgerView(ws)
     assert values_unassigned(reader, shas[0]) == 1                     # the spread fact qualifies it; the pKa is the compound's
     assert [v.id for v in reader.values(unassigned=True) if not is_spread_fact(v)] == [loose]
+    # a batch is not a subject: a value that names a batch and no product is counted too (it is on no card)
+    batch_only = store.facts.append("fact", lambda seq: Fact(
+        id=f"f-{seq}", delivery="dl-1", entity=EntityRef(batch="ba-1", vessel="1"), field="percent_dissolved", value=85.0,
+        unit="%", anchor=anchor.replace("A40", "A42"), method="cell", by="code", at=AT).model_dump(mode="json")).body["id"]
+    reader = LedgerView(ws)
+    assert values_unassigned(reader, shas[0]) == 2
+    assert [v.id for v in reader.values(unassigned=True) if not is_spread_fact(v)] == [loose, batch_only]

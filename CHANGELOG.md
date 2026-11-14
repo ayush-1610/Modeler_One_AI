@@ -15,6 +15,26 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Fixed — the intake ledger and its read side at the seams between builds (seam group a, 2026-11-13)
+Four findings of the seam probe that ran C, D0, D2, D3, D4 and D5 together. Each was reproduced by a failing test first.
+- **What (SEAM-1, science: which values block a subject):** a batch is not a subject. `ledger_view.is_unassigned` is now "no study, no product, not a compound field".
+  - **Why:** a table whose mapping reads the batch and not the product (D3's rule on a dissolution sheet does) gave values that were on no study, product or compound card and not on the "study not stated" list. `coverage.values_unassigned` was 0 and `UNASSIGNED_VALUES` never fired, so nobody could confirm, assign or land them.
+  - **Impact:** such values are listed, counted per file and block the subject until a person gives them their product (`Assignment` with product and batch). Nothing is derived from them before that. `in_subject` is unchanged.
+- **What (SEAM-9):** `LedgerView.conflicts()` and `LedgerView.pending_links()` work on the snapshot for any reader. `find_conflicts` and its comparison helpers moved from `ledger.py` to `ledger_view.py`; `LedgerView` takes an optional `rules`; `Ledger` inherits both methods.
+  - **Why:** D5's `requirement_status`, `run_checks` and `scorecard` take a `LedgerReader`, and contracts §6.6 names the request's one `LedgerView`, but those two methods raised `NotImplementedError` there.
+  - **Impact:** W and D6 can pass a plain `LedgerView`. Pending links now read the link confirmations at the fold: refresh after writing one. `find_conflicts` is imported from `ledger_view`.
+- **What (SEAM-5, science: the ledger's identity of an extract):** after a re-parse a table is known by its cells, not only by its region id.
+  - An extract of the same file and mapping id read under another parser version whose values equal the new ones by place is the same extract, whatever its region id: nothing is written and its confirmation stays bound.
+  - A new extract also supersedes an active extract of another parser version that has a value in one of the region's cells (the same place; for a PDF cell the same page and boxes overlapping by half, `check_anchors`' rule).
+  - `Ledger.retire_regions` takes an optional `found` (the value ids `check_anchors` found again) and never retires what the same ledger has just recorded for the new parse.
+  - **Why:** a PDF region id hashes the table's box rounded to whole points. A library upgrade that moved a box across a half point gave every table another id: every extract was retired as "region gone after re-parse" and written again with identical values, and the confirmations bound to the old ids went stale, although `check_anchors` found every value.
+  - **Impact:** such a re-parse writes nothing. A region that is really gone is still retired with the reason; a table whose values moved or changed still supersedes; one table never has two active extracts.
+  - **Known gap:** a `RegionDecision` is keyed by region id and still stops applying when the id changes. A PDF whose cells are renumbered by the parser is still superseded, because equality is by place.
+- **What (SEAM-8, test fixture):** `intake_fixtures.write_truth` writes the `lloq` fact of a "<0.5" cell that no LLOQ line of its table states, by its own rule, as §6.3 says and the ledger does.
+  - **Why:** the pipeline's ledger held one value more than the truth ledger the tests of D0, D5, W and D6 are built on (the template's PK_Individual!H2).
+  - **Impact:** the two ledgers hold the same values over every truth table of the delivery and the template (a test compares them both ways). The template's truth has one value outside D0's key; the 100 % score is unchanged.
+- **Tests:** 15 new tests and 4 existing ones edited where they pinned the old behaviour (`test_intake_store.py`, `test_ledger.py`, `test_coverage.py`, `test_value_score.py`). No ruleset, rules-file, contract or locked-file change.
+
 ### Added — the intake rebuild's source model: parse once, locate, resolve, format inventory (D2, 2026-11-13)
 - **What:** `modeler_intake.source` (contracts §6.1). It parses every client file once into a `SourceDocument`.
   - **Workbooks** (openpyxl, xlrd):
