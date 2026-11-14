@@ -101,7 +101,7 @@ export function SpotCheck({ projectId, subject }: { projectId: string; subject: 
             matches: its value, unit, time, labels and statistic as the file writes them.</p>
           {!spot && (
             <div className="row gap-8">
-              <button type="button" className="btn small primary" disabled={busy} onClick={() => void draw()} data-testid={`spot-draw-${subject.subject}`}>
+              <button type="button" className="btn small" disabled={busy} onClick={() => void draw()} data-testid={`spot-draw-${subject.subject}`}>
                 {card.state === "none" ? "Start the spot check" : card.state === "stale" ? "Start again" : "Show the values to check"}
               </button>
               {card.state === "stale" && <span className="muted" data-testid="spot-stale">The values, or the checks accepted as is,

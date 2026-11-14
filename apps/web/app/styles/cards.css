@@ -87,26 +87,27 @@
 .studies-list-head .area-section-title { margin: 6px 0 0; }
 .studies-design-title { font-size: 14px; font-weight: 600; color: var(--ink); }
 .table-scroll table.studies-cards { table-layout: fixed; width: 100%; min-width: 0; }
-.studies-cards th:nth-child(1) { width: 20%; }
-.studies-cards th:nth-child(2) { width: 22%; }
-.studies-cards th:nth-child(3) { width: 16%; }
-.studies-cards th:nth-child(4) { width: 11%; }
-.studies-cards th:nth-child(5) { width: 13%; }
-.studies-cards th:nth-child(6) { width: 11%; }
-.studies-cards th:nth-child(7) { width: 92px; }
-.studies-cards td { vertical-align: top; overflow-wrap: anywhere; }
-.studies-cards tr.row-group > th { padding: 16px 8px 6px; text-align: left; background: transparent; border-bottom: 1px solid var(--line);
+/* the list's own rows and cells only (child combinators): a card's tables of values are nested in a row's detail */
+.studies-cards > thead > tr > th:nth-child(1) { width: 20%; }
+.studies-cards > thead > tr > th:nth-child(2) { width: 22%; }
+.studies-cards > thead > tr > th:nth-child(3) { width: 16%; }
+.studies-cards > thead > tr > th:nth-child(4) { width: 11%; }
+.studies-cards > thead > tr > th:nth-child(5) { width: 13%; }
+.studies-cards > thead > tr > th:nth-child(6) { width: 11%; }
+.studies-cards > thead > tr > th:nth-child(7) { width: 92px; }
+.studies-cards > tbody > tr > td { vertical-align: top; overflow-wrap: anywhere; }
+.studies-cards > tbody > tr.row-group > th { padding: 16px 8px 6px; text-align: left; background: transparent; border-bottom: 1px solid var(--line);
   text-transform: none; letter-spacing: 0; color: var(--ink); }
-.studies-cards tr.row-group:first-child > th { padding-top: 8px; }
-.studies-cards tr.open > td { background: color-mix(in srgb, var(--sim) 4%, var(--surface)); border-bottom-color: transparent; }
-.studies-cards tr.row-detail > td { padding: 0 0 16px; background: var(--surface); }
+.studies-cards > tbody > tr.row-group:first-child > th { padding-top: 8px; }
+.studies-cards > tbody > tr.open > td { background: color-mix(in srgb, var(--sim) 4%, var(--surface)); border-bottom-color: transparent; }
+.studies-cards > tbody > tr.row-detail > td { padding: 0 0 16px; background: var(--surface); }
 .study-card { border: 1px solid color-mix(in srgb, var(--sim) 30%, var(--line)); border-radius: var(--radius); padding-top: 10px; }
 @media (max-width: 760px) {
-  .studies-cards thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
-  .studies-cards, .studies-cards tbody, .studies-cards tr, .studies-cards td { display: block; width: 100%; }
-  .studies-cards tr:not(.row-detail) { padding: 8px 0; border-top: 1px solid var(--line); }
-  .studies-cards td { padding: 2px 10px; border: 0; }
-  .studies-cards tr.row-detail > td { padding: 0 0 12px; }
+  .studies-cards > thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  table.studies-cards, .studies-cards > tbody, .studies-cards > tbody > tr, .studies-cards > tbody > tr > td, .studies-cards > tbody > tr > th { display: block; width: 100%; }
+  .studies-cards > tbody > tr:not(.row-detail) { padding: 8px 0; border-top: 1px solid var(--line); }
+  .studies-cards > tbody > tr > td { padding: 2px 10px; border: 0; }
+  .studies-cards > tbody > tr.row-detail > td { padding: 0 0 12px; }
 }
 .studies-in-model { margin: 8px 0 16px; }
 
@@ -152,6 +153,8 @@
 .delivery-values col.c-level { width: 12%; }
 .delivery-values col.c-source { width: 10%; }
 .delivery-values td { overflow-wrap: anywhere; }
+/* in fixed columns a long value ("below the LLOQ (0.5 ng/mL)") wraps inside its cell, never over the next one */
+.delivery-values td.num, .delivery-values th.num { white-space: normal; }
 
 /* a table of a card's values, folded to its one line unless a row needs the person */
 .table-toggle { display: inline-flex; align-items: baseline; gap: 6px; min-height: 30px; padding: 2px 0; border: 0; background: none; font: inherit;
@@ -162,10 +165,10 @@
 
 /* on a phone: a study's row is a few short lines (its name first), its card full width with less padding */
 @media (max-width: 760px) {
-  .studies-cards tr:not(.row-detail) { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 10px; }
-  .studies-cards tr:not(.row-detail) > td { width: auto; padding: 2px 10px; }
-  .studies-cards tr:not(.row-detail) > td:first-child { flex: 1 1 100%; }
-  .studies-cards tr:not(.row-detail) > td:last-child { margin-left: auto; }
+  .studies-cards > tbody > tr:not(.row-detail):not(.row-group) { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 10px; }
+  .studies-cards > tbody > tr:not(.row-detail):not(.row-group) > td { width: auto; padding: 2px 10px; }
+  .studies-cards > tbody > tr:not(.row-detail):not(.row-group) > td:first-child { flex: 1 1 100%; }
+  .studies-cards > tbody > tr:not(.row-detail):not(.row-group) > td:last-child { margin-left: auto; }
   .card-body { padding: 4px 8px 12px; gap: 12px; }
   .subject-card .confirm-group { padding: 10px; }
   .card-head { padding: 8px 10px; }

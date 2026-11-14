@@ -67,7 +67,8 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
     tables' layouts approved or rejected, its files' tables marked as not data), each with who, when and why from the
     project's audit trail. The signed confirmation and its step-up are unchanged (`ConfirmDialog`, `SpotCheck`: words
     only: "Start the spot check", "in progress", "values changed: start again"; "From the files: …"; "Intake rules:
-    v0.1, UNVERIFIED (SME sign-off pending)"; the spot check's legend reads the field and time, not the value's id).
+    v0.1, UNVERIFIED (SME sign-off pending)"; the spot check's legend reads the field and time, not the value's id;
+    "Start the spot check" is a secondary button, so a card has one primary, its confirmation).
   - **Clinical studies**: the client's studies are one list (`studies-list`, one kit `DataTable`, grouped by how each
     is given as far as its facts say: IV · oral, fasted · oral, fed · multiple dose · other or not stated yet, a heading
     row each, `studies-design-<design>`; chips All · To confirm · In the model; the kit table gains a row testid, a row's
@@ -97,7 +98,8 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
     again" (`card-changed-<key>`). Blinded cards say they wait until the plan is signed.
   - **Charts**: drawn at their box's width (labels stay 11 px on a phone; the 640 px cap and the empty half card are
     gone), the scale toggle on one line; a dissolution profile observed in amber (`--obs`) and its fit in blue (`--sim`),
-    the same in the Client files plot.
+    the same in the Client files plot. On a phone a study's row is a few short lines and its card full width; a card's
+    tables of values share one set of columns and scroll inside their box, a long value wrapping in its own cell.
   - **Words**: `lib/words.ts` gains the fact labels, the vocabulary words (route, dosage form, purpose, matrix, …), the
     study designs and the disposition words; the Delivery section in Client files says in one line where the cards are
     (`delivery-subjects`, links per area) instead of listing them.
