@@ -2,8 +2,10 @@
 // file links to a study are linked to a new study with a new arm and a new analyte, and later ones to that study with
 // another arm (a name that exists is refused in the server's words); a table marked as not data is restored with a
 // reason, its answer written into the page with no new read of it; a table no layout reads gets its first layout in the
-// layout form, where code's finding on a bad choice is shown beside the column it names; and a compound input no source
-// gives yet is filled from its row. Software test data (made-up numbers of the made-up Exampleamide), never a model.
+// layout form, where code's finding on a bad choice is shown beside the column or the setting it names (and, edited as
+// text, above it); and compound inputs no source gives yet are filled from their rows, each in the form its value takes
+// (a number with its unit, a binding partner by PK-Sim's name, a neutral compound as a statement). Software test data
+// (made-up numbers of the made-up Exampleamide), never a model.
 import { expect, type APIRequestContext, type Page, test } from "@playwright/test";
 
 import { AUTH, finishStart } from "./fixtures/inputs";
@@ -112,6 +114,17 @@ test("loose values are linked with new arms and an analyte, a table set aside is
   await readIt.click();
   const dialog = page.getByTestId("read-table-dialog");
   await expect(dialog).toContainText("sheet odd-profile, cells A1 to B4");
+  // what the table holds is chosen before anything is sent: the rules could not tell
+  await expect(dialog.getByTestId("read-table-kind")).toHaveValue("");
+  await expect(dialog.getByTestId("read-table-needs")).toContainText("Choose what the table holds.");
+  await expect(dialog.getByTestId("read-table-role-1")).toHaveAccessibleName("What column 1 holds");
+  // at phone width every control stays inside the dialog
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect.poll(() => dialog.locator('[role="dialog"]').evaluate((panel) => {
+    const edge = panel.getBoundingClientRect().right;
+    return [...panel.querySelectorAll("select, input")].filter((c) => c.getBoundingClientRect().right > edge + 1).length;
+  })).toBe(0);
+  await page.setViewportSize({ width: 1280, height: 720 });
   await dialog.getByTestId("read-table-kind").selectOption("pk_summary");
   await dialog.getByTestId("read-table-field").selectOption("concentration");
   await dialog.getByTestId("read-table-statistic").selectOption("arithmetic_mean");
@@ -119,13 +132,17 @@ test("loose values are linked with new arms and an analyte, a table set aside is
   await dialog.getByTestId("read-table-value-unit").fill("ng/mL");
   await dialog.getByTestId("read-table-role-1").selectOption("time");
   await dialog.getByTestId("read-table-role-2").selectOption("ignore");          // the bad choice: no value column, no reason
+  await dialog.getByTestId("read-table-missing").fill("NS, 0");                  // and a number as the word for "missing"
   await dialog.getByTestId("read-table-save-why").fill("hours, and the mean level");
   await dialog.getByTestId("read-table-save-submit").click();
   await expect(dialog.getByTestId("read-table-col-2-findings")).toContainText("an ignored column says why its cells are not data");
   await expect(dialog.getByTestId("read-table-columns-findings")).toContainText("no value column");
   await expect(dialog.getByTestId("read-table-col-2")).toHaveClass(/wrong/);
+  await expect(dialog).toContainText("a token must not be a number ('0')");      // beside "Missing written as"
+  await expect(dialog.locator(".layout-said li").first()).toBeFocused();         // the focus stays in the dialog, on what to fix
   await shot(page, "3-finding");
   await dialog.getByTestId("read-table-role-2").selectOption("value");
+  await dialog.getByTestId("read-table-missing").fill("NS");
   await dialog.getByTestId("read-table-save-submit").click();
   // stored as a person's layout that waits for approval; the file is read again with it
   const mapping = page.getByTestId("delivery-mapping-dialog");
@@ -142,6 +159,22 @@ test("loose values are linked with new arms and an analyte, a table set aside is
   await expect(mapping.getByTestId("mapping-layout-col-2-findings")).toContainText("an ignored column says why its cells are not data");
   await mapping.getByTestId("mapping-layout-text").click();                     // the layout as text, for experts
   await expect(mapping.getByTestId("mapping-spec")).toHaveValue(/"role": "ignore"/);
+  // edited as text, every finding is said above the text, a column's with its number; sent again, still said
+  await expect(mapping.getByTestId("mapping-layout-findings")).toContainText("Column 2: an ignored column says why its cells are not data");
+  await mapping.getByTestId("mapping-edit-submit").click();
+  await expect(mapping.getByTestId("mapping-layout-findings")).toContainText("Column 2: an ignored column says why its cells are not data");
+  await mapping.getByTestId("mapping-layout-form").click();
+  await mapping.getByTestId("mapping-layout-role-2").selectOption("value");
+  // when the times are counted from is read in the table: where it is stated is asked for, and checked there
+  await mapping.getByTestId("mapping-layout-time-reference").selectOption("first_dose");
+  await expect(mapping.getByTestId("mapping-layout-needs")).toContainText("Say where the table states when its times are counted from");
+  await expect(mapping.getByTestId("mapping-edit-submit")).toBeDisabled();
+  await mapping.getByTestId("mapping-layout-time-reference-at").selectOption("cell");
+  await mapping.getByLabel("Where the table states when its times are counted from: the cell's row").fill("1");
+  await mapping.getByLabel("Where the table states when its times are counted from: the cell's column").fill("1");
+  await mapping.getByTestId("mapping-edit-submit").click();
+  await expect(mapping.getByTestId("mapping-layout")).toContainText("the cited text does not state first_dose: 'Hrs (h)'");
+  await shot(page, "4b-time-reference");
   await mapping.getByRole("button", { name: "Cancel" }).click();
   await expect(mapping.getByTestId("mapping-status")).toHaveText("waits for approval");
   await mapping.getByTestId("mapping-close").click();
@@ -170,23 +203,29 @@ test("loose values are linked with new arms and an analyte, a table set aside is
   expect(delivery.subjects.find((s) => s.subject === study.subject)!.arms.map((a) => a.label)).toEqual(["Reference", "Test"]);
 });
 
-test("a compound input no source gives yet is filled from its row, folded under what you can fill in", async ({ page, request }) => {
+test("compound inputs no source gives yet are filled from their rows, each in the form its value takes", async ({ page, request }) => {
   const projectId = await project(request);
   const inputs = async () => (await (await request.get(`/api/v1/projects/${projectId}/inputs`, { headers: AUTH })).json()).data as
-    { compound: { id: string; state: string; tab: string }[] };
-  const before = (await inputs()).compound.find((r) => r.id === "perm.intestinal");
-  expect(before?.state).toBe("empty");
+    { compound: { id: string; state: string; tab: string; value: number | string | null }[] };
+  const row = async (id: string) => (await inputs()).compound.find((r) => r.id === id);
+  const before = await inputs();
+  for (const id of ["perm.intestinal", "bind.partner", "phys.pka.neutral", "phys.solubility.table"]) {
+    expect(before.compound.find((r) => r.id === id)?.state).toBe("empty");
+  }
+  expect(before.compound.some((r) => /^phys\.pka\.(acid|base)\./.test(r.id))).toBe(false);
 
   await page.goto(`/projects/${projectId}/inputs?tab=compound`);
+  // --- a number with its unit, converted to PK-Sim's ---
   const block = page.getByTestId("block-Permeability and absorption");
   await expect(block.getByTestId("record-perm.intestinal")).toHaveCount(0);                  // folded
   const toggle = block.getByTestId("fill-toggle-Permeability and absorption");
   await expect(toggle).toContainText(/\+ \d+ more you can fill in/);
   await toggle.click();
-  const row = block.getByTestId("record-perm.intestinal");
-  await expect(row).toContainText("no value yet");
-  await row.getByTestId("add-open-perm.intestinal").click();
-  const form = row.getByTestId("add-perm.intestinal");
+  const perm = block.getByTestId("record-perm.intestinal");
+  await expect(perm).toContainText("no value yet");
+  await expect(perm.getByTestId("add-open-perm.intestinal")).toHaveAccessibleName("Add a value for Intestinal permeability");
+  await perm.getByTestId("add-open-perm.intestinal").click();
+  const form = perm.getByTestId("add-perm.intestinal");
   await form.getByLabel("value for perm.intestinal").fill("0.000015");
   await form.getByLabel("unit for perm.intestinal").fill("cm/s");
   await form.getByLabel("link for perm.intestinal").fill("10.1/perm");
@@ -194,6 +233,36 @@ test("a compound input no source gives yet is filled from its row, folded under 
   await shot(page, "5-fill");
   await form.getByRole("button", { name: "Add" }).click();
   await expect(page.getByTestId("record-perm.intestinal")).not.toContainText("no value yet");
-  await expect.poll(async () => (await inputs()).compound.find((r) => r.id === "perm.intestinal")?.state).not.toBe("empty");
+  await expect.poll(async () => (await row("perm.intestinal"))?.state).not.toBe("empty");
   await shot(page, "6-filled");
+
+  // --- the binding partner, by PK-Sim's name: titled in words, chosen, never typed ---
+  const binding = page.getByTestId("block-Binding and partitioning");
+  await binding.getByTestId("fill-toggle-Binding and partitioning").click();
+  const partner = binding.getByTestId("record-bind.partner");
+  await expect(partner.locator(".input-name strong")).toHaveText("Plasma protein binding partner");
+  await partner.getByTestId("add-open-bind.partner").click();
+  const choose = partner.getByLabel("value for bind.partner");
+  await expect(choose.locator("option")).toHaveText(["choose…", "Albumin", "Glycoprotein", "Unknown"]);
+  await choose.selectOption("Albumin");
+  await partner.getByLabel("source type for bind.partner").selectOption("ASSUMPTION");
+  await partner.getByTestId("add-bind.partner").getByRole("button", { name: "Add", exact: true }).click();
+  await expect.poll(async () => { const r = await row("bind.partner"); return [r?.state, r?.value]; }).toEqual(["kept", "Albumin"]);
+
+  // --- a neutral compound, stated (no value, no unit); the solubility table is not offered here ---
+  const phys = page.getByTestId("block-Identity and physico-chemistry");
+  await phys.getByTestId("fill-toggle-Identity and physico-chemistry").click();
+  await expect(phys.getByTestId("record-phys.solubility.table")).toHaveCount(0);
+  await expect(phys.getByTestId("fill-elsewhere-Identity and physico-chemistry")).toContainText("Solubility vs pH table");
+  const neutral = phys.getByTestId("record-phys.pka.neutral");
+  await expect(neutral.locator(".input-name strong")).toHaveText("Neutral compound (no pKa)");
+  await neutral.getByTestId("add-open-phys.pka.neutral").click();
+  await expect(neutral.getByLabel("value for phys.pka.neutral")).toHaveCount(0);
+  await expect(neutral.getByLabel("unit for phys.pka.neutral")).toHaveCount(0);
+  await neutral.getByLabel("link for phys.pka.neutral").fill("10.1/neutral");
+  await neutral.getByLabel("quote for phys.pka.neutral").fill("Exampleamide has no ionizable group");
+  await shot(page, "7-neutral");
+  await neutral.getByTestId("add-phys.pka.neutral").getByRole("button", { name: "Add", exact: true }).click();
+  await expect.poll(async () => (await row("phys.pka.neutral"))?.state).toBe("kept");
+  await expect(page.getByTestId("record-phys.pka.neutral").locator(".input-value")).toHaveText("neutral");
 });

@@ -29,6 +29,15 @@ type Decide = ReturnType<typeof useDecide>["decide"];
 /** The decision's scope for a region of this kind: a table's numbers leave silent loss only as a region. */
 const scopeOf = (r: Region) => (r.kind === "prose" ? "unread_prose" : r.kind === "figure" ? "figures" : "regions");
 
+/** Why a region is not read, or set aside by a rule, in plain words; the reader's own text stays in its tooltip. */
+function reasonWords(r: Region): string {
+  const rule = /^coverage\.excluded_by_rule\.[a-z_]+: ([\s\S]*)$/.exec(r.reason);
+  if (rule) return `set aside by the intake rules: ${rule[1]}`;
+  if (r.state !== "unread") return r.reason;
+  if (r.kind === "table") return r.mapping_status === "rejected" ? "its layout was rejected: no layout reads it now" : "no layout reads it yet";
+  return /no model is configured/.test(r.reason) ? "not read: no text reader is set up" : "not read yet";
+}
+
 function coverageLine(f: FileRow): string {
   const c = f.coverage;
   if (!c) return "";
@@ -50,8 +59,12 @@ function FileItem({ projectId, file, first, decide, busy, onMapping }: {
   const [reading, setReading] = useState<Region | null>(null);       // a table given its first layout
   const shown = file.repeat && first ? first : file;
   const who = useDecisionsWho(projectId, open && shown.regions.some(restorable));
-  // a note outside every table that no table cites stops counting only by a person's decision: it can be restored
-  const marked = (o: FileRow["outside"][number]) => !o.counted && o.region === null;
+  // a note stops counting when a table that is read cites it (a fact read once for the table), or by a person's "not
+  // data": beside no table, or beside one no layout reads, only a person's decision explains it, which can be restored.
+  // Beside a table that is read the page cannot tell which (an API follow-up: who marked a note and why).
+  const regionState = new Map(shown.regions.map((r) => [r.region_id, r.state]));
+  const read = (o: FileRow["outside"][number]) => o.region !== null && ["mapped", "waiting"].includes(regionState.get(o.region) ?? "");
+  const marked = (o: FileRow["outside"][number]) => !o.counted && !read(o);
   const noteName = (o: FileRow["outside"][number]) => (o.text ? `the note “${o.text}” of ${file.name}` : `the note at ${placeText(o.where).place} of ${file.name}`);
   const exclude = (regions: string[], scope: "regions" | "unread_prose" | "figures" | "outside") => async (why: string) => {
     const { data } = await decide(() => send("post", EXCLUDE, { project_id: projectId }, { file_sha256: file.sha256, regions, scope, why }));
@@ -89,7 +102,7 @@ function FileItem({ projectId, file, first, decide, busy, onMapping }: {
                         <div className="muted fs-12">{r.caption === null ? WITHHELD : r.caption}</div></td>
                       <td><ChipFor state={r.state} table={REGION_STATE} />
                         {restorable(r) ? <NotDataNote region={r} who={who} testId={`delivery-region-decision-${r.region_id}`} />
-                          : r.reason && <div className="muted fs-12">{r.reason}</div>}</td>
+                          : r.reason && <div className="muted fs-12" title={r.reason} data-testid={`delivery-region-reason-${r.region_id}`}>{reasonWords(r)}</div>}</td>
                       <td>
                         {r.mapping_id ? (
                           <button type="button" className="delivery-chip-btn" onClick={() => onMapping(r.mapping_id as string)}
@@ -124,7 +137,7 @@ function FileItem({ projectId, file, first, decide, busy, onMapping }: {
           {shown.regions.filter((r) => r.region_id === aside).map((r) => (
             <Why key={r.region_id} action="Mark as not data" actionLabel={`Mark ${tableName(r.where, file.name, r.kind)} as not data`}
                  label={`Why ${tableName(r.where, file.name, r.kind)} is not data`} busy={busy} onCancel={() => setAside(null)}
-                 testId="delivery-region-aside" onSubmit={exclude([r.region_id], scopeOf(r))}>
+                 testId="delivery-region-aside" onSubmit={exclude([r.region_id], scopeOf(r))} autoFocus>
               <span className="muted">{placeText(r.where).place}: what was read from it is set aside too; &quot;Restore…&quot; gives it back.</span>
             </Why>
           ))}
@@ -140,14 +153,16 @@ function FileItem({ projectId, file, first, decide, busy, onMapping }: {
                   <li key={o.where} className={o.counted ? "delivery-check open" : "delivery-check"}>
                     <div className="delivery-check-line">
                       <span className={`chip ${o.counted ? "high" : "neutral"}`}>{o.counted ? "not read" : marked(o) ? "not data" : "accounted for"}</span>
-                      <span className="delivery-check-text">“{o.text ?? WITHHELD}” <span className="muted">{placeText(o.where).place}{o.region ? " · read with its table" : ""}</span></span>
+                      <span className="delivery-check-text">“{o.text ?? WITHHELD}” <span className="muted">{placeText(o.where).place}
+                        {!o.counted && read(o) && <span title="Its table's layout reads this note, or a person marked it as not data: the page does not say which">
+                          {" "}· beside a table that is read</span>}</span></span>
                       {marked(o) && restoring !== o.where && (
                         <button type="button" className="link-btn" onClick={() => setRestoring(o.where)} aria-label={`Restore ${noteName(o)}`}
                                 data-testid={`delivery-outside-restore-${file.file_id}-${i}`}>Restore…</button>
                       )}
                     </div>
-                    {o.counted && <Why action="It is not data" label="Why this text is not data" busy={busy} testId="delivery-file-outside-accept"
-                                       onSubmit={exclude([o.where], "outside")} />}
+                    {o.counted && <Why action="It is not data" actionLabel={`Mark ${noteName(o)} as not data`} label={`Why ${noteName(o)} is not data`}
+                                       busy={busy} testId="delivery-file-outside-accept" onSubmit={exclude([o.where], "outside")} />}
                     {marked(o) && restoring === o.where && (
                       <RestoreForm projectId={projectId} file={shown} items={[o.where]} scope="outside" label={noteName(o)}
                                    onDone={() => setRestoring(null)} testId="delivery-outside-restore-form" />
@@ -310,7 +325,7 @@ export function DeliverySection({ projectId }: { projectId: string }) {
                     <div className="delivery-check-line">
                       <ChipFor state={m.status} table={MAPPING_STATE} />
                       <span className="delivery-check-text">{fieldText(m.kind)} table, version {m.version}, proposed by {m.origin === "llm" ? "the table mapper" : m.origin === "rule" ? "a rule" : "a person"}:
-                        {" "}{m.used_in.map((u) => `${u.file} ${u.where}`).join("; ") || "not in use"}</span>
+                        {" "}{m.used_in.map((u) => `${placeText(u.where).place} of ${u.file}`).join("; ") || "not in use"}</span>
                       {m.waiting && <span className="chip medium">being read again</span>}
                       <button type="button" className="btn tiny" onClick={() => setMapping(m.mapping_id)} data-testid={`delivery-mapping-open-${m.mapping_id}`}>Review…</button>
                     </div>

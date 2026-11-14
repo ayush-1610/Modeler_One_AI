@@ -28,13 +28,60 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
   2026-11-03 §3.2 (left rail, files drawer); see the plan's §5.
 - **Impact:** none yet (no code changed).
 
+### Fixed — the fill-in screens of Inputs after their review: each compound row in the form its value takes, plain row names, every layout finding shown, the time reference stated where the table says it, a note's "not data" undone (plan 2026-11-14 §5)
+- **What:**
+  - **Compound rows to fill** (`InputRows`): a row is offered in the form its value can take. A value is typed with its
+    unit as the source states it (the help no longer says every value is converted: a number is converted where its
+    unit allows, otherwise held for you to check). The plasma protein binding partner is chosen from PK-Sim's names as
+    the API's compound spec gives them (`CompoundSpec.binding_partner`: Albumin, Glycoprotein, Unknown; checked against
+    `api-types` at build time), never typed. A neutral compound is a statement with its source ("State it is neutral",
+    filed as `phys.pka.neutral` = 1 as the CPF records it for a published model, shown as "neutral"), offered only while
+    the compound has no pKa. The solubility-vs-pH table, the calculation methods and the alternative rules are not
+    offered (named once inside the fold, `fill-elsewhere-<block>`).
+  - **Row names:** each row is titled in plain words (new `LABEL` entries for the registry's model inputs, e.g. "Plasma
+    protein binding partner", "Solubility vs pH table", "Neutral compound (no pKa)", "Enterohepatic recycling (EHC
+    continuous fraction)"; otherwise its data-checklist item's label from `GET /evidence`, read only when needed); the id
+    stays in the row's small code line, and the "Add a value for …" names follow.
+  - **Layout form** (`LayoutEditor`): no finding the API sends is dropped. Edited as text, every finding is said above
+    the text (a column's with its number, `<id>-findings`); in the form, one with no place in it is said there too, and
+    the "missing" tokens have their findings beside them. "Times counted from" asks where the table states it ("stated
+    in": a cell of the table by row and column, or its caption or the text above or below it, line 1 to 3, from the
+    vocabulary's `cite_near`), and the layout is not sent until that is said; the unit of the times, of the values and of
+    each column can likewise be said to be written in such a place instead of the header. What the table holds must be
+    chosen ("Read this table…" no longer starts on "unknown"). Each column's controls are named with their column ("What
+    column 2 holds"); "Written as" no longer lists "value" beside "the value alone". At phone width the form's selects
+    shrink with the dialog. A refused layout puts the focus on its first finding, and a reason form's button stays
+    focusable while it is sent (`aria-disabled`), so a dialog keeps the keyboard and Escape.
+  - **Notes outside the tables** (`DeliverySection`): a note that no longer counts is a person's "not data", with
+    "Restore…", when it sits beside no table or beside one no layout reads; beside a table that is read it is "accounted
+    for … beside a table that is read" (never "read with its table"). "It is not data" names its note.
+  - **Words:** places in the layouts waiting for review and in `MappingReview` in plain words ("sheet loose-profile,
+    cells A1 to C5 of loose-profile.csv"); an unread table's reason is "no layout reads it yet" (the reader's own text in
+    its tooltip), a rule's exclusion "set aside by the intake rules: …"; "Read table 1 of notes.docx" instead of "the
+    table table 1"; the "Not data…" and "Restore…" forms put the focus in their reason.
+  - **Tests:** `e2e/inputs-fill.spec.ts` extended: the kind chosen before sending, every control of the layout dialog
+    inside it at phone width, a number as a "missing" token refused beside its field, the focus on the first finding, findings said while the layout is edited as text and sent again,
+    the time reference asked where it is stated and checked at that cell; the binding partner chosen from PK-Sim's names
+    and kept, a neutral compound stated and kept, the solubility table not offered. `e2e/delivery.spec.ts` reads an
+    unread text's reason in its new words. Run with them: model-inputs, inputs-workspace, inputs-todo, compound-sources,
+    client-confirm, start-project, inputs-frame, published-model.
+- **Why:** the review of the fill round (2026-11-14): a binding partner typed "albumin" showed "in the model" though the
+  model builder takes only PK-Sim's names (case-sensitive); a solubility table was asked for as one number; four of the
+  five new rows were titled with raw ids; findings were lost in text mode and on the "missing" tokens; "Times counted
+  from" could never be stored; a note beside a table a person marked as not data read "read with its table" and could
+  not be restored.
+- **Impact:** frontend only; no API, rule, ruleset or science change. Known gaps, for the API (plan §5): `POST /evidence`
+  keeps a word value it does not check against its vocabulary (the page now offers only the names); a note beside a
+  table that is read cannot be restored from the page; a solubility-vs-pH table has no entry form.
+
 ### Added — fill what is missing on Inputs: compound rows to fill, links with new arms, batches and analytes, "Restore…", and a table's layout as a form (plan 2026-11-14 §3 rows 1, 2, 4, 6; slice 5 a, b, d)
 - **What:**
   - **Compound rows to fill** (`InputRows`): the `empty` rows of `GET /inputs` are shown, in each Compound building block
     (and at the end of the other areas' rows) folded under "+ n more you can fill in" (`fill-<block>`,
     `fill-toggle-<block>`, `aria-expanded`, a label naming the block). Each opens the form a missing value is given with
     (`add-open-<id>`, `add-<id>`, `POST /evidence` under the row's own data-checklist item): the value and its unit as the
-    source states them (converted to PK-Sim's unit by the register), the source and its DOI or URL. The form's fields are
+    source states them (a number converted to PK-Sim's unit where its unit allows; see the fix above), the source and its
+    DOI or URL. The form's fields are
     now named on screen. An empty row shows "no value yet" and no "—" or "no source yet"; a block's "n open" no longer
     counts rows to fill. `InputsWorkspace` drops the one filter that hid them.
   - **Linking values** (`Unassigned`, "Values not linked to a study or product"): beside the study (or product), an arm

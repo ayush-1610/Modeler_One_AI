@@ -81,6 +81,7 @@
   font: inherit; font-size: 13.5px; padding: 6px 10px; border: 1px solid var(--control-border); border-radius: var(--radius-sm);
   background: var(--surface); color: var(--ink); min-width: 0; }
 .delivery-why > input[type="text"] { flex: 1 1 240px; }
+.delivery-why .btn[aria-disabled="true"] { opacity: 0.45; cursor: progress; }
 .delivery-pick { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; color: var(--ink-dim); }
 .delivery-pick .delivery-unit { width: 9em; }
 .delivery-facts { margin: 8px 0 0; display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 14px; font-size: 13.5px; }
@@ -157,8 +158,12 @@
 .layout-editor fieldset { margin: 0; padding: 8px 12px 10px; border: 1px solid var(--line); border-radius: var(--radius-sm);
   display: grid; gap: 8px; min-width: 0; }
 .layout-editor legend { padding: 0 4px; font-size: 12.5px; font-weight: 600; color: var(--ink); }
-.layout-line { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; }
-.layout-editor .delivery-pick { flex-wrap: wrap; }
+.layout-line { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; min-width: 0; }
+.layout-editor fieldset > * { min-width: 0; }   /* a grid item may shrink below its widest select */
+.layout-editor .delivery-pick { flex-wrap: wrap; min-width: 0; max-width: 100%; }
+/* a long choice ("long: one row per value") shrinks with the dialog instead of running past it at phone width */
+.layout-editor select, .layout-editor input { max-width: 100%; min-width: 0; }
+.layout-place { display: inline-flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; min-width: 0; max-width: 100%; }
 .layout-editor .layout-num { width: 4.5em; }
 .layout-editor .layout-wide { width: min(28em, 100%); }
 .layout-cols { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }

@@ -61,7 +61,8 @@ test("a delivery is reviewed by exception, spot-checked, signed and loaded once"
   // a file's regions, and how long each stage took
   const pdf = files.find((f) => f.name.endsWith(".pdf"))!;
   await section.getByTestId(`delivery-file-toggle-${pdf.file_id}`).click();
-  await expect(section.getByTestId(`delivery-regions-${pdf.file_id}`)).toContainText("no model is configured");   // its prose: not read, and why
+  // its prose: not read, and why in plain words (the reader's own text in the tooltip)
+  await expect(section.getByTestId(`delivery-regions-${pdf.file_id}`)).toContainText("not read: no text reader is set up");
   await expect(section.getByTestId(`delivery-stages-${pdf.file_id}`)).toContainText("parse");
   await section.getByTestId(`delivery-file-toggle-${pdf.file_id}`).click();
   await expect(section.getByTestId(`delivery-mapping-${waiting}`)).toContainText("waits for approval");

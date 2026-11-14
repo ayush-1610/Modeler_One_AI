@@ -55,7 +55,7 @@ function Findings({ findings, testId }: { findings: Finding[]; testId: string })
 function Sample({ sample }: { sample: NonNullable<Mapping["sample"]> }) {
   return (
     <section data-testid="mapping-sample">
-      <h3>The table, as the mapper is shown it <span className="muted">{sample.file} · {sample.where}</span></h3>
+      <h3>The table, as the mapper is shown it <span className="muted">{placeText(sample.where).place} of {sample.file}</span></h3>
       {sample.blinded ? <p className="delivery-withheld">{WITHHELD}: the table holds a blinded study&apos;s values, so its body is not shown.</p> : (
         <>
           {sample.context.map((c) => <p key={`${c.near}-${c.line}`} className="delivery-source-line muted">{c.text}</p>)}
@@ -198,7 +198,7 @@ export function MappingReview({ projectId, mappingId, onClose }: { projectId: st
               ))}
             </ul>
             {m.used_in.length > 0 && (
-              <p className="muted fs-12 m-4-0-0">In use: {m.used_in.map((u) => `${u.file} ${u.where} (version ${u.version}, ${u.state})`).join("; ")}</p>
+              <p className="muted fs-12 m-4-0-0">In use: {m.used_in.map((u) => `${placeText(u.where).place} of ${u.file} (version ${u.version}, ${u.state})`).join("; ")}</p>
             )}
           </section>
 

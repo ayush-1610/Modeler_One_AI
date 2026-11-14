@@ -40,6 +40,12 @@ export const LABEL: Record<string, string> = {
   "perm.intestinal": "Intestinal permeability", "elim.renal.gfr_fraction": "GFR fraction (renal filtration)",
   "elim.biliary.cl": "Biliary clearance", "dist.bp_ratio": "Blood-to-plasma ratio",
   "elim.fe_urine": "Fraction excreted unchanged in urine (fe)", "elim.fm.<enzyme>": "Fraction metabolised by an enzyme (fm)",
+  // the other model inputs of the parameter registry (pbpk_domain/parameters/registry.yaml), in plain words; the PK-Sim
+  // name in brackets is the registry's harvested one
+  "bind.partner": "Plasma protein binding partner", "phys.solubility.table": "Solubility vs pH table",
+  "phys.solubility.ref_ph": "pH of the reference solubility", "phys.pka.neutral": "Neutral compound (no pKa)",
+  "elim.ehc_fraction": "Enterohepatic recycling (EHC continuous fraction)", "perm.cellular": "Cellular permeability",
+  "dist.partition_method": "Partition coefficient method", "dist.permeability_method": "Cellular permeability method",
 };
 
 export const fmt = (v: number | string | null) => (v === null ? "—" : typeof v === "number" ? +v.toPrecision(4) : v);

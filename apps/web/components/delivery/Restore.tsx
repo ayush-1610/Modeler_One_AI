@@ -60,7 +60,7 @@ export function RestoreForm({ projectId, file, items, scope, label, onDone, test
   return (
     <>
       <Why action="Restore" actionLabel={`Restore ${label}`} label={`Why ${label} is data after all`} busy={busy} onSubmit={restore}
-           onCancel={onDone} testId={testId}
+           onCancel={onDone} testId={testId} autoFocus
            placeholder="why it is data after all (kept on the audit trail)">
         <span className="muted">Restore {label}: what was read from it counts again.</span>
       </Why>

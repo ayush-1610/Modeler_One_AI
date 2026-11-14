@@ -88,9 +88,13 @@ export function placeText(where: string): Place {
   return { name: where, place: where, columns: null, rows: null, start: null };
 }
 
-/** A table by its short name and its file, for a button's label: "the table Sheet1 of 230-23 Fasting Reference.xlsx". */
-export const tableName = (where: string, file: string, kind = "table") =>
-  `the ${kind === "prose" ? "text" : kind === "figure" ? "figure" : "table"} ${placeText(where).name} of ${file}`;
+/** A table by its short name and its file, for a button's label: "the table Sheet1 of 230-23 Fasting Reference.xlsx";
+ *  a name that already says what it is ("table 1", "page 3, figure 2", "paragraphs 4 to 6") is not said twice. */
+export function tableName(where: string, file: string, kind = "table"): string {
+  const name = placeText(where).name;
+  const word = kind === "prose" ? "text" : kind === "figure" ? "figure" : "table";
+  return /^(table|figure|paragraphs?|lines?|page) /.test(name) ? `${name} of ${file}` : `the ${word} ${name} of ${file}`;
+}
 
 /** A person's "not data" decision as a region's reason gives it ("rd-3: why"): its id and why; null for a rule's. */
 export function personDecision(reason: string): { id: string; why: string } | null {
@@ -209,7 +213,8 @@ export function useWritePage(projectId: string) {
 }
 
 /** A decision with its reason: what the API asks `why` for. The reason is kept on the audit trail. */
-export function Why({ action, actionLabel, label, busy, onSubmit, onCancel, testId, optional = false, placeholder, children, disabled = false }: {
+export function Why({ action, actionLabel, label, busy, onSubmit, onCancel, testId, optional = false, placeholder, children, disabled = false,
+                     autoFocus = false }: {
   action: string;
   /** the button's name with its context, where the same button is repeated ("Link the 4 values of 230-23.xlsx") */
   actionLabel?: string;
@@ -225,6 +230,8 @@ export function Why({ action, actionLabel, label, busy, onSubmit, onCancel, test
   /** more fields of the decision, before its reason */
   children?: ReactNode;
   disabled?: boolean;
+  /** the reason field takes the focus when the form opens (a form opened by a button that then goes away) */
+  autoFocus?: boolean;
 }) {
   const [why, setWhy] = useState("");
   const ready = (optional || Boolean(why.trim())) && !disabled;
@@ -232,10 +239,12 @@ export function Why({ action, actionLabel, label, busy, onSubmit, onCancel, test
     <form className="delivery-why" data-testid={testId}
           onSubmit={(e) => { e.preventDefault(); if (ready && !busy) void onSubmit(why.trim()); }}>
       {children}
-      <input type="text" aria-label={label} value={why} onChange={(e) => setWhy(e.target.value)}
+      <input type="text" aria-label={label} value={why} onChange={(e) => setWhy(e.target.value)} autoFocus={autoFocus}
              placeholder={placeholder ?? (optional ? "a note (optional)" : "why (kept on the audit trail)")}
              data-testid={testId && `${testId}-why`} />
-      <button type="submit" className="btn small primary" disabled={busy || !ready} aria-label={actionLabel}
+      {/* while the decision is sent the button stays focusable (aria-disabled, the submit ignored): a disabled button
+          would drop the focus to the page, out of a dialog */}
+      <button type="submit" className="btn small primary" disabled={!ready} aria-disabled={busy || undefined} aria-label={actionLabel}
               data-testid={testId && `${testId}-submit`}>{action}</button>
       {onCancel && <button type="button" className="btn small" onClick={onCancel}>Cancel</button>}
     </form>

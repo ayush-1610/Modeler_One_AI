@@ -48,8 +48,10 @@ export function ReadTable({ projectId, file, region, onClose, onStored }: {
   const [findings, setFindings] = useState<Finding[]>([]);
   const [sent, setSent] = useState<number[]>([]);
   const place = placeText(region.where);
-  // the table's first guess: what the rules took it for, one header row, the data under it
-  const guess = { schema: "mapping/2", kind: region.table_kind || "unknown", layout: "long", header_rows: 1, first_data_row: 2 };
+  // the table's first guess: what the rules took it for (if they could tell; else the person chooses), one header row,
+  // the data under it
+  const kind = region.table_kind && region.table_kind !== "unknown" ? region.table_kind : "";
+  const guess = { schema: "mapping/2", kind, layout: "long", header_rows: 1, first_data_row: 2 };
 
   async function propose(spec: Record<string, unknown>, why: string) {
     setSent(columnsSent(spec));
