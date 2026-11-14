@@ -188,6 +188,35 @@ def test_numbers_outside_every_region_and_context_are_the_truths(messy, template
     assert not any(o.where.startswith("s:'Fasting'!B") for o in doc.outside)       # no merged copy is ever listed
 
 
+def test_the_templates_own_readme_text_is_furniture_and_what_a_client_types_there_is_not(template):
+    """Our own instructions never count as outside numbers (SEAM-10); the sheet is never set aside as a whole: a line
+    the client changed and a number typed beside the instructions are still outside numbers."""
+    from openpyxl import load_workbook
+
+    file, doc = template
+    own = sorted(o.where for o in doc.outside if o.furniture)
+    assert own and set(file.furniture) <= set(own) and all(w.startswith("s:'README'!A") for w in own)
+    assert sorted(o.where for o in doc.outside if o.furniture and o.numeric) == sorted(file.furniture)
+    wb = load_workbook(io.BytesIO(file.data))
+    wb["README"]["A3"] = "LLOQ of all plasma assays: 0.5 ng/mL"          # an instruction line replaced by data
+    wb["README"]["C9"] = "dose 50 mg"                                       # typed beside an instruction
+    buffer = io.BytesIO()
+    wb.save(buffer)
+    edited = parse_document(buffer.getvalue(), file.name)
+    assert edited.role == "client_template"
+    counted = {o.where for o in edited.outside if o.numeric and not o.furniture}
+    assert {"s:'README'!A3", "s:'README'!C9"} <= counted and "s:'README'!A1" not in counted
+    # another workbook with a README sheet that copies a line of ours is not a template: nothing is furniture
+    other = Workbook()
+    other.active.title = "README"
+    other.active["A3"] = wb["README"]["A4"].value
+    other.active["A5"] = "Row 1 holds the units"
+    buffer = io.BytesIO()
+    other.save(buffer)
+    plain = parse_document(buffer.getvalue(), "notes.xlsx")
+    assert plain.role != "client_template" and not any(o.furniture for o in plain.outside)
+
+
 def _same_grid(mine, legacy) -> None:
     assert list(mine.sheets) == list(legacy.sheets)
     for name, sheet in legacy.sheets.items():

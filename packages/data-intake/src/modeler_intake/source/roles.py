@@ -18,13 +18,13 @@ from __future__ import annotations
 import re
 from collections.abc import Sequence
 
-from modeler_intake.anchors import DocxSpan, TextSpan, format_locator
-from modeler_intake.client_template import TEMPLATE_ID, is_template
+from modeler_intake.anchors import AnchorError, DocxSpan, SheetCell, TextSpan, format_locator, parse_locator
+from modeler_intake.client_template import README, TEMPLATE_ID, is_template
 from modeler_intake.document_reading import inventory
 from modeler_intake.fields import KIND_OF_CATEGORY, DocumentRole, TableKind
 from modeler_intake.grid import Cell, SheetGrid, cell_ref
-from modeler_intake.source.regions import as_workbook_grid, parse_sheet_range, region_grid, sheet_locator
-from modeler_intake.source_model import Region, RegionGrid, SourceDocument
+from modeler_intake.source.regions import a1_place, as_workbook_grid, clip, parse_sheet_range, region_grid, sheet_locator
+from modeler_intake.source_model import OutsideItem, Region, RegionGrid, SourceDocument
 from modeler_intake.triage import TEMPLATE_SHEETS, triage_sheet
 
 FIRST_PAGES = 3                # a PDF's first pages read for its role
@@ -51,7 +51,26 @@ def classify(doc: SourceDocument) -> SourceDocument:
     regions = tuple(_with_kind(doc, region, template) for region in doc.regions)
     typed = doc.model_copy(update={"regions": regions})
     role, evidence = document_role(typed, template=template)
+    if role == "client_template":
+        typed = typed.model_copy(update={"outside": tuple(_own_text(item) for item in typed.outside)})
     return typed.model_copy(update={"role": role, "role_evidence": evidence})
+
+
+def _own_text(item: OutsideItem) -> OutsideItem:
+    """A README cell of a filled client template that still holds the template's own text for that cell (the id line and
+    the instructions, `client_template.README`) is furniture: our words, not the client's, so its "Row 1" or "<0.5" is
+    never an outside number. Any other cell of that sheet, a line the client changed or a number typed beside or below
+    the instructions, stays an outside item and is counted: the sheet is never set aside as a whole."""
+    try:
+        place = parse_locator(item.where)
+    except AnchorError:
+        return item
+    if not isinstance(place, SheetCell) or place.sheet != "README":
+        return item
+    row, column = a1_place(place.cell)
+    if column == 1 and 1 <= row <= len(README) and item.text.strip() == clip(README[row - 1]).strip():
+        return item.model_copy(update={"furniture": True})
+    return item
 
 
 def _with_kind(doc: SourceDocument, region: Region, template: bool) -> Region:

@@ -15,6 +15,21 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Fixed — re-checking prose anchors, and two points of the synthetic truth (seam group c, 2026-11-14)
+Three findings of the seam probe that ran the merged builds together. Each was reproduced first.
+- **What (SEAM-6, science: what counts as "the value is still there" after a re-parse):** `source.check_anchors` now finds a prose value inside its quote.
+  - A prose fact's anchor is the span of the value itself, and its verbatim is the quote that holds it. The check compared the two as equal texts, so every prose fact came back `text_differs` after any parser-version change, and a PDF span was looked for in a window as long as the quote (the last words of a page: `not_found`).
+  - Now the value is found when the quote lies over the span: the span's text stands in the quote, with the quote's text before and after it standing before and after the span in the document. White space aside; a line-break hyphen aside in the surrounding text only, never in the span (it may be a minus sign).
+  - The place is checked, not only the text: a span that now holds another number of the same quote is still `text_differs`. A PDF span is sized by the span itself.
+  - Table values behave as before.
+- **What (SEAM-7, test data only):** the synthetic Word report's prose dose no longer carries a study-label locator from another paragraph. The strict prose check reads a label only in the fact's paragraph or its heading (contracts §6.2 (5)); the ledger gives such a fact the file's one study (§6.3). The truth now says what the pipeline writes.
+- **What (SEAM-10, science: what counts as an outside number):** in a filled client template, a README cell that still holds the template's own text for that cell (`client_template.README`: the id line and the instructions) is marked `furniture`, so "Row 1" or "<0.5" in our own instructions is not an outside number.
+  - The sheet is never set aside as a whole. A line the client changed, and anything typed beside or below the instructions, is still an outside item and is counted.
+  - A workbook that is not a template gets nothing marked, even if it copies a line.
+  - `SyntheticFile` gains `furniture` (the template's own cells with a number), so the truth still accounts for every cell with a number.
+- **Why:** after any re-parse, every prose fact was reported unresolved, which hid real moves in the coverage and the pipeline health counters. And every template upload was blocked by `OUTSIDE_NUMBERS` on four lines of our own text until a person accepted them; for a product it was the only blocker.
+- **Impact:** no stored record changes. `OutsideItem.furniture` now also marks the template's own README text (D5's `outside_numeric` already leaves furniture out). W's parse stage can pass a prose fact's quote as the verbatim, as the ledger stores it. Tests: `test_anchor_resolve.py` (a prose value found in Word, text and PDF; a slid span, another sentence, a lost quote), `test_source_workbook.py` (the README: own text, a changed line, a typed number, a non-template), `test_intake_contracts.py` (the truth's outside and furniture lists).
+
 ### Fixed — the mapper's seams: one spec per layout, no spread read as a value, the arm a caption names (seam group b, 2026-11-13)
 - **What (science: how client tables are read by rule, and what a mapping spec may say):**
   - **One layout, one rule spec (SEAM-2).** A rule spec no longer writes a table's own value.

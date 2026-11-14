@@ -209,8 +209,9 @@ def prose_of(file: SyntheticFile) -> list[ProseFact]:
         assert found is not None
         value = number(v.value) if found.value in ("number", "integer") else (read_choice(v.field, v.value) or v.value)
         quote = next(p for p in file.prose if re.search(rf"(?<!\S){re.escape(v.value)}", p))
-        out.append(ProseFact(field=v.field, value=value, unit=v.unit or None, quote=quote, study_label=v.study or None,
-                             locator=v.locator, study_locator=dict(v.locators).get("study")))
+        study_at = dict(v.locators).get("study")       # a label is read with its span or not at all (§6.2 (5))
+        out.append(ProseFact(field=v.field, value=value, unit=v.unit or None, quote=quote,
+                             study_label=(v.study or None) if study_at else None, locator=v.locator, study_locator=study_at))
     return out
 
 

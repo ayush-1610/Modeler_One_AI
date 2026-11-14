@@ -502,7 +502,8 @@ def test_the_filled_template_is_a_template_and_every_data_sheet_is_read():
     (readme,) = [t for t in file.tables if t.id == "template-readme"]
     assert readme.kind == readme.spec.kind == "not_data" and readme.spec.not_data_reason
     assert not [v for v in file.values if v.table == "template-readme"]
-    assert file.outside == ("s:'README'!A1", "s:'README'!A3", "s:'README'!A4", "s:'README'!A9")
+    # the README's own lines with a number are the template's text: furniture, never outside numbers (SEAM-10)
+    assert (file.outside, file.furniture) == ((), ("s:'README'!A1", "s:'README'!A3", "s:'README'!A4", "s:'README'!A9"))
     for sheet, rows in read.rows.items():
         (table,) = [t for t in file.tables if t.id == f"template-{sheet.lower()}"]
         assert len(rows) == len(table.rows) - 1 > 0
@@ -572,10 +573,11 @@ def test_from_rows_places_a_grid_and_its_context_on_a_sheet():
 
 
 def test_every_cell_with_a_number_of_a_synthetic_workbook_is_accounted_for():
-    """In a truth table, in a truth table's context, or declared outside: nothing with a number is unaccounted."""
+    """In a truth table, in a truth table's context, declared outside, or the template's own text: nothing with a
+    number is unaccounted."""
     for file in (synthetic.messy_workbook(), synthetic.template_workbook()):
         wb = load_workbook(io.BytesIO(file.data))
-        accounted = set(file.outside)
+        accounted = set(file.outside) | set(file.furniture)
         for table in file.tables:
             sheet, cells = table.where[3:].split("'!")
             col0, row0, col1, row1 = range_boundaries(cells)

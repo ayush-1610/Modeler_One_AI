@@ -26,6 +26,7 @@ from modeler_intake.anchors import (
     parse_anchor,
     parse_locator,
 )
+from modeler_intake.citations import normalize_for_match
 from modeler_intake.source.pdf import overlap
 from modeler_intake.source.regions import (
     a1_place,
@@ -199,7 +200,12 @@ def check_anchors(doc: SourceDocument, items: Iterable[tuple[str, str, str]]) ->
     """Each (id, anchor text, verbatim) of a value read under ANOTHER parser version found again in `doc` with the same
     text: a sheet or Word cell, a Word or text span and a figure by their locator; a PDF cell or span by its text and a
     box overlapping the old one by at least half. One problem per value that is not found (`not_found`: moved, or
-    gone) or holds another text (`text_differs`, with the text found)."""
+    gone) or holds another text (`text_differs`, with the text found).
+
+    A prose fact's anchor is the span of the value itself and its verbatim the quote that holds it (the ledger's
+    `record_prose`). Such a value is found when the quote lies over the span: the span's text stands in the quote, with
+    the quote's words before and after it standing before and after the span in the document (`_quote_covers`). A
+    span that now holds another number of the same quote is a problem: the place is checked, not only the text."""
     problems = []
     for value_id, anchor, verbatim in items:
         try:
@@ -219,11 +225,41 @@ def check_anchors(doc: SourceDocument, items: Iterable[tuple[str, str, str]]) ->
                 found = True
             except AnchorError:
                 found, text = False, ""
+            if found and text != verbatim and isinstance(locator, DocxSpan | TextSpan):
+                paragraph = body_paragraph(doc, locator.paragraph if isinstance(locator, DocxSpan) else locator.line)
+                if _quote_covers(paragraph[:locator.start], text, paragraph[locator.end:], verbatim):
+                    text = verbatim
         if not found:
             problems.append(AnchorProblem(id=value_id, anchor=anchor, problem="not_found"))
         elif text != verbatim:
             problems.append(AnchorProblem(id=value_id, anchor=anchor, problem="text_differs", found=text))
     return problems
+
+
+_SPACE = re.compile(r"\s+")
+_JOINS = str.maketrans("", "", "-\N{HYPHEN}\N{NON-BREAKING HYPHEN}\N{SOFT HYPHEN}\N{MINUS SIGN}")
+
+
+def _squeezed(text: str) -> str:
+    """A text with no white space, in the form a quote is matched in (`citations.normalize_for_match`)."""
+    return _SPACE.sub("", normalize_for_match(text)).replace("\N{MINUS SIGN}", "-")
+
+
+def _quote_covers(before: str, span: str, after: str, quote: str) -> bool:
+    """Whether a quote lies over a span of the document: some occurrence of the span's text in the quote has the
+    quote's text before it at the end of `before` (the document's text up to the span) and the quote's text after it
+    at the start of `after`. White space aside everywhere; a hyphen aside in the text around the span only (a word cut
+    at a line's end), never in the span itself, where it may be a minus sign."""
+    inner, whole = _squeezed(span), _squeezed(quote)
+    if not inner or len(whole) <= len(inner):
+        return False
+    lead, tail = _squeezed(before).translate(_JOINS), _squeezed(after).translate(_JOINS)
+    at = whole.find(inner)
+    while at >= 0:
+        if lead.endswith(whole[:at].translate(_JOINS)) and tail.startswith(whole[at + len(inner):].translate(_JOINS)):
+            return True
+        at = whole.find(inner, at + 1)
+    return False
 
 
 def _again_in_pdf(doc: SourceDocument, locator: PdfCell | PdfSpan, verbatim: str) -> tuple[bool, str]:
@@ -239,13 +275,22 @@ def _again_in_pdf(doc: SourceDocument, locator: PdfCell | PdfSpan, verbatim: str
                 if cell.box is not None and (share := overlap(cell.box, locator.box)) >= 0.5:
                     candidates.append((share, cell.text))
     else:
-        size = max(1, len(verbatim.split()))
-        for word in page.words:
-            if overlap(word.box, locator.box) <= 0:
-                continue
-            words = page.words[word.index - 1:word.index - 1 + size]
-            if len(words) == size and (share := overlap(union_box(w.box for w in words), locator.box)) >= 0.5:
-                candidates.append((share, " ".join(w.text for w in words)))
+        # the span's own length first (a prose fact's verbatim is the quote around the span, longer than the span), then
+        # the verbatim's, should a new version cut the same text into another number of words
+        own = locator.last_word - locator.first_word + 1
+        for size in dict.fromkeys((own, max(1, len(verbatim.split())))):
+            for word in page.words:
+                if overlap(word.box, locator.box) <= 0:
+                    continue
+                words = page.words[word.index - 1:word.index - 1 + size]
+                if len(words) != size or (share := overlap(union_box(w.box for w in words), locator.box)) < 0.5:
+                    continue
+                text = " ".join(w.text for w in words)
+                candidates.append((share, text))
+                if size == own and text != verbatim and _quote_covers(
+                        " ".join(w.text for w in page.words[:word.index - 1]), text,
+                        " ".join(w.text for w in page.words[word.index - 1 + size:]), verbatim):
+                    return True, verbatim
     if any(text == verbatim for _share, text in candidates):
         return True, verbatim
     if candidates:

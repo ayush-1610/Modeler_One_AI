@@ -39,7 +39,9 @@ Conventions of the truth, which the builds that read it rely on:
   over the body's tables. A delimited file's sheet is named after the file's stem.
 - `SyntheticFile.outside` lists the locators of the items that hold a number and lie outside every region and every
   region's context (page furniture excluded); `prose` lists the prose lines in reading order. In a workbook, every
-  cell with a number is in a truth table, in a truth table's context or in `outside`.
+  cell with a number is in a truth table, in a truth table's context, in `outside` or in `furniture`.
+- `SyntheticFile.furniture` lists the cells with a number that are the template's own text (the README's id line and
+  instructions, `client_template.README`): located, marked furniture, never an outside number.
 - A PDF table region's id hashes "p:<first page>/box:<x0>,<top>,<x1>,<bottom>/<first row>": its first part's box
   rounded to whole points, and its first row's non-empty cell texts joined by single spaces (pdfplumber's own
   `find_tables()` box and `extract()` give the same id).
@@ -68,7 +70,7 @@ from openpyxl import Workbook, load_workbook
 from openpyxl.utils import get_column_letter, range_boundaries
 
 from modeler_intake.anchors import DocxCell, DocxSpan, PdfCell, PdfSpan, SheetCell, format_locator
-from modeler_intake.client_template import build_template
+from modeler_intake.client_template import README, build_template
 from modeler_intake.fields import TableKind
 from modeler_intake.mapping_spec import Cite, ColumnMap, Constant, KeyMap, MappingSpec, RowRule
 from modeler_intake.source_model import FileFormat, GridCell, RegionGrid, has_number, is_numeric_text, number_text
@@ -138,6 +140,7 @@ class SyntheticFile:
     outside: tuple[str, ...] = ()
     prose: tuple[str, ...] = ()
     notes: str = ""
+    furniture: tuple[str, ...] = ()
 
 
 # --- small helpers -------------------------------------------------------------------------------------------------
@@ -997,8 +1000,10 @@ def word_report() -> SyntheticFile:
     values += [
         TruthValue(table="", field="n", study="230-27", arm="", analyte="", matrix="", subject="", time="", time_unit="",
                    value="18", unit="", locator=_docx_span(2, _WORD_DESIGN[0], "18"), locators=(("study", study_at),)),
+        # the dose's paragraph names no study: no label span (a label is read in the fact's paragraph or its heading
+        # only, §6.2 (5)); the ledger gives it the file's one study (§6.3)
         TruthValue(table="", field="dose", study="230-27", arm="", analyte="", matrix="", subject="", time="", time_unit="",
-                   value="20", unit="mg", locator=_docx_span(3, _WORD_DESIGN[1], "20"), locators=(("study", study_at),)),
+                   value="20", unit="mg", locator=_docx_span(3, _WORD_DESIGN[1], "20"), locators=()),
     ]
     return SyntheticFile(name="design-report.docx", data=_stable_zip(buffer.getvalue()), format="docx", tables=(truth,),
                          values=tuple(values), prose=("Study design", *_WORD_DESIGN),
@@ -1207,9 +1212,10 @@ README_SPEC = MappingSpec(kind="not_data", layout="long", header_rows=1, first_d
                                           "instructions for the client, not data")
 
 
-def _readme(ws) -> tuple[TruthTable, tuple[str, ...]]:
+def _readme(ws) -> tuple[TruthTable, tuple[str, ...], tuple[str, ...]]:
     """The README sheet: its column guide as a not_data truth table (header "Sheet | Column | ..." to the last row) and
-    the locators of the title and instruction lines that hold a number and lie outside the table's context."""
+    the locators of the lines above it that hold a number and lie outside the table's context: the outside numbers
+    (none in a template filled as shipped), then the template's own text (furniture)."""
     header_row = next(r for r in range(1, ws.max_row + 1) if (ws.cell(r, 1).value, ws.cell(r, 2).value) == ("Sheet", "Column"))
     cells = [[ws.cell(r, c).value for c in range(1, ws.max_column + 1)] for r in range(header_row, ws.max_row + 1)]
     grid = _Grid(ws.title, header_row, 1, cells)
@@ -1218,10 +1224,15 @@ def _readme(ws) -> tuple[TruthTable, tuple[str, ...]]:
     table = TruthTable(id="template-readme", kind="not_data", where=grid.where(), rows=grid.rows(), header_rows=1,
                        spec=README_SPEC, above=tuple(" | ".join(_text(ws.cell(r, c).value) for c in range(1, ws.max_column + 1)
                                                                if ws.cell(r, c).value is not None) for r in near))
-    outside = tuple(_sheet_cell(ws.title, r, c) for r in range(1, header_row) if r not in near
-                    for c in range(1, ws.max_column + 1)
-                    if ws.cell(r, c).value is not None and has_number(_text(ws.cell(r, c).value)))
-    return table, outside
+    # the template's own words (its id line and instructions, client_template.README) are furniture, never an outside
+    # number; a line the client changed, or anything typed beside them, is
+    def own(r: int, c: int) -> bool:
+        return c == 1 and r <= len(README) and _text(ws.cell(r, c).value).strip() == README[r - 1].strip()
+
+    numbered = [(r, c) for r in range(1, header_row) if r not in near for c in range(1, ws.max_column + 1)
+                if ws.cell(r, c).value is not None and has_number(_text(ws.cell(r, c).value))]
+    outside = tuple(_sheet_cell(ws.title, r, c) for r, c in numbered if not own(r, c))
+    return table, outside, tuple(_sheet_cell(ws.title, r, c) for r, c in numbered if own(r, c))
 
 
 def template_workbook() -> SyntheticFile:
@@ -1245,12 +1256,13 @@ def template_workbook() -> SyntheticFile:
                            rows=grid.rows(), header_rows=1, spec=_template_spec(sheet, columns))
         tables.append(table)
         values += _template_values(table, sheet, columns, records, grid)
-    readme, outside = _readme(wb["README"])
+    readme, outside, furniture = _readme(wb["README"])
     tables.append(readme)
     return SyntheticFile(name="client-data-template.xlsx", data=_save(wb), format="xlsx", tables=tuple(tables),
-                         values=tuple(values), outside=outside,
-                         notes="the README sheet's column guide is a not_data table (no values); its title and the "
-                               "instruction lines with a number are outside items; a template is confirmed on its legacy "
+                         values=tuple(values), outside=outside, furniture=furniture,
+                         notes="the README sheet's column guide is a not_data table (no values); its title and "
+                               "instruction lines are the template's own text (furniture, never outside numbers); a "
+                               "template is confirmed on its legacy "
                                "card (contracts §2). A unit the template states by its column's name or convention "
                                "(strength_mg, % dissolved) is not written in a cell: such a value's unit is \"\"")
 

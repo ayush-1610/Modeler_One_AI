@@ -78,7 +78,7 @@ def test_the_prose_truth_of_the_word_report_is_read_with_its_true_spans():
     for value in truth:
         number = parse_locator(value.locator).paragraph
         paragraph = paragraphs[number]
-        study = value.study if dict(value.locators)["study"].startswith(f"d:p:{number}/") else None
+        study = value.study if dict(value.locators).get("study", "").startswith(f"d:p:{number}/") else None
         fact = check_prose_fact(value.field, value.value, _clause(paragraph.text, value.value), paragraph, study=study)
         assert (fact.value, fact.unit or "", fact.locator) == (float(value.value), value.unit, value.locator)
         if study is not None:

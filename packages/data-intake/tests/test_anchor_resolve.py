@@ -204,3 +204,50 @@ def test_a_span_inside_a_caption_or_a_context_line_resolves_to_its_table_and_its
             assert (view.kind, view.region_id) == ("grid", region)
             checked += 1
     assert checked >= 5
+
+
+def test_check_anchors_finds_a_prose_value_inside_its_quote():
+    """A prose fact's anchor is the span of the value itself and its verbatim the quote that holds it: an unchanged
+    document gives no problem, in Word, in a text file and in a PDF (a word number may have moved; the last words of a
+    page included)."""
+    from modeler_intake.source.regions import body_paragraph, page_of
+
+    word = parse_document(synthetic.word_report().data, "design-report.docx")
+    second, third = body_paragraph(word, 2), body_paragraph(word, 3)
+    assert (second[68:70], third[44:46]) == ("18", "20")
+    assert check_anchors(word, [("n", _anchor(word, "d:p:2/ch:68-70", OLD), second),
+                                ("dose", _anchor(word, "d:p:3/ch:44-46", OLD), third[30:]),        # a quote cut short
+                                ("spaced", _anchor(word, "d:p:2/ch:68-70", OLD), "  ".join(second.split()))]) == []
+    text = parse_document(b"Study notes\nA single dose of 18 mg and later 24 mg were given.\n", "notes.txt")
+    line = "A single dose of 18 mg and later 24 mg were given."
+    assert check_anchors(text, [("dose", _anchor(text, "x:l:2/ch:17-19", OLD), line)]) == []
+    file = synthetic.pdf_report()
+    pdf = parse_document(file.data, file.name)
+    words = page_of(pdf, 1).words
+    items = []
+    for value in (v for v in file.values if v.table == ""):
+        span = parse_locator(value.locator)
+        quote = " ".join(w.text for w in words[max(0, span.first_word - 6):span.last_word + 4])
+        moved = format_locator(PdfSpan(page=1, first_word=span.first_word + 5, last_word=span.last_word + 5,
+                                       box=tuple(v + 0.5 for v in span.box)))
+        items += [(f"{value.field}", _anchor(pdf, value.locator, OLD), quote),
+                  (f"{value.field}-renumbered", _anchor(pdf, moved, OLD), quote)]
+    assert len(items) == 6 and check_anchors(pdf, items) == []
+
+
+def test_check_anchors_reports_a_span_that_no_longer_stands_where_its_quote_puts_it():
+    """The place is checked, not only the text: a span that holds another number of the same quote, a quote of another
+    sentence and a quote that is no longer in the document are problems, each with the text now at the span."""
+    text = parse_document(b"Study notes\nA single dose of 24 mg and later 18 mg were given.\n", "notes.txt")
+    was = "A single dose of 18 mg and later 24 mg were given."           # the span held 18; it now holds the quote's 24
+    problems = check_anchors(text, [("slid", _anchor(text, "x:l:2/ch:17-19", OLD), was),
+                                    ("elsewhere", _anchor(text, "x:l:2/ch:17-19", OLD), "at most 24 mg per day"),
+                                    ("gone", _anchor(text, "x:l:2/ch:17-19", OLD), "The dose was 30 mg."),
+                                    ("past", _anchor(text, "x:l:2/ch:90-92", OLD), was)])
+    assert [(p.id, p.problem, p.found) for p in problems] == [("slid", "text_differs", "24"), ("elsewhere", "text_differs", "24"),
+                                                              ("gone", "text_differs", "24"), ("past", "not_found", "")]
+    file = synthetic.pdf_report()
+    pdf = parse_document(file.data, file.name)
+    (dose,) = [v for v in file.values if v.table == "" and v.field == "dose"]
+    problems = check_anchors(pdf, [("other", _anchor(pdf, dose.locator, OLD), "a dose of 50 mg was never given here")])
+    assert [(p.id, p.problem) for p in problems] == [("other", "text_differs")]
