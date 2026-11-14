@@ -15,6 +15,35 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — client-data intake, D6-API: the Delivery section's routes, the signed confirmation over the API, pipeline health for the administrator (plan G6; contracts §8.10, §6.6, §2; 2026-11-14)
+- **What changed.**
+  - **`modeler_api.delivery_routes`** (module-level handlers and `mount(router)` on `client_api`'s router; no router of its own) and **`views/delivery.py`**: 18 routes under `/api/v1/projects/{id}/delivery`.
+    - The page: deliveries, files, coverage, run and stage times, totals, subjects, the "study not stated" values, mappings waiting, the client request.
+    - A subject's card, exceptions first; a value's source; a mapping with its redacted sample, versions and decisions.
+    - A person's decisions (`:override`, `:dispose`, `:choose`, `:link`, `:enter`, `values:assign`, `regions:exclude`), the spot check (drawn; every tick in one request, once), `/delivery:run`.
+    - The confirmation: an interrupted landing completes with no new signature; a record already confirmed is not signed twice; otherwise every refusal is checked first (409 with the blockers, nothing signed), then the step-up (403 `STEP_UP_REQUIRED`), the signature from the token's step-up (`Reviewed`, record type `intake-confirmation`), the confirmation's line and the landing. Events: `signature.create`, `intake.confirm`, `intake.land`.
+    - Blinding (D-15) is enforced in the request's one scope: a blinded study's value, verbatim, spread, interval, LLOQ, ULOQ and whether a value is below the LLOQ are null on every route; a check's message is withheld; its source cells are blank and the page is not given; a file that holds its values shows no caption, no outside text and no sample body; its spot check cannot be drawn or ticked; its confirmation is refused with `BLINDED`.
+    - Every id and anchor from a request is checked before use; an anchor resolves only for a file recorded in the project.
+  - **Mappings**: `:approve`, `:reject` and `:edit` queue the files that hold a table of that layout again and start the intake job. A rejected mapping's table shows as `waiting` until that run is done. `:edit` stores a person's version, checked by code on its table (422 with the findings), with a new audit event `intake.mapping.edit`.
+  - **`intake_pipeline.enqueue(..., again=True)`**: a file whose latest run is done is queued as a new run; the default is unchanged.
+  - **Nothing is loaded twice** (in `both` only): the legacy `client-review:confirm`, `client-review:finish` and `client-data/{sid}:map` with `confirm` answer 409 `LOADED_ON_DELIVERY` for what a signed Delivery confirmation covers.
+  - **`GET /api/v1/admin/pipeline`** (`modeler-admin`, an `admin.view` event): the pipeline's own counters per company and in all. Counts only.
+  - **`DatasetPoints`** gains `blq_rule` and `blq_omitted` (null for a blinded dataset).
+  - With `MODELER_INTAKE_PIPELINE=legacy` the page answers `enabled: false` and every other `/delivery` route answers 409 and writes nothing.
+- **Why.** The pipeline's ledger, coverage and review existed only as library code; these routes are what the Delivery section and the administrator's page call.
+- **Impact.**
+  - **API contract:** 19 operations and 70 schemas added, none removed; `DatasetPoints` gains two required keys. `docs/api/openapi.json` and `apps/web/lib/api-types.ts` are regenerated in this commit.
+  - No legacy route's answer changes (tested in `legacy`, in `both`, and after the Delivery section is read).
+  - Science: no ruleset, acceptance criterion or model-building code changed. Three data-handling behaviours are new: a file is read again after a mapping decision; a person's entry is followed by `Ledger.derive` (a dose entered in g gets its mg fact); a profile's card names the BLQ rule `omit` from `intake_rules.yaml` (UNVERIFIED).
+  - Tests use the made-up Exampleamide with agents off: no PK-Sim, no live or scripted model.
+  - The web components and the e2e suite are D6-web's and have not run against these routes.
+- **Known gaps.**
+  - A "study not stated" value can be assigned only to a study or product the ledger already holds: a person cannot yet name a new one.
+  - A rejected mapping's earlier values stay active after the re-run (shown with `mapping_status: rejected`); the table is unread and blocks the confirmation until a person excludes the region or supplies a mapping.
+  - Not exercised by a test: `:link` choosing one candidate of an ambiguous link; a product or the compound blinded through a blinded study's value; a stale draw and carried ticks through the routes; a mapping of LLM origin.
+  - Each card request runs the checks twice (`blockers` recomputes the card). With agents on, a re-run after a mapping decision calls the table mapper again for the file's still-unread tables.
+  - No independent review of this build yet; it is part of the final review of the whole change.
+
 ### Added — client-data intake, D6-PM: review by exception, the spot check, the signed confirmation and the landing (plan G6; contracts §6.6, §8.10; 2026-11-14) — science change
 - **What changed.** Three new modules in `modeler_project`, and edits to `datasets`, `client_data`, `sheet_intake` and `dataset_register`:
   - **`intake_review`**

@@ -4113,6 +4113,28 @@
             "title": "Blinded",
             "type": "boolean"
           },
+          "blq_omitted": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Blq Omitted"
+          },
+          "blq_rule": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Blq Rule"
+          },
           "kind": {
             "title": "Kind",
             "type": "string"
@@ -4162,7 +4184,9 @@
           "lloq",
           "blinded",
           "series",
-          "reported"
+          "reported",
+          "blq_rule",
+          "blq_omitted"
         ],
         "title": "DatasetPoints",
         "type": "object"
@@ -4322,6 +4346,4193 @@
           "scale"
         ],
         "title": "DefaultFit",
+        "type": "object"
+      },
+      "DeliveryArrival": {
+        "additionalProperties": false,
+        "description": "One delivery (an arrival request) with its files.",
+        "properties": {
+          "at": {
+            "title": "At",
+            "type": "string"
+          },
+          "by": {
+            "title": "By",
+            "type": "string"
+          },
+          "files": {
+            "items": {
+              "$ref": "#/components/schemas/DeliveryFile"
+            },
+            "title": "Files",
+            "type": "array"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "by",
+          "at",
+          "files"
+        ],
+        "title": "DeliveryArrival",
+        "type": "object"
+      },
+      "DeliveryAssignment": {
+        "properties": {
+          "arm": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Arm"
+          },
+          "batch": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Batch"
+          },
+          "product": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Product"
+          },
+          "study": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Study"
+          },
+          "targets": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Targets",
+            "type": "array"
+          },
+          "why": {
+            "minLength": 1,
+            "title": "Why",
+            "type": "string"
+          }
+        },
+        "required": [
+          "targets",
+          "why"
+        ],
+        "title": "DeliveryAssignment",
+        "type": "object"
+      },
+      "DeliveryBlocker": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "code",
+          "detail",
+          "ids"
+        ],
+        "title": "DeliveryBlocker",
+        "type": "object"
+      },
+      "DeliveryCheck": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          },
+          "overridden": {
+            "title": "Overridden",
+            "type": "boolean"
+          },
+          "rule": {
+            "title": "Rule",
+            "type": "string"
+          },
+          "severity": {
+            "enum": [
+              "fail",
+              "warn",
+              "info"
+            ],
+            "title": "Severity",
+            "type": "string"
+          },
+          "values": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Values",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "code",
+          "severity",
+          "message",
+          "values",
+          "rule",
+          "overridden"
+        ],
+        "title": "DeliveryCheck",
+        "type": "object"
+      },
+      "DeliveryChoice": {
+        "properties": {
+          "conflict_id": {
+            "title": "Conflict Id",
+            "type": "string"
+          },
+          "keep": {
+            "title": "Keep",
+            "type": "string"
+          },
+          "why": {
+            "minLength": 1,
+            "title": "Why",
+            "type": "string"
+          }
+        },
+        "required": [
+          "conflict_id",
+          "keep",
+          "why"
+        ],
+        "title": "DeliveryChoice",
+        "type": "object"
+      },
+      "DeliveryConfirmation": {
+        "additionalProperties": false,
+        "description": "The subject's current confirmation with its signature manifestation and what its record says.",
+        "properties": {
+          "at": {
+            "title": "At",
+            "type": "string"
+          },
+          "by": {
+            "title": "By",
+            "type": "string"
+          },
+          "coverage": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Coverage",
+            "type": "object"
+          },
+          "current": {
+            "title": "Current",
+            "type": "boolean"
+          },
+          "held": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Held"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "landed": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeliveryLanded"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "manifestation": {
+            "title": "Manifestation",
+            "type": "string"
+          },
+          "printed_name": {
+            "title": "Printed Name",
+            "type": "string"
+          },
+          "record_sha256": {
+            "title": "Record Sha256",
+            "type": "string"
+          },
+          "rules": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeliveryRules"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "signature_id": {
+            "title": "Signature Id",
+            "type": "string"
+          },
+          "supersedes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Supersedes"
+          }
+        },
+        "required": [
+          "id",
+          "at",
+          "by",
+          "printed_name",
+          "signature_id",
+          "manifestation",
+          "record_sha256",
+          "supersedes",
+          "current",
+          "rules",
+          "coverage",
+          "held",
+          "landed"
+        ],
+        "title": "DeliveryConfirmation",
+        "type": "object"
+      },
+      "DeliveryConfirmationState": {
+        "additionalProperties": false,
+        "description": "A subject's current confirmation as the page lists it (`intake_review.subjects`).",
+        "properties": {
+          "at": {
+            "title": "At",
+            "type": "string"
+          },
+          "by": {
+            "title": "By",
+            "type": "string"
+          },
+          "current": {
+            "title": "Current",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "landed": {
+            "title": "Landed",
+            "type": "boolean"
+          },
+          "manifestation": {
+            "title": "Manifestation",
+            "type": "string"
+          },
+          "printed_name": {
+            "title": "Printed Name",
+            "type": "string"
+          },
+          "record_sha256": {
+            "title": "Record Sha256",
+            "type": "string"
+          },
+          "signature_id": {
+            "title": "Signature Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "at",
+          "by",
+          "printed_name",
+          "signature_id",
+          "manifestation",
+          "record_sha256",
+          "landed",
+          "current"
+        ],
+        "title": "DeliveryConfirmationState",
+        "type": "object"
+      },
+      "DeliveryConflict": {
+        "additionalProperties": false,
+        "properties": {
+          "field": {
+            "title": "Field",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "value",
+              "unit"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "labels": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Labels",
+            "type": "object"
+          },
+          "time": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Time"
+          },
+          "values": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Values",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "field",
+          "time",
+          "kind",
+          "labels",
+          "values"
+        ],
+        "title": "DeliveryConflict",
+        "type": "object"
+      },
+      "DeliveryContainer": {
+        "additionalProperties": false,
+        "properties": {
+          "member": {
+            "title": "Member",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "sha256": {
+            "title": "Sha256",
+            "type": "string"
+          }
+        },
+        "required": [
+          "sha256",
+          "name",
+          "member"
+        ],
+        "title": "DeliveryContainer",
+        "type": "object"
+      },
+      "DeliveryCoverage": {
+        "additionalProperties": false,
+        "description": "A file's coverage summary, from its coverage file (the current truth, `intake_records.CoverageSummary`).",
+        "properties": {
+          "anchors_unresolved": {
+            "title": "Anchors Unresolved",
+            "type": "integer"
+          },
+          "cells_excluded": {
+            "title": "Cells Excluded",
+            "type": "integer"
+          },
+          "cells_silent": {
+            "title": "Cells Silent",
+            "type": "integer"
+          },
+          "cells_used": {
+            "title": "Cells Used",
+            "type": "integer"
+          },
+          "needs_ocr_pages": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Needs Ocr Pages",
+            "type": "array"
+          },
+          "numeric_cells": {
+            "title": "Numeric Cells",
+            "type": "integer"
+          },
+          "outside_items": {
+            "title": "Outside Items",
+            "type": "integer"
+          },
+          "outside_numeric": {
+            "title": "Outside Numeric",
+            "type": "integer"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "regions": {
+            "title": "Regions",
+            "type": "integer"
+          },
+          "regions_excluded": {
+            "title": "Regions Excluded",
+            "type": "integer"
+          },
+          "regions_mapped": {
+            "title": "Regions Mapped",
+            "type": "integer"
+          },
+          "regions_unread": {
+            "title": "Regions Unread",
+            "type": "integer"
+          },
+          "silent_loss": {
+            "title": "Silent Loss",
+            "type": "integer"
+          },
+          "state": {
+            "title": "State",
+            "type": "string"
+          },
+          "values_unassigned": {
+            "title": "Values Unassigned",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "state",
+          "reason",
+          "regions",
+          "regions_mapped",
+          "regions_excluded",
+          "regions_unread",
+          "numeric_cells",
+          "cells_used",
+          "cells_excluded",
+          "cells_silent",
+          "silent_loss",
+          "outside_items",
+          "outside_numeric",
+          "values_unassigned",
+          "needs_ocr_pages",
+          "anchors_unresolved"
+        ],
+        "title": "DeliveryCoverage",
+        "type": "object"
+      },
+      "DeliveryDisposition": {
+        "properties": {
+          "disposition": {
+            "enum": [
+              "ask_client",
+              "literature",
+              "not_needed"
+            ],
+            "title": "Disposition",
+            "type": "string"
+          },
+          "req_id": {
+            "title": "Req Id",
+            "type": "string"
+          },
+          "why": {
+            "minLength": 1,
+            "title": "Why",
+            "type": "string"
+          }
+        },
+        "required": [
+          "req_id",
+          "disposition",
+          "why"
+        ],
+        "title": "DeliveryDisposition",
+        "type": "object"
+      },
+      "DeliveryEntity": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "label"
+        ],
+        "title": "DeliveryEntity",
+        "type": "object"
+      },
+      "DeliveryEntry": {
+        "description": "A person's entry or correction of one value of the subject. `supersedes`: the value corrected (the new one\ninherits its place in the series unless given). `arm`, `analyte`, `batch` are the ledger's entity ids.",
+        "properties": {
+          "analyte": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Analyte"
+          },
+          "arm": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Arm"
+          },
+          "batch": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Batch"
+          },
+          "censored": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Censored"
+          },
+          "conditions": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Conditions"
+          },
+          "field": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Field"
+          },
+          "labels": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "propertyNames": {
+              "enum": [
+                "subject",
+                "period",
+                "sequence",
+                "occasion",
+                "vessel",
+                "matrix"
+              ]
+            },
+            "title": "Labels",
+            "type": "object"
+          },
+          "lloq": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lloq"
+          },
+          "lloq_unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lloq Unit"
+          },
+          "n": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "N"
+          },
+          "spread": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Spread"
+          },
+          "spread_kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Spread Kind"
+          },
+          "statistic": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Statistic"
+          },
+          "supersedes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Supersedes"
+          },
+          "time": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Time"
+          },
+          "time_unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Time Unit"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          },
+          "why": {
+            "minLength": 1,
+            "title": "Why",
+            "type": "string"
+          }
+        },
+        "required": [
+          "value",
+          "why"
+        ],
+        "title": "DeliveryEntry",
+        "type": "object"
+      },
+      "DeliveryExclusion": {
+        "properties": {
+          "file_sha256": {
+            "title": "File Sha256",
+            "type": "string"
+          },
+          "regions": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Regions",
+            "type": "array"
+          },
+          "scope": {
+            "default": "regions",
+            "enum": [
+              "regions",
+              "unread_prose",
+              "figures",
+              "outside"
+            ],
+            "title": "Scope",
+            "type": "string"
+          },
+          "why": {
+            "minLength": 1,
+            "title": "Why",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file_sha256",
+          "regions",
+          "why"
+        ],
+        "title": "DeliveryExclusion",
+        "type": "object"
+      },
+      "DeliveryFile": {
+        "additionalProperties": false,
+        "properties": {
+          "at": {
+            "title": "At",
+            "type": "string"
+          },
+          "blinded": {
+            "title": "Blinded",
+            "type": "boolean"
+          },
+          "by": {
+            "title": "By",
+            "type": "string"
+          },
+          "container": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeliveryContainer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "coverage": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeliveryCoverage"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "delivery": {
+            "title": "Delivery",
+            "type": "string"
+          },
+          "file_id": {
+            "title": "File Id",
+            "type": "string"
+          },
+          "legacy_refusal": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Legacy Refusal"
+          },
+          "legacy_sid": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Legacy Sid"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "outside": {
+            "items": {
+              "$ref": "#/components/schemas/DeliveryOutside"
+            },
+            "title": "Outside",
+            "type": "array"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "regions": {
+            "items": {
+              "$ref": "#/components/schemas/DeliveryRegion"
+            },
+            "title": "Regions",
+            "type": "array"
+          },
+          "repeat": {
+            "title": "Repeat",
+            "type": "boolean"
+          },
+          "run": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeliveryRunState"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sha256": {
+            "title": "Sha256",
+            "type": "string"
+          },
+          "size_bytes": {
+            "title": "Size Bytes",
+            "type": "integer"
+          },
+          "state": {
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file_id",
+          "sha256",
+          "name",
+          "size_bytes",
+          "delivery",
+          "container",
+          "repeat",
+          "legacy_sid",
+          "legacy_refusal",
+          "by",
+          "at",
+          "state",
+          "reason",
+          "coverage",
+          "run",
+          "regions",
+          "outside",
+          "blinded"
+        ],
+        "title": "DeliveryFile",
+        "type": "object"
+      },
+      "DeliveryGap": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "study": {
+            "title": "Study",
+            "type": "string"
+          },
+          "tag": {
+            "title": "Tag",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "study",
+          "tag",
+          "value",
+          "reason"
+        ],
+        "title": "DeliveryGap",
+        "type": "object"
+      },
+      "DeliveryLanded": {
+        "additionalProperties": false,
+        "properties": {
+          "at": {
+            "title": "At",
+            "type": "string"
+          },
+          "datasets": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Datasets",
+            "type": "array"
+          },
+          "dissolution_records": {
+            "title": "Dissolution Records",
+            "type": "integer"
+          },
+          "evidence": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Evidence",
+            "type": "array"
+          },
+          "pending": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pending"
+          },
+          "rejected_legacy": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Rejected Legacy",
+            "type": "array"
+          }
+        },
+        "required": [
+          "datasets",
+          "evidence",
+          "dissolution_records",
+          "rejected_legacy",
+          "pending",
+          "at"
+        ],
+        "title": "DeliveryLanded",
+        "type": "object"
+      },
+      "DeliveryLink": {
+        "additionalProperties": false,
+        "properties": {
+          "candidates": {
+            "items": {
+              "$ref": "#/components/schemas/DeliveryEntity"
+            },
+            "title": "Candidates",
+            "type": "array"
+          },
+          "file": {
+            "title": "File",
+            "type": "string"
+          },
+          "file_sha256": {
+            "title": "File Sha256",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "link_fact": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Link Fact"
+          },
+          "state": {
+            "enum": [
+              "unconfirmed",
+              "ambiguous",
+              "refused"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "study": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Study"
+          },
+          "study_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Study Label"
+          },
+          "values": {
+            "title": "Values",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "link_fact",
+          "study",
+          "study_label",
+          "file_sha256",
+          "file",
+          "values",
+          "candidates",
+          "state"
+        ],
+        "title": "DeliveryLink",
+        "type": "object"
+      },
+      "DeliveryLinkDecision": {
+        "properties": {
+          "confirmed": {
+            "title": "Confirmed",
+            "type": "boolean"
+          },
+          "file_sha256": {
+            "title": "File Sha256",
+            "type": "string"
+          },
+          "link_fact": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Link Fact"
+          },
+          "study": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Study"
+          },
+          "why": {
+            "default": "",
+            "title": "Why",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file_sha256",
+          "confirmed"
+        ],
+        "title": "DeliveryLinkDecision",
+        "type": "object"
+      },
+      "DeliveryMapping": {
+        "additionalProperties": false,
+        "properties": {
+          "at": {
+            "title": "At",
+            "type": "string"
+          },
+          "by": {
+            "title": "By",
+            "type": "string"
+          },
+          "columns": {
+            "items": {
+              "$ref": "#/components/schemas/DeliveryMappingColumn"
+            },
+            "title": "Columns",
+            "type": "array"
+          },
+          "constants": {
+            "items": {
+              "$ref": "#/components/schemas/DeliveryMappingConstant"
+            },
+            "title": "Constants",
+            "type": "array"
+          },
+          "field": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Field"
+          },
+          "findings": {
+            "items": {
+              "$ref": "#/components/schemas/DeliveryMappingFinding"
+            },
+            "title": "Findings",
+            "type": "array"
+          },
+          "fingerprint": {
+            "title": "Fingerprint",
+            "type": "string"
+          },
+          "first_data_row": {
+            "title": "First Data Row",
+            "type": "integer"
+          },
+          "header_rows": {
+            "title": "Header Rows",
+            "type": "integer"
+          },
+          "keys": {
+            "items": {
+              "$ref": "#/components/schemas/DeliveryMappingKey"
+            },
+            "title": "Keys",
+            "type": "array"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "last_data_row": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Data Row"
+          },
+          "layout": {
+            "title": "Layout",
+            "type": "string"
+          },
+          "mapping_id": {
+            "title": "Mapping Id",
+            "type": "string"
+          },
+          "not_data_reason": {
+            "title": "Not Data Reason",
+            "type": "string"
+          },
+          "origin": {
+            "title": "Origin",
+            "type": "string"
+          },
+          "origin_detail": {
+            "title": "Origin Detail",
+            "type": "string"
+          },
+          "questions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Questions",
+            "type": "array"
+          },
+          "queued": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Queued",
+            "type": "array"
+          },
+          "rules": {
+            "items": {
+              "$ref": "#/components/schemas/DeliveryMappingRule"
+            },
+            "title": "Rules",
+            "type": "array"
+          },
+          "sample": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeliveryMappingSample"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "spec": {
+            "additionalProperties": true,
+            "title": "Spec",
+            "type": "object"
+          },
+          "statistic": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Statistic"
+          },
+          "status": {
+            "enum": [
+              "approved",
+              "proposed",
+              "rejected"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "time_reference": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Time Reference"
+          },
+          "time_row": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Time Row"
+          },
+          "time_unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Time Unit"
+          },
+          "tokens": {
+            "$ref": "#/components/schemas/DeliveryMappingTokens"
+          },
+          "used_in": {
+            "items": {
+              "$ref": "#/components/schemas/DeliveryMappingUse"
+            },
+            "title": "Used In",
+            "type": "array"
+          },
+          "value_unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value Unit"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          },
+          "versions": {
+            "items": {
+              "$ref": "#/components/schemas/DeliveryMappingVersion"
+            },
+            "title": "Versions",
+            "type": "array"
+          },
+          "waiting": {
+            "title": "Waiting",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "mapping_id",
+          "version",
+          "status",
+          "origin",
+          "origin_detail",
+          "fingerprint",
+          "by",
+          "at",
+          "kind",
+          "layout",
+          "header_rows",
+          "first_data_row",
+          "last_data_row",
+          "field",
+          "time_row",
+          "time_unit",
+          "value_unit",
+          "statistic",
+          "time_reference",
+          "not_data_reason",
+          "questions",
+          "columns",
+          "keys",
+          "tokens",
+          "rules",
+          "constants",
+          "spec",
+          "sample",
+          "findings",
+          "versions",
+          "used_in",
+          "waiting",
+          "queued"
+        ],
+        "title": "DeliveryMapping",
+        "type": "object"
+      },
+      "DeliveryMappingApproval": {
+        "properties": {
+          "note": {
+            "default": "",
+            "title": "Note",
+            "type": "string"
+          },
+          "version": {
+            "minimum": 1.0,
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version"
+        ],
+        "title": "DeliveryMappingApproval",
+        "type": "object"
+      },
+      "DeliveryMappingColumn": {
+        "additionalProperties": false,
+        "properties": {
+          "cell_form": {
+            "title": "Cell Form",
+            "type": "string"
+          },
+          "column": {
+            "title": "Column",
+            "type": "integer"
+          },
+          "condition": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Condition"
+          },
+          "field": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Field"
+          },
+          "header": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Header"
+          },
+          "of": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Of"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "role": {
+            "title": "Role",
+            "type": "string"
+          },
+          "series_role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Series Role"
+          },
+          "spread_kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Spread Kind"
+          },
+          "statistic": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Statistic"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          }
+        },
+        "required": [
+          "column",
+          "header",
+          "role",
+          "field",
+          "unit",
+          "statistic",
+          "spread_kind",
+          "of",
+          "cell_form",
+          "condition",
+          "series_role",
+          "reason"
+        ],
+        "title": "DeliveryMappingColumn",
+        "type": "object"
+      },
+      "DeliveryMappingConstant": {
+        "additionalProperties": false,
+        "properties": {
+          "cite": {
+            "additionalProperties": true,
+            "title": "Cite",
+            "type": "object"
+          },
+          "field": {
+            "title": "Field",
+            "type": "string"
+          },
+          "pattern": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pattern"
+          }
+        },
+        "required": [
+          "field",
+          "cite",
+          "pattern"
+        ],
+        "title": "DeliveryMappingConstant",
+        "type": "object"
+      },
+      "DeliveryMappingContext": {
+        "additionalProperties": false,
+        "properties": {
+          "line": {
+            "title": "Line",
+            "type": "integer"
+          },
+          "near": {
+            "title": "Near",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "near",
+          "line",
+          "text"
+        ],
+        "title": "DeliveryMappingContext",
+        "type": "object"
+      },
+      "DeliveryMappingDecision": {
+        "additionalProperties": false,
+        "properties": {
+          "at": {
+            "title": "At",
+            "type": "string"
+          },
+          "by": {
+            "title": "By",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "approved",
+              "rejected"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "why": {
+            "title": "Why",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "why",
+          "by",
+          "at"
+        ],
+        "title": "DeliveryMappingDecision",
+        "type": "object"
+      },
+      "DeliveryMappingEdit": {
+        "description": "A person's version of the mapping: a `mapping/2` spec, checked on the table it was written for (the mapping's\nsample table, or the table named).",
+        "properties": {
+          "file_sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Sha256"
+          },
+          "region_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Region Id"
+          },
+          "spec": {
+            "additionalProperties": true,
+            "title": "Spec",
+            "type": "object"
+          },
+          "why": {
+            "minLength": 1,
+            "title": "Why",
+            "type": "string"
+          }
+        },
+        "required": [
+          "spec",
+          "why"
+        ],
+        "title": "DeliveryMappingEdit",
+        "type": "object"
+      },
+      "DeliveryMappingFinding": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "location": {
+            "title": "Location",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "severity": {
+            "title": "Severity",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "location",
+          "message",
+          "severity"
+        ],
+        "title": "DeliveryMappingFinding",
+        "type": "object"
+      },
+      "DeliveryMappingKey": {
+        "additionalProperties": false,
+        "properties": {
+          "field": {
+            "title": "Field",
+            "type": "string"
+          },
+          "pattern": {
+            "title": "Pattern",
+            "type": "string"
+          },
+          "spread_kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Spread Kind"
+          },
+          "statistic": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Statistic"
+          }
+        },
+        "required": [
+          "pattern",
+          "field",
+          "statistic",
+          "spread_kind"
+        ],
+        "title": "DeliveryMappingKey",
+        "type": "object"
+      },
+      "DeliveryMappingRejection": {
+        "properties": {
+          "version": {
+            "minimum": 1.0,
+            "title": "Version",
+            "type": "integer"
+          },
+          "why": {
+            "minLength": 1,
+            "title": "Why",
+            "type": "string"
+          }
+        },
+        "required": [
+          "version",
+          "why"
+        ],
+        "title": "DeliveryMappingRejection",
+        "type": "object"
+      },
+      "DeliveryMappingRow": {
+        "additionalProperties": false,
+        "description": "A mapping version that waits for a person: proposed and in use, or rejected with its file not read again yet.",
+        "properties": {
+          "at": {
+            "title": "At",
+            "type": "string"
+          },
+          "by": {
+            "title": "By",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "mapping_id": {
+            "title": "Mapping Id",
+            "type": "string"
+          },
+          "origin": {
+            "title": "Origin",
+            "type": "string"
+          },
+          "origin_detail": {
+            "title": "Origin Detail",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "approved",
+              "proposed",
+              "rejected"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "used_in": {
+            "items": {
+              "$ref": "#/components/schemas/DeliveryMappingUse"
+            },
+            "title": "Used In",
+            "type": "array"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          },
+          "waiting": {
+            "title": "Waiting",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "mapping_id",
+          "version",
+          "status",
+          "origin",
+          "origin_detail",
+          "kind",
+          "by",
+          "at",
+          "used_in",
+          "waiting"
+        ],
+        "title": "DeliveryMappingRow",
+        "type": "object"
+      },
+      "DeliveryMappingRule": {
+        "additionalProperties": false,
+        "properties": {
+          "column": {
+            "title": "Column",
+            "type": "integer"
+          },
+          "pattern": {
+            "title": "Pattern",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "role": {
+            "title": "Role",
+            "type": "string"
+          },
+          "spread_kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Spread Kind"
+          }
+        },
+        "required": [
+          "column",
+          "pattern",
+          "role",
+          "spread_kind",
+          "reason"
+        ],
+        "title": "DeliveryMappingRule",
+        "type": "object"
+      },
+      "DeliveryMappingSample": {
+        "additionalProperties": false,
+        "description": "The table as the table mapper is shown it (`mapping.redact`): no digit of its body. For a file with a blinded\nstudy's values the body and the context lines are withheld.",
+        "properties": {
+          "blinded": {
+            "title": "Blinded",
+            "type": "boolean"
+          },
+          "body": {
+            "items": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "title": "Body",
+            "type": "array"
+          },
+          "body_rows": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Body Rows",
+            "type": "array"
+          },
+          "context": {
+            "items": {
+              "$ref": "#/components/schemas/DeliveryMappingContext"
+            },
+            "title": "Context",
+            "type": "array"
+          },
+          "file": {
+            "title": "File",
+            "type": "string"
+          },
+          "file_sha256": {
+            "title": "File Sha256",
+            "type": "string"
+          },
+          "header": {
+            "items": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "title": "Header",
+            "type": "array"
+          },
+          "header_rows": {
+            "title": "Header Rows",
+            "type": "integer"
+          },
+          "n_cols": {
+            "title": "N Cols",
+            "type": "integer"
+          },
+          "n_rows": {
+            "title": "N Rows",
+            "type": "integer"
+          },
+          "region_id": {
+            "title": "Region Id",
+            "type": "string"
+          },
+          "where": {
+            "title": "Where",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file_sha256",
+          "file",
+          "region_id",
+          "where",
+          "n_rows",
+          "n_cols",
+          "header_rows",
+          "context",
+          "header",
+          "body_rows",
+          "body",
+          "blinded"
+        ],
+        "title": "DeliveryMappingSample",
+        "type": "object"
+      },
+      "DeliveryMappingTokens": {
+        "additionalProperties": false,
+        "properties": {
+          "below_lloq": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Below Lloq",
+            "type": "array"
+          },
+          "missing": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Missing",
+            "type": "array"
+          }
+        },
+        "required": [
+          "below_lloq",
+          "missing"
+        ],
+        "title": "DeliveryMappingTokens",
+        "type": "object"
+      },
+      "DeliveryMappingUse": {
+        "additionalProperties": false,
+        "properties": {
+          "file": {
+            "title": "File",
+            "type": "string"
+          },
+          "file_sha256": {
+            "title": "File Sha256",
+            "type": "string"
+          },
+          "region_id": {
+            "title": "Region Id",
+            "type": "string"
+          },
+          "state": {
+            "title": "State",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          },
+          "where": {
+            "title": "Where",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file_sha256",
+          "file",
+          "region_id",
+          "where",
+          "version",
+          "state"
+        ],
+        "title": "DeliveryMappingUse",
+        "type": "object"
+      },
+      "DeliveryMappingVersion": {
+        "additionalProperties": false,
+        "properties": {
+          "at": {
+            "title": "At",
+            "type": "string"
+          },
+          "by": {
+            "title": "By",
+            "type": "string"
+          },
+          "decisions": {
+            "items": {
+              "$ref": "#/components/schemas/DeliveryMappingDecision"
+            },
+            "title": "Decisions",
+            "type": "array"
+          },
+          "origin": {
+            "title": "Origin",
+            "type": "string"
+          },
+          "origin_detail": {
+            "title": "Origin Detail",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "approved",
+              "proposed",
+              "rejected"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version",
+          "status",
+          "origin",
+          "origin_detail",
+          "by",
+          "at",
+          "decisions"
+        ],
+        "title": "DeliveryMappingVersion",
+        "type": "object"
+      },
+      "DeliveryOutside": {
+        "additionalProperties": false,
+        "description": "An item with a number outside every region that is not page furniture. `counted`: it is in the summary's\n`outside_numeric` (no mapped table cites it and no person accepted it as not data), so it blocks a confirmation.",
+        "properties": {
+          "counted": {
+            "title": "Counted",
+            "type": "boolean"
+          },
+          "region": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Region"
+          },
+          "text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text"
+          },
+          "where": {
+            "title": "Where",
+            "type": "string"
+          }
+        },
+        "required": [
+          "where",
+          "text",
+          "region",
+          "counted"
+        ],
+        "title": "DeliveryOutside",
+        "type": "object"
+      },
+      "DeliveryOverride": {
+        "properties": {
+          "check_id": {
+            "title": "Check Id",
+            "type": "string"
+          },
+          "why": {
+            "minLength": 1,
+            "title": "Why",
+            "type": "string"
+          }
+        },
+        "required": [
+          "check_id",
+          "why"
+        ],
+        "title": "DeliveryOverride",
+        "type": "object"
+      },
+      "DeliveryPage": {
+        "additionalProperties": false,
+        "properties": {
+          "agents": {
+            "$ref": "#/components/schemas/AgentsStatus"
+          },
+          "deliveries": {
+            "items": {
+              "$ref": "#/components/schemas/DeliveryArrival"
+            },
+            "title": "Deliveries",
+            "type": "array"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "mappings": {
+            "items": {
+              "$ref": "#/components/schemas/DeliveryMappingRow"
+            },
+            "title": "Mappings",
+            "type": "array"
+          },
+          "request": {
+            "items": {
+              "$ref": "#/components/schemas/RequestLineView"
+            },
+            "title": "Request",
+            "type": "array"
+          },
+          "rules": {
+            "$ref": "#/components/schemas/DeliveryRules"
+          },
+          "running": {
+            "title": "Running",
+            "type": "boolean"
+          },
+          "subjects": {
+            "items": {
+              "$ref": "#/components/schemas/DeliverySubjectRow"
+            },
+            "title": "Subjects",
+            "type": "array"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/DeliveryTotals"
+          },
+          "unassigned": {
+            "items": {
+              "$ref": "#/components/schemas/DeliveryValue"
+            },
+            "title": "Unassigned",
+            "type": "array"
+          }
+        },
+        "required": [
+          "enabled",
+          "running",
+          "agents",
+          "deliveries",
+          "totals",
+          "subjects",
+          "unassigned",
+          "mappings",
+          "request",
+          "rules"
+        ],
+        "title": "DeliveryPage",
+        "type": "object"
+      },
+      "DeliveryRegion": {
+        "additionalProperties": false,
+        "description": "One region of a file and what was done with it. `state` is `waiting` while the file is being read again, or its\nmapping was rejected and the run that follows has not finished (its earlier values are still in the ledger).",
+        "properties": {
+          "caption": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Caption"
+          },
+          "excluded": {
+            "title": "Excluded",
+            "type": "integer"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "mapping_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mapping Id"
+          },
+          "mapping_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mapping Status"
+          },
+          "mapping_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mapping Version"
+          },
+          "numeric_cells": {
+            "title": "Numeric Cells",
+            "type": "integer"
+          },
+          "origin": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Origin"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "region_id": {
+            "title": "Region Id",
+            "type": "string"
+          },
+          "silent": {
+            "title": "Silent",
+            "type": "integer"
+          },
+          "state": {
+            "enum": [
+              "mapped",
+              "excluded",
+              "unread",
+              "waiting"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "table_kind": {
+            "title": "Table Kind",
+            "type": "string"
+          },
+          "used": {
+            "title": "Used",
+            "type": "integer"
+          },
+          "where": {
+            "title": "Where",
+            "type": "string"
+          }
+        },
+        "required": [
+          "region_id",
+          "kind",
+          "where",
+          "caption",
+          "table_kind",
+          "state",
+          "reason",
+          "origin",
+          "mapping_id",
+          "mapping_version",
+          "mapping_status",
+          "numeric_cells",
+          "used",
+          "excluded",
+          "silent"
+        ],
+        "title": "DeliveryRegion",
+        "type": "object"
+      },
+      "DeliveryRequirement": {
+        "additionalProperties": false,
+        "properties": {
+          "applies": {
+            "title": "Applies",
+            "type": "string"
+          },
+          "criticality": {
+            "title": "Criticality",
+            "type": "string"
+          },
+          "disposition": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Disposition"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "req_id": {
+            "title": "Req Id",
+            "type": "string"
+          },
+          "scope": {
+            "title": "Scope",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "template": {
+            "title": "Template",
+            "type": "string"
+          },
+          "values": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Values",
+            "type": "array"
+          }
+        },
+        "required": [
+          "req_id",
+          "template",
+          "label",
+          "scope",
+          "criticality",
+          "applies",
+          "status",
+          "values",
+          "disposition"
+        ],
+        "title": "DeliveryRequirement",
+        "type": "object"
+      },
+      "DeliveryRules": {
+        "additionalProperties": false,
+        "description": "The intake rules file a record was computed with (SME-governed: UNVERIFIED until signed).",
+        "properties": {
+          "sha256": {
+            "title": "Sha256",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "version",
+          "status",
+          "sha256"
+        ],
+        "title": "DeliveryRules",
+        "type": "object"
+      },
+      "DeliveryRun": {
+        "properties": {
+          "files": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Files",
+            "type": "array"
+          }
+        },
+        "title": "DeliveryRun",
+        "type": "object"
+      },
+      "DeliveryRunState": {
+        "additionalProperties": false,
+        "description": "A file's latest pipeline run.",
+        "properties": {
+          "attempt": {
+            "title": "Attempt",
+            "type": "integer"
+          },
+          "by": {
+            "title": "By",
+            "type": "string"
+          },
+          "error": {
+            "title": "Error",
+            "type": "string"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "queued_at": {
+            "title": "Queued At",
+            "type": "string"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "stages": {
+            "items": {
+              "$ref": "#/components/schemas/DeliveryStage"
+            },
+            "title": "Stages",
+            "type": "array"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "state": {
+            "enum": [
+              "queued",
+              "running",
+              "done",
+              "failed"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id",
+          "state",
+          "attempt",
+          "queued_at",
+          "started_at",
+          "finished_at",
+          "by",
+          "error",
+          "stages"
+        ],
+        "title": "DeliveryRunState",
+        "type": "object"
+      },
+      "DeliverySignature": {
+        "additionalProperties": false,
+        "properties": {
+          "manifestation": {
+            "title": "Manifestation",
+            "type": "string"
+          },
+          "signature_id": {
+            "title": "Signature Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "signature_id",
+          "manifestation"
+        ],
+        "title": "DeliverySignature",
+        "type": "object"
+      },
+      "DeliverySource": {
+        "additionalProperties": false,
+        "description": "A `SourceView` (§4.2) plus the file and the value. `blinded`: the region holds a value of a blinded study, so\nits cells with a number and the cells a value is anchored at are blank, every digit of the text and the title is\nmasked, and the page is not given (it must not be drawn).",
+        "properties": {
+          "blinded": {
+            "title": "Blinded",
+            "type": "boolean"
+          },
+          "box": {
+            "anyOf": [
+              {
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ]
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Box"
+          },
+          "cells": {
+            "items": {
+              "$ref": "#/components/schemas/DeliverySourceCell"
+            },
+            "title": "Cells",
+            "type": "array"
+          },
+          "file": {
+            "title": "File",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "grid",
+              "text"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "n_cols": {
+            "title": "N Cols",
+            "type": "integer"
+          },
+          "n_rows": {
+            "title": "N Rows",
+            "type": "integer"
+          },
+          "page": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page"
+          },
+          "page_size": {
+            "anyOf": [
+              {
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ]
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page Size"
+          },
+          "region_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Region Id"
+          },
+          "sha256": {
+            "title": "Sha256",
+            "type": "string"
+          },
+          "span": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Span"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "value_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value Id"
+          }
+        },
+        "required": [
+          "kind",
+          "title",
+          "region_id",
+          "n_rows",
+          "n_cols",
+          "cells",
+          "text",
+          "span",
+          "page",
+          "page_size",
+          "box",
+          "file",
+          "sha256",
+          "value_id",
+          "blinded"
+        ],
+        "title": "DeliverySource",
+        "type": "object"
+      },
+      "DeliverySourceCell": {
+        "additionalProperties": false,
+        "properties": {
+          "column": {
+            "title": "Column",
+            "type": "integer"
+          },
+          "highlighted": {
+            "title": "Highlighted",
+            "type": "boolean"
+          },
+          "locator": {
+            "title": "Locator",
+            "type": "string"
+          },
+          "numeric": {
+            "title": "Numeric",
+            "type": "boolean"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          },
+          "row": {
+            "title": "Row",
+            "type": "integer"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "row",
+          "column",
+          "text",
+          "numeric",
+          "locator",
+          "highlighted",
+          "role"
+        ],
+        "title": "DeliverySourceCell",
+        "type": "object"
+      },
+      "DeliverySpotCheck": {
+        "additionalProperties": false,
+        "properties": {
+          "blinded": {
+            "title": "Blinded",
+            "type": "boolean"
+          },
+          "draw": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeliverySpotDraw"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "record": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeliverySpotRecord"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "state": {
+            "enum": [
+              "none",
+              "drawn",
+              "failed",
+              "complete",
+              "stale"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "subject": {
+            "title": "Subject",
+            "type": "string"
+          },
+          "subject_type": {
+            "enum": [
+              "study",
+              "product",
+              "compound"
+            ],
+            "title": "Subject Type",
+            "type": "string"
+          },
+          "values": {
+            "items": {
+              "$ref": "#/components/schemas/DeliverySpotValue"
+            },
+            "title": "Values",
+            "type": "array"
+          },
+          "wanted": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Wanted",
+            "type": "array"
+          }
+        },
+        "required": [
+          "subject_type",
+          "subject",
+          "label",
+          "blinded",
+          "state",
+          "draw",
+          "record",
+          "values",
+          "wanted"
+        ],
+        "title": "DeliverySpotCheck",
+        "type": "object"
+      },
+      "DeliverySpotDraw": {
+        "additionalProperties": false,
+        "properties": {
+          "always": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Always",
+            "type": "array"
+          },
+          "at": {
+            "title": "At",
+            "type": "string"
+          },
+          "by": {
+            "title": "By",
+            "type": "string"
+          },
+          "carried": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Carried",
+            "type": "object"
+          },
+          "heads": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Heads",
+            "type": "object"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "rules_version": {
+            "title": "Rules Version",
+            "type": "string"
+          },
+          "sampled": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Sampled",
+            "type": "array"
+          },
+          "seed": {
+            "title": "Seed",
+            "type": "string"
+          },
+          "subject_digest": {
+            "title": "Subject Digest",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "by",
+          "at",
+          "seed",
+          "subject_digest",
+          "rules_version",
+          "heads",
+          "always",
+          "sampled",
+          "carried"
+        ],
+        "title": "DeliverySpotDraw",
+        "type": "object"
+      },
+      "DeliverySpotRecord": {
+        "additionalProperties": false,
+        "properties": {
+          "at": {
+            "title": "At",
+            "type": "string"
+          },
+          "by": {
+            "title": "By",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "ticks": {
+            "items": {
+              "$ref": "#/components/schemas/DeliverySpotTick"
+            },
+            "title": "Ticks",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "by",
+          "at",
+          "ticks"
+        ],
+        "title": "DeliverySpotRecord",
+        "type": "object"
+      },
+      "DeliverySpotState": {
+        "additionalProperties": false,
+        "properties": {
+          "draw_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Draw Id"
+          },
+          "drawn": {
+            "title": "Drawn",
+            "type": "integer"
+          },
+          "state": {
+            "enum": [
+              "none",
+              "drawn",
+              "failed",
+              "complete",
+              "stale"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "wanted": {
+            "title": "Wanted",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "state",
+          "draw_id",
+          "drawn",
+          "wanted"
+        ],
+        "title": "DeliverySpotState",
+        "type": "object"
+      },
+      "DeliverySpotTick": {
+        "additionalProperties": false,
+        "properties": {
+          "note": {
+            "title": "Note",
+            "type": "string"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          },
+          "value_id": {
+            "title": "Value Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "value_id",
+          "ok",
+          "note"
+        ],
+        "title": "DeliverySpotTick",
+        "type": "object"
+      },
+      "DeliverySpotValue": {
+        "additionalProperties": false,
+        "description": "One value of the draw with the tuple it is ticked for (`value`) and its source reference (`value.id` for\n`/delivery/source?value=`, `value.anchor`, `value.locators`).",
+        "properties": {
+          "carried_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Carried By"
+          },
+          "inputs": {
+            "items": {
+              "$ref": "#/components/schemas/DeliveryValue"
+            },
+            "title": "Inputs",
+            "type": "array"
+          },
+          "note": {
+            "title": "Note",
+            "type": "string"
+          },
+          "ok": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ok"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "value": {
+            "$ref": "#/components/schemas/DeliveryValue"
+          },
+          "wanted": {
+            "title": "Wanted",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "value",
+          "reason",
+          "wanted",
+          "carried_by",
+          "ok",
+          "note",
+          "inputs"
+        ],
+        "title": "DeliverySpotValue",
+        "type": "object"
+      },
+      "DeliveryStage": {
+        "additionalProperties": false,
+        "properties": {
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          },
+          "seconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Seconds"
+          },
+          "stage": {
+            "title": "Stage",
+            "type": "string"
+          }
+        },
+        "required": [
+          "stage",
+          "seconds",
+          "ok",
+          "detail"
+        ],
+        "title": "DeliveryStage",
+        "type": "object"
+      },
+      "DeliverySubject": {
+        "additionalProperties": false,
+        "properties": {
+          "blinded": {
+            "title": "Blinded",
+            "type": "boolean"
+          },
+          "blockers": {
+            "items": {
+              "$ref": "#/components/schemas/DeliveryBlocker"
+            },
+            "title": "Blockers",
+            "type": "array"
+          },
+          "by_level": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "By Level",
+            "type": "object"
+          },
+          "by_method": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "By Method",
+            "type": "object"
+          },
+          "checks": {
+            "items": {
+              "$ref": "#/components/schemas/DeliveryCheck"
+            },
+            "title": "Checks",
+            "type": "array"
+          },
+          "confirm_on": {
+            "enum": [
+              "delivery",
+              "client-review"
+            ],
+            "title": "Confirm On",
+            "type": "string"
+          },
+          "confirmation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeliveryConfirmation"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "conflicts": {
+            "items": {
+              "$ref": "#/components/schemas/DeliveryConflict"
+            },
+            "title": "Conflicts",
+            "type": "array"
+          },
+          "coverage": {
+            "items": {
+              "$ref": "#/components/schemas/DeliveryCoverage"
+            },
+            "title": "Coverage",
+            "type": "array"
+          },
+          "gaps": {
+            "items": {
+              "$ref": "#/components/schemas/DeliveryGap"
+            },
+            "title": "Gaps",
+            "type": "array"
+          },
+          "held": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Held"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "landing_problem": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Landing Problem"
+          },
+          "links": {
+            "items": {
+              "$ref": "#/components/schemas/DeliveryLink"
+            },
+            "title": "Links",
+            "type": "array"
+          },
+          "loaded_elsewhere": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Loaded Elsewhere",
+            "type": "array"
+          },
+          "mappings": {
+            "items": {
+              "$ref": "#/components/schemas/DeliveryMappingRow"
+            },
+            "title": "Mappings",
+            "type": "array"
+          },
+          "requirements": {
+            "items": {
+              "$ref": "#/components/schemas/DeliveryRequirement"
+            },
+            "title": "Requirements",
+            "type": "array"
+          },
+          "rules": {
+            "$ref": "#/components/schemas/DeliveryRules"
+          },
+          "signature": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeliverySignature"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "silent_loss": {
+            "title": "Silent Loss",
+            "type": "integer"
+          },
+          "spot_check": {
+            "$ref": "#/components/schemas/DeliverySpotState"
+          },
+          "subject": {
+            "title": "Subject",
+            "type": "string"
+          },
+          "subject_type": {
+            "enum": [
+              "study",
+              "product",
+              "compound"
+            ],
+            "title": "Subject Type",
+            "type": "string"
+          },
+          "tables": {
+            "items": {
+              "$ref": "#/components/schemas/DeliveryTable"
+            },
+            "title": "Tables",
+            "type": "array"
+          },
+          "values": {
+            "title": "Values",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "subject_type",
+          "subject",
+          "label",
+          "blinded",
+          "confirm_on",
+          "loaded_elsewhere",
+          "values",
+          "by_level",
+          "by_method",
+          "silent_loss",
+          "coverage",
+          "blockers",
+          "gaps",
+          "checks",
+          "conflicts",
+          "links",
+          "requirements",
+          "mappings",
+          "tables",
+          "held",
+          "landing_problem",
+          "spot_check",
+          "confirmation",
+          "rules"
+        ],
+        "title": "DeliverySubject",
+        "type": "object"
+      },
+      "DeliverySubjectRow": {
+        "additionalProperties": false,
+        "properties": {
+          "arms": {
+            "items": {
+              "$ref": "#/components/schemas/DeliveryEntity"
+            },
+            "title": "Arms",
+            "type": "array"
+          },
+          "batches": {
+            "items": {
+              "$ref": "#/components/schemas/DeliveryEntity"
+            },
+            "title": "Batches",
+            "type": "array"
+          },
+          "blinded": {
+            "title": "Blinded",
+            "type": "boolean"
+          },
+          "by_level": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "By Level",
+            "type": "object"
+          },
+          "by_method": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "By Method",
+            "type": "object"
+          },
+          "confirm_on": {
+            "enum": [
+              "delivery",
+              "client-review"
+            ],
+            "title": "Confirm On",
+            "type": "string"
+          },
+          "confirmation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeliveryConfirmationState"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "deliveries": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Deliveries",
+            "type": "array"
+          },
+          "files": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Files",
+            "type": "array"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "loaded_elsewhere": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Loaded Elsewhere",
+            "type": "array"
+          },
+          "subject": {
+            "title": "Subject",
+            "type": "string"
+          },
+          "subject_type": {
+            "enum": [
+              "study",
+              "product",
+              "compound"
+            ],
+            "title": "Subject Type",
+            "type": "string"
+          },
+          "values": {
+            "title": "Values",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "subject_type",
+          "subject",
+          "label",
+          "values",
+          "by_level",
+          "by_method",
+          "files",
+          "deliveries",
+          "confirmation",
+          "loaded_elsewhere",
+          "confirm_on",
+          "arms",
+          "batches",
+          "blinded"
+        ],
+        "title": "DeliverySubjectRow",
+        "type": "object"
+      },
+      "DeliveryTable": {
+        "additionalProperties": false,
+        "description": "The subject's values of one table (an extract), or its scalar facts of one file (`kind` facts).",
+        "properties": {
+          "file": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File"
+          },
+          "file_sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Sha256"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "table",
+              "facts"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "mapping_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mapping Id"
+          },
+          "mapping_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mapping Status"
+          },
+          "mapping_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mapping Version"
+          },
+          "region_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Region Id"
+          },
+          "table_kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Table Kind"
+          },
+          "values": {
+            "items": {
+              "$ref": "#/components/schemas/DeliveryValue"
+            },
+            "title": "Values",
+            "type": "array"
+          },
+          "waiting": {
+            "title": "Waiting",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "file_sha256",
+          "file",
+          "region_id",
+          "table_kind",
+          "mapping_id",
+          "mapping_version",
+          "mapping_status",
+          "waiting",
+          "values"
+        ],
+        "title": "DeliveryTable",
+        "type": "object"
+      },
+      "DeliveryTick": {
+        "properties": {
+          "note": {
+            "default": "",
+            "title": "Note",
+            "type": "string"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          },
+          "value_id": {
+            "title": "Value Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "value_id",
+          "ok"
+        ],
+        "title": "DeliveryTick",
+        "type": "object"
+      },
+      "DeliveryTicks": {
+        "properties": {
+          "draw_id": {
+            "title": "Draw Id",
+            "type": "string"
+          },
+          "ticks": {
+            "items": {
+              "$ref": "#/components/schemas/DeliveryTick"
+            },
+            "title": "Ticks",
+            "type": "array"
+          }
+        },
+        "required": [
+          "draw_id",
+          "ticks"
+        ],
+        "title": "DeliveryTicks",
+        "type": "object"
+      },
+      "DeliveryTotals": {
+        "additionalProperties": false,
+        "properties": {
+          "anchors_unresolved": {
+            "title": "Anchors Unresolved",
+            "type": "integer"
+          },
+          "files": {
+            "title": "Files",
+            "type": "integer"
+          },
+          "files_by_state": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Files By State",
+            "type": "object"
+          },
+          "needs_ocr_pages": {
+            "title": "Needs Ocr Pages",
+            "type": "integer"
+          },
+          "outside_numeric": {
+            "title": "Outside Numeric",
+            "type": "integer"
+          },
+          "regions": {
+            "title": "Regions",
+            "type": "integer"
+          },
+          "regions_excluded": {
+            "title": "Regions Excluded",
+            "type": "integer"
+          },
+          "regions_mapped": {
+            "title": "Regions Mapped",
+            "type": "integer"
+          },
+          "regions_unread": {
+            "title": "Regions Unread",
+            "type": "integer"
+          },
+          "silent_loss": {
+            "title": "Silent Loss",
+            "type": "integer"
+          },
+          "values": {
+            "title": "Values",
+            "type": "integer"
+          },
+          "values_unassigned": {
+            "title": "Values Unassigned",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "files",
+          "files_by_state",
+          "regions",
+          "regions_mapped",
+          "regions_excluded",
+          "regions_unread",
+          "silent_loss",
+          "outside_numeric",
+          "values_unassigned",
+          "anchors_unresolved",
+          "needs_ocr_pages",
+          "values"
+        ],
+        "title": "DeliveryTotals",
+        "type": "object"
+      },
+      "DeliveryValue": {
+        "additionalProperties": false,
+        "description": "One value of the ledger (a fact, or the i-th value of a table's extract) with the tuple it is read with: value,\nunit, time, labels and statistic. `blinded`: what D-15 withholds is null.",
+        "properties": {
+          "anchor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Anchor"
+          },
+          "blinded": {
+            "title": "Blinded",
+            "type": "boolean"
+          },
+          "censored": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Censored"
+          },
+          "compute": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Compute"
+          },
+          "conditions": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Conditions",
+            "type": "object"
+          },
+          "confirmation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confirmation"
+          },
+          "cross_file": {
+            "title": "Cross File",
+            "type": "boolean"
+          },
+          "delivery": {
+            "title": "Delivery",
+            "type": "string"
+          },
+          "derived_from": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Derived From",
+            "type": "array"
+          },
+          "entity": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Entity",
+            "type": "object"
+          },
+          "field": {
+            "title": "Field",
+            "type": "string"
+          },
+          "file": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File"
+          },
+          "file_sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Sha256"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "interval": {
+            "anyOf": [
+              {
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ]
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Interval"
+          },
+          "interval_kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Interval Kind"
+          },
+          "interval_level": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Interval Level"
+          },
+          "labels": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Labels",
+            "type": "object"
+          },
+          "level": {
+            "title": "Level",
+            "type": "string"
+          },
+          "lloq": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lloq"
+          },
+          "lloq_unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lloq Unit"
+          },
+          "locators": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Locators",
+            "type": "object"
+          },
+          "mapping_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mapping Id"
+          },
+          "mapping_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mapping Version"
+          },
+          "method": {
+            "title": "Method",
+            "type": "string"
+          },
+          "n_at": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "N At"
+          },
+          "spread": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Spread"
+          },
+          "spread_kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Spread Kind"
+          },
+          "statistic": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Statistic"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "status_reason": {
+            "title": "Status Reason",
+            "type": "string"
+          },
+          "superseded_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Superseded By"
+          },
+          "table_kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Table Kind"
+          },
+          "time": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Time"
+          },
+          "time_actual": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Time Actual"
+          },
+          "time_unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Time Unit"
+          },
+          "uloq": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uloq"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          },
+          "verbatim": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verbatim"
+          }
+        },
+        "required": [
+          "id",
+          "field",
+          "value",
+          "unit",
+          "verbatim",
+          "time",
+          "time_unit",
+          "time_actual",
+          "statistic",
+          "spread",
+          "spread_kind",
+          "n_at",
+          "interval",
+          "interval_kind",
+          "interval_level",
+          "censored",
+          "lloq",
+          "lloq_unit",
+          "uloq",
+          "conditions",
+          "labels",
+          "entity",
+          "method",
+          "level",
+          "status",
+          "status_reason",
+          "superseded_by",
+          "confirmation",
+          "mapping_id",
+          "mapping_version",
+          "derived_from",
+          "compute",
+          "cross_file",
+          "table_kind",
+          "file_sha256",
+          "file",
+          "delivery",
+          "anchor",
+          "locators",
+          "blinded"
+        ],
+        "title": "DeliveryValue",
         "type": "object"
       },
       "Demographics": {
@@ -5789,6 +10000,131 @@
         "title": "Envelope[CpfView]",
         "type": "object"
       },
+      "Envelope_DeliveryMapping_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/DeliveryMapping"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[DeliveryMapping]",
+        "type": "object"
+      },
+      "Envelope_DeliveryPage_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/DeliveryPage"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[DeliveryPage]",
+        "type": "object"
+      },
+      "Envelope_DeliverySource_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/DeliverySource"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[DeliverySource]",
+        "type": "object"
+      },
+      "Envelope_DeliverySpotCheck_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/DeliverySpotCheck"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[DeliverySpotCheck]",
+        "type": "object"
+      },
+      "Envelope_DeliverySubject_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/DeliverySubject"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[DeliverySubject]",
+        "type": "object"
+      },
       "Envelope_DocumentFigures_": {
         "additionalProperties": false,
         "properties": {
@@ -6462,6 +10798,31 @@
           "errors"
         ],
         "title": "Envelope[PeoplePage]",
+        "type": "object"
+      },
+      "Envelope_PipelineHealth_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/PipelineHealth"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[PipelineHealth]",
         "type": "object"
       },
       "Envelope_PlanPage_": {
@@ -14672,6 +19033,357 @@
           "limits"
         ],
         "title": "PinnedApplication",
+        "type": "object"
+      },
+      "PipelineCompany": {
+        "additionalProperties": false,
+        "properties": {
+          "anchors_checked": {
+            "title": "Anchors Checked",
+            "type": "integer"
+          },
+          "anchors_unresolved": {
+            "title": "Anchors Unresolved",
+            "type": "integer"
+          },
+          "damaged_logs": {
+            "title": "Damaged Logs",
+            "type": "integer"
+          },
+          "files": {
+            "title": "Files",
+            "type": "integer"
+          },
+          "files_by_state": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Files By State",
+            "type": "object"
+          },
+          "llm_runs": {
+            "title": "Llm Runs",
+            "type": "integer"
+          },
+          "mapping": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Mapping",
+            "type": "object"
+          },
+          "mapping_shares": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "number"
+                }
+              ]
+            },
+            "title": "Mapping Shares",
+            "type": "object"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "needs_ocr_pages": {
+            "title": "Needs Ocr Pages",
+            "type": "integer"
+          },
+          "outside_items": {
+            "title": "Outside Items",
+            "type": "integer"
+          },
+          "outside_numeric": {
+            "title": "Outside Numeric",
+            "type": "integer"
+          },
+          "parser_failures": {
+            "title": "Parser Failures",
+            "type": "integer"
+          },
+          "projects": {
+            "title": "Projects",
+            "type": "integer"
+          },
+          "regions": {
+            "title": "Regions",
+            "type": "integer"
+          },
+          "regions_unread": {
+            "title": "Regions Unread",
+            "type": "integer"
+          },
+          "runs": {
+            "title": "Runs",
+            "type": "integer"
+          },
+          "silent_loss": {
+            "title": "Silent Loss",
+            "type": "integer"
+          },
+          "stage_seconds": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/PipelineStage"
+            },
+            "title": "Stage Seconds",
+            "type": "object"
+          },
+          "tenant": {
+            "title": "Tenant",
+            "type": "string"
+          },
+          "unsupported_by_extension": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Unsupported By Extension",
+            "type": "object"
+          },
+          "values": {
+            "title": "Values",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "projects",
+          "files",
+          "runs",
+          "files_by_state",
+          "mapping",
+          "mapping_shares",
+          "parser_failures",
+          "unsupported_by_extension",
+          "regions",
+          "regions_unread",
+          "silent_loss",
+          "outside_items",
+          "outside_numeric",
+          "anchors_checked",
+          "anchors_unresolved",
+          "needs_ocr_pages",
+          "values",
+          "llm_runs",
+          "stage_seconds",
+          "damaged_logs",
+          "tenant",
+          "name"
+        ],
+        "title": "PipelineCompany",
+        "type": "object"
+      },
+      "PipelineCounts": {
+        "additionalProperties": false,
+        "description": "What the intake pipeline's own run lines add up to (`modeler_project.intake_health`): counts only, no file\nname, no value, no project name.",
+        "properties": {
+          "anchors_checked": {
+            "title": "Anchors Checked",
+            "type": "integer"
+          },
+          "anchors_unresolved": {
+            "title": "Anchors Unresolved",
+            "type": "integer"
+          },
+          "damaged_logs": {
+            "title": "Damaged Logs",
+            "type": "integer"
+          },
+          "files": {
+            "title": "Files",
+            "type": "integer"
+          },
+          "files_by_state": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Files By State",
+            "type": "object"
+          },
+          "llm_runs": {
+            "title": "Llm Runs",
+            "type": "integer"
+          },
+          "mapping": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Mapping",
+            "type": "object"
+          },
+          "mapping_shares": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "number"
+                }
+              ]
+            },
+            "title": "Mapping Shares",
+            "type": "object"
+          },
+          "needs_ocr_pages": {
+            "title": "Needs Ocr Pages",
+            "type": "integer"
+          },
+          "outside_items": {
+            "title": "Outside Items",
+            "type": "integer"
+          },
+          "outside_numeric": {
+            "title": "Outside Numeric",
+            "type": "integer"
+          },
+          "parser_failures": {
+            "title": "Parser Failures",
+            "type": "integer"
+          },
+          "projects": {
+            "title": "Projects",
+            "type": "integer"
+          },
+          "regions": {
+            "title": "Regions",
+            "type": "integer"
+          },
+          "regions_unread": {
+            "title": "Regions Unread",
+            "type": "integer"
+          },
+          "runs": {
+            "title": "Runs",
+            "type": "integer"
+          },
+          "silent_loss": {
+            "title": "Silent Loss",
+            "type": "integer"
+          },
+          "stage_seconds": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/PipelineStage"
+            },
+            "title": "Stage Seconds",
+            "type": "object"
+          },
+          "unsupported_by_extension": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Unsupported By Extension",
+            "type": "object"
+          },
+          "values": {
+            "title": "Values",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "projects",
+          "files",
+          "runs",
+          "files_by_state",
+          "mapping",
+          "mapping_shares",
+          "parser_failures",
+          "unsupported_by_extension",
+          "regions",
+          "regions_unread",
+          "silent_loss",
+          "outside_items",
+          "outside_numeric",
+          "anchors_checked",
+          "anchors_unresolved",
+          "needs_ocr_pages",
+          "values",
+          "llm_runs",
+          "stage_seconds",
+          "damaged_logs"
+        ],
+        "title": "PipelineCounts",
+        "type": "object"
+      },
+      "PipelineHealth": {
+        "additionalProperties": false,
+        "description": "Where the intake pipeline is blind, per company and in all (contracts 2026-11-12 §8.10; plan §7.8).",
+        "properties": {
+          "all": {
+            "$ref": "#/components/schemas/PipelineCounts"
+          },
+          "companies": {
+            "items": {
+              "$ref": "#/components/schemas/PipelineCompany"
+            },
+            "title": "Companies",
+            "type": "array"
+          },
+          "generated_at": {
+            "title": "Generated At",
+            "type": "string"
+          },
+          "since": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Since"
+          }
+        },
+        "required": [
+          "since",
+          "generated_at",
+          "companies",
+          "all"
+        ],
+        "title": "PipelineHealth",
+        "type": "object"
+      },
+      "PipelineStage": {
+        "additionalProperties": false,
+        "description": "A stage's times over the files' latest runs: how many timings, their median and their 90th percentile (seconds).",
+        "properties": {
+          "median": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Median"
+          },
+          "n": {
+            "title": "N",
+            "type": "integer"
+          },
+          "p90": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "P90"
+          }
+        },
+        "required": [
+          "n",
+          "median",
+          "p90"
+        ],
+        "title": "PipelineStage",
         "type": "object"
       },
       "PkaSpec": {
@@ -24133,6 +28845,73 @@
         ]
       }
     },
+    "/api/v1/admin/pipeline": {
+      "get": {
+        "description": "Where the intake pipeline is blind, per company and in all (contracts 2026-11-12 §8.10): the files by state, the\nshare of tables mapped from the cache, by a rule, by the LLM and left unread, parser failures, unsupported files by\nextension, outside items, unresolved anchors, pages needing OCR, and each stage's median and 90th-percentile time.\nCounts from the pipeline's own run lines only: no file name, no value. `since`: the runs queued from that day.",
+        "operationId": "pipeline_health_api_v1_admin_pipeline_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "since",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Since"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_PipelineHealth_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Pipeline Health",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/api/v1/admin/usage": {
       "get": {
         "operationId": "usage_api_v1_admin_usage_get",
@@ -27724,6 +32503,1486 @@
         "summary": "Digitize Dataset",
         "tags": [
           "evidence"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/delivery": {
+      "get": {
+        "description": "The Delivery section's page: every delivery with its files and their coverage, the subjects to review, the\n\"study not stated\" values, the mappings that wait and the client request. Looking at it queues the client files\nstored before the pipeline ran and starts the intake job when a run waits. Poll while `running`.",
+        "operationId": "get_delivery_api_v1_projects__project_id__delivery_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_DeliveryPage_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Delivery",
+        "tags": [
+          "client-data"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/delivery/mappings/{mapping_id}": {
+      "get": {
+        "description": "A mapping as a person reviews it: each column's header with its role, field and unit, the tokens and row rules,\nthe table as the table mapper is shown it (no digit of its body), every version with its decisions, and where it\nis in use. `version`: one version (default: the latest).",
+        "operationId": "get_mapping_api_v1_projects__project_id__delivery_mappings__mapping_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "mapping_id",
+            "required": true,
+            "schema": {
+              "title": "Mapping Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "version",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Version"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_DeliveryMapping_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Mapping",
+        "tags": [
+          "client-data"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/delivery/mappings/{mapping_id}:approve": {
+      "post": {
+        "description": "A person's approval of one version: the values read under it become `approved_mapping`, the version governs\nits layout from now on, and the files that hold such a table are read again.",
+        "operationId": "approve_mapping_api_v1_projects__project_id__delivery_mappings__mapping_id__approve_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "mapping_id",
+            "required": true,
+            "schema": {
+              "title": "Mapping Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeliveryMappingApproval"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_DeliveryMapping_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Approve Mapping",
+        "tags": [
+          "client-data"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/delivery/mappings/{mapping_id}:edit": {
+      "post": {
+        "description": "Store a person's version of the mapping (checked by code on its table: a spec with an error is refused, 422\nwith the findings) and read the files that hold such a table again. It waits for approval like any version.",
+        "operationId": "edit_mapping_api_v1_projects__project_id__delivery_mappings__mapping_id__edit_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "mapping_id",
+            "required": true,
+            "schema": {
+              "title": "Mapping Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeliveryMappingEdit"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_DeliveryMapping_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Edit Mapping",
+        "tags": [
+          "client-data"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/delivery/mappings/{mapping_id}:reject": {
+      "post": {
+        "description": "A person's rejection of one version, with why: it is never read with again, and the files that hold such a\ntable are read again. Until that run is done the table shows as waiting (its earlier values are still active).",
+        "operationId": "reject_mapping_api_v1_projects__project_id__delivery_mappings__mapping_id__reject_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "mapping_id",
+            "required": true,
+            "schema": {
+              "title": "Mapping Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeliveryMappingRejection"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_DeliveryMapping_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Reject Mapping",
+        "tags": [
+          "client-data"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/delivery/regions:exclude": {
+      "post": {
+        "description": "A person's decision that regions of a file are not data (scope `regions`: any region, and what was read from\nit is set aside; `unread_prose`; `figures`), or that items outside every region are not (`outside`: their\nlocators). The file's coverage is recomputed.",
+        "operationId": "exclude_regions_api_v1_projects__project_id__delivery_regions_exclude_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeliveryExclusion"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_DeliveryPage_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Exclude Regions",
+        "tags": [
+          "client-data"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/delivery/source": {
+      "get": {
+        "description": "What the review shows beside a value: its table with the value's cell and its time, unit and label cells\nhighlighted by role, or its paragraph with the span marked. Give `value` (a value's id) or `anchor` (an anchor\ntext), one of them.",
+        "operationId": "get_source_api_v1_projects__project_id__delivery_source_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "value",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Value"
+            }
+          },
+          {
+            "in": "query",
+            "name": "anchor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Anchor"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_DeliverySource_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Source",
+        "tags": [
+          "client-data"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/delivery/subjects/{type}/{subject}": {
+      "get": {
+        "description": "A subject's card, exceptions first: its blockers, schema gaps, checks, conflicts, cross-file links, missing\nitems and new mappings; then its values by table, what the landing would hold back, the spot check's state and\nits confirmation with the signature's manifestation.",
+        "operationId": "get_subject_api_v1_projects__project_id__delivery_subjects__type___subject__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "type",
+            "required": true,
+            "schema": {
+              "enum": [
+                "study",
+                "product",
+                "compound"
+              ],
+              "title": "Type",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "subject",
+            "required": true,
+            "schema": {
+              "title": "Subject",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_DeliverySubject_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Subject",
+        "tags": [
+          "client-data"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/delivery/subjects/{type}/{subject}/spot-check": {
+      "post": {
+        "description": "Every tick of a draw, once, in one request: a tick says the value, its unit, its time, its labels and its\nstatistic match the source.",
+        "operationId": "record_spot_check_api_v1_projects__project_id__delivery_subjects__type___subject__spot_check_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "type",
+            "required": true,
+            "schema": {
+              "enum": [
+                "study",
+                "product",
+                "compound"
+              ],
+              "title": "Type",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "subject",
+            "required": true,
+            "schema": {
+              "title": "Subject",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeliveryTicks"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_DeliverySpotCheck_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Record Spot Check",
+        "tags": [
+          "client-data"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/delivery/subjects/{type}/{subject}/spot-check:draw": {
+      "post": {
+        "description": "Draw the subject's spot check from the ledger's state (the same state gives the same draw): each value with the\ntuple it is ticked for and its source reference. A blinded study's cannot be drawn (409 `BLINDED`).",
+        "operationId": "draw_spot_check_api_v1_projects__project_id__delivery_subjects__type___subject__spot_check_draw_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "type",
+            "required": true,
+            "schema": {
+              "enum": [
+                "study",
+                "product",
+                "compound"
+              ],
+              "title": "Type",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "subject",
+            "required": true,
+            "schema": {
+              "title": "Subject",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_DeliverySpotCheck_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Draw Spot Check",
+        "tags": [
+          "client-data"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/delivery/subjects/{type}/{subject}:choose": {
+      "post": {
+        "description": "Settle an open conflict of the subject: the value kept stays, the others that read differently are excluded.",
+        "operationId": "choose_value_api_v1_projects__project_id__delivery_subjects__type___subject__choose_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "type",
+            "required": true,
+            "schema": {
+              "enum": [
+                "study",
+                "product",
+                "compound"
+              ],
+              "title": "Type",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "subject",
+            "required": true,
+            "schema": {
+              "title": "Subject",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeliveryChoice"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_DeliverySubject_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Choose Value",
+        "tags": [
+          "client-data"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/delivery/subjects/{type}/{subject}:confirm": {
+      "post": {
+        "description": "Confirm the subject: sign the record that binds its values, its decisions, its spot check and its coverage, and\nland it in the project. Refused (409, with every blocker; nothing is signed) while anything blocks it. Needs a\nfresh step-up (403 `STEP_UP_REQUIRED`). An interrupted landing completes here with no new signature.",
+        "operationId": "confirm_subject_api_v1_projects__project_id__delivery_subjects__type___subject__confirm_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "type",
+            "required": true,
+            "schema": {
+              "enum": [
+                "study",
+                "product",
+                "compound"
+              ],
+              "title": "Type",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "subject",
+            "required": true,
+            "schema": {
+              "title": "Subject",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_DeliverySubject_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Confirm Subject",
+        "tags": [
+          "client-data"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/delivery/subjects/{type}/{subject}:dispose": {
+      "post": {
+        "description": "A requirement item of the subject that is missing: ask the client, take it from literature, or not needed.",
+        "operationId": "dispose_requirement_api_v1_projects__project_id__delivery_subjects__type___subject__dispose_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "type",
+            "required": true,
+            "schema": {
+              "enum": [
+                "study",
+                "product",
+                "compound"
+              ],
+              "title": "Type",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "subject",
+            "required": true,
+            "schema": {
+              "title": "Subject",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeliveryDisposition"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_DeliverySubject_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Dispose Requirement",
+        "tags": [
+          "client-data"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/delivery/subjects/{type}/{subject}:enter": {
+      "post": {
+        "description": "A person's entry or correction of a value of the subject, with the reason (method \"person\": no source, the\nconfirmation's signature binds it). The facts code derives from it follow.",
+        "operationId": "enter_value_api_v1_projects__project_id__delivery_subjects__type___subject__enter_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "type",
+            "required": true,
+            "schema": {
+              "enum": [
+                "study",
+                "product",
+                "compound"
+              ],
+              "title": "Type",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "subject",
+            "required": true,
+            "schema": {
+              "title": "Subject",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeliveryEntry"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_DeliverySubject_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Enter Value",
+        "tags": [
+          "client-data"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/delivery/subjects/{type}/{subject}:link": {
+      "post": {
+        "description": "Confirm or refuse a cross-file link of the study, per file; for an ambiguous link, `study` is the candidate\nchosen (the file's own study is merged into it).",
+        "operationId": "decide_link_api_v1_projects__project_id__delivery_subjects__type___subject__link_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "type",
+            "required": true,
+            "schema": {
+              "enum": [
+                "study",
+                "product",
+                "compound"
+              ],
+              "title": "Type",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "subject",
+            "required": true,
+            "schema": {
+              "title": "Subject",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeliveryLinkDecision"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_DeliverySubject_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Decide Link",
+        "tags": [
+          "client-data"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/delivery/subjects/{type}/{subject}:override": {
+      "post": {
+        "description": "Clear a failed check of the subject with a reason. A missing required item is settled by a disposition and an\nopen conflict by a choice, never by an override.",
+        "operationId": "override_check_api_v1_projects__project_id__delivery_subjects__type___subject__override_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "type",
+            "required": true,
+            "schema": {
+              "enum": [
+                "study",
+                "product",
+                "compound"
+              ],
+              "title": "Type",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "subject",
+            "required": true,
+            "schema": {
+              "title": "Subject",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeliveryOverride"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_DeliverySubject_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Override Check",
+        "tags": [
+          "client-data"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/delivery/values:assign": {
+      "post": {
+        "description": "Give \"study not stated\" values their subject: a study (and its arm), a product (and its batch), or both.",
+        "operationId": "assign_values_api_v1_projects__project_id__delivery_values_assign_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeliveryAssignment"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_DeliveryPage_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Assign Values",
+        "tags": [
+          "client-data"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/delivery:run": {
+      "post": {
+        "description": "Read files again (all of them, or the ones named by sha256): each is queued as a new run, behind the runs that\nwait. \"RUNNING\" when the intake job runs now, \"QUEUED\" when the runs wait for it.",
+        "operationId": "run_delivery_api_v1_projects__project_id__delivery_run_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/DeliveryRun"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_TriageStart_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Run Delivery",
+        "tags": [
+          "client-data"
         ]
       }
     },

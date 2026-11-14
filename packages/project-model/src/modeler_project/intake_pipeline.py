@@ -44,7 +44,8 @@ run. Nothing here imports the agents (L4): the two LLM stages are reached throug
 `agent_jobs`.
 
 The queue: `enqueue` queues a file once while a run of its bytes waits or runs, and not at all when the latest run of
-those bytes is done under the current parser version (the same bytes again: recorded in files.jsonl, nothing queued);
+those bytes is done under the current parser version (the same bytes again: recorded in files.jsonl, nothing queued),
+unless a person asks for the file to be read again (`again=True`: the Delivery section's re-run path);
 `take` marks the first queued run `running`; `recover` puts a run left `running` (a restart) back in the queue, and
 fails it after `MAX_ATTEMPTS`; `pending` says whether a run waits and `unfinished` whether one waits or was left
 running; `sweep` records and queues the client files stored before the pipeline ran. Every check-then-append is one
@@ -204,10 +205,13 @@ def _version_of(ws: Workspace, record: FileRecord) -> str | None:
         return parser_for(handle.read(_SIGNATURE_BYTES), record.name)[1]
 
 
-def enqueue(ws: Workspace, files: Sequence[FileRecord], *, by: str) -> list[RunRecord]:
+def enqueue(ws: Workspace, files: Sequence[FileRecord], *, by: str, again: bool = False) -> list[RunRecord]:
     """Queue one run per file, decided under the runs log's lock: never a second run of the same bytes while one waits
     or runs, and none when the latest run of those bytes is done under the current parser version (a repeat is
-    recorded in files.jsonl and queues nothing). The runs queued now."""
+    recorded in files.jsonl and queues nothing). `again` (a person asks for the file to be read again: Delivery's
+    "run", or a mapping approved, rejected or edited): a file whose latest run is done is queued too, as a new run
+    with its own id, so what the mapping cache and the rules give now is read; a file whose run waits or runs still
+    queues nothing. The runs queued now."""
     store = IntakeStore(ws)
     queued: list[RunRecord] = []
     versions: dict[str, str | None] = {}
@@ -222,7 +226,7 @@ def enqueue(ws: Workspace, files: Sequence[FileRecord], *, by: str) -> list[RunR
             last = latest.get(record.sha256)
             if record.sha256 in planned or (last is not None and last.state in ("queued", "running")):
                 continue
-            if last is not None and last.state == "done":
+            if last is not None and last.state == "done" and not again:
                 if record.sha256 not in versions:
                     versions[record.sha256] = _version_of(ws, record)
                 if versions[record.sha256] == last.parser_version:

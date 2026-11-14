@@ -734,6 +734,37 @@ def test_enqueue_from_two_threads_queues_once(ws, delivery):
     assert run is not None and intake_pipeline.enqueue(ws, records, by="u1") == [] and not intake_pipeline.pending(ws)
 
 
+def test_enqueue_again_queues_a_new_run_for_a_file_whose_latest_run_is_done_and_never_two_at_once(ws, delivery):
+    """The re-run path (contracts §13, "W as merged"): `again=True` queues a run for a file whose latest run is done,
+    so a mapping approved, rejected or edited is read; the default keeps today's behaviour."""
+    messy = delivery[0]
+    (record,) = _arrive(ws, [messy])
+    (first,) = _drain(ws)
+    assert first.state == "done" and intake_pipeline.enqueue(ws, [record], by="u2") == []      # the default: nothing
+    (queued,) = intake_pipeline.enqueue(ws, [record], by="u2", again=True)
+    assert (queued.state, queued.by, queued.sha256, queued.delivery) == ("queued", "u2", first.sha256, first.delivery)
+    assert queued.run_id != first.run_id and intake_pipeline.pending(ws)
+    # never a second run of the same bytes while one waits or runs, asked again or not
+    assert intake_pipeline.enqueue(ws, [record, record], by="u2", again=True) == []
+    taken = intake_pipeline.take(ws)
+    assert taken is not None and intake_pipeline.enqueue(ws, [record], by="u2", again=True) == []
+    store = IntakeStore(ws)
+    heads = store.facts.head(), store.entities.head()
+    second = intake_pipeline.run_file(ws, taken, brief=BRIEF)
+    # the same bytes under the same mappings: the second run reads the same and adds nothing to the ledger
+    assert second.state == "done" and second.counters == first.counters and second.coverage == first.coverage
+    assert (store.facts.head(), store.entities.head()) == heads
+    assert [(r.run_id, r.state) for r in intake_pipeline.runs(ws)] == [(first.run_id, "done"), (queued.run_id, "done")]
+    # what a person decided meanwhile is read by the run asked for: a rejected rule mapping leaves its tables unread
+    rule = _outcomes(ws, messy)[FASTING].mapping
+    MappingCache(ws).reject(rule.mapping_id, rule.version, by="u1", why="the rule leaves the mean rows out")
+    assert len(intake_pipeline.enqueue(ws, [record], by="u1", again=True)) == 1
+    (third,) = _drain(ws)
+    assert third.state == "done" and _used(ws, messy, FASTING) == ("unread", None, None)
+    assert third.coverage.silent_loss > first.coverage.silent_loss
+    assert len([e for e in ws.store.audit("t1").records() if e.event.action == "intake.run"]) == 3
+
+
 def test_take_recover_and_a_run_stopped_twice(ws, delivery):
     _arrive(ws, delivery[3:])
     run = intake_pipeline.take(ws)

@@ -15,7 +15,7 @@ from typing import Annotated, Any, Literal
 from fastapi import APIRouter, File, Form, HTTPException, Response, UploadFile
 from pydantic import BaseModel, Field, ValidationError
 
-from modeler_api import agent_jobs, intake_pipeline_jobs, jobs
+from modeler_api import agent_jobs, delivery_routes, intake_pipeline_jobs, jobs
 from modeler_api.deps import (
     Reader,
     StoreDep,
@@ -67,6 +67,7 @@ from modeler_project.brief import ProjectBrief
 from modeler_project.client_data import (
     READABLE_DOCUMENTS,
     REGISTER,
+    datasets_from_observations,
     delivery_map,
     ingest,
     reconcile,
@@ -79,12 +80,14 @@ from modeler_project.client_review import confirm as confirm_group
 from modeler_project.client_review import groups as review_groups
 from modeler_project.dataset_points import card_points
 from modeler_project.dataset_register import dataset
-from modeler_project.datasets import DatasetError
+from modeler_project.datasets import DatasetError, ObservedDataset
 from modeler_project.delivery_map import file_line
 from modeler_project.dissolution_register import DissolutionRegisterError, comparisons, profiles, propose_release_model
 from modeler_project.documents import DocumentLibrary
+from modeler_project.evidence import EvidenceState
 from modeler_project.figure_suggestions import open_suggestions
 from modeler_project.inputs import refresh_inputs
+from modeler_project.intake_review import covered_by_confirmation
 from modeler_project.reading_queue import ReadingQueue
 from modeler_project.requirements import RequirementMatrix, client_request
 from modeler_project.sheet_intake import READ as READ_SHEETS
@@ -488,6 +491,18 @@ def map_sheets(project_id: str, sid: str, body: MappingBody, principal: Writer, 
         return envelope(preview)
     if not review.ready_for_confirmation or review.recipe is None:
         raise HTTPException(status_code=409, detail="the recipe has problems or open questions; resolve them first")
+    if intake_pipeline_jobs.enabled():
+        # nothing is loaded twice (contracts §2): replacing a sheet's readings would reject what a signed Delivery
+        # confirmation landed from it, and a study Delivery confirmed from this source is not read in again
+        sheets = {t.sheet for t in review.recipe.tables}
+        if body.replace and (covered := _delivery_recipes(content, sheets)):
+            raise _loaded_on_delivery(f"sheet {', '.join(sorted(sheets))}", covered[0])
+        try:
+            made = datasets_from_observations(review.concentrations, study=body.study, sha=content["sha256"],
+                                              filename=content["file"], library=DocumentLibrary(ws))
+        except (DatasetError, ValueError):
+            made = []                       # what cannot be built is refused by `keep` below, with its reason
+        _not_on_delivery(ws, made, sheets=sheets)
     try:   # the same saving as a draft read on arrival (`sheet_intake.keep`)
         ids = keep(ws, DocumentLibrary(ws), sid, content, review, study=body.study, by=principal.user_id, replace=body.replace)
     except SheetIntakeError as exc:
@@ -515,6 +530,51 @@ def propose_release(project_id: str, profile_id: str, body: ReleaseModelRequest,
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     refresh_inputs(ws, by=principal.user_id)   # the inputs follow every change (redesign §3.2)
     return envelope({"evidence": [e.id for e in proposed], **_view(ws)})
+
+
+# --- nothing is loaded twice (contracts 2026-11-12 §2): what a signed Delivery confirmation covers is refused here -----
+
+
+def _delivery_recipes(content: dict[str, Any], sheets: set[str]) -> list[str]:
+    """The Delivery confirmations whose landing counts one of these sheets of the file as read (the recipe
+    `delivery-<cf id>` the landing keeps on the file, not replaced since)."""
+    return sorted({str(m["recipe"].get("recipe_id", "")).removeprefix("delivery-") for m in content.get("mappings", [])
+                   if not m.get("replaced_by") and str(m["recipe"].get("recipe_id", "")).startswith("delivery-")
+                   and any(t.get("sheet") in sheets for t in m["recipe"].get("tables", []))})
+
+
+def _loaded_on_delivery(what: str, confirmation: str) -> HTTPException:
+    return HTTPException(status_code=409, detail={"code": "LOADED_ON_DELIVERY", "message": (
+        f"{what} is covered by the signed Delivery confirmation {confirmation}: nothing is loaded twice. It is in the "
+        "project already; to change it, correct it on Delivery and confirm there again")})
+
+
+def _not_on_delivery(ws: Workspace, found: list[ObservedDataset], *, sheets: set[str] | None = None) -> None:
+    """409 `LOADED_ON_DELIVERY` when a signed Delivery confirmation covers one of these client datasets, by the overlap
+    of §2 (`intake_review.covered_by_confirmation`: the file, the sheet or page, and the study's key or an equal
+    point). In `both` only. `sheets`: the sheets a reading not saved yet reads them from (a saved dataset's are on its
+    file's record; one not saved yet is asked about with its sheets written as the template writes a sheet)."""
+    if not intake_pipeline_jobs.enabled():
+        return
+    for one in found:
+        if one.state is EvidenceState.REJECTED:
+            continue
+        probe = one if sheets is None else one.model_copy(update={"source": one.source.model_copy(
+            update={"locator": "; ".join(f"{sheet}!1" for sheet in sorted(sheets))})})
+        covered = covered_by_confirmation(ws, probe)
+        if covered is not None:
+            raise _loaded_on_delivery(f"study {one.study.get('study_id')} of this source", covered.id)
+
+
+def _group_not_on_delivery(ws: Workspace, gid: str) -> None:
+    """The guard of `client-review:confirm`: a group still to confirm with a dataset Delivery already confirmed."""
+    if not intake_pipeline_jobs.enabled():
+        return
+    group = next((g for g in review_groups(ws) if g["id"] == gid), None)
+    if group is None or group["state"] == "confirmed":
+        return
+    _not_on_delivery(ws, [d for item in group["items"] if item["kind"] == "dataset"
+                          and (d := dataset(ws, item["id"])) is not None])
 
 
 # --- confirm inline (plan 2026-11-03 §3.3): the client's data loads once a person confirms its group -------------
@@ -612,7 +672,9 @@ def finish_sheet(project_id: str, body: ReviewFinish, principal: Writer, store: 
     """Give what a sheet read by code needs (plan 2026-11-05 §3.1, build C2): once nothing is left, the reading is saved
     like the sheet reader's (its datasets wait on the card to confirm); else the answers are kept and the rest asked."""
     ws = workspace_for(project_id, principal, store)
-    _workbook(ws, body.file, use=True)        # a withdrawn file is not read into the project
+    content, _grid = _workbook(ws, body.file, use=True)        # a withdrawn file is not read into the project
+    if intake_pipeline_jobs.enabled() and (covered := _delivery_recipes(content, {body.sheet})):
+        raise _loaded_on_delivery(f"sheet {body.sheet}", covered[0])
     try:
         finish(ws, DocumentLibrary(ws), body.file, body.sheet, dict(body.answers), by=principal.user_id)
     except SheetIntakeError as exc:
@@ -625,4 +687,11 @@ def finish_sheet(project_id: str, body: ReviewFinish, principal: Writer, store: 
 def confirm_review_group(project_id: str, body: ReviewGroupRef, principal: Writer, store: StoreDep) -> dict[str, Any]:
     """Confirm a group: its selections are applied and its datasets and values load into the project, in one audited
     record. Refused while a conflict or question of the group is open."""
-    return _act(project_id, principal, store, lambda ws: confirm_group(ws, body.group, by=principal.user_id))
+    def confirm(ws: Workspace) -> None:
+        _group_not_on_delivery(ws, body.group)      # 409 LOADED_ON_DELIVERY: what Delivery confirmed is not loaded twice
+        confirm_group(ws, body.group, by=principal.user_id)
+
+    return _act(project_id, principal, store, confirm)
+
+
+delivery_routes.mount(router)       # the Delivery section's routes (contracts 2026-11-12 §8.10), on this router

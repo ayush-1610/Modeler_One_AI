@@ -304,6 +304,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/pipeline": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Pipeline Health
+         * @description Where the intake pipeline is blind, per company and in all (contracts 2026-11-12 §8.10): the files by state, the
+         *     share of tables mapped from the cache, by a rule, by the LLM and left unread, parser failures, unsupported files by
+         *     extension, outside items, unresolved anchors, pages needing OCR, and each stage's median and 90th-percentile time.
+         *     Counts from the pipeline's own run lines only: no file name, no value. `since`: the runs queued from that day.
+         */
+        get: operations["pipeline_health_api_v1_admin_pipeline_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/usage": {
         parameters: {
             query?: never;
@@ -1254,6 +1277,387 @@ export interface paths {
          * @description A figure digitized by a person: the server maps the picked pixels with the calibration (no client arithmetic).
          */
         post: operations["digitize_dataset_api_v1_projects__project_id__datasets_digitize_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/delivery": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Delivery
+         * @description The Delivery section's page: every delivery with its files and their coverage, the subjects to review, the
+         *     "study not stated" values, the mappings that wait and the client request. Looking at it queues the client files
+         *     stored before the pipeline ran and starts the intake job when a run waits. Poll while `running`.
+         */
+        get: operations["get_delivery_api_v1_projects__project_id__delivery_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/delivery/mappings/{mapping_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Mapping
+         * @description A mapping as a person reviews it: each column's header with its role, field and unit, the tokens and row rules,
+         *     the table as the table mapper is shown it (no digit of its body), every version with its decisions, and where it
+         *     is in use. `version`: one version (default: the latest).
+         */
+        get: operations["get_mapping_api_v1_projects__project_id__delivery_mappings__mapping_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/delivery/mappings/{mapping_id}:approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve Mapping
+         * @description A person's approval of one version: the values read under it become `approved_mapping`, the version governs
+         *     its layout from now on, and the files that hold such a table are read again.
+         */
+        post: operations["approve_mapping_api_v1_projects__project_id__delivery_mappings__mapping_id__approve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/delivery/mappings/{mapping_id}:edit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Edit Mapping
+         * @description Store a person's version of the mapping (checked by code on its table: a spec with an error is refused, 422
+         *     with the findings) and read the files that hold such a table again. It waits for approval like any version.
+         */
+        post: operations["edit_mapping_api_v1_projects__project_id__delivery_mappings__mapping_id__edit_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/delivery/mappings/{mapping_id}:reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reject Mapping
+         * @description A person's rejection of one version, with why: it is never read with again, and the files that hold such a
+         *     table are read again. Until that run is done the table shows as waiting (its earlier values are still active).
+         */
+        post: operations["reject_mapping_api_v1_projects__project_id__delivery_mappings__mapping_id__reject_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/delivery/regions:exclude": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Exclude Regions
+         * @description A person's decision that regions of a file are not data (scope `regions`: any region, and what was read from
+         *     it is set aside; `unread_prose`; `figures`), or that items outside every region are not (`outside`: their
+         *     locators). The file's coverage is recomputed.
+         */
+        post: operations["exclude_regions_api_v1_projects__project_id__delivery_regions_exclude_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/delivery/source": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Source
+         * @description What the review shows beside a value: its table with the value's cell and its time, unit and label cells
+         *     highlighted by role, or its paragraph with the span marked. Give `value` (a value's id) or `anchor` (an anchor
+         *     text), one of them.
+         */
+        get: operations["get_source_api_v1_projects__project_id__delivery_source_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/delivery/subjects/{type}/{subject}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Subject
+         * @description A subject's card, exceptions first: its blockers, schema gaps, checks, conflicts, cross-file links, missing
+         *     items and new mappings; then its values by table, what the landing would hold back, the spot check's state and
+         *     its confirmation with the signature's manifestation.
+         */
+        get: operations["get_subject_api_v1_projects__project_id__delivery_subjects__type___subject__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/delivery/subjects/{type}/{subject}/spot-check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Record Spot Check
+         * @description Every tick of a draw, once, in one request: a tick says the value, its unit, its time, its labels and its
+         *     statistic match the source.
+         */
+        post: operations["record_spot_check_api_v1_projects__project_id__delivery_subjects__type___subject__spot_check_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/delivery/subjects/{type}/{subject}/spot-check:draw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Draw Spot Check
+         * @description Draw the subject's spot check from the ledger's state (the same state gives the same draw): each value with the
+         *     tuple it is ticked for and its source reference. A blinded study's cannot be drawn (409 `BLINDED`).
+         */
+        post: operations["draw_spot_check_api_v1_projects__project_id__delivery_subjects__type___subject__spot_check_draw_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/delivery/subjects/{type}/{subject}:choose": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Choose Value
+         * @description Settle an open conflict of the subject: the value kept stays, the others that read differently are excluded.
+         */
+        post: operations["choose_value_api_v1_projects__project_id__delivery_subjects__type___subject__choose_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/delivery/subjects/{type}/{subject}:confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm Subject
+         * @description Confirm the subject: sign the record that binds its values, its decisions, its spot check and its coverage, and
+         *     land it in the project. Refused (409, with every blocker; nothing is signed) while anything blocks it. Needs a
+         *     fresh step-up (403 `STEP_UP_REQUIRED`). An interrupted landing completes here with no new signature.
+         */
+        post: operations["confirm_subject_api_v1_projects__project_id__delivery_subjects__type___subject__confirm_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/delivery/subjects/{type}/{subject}:dispose": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Dispose Requirement
+         * @description A requirement item of the subject that is missing: ask the client, take it from literature, or not needed.
+         */
+        post: operations["dispose_requirement_api_v1_projects__project_id__delivery_subjects__type___subject__dispose_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/delivery/subjects/{type}/{subject}:enter": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Enter Value
+         * @description A person's entry or correction of a value of the subject, with the reason (method "person": no source, the
+         *     confirmation's signature binds it). The facts code derives from it follow.
+         */
+        post: operations["enter_value_api_v1_projects__project_id__delivery_subjects__type___subject__enter_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/delivery/subjects/{type}/{subject}:link": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Decide Link
+         * @description Confirm or refuse a cross-file link of the study, per file; for an ambiguous link, `study` is the candidate
+         *     chosen (the file's own study is merged into it).
+         */
+        post: operations["decide_link_api_v1_projects__project_id__delivery_subjects__type___subject__link_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/delivery/subjects/{type}/{subject}:override": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Override Check
+         * @description Clear a failed check of the subject with a reason. A missing required item is settled by a disposition and an
+         *     open conflict by a choice, never by an override.
+         */
+        post: operations["override_check_api_v1_projects__project_id__delivery_subjects__type___subject__override_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/delivery/values:assign": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Assign Values
+         * @description Give "study not stated" values their subject: a study (and its arm), a product (and its batch), or both.
+         */
+        post: operations["assign_values_api_v1_projects__project_id__delivery_values_assign_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/delivery:run": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Run Delivery
+         * @description Read files again (all of them, or the ones named by sha256): each is queued as a new run, behind the runs that
+         *     wait. "RUNNING" when the intake job runs now, "QUEUED" when the runs wait for it.
+         */
+        post: operations["run_delivery_api_v1_projects__project_id__delivery_run_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4030,6 +4434,10 @@ export interface components {
         DatasetPoints: {
             /** Blinded */
             blinded: boolean;
+            /** Blq Omitted */
+            blq_omitted: number | null;
+            /** Blq Rule */
+            blq_rule: string | null;
             /** Kind */
             kind: string;
             /** Lloq */
@@ -4096,6 +4504,1287 @@ export interface components {
             stages: string[];
             /** Upper */
             upper: number;
+        };
+        /**
+         * DeliveryArrival
+         * @description One delivery (an arrival request) with its files.
+         */
+        DeliveryArrival: {
+            /** At */
+            at: string;
+            /** By */
+            by: string;
+            /** Files */
+            files: components["schemas"]["DeliveryFile"][];
+            /** Id */
+            id: string;
+        };
+        /** DeliveryAssignment */
+        DeliveryAssignment: {
+            /** Arm */
+            arm?: string | null;
+            /** Batch */
+            batch?: string | null;
+            /** Product */
+            product?: string | null;
+            /** Study */
+            study?: string | null;
+            /** Targets */
+            targets: string[];
+            /** Why */
+            why: string;
+        };
+        /** DeliveryBlocker */
+        DeliveryBlocker: {
+            /** Code */
+            code: string;
+            /** Detail */
+            detail: string;
+            /** Ids */
+            ids: string[];
+        };
+        /** DeliveryCheck */
+        DeliveryCheck: {
+            /** Code */
+            code: string;
+            /** Id */
+            id: string;
+            /** Message */
+            message: string | null;
+            /** Overridden */
+            overridden: boolean;
+            /** Rule */
+            rule: string;
+            /**
+             * Severity
+             * @enum {string}
+             */
+            severity: "fail" | "warn" | "info";
+            /** Values */
+            values: string[];
+        };
+        /** DeliveryChoice */
+        DeliveryChoice: {
+            /** Conflict Id */
+            conflict_id: string;
+            /** Keep */
+            keep: string;
+            /** Why */
+            why: string;
+        };
+        /**
+         * DeliveryConfirmation
+         * @description The subject's current confirmation with its signature manifestation and what its record says.
+         */
+        DeliveryConfirmation: {
+            /** At */
+            at: string;
+            /** By */
+            by: string;
+            /** Coverage */
+            coverage: {
+                [key: string]: number;
+            };
+            /** Current */
+            current: boolean;
+            /** Held */
+            held: string[] | null;
+            /** Id */
+            id: string;
+            landed: components["schemas"]["DeliveryLanded"] | null;
+            /** Manifestation */
+            manifestation: string;
+            /** Printed Name */
+            printed_name: string;
+            /** Record Sha256 */
+            record_sha256: string;
+            rules: components["schemas"]["DeliveryRules"] | null;
+            /** Signature Id */
+            signature_id: string;
+            /** Supersedes */
+            supersedes: string | null;
+        };
+        /**
+         * DeliveryConfirmationState
+         * @description A subject's current confirmation as the page lists it (`intake_review.subjects`).
+         */
+        DeliveryConfirmationState: {
+            /** At */
+            at: string;
+            /** By */
+            by: string;
+            /** Current */
+            current: boolean;
+            /** Id */
+            id: string;
+            /** Landed */
+            landed: boolean;
+            /** Manifestation */
+            manifestation: string;
+            /** Printed Name */
+            printed_name: string;
+            /** Record Sha256 */
+            record_sha256: string;
+            /** Signature Id */
+            signature_id: string;
+        };
+        /** DeliveryConflict */
+        DeliveryConflict: {
+            /** Field */
+            field: string;
+            /** Id */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "value" | "unit";
+            /** Labels */
+            labels: {
+                [key: string]: string;
+            };
+            /** Time */
+            time: number | null;
+            /** Values */
+            values: string[];
+        };
+        /** DeliveryContainer */
+        DeliveryContainer: {
+            /** Member */
+            member: string;
+            /** Name */
+            name: string;
+            /** Sha256 */
+            sha256: string;
+        };
+        /**
+         * DeliveryCoverage
+         * @description A file's coverage summary, from its coverage file (the current truth, `intake_records.CoverageSummary`).
+         */
+        DeliveryCoverage: {
+            /** Anchors Unresolved */
+            anchors_unresolved: number;
+            /** Cells Excluded */
+            cells_excluded: number;
+            /** Cells Silent */
+            cells_silent: number;
+            /** Cells Used */
+            cells_used: number;
+            /** Needs Ocr Pages */
+            needs_ocr_pages: number[];
+            /** Numeric Cells */
+            numeric_cells: number;
+            /** Outside Items */
+            outside_items: number;
+            /** Outside Numeric */
+            outside_numeric: number;
+            /** Reason */
+            reason: string;
+            /** Regions */
+            regions: number;
+            /** Regions Excluded */
+            regions_excluded: number;
+            /** Regions Mapped */
+            regions_mapped: number;
+            /** Regions Unread */
+            regions_unread: number;
+            /** Silent Loss */
+            silent_loss: number;
+            /** State */
+            state: string;
+            /** Values Unassigned */
+            values_unassigned: number;
+        };
+        /** DeliveryDisposition */
+        DeliveryDisposition: {
+            /**
+             * Disposition
+             * @enum {string}
+             */
+            disposition: "ask_client" | "literature" | "not_needed";
+            /** Req Id */
+            req_id: string;
+            /** Why */
+            why: string;
+        };
+        /** DeliveryEntity */
+        DeliveryEntity: {
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+        };
+        /**
+         * DeliveryEntry
+         * @description A person's entry or correction of one value of the subject. `supersedes`: the value corrected (the new one
+         *     inherits its place in the series unless given). `arm`, `analyte`, `batch` are the ledger's entity ids.
+         */
+        DeliveryEntry: {
+            /** Analyte */
+            analyte?: string | null;
+            /** Arm */
+            arm?: string | null;
+            /** Batch */
+            batch?: string | null;
+            /** Censored */
+            censored?: boolean | null;
+            /** Conditions */
+            conditions?: {
+                [key: string]: string;
+            } | null;
+            /** Field */
+            field?: string | null;
+            /** Labels */
+            labels?: {
+                [key: string]: string;
+            };
+            /** Lloq */
+            lloq?: number | null;
+            /** Lloq Unit */
+            lloq_unit?: string | null;
+            /** N */
+            n?: number | null;
+            /** Spread */
+            spread?: number | null;
+            /** Spread Kind */
+            spread_kind?: string | null;
+            /** Statistic */
+            statistic?: string | null;
+            /** Supersedes */
+            supersedes?: string | null;
+            /** Time */
+            time?: number | null;
+            /** Time Unit */
+            time_unit?: string | null;
+            /** Unit */
+            unit?: string | null;
+            /** Value */
+            value: number | string | boolean | null;
+            /** Why */
+            why: string;
+        };
+        /** DeliveryExclusion */
+        DeliveryExclusion: {
+            /** File Sha256 */
+            file_sha256: string;
+            /** Regions */
+            regions: string[];
+            /**
+             * Scope
+             * @default regions
+             * @enum {string}
+             */
+            scope?: "regions" | "unread_prose" | "figures" | "outside";
+            /** Why */
+            why: string;
+        };
+        /** DeliveryFile */
+        DeliveryFile: {
+            /** At */
+            at: string;
+            /** Blinded */
+            blinded: boolean;
+            /** By */
+            by: string;
+            container: components["schemas"]["DeliveryContainer"] | null;
+            coverage: components["schemas"]["DeliveryCoverage"] | null;
+            /** Delivery */
+            delivery: string;
+            /** File Id */
+            file_id: string;
+            /** Legacy Refusal */
+            legacy_refusal: string | null;
+            /** Legacy Sid */
+            legacy_sid: string | null;
+            /** Name */
+            name: string;
+            /** Outside */
+            outside: components["schemas"]["DeliveryOutside"][];
+            /** Reason */
+            reason: string;
+            /** Regions */
+            regions: components["schemas"]["DeliveryRegion"][];
+            /** Repeat */
+            repeat: boolean;
+            run: components["schemas"]["DeliveryRunState"] | null;
+            /** Sha256 */
+            sha256: string;
+            /** Size Bytes */
+            size_bytes: number;
+            /** State */
+            state: string;
+        };
+        /** DeliveryGap */
+        DeliveryGap: {
+            /** Reason */
+            reason: string;
+            /** Study */
+            study: string;
+            /** Tag */
+            tag: string;
+            /** Value */
+            value: string;
+        };
+        /** DeliveryLanded */
+        DeliveryLanded: {
+            /** At */
+            at: string;
+            /** Datasets */
+            datasets: string[];
+            /** Dissolution Records */
+            dissolution_records: number;
+            /** Evidence */
+            evidence: string[];
+            /** Pending */
+            pending: string[] | null;
+            /** Rejected Legacy */
+            rejected_legacy: string[];
+        };
+        /** DeliveryLink */
+        DeliveryLink: {
+            /** Candidates */
+            candidates: components["schemas"]["DeliveryEntity"][];
+            /** File */
+            file: string;
+            /** File Sha256 */
+            file_sha256: string;
+            /** Id */
+            id: string;
+            /** Link Fact */
+            link_fact: string | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "unconfirmed" | "ambiguous" | "refused";
+            /** Study */
+            study: string | null;
+            /** Study Label */
+            study_label: string | null;
+            /** Values */
+            values: number;
+        };
+        /** DeliveryLinkDecision */
+        DeliveryLinkDecision: {
+            /** Confirmed */
+            confirmed: boolean;
+            /** File Sha256 */
+            file_sha256: string;
+            /** Link Fact */
+            link_fact?: string | null;
+            /** Study */
+            study?: string | null;
+            /**
+             * Why
+             * @default
+             */
+            why?: string;
+        };
+        /** DeliveryMapping */
+        DeliveryMapping: {
+            /** At */
+            at: string;
+            /** By */
+            by: string;
+            /** Columns */
+            columns: components["schemas"]["DeliveryMappingColumn"][];
+            /** Constants */
+            constants: components["schemas"]["DeliveryMappingConstant"][];
+            /** Field */
+            field: string | null;
+            /** Findings */
+            findings: components["schemas"]["DeliveryMappingFinding"][];
+            /** Fingerprint */
+            fingerprint: string;
+            /** First Data Row */
+            first_data_row: number;
+            /** Header Rows */
+            header_rows: number;
+            /** Keys */
+            keys: components["schemas"]["DeliveryMappingKey"][];
+            /** Kind */
+            kind: string;
+            /** Last Data Row */
+            last_data_row: number | null;
+            /** Layout */
+            layout: string;
+            /** Mapping Id */
+            mapping_id: string;
+            /** Not Data Reason */
+            not_data_reason: string;
+            /** Origin */
+            origin: string;
+            /** Origin Detail */
+            origin_detail: string;
+            /** Questions */
+            questions: string[];
+            /** Queued */
+            queued: string[];
+            /** Rules */
+            rules: components["schemas"]["DeliveryMappingRule"][];
+            sample: components["schemas"]["DeliveryMappingSample"] | null;
+            /** Spec */
+            spec: {
+                [key: string]: unknown;
+            };
+            /** Statistic */
+            statistic: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "approved" | "proposed" | "rejected";
+            /** Time Reference */
+            time_reference: string | null;
+            /** Time Row */
+            time_row: number | null;
+            /** Time Unit */
+            time_unit: string | null;
+            tokens: components["schemas"]["DeliveryMappingTokens"];
+            /** Used In */
+            used_in: components["schemas"]["DeliveryMappingUse"][];
+            /** Value Unit */
+            value_unit: string | null;
+            /** Version */
+            version: number;
+            /** Versions */
+            versions: components["schemas"]["DeliveryMappingVersion"][];
+            /** Waiting */
+            waiting: boolean;
+        };
+        /** DeliveryMappingApproval */
+        DeliveryMappingApproval: {
+            /**
+             * Note
+             * @default
+             */
+            note?: string;
+            /** Version */
+            version: number;
+        };
+        /** DeliveryMappingColumn */
+        DeliveryMappingColumn: {
+            /** Cell Form */
+            cell_form: string;
+            /** Column */
+            column: number;
+            /** Condition */
+            condition: string | null;
+            /** Field */
+            field: string | null;
+            /** Header */
+            header: string | null;
+            /** Of */
+            of: number | null;
+            /** Reason */
+            reason: string;
+            /** Role */
+            role: string;
+            /** Series Role */
+            series_role: string | null;
+            /** Spread Kind */
+            spread_kind: string | null;
+            /** Statistic */
+            statistic: string | null;
+            /** Unit */
+            unit: string | null;
+        };
+        /** DeliveryMappingConstant */
+        DeliveryMappingConstant: {
+            /** Cite */
+            cite: {
+                [key: string]: unknown;
+            };
+            /** Field */
+            field: string;
+            /** Pattern */
+            pattern: string | null;
+        };
+        /** DeliveryMappingContext */
+        DeliveryMappingContext: {
+            /** Line */
+            line: number;
+            /** Near */
+            near: string;
+            /** Text */
+            text: string;
+        };
+        /** DeliveryMappingDecision */
+        DeliveryMappingDecision: {
+            /** At */
+            at: string;
+            /** By */
+            by: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "approved" | "rejected";
+            /** Why */
+            why: string;
+        };
+        /**
+         * DeliveryMappingEdit
+         * @description A person's version of the mapping: a `mapping/2` spec, checked on the table it was written for (the mapping's
+         *     sample table, or the table named).
+         */
+        DeliveryMappingEdit: {
+            /** File Sha256 */
+            file_sha256?: string | null;
+            /** Region Id */
+            region_id?: string | null;
+            /** Spec */
+            spec: {
+                [key: string]: unknown;
+            };
+            /** Why */
+            why: string;
+        };
+        /** DeliveryMappingFinding */
+        DeliveryMappingFinding: {
+            /** Code */
+            code: string;
+            /** Location */
+            location: string;
+            /** Message */
+            message: string;
+            /** Severity */
+            severity: string;
+        };
+        /** DeliveryMappingKey */
+        DeliveryMappingKey: {
+            /** Field */
+            field: string;
+            /** Pattern */
+            pattern: string;
+            /** Spread Kind */
+            spread_kind: string | null;
+            /** Statistic */
+            statistic: string | null;
+        };
+        /** DeliveryMappingRejection */
+        DeliveryMappingRejection: {
+            /** Version */
+            version: number;
+            /** Why */
+            why: string;
+        };
+        /**
+         * DeliveryMappingRow
+         * @description A mapping version that waits for a person: proposed and in use, or rejected with its file not read again yet.
+         */
+        DeliveryMappingRow: {
+            /** At */
+            at: string;
+            /** By */
+            by: string;
+            /** Kind */
+            kind: string;
+            /** Mapping Id */
+            mapping_id: string;
+            /** Origin */
+            origin: string;
+            /** Origin Detail */
+            origin_detail: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "approved" | "proposed" | "rejected";
+            /** Used In */
+            used_in: components["schemas"]["DeliveryMappingUse"][];
+            /** Version */
+            version: number;
+            /** Waiting */
+            waiting: boolean;
+        };
+        /** DeliveryMappingRule */
+        DeliveryMappingRule: {
+            /** Column */
+            column: number;
+            /** Pattern */
+            pattern: string;
+            /** Reason */
+            reason: string;
+            /** Role */
+            role: string;
+            /** Spread Kind */
+            spread_kind: string | null;
+        };
+        /**
+         * DeliveryMappingSample
+         * @description The table as the table mapper is shown it (`mapping.redact`): no digit of its body. For a file with a blinded
+         *     study's values the body and the context lines are withheld.
+         */
+        DeliveryMappingSample: {
+            /** Blinded */
+            blinded: boolean;
+            /** Body */
+            body: string[][];
+            /** Body Rows */
+            body_rows: number[];
+            /** Context */
+            context: components["schemas"]["DeliveryMappingContext"][];
+            /** File */
+            file: string;
+            /** File Sha256 */
+            file_sha256: string;
+            /** Header */
+            header: string[][];
+            /** Header Rows */
+            header_rows: number;
+            /** N Cols */
+            n_cols: number;
+            /** N Rows */
+            n_rows: number;
+            /** Region Id */
+            region_id: string;
+            /** Where */
+            where: string;
+        };
+        /** DeliveryMappingTokens */
+        DeliveryMappingTokens: {
+            /** Below Lloq */
+            below_lloq: string[];
+            /** Missing */
+            missing: string[];
+        };
+        /** DeliveryMappingUse */
+        DeliveryMappingUse: {
+            /** File */
+            file: string;
+            /** File Sha256 */
+            file_sha256: string;
+            /** Region Id */
+            region_id: string;
+            /** State */
+            state: string;
+            /** Version */
+            version: number;
+            /** Where */
+            where: string;
+        };
+        /** DeliveryMappingVersion */
+        DeliveryMappingVersion: {
+            /** At */
+            at: string;
+            /** By */
+            by: string;
+            /** Decisions */
+            decisions: components["schemas"]["DeliveryMappingDecision"][];
+            /** Origin */
+            origin: string;
+            /** Origin Detail */
+            origin_detail: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "approved" | "proposed" | "rejected";
+            /** Version */
+            version: number;
+        };
+        /**
+         * DeliveryOutside
+         * @description An item with a number outside every region that is not page furniture. `counted`: it is in the summary's
+         *     `outside_numeric` (no mapped table cites it and no person accepted it as not data), so it blocks a confirmation.
+         */
+        DeliveryOutside: {
+            /** Counted */
+            counted: boolean;
+            /** Region */
+            region: string | null;
+            /** Text */
+            text: string | null;
+            /** Where */
+            where: string;
+        };
+        /** DeliveryOverride */
+        DeliveryOverride: {
+            /** Check Id */
+            check_id: string;
+            /** Why */
+            why: string;
+        };
+        /** DeliveryPage */
+        DeliveryPage: {
+            agents: components["schemas"]["AgentsStatus"];
+            /** Deliveries */
+            deliveries: components["schemas"]["DeliveryArrival"][];
+            /** Enabled */
+            enabled: boolean;
+            /** Mappings */
+            mappings: components["schemas"]["DeliveryMappingRow"][];
+            /** Request */
+            request: components["schemas"]["RequestLineView"][];
+            rules: components["schemas"]["DeliveryRules"];
+            /** Running */
+            running: boolean;
+            /** Subjects */
+            subjects: components["schemas"]["DeliverySubjectRow"][];
+            totals: components["schemas"]["DeliveryTotals"];
+            /** Unassigned */
+            unassigned: components["schemas"]["DeliveryValue"][];
+        };
+        /**
+         * DeliveryRegion
+         * @description One region of a file and what was done with it. `state` is `waiting` while the file is being read again, or its
+         *     mapping was rejected and the run that follows has not finished (its earlier values are still in the ledger).
+         */
+        DeliveryRegion: {
+            /** Caption */
+            caption: string | null;
+            /** Excluded */
+            excluded: number;
+            /** Kind */
+            kind: string;
+            /** Mapping Id */
+            mapping_id: string | null;
+            /** Mapping Status */
+            mapping_status: string | null;
+            /** Mapping Version */
+            mapping_version: number | null;
+            /** Numeric Cells */
+            numeric_cells: number;
+            /** Origin */
+            origin: string | null;
+            /** Reason */
+            reason: string;
+            /** Region Id */
+            region_id: string;
+            /** Silent */
+            silent: number;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "mapped" | "excluded" | "unread" | "waiting";
+            /** Table Kind */
+            table_kind: string;
+            /** Used */
+            used: number;
+            /** Where */
+            where: string;
+        };
+        /** DeliveryRequirement */
+        DeliveryRequirement: {
+            /** Applies */
+            applies: string;
+            /** Criticality */
+            criticality: string;
+            /** Disposition */
+            disposition: string | null;
+            /** Label */
+            label: string;
+            /** Req Id */
+            req_id: string;
+            /** Scope */
+            scope: string;
+            /** Status */
+            status: string;
+            /** Template */
+            template: string;
+            /** Values */
+            values: string[];
+        };
+        /**
+         * DeliveryRules
+         * @description The intake rules file a record was computed with (SME-governed: UNVERIFIED until signed).
+         */
+        DeliveryRules: {
+            /** Sha256 */
+            sha256: string;
+            /** Status */
+            status: string;
+            /** Version */
+            version: string;
+        };
+        /** DeliveryRun */
+        DeliveryRun: {
+            /** Files */
+            files?: string[];
+        };
+        /**
+         * DeliveryRunState
+         * @description A file's latest pipeline run.
+         */
+        DeliveryRunState: {
+            /** Attempt */
+            attempt: number;
+            /** By */
+            by: string;
+            /** Error */
+            error: string;
+            /** Finished At */
+            finished_at: string | null;
+            /** Queued At */
+            queued_at: string;
+            /** Run Id */
+            run_id: string;
+            /** Stages */
+            stages: components["schemas"]["DeliveryStage"][];
+            /** Started At */
+            started_at: string | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "queued" | "running" | "done" | "failed";
+        };
+        /** DeliverySignature */
+        DeliverySignature: {
+            /** Manifestation */
+            manifestation: string;
+            /** Signature Id */
+            signature_id: string;
+        };
+        /**
+         * DeliverySource
+         * @description A `SourceView` (§4.2) plus the file and the value. `blinded`: the region holds a value of a blinded study, so
+         *     its cells with a number and the cells a value is anchored at are blank, every digit of the text and the title is
+         *     masked, and the page is not given (it must not be drawn).
+         */
+        DeliverySource: {
+            /** Blinded */
+            blinded: boolean;
+            /** Box */
+            box: (number)[] | null;
+            /** Cells */
+            cells: components["schemas"]["DeliverySourceCell"][];
+            /** File */
+            file: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "grid" | "text";
+            /** N Cols */
+            n_cols: number;
+            /** N Rows */
+            n_rows: number;
+            /** Page */
+            page: number | null;
+            /** Page Size */
+            page_size: (number)[] | null;
+            /** Region Id */
+            region_id: string | null;
+            /** Sha256 */
+            sha256: string;
+            /** Span */
+            span: number[] | null;
+            /** Text */
+            text: string;
+            /** Title */
+            title: string;
+            /** Value Id */
+            value_id: string | null;
+        };
+        /** DeliverySourceCell */
+        DeliverySourceCell: {
+            /** Column */
+            column: number;
+            /** Highlighted */
+            highlighted: boolean;
+            /** Locator */
+            locator: string;
+            /** Numeric */
+            numeric: boolean;
+            /** Role */
+            role: string | null;
+            /** Row */
+            row: number;
+            /** Text */
+            text: string;
+        };
+        /** DeliverySpotCheck */
+        DeliverySpotCheck: {
+            /** Blinded */
+            blinded: boolean;
+            draw: components["schemas"]["DeliverySpotDraw"] | null;
+            /** Label */
+            label: string;
+            record: components["schemas"]["DeliverySpotRecord"] | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "none" | "drawn" | "failed" | "complete" | "stale";
+            /** Subject */
+            subject: string;
+            /**
+             * Subject Type
+             * @enum {string}
+             */
+            subject_type: "study" | "product" | "compound";
+            /** Values */
+            values: components["schemas"]["DeliverySpotValue"][];
+            /** Wanted */
+            wanted: string[];
+        };
+        /** DeliverySpotDraw */
+        DeliverySpotDraw: {
+            /** Always */
+            always: string[];
+            /** At */
+            at: string;
+            /** By */
+            by: string;
+            /** Carried */
+            carried: {
+                [key: string]: string;
+            };
+            /** Heads */
+            heads: {
+                [key: string]: string;
+            };
+            /** Id */
+            id: string;
+            /** Rules Version */
+            rules_version: string;
+            /** Sampled */
+            sampled: string[];
+            /** Seed */
+            seed: string;
+            /** Subject Digest */
+            subject_digest: string;
+        };
+        /** DeliverySpotRecord */
+        DeliverySpotRecord: {
+            /** At */
+            at: string;
+            /** By */
+            by: string;
+            /** Id */
+            id: string;
+            /** Ticks */
+            ticks: components["schemas"]["DeliverySpotTick"][];
+        };
+        /** DeliverySpotState */
+        DeliverySpotState: {
+            /** Draw Id */
+            draw_id: string | null;
+            /** Drawn */
+            drawn: number;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "none" | "drawn" | "failed" | "complete" | "stale";
+            /** Wanted */
+            wanted: number;
+        };
+        /** DeliverySpotTick */
+        DeliverySpotTick: {
+            /** Note */
+            note: string;
+            /** Ok */
+            ok: boolean;
+            /** Value Id */
+            value_id: string;
+        };
+        /**
+         * DeliverySpotValue
+         * @description One value of the draw with the tuple it is ticked for (`value`) and its source reference (`value.id` for
+         *     `/delivery/source?value=`, `value.anchor`, `value.locators`).
+         */
+        DeliverySpotValue: {
+            /** Carried By */
+            carried_by: string | null;
+            /** Inputs */
+            inputs: components["schemas"]["DeliveryValue"][];
+            /** Note */
+            note: string;
+            /** Ok */
+            ok: boolean | null;
+            /** Reason */
+            reason: string | null;
+            value: components["schemas"]["DeliveryValue"];
+            /** Wanted */
+            wanted: boolean;
+        };
+        /** DeliveryStage */
+        DeliveryStage: {
+            /** Detail */
+            detail: string;
+            /** Ok */
+            ok: boolean;
+            /** Seconds */
+            seconds: number;
+            /** Stage */
+            stage: string;
+        };
+        /** DeliverySubject */
+        DeliverySubject: {
+            /** Blinded */
+            blinded: boolean;
+            /** Blockers */
+            blockers: components["schemas"]["DeliveryBlocker"][];
+            /** By Level */
+            by_level: {
+                [key: string]: number;
+            };
+            /** By Method */
+            by_method: {
+                [key: string]: number;
+            };
+            /** Checks */
+            checks: components["schemas"]["DeliveryCheck"][];
+            /**
+             * Confirm On
+             * @enum {string}
+             */
+            confirm_on: "delivery" | "client-review";
+            confirmation: components["schemas"]["DeliveryConfirmation"] | null;
+            /** Conflicts */
+            conflicts: components["schemas"]["DeliveryConflict"][];
+            /** Coverage */
+            coverage: components["schemas"]["DeliveryCoverage"][];
+            /** Gaps */
+            gaps: components["schemas"]["DeliveryGap"][];
+            /** Held */
+            held: string[] | null;
+            /** Label */
+            label: string;
+            /** Landing Problem */
+            landing_problem: string | null;
+            /** Links */
+            links: components["schemas"]["DeliveryLink"][];
+            /** Loaded Elsewhere */
+            loaded_elsewhere: string[];
+            /** Mappings */
+            mappings: components["schemas"]["DeliveryMappingRow"][];
+            /** Requirements */
+            requirements: components["schemas"]["DeliveryRequirement"][];
+            rules: components["schemas"]["DeliveryRules"];
+            signature?: components["schemas"]["DeliverySignature"] | null;
+            /** Silent Loss */
+            silent_loss: number;
+            spot_check: components["schemas"]["DeliverySpotState"];
+            /** Subject */
+            subject: string;
+            /**
+             * Subject Type
+             * @enum {string}
+             */
+            subject_type: "study" | "product" | "compound";
+            /** Tables */
+            tables: components["schemas"]["DeliveryTable"][];
+            /** Values */
+            values: number;
+        };
+        /** DeliverySubjectRow */
+        DeliverySubjectRow: {
+            /** Arms */
+            arms: components["schemas"]["DeliveryEntity"][];
+            /** Batches */
+            batches: components["schemas"]["DeliveryEntity"][];
+            /** Blinded */
+            blinded: boolean;
+            /** By Level */
+            by_level: {
+                [key: string]: number;
+            };
+            /** By Method */
+            by_method: {
+                [key: string]: number;
+            };
+            /**
+             * Confirm On
+             * @enum {string}
+             */
+            confirm_on: "delivery" | "client-review";
+            confirmation: components["schemas"]["DeliveryConfirmationState"] | null;
+            /** Deliveries */
+            deliveries: string[];
+            /** Files */
+            files: string[];
+            /** Label */
+            label: string;
+            /** Loaded Elsewhere */
+            loaded_elsewhere: string[];
+            /** Subject */
+            subject: string;
+            /**
+             * Subject Type
+             * @enum {string}
+             */
+            subject_type: "study" | "product" | "compound";
+            /** Values */
+            values: number;
+        };
+        /**
+         * DeliveryTable
+         * @description The subject's values of one table (an extract), or its scalar facts of one file (`kind` facts).
+         */
+        DeliveryTable: {
+            /** File */
+            file: string | null;
+            /** File Sha256 */
+            file_sha256: string | null;
+            /** Id */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "table" | "facts";
+            /** Mapping Id */
+            mapping_id: string | null;
+            /** Mapping Status */
+            mapping_status: string | null;
+            /** Mapping Version */
+            mapping_version: number | null;
+            /** Region Id */
+            region_id: string | null;
+            /** Table Kind */
+            table_kind: string | null;
+            /** Values */
+            values: components["schemas"]["DeliveryValue"][];
+            /** Waiting */
+            waiting: boolean;
+        };
+        /** DeliveryTick */
+        DeliveryTick: {
+            /**
+             * Note
+             * @default
+             */
+            note?: string;
+            /** Ok */
+            ok: boolean;
+            /** Value Id */
+            value_id: string;
+        };
+        /** DeliveryTicks */
+        DeliveryTicks: {
+            /** Draw Id */
+            draw_id: string;
+            /** Ticks */
+            ticks: components["schemas"]["DeliveryTick"][];
+        };
+        /** DeliveryTotals */
+        DeliveryTotals: {
+            /** Anchors Unresolved */
+            anchors_unresolved: number;
+            /** Files */
+            files: number;
+            /** Files By State */
+            files_by_state: {
+                [key: string]: number;
+            };
+            /** Needs Ocr Pages */
+            needs_ocr_pages: number;
+            /** Outside Numeric */
+            outside_numeric: number;
+            /** Regions */
+            regions: number;
+            /** Regions Excluded */
+            regions_excluded: number;
+            /** Regions Mapped */
+            regions_mapped: number;
+            /** Regions Unread */
+            regions_unread: number;
+            /** Silent Loss */
+            silent_loss: number;
+            /** Values */
+            values: number;
+            /** Values Unassigned */
+            values_unassigned: number;
+        };
+        /**
+         * DeliveryValue
+         * @description One value of the ledger (a fact, or the i-th value of a table's extract) with the tuple it is read with: value,
+         *     unit, time, labels and statistic. `blinded`: what D-15 withholds is null.
+         */
+        DeliveryValue: {
+            /** Anchor */
+            anchor: string | null;
+            /** Blinded */
+            blinded: boolean;
+            /** Censored */
+            censored: boolean | null;
+            /** Compute */
+            compute: string | null;
+            /** Conditions */
+            conditions: {
+                [key: string]: string;
+            };
+            /** Confirmation */
+            confirmation: string | null;
+            /** Cross File */
+            cross_file: boolean;
+            /** Delivery */
+            delivery: string;
+            /** Derived From */
+            derived_from: string[];
+            /** Entity */
+            entity: {
+                [key: string]: string;
+            };
+            /** Field */
+            field: string;
+            /** File */
+            file: string | null;
+            /** File Sha256 */
+            file_sha256: string | null;
+            /** Id */
+            id: string;
+            /** Interval */
+            interval: (number)[] | null;
+            /** Interval Kind */
+            interval_kind: string | null;
+            /** Interval Level */
+            interval_level: number | null;
+            /** Labels */
+            labels: {
+                [key: string]: string;
+            };
+            /** Level */
+            level: string;
+            /** Lloq */
+            lloq: number | null;
+            /** Lloq Unit */
+            lloq_unit: string | null;
+            /** Locators */
+            locators: {
+                [key: string]: string;
+            };
+            /** Mapping Id */
+            mapping_id: string | null;
+            /** Mapping Version */
+            mapping_version: number | null;
+            /** Method */
+            method: string;
+            /** N At */
+            n_at: number | null;
+            /** Spread */
+            spread: number | null;
+            /** Spread Kind */
+            spread_kind: string | null;
+            /** Statistic */
+            statistic: string | null;
+            /** Status */
+            status: string;
+            /** Status Reason */
+            status_reason: string;
+            /** Superseded By */
+            superseded_by: string | null;
+            /** Table Kind */
+            table_kind: string | null;
+            /** Time */
+            time: number | null;
+            /** Time Actual */
+            time_actual: number | null;
+            /** Time Unit */
+            time_unit: string | null;
+            /** Uloq */
+            uloq: number | null;
+            /** Unit */
+            unit: string | null;
+            /** Value */
+            value: number | string | boolean | null;
+            /** Verbatim */
+            verbatim: string | null;
         };
         /**
          * Demographics
@@ -4617,6 +6306,41 @@ export interface components {
             errors: components["schemas"]["ErrorItem"][];
             meta: components["schemas"]["Meta"];
         };
+        /** Envelope[DeliveryMapping] */
+        Envelope_DeliveryMapping_: {
+            data: components["schemas"]["DeliveryMapping"];
+            /** Errors */
+            errors: components["schemas"]["ErrorItem"][];
+            meta: components["schemas"]["Meta"];
+        };
+        /** Envelope[DeliveryPage] */
+        Envelope_DeliveryPage_: {
+            data: components["schemas"]["DeliveryPage"];
+            /** Errors */
+            errors: components["schemas"]["ErrorItem"][];
+            meta: components["schemas"]["Meta"];
+        };
+        /** Envelope[DeliverySource] */
+        Envelope_DeliverySource_: {
+            data: components["schemas"]["DeliverySource"];
+            /** Errors */
+            errors: components["schemas"]["ErrorItem"][];
+            meta: components["schemas"]["Meta"];
+        };
+        /** Envelope[DeliverySpotCheck] */
+        Envelope_DeliverySpotCheck_: {
+            data: components["schemas"]["DeliverySpotCheck"];
+            /** Errors */
+            errors: components["schemas"]["ErrorItem"][];
+            meta: components["schemas"]["Meta"];
+        };
+        /** Envelope[DeliverySubject] */
+        Envelope_DeliverySubject_: {
+            data: components["schemas"]["DeliverySubject"];
+            /** Errors */
+            errors: components["schemas"]["ErrorItem"][];
+            meta: components["schemas"]["Meta"];
+        };
         /** Envelope[DocumentFigures] */
         Envelope_DocumentFigures_: {
             data: components["schemas"]["DocumentFigures"];
@@ -4802,6 +6526,13 @@ export interface components {
         /** Envelope[PeoplePage] */
         Envelope_PeoplePage_: {
             data: components["schemas"]["PeoplePage"];
+            /** Errors */
+            errors: components["schemas"]["ErrorItem"][];
+            meta: components["schemas"]["Meta"];
+        };
+        /** Envelope[PipelineHealth] */
+        Envelope_PipelineHealth_: {
+            data: components["schemas"]["PipelineHealth"];
             /** Errors */
             errors: components["schemas"]["ErrorItem"][];
             meta: components["schemas"]["Meta"];
@@ -7776,6 +9507,145 @@ export interface components {
             template: string;
             /** Version */
             version: string;
+        };
+        /** PipelineCompany */
+        PipelineCompany: {
+            /** Anchors Checked */
+            anchors_checked: number;
+            /** Anchors Unresolved */
+            anchors_unresolved: number;
+            /** Damaged Logs */
+            damaged_logs: number;
+            /** Files */
+            files: number;
+            /** Files By State */
+            files_by_state: {
+                [key: string]: number;
+            };
+            /** Llm Runs */
+            llm_runs: number;
+            /** Mapping */
+            mapping: {
+                [key: string]: number;
+            };
+            /** Mapping Shares */
+            mapping_shares: {
+                [key: string]: number;
+            };
+            /** Name */
+            name: string;
+            /** Needs Ocr Pages */
+            needs_ocr_pages: number;
+            /** Outside Items */
+            outside_items: number;
+            /** Outside Numeric */
+            outside_numeric: number;
+            /** Parser Failures */
+            parser_failures: number;
+            /** Projects */
+            projects: number;
+            /** Regions */
+            regions: number;
+            /** Regions Unread */
+            regions_unread: number;
+            /** Runs */
+            runs: number;
+            /** Silent Loss */
+            silent_loss: number;
+            /** Stage Seconds */
+            stage_seconds: {
+                [key: string]: components["schemas"]["PipelineStage"];
+            };
+            /** Tenant */
+            tenant: string;
+            /** Unsupported By Extension */
+            unsupported_by_extension: {
+                [key: string]: number;
+            };
+            /** Values */
+            values: number;
+        };
+        /**
+         * PipelineCounts
+         * @description What the intake pipeline's own run lines add up to (`modeler_project.intake_health`): counts only, no file
+         *     name, no value, no project name.
+         */
+        PipelineCounts: {
+            /** Anchors Checked */
+            anchors_checked: number;
+            /** Anchors Unresolved */
+            anchors_unresolved: number;
+            /** Damaged Logs */
+            damaged_logs: number;
+            /** Files */
+            files: number;
+            /** Files By State */
+            files_by_state: {
+                [key: string]: number;
+            };
+            /** Llm Runs */
+            llm_runs: number;
+            /** Mapping */
+            mapping: {
+                [key: string]: number;
+            };
+            /** Mapping Shares */
+            mapping_shares: {
+                [key: string]: number;
+            };
+            /** Needs Ocr Pages */
+            needs_ocr_pages: number;
+            /** Outside Items */
+            outside_items: number;
+            /** Outside Numeric */
+            outside_numeric: number;
+            /** Parser Failures */
+            parser_failures: number;
+            /** Projects */
+            projects: number;
+            /** Regions */
+            regions: number;
+            /** Regions Unread */
+            regions_unread: number;
+            /** Runs */
+            runs: number;
+            /** Silent Loss */
+            silent_loss: number;
+            /** Stage Seconds */
+            stage_seconds: {
+                [key: string]: components["schemas"]["PipelineStage"];
+            };
+            /** Unsupported By Extension */
+            unsupported_by_extension: {
+                [key: string]: number;
+            };
+            /** Values */
+            values: number;
+        };
+        /**
+         * PipelineHealth
+         * @description Where the intake pipeline is blind, per company and in all (contracts 2026-11-12 §8.10; plan §7.8).
+         */
+        PipelineHealth: {
+            all: components["schemas"]["PipelineCounts"];
+            /** Companies */
+            companies: components["schemas"]["PipelineCompany"][];
+            /** Generated At */
+            generated_at: string;
+            /** Since */
+            since: string | null;
+        };
+        /**
+         * PipelineStage
+         * @description A stage's times over the files' latest runs: how many timings, their median and their 90th percentile (seconds).
+         */
+        PipelineStage: {
+            /** Median */
+            median: number;
+            /** N */
+            n: number;
+            /** P90 */
+            p90: number;
         };
         /** PkaSpec */
         PkaSpec: {
@@ -11518,6 +13388,39 @@ export interface operations {
             };
         };
     };
+    pipeline_health_api_v1_admin_pipeline_get: {
+        parameters: {
+            query?: {
+                since?: string | null;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_PipelineHealth_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     usage_api_v1_admin_usage_get: {
         parameters: {
             query?: {
@@ -13404,6 +15307,675 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Envelope_ObservedDataset_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_delivery_api_v1_projects__project_id__delivery_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_DeliveryPage_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_mapping_api_v1_projects__project_id__delivery_mappings__mapping_id__get: {
+        parameters: {
+            query?: {
+                version?: number | null;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+                mapping_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_DeliveryMapping_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    approve_mapping_api_v1_projects__project_id__delivery_mappings__mapping_id__approve_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+                mapping_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeliveryMappingApproval"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_DeliveryMapping_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    edit_mapping_api_v1_projects__project_id__delivery_mappings__mapping_id__edit_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+                mapping_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeliveryMappingEdit"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_DeliveryMapping_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reject_mapping_api_v1_projects__project_id__delivery_mappings__mapping_id__reject_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+                mapping_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeliveryMappingRejection"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_DeliveryMapping_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    exclude_regions_api_v1_projects__project_id__delivery_regions_exclude_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeliveryExclusion"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_DeliveryPage_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_source_api_v1_projects__project_id__delivery_source_get: {
+        parameters: {
+            query?: {
+                value?: string | null;
+                anchor?: string | null;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_DeliverySource_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_subject_api_v1_projects__project_id__delivery_subjects__type___subject__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+                type: "study" | "product" | "compound";
+                subject: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_DeliverySubject_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    record_spot_check_api_v1_projects__project_id__delivery_subjects__type___subject__spot_check_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+                type: "study" | "product" | "compound";
+                subject: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeliveryTicks"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_DeliverySpotCheck_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    draw_spot_check_api_v1_projects__project_id__delivery_subjects__type___subject__spot_check_draw_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+                type: "study" | "product" | "compound";
+                subject: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_DeliverySpotCheck_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    choose_value_api_v1_projects__project_id__delivery_subjects__type___subject__choose_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+                type: "study" | "product" | "compound";
+                subject: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeliveryChoice"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_DeliverySubject_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    confirm_subject_api_v1_projects__project_id__delivery_subjects__type___subject__confirm_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+                type: "study" | "product" | "compound";
+                subject: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_DeliverySubject_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    dispose_requirement_api_v1_projects__project_id__delivery_subjects__type___subject__dispose_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+                type: "study" | "product" | "compound";
+                subject: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeliveryDisposition"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_DeliverySubject_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    enter_value_api_v1_projects__project_id__delivery_subjects__type___subject__enter_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+                type: "study" | "product" | "compound";
+                subject: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeliveryEntry"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_DeliverySubject_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    decide_link_api_v1_projects__project_id__delivery_subjects__type___subject__link_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+                type: "study" | "product" | "compound";
+                subject: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeliveryLinkDecision"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_DeliverySubject_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    override_check_api_v1_projects__project_id__delivery_subjects__type___subject__override_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+                type: "study" | "product" | "compound";
+                subject: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeliveryOverride"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_DeliverySubject_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    assign_values_api_v1_projects__project_id__delivery_values_assign_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeliveryAssignment"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_DeliveryPage_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    run_delivery_api_v1_projects__project_id__delivery_run_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["DeliveryRun"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_TriageStart_"];
                 };
             };
             /** @description Validation Error */

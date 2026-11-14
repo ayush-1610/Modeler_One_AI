@@ -256,6 +256,10 @@ class DatasetPoints(View):
     blinded: bool
     series: list[SeriesPoints]
     reported: list[dict[str, Any]]
+    # a profile: the BLQ rule its points are judged with (intake_rules.yaml `landing.blq_rule`, UNVERIFIED) and how
+    # many points it leaves out; no count for a blinded dataset (its values are withheld)
+    blq_rule: str | None
+    blq_omitted: int | None
 
 
 class ReviewItem(View):
