@@ -121,10 +121,29 @@ export function IssueCard({ projectId, group, issue, run }: { projectId: string;
   );
 }
 
-function GroupCard({ projectId, group, run, folded, onToggle }: {
+/** What is open on a group, in the status words the rest of the page counts it with (lib/inputsWork.ts): a sheet that
+ *  does not say a fact is one Missing (`needs`: the facts it does not say), a conflict or a question not answered is one
+ *  To decide. */
+function openOf(group: Group): { drafts: number; needs: string[]; decide: number } {
+  const drafts = group.items.filter((i) => i.kind === "draft");
+  const needs = drafts.flatMap((i) => {
+    const d = i.draft as { needs?: string[]; labels?: Record<string, string> } | null | undefined;
+    return (d?.needs ?? []).map((n) => d?.labels?.[n] ?? n.replace(/_/g, " "));
+  });
+  return { drafts: drafts.length, needs: [...new Set(needs)], decide: group.issues.filter((i) => i.selected === null && i.answered === null).length };
+}
+const openText = (group: Group) => {
+  const o = openOf(group);
+  return [o.drafts ? `${o.drafts} missing` : "", o.decide ? `${o.decide} to decide` : ""].filter(Boolean).join(" · ");
+};
+
+function GroupCard({ projectId, group, run, folded, onToggle, alsoOnDelivery }: {
   projectId: string; group: Group; run: Run; folded?: boolean; onToggle?: () => void;
+  /** the study or product is also signed on the delivery: both ways stay open (plan 2026-11-14 §2.2.1) */
+  alsoOnDelivery?: boolean;
 }) {
   const confirmed = group.state === "confirmed";
+  const open = openOf(group);
   const first = group.items[0]?.source ?? group.facts[0]?.source;
   const count = group.items.length ? `${group.items.length} item${group.items.length === 1 ? "" : "s"}`
                                    : `${group.facts.length} fact${group.facts.length === 1 ? "" : "s"}`;
@@ -137,8 +156,10 @@ function GroupCard({ projectId, group, run, folded, onToggle }: {
           <h3>{group.title}</h3>
           {confirmed
             ? <span className="chip low">Confirmed by {group.confirmed_by ?? "a person"} · loaded</span>
-            : <span className="chip medium">To confirm · {count}</span>}
-          {folded && group.open > 0 && <span className="chip high">{plural(group.open, "open item")}</span>}
+            : group.kind === "sheet" && open.needs.length
+              ? <span className="chip high" data-testid={`group-missing-${group.id}`}>Missing: {open.needs.join(", ")}</span>
+              : <span className="chip medium">To confirm · {count}</span>}
+          {folded && !confirmed && group.kind !== "sheet" && openText(group) && <span className="chip high">{openText(group)}</span>}
         </div>
         <div className="row gap-6">
           {onToggle && (
@@ -196,6 +217,11 @@ function GroupCard({ projectId, group, run, folded, onToggle }: {
           <span className="muted">Once read, its data join their {group.tab === "formulations" ? "product" : "study"}, to confirm there.</span>
         </footer>
       )}
+      {!confirmed && group.kind !== "sheet" && alsoOnDelivery && (
+        <p className="muted fs-13 m-0" data-testid={`both-paths-${group.id}`}>The delivery read this {noun} too, where it is
+          confirmed and signed on its card (in Client files for now). Whichever is confirmed first is what loads; nothing is
+          loaded twice.</p>
+      )}
       {!confirmed && group.kind !== "sheet" && (
         <footer className="confirm-foot">
           <span className="muted">
@@ -222,8 +248,10 @@ const ONE_BY_ONE = 3;
 /** The client's data of one domain, each group to confirm or confirmed. With more than three, an index names each
  *  and one group is open at a time: the first to confirm, then the next once it is confirmed; any can be opened.
  *  `focus` opens the group a To do row or "Next" brings into view. */
-export function ConfirmGroups({ projectId, groups, run, focus }: {
+export function ConfirmGroups({ projectId, groups, run, focus, onDelivery }: {
   projectId: string; groups: Group[]; run: Run; focus?: { group: string; at: number } | null;
+  /** the groups whose study or product is also signed on the delivery */
+  onDelivery?: ReadonlySet<string>;
 }) {
   const [toggled, setToggled] = useState<Record<string, boolean>>({});
   useEffect(() => {
@@ -247,13 +275,13 @@ export function ConfirmGroups({ projectId, groups, run, focus }: {
           {groups.map((g) => (
             <button key={g.id} type="button" className={`btn small${g.id === current.id ? " primary" : ""}`} onClick={() => show(g)}
                     data-testid={`index-${g.id}`}>
-              {g.title} <span className="muted">· {g.state === "confirmed" ? "confirmed" : g.open ? `${g.open} open` : "to confirm"}</span>
+              {g.title} <span className="muted">· {g.state === "confirmed" ? "confirmed" : openText(g) || "to confirm"}</span>
             </button>
           ))}
         </nav>
       )}
       {groups.map((g) => (
-        <GroupCard key={g.id} projectId={projectId} group={g} run={run} folded={!isOpen(g)}
+        <GroupCard key={g.id} projectId={projectId} group={g} run={run} folded={!isOpen(g)} alsoOnDelivery={onDelivery?.has(g.id)}
                    onToggle={oneByOne ? () => setToggled({ ...toggled, [g.id]: !isOpen(g) }) : undefined} />
       ))}
     </section>

@@ -19,7 +19,7 @@ import type { Schema } from "@/lib/api";
 import type { DataTab } from "@/lib/fileTags";
 import { useResource } from "@/lib/hooks";
 import { areaHead, type WorkItem, type WorkModel } from "@/lib/inputsWork";
-import { type Tab, plural } from "@/lib/words";
+import { AREA_NAME, type Tab, plural } from "@/lib/words";
 
 import type { Run } from "./InputsTodo";
 import { AiReading, ReadingTray } from "./ReadingTray";
@@ -67,11 +67,13 @@ function needs(items: WorkItem[]): { item: WorkItem; text: string }[] {
   const out: { item: WorkItem; text: string }[] = [];
   const layouts = items.filter((i) => i.id.startsWith("layout:"));
   if (layouts.length) out.push({ item: layouts[0], text: `${plural(layouts.length, "table layout")} to check` });
+  // a link question asked on the file ("Same study as 230-23?"), settled where its values are linked
   for (const i of items.filter((x) => x.id.startsWith("link:"))) out.push({ item: i, text: `${plural(i.weight, "value")} to link` });
   for (const i of items.filter((x) => x.id.startsWith("alias:"))) out.push({ item: i, text: i.label.split("?")[0] + "?" });
   for (const i of items.filter((x) => x.id.startsWith("notread:"))) out.push({ item: i, text: i.label.slice(i.label.indexOf(": ") + 2) });
+  // a sheet that does not say a fact: counted where it is filled in, on its card in its area
   const drafts = items.filter((i) => i.id.startsWith("draft:"));
-  if (drafts.length) out.push({ item: drafts[0], text: `${plural(drafts.length, "sheet")} with facts to fill in` });
+  if (drafts.length) out.push({ item: drafts[0], text: `${plural(drafts.length, "sheet")} with facts to fill in, on ${AREA_NAME[drafts[0].area]}` });
   return out;
 }
 
@@ -124,7 +126,9 @@ function FilesTable({ projectId, client, rows, work, ai, aiOn, act, onRetag, onS
                       <button type="button" className="link-btn" data-testid={`open-file-${r.name}`} onClick={() => onOpen(area)}
                               title={`Open ${AREA_LABEL[area]}, where the data of ${r.name} land`}>{AREA_LABEL[area]}</button>
                     ) : f ? <span className="chip medium">not placed: say what it is</span> : <span className="muted">—</span>}</td>
-                    <td><span className={`chip ${state.tone}`} data-testid={`file-state-${r.name}`}>{state.text}</span></td>
+                    {/* the file's one status; the delivery's reading of it, under the row, says no second one */}
+                    <td><span data-testid={r.delivery[0] ? `delivery-file-state-${r.delivery[0].file_id}` : undefined}>
+                      <span className={`chip ${state.tone}`} data-testid={`file-state-${r.name}`}>{state.text}</span></span></td>
                     <td data-testid={`file-needs-${r.name}`}>
                       {todo.length ? (
                         <ul className="file-needs">
@@ -144,11 +148,11 @@ function FilesTable({ projectId, client, rows, work, ai, aiOn, act, onRetag, onS
                         {r.delivery.length > 0 && (
                           <ul className="delivery-plain file-delivery" aria-label={`How the delivery read ${r.name}`}>
                             {r.delivery.map((d) => <FileItem key={d.file_id} projectId={projectId} file={d} first={firsts.get(d.sha256)}
-                                                             decide={decide} busy={busy} onMapping={setMapping} />)}
+                                                             decide={decide} busy={busy} onMapping={setMapping} inRow />)}
                           </ul>
                         )}
                         {f && <AiReading projectId={projectId} sid={f.id} />}
-                        {f && client && <ClientFiles projectId={projectId} view={client} files={[f]} act={act} onSaved={onSaved} memory={memory} />}
+                        {f && client && <ClientFiles projectId={projectId} view={client} files={[f]} act={act} onSaved={onSaved} memory={memory} inRow />}
                       </td>
                     </tr>
                   )}
@@ -236,7 +240,7 @@ export function ClientFilesTab({ projectId, client, work, only, onOnly, run, act
           </p>
         </>
       )}
-      <DeliverySection projectId={projectId} subjects={work.subjects} focus={focus} onOpenGroup={onOpenGroup} />
+      <DeliverySection projectId={projectId} work={work} focus={focus} onOpenGroup={onOpenGroup} />
     </>
   );
 }

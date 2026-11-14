@@ -117,6 +117,66 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
     URL, kept on reload), inputs-todo, model-inputs (the checks in words), library (the tray's one line, each file's
     status in the table), inputs-files-by-area (the area's head counts the files, the badge their open work) and
     studies-client-sheets ("AI reading is off").
+- **After its review (2026-11-14):**
+  - **What holds up a card signed on the delivery is counted.** `useInputsWork` reads the card of each study and product
+    signed on the delivery and not signed yet (`/delivery/subjects/{type}/{subject}`, once the page is idle, two at a
+    time, under the key the open card uses, so an opened card is not read twice: `useResources` in `lib/hooks.ts`, which
+    stays the only reader of `get`; no API change), and the work model
+    adds what holds it on its card: its facts no file states on one row ("Study 230-25 · not stated: the route, the
+    dose, what the study is for, the number of subjects": a gap and the check that names the same fact counted once,
+    DOSE_MISSING with the dose), each required item no one has settled ("… · not in the files: Demographics of every
+    study", Missing), each failed check ("concentration: values above the range", "no apparatus stated"), disagreement
+    between files, link between files or other reason the card gives (To decide). A layout the card names is counted
+    once, with the layouts. Each row opens the card in Client files on its element. The card's confirm row says what
+    holds it, in the order it is done ("first 3 items on its card (2 missing · 1 to decide) and the delivery clean-up;
+    then the spot check and the signature"); "once the delivery is cleaned up" only where the clean-up is all that holds
+    it. Until a card is read its row says "checking what holds it…" and the status line "checking n cards…"
+    (`status-checking`). Blinded subjects' cards are not read (withheld).
+  - **The area chips agree with the counts.** The sheet-form card of a study also signed on the delivery (230-23,
+    231-24) keeps its Confirm, says "The delivery read this study too … Whichever is confirmed first is what loads;
+    nothing is loaded twice" (`both-paths-<group>`), and its open items are counted; a card confirmed either way is
+    Done. The "Same study as 230-23?" question counts in Client files, where its values are linked (the Clinical
+    studies head counted two questions it did not show). Under the head of Clinical studies and Products and
+    dissolution, a line names the cards signed on the delivery and what is open on each, opening each card in Client
+    files until slice 3 moves them (`area-elsewhere-<area>`, `area-elsewhere-<area>-<subject>`). A sheet whose product
+    is not stated reads "Missing: the product" (`group-missing-<group>`), no longer "To confirm · 1 item"; a folded
+    card and the card index say "1 missing" or "2 to decide", no longer "1 open item". A file row's sheets with facts to
+    fill in say the area they are counted on.
+  - **One status per opened file row.** Under its row, a file's delivery reading no longer repeats the file's name or a
+    second state chip (it read "read" beside the row's "partly read"); `delivery-file-state-<file id>` now marks the
+    row's one status. The sheets under the row no longer repeat the name either.
+  - **Amber only where a person must decide, and every "not counted" says why.** The clean-up that holds up no
+    signature now says which case it is: it holds up only blinded studies (it stays in its group, not counted, "it
+    counts once the plan is signed"), every study and product it held up is confirmed, or the delivery's subjects are
+    all confirmed with the sheet form (both "Blocks nothing"); a reason every row shares is said once for the group.
+    The delivery's own list of table layouts follows the same model: "To decide" (amber) where a layout holds up a
+    signature, else neutral "blocks nothing" with the reason in its lede (the template project showed five amber
+    "waits for approval" under "nothing open here"); the section's amber border only while something there is open.
+  - **Words.** In a file's reading under its row: "Show its tables and texts", "1 table or text: 1 read, 0 not data, 0
+    not read · 2 numbers in tables not read · 1 loose number · 4 values not linked to a study", a "Layout" column with
+    "version 1 · suggested by the template rules", "8 read · 0 not data · 2 not read", "Loose numbers: text with a
+    number outside every table", and the reading's steps folded under "Technical details" in words ("finding the tables
+    and texts", "recording the values"; `lib/words.ts` `stageText`, keyed by the intake's stage names). On a card:
+    "72 numbers in its files not read · Intake rules v0.1 · UNVERIFIED", "Table layouts not approved yet" with the
+    place in words; the signing dialog's coverage "0 numbers in tables not read · 0 tables or texts not read · 0 loose
+    numbers · 0 values not linked to a study". The AI buttons ("Read the data in this file", "Sort the unsorted
+    sheets", "Read the data sheets", "Find observed data") show only while AI is on, now "… with AI". Not changed here,
+    left to the parallel ux-fill branch, which rewrites the same lines: the raw places in a file's table of tables and
+    texts and in its loose numbers, and the whole "Values not linked" list (plan §5).
+  - **Smaller fixes.** The gate line reads once ("Signing on the delivery waits for its clean-up: 10 table layouts to
+    check · …"). Two versions of one layout are two rows with their own ids, anchors and testids
+    (`todo-layout-<id>`, `todo-layout-<id>-v<version>`; `delivery-mapping-<id>`, `delivery-mapping-<id>-v<version>`).
+    "Only what needs me" is on every area (`only-<area>`) and leaves out what is done and what is there to read: kept
+    values, the proposal's lists, the sources read, the studies in the model, "Add observed data" and every dataset.
+    On a phone the selected area stays in view when the badges arrive and widen the tabs. The folds "Blocks nothing"
+    and "Done" show ▸/▾, and "Settle here" names the form it opens (`aria-controls`). The delivery's line names every
+    delivery's arrival ("Received in 2 deliveries: …; …"), not only the last.
+  - **Tests.** `inputs-work` (pure; the fixture now holds the six delivery cards, trimmed): the cards' facts, required
+    items and failed checks counted once each, the confirm row's steps and gate, a card not read yet, the alias counted
+    in Client files, the two versions of a layout, the reasons the clean-up gives (only blinded studies, all signed,
+    all with the sheet form), and a card confirmed with the sheet form Done. Updated: delivery (the row's one status,
+    the layout "To decide", the steps in words, the dialog's coverage words), inputs-frame (Client files linked on a
+    phone stays in view), client-documents and studies-client-sheets (no AI button while AI is off).
 - **Why:** the owner, 2026-11-14 (the page is repetitive and unclear, and a person cannot tell what is missing); the
   audit: the counters covered only the sheet form while the delivery's 10 layouts, 366 values and 77 numbers counted
   nowhere, four "what is missing" lists disagreed, each file was listed in up to six places with contradictory states
@@ -125,11 +185,16 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
   names.
 - **Impact:** frontend only; no API, rule or science change (the join reads `legacy_groups`, added by the API changes of
   this plan). The status line and the badges now count the delivery's work too, so their numbers are larger on a
-  project with delivered files (exampleamide: 13 missing · 12 to confirm · 24 to decide; clientamide: 6 · 5 · 2).
+  project with delivered files (exampleamide, after the review, with its delivery cards: 27 missing · 12 to confirm · 27
+  to decide; clientamide: 6 · 5 · 2). The page also reads the cards of the subjects signed on the delivery and not
+  signed yet (six on exampleamide, 25-120 KB each) once it is idle, two at a time, and again after a decision, as it
+  reads its other resources. Done now includes a delivery subject confirmed with the sheet form (whichever is
+  confirmed first is what loads).
   Not in this slice (plan §4): the cards (slice 3: one card per study with its confirm path, the gate line, the
   categorized study list, the delivery subject cards leaving Client files), the batch tables (slice 4: layout queue,
-  link table with arms, not-read table, bulk reasons, focus after a decision, cache writes), the cards' and
-  `FileItem`'s own words (changed in parallel by the slice-3/4 work). Deviations recorded in the plan's §5.
+  link table with arms, not-read table, bulk reasons, focus after a decision, cache writes), the raw places in
+  `FileItem` and the "Values not linked" list (changed in parallel on the ux-fill branch). Deviations recorded in the
+  plan's §5.
 
 ### Changed — the Inputs page frame: a compact head, one bar of areas that stays in view, To do and Client files (plan 2026-11-14, slice 1)
 - **What:**

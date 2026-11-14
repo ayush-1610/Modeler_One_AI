@@ -62,14 +62,14 @@ test("a delivery is reviewed by exception, spot-checked, signed and loaded once"
   for (const f of files) await expect(page.getByTestId(`file-state-${f.name}`)).toHaveText(f === pdf ? "partly read" : "read");
   // a file's own reading opens under its row: its regions, and how long each stage took
   await page.getByTestId(`file-toggle-${pdf.name}`).click();
-  await expect(page.getByTestId(`delivery-file-state-${pdf.file_id}`)).toHaveText("read");
+  await expect(page.getByTestId(`delivery-file-state-${pdf.file_id}`)).toHaveText("partly read");   // the row's one status
   await page.getByTestId(`delivery-file-toggle-${pdf.file_id}`).click();
   await expect(page.getByTestId(`delivery-regions-${pdf.file_id}`)).toContainText("no model is configured");   // its prose: not read, and why
-  await expect(page.getByTestId(`delivery-stages-${pdf.file_id}`)).toContainText("parse");
+  await expect(page.getByTestId(`delivery-stages-${pdf.file_id}`)).toContainText("finding the tables and texts");
   await page.getByTestId(`file-toggle-${pdf.name}`).click();
   await expect(page.getByTestId(`delivery-regions-${pdf.file_id}`)).toHaveCount(0);
   await expect(section.getByTestId("delivery-files")).toHaveCount(0);                        // no second list of the files
-  await expect(section.getByTestId(`delivery-mapping-${waiting}`)).toContainText("waits for approval");
+  await expect(section.getByTestId(`delivery-mapping-${waiting}`)).toContainText("To decide");   // it holds up the study's signature
   await shot(page, "1-coverage");
 
   // --- a value's source: its cell highlighted, with its time ---
@@ -192,7 +192,7 @@ test("a delivery is reviewed by exception, spot-checked, signed and loaded once"
   const dialog = page.getByTestId("delivery-confirm-dialog");
   await expect(dialog.getByTestId("delivery-confirm-record")).toContainText("230-23");
   await expect(dialog.getByTestId("delivery-confirm-rules")).toContainText("rules UNVERIFIED v0.1");
-  await expect(dialog.getByTestId("delivery-confirm-coverage")).toContainText("silent loss 0");
+  await expect(dialog.getByTestId("delivery-confirm-coverage")).toContainText("0 numbers in tables not read");
   await expect(dialog.getByTestId("delivery-confirm-blockers")).toHaveCount(0);
   await shot(page, "7-confirm");
   // the API's refusal of a signature without a recent step-up opens the step-up over the dialog (the Keycloak

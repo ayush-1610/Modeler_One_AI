@@ -237,11 +237,13 @@ function TypedTable({ projectId, run, options }: { projectId: string; run: Run; 
  *  & sign), whether it is blinded (D-15), its regimen and whether it is used; then the other ways to add observed data.
  *  The client's clinical and bioanalytical files, each data sheet with its reading (R3c), are in the Client files area
  *  (plan 2026-11-14 slice 1). */
-export function StudiesTab({ studies, todo, projectId, run, options, onIndividuals, client, intent }: {
+export function StudiesTab({ studies, todo, projectId, run, options, onIndividuals, client, intent, only = false }: {
   studies: StudyRow[]; todo: TodoItem[]; projectId: string; run: Run; options: Options; onIndividuals: () => void;
   client: ClientView | undefined;
   /** "Type a table in" or "Digitize a figure", chosen in the head's "Add data" */
   intent?: Intent | null;
+  /** "Only what needs me": the open items only, not the studies in the model, what to add or every dataset */
+  only?: boolean;
 }) {
   const unpromised = client?.reconciliation.unpromised ?? [];
   const [typing, setTyping] = useState(false);
@@ -252,6 +254,7 @@ export function StudiesTab({ studies, todo, projectId, run, options, onIndividua
     setTyping(true);
     window.setTimeout(() => document.querySelector('[data-testid="typed-table"]')?.scrollIntoView({ block: "start", behavior: "smooth" }), 80);
   }, [intent]);
+  if (only) return <>{todo.map((t, i) => <TodoCard key={`${t.kind}-${t.target}-${i}`} t={t} projectId={projectId} run={run} />)}</>;
   return (
     <>
       {todo.map((t, i) => <TodoCard key={`${t.kind}-${t.target}-${i}`} t={t} projectId={projectId} run={run} />)}

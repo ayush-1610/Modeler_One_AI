@@ -193,13 +193,15 @@ export function ObservedDatasets({ projectId, run, digitize }: {
       <div className="spread">
         <h3>Every dataset ({view.datasets.length})</h3>
         <div className="row">
-          <button type="button" className="btn" disabled={!view.agents.enabled || view.running} data-testid="find-observed"
-                  title={view.agents.enabled ? undefined : "agents are off: add data from the client's files, a figure or a typed table"}
-                  onClick={() => void run(() => send("post", "/api/v1/projects/{project_id}/evidence:research", { project_id: projectId },
-                                                     undefined, { agent: "A3" }),
-                                          "The observed-data agent is searching; datasets appear as it records them.")}>
-            {view.running ? "Searching…" : "Find observed data (agent)"}
-          </button>
+          {/* the agent's button only while AI is on */}
+          {view.agents.enabled && (
+            <button type="button" className="btn" disabled={view.running} data-testid="find-observed"
+                    onClick={() => void run(() => send("post", "/api/v1/projects/{project_id}/evidence:research", { project_id: projectId },
+                                                       undefined, { agent: "A3" }),
+                                            "The observed-data agent is searching; datasets appear as it records them.")}>
+              {view.running ? "Searching…" : "Find observed data with AI"}
+            </button>
+          )}
           <button type="button" className="btn" onClick={() => setDigitizing(!digitizing)} data-testid="open-digitizer">
             {digitizing ? "Close the digitizer" : "Digitize a figure"}
           </button>

@@ -2,7 +2,7 @@
 // changes state with `useMutation`. A change that succeeds refreshes the resources on the page and the server-rendered
 // parts of it, the phase rail among them, so a page cannot show a status its own change made stale.
 
-import { keepPreviousData, useMutation as useQueryMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation as useQueryMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useCallback } from "react";
 
@@ -49,6 +49,43 @@ export function useResource<R extends RouteFor<"get">, T = Data<R, "get">>(
     placeholderData: keepPrevious ? keepPreviousData : undefined,
   });
   return { data: result.data ?? null, problem: result.error?.message ?? null };
+}
+
+// the reads of `useResources` go out a few at a time, so the page's own reads are not queued behind them
+let reading = 0;
+const queued: (() => void)[] = [];
+async function fewAtATime<T>(limit: number, read: () => Promise<T>): Promise<T> {
+  while (reading >= limit) await new Promise<void>((go) => queued.push(go));
+  reading += 1;
+  try {
+    return await read();
+  } finally {
+    reading -= 1;
+    queued.shift()?.();
+  }
+}
+
+/** Typed reads of one route for each of several parameters (the cards of a list), cached under the key `useResource`
+ *  gives each, so a page that shows one of them reads it once. `limit` reads at most that many at a time; `enabled`
+ *  holds them back (until the page is idle); `staleTime` keeps an answer that long before a new one is read. `at`
+ *  changes whenever an answer or a problem arrives. */
+export function useResources<R extends RouteFor<"get">>(
+  route: R, list: Params<R>[], options: { enabled?: boolean; limit?: number; staleTime?: number } = {},
+): (Resource<Data<R, "get">> & { at: number })[] {
+  const { enabled = true, limit = 2, staleTime = 0 } = options;
+  const results = useQueries({
+    queries: list.map((params) => ({
+      queryKey: [route, params, {}],
+      queryFn: () => fewAtATime(limit, async () => {
+        const env = await get(route, params);
+        if (env.errors?.length || env.data === null) throw new ApiProblem(env.errors?.[0]?.message ?? "no answer");
+        return env.data;
+      }),
+      enabled, staleTime,
+    })),
+  });
+  return results.map((r) => ({ data: (r.data as Data<R, "get"> | undefined) ?? null, problem: r.error?.message ?? null,
+                               at: Math.max(r.dataUpdatedAt, r.errorUpdatedAt) }));
 }
 
 /** Read the page's resources again, after a refusal that says the server moved on (a run already going elsewhere). */

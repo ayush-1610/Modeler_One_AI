@@ -13,7 +13,7 @@ import { TabPanel, Tabs } from "@/components/kit/Tabs";
 import { narrow, send, type Envelope, type Narrow, type Schema } from "@/lib/api";
 import { TAG_LABELS } from "@/lib/fileTags";
 import { useMutation, useRefresh, useResource } from "@/lib/hooks";
-import { areaHead, nextText, type WorkItem } from "@/lib/inputsWork";
+import { areaHead, nextText, onDelivery, statusSummary, type WorkItem } from "@/lib/inputsWork";
 import { type ArtifactView, STEP_ROUTES } from "@/lib/pipeline";
 import { AREA_NAME, STATUS_MEANS, plural as count } from "@/lib/words";
 
@@ -227,7 +227,10 @@ export function InputsWorkspace({ projectId, initialTab, initialOnly, initialSta
   // the client's data, by the domain it lands in (plan 2026-11-03 §3.3)
   const groups = review.data?.groups ?? [];
   const groupsFor = (t: Tab) => groups.filter((g) => g.tab === t && (!only || g.state === "to_confirm"));
-  const confirmHere = (t: Tab) => <ConfirmGroups projectId={projectId} groups={groupsFor(t)} run={run} focus={groupFocus} />;
+  // a sheet-form card of a study or product also signed on the delivery: both paths stay open (plan §2.2.1), and the
+  // card says so
+  const onBoth = new Set(model.subjects.filter((s) => s.path === "delivery" && !s.done).flatMap((s) => s.groups.map((g) => g.id)));
+  const confirmHere = (t: Tab) => <ConfirmGroups projectId={projectId} groups={groupsFor(t)} run={run} focus={groupFocus} onDelivery={onBoth} />;
   const forTab = (t: Tab) => todo.filter((i) => (i.tab ?? "compound") === t);
   // a group to confirm is settled on its own card, above the panel: listed in To do, not twice in the panel
   const panelTodo = (t: Tab) => forTab(t).filter((i) => i.kind !== "confirm");
@@ -240,6 +243,8 @@ export function InputsWorkspace({ projectId, initialTab, initialOnly, initialSta
   const formulations = view.compound.filter((r) => /^form\.[^.]+\.type$/.test(r.id) && r.state === "kept").map((r) => r.id.split(".")[1]);
   const files = client.data?.files ?? [];
   const unplaced = files.filter((f) => !fileArea(f)).length;
+  // an area's rows as listed: with "Only what needs me", a value already kept is left out
+  const listed = (t: Tab) => rows(t).filter((r) => !only || r.state !== "kept");
 
   // a published OSP model of the drug as a source (in place of the old Quick start): its values and datasets flow in,
   // ranked below the client and the literature (D-32), and the person checks them at the review like any other
@@ -294,6 +299,7 @@ export function InputsWorkspace({ projectId, initialTab, initialOnly, initialSta
   const openGroup = (group: string, t: Tab) => { setTab(t); setGroupFocus({ group, at: Date.now() }); bringIntoView(`group-${group}`); };
   // a tool the head's "Add data" opens on Clinical studies
   function startStudies(what: Intent["what"]) {
+    if (only) setOnly(false);   // the tool opens among what is there to add, not under "Only what needs me"
     setTab("studies");
     setIntent({ what, at: Date.now() });
   }
@@ -315,19 +321,38 @@ export function InputsWorkspace({ projectId, initialTab, initialOnly, initialSta
     badge: id === "files" && unplaced > 0 ? <span className="chip medium" data-testid="files-unplaced"
                                                   title="files not filed under an area yet: say what each is">{unplaced} to place</span> : null,
   }));
-  // each area's one line: what it holds and what is open in it, counted from the same list as its badge; "Only what needs
-  // me" (in the URL, as on To do and Client files) folds away the client's cards already confirmed
-  const areaLine = (t: Exclude<Tab, "todo" | "files">) => (
-    <div className="area-head-row">
-      <p className="area-head" data-testid={`area-head-${t}`}>{areaHead(model, t)}</p>
-      {groups.some((g) => g.tab === t) && (
-        <label className="only-mine">
-          <input type="checkbox" checked={only} onChange={(e) => setOnly(e.target.checked)} data-testid={`only-${t}`} />
-          Only what needs me
-        </label>
-      )}
-    </div>
-  );
+  // each area's one line: what it holds and what is open in it, counted from the same list as its badge; the cards of
+  // its studies or products signed on the delivery, which open in Client files until they move into their area (slice
+  // 3), named with what is open on each; "Only what needs me" (in the URL, as on To do and Client files) leaves out
+  // what is done and what is there to read (the proposal's lists, the sources read, every dataset)
+  const areaLine = (t: Exclude<Tab, "todo" | "files">) => {
+    const there = onDelivery(model, t);
+    return (
+      <>
+        <div className="area-head-row">
+          <p className="area-head" data-testid={`area-head-${t}`}>{areaHead(model, t)}</p>
+          <label className="only-mine">
+            <input type="checkbox" checked={only} onChange={(e) => setOnly(e.target.checked)} data-testid={`only-${t}`} />
+            Only what needs me
+          </label>
+        </div>
+        {there.length > 0 && (
+          <p className="area-elsewhere muted" data-testid={`area-elsewhere-${t}`}>
+            {count(there.length, t === "studies" ? "study is" : "product is", t === "studies" ? "studies are" : "products are")} signed on the
+            delivery: {there.length === 1 ? "its card is" : "their cards are"} in Client files for now, counted here.{" "}
+            {there.map(({ subject, open, confirm }, i) => (
+              <span key={subject.key}>
+                {i > 0 && " · "}
+                <button type="button" className="link-btn" data-testid={`area-elsewhere-${t}-${subject.row!.subject}`}
+                        onClick={() => confirm && go(confirm)}>{subject.label}</button>
+                {open.length > 0 && <span> ({statusSummary(open)})</span>}
+              </span>
+            ))}
+          </p>
+        )}
+      </>
+    );
+  };
 
   return (
     <PageShell {...head}
@@ -377,6 +402,9 @@ export function InputsWorkspace({ projectId, initialTab, initialOnly, initialSta
                     onClick={() => toggleStatus("to_decide")} title={STATUS_MEANS.to_decide}>To decide <span className="status-num">{counts.to_decide}</span></button>
           )}
           {counts.done > 0 && <span className="muted" data-testid="status-done">{counts.done} done</span>}
+          {model.checking > 0 && <span className="muted status-note" data-testid="status-checking"
+                                       title="What holds each study or product signed on the delivery is read from its card">
+            checking {count(model.checking, "card")}…</span>}
           <span className="muted status-note" data-testid="status-in-model"
                 title="What the model holds now: the client's data only once confirmed">
             In the model: {count(inModel.studies, "study", "studies")} · {plural(inModel.formulations, "formulation")} · {plural(inModel.values, "compound value")}
@@ -403,28 +431,28 @@ export function InputsWorkspace({ projectId, initialTab, initialOnly, initialSta
       {tab === "compound" && (
         <TabPanel prefix="inputs" id="compound">
           {areaLine("compound")}
-          {literature.data?.sources && <SourcesRead run={literature.data.sources} />}{confirmHere("compound")}
-          <ValueReuse projectId={projectId} run={run} />
-          <InputRows rows={rows("compound")} todo={panelTodo("compound")} projectId={projectId} run={run} grouped
-                   empty="The compound's values appear here as the client's files, the literature and PubChem fill them." />
-          <AccessRequests projectId={projectId} run={run} /></TabPanel>
+          {!only && literature.data?.sources && <SourcesRead run={literature.data.sources} />}{confirmHere("compound")}
+          {!only && <ValueReuse projectId={projectId} run={run} />}
+          <InputRows rows={listed("compound")} todo={panelTodo("compound")} projectId={projectId} run={run} grouped
+                   empty={only ? "Nothing on Compound needs you now." : "The compound's values appear here as the client's files, the literature and PubChem fill them."} />
+          {!only && <AccessRequests projectId={projectId} run={run} />}</TabPanel>
       )}
 
       {tab === "formulations" && (
         <TabPanel prefix="inputs" id="formulations">{areaLine("formulations")}{confirmHere("formulations")}
           <>
-          <BriefList projectId={projectId} group="products" testId="inputs-products"
+          {!only && <BriefList projectId={projectId} group="products" testId="inputs-products"
                      fields={["name", "role", "dosage_form", "strength", "release", "attributes"]}
                      title="The products the proposal names"
-                     lede="Each product is built as its own formulation; the data plan asks for its dissolution and, for a test and its reference, the study that compares them." />
-          <InputRows rows={rows("formulations")} todo={panelTodo("formulations")} projectId={projectId} run={run}
-                     empty="No formulation yet: a solution needs none; a tablet's release comes from its dissolution profile or the literature." />
-          {used.some((s) => SOLID.includes(String(s.facts.formulation))) && (
+                     lede="Each product is built as its own formulation; the data plan asks for its dissolution and, for a test and its reference, the study that compares them." />}
+          <InputRows rows={listed("formulations")} todo={panelTodo("formulations")} projectId={projectId} run={run}
+                     empty={only ? "Nothing else on Products and dissolution needs you now." : "No formulation yet: a solution needs none; a tablet's release comes from its dissolution profile or the literature."} />
+          {used.some((s) => SOLID.includes(String(s.facts.formulation)) && (!only || !s.facts.formulation_name)) && (
             <section className="card">
               <h3 className="mt-0">The formulation of each solid study</h3>
               <table>
                 <tbody>
-                  {used.filter((s) => SOLID.includes(String(s.facts.formulation))).map((s) => (
+                  {used.filter((s) => SOLID.includes(String(s.facts.formulation)) && (!only || !s.facts.formulation_name)).map((s) => (
                     <tr key={s.study_id} data-testid={`formulation-${s.study_id}`}>
                       <td><strong>{s.study_id}</strong> <span className="muted">{String(s.facts.formulation).replace("_", " ")}</span></td>
                       <td>{s.facts.formulation_name ? String(s.facts.formulation_name)
@@ -447,27 +475,30 @@ export function InputsWorkspace({ projectId, initialTab, initialOnly, initialSta
       {tab === "individuals" && (
         <TabPanel prefix="inputs" id="individuals">
           {areaLine("individuals")}
-          <BriefList projectId={projectId} group="populations" testId="inputs-populations"
+          {!only && <BriefList projectId={projectId} group="populations" testId="inputs-populations"
                      fields={["kind", "age_range", "sex", "ethnicity", "impairment_class", "genotype", "species"]}
                      title="The populations the proposal names"
-                     lede="The populations the predictions are made for; each study below is simulated in its own individual." />
+                     lede="The populations the predictions are made for; each study below is simulated in its own individual." />}
           {panelTodo("individuals").filter((t) => t.kind !== "demographics").length > 0 && (
             <InputRows rows={[]} todo={panelTodo("individuals").filter((t) => t.kind !== "demographics")} projectId={projectId} run={run} empty="" />
           )}
+          {!only && <>
           <h3>Each study&apos;s individual</h3>
           <StudyIndividuals studies={studies} projectId={projectId} run={run} options={options} />
           <h3>Values set on the individual</h3>
-          <InputRows rows={rows("individuals")} todo={[]} projectId={projectId} run={run}
+          <InputRows rows={listed("individuals")} todo={[]} projectId={projectId} run={run}
                      empty="None: enzyme and transporter expression and individual values appear here when a source gives them." />
+          </>}
+          {only && listed("individuals").length > 0 && <InputRows rows={listed("individuals")} todo={[]} projectId={projectId} run={run} empty="" />}
         </TabPanel>
       )}
 
       {tab === "settings" && (
         <TabPanel prefix="inputs" id="settings">
           {areaLine("settings")}
-          <InputRows rows={rows("settings")} todo={panelTodo("settings")} projectId={projectId} run={run}
-                     empty="The calculation methods are PK-Sim's defaults unless the published model sets them." />
-          <section className="card">
+          <InputRows rows={listed("settings")} todo={panelTodo("settings")} projectId={projectId} run={run}
+                     empty={only ? "Nothing on Simulation settings needs you now." : "The calculation methods are PK-Sim's defaults unless the published model sets them."} />
+          {!only && <section className="card">
             <h3 className="mt-0">Solver settings</h3>
             <table>
               <tbody>
@@ -485,13 +516,13 @@ export function InputsWorkspace({ projectId, initialTab, initialOnly, initialSta
             </table>
             <InlineIssue severity="note">Each study is simulated over its whole sampled window. Prediction regimens are applications,
               set on Review &amp; sign.</InlineIssue>
-          </section>
+          </section>}
         </TabPanel>
       )}
 
       {tab === "studies" && (
         <TabPanel prefix="inputs" id="studies">{areaLine("studies")}{confirmHere("studies")}<StudiesTab studies={studies} todo={panelTodo("studies")} projectId={projectId} run={run} options={options}
-                    onIndividuals={() => setTab("individuals")} client={client.data ?? undefined} intent={intent} /></TabPanel>
+                    onIndividuals={() => setTab("individuals")} client={client.data ?? undefined} intent={intent} only={only} /></TabPanel>
       )}
 
       {tab === "files" && (

@@ -57,11 +57,11 @@ test("a Word synopsis is read for its study's facts, and its dose against the PK
   await expect(files.getByTestId("open-file-EX-301_synopsis.docx")).toHaveText("Clinical studies");
   await expect(page.getByTestId("document-EX-301_synopsis.docx")).toBeVisible();     // still open on its row
 
-  // before the reading: code's inventory of the synopsis, and the agent's button (off: no LLM provider here)
+  // before the reading: code's inventory of the synopsis; the agent's button only while AI is on (off: no LLM provider here)
   const doc = page.getByTestId("document-EX-301_synopsis.docx");
   await expect(doc).toContainText("Code found project data on 1 page");
   await expect(doc.getByTestId("inventory-1-design")).toContainText("single oral dose of 10 mg");
-  await expect(doc.getByTestId("read-doc-EX-301_synopsis.docx")).toBeDisabled();
+  await expect(doc.getByTestId("read-doc-EX-301_synopsis.docx")).toHaveCount(0);
   await files.getByTestId("open-file-EX-301_synopsis.docx").click();                  // its data land on Clinical studies
   await expect(page.getByTestId("tab-studies")).toHaveAttribute("aria-selected", "true");
   await expect(page.getByTestId("group-study:EX-301")).not.toContainText("Conflict");

@@ -112,15 +112,16 @@ function DocumentReading({ projectId, file, agents, running, agentReading, act }
       <div className="spread">
         <span className="muted">
           {items.length > 0 ? `Code found project data on ${new Set(items.map((i) => i.page)).size} page${new Set(items.map((i) => i.page)).size === 1 ? "" : "s"}:`
-                            : "Code found no page that clearly holds project data; the agent can still look through the file."}
+                            : `Code found no page that clearly holds project data${agents ? "; the agent can still look through the file" : ""}.`}
         </span>
-        <button className={`btn${last ? "" : " primary"}`} disabled={!agents || running} data-testid={`read-doc-${file.file}`}
+        {/* the agent's button only while AI is on (design "Client files": agent buttons appear only while AI is on) */}
+        {agents && <button className={`btn${last ? "" : " primary"}`} disabled={running} data-testid={`read-doc-${file.file}`}
                 title={agents ? "Agent A4 reads the file; code checks every value against its page" : "agents are off"}
                 onClick={async () => setNotice(await act(() => send("post", "/api/v1/projects/{project_id}/client-data/{sid}:read",
                                                                     { project_id: projectId, sid: file.id }, {}))
                   ?? "Agent A4 reads the file, after any file queued before it. What code accepts appears in its study or product, to confirm.")}>
-          {agentReading ? "Reading…" : last ? "Read again (agent)" : "Read the data in this file (agent)"}
-        </button>
+          {agentReading ? "Reading…" : last ? "Read again with AI" : "Read the data in this file with AI"}
+        </button>}
       </div>
       {items.length > 0 && (
         <ul className="doc-inventory">
@@ -155,11 +156,13 @@ function DocumentReading({ projectId, file, agents, running, agentReading, act }
   );
 }
 
-function FileCard({ projectId, file, agents, running, agentReading, act, onRetag, reading, setReading, onSaved, last, remember }: {
+function FileCard({ projectId, file, agents, running, agentReading, act, onRetag, reading, setReading, onSaved, last, remember, inRow }: {
   projectId: string; file: ClientFile; agents: boolean; running: boolean; agentReading: boolean; act: Act; onRetag?: Retag;
   reading: string | null;
   setReading: (sheet: string | null) => void; onSaved: (message: string) => Promise<void>;
   last: { form: SheetForm; study: Study } | null; remember: (s: { form: SheetForm; study: Study }) => void;
+  /** under the file's row in the table of files, which says its name */
+  inRow?: boolean;
 }) {
   const [notice, setNotice] = useState<string | null>(null);
   const spreadsheet = file.triage.length > 0;
@@ -170,24 +173,24 @@ function FileCard({ projectId, file, agents, running, agentReading, act, onRetag
     <div className="file-card" data-testid={`client-file-${file.file}`} id={`client-file-${file.id}`}>
       <div className="spread">
         <div className="row">
-          <strong>{file.file}</strong>
+          {!inRow && <strong>{file.file}</strong>}
           <span className={`chip ${file.template ? "low" : "neutral"}`}>{file.template ? "client-data template" : file.kind}</span>
           {file.datasets.length > 0 && <span className="chip neutral">{plural(file.datasets.length, "dataset")}</span>}
           {file.evidence.length > 0 && <span className="chip neutral">{plural(file.evidence.length, "value")}</span>}
           {file.dissolution.length > 0 && <span className="chip neutral">{plural(file.dissolution.length, "dissolution row")}</span>}
         </div>
         <div className="row">
-          {spreadsheet && !file.template && undecided && (
-            <button className="btn" disabled={!agents || running} title={agents ? undefined : "agents are off"}
+          {agents && spreadsheet && !file.template && undecided && (
+            <button className="btn" disabled={running}
                     onClick={async () => setNotice(await act(() => send("post", "/api/v1/projects/{project_id}/client-data/{sid}:triage", { project_id: projectId, sid: file.id }))
-                      ?? "Agent A4 is sorting the unsorted sheets.")}>Sort the unsorted sheets (agent)</button>
+                      ?? "Agent A4 is sorting the unsorted sheets.")}>Sort the unsorted sheets with AI</button>
           )}
-          {spreadsheet && !file.template && unread > 0 && (
-            <button className="btn" disabled={!agents || running} title={agents ? undefined : "agents are off: read each sheet with the form"}
+          {agents && spreadsheet && !file.template && unread > 0 && (
+            <button className="btn" disabled={running}
                     data-testid={`read-agent-${file.file}`}
                     onClick={async () => setNotice(await act(() => send("post", "/api/v1/projects/{project_id}/client-data/{sid}:read", { project_id: projectId, sid: file.id }, {}))
                       ?? "Agent A4 reads the data sheets, after any file queued before them. Each reading opens on its sheet once code has checked it.")}>
-              {agentReading ? "Reading the sheets…" : `Read the data sheets (agent, ${unread})`}
+              {agentReading ? "Reading the sheets…" : `Read the ${unread} data sheets with AI`}
             </button>
           )}
         </div>
@@ -330,9 +333,11 @@ export function Dissolution({ projectId, d, act }: {
 /** The client's files: each sheet with what it holds and whether it is read, the agent's proposed readings, and the reader
  *  opened on one sheet. On Inputs each file's card opens under its row in Client files (plan 2026-11-14 slice 1): `files`
  *  is that one file, and `memory` carries the last sheet form from one file's card to the next. */
-export function ClientFiles({ projectId, view, files, act, onRetag, onSaved, memory }: {
+export function ClientFiles({ projectId, view, files, act, onRetag, onSaved, memory, inRow }: {
   projectId: string; view: View; files?: ClientFile[]; act: Act; onRetag?: Retag; onSaved: (message: string) => Promise<void>;
   memory?: SheetMemory;
+  /** shown under the file's own row (Inputs › Client files): its name is not said again */
+  inRow?: boolean;
 }) {
   const [reading, setReading] = useState<{ file: string; sheet: string } | null>(null);
   const [own, setOwn] = useState<{ form: SheetForm; study: Study } | null>(null);
@@ -343,7 +348,7 @@ export function ClientFiles({ projectId, view, files, act, onRetag, onSaved, mem
         <FileCard key={f.id} projectId={projectId} file={f} agents={view.agents.enabled} running={view.running}
                   agentReading={view.reading} act={act} onRetag={onRetag} reading={reading?.file === f.id ? reading.sheet : null}
                   setReading={(sheet) => setReading(sheet ? { file: f.id, sheet } : null)}
-                  onSaved={onSaved} last={last} remember={setLast} />
+                  onSaved={onSaved} last={last} remember={setLast} inRow={inRow} />
       ))}
     </>
   );

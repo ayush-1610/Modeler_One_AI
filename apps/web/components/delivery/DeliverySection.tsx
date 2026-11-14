@@ -12,8 +12,10 @@ import { useEffect, useRef, useState } from "react";
 
 import { send } from "@/lib/api";
 import { useRefresh, useResource } from "@/lib/hooks";
-import type { Subject } from "@/lib/inputsWork";
-import { AREA_NAME, type Tab, layoutOrigin, placeText, plural as count, rulesText, tableKindText, whenText } from "@/lib/words";
+import { layoutAnchor, type Subject, type WorkItem, type WorkModel } from "@/lib/inputsWork";
+import {
+  AREA_NAME, type Tab, engineWords, layoutOrigin, placeText, plural as count, rulesText, stageText, tableKindText, whenText,
+} from "@/lib/words";
 
 import { MappingReview } from "./MappingReview";
 import {
@@ -33,17 +35,19 @@ const scopeOf = (r: Region) => (r.kind === "prose" ? "unread_prose" : r.kind ===
 function coverageLine(f: FileRow): string {
   const c = f.coverage;
   if (!c) return "";
-  return [`${plural(c.regions, "region")}: ${c.regions_mapped} read, ${c.regions_excluded} set aside, ${c.regions_unread} not read`,
-          `silent loss ${c.silent_loss}`, `${plural(c.outside_numeric, "number")} outside every table`,
-          `${plural(c.values_unassigned, "value")} with no study`,
-          c.needs_ocr_pages.length ? `${plural(c.needs_ocr_pages.length, "page")} need OCR` : "",
+  return [`${plural(c.regions, "table or text", "tables and texts")}: ${c.regions_mapped} read, ${c.regions_excluded} not data, ${c.regions_unread} not read`,
+          c.silent_loss ? `${plural(c.silent_loss, "number")} in tables not read` : "", c.outside_numeric ? plural(c.outside_numeric, "loose number") : "",
+          c.values_unassigned ? `${plural(c.values_unassigned, "value")} not linked to a study` : "",
+          c.needs_ocr_pages.length ? `${plural(c.needs_ocr_pages.length, "page")} to read as images` : "",
           c.anchors_unresolved ? `${plural(c.anchors_unresolved, "place")} not found again` : ""].filter(Boolean).join(" · ");
 }
 
-function FileItem({ projectId, file, first, decide, busy, onMapping }: {
+function FileItem({ projectId, file, first, decide, busy, onMapping, inRow = false }: {
   projectId: string; file: FileRow;
   /** a repeat's regions are listed on the first arrival of the same bytes */
   first: FileRow | undefined; decide: Decide; busy: boolean; onMapping: (id: string) => void;
+  /** under the file's row in the table of files, which says its name and its one status (plan 2026-11-14 §2 rule 4) */
+  inRow?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [aside, setAside] = useState<string | null>(null);
@@ -55,13 +59,13 @@ function FileItem({ projectId, file, first, decide, busy, onMapping }: {
   return (
     <li className="delivery-file" data-testid={`delivery-file-${file.file_id}`} data-state={file.state}>
       <div className="delivery-file-line">
-        <ChipFor state={file.state} table={FILE_STATE} testId={`delivery-file-state-${file.file_id}`} />
-        <span className="delivery-file-name">{file.name}</span>
+        {!inRow && <ChipFor state={file.state} table={FILE_STATE} testId={`delivery-file-state-${file.file_id}`} />}
+        {!inRow && <span className="delivery-file-name">{file.name}</span>}
         {file.container && <span className="muted">in {file.container.name}</span>}
         {file.repeat && <span className="chip neutral">the same file arrived before</span>}
         {file.blinded && <span className="chip neutral" data-testid={`delivery-file-blinded-${file.file_id}`}>holds a blinded study</span>}
         <button type="button" className="link-btn" aria-expanded={open} onClick={() => setOpen(!open)} data-testid={`delivery-file-toggle-${file.file_id}`}>
-          {open ? "Hide its regions" : "Show its regions"}</button>
+          {open ? "Hide its tables and texts" : "Show its tables and texts"}</button>
         <button type="button" className="btn tiny" disabled={busy} aria-label={`Read ${file.name} again`} data-testid={`delivery-file-run-${file.file_id}`}
                 onClick={() => void decide(() => send("post", RUN, { project_id: projectId }, { files: [file.sha256] }))}>Read again</button>
       </div>
@@ -74,8 +78,8 @@ function FileItem({ projectId, file, first, decide, busy, onMapping }: {
           {shown.regions.length > 0 ? (
             <div className="table-scroll">
               <table className="delivery-regions" data-testid={`delivery-regions-${file.file_id}`}>
-                <caption className="sr-only">The regions of {file.name}</caption>
-                <thead><tr><th>Where</th><th>What</th><th>State</th><th>Mapping</th><th className="num">Numeric cells</th><th /></tr></thead>
+                <caption className="sr-only">The tables and texts of {file.name}</caption>
+                <thead><tr><th>Where</th><th>What</th><th>State</th><th>Layout</th><th className="num">Numbers</th><th /></tr></thead>
                 <tbody>
                   {shown.regions.map((r) => (
                     <tr key={r.region_id} data-testid={`delivery-region-${r.region_id}`}>
@@ -87,11 +91,11 @@ function FileItem({ projectId, file, first, decide, busy, onMapping }: {
                         {r.mapping_id ? (
                           <button type="button" className="delivery-chip-btn" onClick={() => onMapping(r.mapping_id as string)}
                                   data-testid={`delivery-region-mapping-${r.region_id}`} title="Review how this table is read">
-                            <ChipFor state={r.mapping_status} table={MAPPING_STATE} /> v{r.mapping_version}{r.origin ? ` · ${fieldText(r.origin)}` : ""}
+                            <ChipFor state={r.mapping_status} table={MAPPING_STATE} /> version {r.mapping_version}{r.origin ? ` · ${layoutOrigin(r.origin)}` : ""}
                           </button>
                         ) : null}
                       </td>
-                      <td className="num">{r.numeric_cells ? `${r.used} used · ${r.excluded} set aside · ${r.silent} silent` : ""}</td>
+                      <td className="num">{r.numeric_cells ? `${r.used} read · ${r.excluded} not data · ${r.silent} not read` : ""}</td>
                       <td>
                         {r.state !== "excluded" && r.state !== "waiting" && aside !== r.region_id && (
                           <button type="button" className="link-btn" onClick={() => setAside(r.region_id)} data-testid={`delivery-region-aside-${r.region_id}`}>Not data…</button>
@@ -111,7 +115,7 @@ function FileItem({ projectId, file, first, decide, busy, onMapping }: {
           ))}
           {shown.outside.length > 0 && (
             <>
-              <h4 className="delivery-sub">Text with a number outside every table</h4>
+              <h4 className="delivery-sub">Loose numbers: text with a number outside every table</h4>
               <ul className="delivery-plain">
                 {shown.outside.map((o) => (
                   <li key={o.where} className={o.counted ? "delivery-check open" : "delivery-check"}>
@@ -127,17 +131,17 @@ function FileItem({ projectId, file, first, decide, busy, onMapping }: {
             </>
           )}
           {file.run && file.run.stages.length > 0 && (
-            <>
-              <h4 className="delivery-sub">How long each stage took <span className="muted">run {file.run.attempt}, {when(file.run.finished_at ?? file.run.started_at ?? file.run.queued_at)}</span></h4>
+            <details className="delivery-tech">
+              <summary>Technical details: how long each step of the reading took <span className="muted">reading {file.run.attempt}, {when(file.run.finished_at ?? file.run.started_at ?? file.run.queued_at)}</span></summary>
               <ul className="delivery-stages" data-testid={`delivery-stages-${file.file_id}`}>
                 {file.run.stages.map((s) => (
-                  <li key={s.stage} className={s.ok ? undefined : "failed"} title={s.detail}>
-                    <strong>{fieldText(s.stage)}</strong> {s.seconds < 0.01 ? "< 0.01" : s.seconds.toFixed(2)} s
-                    <span className="muted"> {s.detail}</span>
+                  <li key={s.stage} className={s.ok ? undefined : "failed"} title={engineWords(s.detail)}>
+                    <strong>{stageText(s.stage)}</strong> {s.seconds < 0.01 ? "< 0.01" : s.seconds.toFixed(2)} s
+                    <span className="muted"> {engineWords(s.detail)}</span>
                   </li>
                 ))}
               </ul>
-            </>
+            </details>
           )}
         </div>
       )}
@@ -159,7 +163,7 @@ function Standing({ s, unified, onOpenGroup }: {
       : c ? "signed; the loading is not finished" : "confirm and sign on its card"}</span></>;
   }
   const group = unified?.groups[0];
-  if (!group) return <><span className="chip neutral">waiting for confirmation</span> <span className="muted">confirmed on its card, not available yet</span></>;
+  if (!group) return <><span className="chip neutral">To confirm</span> <span className="muted">with the sheet form; its card is not available yet</span></>;
   const area = AREA_NAME[group.tab as Tab] ?? group.tab;
   if (unified?.done) return <><span className="chip low">Done</span> <span className="muted">confirmed with the sheet form, on {area}</span></>;
   return (
@@ -212,10 +216,11 @@ export function useDeliveryRefresh(projectId: string): Page | null {
   return read.data;
 }
 
-export function DeliverySection({ projectId, subjects = [], focus, onOpenGroup }: {
+export function DeliverySection({ projectId, work, focus, onOpenGroup }: {
   projectId: string;
-  /** the one card per study and product the work model joins (lib/inputsWork.ts), for each subject's standing */
-  subjects?: Subject[];
+  /** the one list of work (lib/inputsWork.ts): each subject's one card, for its standing, and whether each table layout
+   *  holds up a signature now (amber only then, plan 2026-11-14 §2 rule 5) */
+  work?: WorkModel;
   /** a subject's card to open and bring into view (a To do row, "Next"): `${subject_type}/${subject}` */
   focus?: { subject: string; at: number } | null;
   /** open a sheet-form card in its area (a template subject is confirmed there) */
@@ -239,16 +244,28 @@ export function DeliverySection({ projectId, subjects = [], focus, onOpenGroup }
 
   const files = page.deliveries.flatMap((d) => d.files);
   const t = page.totals;
-  const last = page.deliveries[page.deliveries.length - 1];
+  // when each delivery arrived and who sent it: every one of them, the files read counted over all
+  const arrived = page.deliveries.map((d) => `${whenText(d.at)} by ${d.by}`);
+  const received = arrived.length === 1 ? `Received ${arrived[0]}` : arrived.length ? `Received in ${arrived.length} deliveries: ${arrived.join("; ")}` : "";
   const summary = files.length
-    ? [last ? `Received ${whenText(last.at)}, by ${last.by}` : "", `${count(t.files, "file")} read`,
+    ? [received, `${count(t.files, "file")} read`,
        t.silent_loss ? `${count(t.silent_loss, "number")} not read` : "", t.outside_numeric ? count(t.outside_numeric, "loose number") : "",
        t.values_unassigned ? `${count(t.values_unassigned, "value")} not linked to a study` : ""].filter(Boolean).join(" · ")
     : "no client file has arrived yet";
+  const subjects: Subject[] = work?.subjects ?? [];
   const unified = (s: SubjectRow) => subjects.find((u) => u.row?.subject === s.subject && u.row.subject_type === s.subject_type);
+  // each layout's item in the one list: open (amber, To decide), or not counted now and why (neutral)
+  const layoutItem = (m: Page["mappings"][number]): WorkItem | undefined =>
+    work?.items.find((i) => i.id === `layout:${m.mapping_id}@${m.version}`);
+  const layoutsOpen = page.mappings.filter((m) => layoutItem(m)?.open).length;
+  // the one reason every layout not counted gives, said once in the list's lede instead of on each
+  const reasons = [...new Set(page.mappings.map((m) => layoutItem(m)).filter((i) => i && !i.open && i.why).map((i) => i!.why!))];
+  const oneReason = !layoutsOpen && reasons.length === 1 ? reasons[0] : null;
+  const waits = work ? work.items.some((i) => i.open && i.pipeline === "delivery" && i.area === "files")
+    : page.mappings.length > 0 || page.unassigned.length > 0;
 
   return (
-    <section className={`delivery${page.mappings.length || page.unassigned.length ? " waits" : ""}`} data-testid="delivery-section">
+    <section className={`delivery${waits ? " waits" : ""}`} data-testid="delivery-section">
       <div className="delivery-head">
         <strong>The delivery</strong>
         <span className="muted" data-testid="delivery-counts" role="status" aria-live="polite">{summary}</span>
@@ -275,20 +292,31 @@ export function DeliverySection({ projectId, subjects = [], focus, onOpenGroup }
           {page.mappings.length > 0 && (
             <section className="delivery-block" data-testid="delivery-mappings">
               <div className="delivery-block-head"><h3>Table layouts to check <span className="muted">({page.mappings.length})</span></h3></div>
-              <p className="muted fs-13 m-0">A table&apos;s layout decides which of its numbers become values. Until a person approves it, they can&apos;t be confirmed with a signature.</p>
+              <p className="muted fs-13 m-0">A table&apos;s layout decides which of its numbers become values.{" "}
+                {!work || layoutsOpen ? "Until a person approves it, they can't be confirmed with a signature."
+                  : oneReason ? `None of these holds up a signature now. ${oneReason} Check them for the delivery record.`
+                    : "None of these holds up a signature now (each says why): check them for the delivery record."}</p>
               <ul className="delivery-plain">
-                {page.mappings.map((m) => (
-                  <li key={`${m.mapping_id}-${m.version}`} className="delivery-check open" data-testid={`delivery-mapping-${m.mapping_id}`}>
+                {page.mappings.map((m) => {
+                  const item = layoutItem(m);
+                  const quiet = item && !item.open && !m.waiting;
+                  return (
+                  <li key={`${m.mapping_id}-${m.version}`} className={quiet ? "delivery-check" : "delivery-check open"} data-testid={layoutAnchor(m, page.mappings)}>
                     <div className="delivery-check-line">
-                      <ChipFor state={m.status} table={MAPPING_STATE} />
+                      {item?.open ? <span className="chip medium">To decide</span>
+                        : quiet ? <span className="chip neutral">{item.group === "tidy" ? "blocks nothing" : "holds up nothing yet"}</span>
+                          : <ChipFor state={m.status} table={MAPPING_STATE} />}
                       <span className="delivery-check-text">{tableKindText(m.kind)} · {m.used_in.map((u) => `${u.file}, ${placeText(u.where)}`).join("; ") || "no file uses it now"}
                         <span className="muted"> · {layoutOrigin(m.origin)} · version {m.version}</span></span>
                       {m.waiting && <span className="chip neutral">Reading…</span>}
-                      <button type="button" className="btn tiny" onClick={() => setMapping(m.mapping_id)} data-testid={`delivery-mapping-open-${m.mapping_id}`}
-                              aria-label={`Check the layout of the ${tableKindText(m.kind)} in ${m.used_in[0]?.file ?? "no file"}`}>Check layout</button>
+                      <button type="button" className="btn tiny" onClick={() => setMapping(m.mapping_id)}
+                              data-testid={layoutAnchor(m, page.mappings).replace("delivery-mapping-", "delivery-mapping-open-")}
+                              aria-label={`Check the layout of the ${tableKindText(m.kind)} in ${m.used_in[0]?.file ?? "no file"}, version ${m.version}`}>Check layout</button>
                     </div>
+                    {quiet && item.why && !oneReason && <p className="muted fs-12 m-0">{item.why}</p>}
                   </li>
-                ))}
+                  );
+                })}
               </ul>
             </section>
           )}

@@ -143,6 +143,11 @@ test("on a phone the areas are one row that scrolls sideways, and the page does 
     await expect(page.getByTestId(`tab-${area}`)).toHaveAttribute("aria-selected", "true");
     expect(await sideways(page), `no sideways page scroll on ${area}`).toBe(false);
   }
+  // the last area, linked: still in view once the badges arrive and widen the tabs before it
+  await page.goto(`/projects/${projectId}/inputs?tab=files`);
+  await expect(page.getByTestId("tab-files")).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByTestId("tab-todo").locator(".tab-count")).toBeVisible();
+  await expect.poll(() => selectedInView(page), "Client files in view with the counts").toBe(true);
   // an item of To do opens its area, and the row brings that area's tab into view
   await page.getByTestId("tab-todo").click();
   await page.locator("[data-testid^='missing-']").last().click();

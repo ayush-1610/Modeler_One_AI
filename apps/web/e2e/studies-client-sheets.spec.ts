@@ -39,7 +39,7 @@ test("a client sheet is read and saved on the Studies tab, next to the reading a
   await expect(page.getByTestId("files-reading-note")).toContainText("AI reading is off");
   await openFile(page, "Smith2015_Table2.xlsx");                 // its row opens on its sheets
   const sheets = page.getByTestId("client-file-Smith2015_Table2.xlsx");
-  await expect(sheets.getByTestId("read-agent-Smith2015_Table2.xlsx")).toBeDisabled();
+  await expect(sheets.getByTestId("read-agent-Smith2015_Table2.xlsx")).toHaveCount(0);   // the agent's button only while AI is on
   // code read the sheet on arrival (build C2); what it does not say is asked on the study's card, or here in the reader
   await expect(sheets.getByTestId("sheet-Mean PK")).toContainText("read by code");
 

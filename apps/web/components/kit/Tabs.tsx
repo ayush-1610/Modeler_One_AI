@@ -26,7 +26,9 @@ export function Tabs<T extends string>({ label, prefix, tabs, value, onChange, c
   label: string; prefix: string; tabs: TabItem<T>[]; value: T; onChange: (id: T) => void; className?: string;
 }) {
   const list = useRef<HTMLDivElement>(null);
-  // only the row scrolls, never the page: the selected tab is brought just inside the row's edge it lies beyond
+  // only the row scrolls, never the page: the selected tab is brought just inside the row's edge it lies beyond, again
+  // when the counts arrive and widen the tabs before it
+  const widths = tabs.map((t) => `${t.label}:${t.count ?? ""}:${t.badge ? 1 : 0}`).join("|");
   useEffect(() => {
     const row = list.current;
     const tab = row?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]');
@@ -34,7 +36,7 @@ export function Tabs<T extends string>({ label, prefix, tabs, value, onChange, c
     const edge = row.getBoundingClientRect(), box = tab.getBoundingClientRect();
     if (box.left < edge.left) row.scrollLeft -= edge.left - box.left + 8;
     else if (box.right > edge.right) row.scrollLeft += box.right - edge.right + 8;
-  }, [value]);
+  }, [value, widths]);
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     const at = tabs.findIndex((t) => t.id === value);
     const to = e.key === "ArrowRight" ? (at + 1) % tabs.length : e.key === "ArrowLeft" ? (at - 1 + tabs.length) % tabs.length

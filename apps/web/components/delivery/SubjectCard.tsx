@@ -14,6 +14,7 @@ import { SortHeader, TableFilter, TableMore } from "@/components/kit/SortableTab
 import { send, type Schema } from "@/lib/api";
 import { useResource } from "@/lib/hooks";
 import { numericKey, useTableView } from "@/lib/tableView";
+import { placeText, rulesText, tableKindText } from "@/lib/words";
 
 import { ConfirmDialog } from "./ConfirmDialog";
 import {
@@ -53,6 +54,7 @@ const STATUS: Record<string, { label: string; tone: string }> = {
 };
 
 type Entry = { field: string; supersedes?: string; value?: string; unit?: string };
+const capitalized = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
 
 /** A value a person enters or corrects, with the reason. A correction keeps the old value's time, labels and statistic. */
 function Enter({ entry, options, busy, onSubmit, onCancel, testId }: {
@@ -344,16 +346,16 @@ export function SubjectCard({ projectId, row, deliveries, onMapping }: {
   return (
     <div className="delivery-card" data-testid={`delivery-card-${s.subject}`}>
       <p className="muted m-0" data-testid={`delivery-card-counts-${s.subject}`}>
-        {KIND_LABEL[s.subject_type]} {s.label}: {plural(s.values, "value")}{levels ? ` (${levels})` : ""} · silent loss {s.silent_loss} ·
-        {" "}rules {s.rules.status} v{s.rules.version}
+        {KIND_LABEL[s.subject_type]} {s.label}: {plural(s.values, "value")}{levels ? ` (${levels})` : ""}
+        {s.silent_loss ? ` · ${plural(s.silent_loss, "number")} in its files not read` : ""} · {rulesText(s.rules)}
       </p>
       {s.blinded && <p className="delivery-withheld" data-testid={`delivery-blinded-${s.subject}`}>{WITHHELD}: this study is blinded until
         the MAP is signed. Its values, their spread and what is below the LLOQ are not shown, and it cannot be confirmed yet.</p>}
       {s.confirm_on === "client-review" && <InlineIssue severity="note" testId={`delivery-confirm-on-${s.subject}`}>A filled client-data
-        template: it is confirmed on its own card in the area of its data. Its coverage and values are shown here to read.</InlineIssue>}
+        template: it is confirmed with the sheet form, on its card in the area of its data. What the delivery read is shown here to read.</InlineIssue>}
       {s.loaded_elsewhere.length > 0 && <InlineIssue severity="note" testId={`delivery-loaded-elsewhere-${s.subject}`}>
-        {plural(s.loaded_elsewhere.length, "dataset")} of the same source {s.loaded_elsewhere.length === 1 ? "is" : "are"} in the project from
-        its own card already. Nothing is loaded twice.</InlineIssue>}
+        {plural(s.loaded_elsewhere.length, "dataset")} of the same source {s.loaded_elsewhere.length === 1 ? "is" : "are"} in the project
+        already, confirmed with the sheet form. Nothing is loaded twice.</InlineIssue>}
 
       {s.blockers.length > 0 ? (
         <div className="delivery-blocked" data-testid={`delivery-blockers-${s.subject}`}>
@@ -447,13 +449,13 @@ export function SubjectCard({ projectId, row, deliveries, onMapping }: {
 
       {s.mappings.length > 0 && (
         <section className="delivery-block" data-testid={`delivery-card-mappings-${s.subject}`}>
-          <div className="delivery-block-head"><h3>Mappings no person approved</h3></div>
+          <div className="delivery-block-head"><h3>Table layouts not approved yet</h3></div>
           <ul className="delivery-plain">
             {s.mappings.map((m) => (
               <li key={`${m.mapping_id}-${m.version}`} className="delivery-check open">
                 <div className="delivery-check-line">
                   <ChipFor state={m.status} table={MAPPING_STATE} />
-                  <span className="delivery-check-text">{fieldText(m.kind)} table, version {m.version}: {m.used_in.map((u) => `${u.file} ${u.where}`).join("; ")}</span>
+                  <span className="delivery-check-text">{capitalized(tableKindText(m.kind))}, version {m.version}: {m.used_in.map((u) => `${u.file} (${placeText(u.where)})`).join("; ")}</span>
                   {m.waiting && <span className="chip medium">being read again</span>}
                   <button type="button" className="btn tiny" onClick={() => onMapping(m.mapping_id)} data-testid={`delivery-card-mapping-${m.mapping_id}`}>Review…</button>
                 </div>

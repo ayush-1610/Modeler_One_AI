@@ -214,6 +214,11 @@ html:has(.area-bar) { scroll-padding-top: 76px; }
 .todo-line-inline { padding: 6px 0 4px; }
 .todo-fold > summary { cursor: pointer; list-style: none; min-height: 32px; display: flex; align-items: center; gap: 6px; }
 .todo-fold > summary::-webkit-details-marker { display: none; }
+/* a fold says it opens: ▸ closed, ▾ open */
+.todo-caret::before { content: "▸"; display: inline-block; width: 1em; color: var(--ink-dim); }
+.todo-fold[open] > summary .todo-caret::before { content: "▾"; }
+/* an area's cards that are signed on the delivery and open in Client files until slice 3 */
+.area-elsewhere { margin: -2px 0 10px; font-size: 13px; }
 .todo-ready { padding: 12px 14px; border-radius: var(--radius-sm); background: color-mix(in srgb, var(--pass) 8%, var(--surface)); }
 .checks-passed summary { cursor: pointer; color: var(--ink-dim); }
 .todo-group .client-request-download { margin-top: 6px; }

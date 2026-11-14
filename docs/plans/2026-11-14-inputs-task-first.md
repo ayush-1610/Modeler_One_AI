@@ -150,3 +150,26 @@ before the next starts.
     and same-sheet rules: the four dissolution sheets whose product is not stated stay sheet items ("not stated: the
     product") on Products and dissolution, where 12 cards remain on exampleamide.
   - **Groups** show five rows before "Show n more" (the design's three), the first group all of them.
+- Within this plan, slice 2 after its review (2026-11-14):
+  - **A card signed on the delivery is counted with what holds it on its card**, read from the card itself
+    (`/delivery/subjects/{type}/{subject}`, read once the page is idle, two at a time, under the key the open card uses;
+    no API change): its facts not stated on one row (a gap and the check that names the same fact once), each required
+    item no one settled (Missing), each failed check, disagreement, link between files or other reason (To decide). The
+    spot check is the signature's first step, said on the card's confirm row, not counted apart. They are navigation
+    rows that open the card (§2.1); this replaces the slice-2 note that a study's facts "stay on their cards only".
+    Until a card is read, its row says it is being checked and the status line says "checking n cards…".
+  - **Counted in the area the card belongs to** (Clinical studies, Products and dissolution), with a line under the
+    area's head naming those cards and what is open on each, opening them in Client files until slice 3 moves them. The
+    alias question ("Same study as 230-23?") is counted in Client files, where its file's values are linked.
+  - **Both confirm paths stay open** (§2.2.1, ahead of slice 3's ConfirmPath): a sheet-form card of a study also signed
+    on the delivery keeps its Confirm and says "Whichever is confirmed first is what loads; nothing is loaded twice"; its
+    open items are counted too, and a card confirmed either way is Done.
+  - **The clean-up that holds up no signature now says why, per case:** only blinded studies wait (it stays in its group,
+    not counted: it counts once the plan is signed); every subject it held up is confirmed ("Blocks nothing"); its
+    subjects are all confirmed with the sheet form ("Blocks nothing"). The delivery's own list of layouts shows the same:
+    amber "To decide" only where a layout holds up a signature, else neutral with the reason.
+  - **Words not changed here, left to the parallel ux-fill branch (commit d641c78 and its review fixes), which rewrites
+    the same lines:** the raw locators in a file's table of tables and texts and in its loose numbers (`r.where`,
+    `o.where`), "Not data…" and "set aside" there, and the whole of `Unassigned` ("Study not stated · to assign", "Assign",
+    "regions" in its lede). The rest of `FileItem`'s words are changed here, on lines that branch does not touch.
+

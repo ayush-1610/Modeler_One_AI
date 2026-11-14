@@ -29,12 +29,15 @@ const SHOWN = 5;   // rows of a group shown before "Show n more"
 function rowTestId(i: WorkItem): string {
   if (i.todo) return `missing-${i.todo.kind}-${i.todo.target}`;
   if (i.id.startsWith("confirm:")) return `todo-confirm-${i.id.slice("confirm:".length)}`;
-  if (i.id.startsWith("layout:")) return `todo-layout-${i.id.slice("layout:".length)}`;
+  // a layout's row as its entry in the delivery's list: `todo-layout-<id>`, `-v<version>` for a later version beside it
+  if (i.id.startsWith("layout:")) return (i.where.anchor ?? "").replace(/^delivery-mapping-/, "todo-layout-");
   return `todo-row-${i.id.replace(/[^A-Za-z0-9:_.|-]/g, "-")}`;
 }
 
-function Row({ item, projectId, run, review, onOpen }: {
+function Row({ item, projectId, run, review, onOpen, shared }: {
   item: WorkItem; projectId: string; run: Run; review: WorkModel["subjects"][number]["groups"]; onOpen: (item: WorkItem) => void;
+  /** the reason its group says once for every row (not said again on the row) */
+  shared?: string;
 }) {
   const [settle, setSettle] = useState(false);
   // a compound value is settled here with its own form when there is something to settle (a value to accept, values
@@ -45,9 +48,10 @@ function Row({ item, projectId, run, review, onOpen }: {
   const group = item.issue ? review.find((g) => g.id === item.issue!.group) : undefined;
   const issue = group?.issues.find((x) => x.id === item.issue!.issue);
   const inline = Boolean(settles) || Boolean(issue);
-  // the group heading carries the status word; a row says only why it is not counted
-  const quiet = item.group === "tidy" ? "blocks nothing" : item.blocked ? "can't be acted on yet" : null;
-  const said = [item.inModel, item.blocked, item.detail].filter(Boolean).join(" · ");
+  // the group heading carries the status word; a row says only why it is not counted, and the reason
+  const quiet = item.group === "tidy" ? "blocks nothing" : item.blocked ? "can't be acted on yet" : item.why ? "holds up nothing yet" : null;
+  const said = [item.inModel, item.blocked, item.why === shared ? "" : item.why, item.detail].filter(Boolean).join(" · ");
+  const inlineId = `todo-inline-${item.id.replace(/[^A-Za-z0-9_-]/g, "-")}`;
   return (
     <li className={`todo-line${item.open ? "" : " quiet"}`} data-item={item.id}>
       <div className="todo-line-head">
@@ -56,14 +60,18 @@ function Row({ item, projectId, run, review, onOpen }: {
                 title={`Open where it is settled: ${item.where.tab === "files" ? "Client files" : "its area"}`}>{item.label}</button>
         {said && <span className="todo-line-detail muted">{said}</span>}
         {inline && !item.blocked && (
-          <button type="button" className="btn small" aria-expanded={settle} onClick={() => setSettle(!settle)}
+          <button type="button" className="btn small" aria-expanded={settle} aria-controls={inlineId} onClick={() => setSettle(!settle)}
                   data-testid={`todo-settle-${item.id}`} aria-label={`${settle ? "Hide" : "Settle here"}: ${item.label}`}>
             {settle ? "Hide" : "Settle here"}
           </button>
         )}
       </div>
-      {settle && settles && todo && <div className="todo-line-inline"><TodoAction t={todo} projectId={projectId} run={run} /></div>}
-      {settle && group && issue && <div className="todo-line-inline"><IssueCard projectId={projectId} group={group} issue={issue} run={run} /></div>}
+      {inline && !item.blocked && (
+        <div className="todo-line-inline" id={inlineId} hidden={!settle}>
+          {settle && settles && todo && <TodoAction t={todo} projectId={projectId} run={run} />}
+          {settle && group && issue && <IssueCard projectId={projectId} group={group} issue={issue} run={run} />}
+        </div>
+      )}
     </li>
   );
 }
@@ -78,18 +86,21 @@ function GroupList({ group, items, projectId, run, review, onOpen, first }: {
   const held = items.length - open.length;
   // the status word, once for the group (every row of a group has the same); amber only where a person decides or signs
   const status = (open[0] ?? items[0]).status;
-  // what holds up the signatures on the delivery, said once
+  // what holds up the signatures on the delivery, said once; so is a reason every row not counted shares
   const gates = [...new Set(items.map((i) => i.gate).filter(Boolean))];
+  const whys = [...new Set(items.map((i) => i.why))];
+  const shared = whys.length === 1 && whys[0] ? whys[0] : undefined;
   return (
     <section className="todo-group" data-testid={`todo-group-${group}`} aria-labelledby={`todo-group-${group}-title`}>
       <h3 id={`todo-group-${group}-title`} tabIndex={-1}>
         <span className={`chip ${STATUS_TONE[status]}`}>{STATUS_WORD[status]}</span> {GROUP_TITLE[group]}{" "}
-        <span className="muted">({open.length}{held ? ` · ${held} can't be acted on yet` : ""})</span>
+        <span className="muted">({open.length}{held ? ` · ${held} not counted now` : ""})</span>
       </h3>
       <p className="muted todo-group-lede">{GROUP_LEDE[group]}</p>
       {gates.map((g) => <p key={g} className="todo-gate" data-testid="todo-gate">Signing on the delivery waits for its clean-up: {g}.</p>)}
+      {shared && <p className="todo-gate">{shared}</p>}
       <ul className="todo-lines">
-        {shown.map((i) => <Row key={i.id} item={i} projectId={projectId} run={run} review={review} onOpen={onOpen} />)}
+        {shown.map((i) => <Row key={i.id} item={i} projectId={projectId} run={run} review={review} onOpen={onOpen} shared={shared} />)}
       </ul>
       {items.length > shown.length && (
         <button type="button" className="link-btn" onClick={() => setAll(true)} data-testid={`todo-more-${group}`}>
@@ -112,6 +123,8 @@ export function TodoTab({ projectId, work, run, status, only, onStatus, onOnly, 
   const groups = GROUPS.filter((g) => g !== "tidy" && g !== "done")
     .map((g) => [g, visible.filter((i) => i.group === g)] as const).filter(([, items]) => items.length);
   const tidy = work.items.filter((i) => i.group === "tidy");
+  const tidyWhys = [...new Set(tidy.map((i) => i.why))];
+  const tidyWhy = tidyWhys.length === 1 ? tidyWhys[0] : undefined;
   const done = work.items.filter((i) => i.group === "done");
   const openChecks = work.checks.filter((c) => !c.ok);
   const passed = work.checks.filter((c) => c.ok);
@@ -204,16 +217,16 @@ export function TodoTab({ projectId, work, run, status, only, onStatus, onOnly, 
 
       {!only && !status && tidy.length > 0 && (
         <details className="todo-group todo-fold" data-testid="todo-group-tidy">
-          <summary><strong>{GROUP_TITLE.tidy}</strong> <span className="muted">({tidy.length})</span></summary>
-          <p className="muted todo-group-lede">{GROUP_LEDE.tidy}</p>
+          <summary><span className="todo-caret" aria-hidden="true" /><strong>{GROUP_TITLE.tidy}</strong> <span className="muted">({tidy.length})</span></summary>
+          <p className="muted todo-group-lede">{tidyWhy ? `${tidyWhy} Tidy it for the delivery record.` : GROUP_LEDE.tidy}</p>
           <ul className="todo-lines">
-            {tidy.map((i) => <Row key={i.id} item={i} projectId={projectId} run={run} review={review} onOpen={onOpen} />)}
+            {tidy.map((i) => <Row key={i.id} item={i} projectId={projectId} run={run} review={review} onOpen={onOpen} shared={tidyWhy} />)}
           </ul>
         </details>
       )}
       {!only && !status && done.length > 0 && (
         <details className="todo-group todo-fold" data-testid="todo-group-done">
-          <summary><strong>{GROUP_TITLE.done}</strong> <span className="muted">({done.length})</span></summary>
+          <summary><span className="todo-caret" aria-hidden="true" /><strong>{GROUP_TITLE.done}</strong> <span className="muted">({done.length})</span></summary>
           <ul className="todo-lines">
             {done.map((i) => <Row key={i.id} item={i} projectId={projectId} run={run} review={review} onOpen={onOpen} />)}
           </ul>

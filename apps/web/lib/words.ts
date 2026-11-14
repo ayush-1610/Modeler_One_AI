@@ -127,6 +127,27 @@ export function placeText(where: string): string {
   return where.replace(/^[a-z]:/, "");
 }
 
+/** A fact a study record needs (the intake's field, as a gap's `tag` or a check's "needs <field>" names it), in words:
+ *  the sheet form's own labels for the same facts and the landing's "(what the study is for)". */
+const FACT_WORD: Record<string, string> = {
+  n: "the number of subjects", intended_use: "what the study is for", purpose: "what the study is for", route: "the route",
+  dose: "the dose", formulation: "the dosage form", food_state: "fasted or fed",
+};
+export const factText = (field: string) => FACT_WORD[field] ?? `the ${spaced(field)}`;
+
+/** A reading stage (the intake pipeline's `StageName`, modeler_project.intake_records) in words. */
+const STAGE_WORD: Record<string, string> = {
+  parse: "finding the tables and texts", map: "choosing each table's layout", map_llm: "layouts suggested automatically",
+  execute: "reading the tables", prose: "reading the text", ledger: "recording the values", compute: "deriving values",
+  checks: "checking the values", coverage: "accounting for every number",
+};
+export const stageText = (stage: string) => STAGE_WORD[stage] ?? spaced(stage);
+/** A stage's or a count's own text from the reader, its engine terms in a person's words ("silent loss 10" → "numbers not
+ *  read 10"). Only these terms are replaced; the rest is shown as the reader wrote it. */
+export const engineWords = (text: string) => text
+  .replace(/silent loss/g, "numbers not read").replace(/outside numbers/g, "loose numbers")
+  .replace(/unassigned values/g, "values not linked to a study").replace(/\bregions\b/g, "tables and texts").replace(/\bregion\b/g, "table or text");
+
 /** The engine's words on the delivery, in a person's (design "One name per concept"). */
 export const DELIVERY_WORDS = {
   notRead: "numbers not read",          // silent loss: in tables, but no column picked them up

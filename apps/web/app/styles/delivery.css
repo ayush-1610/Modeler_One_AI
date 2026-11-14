@@ -13,6 +13,13 @@
 .delivery-block-head { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; }
 .delivery-block-head h3 { margin: 0; font-size: 13px; color: var(--ink); }
 .delivery-sub { margin: 10px 0 4px; font-size: 12px; font-weight: 600; color: var(--ink-dim); }
+/* a file's reading, step by step, folded: its technical details */
+.delivery-tech { margin-top: 10px; }
+.delivery-tech > summary { cursor: pointer; font-size: 12px; font-weight: 600; color: var(--ink-dim); min-height: 32px; display: flex;
+  align-items: center; gap: 6px; flex-wrap: wrap; }
+.delivery-tech > summary::-webkit-details-marker { display: none; }
+.delivery-tech > summary::before { content: "▸"; color: var(--ink-dim); }
+.delivery-tech[open] > summary::before { content: "▾"; }
 .delivery-plain { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; min-width: 0; }
 .delivery-problem { margin: 0; color: var(--fail-ink); font-size: 13px; }
 .delivery-withheld { margin: 0; padding: 6px 10px; border-radius: var(--radius-sm); background: var(--raised);

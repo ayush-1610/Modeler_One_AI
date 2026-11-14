@@ -76,8 +76,9 @@ export function ConfirmDialog({ projectId, subject, onClose }: { projectId: stri
         <dt>Values</dt>
         <dd data-testid="delivery-confirm-values">{subject.values}{levels.length > 0 && <> ({levels.map(([level, n]) => `${n} ${levelText(level)}`).join(", ")})</>}</dd>
         <dt>Coverage</dt>
-        <dd data-testid="delivery-confirm-coverage">{plural(counts.files, "file")} · silent loss {counts.silent} · {plural(counts.unread, "region")} not read
-          {" "}· {plural(counts.outside, "number")} outside every table · {plural(counts.unassigned, "value")} with no study</dd>
+        <dd data-testid="delivery-confirm-coverage">{plural(counts.files, "file")} · {plural(counts.silent, "number")} in tables not read
+          {" "}· {plural(counts.unread, "table or text", "tables or texts")} not read · {plural(counts.outside, "loose number")}
+          {" "}· {plural(counts.unassigned, "value")} not linked to a study</dd>
         <dt>Held back</dt>
         <dd data-testid="delivery-confirm-held">
           {subject.held === null ? WITHHELD : subject.held.length === 0 ? "nothing: every value that can be loaded is loaded"
