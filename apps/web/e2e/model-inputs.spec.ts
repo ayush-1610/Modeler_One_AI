@@ -46,7 +46,9 @@ test("model inputs flow in from the evidence, are checked, and hand over to Revi
   await expect(page.getByTestId("inputs-next")).toHaveText("Next: Review & sign");
   await page.getByTestId("tab-todo").click();
   await expect(page.getByTestId("inputs-ready")).toBeVisible();
-  await expect(page.getByTestId("check-every planned simulation builds (software)")).toContainText("ok");
+  // the model checks in words, keyed by their raw names
+  await expect(page.getByTestId("check-every planned simulation builds (software)")).toContainText("All planned simulations build");
+  await expect(page.getByTestId("check-every planned simulation builds (software)")).toHaveAttribute("data-ok", "true");
   await page.getByTestId("tab-compound").click();
   const logp = page.getByTestId("record-phys.logp");
   await expect(logp).toContainText("Log Units");

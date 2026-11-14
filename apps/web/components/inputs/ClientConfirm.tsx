@@ -7,7 +7,7 @@
 // selection, with no reason asked. A settled one stays in place with its final value and its alternatives, and can be
 // changed until the group is confirmed. Every value opens its source in the centre peek.
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { PeekButton, type PeekSource } from "@/components/kit/SourcePeek";
 import { send, type Schema } from "@/lib/api";
@@ -39,7 +39,9 @@ function itemLabel(label: string, target?: string | null) {
   return LABEL[target ?? label] ?? label;
 }
 
-function IssueCard({ projectId, group, issue, run }: { projectId: string; group: Group; issue: Issue; run: Run }) {
+/** A conflict, a difference or a question on a group, settled by selecting one option: on its card, and in To do with the
+ *  same form bound to the same server state (plan 2026-11-14 §2, rule 2). */
+export function IssueCard({ projectId, group, issue, run }: { projectId: string; group: Group; issue: Issue; run: Run }) {
   const [option, setOption] = useState<string>("");   // nothing preselected: the person chooses
   const [answer, setAnswer] = useState("");
   const [kind, tone] = issue.kind === "link" ? [LINK_LABEL[issue.id.split("|")[0]] ?? "Same?", "question"] : KIND[issue.kind];
@@ -218,9 +220,15 @@ function GroupCard({ projectId, group, run, folded, onToggle }: {
 const ONE_BY_ONE = 3;
 
 /** The client's data of one domain, each group to confirm or confirmed. With more than three, an index names each
- *  and one group is open at a time: the first to confirm, then the next once it is confirmed; any can be opened. */
-export function ConfirmGroups({ projectId, groups, run }: { projectId: string; groups: Group[]; run: Run }) {
+ *  and one group is open at a time: the first to confirm, then the next once it is confirmed; any can be opened.
+ *  `focus` opens the group a To do row or "Next" brings into view. */
+export function ConfirmGroups({ projectId, groups, run, focus }: {
+  projectId: string; groups: Group[]; run: Run; focus?: { group: string; at: number } | null;
+}) {
   const [toggled, setToggled] = useState<Record<string, boolean>>({});
+  useEffect(() => {
+    if (focus) setToggled((was) => ({ ...was, [focus.group]: true }));
+  }, [focus]);
   if (!groups.length) return null;
   const open = groups.filter((g) => g.state === "to_confirm").length;
   const oneByOne = groups.length > ONE_BY_ONE;
@@ -232,7 +240,8 @@ export function ConfirmGroups({ projectId, groups, run }: { projectId: string; g
   };
   return (
     <section className="confirm-groups" aria-label="The client's data" data-testid="client-groups">
-      <h2 className="input-block-title">The client&apos;s data{open ? ` · ${open} to confirm` : " · confirmed"}</h2>
+      {/* how many wait is said once, in the area's head, counted with the delivery's cards (plan 2026-11-14 slice 2) */}
+      <h2 className="input-block-title">The client&apos;s data, read with the sheet form{open ? "" : " · all confirmed"}</h2>
       {oneByOne && (
         <nav className="group-index" aria-label="Each study or product" data-testid="group-index">
           {groups.map((g) => (

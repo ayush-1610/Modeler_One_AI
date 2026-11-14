@@ -419,5 +419,15 @@ td.num, th.num { white-space: nowrap; }
 .hero-band.compact .hero-actions { margin-top: 4px; }
 .hero-band.compact .hero-actions .btn { padding: 10px 20px; font-size: 14px; }
 @media (max-width: 900px) { .hero-band.compact .hero-inner { padding: 28px 16px 44px; } }
+/* a slim head (PageShell `slim`, opt-in; Inputs, plan 2026-11-14 slice 2): the pill, the title, one line and the page's one
+   menu, short, so the page's own status line and bar of areas sit high; the step bar still overlaps its foot */
+.hero-band.slim .hero-inner { padding: 12px 24px 36px; gap: 4px; }
+.hero-band.slim .hero-pill { padding: 3px 11px; font-size: 11px; }
+.hero-band.slim h1 { font-size: clamp(26px, 3vw, 34px); letter-spacing: -0.03em; }
+.hero-band.slim .hero-lede { font-size: 14.5px; max-width: 70ch; }
+.hero-band.slim .hero-actions { margin-top: 0; }
+.hero-band.slim .hero-actions .btn { padding: 7px 16px; font-size: 13.5px; }
+.shell.slim .shell-body { padding-top: 14px; }
+@media (max-width: 900px) { .hero-band.slim .hero-inner { padding: 12px 16px 34px; } }
 /* a grid item may shrink below its content (a wide table scrolls in its box instead of widening the page) */
 .shell-main > *, .tabpanel > *, .dash-projects > * { min-width: 0; }

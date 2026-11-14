@@ -123,3 +123,30 @@ before the next starts.
   `lib/inputsWork.ts`. Rule 4 holds for the files table only: each row opens on the file's sheets (no second list of
   cards), but until slice 2 (one file status) the Delivery review keeps its own "What arrived" list and the reading tray
   its "Show each file" list, both inside Client files.
+- Within this plan, slice 2 as built (2026-11-14):
+  - **URL state** is written with `window.history.replaceState`, which Next's router follows (`useSearchParams`), not
+    `router.replace` (the lead's brief named it): the page is the same, so no server render is asked for at each change
+    of area or filter, and a late answer cannot put back an area the person already left. Replaced, never pushed; no
+    scroll jump; a link with `?tab=…&only=1&status=…` opens the page as it was.
+  - **Sheet-form disagreements in To do** are settled there too, behind "Settle here", with the card's own `IssueCard`
+    bound to the same server state (design rule 2; the lead's brief for slice 2), where §2.1 makes disagreements
+    navigation rows. The delivery's conflicts and link questions, a study's facts and every confirmation stay on their
+    cards only.
+  - **The prefix alias is asked on its file's row**: "Same study as 230-23? 230-23-REF · 230-23 Fasting Reference.xlsx"
+    takes the place of that file's "Link the 79 values" row (one decision, asked once), opening the delivery's link form
+    for the file. "Yes pre-fills the Link row" comes with slice 4's Link table.
+  - **Until slice 3**, a card confirmed on the delivery still opens in Client files (the delivery's list of studies and
+    products, now with one honest standing per row); a layout row opens the delivery's list of layouts (the queue dialog
+    is slice 4's); "Ask the client" lists the delivery's request with the download, without "Mark as asked" / "I have
+    them…" (the disposition stays on the subject's card).
+  - **Not counted in the status words:** "Ask the client" and the model checks (the design's status line counts 6
+    Missing on exampleamide, without the request lines), the clean-up of a delivery whose subjects are all confirmed
+    with the sheet form ("Blocks nothing"), and what a person cannot act on yet (blinded; a layout being read again).
+    The /inputs to-do's "Observed data to judge on" is folded into the cards to confirm while any study waits for
+    confirmation, and the software build ("check") into the model checks.
+  - **The Client files badge** counts the files' open work, like every other badge; the number of files is in the
+    area's head and the status line.
+  - **The join uses only §2.1's two rules** (`legacy_groups`, the exact normalised label), not the design's shared-file
+    and same-sheet rules: the four dissolution sheets whose product is not stated stay sheet items ("not stated: the
+    product") on Products and dissolution, where 12 cards remain on exampleamide.
+  - **Groups** show five rows before "Show n more" (the design's three), the first group all of them.

@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import { send, type Envelope } from "@/lib/api";
+import { PARAM_LABEL, todoLabel } from "@/lib/words";
 
 export type Ev = {
   id: string; target: string; value: number | string | null; unit: string | null; value_pksim: number | null;
@@ -25,22 +26,8 @@ export type TodoItem = {
 };
 export type Run = <T>(fn: () => Promise<Envelope<T>>, ok: string) => Promise<string | null>;
 
-export const ORDER = ["confirm", "conflict", "correct", "pka", "missing", "review", "regimen", "demographics", "datasets", "formulation", "process",
-               "unit", "check"];
-export const TITLE: Record<string, string> = {
-  conflict: "Values more than 2-fold apart: keep one", correct: "Filed under the wrong parameter", pka: "pKa: acidic or basic?",
-  missing: "Missing for S0", datasets: "Observed data to judge the model on", formulation: "Formulation of the tablet studies",
-  process: "Which PK-Sim process carries the pathway", unit: "Unit to convert", check: "Software build",
-  review: "Held until you check it", regimen: "Multiple-dose regimen", demographics: "Demographics",
-  confirm: "The client's data to confirm",
-};
-export const LABEL: Record<string, string> = {
-  "phys.mw": "Molecular weight", "phys.logp": "Lipophilicity", "bind.fu": "Fraction unbound in plasma",
-  "phys.solubility.ref": "Reference solubility", "phys.pka": "pKa", elim: "An elimination pathway",
-  "perm.intestinal": "Intestinal permeability", "elim.renal.gfr_fraction": "GFR fraction (renal filtration)",
-  "elim.biliary.cl": "Biliary clearance", "dist.bp_ratio": "Blood-to-plasma ratio",
-  "elim.fe_urine": "Fraction excreted unchanged in urine (fe)", "elim.fm.<enzyme>": "Fraction metabolised by an enzyme (fm)",
-};
+/** A model input's name in words, by its CPF id (one list of names: lib/words.ts). */
+export const LABEL: Record<string, string> = PARAM_LABEL;
 
 export const fmt = (v: number | string | null) => (v === null ? "—" : typeof v === "number" ? +v.toPrecision(4) : v);
 
@@ -284,7 +271,7 @@ export function TodoCard({ t, projectId, run }: { t: TodoItem; projectId: string
   return (
     <div className="todo-item" data-testid={`todo-${t.kind}-${t.target}`} id={`todo-${t.kind}-${t.target}`}>
       <div className="spread">
-        <strong>{TITLE[t.kind]}{t.kind !== "datasets" && t.kind !== "check" ? ` · ${LABEL[t.target] ?? t.target}` : ""}</strong>
+        <strong>{todoLabel(t.kind, t.target)}</strong>
         <code className="muted">{t.target}</code>
       </div>
       <TodoAction t={t} projectId={projectId} run={run} />

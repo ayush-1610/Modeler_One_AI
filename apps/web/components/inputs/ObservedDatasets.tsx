@@ -27,9 +27,12 @@ const ORIGIN_CHIP: Record<string, string> = {
   CLIENT: "low", LITERATURE: "low", FIGURE_DIGITIZED: "medium", OSP_LIBRARY: "low", SYNTHETIC: "high", ILLUSTRATIVE: "high",
 };
 
-/** Where a dataset stands: used, left out with its reason, or a digitized figure waiting for its overlay check. */
+/** Where a dataset stands: used, left out with its reason, a digitized figure waiting for its overlay check, or the
+ *  client's data waiting for a person to confirm its study (not used until then: `awaits_client_confirmation`, plan
+ *  2026-11-03 §3.3; never shown as used, the 2026-11-14 audit). */
 function standing(d: Listed): [string, string] {
   if (d.state === "REJECTED") return ["neutral", "left out"];
+  if (d.origin === "CLIENT" && d.extraction !== "MANUAL" && d.state === "PROPOSED") return ["neutral", "waiting for confirmation"];
   if (d.origin === "FIGURE_DIGITIZED" && d.state !== "ACCEPTED" && !d.digitization?.overlay_approved_by) return ["medium", "overlay to check"];
   return ["low", "used"];
 }
@@ -39,6 +42,7 @@ const SHOW = [
   { id: "used", label: "Used", test: (d: Listed) => standing(d)[1] === "used" },
   { id: "out", label: "Left out", test: (d: Listed) => d.state === "REJECTED" },
   { id: "overlay", label: "Overlay to check", test: (d: Listed) => standing(d)[1] === "overlay to check" },
+  { id: "waiting", label: "Waiting for confirmation", test: (d: Listed) => standing(d)[1] === "waiting for confirmation" },
   { id: "blinded", label: "Blinded", test: (d: Listed) => Boolean(d.blinded) },
 ] as const;
 type Show = (typeof SHOW)[number]["id"];

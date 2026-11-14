@@ -14,8 +14,9 @@ export type HeroTone = keyof typeof HUES;
 export function Hero({ eyebrow, title, lede, actions, tone = "projects", size = "compact", testId }: {
   eyebrow?: ReactNode; title: ReactNode; lede?: ReactNode; actions?: ReactNode; tone?: HeroTone;
   /** "full" for the landing pages (the dashboard, the 404); "compact" for the pages worked on all day, so the work
-   *  starts within the first screen (the 2026-11-11 audit, item 5). */
-  size?: "full" | "compact";
+   *  starts within the first screen (the 2026-11-11 audit, item 5); "slim" for a page whose own bar of areas must sit
+   *  high (Inputs, plan 2026-11-14 slice 2). */
+  size?: "full" | "compact" | "slim";
   testId?: string;
 }) {
   return (
@@ -38,14 +39,15 @@ export function Hero({ eyebrow, title, lede, actions, tone = "projects", size = 
 
 /** A step's page: its head, the project's steps under it (the Stepper, passed in), and its content beside an optional
  *  side panel. `noReveal`: the page's sections are shown at once, never faded in as they scroll into view (a page of
- *  forms, where a faded section reads as disabled: plan 2026-11-14 slice 1). */
-export function PageShell({ eyebrow, title, lede, actions, side, steps, tone, noReveal, children }: {
+ *  forms, where a faded section reads as disabled: plan 2026-11-14 slice 1). `slim` (opt-in): a shorter head and less
+ *  space under it, so a page's own bar sits high (Inputs, plan 2026-11-14 slice 2); other pages keep theirs. */
+export function PageShell({ eyebrow, title, lede, actions, side, steps, tone, noReveal, slim, children }: {
   eyebrow?: string; title: ReactNode; lede?: ReactNode; actions?: ReactNode; side?: ReactNode; steps?: ReactNode;
-  tone?: HeroTone; noReveal?: boolean; children: ReactNode;
+  tone?: HeroTone; noReveal?: boolean; slim?: boolean; children: ReactNode;
 }) {
   return (
-    <div className="shell" data-no-reveal={noReveal ? "" : undefined}>
-      <Hero eyebrow={eyebrow} title={title} lede={lede} actions={actions} tone={tone} />
+    <div className={slim ? "shell slim" : "shell"} data-no-reveal={noReveal ? "" : undefined}>
+      <Hero eyebrow={eyebrow} title={title} lede={lede} actions={actions} tone={tone} size={slim ? "slim" : "compact"} />
       {steps}
       <div className={side ? "shell-body with-side" : "shell-body"}>
         <div className="shell-main">{children}</div>

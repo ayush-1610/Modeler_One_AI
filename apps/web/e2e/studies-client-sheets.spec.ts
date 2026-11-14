@@ -36,7 +36,7 @@ test("a client sheet is read and saved on the Studies tab, next to the reading a
 
   await page.goto(`/projects/${projectId}/inputs`);
   await page.getByTestId("tab-files").click();                    // the client's files and their sheets
-  await expect(page.getByTestId("files-reading-note")).toContainText("Agents are off");
+  await expect(page.getByTestId("files-reading-note")).toContainText("AI reading is off");
   await openFile(page, "Smith2015_Table2.xlsx");                 // its row opens on its sheets
   const sheets = page.getByTestId("client-file-Smith2015_Table2.xlsx");
   await expect(sheets.getByTestId("read-agent-Smith2015_Table2.xlsx")).toBeDisabled();

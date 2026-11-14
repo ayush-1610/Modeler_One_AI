@@ -102,8 +102,8 @@ export const fieldText = (field: string) => words(field);
 export const statisticText = (v: Value) => (v.statistic ? words(v.statistic) : "");
 /** How a value was read (`DeliveryValue.level`, the evidence levels in ascending order), in words. */
 const LEVEL: Record<string, string> = {
-  digitized: "digitized from a figure", prose: "read from text", new_mapping: "by a mapping not approved yet",
-  approved_mapping: "by an approved mapping", person_confirmed: "entered or confirmed by a person",
+  digitized: "digitized from a figure", prose: "read from text", new_mapping: "by a table layout not approved yet",
+  approved_mapping: "by an approved table layout", person_confirmed: "entered or confirmed by a person",
 };
 export const levelText = (level: string) => LEVEL[level] ?? words(level);
 

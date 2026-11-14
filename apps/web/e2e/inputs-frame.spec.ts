@@ -70,7 +70,7 @@ test("the area bar is high on every area, stays in view, and the page opens on T
     await page.getByTestId(`tab-${area}`).click();
     await expect(page.getByTestId(`tab-${area}`)).toHaveAttribute("aria-selected", "true");
     const box = (await bar.boundingBox())!;
-    expect(box.y, `the area bar on ${area}`).toBeLessThanOrEqual(480);
+    expect(box.y, `the area bar on ${area}`).toBeLessThanOrEqual(340);      // the slim head (slice 2; slice 1 had 480)
     // the Delivery review is in Client files only
     if (area !== "files") await expect(page.getByTestId("delivery-section")).toHaveCount(0);
   }
@@ -101,14 +101,25 @@ test("the area bar is high on every area, stays in view, and the page opens on T
   await page.getByTestId("inputs-add-data").click();
   await page.getByTestId("add-digitize").click();
   await expect(page.getByTestId("digitizer-card")).toBeVisible();
-  // "To confirm" is on the status line; pressed on To do it opens an area to confirm in
+  // "To confirm" is on the status line: it opens To do narrowed to its word, in the URL; pressed again, every item
   await settled(page);
   await page.evaluate(() => window.scrollTo(0, 0));
-  await page.getByTestId("tab-todo").click();
+  await page.getByTestId("tab-compound").click();
+  await expect(page).toHaveURL(/\?tab=compound$/);
   await page.getByTestId("to-confirm").click();
   await expect(page.getByTestId("to-confirm")).toHaveAttribute("aria-pressed", "true");
-  await expect(page.getByTestId("tab-todo")).toHaveAttribute("aria-selected", "false");
+  await expect(page.getByTestId("tab-todo")).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByTestId("todo-filter-to_confirm")).toHaveAttribute("aria-pressed", "true");
+  await expect(page).toHaveURL(/\?tab=todo&status=to_confirm$/);
   await page.getByTestId("to-confirm").click();
+  await expect(page.getByTestId("todo-filter-all")).toHaveAttribute("aria-pressed", "true");
+  // "Only what needs me" is in the URL too, and a link to it opens the page as it was
+  await page.getByTestId("todo-only").check();
+  await expect(page).toHaveURL(/\?tab=todo&only=1$/);
+  await page.reload();
+  await expect(page.getByTestId("todo-only")).toBeChecked();
+  await expect(page.getByTestId("tab-todo")).toHaveAttribute("aria-selected", "true");
+  await page.getByTestId("todo-only").uncheck();
   // "Next" opens the first open item where it is settled
   await page.getByTestId("tab-todo").click();
   await page.getByTestId("inputs-next").click();

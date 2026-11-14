@@ -183,3 +183,43 @@ html:has(.area-bar) { scroll-padding-top: 76px; }
 .value-reuse { margin: 12px 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius-sm); }
 .value-reuse h3 { margin: 0 0 4px; font-size: 14px; }
 .value-reuse ul { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 6px; }
+
+/* the one list of work (plan 2026-11-14 slice 2): To do's groups, each row one line that opens where it is settled; an
+   area's one-line head; a status-line count pressed; a file's own work in Client files */
+.status-count[aria-pressed="true"] { outline: 2px solid var(--ink); outline-offset: 1px; }
+.status-note { font-size: 13px; white-space: nowrap; }
+@media (max-width: 600px) { .status-note { white-space: normal; } }
+.area-head { margin: 0 0 12px; font-size: 13.5px; color: var(--ink-dim); }
+.area-head-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 16px; margin: 6px 0 8px; }
+.area-head-row .area-head { margin: 0; }
+.todo-group > h3 .chip { vertical-align: 1px; margin-right: 2px; }
+.todo-gate { margin: 0; font-size: 13px; padding: 6px 10px; border-radius: var(--radius-sm); background: var(--raised); }
+.only-mine { display: inline-flex; align-items: center; gap: 6px; font-size: 13.5px; min-height: 36px; cursor: pointer; }
+.todo-work { display: grid; gap: 16px; }
+.todo-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 10px 16px; }
+.todo-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+.todo-filters .table-chips button { min-height: 36px; }
+.todo-group { display: grid; gap: 6px; padding-top: 12px; border-top: 1px solid var(--hairline); }
+.todo-group > h3 { margin: 0; font-size: 15px; color: var(--ink); }
+.todo-group-lede { margin: 0; font-size: 13px; }
+.todo-lines { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.todo-line { display: grid; gap: 2px; padding: 4px 0; }
+.todo-line + .todo-line { border-top: 1px solid var(--line-soft, var(--line)); }
+.todo-line-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; min-height: 32px; }
+.todo-line-head > .chip { flex: none; }
+.todo-line-label { text-align: left; font-size: 14px; overflow-wrap: anywhere; }
+.todo-line-head .btn.small { margin-left: auto; }
+.todo-line-detail { margin: 0; font-size: 12.5px; }
+.todo-line.quiet .todo-line-label { color: var(--ink-dim); }
+.todo-line-inline { padding: 6px 0 4px; }
+.todo-fold > summary { cursor: pointer; list-style: none; min-height: 32px; display: flex; align-items: center; gap: 6px; }
+.todo-fold > summary::-webkit-details-marker { display: none; }
+.todo-ready { padding: 12px 14px; border-radius: var(--radius-sm); background: color-mix(in srgb, var(--pass) 8%, var(--surface)); }
+.checks-passed summary { cursor: pointer; color: var(--ink-dim); }
+.todo-group .client-request-download { margin-top: 6px; }
+.file-needs { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; font-size: 13px; }
+.file-delivery { margin: 0 0 8px; }
+.file-ai-reading { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 0 0 8px; font-size: 13px; }
+.delivery-details > summary { cursor: pointer; font-size: 13px; color: var(--ink-dim); min-height: 28px; }
+/* what a To do row or "Next" opened, marked a moment */
+.just-opened { outline: 2px solid var(--sim); outline-offset: 3px; border-radius: var(--radius-sm); transition: outline-color 1.2s; }

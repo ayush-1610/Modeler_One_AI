@@ -40,8 +40,9 @@ test("files are added where their data belong, shown there, and moved by saying 
   await page.getByTestId("client-upload-formulations").setInputFiles(
     ["Dissolution Test pH 6.8.xlsx", "230-23 Fasting Reference.xlsx"].map((f) => join(dir, f)));
   await expect(page.getByTestId("inputs-notice")).toContainText("2 files stored.");
-  await expect(page.getByTestId("tab-files")).toContainText("2");
   await page.getByTestId("tab-files").click();
+  // the area's head counts its files; the badge counts what in them is open (plan 2026-11-14 slice 2)
+  await expect(page.getByTestId("area-head-files")).toContainText("2 files");
   // one row per file, filed under the area of its data; its name opens its sheets under the row
   const table = page.getByTestId("files-table");
   const dissolution = table.getByTestId("open-file-Dissolution Test pH 6.8.xlsx");

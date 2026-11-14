@@ -28,6 +28,109 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
   2026-11-03 §3.2 (left rail, files drawer); see the plan's §5.
 - **Impact:** none yet (no code changed).
 
+### Changed — the Inputs page counts from one list of work, in one vocabulary, with one status per file (plan 2026-11-14, slice 2)
+- **What:**
+  - **One list of work** (`apps/web/lib/inputsWork.ts`, pure functions, no React). From the /inputs page, the client
+    review (the sheet form) and the delivery it builds every open item once: its status word (Missing · To confirm · To
+    decide · Done), the area it counts in, where it is settled (its area, and its card, file or table layout), why a
+    person cannot act on it yet, and the pipeline it comes from. One card per study, product and compound: a delivery
+    subject is joined to a sheet-form group only on the group ids the API names on it (`DeliverySubjectRow.legacy_groups`)
+    or the same kind with the exact normalised label ("Study 230-23" and "230-23"); never across kinds, never two delivery
+    subjects. A sheet-form study whose name only starts with a delivery study's (230-23-REF and 230-23-TEST beside
+    230-23) is not merged: its file's row asks "Same study as 230-23?" and opens where the file's values are linked; once
+    the file is linked to 230-23 the question is done. A blinded subject (or a study the inputs mark blinded) is left out
+    of "Next" and of every count, and its row says why. The delivery's clean-up (table layouts, values to link, numbers
+    not read) holds up only the subjects signed on the delivery; where every subject of a delivery is confirmed with the
+    sheet form (the filled template) it is listed under "Blocks nothing" and not counted. A sheet whose study or product
+    is not stated asks for it (Missing) on its card. Done cards say who confirmed or signed them and when. "In the model:
+    n studies · n formulations · n compound values" counts what the model holds now: the study list (a client dataset
+    waiting for confirmation is not in it), the formulations and the compound values the inputs keep; nothing proposed
+    and unconfirmed is counted.
+  - **One vocabulary** (`apps/web/lib/words.ts`): the four status words, the area names, the model checks keyed by
+    their raw names ("S0 completeness (MS-01 §2.2)" reads "Minimum compound data (6 missing)"), the table kinds of the
+    intake's `TableKind`, a table's place ("Sheet1 · A4:M12", "page 3", never `s:'Sheet1'!A4:M12`), "Intake rules v0.1 ·
+    UNVERIFIED". The step bar's "Waiting on you" reads "compound values missing · no observed data confirmed yet · the
+    model can't be built yet" (it read the raw check names). The /inputs to-do titles moved here
+    (`components/inputs/InputsTodo.tsx` `LABEL` reads them; "Missing for S0 · Molecular weight" reads "Molecular weight").
+  - **Every count from that list** (`components/inputs/useInputsWork.ts`, built from the reads the page already makes,
+    under the same keys, with no polling of its own): the status line (Missing, To confirm, To decide, each opening To do
+    narrowed to its word with `aria-pressed`; "n done"; "In the model: …" `status-in-model`; the files and "AI off"
+    `status-files`; the one "Next", the first open item in the order the work is done: ready cards, table layouts, values
+    to link, numbers not read, what is missing, disagreements, cards to confirm), the area bar's badges, a one-line head
+    on each area (`area-head-<area>`: "8 studies · 3 missing · 8 to confirm · 2 to decide" on the 9-file project, with
+    "Only what needs me", `only-<area>`, which folds away the client's cards already confirmed),
+    To do and each file's "Still needs you". The slice-1 counts from the /inputs to-do alone and the "Delivery review: …"
+    link (`status-delivery`) are gone; "To confirm" no longer filters the areas (`nothing-to-confirm` is gone): it opens
+    To do on the cards to confirm.
+  - **To do** (`still-missing`, the landing area while anything is open): "What needs you", filter chips All · Missing ·
+    To confirm · To decide (`todo-filter-<status>`) and "Only what needs me" (`todo-only`); then the groups in order, each
+    with its status word once, its lede and its rows (`todo-group-<group>`; five rows, then "Show n more",
+    `todo-more-<group>`). Every row is one line that opens where it is settled (`missing-<kind>-<target>` kept on the
+    /inputs to-do rows, `todo-confirm-<card key>` on a card, `todo-layout-<mapping id>` on a table layout,
+    `todo-row-<id>` otherwise) and brings that element into view, marked a moment: a sheet-form card is unfolded, a
+    delivery subject's card opened, a file's row opened. Settled in To do with the same form its home uses, behind
+    "Settle here" (`todo-settle-<id>`): only the compound's values that have something to settle and the sheet form's
+    disagreements; a study's facts and its confirmation only on its card (one home per decision). What holds up the
+    signatures on the delivery is said once in its group ("Signing on the delivery waits for its clean-up: 10 table
+    layouts to check · 6 files to link · 8 files with numbers not read", `todo-gate`), not on every row. Then "Ask the
+    client" (`todo-group-ask`: the delivery's request lines by requirement, with the subjects, and the request download
+    `request-download`; the Delivery review's own "Still to ask the client for" list is gone), "Model checks"
+    (`todo-group-checks`, `readiness`, `check-<raw name>` with `data-ok`: the open checks in words with where each is
+    fixed, the passing ones folded; the PK-Sim test load; how values are chosen; `selection-rule`), "Blocks nothing" and
+    "Done" folded. With nothing open: "Everything the model needs is here" (`inputs-ready`) or "Nothing needs you here
+    now". The "Readiness and sources" fold (`inputs-more`) is gone.
+  - **URL state:** the area, "Only what needs me" and To do's status filter are in the URL (`?tab=…&only=1&status=…`),
+    replaced as they change with no scroll jump and no server round trip; a link with them opens the page as it was.
+  - **One status per file** (Client files): the files table is the only list of files. Its columns: the file (with
+    what it gave), what it is, where its data land, Read (`file-state-<name>`: the delivery's reading first, "partly
+    read" while a table or text of it was not read; the AI reading only while AI is on), and Still needs you
+    (`file-needs-<name>`: its table layouts, values to link, numbers not read, facts its sheets lack, each opening where
+    it is settled). "Only what needs me" (`files-only`) keeps the files with something open. A file's row opens on
+    everything about it: the delivery's reading of it (`FileItem` of `components/delivery/DeliverySection.tsx`, now
+    exported and rendered there unchanged, with its testids `delivery-file-*`, `delivery-regions-*`,
+    `delivery-stages-*`, its "Read again" and "Not data…"), its AI reading (`reading-item-<file>`, `reading-map-<file>`,
+    `read-again-<file>`, shown while AI is on or once the AI finished with it) and its sheets. A delivered file no client
+    file stands for gets its own row. The Delivery review's "What arrived" list (`delivery-files`, `delivery-arrival-*`)
+    and the reading tray's "Show each file" list (`reading-tray-toggle`, `reading-tray-list`) are gone; the tray keeps its
+    one line ("AI reading · 9 files read without AI · AI reading is off" where the delivery read the files, else
+    "0 of 2 read · 2 waiting"; chip "AI on"/"AI off").
+  - **Honest chips:** a delivery subject no longer reads "to review · confirmed on its own card · loaded from its own
+    card" while nothing is confirmed (`delivery-subject-standing-<subject>`): "To confirm" with "confirm and sign on its
+    card", or "To confirm" with a link "on its card in Clinical studies" for a template subject, "Done" with who signed
+    or that it was confirmed with the sheet form, "changed since it was signed: confirm again", "blinded until the plan is
+    signed". A client dataset waiting for its study's confirmation reads "waiting for confirmation" (neutral), no longer
+    "used" (green), on Every dataset, with its own filter. The delivery's words: "The delivery · Received 14 Nov 2026,
+    20:20, by dev-user · 9 files read · 72 numbers not read · 5 loose numbers · 366 values not linked to a study"; its
+    totals behind "Details" (`delivery-coverage`, `delivery-total-*` kept: "tables and texts found", "numbers not
+    read", "loose numbers", "values not linked to a study", "values read"); "Table layouts to check" with "Check layout"
+    (`delivery-mapping-open-*` kept); a reading's level "by a table layout not approved yet".
+  - **Slim head** (`PageShell slim`, opt-in, `Hero size="slim"`; other pages keep theirs) and a one-row status line:
+    the area bar's top is at 307 px on both seeded projects at 1440×900, on every area (slice 1's test allowed 480).
+    "The client's data" heading over the sheet form's cards no longer counts them (it counted 6 beside the area's 8).
+  - **Tests.** New `e2e/inputs-work.spec.ts` (pure, no browser): on the two seeded projects' captured answers
+    (`e2e/fixtures/inputs-work/*.json`) the join (12 cards on exampleamide, 5 on clientamide), the alias question asked
+    once, blinding left out of Next and the counts, the counts equal across the status line, the area badges and To do,
+    clientamide's 45 loose numbers and 5 layouts under "Blocks nothing", `legacy_groups` winning over the label, a
+    confirmed card done with who and when, and the words. Updated: delivery (one table of files, `file-state-*`, the
+    file's own reading under its row, "Intake rules v0.1 · UNVERIFIED", "Done"), client-confirm ("To confirm" opens To
+    do, its row opens the card), inputs-frame (the bar at most 340 px; "To confirm" and "Only what needs me" in the
+    URL, kept on reload), inputs-todo, model-inputs (the checks in words), library (the tray's one line, each file's
+    status in the table), inputs-files-by-area (the area's head counts the files, the badge their open work) and
+    studies-client-sheets ("AI reading is off").
+- **Why:** the owner, 2026-11-14 (the page is repetitive and unclear, and a person cannot tell what is missing); the
+  audit: the counters covered only the sheet form while the delivery's 10 layouts, 366 values and 77 numbers counted
+  nowhere, four "what is missing" lists disagreed, each file was listed in up to six places with contradictory states
+  ("0 of 9 read · 9 waiting" over "9 read"), a delivery row read "to review · confirmed on its own card · loaded from its
+  own card" while nothing was confirmed, a dataset waiting for confirmation read "used", and the step bar read raw check
+  names.
+- **Impact:** frontend only; no API, rule or science change (the join reads `legacy_groups`, added by the API changes of
+  this plan). The status line and the badges now count the delivery's work too, so their numbers are larger on a
+  project with delivered files (exampleamide: 13 missing · 12 to confirm · 24 to decide; clientamide: 6 · 5 · 2).
+  Not in this slice (plan §4): the cards (slice 3: one card per study with its confirm path, the gate line, the
+  categorized study list, the delivery subject cards leaving Client files), the batch tables (slice 4: layout queue,
+  link table with arms, not-read table, bulk reasons, focus after a decision, cache writes), the cards' and
+  `FileItem`'s own words (changed in parallel by the slice-3/4 work). Deviations recorded in the plan's §5.
+
 ### Changed — the Inputs page frame: a compact head, one bar of areas that stays in view, To do and Client files (plan 2026-11-14, slice 1)
 - **What:**
   - **Head.** "Step 2 of 4 · Inputs · Fill in what the model needs and confirm the client's data." One "Add data" menu

@@ -1,16 +1,19 @@
 "use client";
 
 // The Delivery section on Inputs (contracts 2026-11-12 §8.10): what arrived from the client, read by code and reviewed
-// by exception. The coverage panel says how much of each file was read (its regions, the numeric cells no mapping used,
-// the numbers outside every table, the values with no study stated) and how long each stage took; under it, what to
-// ask the client for, the mappings that wait for a person, the "study not stated" values, and each study, product and
-// the compound with its card. The section is not shown while the pipeline is off (`enabled` false); it reads again
-// every few seconds while a file is being read. On Inputs it sits in the Client files area (plan 2026-11-14 slice 1).
+// by exception. On Inputs it sits in the Client files area (plan 2026-11-14 slice 1), under the one table of files
+// (slice 2: each file's own reading, `FileItem`, opens under that file's row there, so no second list of files is kept
+// here): when the files arrived and what of them was read (the totals behind "Details"), the table layouts that wait for
+// a person, the values no file links to a study, and each study, product and the compound with its card. What to ask
+// the client is in To do. The section is not shown while the pipeline is off (`enabled` false); it reads again every
+// few seconds while a file is being read.
 
 import { useEffect, useRef, useState } from "react";
 
 import { send } from "@/lib/api";
 import { useRefresh, useResource } from "@/lib/hooks";
+import type { Subject } from "@/lib/inputsWork";
+import { AREA_NAME, type Tab, layoutOrigin, placeText, plural as count, rulesText, tableKindText, whenText } from "@/lib/words";
 
 import { MappingReview } from "./MappingReview";
 import {
@@ -142,11 +145,30 @@ function FileItem({ projectId, file, first, decide, busy, onMapping }: {
   );
 }
 
-function confirmationChip(s: SubjectRow) {
+/** Where a subject stands, in the four status words, and how it is confirmed (plan 2026-11-14 §2, rule 5): never
+ *  "loaded" while nothing is confirmed (the audit's "to review · confirmed on its own card · loaded from its own card"
+ *  on a subject nobody had confirmed). `unified` is the one card the work model joins the subject into. */
+function Standing({ s, unified, onOpenGroup }: {
+  s: SubjectRow; unified: Subject | undefined; onOpenGroup?: (group: string, tab: Tab) => void;
+}) {
   const c = s.confirmation;
-  if (!c) return <span className="chip medium">to review</span>;
-  if (!c.current) return <span className="chip medium">changed since it was confirmed</span>;
-  return c.landed ? <span className="chip low">confirmed and loaded</span> : <span className="chip medium">signed, not loaded yet</span>;
+  if (s.blinded) return <span className="chip neutral">blinded until the plan is signed</span>;
+  if (s.confirm_on === "delivery") {
+    if (c && c.current && c.landed) return <><span className="chip low">Done</span> <span className="muted">signed by {c.printed_name || c.by}, {whenText(c.at)}</span></>;
+    return <><span className="chip medium">To confirm</span> <span className="muted">{c && !c.current ? "changed since it was signed: confirm again"
+      : c ? "signed; the loading is not finished" : "confirm and sign on its card"}</span></>;
+  }
+  const group = unified?.groups[0];
+  if (!group) return <><span className="chip neutral">waiting for confirmation</span> <span className="muted">confirmed on its card, not available yet</span></>;
+  const area = AREA_NAME[group.tab as Tab] ?? group.tab;
+  if (unified?.done) return <><span className="chip low">Done</span> <span className="muted">confirmed with the sheet form, on {area}</span></>;
+  return (
+    <>
+      <span className="chip medium">To confirm</span>{" "}
+      {onOpenGroup ? <button type="button" className="link-btn" onClick={() => onOpenGroup(group.id, group.tab as Tab)}>on its card in {area}</button>
+        : <span className="muted">on its card in {area}</span>}
+    </>
+  );
 }
 
 function Coverage({ page }: { page: Page }) {
@@ -154,13 +176,14 @@ function Coverage({ page }: { page: Page }) {
   const states = Object.entries(t.files_by_state).map(([state, n]) => `${n} ${FILE_STATE[state]?.label ?? fieldText(state)}`).join(", ");
   const tiles: [string, number, string, string][] = [
     ["files", t.files, t.files === 1 ? "file" : "files", states],
-    ["regions", t.regions, t.regions === 1 ? "region" : "regions", `${t.regions_mapped} read, ${t.regions_excluded} set aside, ${t.regions_unread} not read`],
-    ["silent-loss", t.silent_loss, "silent loss", "numeric cells of a table that no mapping used or set aside"],
-    ["outside", t.outside_numeric, "numbers outside every table", "text with a number that belongs to no table"],
-    ["unassigned", t.values_unassigned, "values with no study stated", "read, but no label says whose they are"],
-    ["values", t.values, "values in the ledger", "what was read and is active"],
+    ["regions", t.regions, t.regions === 1 ? "table or text found" : "tables and texts found",
+     `${t.regions_mapped} read, ${t.regions_excluded} not data, ${t.regions_unread} not read`],
+    ["silent-loss", t.silent_loss, "numbers not read", "in tables, but no column picked them up"],
+    ["outside", t.outside_numeric, "loose numbers", "in notes or text, outside any table"],
+    ["unassigned", t.values_unassigned, "values not linked to a study", "say which study or product they belong to"],
+    ["values", t.values, "values read", "what was read and is in use"],
   ];
-  if (t.needs_ocr_pages) tiles.push(["ocr", t.needs_ocr_pages, "pages need OCR", "scanned pages no text was read from"]);
+  if (t.needs_ocr_pages) tiles.push(["ocr", t.needs_ocr_pages, "pages to read as images", "scanned pages no text was read from"]);
   if (t.anchors_unresolved) tiles.push(["anchors", t.anchors_unresolved, "places not found again", "a value whose place in its file no longer resolves"]);
   return (
     <dl className="delivery-tiles" data-testid="delivery-coverage">
@@ -189,35 +212,49 @@ export function useDeliveryRefresh(projectId: string): Page | null {
   return read.data;
 }
 
-export function DeliverySection({ projectId }: { projectId: string }) {
+export function DeliverySection({ projectId, subjects = [], focus, onOpenGroup }: {
+  projectId: string;
+  /** the one card per study and product the work model joins (lib/inputsWork.ts), for each subject's standing */
+  subjects?: Subject[];
+  /** a subject's card to open and bring into view (a To do row, "Next"): `${subject_type}/${subject}` */
+  focus?: { subject: string; at: number } | null;
+  /** open a sheet-form card in its area (a template subject is confirmed there) */
+  onOpenGroup?: (group: string, tab: Tab) => void;
+}) {
   const read = useResource("/api/v1/projects/{project_id}/delivery", { project_id: projectId }, { poll: (d) => d.running, interval: 3000 });
   const { decide, busy, problem } = useDecide();
   const [folded, setFolded] = useState(false);
   const [subject, setSubject] = useState<string | null>(null);
   const [mapping, setMapping] = useState<string | null>(null);
-  const [asked, setAsked] = useState(false);
   const page = read.data;
   const running = page?.running ?? false;
+  useEffect(() => {
+    if (!focus) return;
+    setFolded(false);
+    setSubject(focus.subject);
+  }, [focus]);
 
   if (!page) return read.problem ? <section className="delivery"><Problem text={`The delivery review could not be read: ${read.problem}`} /></section> : null;
   if (!page.enabled) return null;
 
   const files = page.deliveries.flatMap((d) => d.files);
-  const first = new Map<string, FileRow>();
-  for (const f of files) if (!f.repeat && !first.has(f.sha256)) first.set(f.sha256, f);
   const t = page.totals;
+  const last = page.deliveries[page.deliveries.length - 1];
   const summary = files.length
-    ? [`${plural(t.files, "file")}`, `${t.regions_mapped} of ${plural(t.regions, "region")} read`, `silent loss ${t.silent_loss}`,
-       `${plural(t.outside_numeric, "number")} outside every table`, `${plural(t.values_unassigned, "value")} with no study`].join(" · ")
+    ? [last ? `Received ${whenText(last.at)}, by ${last.by}` : "", `${count(t.files, "file")} read`,
+       t.silent_loss ? `${count(t.silent_loss, "number")} not read` : "", t.outside_numeric ? count(t.outside_numeric, "loose number") : "",
+       t.values_unassigned ? `${count(t.values_unassigned, "value")} not linked to a study` : ""].filter(Boolean).join(" · ")
     : "no client file has arrived yet";
+  const unified = (s: SubjectRow) => subjects.find((u) => u.row?.subject === s.subject && u.row.subject_type === s.subject_type);
 
   return (
     <section className={`delivery${page.mappings.length || page.unassigned.length ? " waits" : ""}`} data-testid="delivery-section">
       <div className="delivery-head">
-        <strong>Delivery review</strong>
+        <strong>The delivery</strong>
         <span className="muted" data-testid="delivery-counts" role="status" aria-live="polite">{summary}</span>
-        {running && <span className="chip medium" data-testid="delivery-running">reading the files…</span>}
-        <span className="chip neutral" data-testid="delivery-rules" title={`intake rules, sha256 ${page.rules.sha256}`}>rules {page.rules.status} v{page.rules.version}</span>
+        {running && <span className="chip neutral" data-testid="delivery-running">Reading…</span>}
+        <span className="chip neutral" data-testid="delivery-rules"
+              title={`The intake rules the files were read with (sha256 ${page.rules.sha256}); UNVERIFIED until an expert signs them`}>{rulesText(page.rules)}</span>
         {files.length > 0 && (
           <span className="delivery-head-actions">
             <button type="button" className="btn tiny" disabled={busy || running} data-testid="delivery-run"
@@ -230,53 +267,25 @@ export function DeliverySection({ projectId }: { projectId: string }) {
       <Problem text={problem} testId="delivery-problem" />
       {files.length > 0 && !folded && (
         <div className="delivery-body">
-          <Coverage page={page} />
-
-          <section className="delivery-block" data-testid="delivery-files">
-            <div className="delivery-block-head"><h3>What arrived</h3></div>
-            {page.deliveries.map((d) => (
-              <div key={d.id} data-testid={`delivery-arrival-${d.id}`}>
-                <p className="muted fs-12 m-0">Delivery {d.id} · {when(d.at)} · {d.by}</p>
-                <ul className="delivery-plain">
-                  {d.files.map((f) => <FileItem key={f.file_id} projectId={projectId} file={f} first={first.get(f.sha256)} decide={decide} busy={busy} onMapping={setMapping} />)}
-                </ul>
-              </div>
-            ))}
-          </section>
-
-          {page.request.length > 0 && (
-            <section className="delivery-block" data-testid="delivery-request">
-              <div className="delivery-block-head">
-                <h3>Still to ask the client for</h3>
-                <span className="chip neutral">{plural(page.request.length, "item")}</span>
-                <button type="button" className="link-btn" aria-expanded={asked} onClick={() => setAsked(!asked)} data-testid="delivery-request-toggle">
-                  {asked ? "Hide them" : "Show them"}</button>
-              </div>
-              {asked && (
-                <ul className="delivery-plain">
-                  {page.request.map((line, i) => (
-                    <li key={`${line.req_id}-${i}`}>
-                      <span className={`chip ${line.required ? "high" : "neutral"}`}>{line.required ? "required" : "useful"}</span>{" "}
-                      {line.what} <span className="muted">· {line.why}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </section>
-          )}
+          <details className="delivery-details">
+            <summary>Details: what was read from the files</summary>
+            <Coverage page={page} />
+          </details>
 
           {page.mappings.length > 0 && (
             <section className="delivery-block" data-testid="delivery-mappings">
-              <div className="delivery-block-head"><h3>How a table is read waits for you</h3><span className="chip medium">{plural(page.mappings.length, "mapping")}</span></div>
+              <div className="delivery-block-head"><h3>Table layouts to check <span className="muted">({page.mappings.length})</span></h3></div>
+              <p className="muted fs-13 m-0">A table&apos;s layout decides which of its numbers become values. Until a person approves it, they can&apos;t be confirmed with a signature.</p>
               <ul className="delivery-plain">
                 {page.mappings.map((m) => (
                   <li key={`${m.mapping_id}-${m.version}`} className="delivery-check open" data-testid={`delivery-mapping-${m.mapping_id}`}>
                     <div className="delivery-check-line">
                       <ChipFor state={m.status} table={MAPPING_STATE} />
-                      <span className="delivery-check-text">{fieldText(m.kind)} table, version {m.version}, proposed by {m.origin === "llm" ? "the table mapper" : m.origin === "rule" ? "a rule" : "a person"}:
-                        {" "}{m.used_in.map((u) => `${u.file} ${u.where}`).join("; ") || "not in use"}</span>
-                      {m.waiting && <span className="chip medium">being read again</span>}
-                      <button type="button" className="btn tiny" onClick={() => setMapping(m.mapping_id)} data-testid={`delivery-mapping-open-${m.mapping_id}`}>Review…</button>
+                      <span className="delivery-check-text">{tableKindText(m.kind)} · {m.used_in.map((u) => `${u.file}, ${placeText(u.where)}`).join("; ") || "no file uses it now"}
+                        <span className="muted"> · {layoutOrigin(m.origin)} · version {m.version}</span></span>
+                      {m.waiting && <span className="chip neutral">Reading…</span>}
+                      <button type="button" className="btn tiny" onClick={() => setMapping(m.mapping_id)} data-testid={`delivery-mapping-open-${m.mapping_id}`}
+                              aria-label={`Check the layout of the ${tableKindText(m.kind)} in ${m.used_in[0]?.file ?? "no file"}`}>Check layout</button>
                     </div>
                   </li>
                 ))}
@@ -287,7 +296,7 @@ export function DeliverySection({ projectId }: { projectId: string }) {
           <Unassigned projectId={projectId} page={page} />
 
           <section className="delivery-block" data-testid="delivery-subjects">
-            <div className="delivery-block-head"><h3>To review and confirm</h3></div>
+            <div className="delivery-block-head"><h3>Studies, products and the compound, as read from the files</h3></div>
             {page.subjects.length === 0 && <p className="muted m-0">No study, product or compound value was read yet.</p>}
             <ul className="delivery-plain">
               {page.subjects.map((s) => {
@@ -300,10 +309,8 @@ export function DeliverySection({ projectId }: { projectId: string }) {
                         <span className="muted">{KIND_LABEL[s.subject_type]}</span> {s.label}
                       </button>
                       <span className="muted">{plural(s.values, "value")}{Object.keys(s.by_level).length ? `: ${Object.entries(s.by_level).map(([l, n]) => `${n} ${levelText(l)}`).join(", ")}` : ""}</span>
-                      {confirmationChip(s)}
-                      {s.blinded && <span className="chip neutral">blinded</span>}
-                      {s.confirm_on === "client-review" && <span className="chip neutral">confirmed on its own card</span>}
-                      {s.loaded_elsewhere.length > 0 && <span className="chip neutral">loaded from its own card</span>}
+                      {(unified(s)?.aliases.length ?? 0) > 0 && <span className="muted">· also read as {unified(s)!.aliases.join(", ")} by the sheet form</span>}
+                      <span data-testid={`delivery-subject-standing-${s.subject}`}><Standing s={s} unified={unified(s)} onOpenGroup={onOpenGroup} /></span>
                     </div>
                     {open && <SubjectCard projectId={projectId} row={s} deliveries={page.deliveries} onMapping={setMapping} />}
                   </li>
@@ -317,3 +324,7 @@ export function DeliverySection({ projectId }: { projectId: string }) {
     </section>
   );
 }
+
+// a file's own reading (its tables and texts, loose numbers, stage times, read again) opens under that file's row in the
+// Client files table (components/inputs/ClientFilesTab.tsx): the only list of files on Inputs (plan 2026-11-14 slice 2)
+export { FileItem };

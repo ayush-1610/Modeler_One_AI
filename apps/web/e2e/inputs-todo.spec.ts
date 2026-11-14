@@ -40,7 +40,7 @@ test("open P4 items are settled on the Model inputs page", async ({ page, reques
 
   await page.goto(`/projects/${projectId}/inputs`);
   const missing = page.getByTestId("still-missing");
-  await expect(missing).toContainText("Still missing to run");
+  await expect(missing).toContainText("What needs you");
   await expect(missing.getByTestId("missing-conflict-bind.fu")).toBeVisible();
   await shot(page, "1-todo");
   await page.getByTestId("tab-compound").click();                 // each item is settled in its area

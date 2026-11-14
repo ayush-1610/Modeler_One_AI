@@ -1,8 +1,10 @@
 "use client";
 
-// The reading tray (plan 2026-11-10, R3): every client file the reading agent is to read, is reading or has read, with
-// what was found and why one failed, on Inputs in the Client files area (plan 2026-11-14 slice 1). A file that failed is
-// read again from here. With agents off the tray says so: the files wait, and each is read with its sheet's form meanwhile.
+// The AI reading line (plan 2026-11-10, R3; plan 2026-11-14 slices 1–2): how far the reading agent is with the client's
+// files, in one line in the Client files area, with the documents not yet read for data and the figures worth
+// digitizing. Each file's own reading (what was found, why one failed, "Read again") is on that file's row in the files
+// table (`AiReading`), the only list of files on Inputs: the tray keeps no list of its own. With AI off the line says
+// so, and says the files were read without AI where the delivery read them.
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
@@ -52,10 +54,48 @@ export function useReadingRefresh(projectId: string) {
   }, [newest]); // eslint-disable-line react-hooks/exhaustive-deps
 }
 
-export function ReadingTray({ projectId }: { projectId: string }) {
+/** One file's reading by the agent, under its row in the Client files table: its state, what it found, why it failed,
+ *  and "Read again". Shown while AI reading is on, or once the agent finished with the file. */
+export function AiReading({ projectId, sid }: { projectId: string; sid: string }) {
+  const data = useQueue(projectId).data;
+  const mutation = useMutation();
+  const [problem, setProblem] = useState<string | null>(null);
+  const item = data ? [...data.items].reverse().find((i) => i.sid === sid) : undefined;
+  if (!data || !item || (!data.agents.enabled && item.state !== "done" && item.state !== "failed")) return null;
+
+  async function again(id: string) {
+    const { problem: failed } = await mutation.run(() => send("post", "/api/v1/projects/{project_id}/reading-queue/{item_id}:again",
+                                                              { project_id: projectId, item_id: id }));
+    setProblem(failed);   // on success the page's resources are read again
+  }
+  return (
+    <div className="file-ai-reading" data-testid={`reading-item-${item.file}`}>
+      <strong>AI reading</strong>
+      <span className={`chip ${STATE_TONE[item.state]}`}>{STATE_LABEL[item.state]}</span>
+      <span className="muted">
+        {item.task === "read" ? "asked by a person" : item.task === "map" ? "read by code; laid out with the others" : "on arrival"}
+        {item.sheets.length ? ` · ${item.sheets.join(", ")}` : ""}
+        {item.state === "done" && ` · ${foundText(item.found)}`}
+      </span>
+      {data.mapped[item.sid] && (
+        <span className="reading-tray-map" data-testid={`reading-map-${item.file}`}
+              title="What the delivery found this file is about, each value quoted from it">{data.mapped[item.sid]}</span>
+      )}
+      {item.state === "failed" && <span className="reading-tray-why">{item.note || "failed"}</span>}
+      {(item.state === "failed" || item.state === "done") && (
+        <button type="button" className="btn small" disabled={mutation.busy} onClick={() => void again(item.id)}
+                aria-label={`Read ${item.file} again with AI`} data-testid={`read-again-${item.file}`}>Read again</button>
+      )}
+      {problem && <span className="reading-tray-problem" role="alert">{problem}</span>}
+    </div>
+  );
+}
+
+/** The one line of AI reading in Client files. `readWithoutAi`: the files the delivery read by code, said in place of
+ *  "waiting" while AI reading is off (so no file is called waiting and read at once: the 2026-11-14 audit). */
+export function ReadingTray({ projectId, readWithoutAi = 0 }: { projectId: string; readWithoutAi?: number }) {
   const tray = useQueue(projectId);
   const mutation = useMutation();
-  const [open, setOpen] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const data = tray.data;
 
@@ -63,47 +103,29 @@ export function ReadingTray({ projectId }: { projectId: string }) {
   const { counts, agents } = data;
   const backlog = data.unread_documents;
   const waiting = counts.queued + counts.reading;
-  // each file once, at its latest reading: what is being read and waits first, then what finished most recently
-  const order = { reading: 0, queued: 1, failed: 2, done: 3 } as const;
-  const latest = new Map(data.items.map((i) => [i.sid, i]));
-  const items = [...latest.values()].reverse().sort((a, b) => order[a.state] - order[b.state]);
 
   async function readLibrary() {
     const { data: read, problem: failed } = await mutation.run(() => send("post",
       "/api/v1/projects/{project_id}/documents:read-for-data", { project_id: projectId }));
     setProblem(failed ?? (read?.not_read.length ? `Not read: ${read.not_read.join("; ")}` : null));
-    if (read?.reading.length) setOpen(true);
   }
 
-  async function again(id: string) {
-    const { problem: failed } = await mutation.run(() => send("post", "/api/v1/projects/{project_id}/reading-queue/{item_id}:again",
-                                                              { project_id: projectId, item_id: id }));
-    setProblem(failed);   // on success the page's resources, the tray among them, are read again
-  }
-
+  const line = !data.items.length ? "no file queued for AI reading yet"
+    : !agents.enabled && readWithoutAi ? `${plural(readWithoutAi, "file")} read without AI · AI reading is off`
+      : trayLine(counts);
   return (
     <section className={`reading-tray${counts.failed ? " has-failed" : ""}`} data-testid="reading-tray">
       <div className="reading-tray-head">
-        <strong>The client&apos;s files, read by the agent</strong>
-        <span className="muted" data-testid="reading-tray-counts" role="status" aria-live="polite">
-          {data.items.length ? trayLine(counts) : "no file queued for the agent yet"}
+        <strong>AI reading</strong>
+        <span className="muted" data-testid="reading-tray-counts" role="status" aria-live="polite">{line}</span>
+        <span className="chip neutral" data-testid="reading-tray-agent" title={agents.problem ?? undefined}>
+          {agents.enabled ? `AI on${agents.model ? ` · ${agents.model}` : ""}` : "AI off"}
         </span>
-        <span className={`chip ${agents.enabled ? "low" : "medium"}`} data-testid="reading-tray-agent"
-              title={agents.problem ?? undefined}>
-          {agents.enabled ? `agent on${agents.model ? ` · ${agents.model}` : ""}` : "agent off"}
-        </span>
-        {data.items.length > 0 && (
-        <button type="button" className="link-btn" aria-expanded={open} onClick={() => setOpen(!open)}
-                data-testid="reading-tray-toggle">
-          {open ? "Hide the files" : "Show each file"}
-        </button>
-        )}
       </div>
-      {!agents.enabled && waiting > 0 && (
+      {!agents.enabled && waiting > 0 && !readWithoutAi && (
         <p className="reading-tray-off" data-testid="reading-tray-off" title={agents.problem ?? undefined}>
-          The reading agent is off on this server: {plural(waiting, "file")}{" "}
-          {waiting === 1 ? "waits" : "wait"} and {waiting === 1 ? "is" : "are"} read once it is on. Meanwhile, read each
-          sheet with its form below, or ask your administrator to turn the agents on.
+          AI reading is off on this server: {plural(waiting, "file")} {waiting === 1 ? "waits" : "wait"} for it. Meanwhile, check
+          each sheet&apos;s reading in the table below; your administrator can turn AI reading on.
         </p>
       )}
       {backlog.length > 0 && (
@@ -151,34 +173,6 @@ export function ReadingTray({ projectId }: { projectId: string }) {
             ))}
           </ul>
         </div>
-      )}
-      {open && (
-        <ul className="reading-tray-list" data-testid="reading-tray-list">
-          {items.map((item) => (
-            <li key={item.id} data-testid={`reading-item-${item.file}`}>
-              <span className={`chip ${STATE_TONE[item.state]}`}>{STATE_LABEL[item.state]}</span>
-              <span className="reading-tray-file">{item.file}</span>
-              <span className="muted">
-                {item.task === "read" ? "a person's Read" : item.task === "map" ? "read by code; mapped with the others" : "on arrival"}
-                {item.sheets.length ? ` · ${item.sheets.join(", ")}` : ""}
-                {item.state === "done" && ` · ${foundText(item.found)}`}
-              </span>
-              {data.mapped[item.sid] && (
-                <span className="reading-tray-map" data-testid={`reading-map-${item.file}`}
-                      title="What the delivery pass found this file is about, each value quoted from it">
-                  {data.mapped[item.sid]}
-                </span>
-              )}
-              {item.state === "failed" && <span className="reading-tray-why">{item.note || "failed"}</span>}
-              {(item.state === "failed" || item.state === "done") && (
-                <button type="button" className="btn small" disabled={mutation.busy} onClick={() => void again(item.id)}
-                        aria-label={`Read ${item.file} again`} data-testid={`read-again-${item.file}`}>
-                  Read again
-                </button>
-              )}
-            </li>
-          ))}
-        </ul>
       )}
     </section>
   );

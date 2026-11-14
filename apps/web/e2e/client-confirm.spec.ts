@@ -74,11 +74,14 @@ test("a study two client files contradict is settled on its card, then confirmed
   await expect(n).toContainText("Kept as given: 12");
   await shot(page, "2-settled-in-place");
 
-  // "To confirm" shows only what waits for the person
+  // "To confirm" opens To do on what waits for the person's confirmation; its row opens the card (plan 2026-11-14 slice 2)
   await page.getByTestId("to-confirm").click();
   await expect(page.getByTestId("to-confirm")).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByTestId("tab-todo")).toHaveAttribute("aria-selected", "true");
+  await expect(page).toHaveURL(/tab=todo&status=to_confirm/);
+  await page.getByTestId("todo-confirm-study:EX-101").click();
+  await expect(page.getByTestId("tab-studies")).toHaveAttribute("aria-selected", "true");
   await expect(card).toBeVisible();
-  await page.getByTestId("to-confirm").click();
 
   await expect(confirm).toBeEnabled();
   await confirm.click();

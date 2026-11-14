@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { BriefList } from "@/components/brief/BriefList";
@@ -12,19 +13,22 @@ import { TabPanel, Tabs } from "@/components/kit/Tabs";
 import { narrow, send, type Envelope, type Narrow, type Schema } from "@/lib/api";
 import { TAG_LABELS } from "@/lib/fileTags";
 import { useMutation, useRefresh, useResource } from "@/lib/hooks";
+import { areaHead, nextText, type WorkItem } from "@/lib/inputsWork";
 import { type ArtifactView, STEP_ROUTES } from "@/lib/pipeline";
+import { AREA_NAME, STATUS_MEANS, plural as count } from "@/lib/words";
 
 import { AddDataMenu } from "./AddDataMenu";
 import { ConfirmGroups } from "./ClientConfirm";
 import { ClientFilesTab, type FilesShown } from "./ClientFilesTab";
 import { StudyIndividuals } from "./IndividualsTab";
 import { InputRows, type Row } from "./InputRows";
-import { ORDER, type Run, type TodoItem } from "./InputsTodo";
+import type { Run, TodoItem } from "./InputsTodo";
 import { AccessRequests } from "./ObservedDatasets";
 import { useReadingRefresh } from "./ReadingTray";
 import { type Intent, type Options, StudiesTab } from "./StudiesTab";
 import { downloadTemplate, fileArea, whereShown } from "./TabFiles";
-import { type Readiness, TodoTab, todoText } from "./TodoTab";
+import { type Readiness, type StatusFilter, TodoTab } from "./TodoTab";
+import { useInputsWork } from "./useInputsWork";
 import { ValueReuse } from "./ValueReuse";
 
 // The areas, in a bar across the top that stays in view (plan 2026-11-14 slice 1; the 2026-11-06 segmented-control
@@ -32,15 +36,12 @@ import { ValueReuse } from "./ValueReuse";
 // dissolution, Clinical studies, Compound, never in an area of their own; the ids stay those of PK-Sim's building
 // blocks), then the client's files themselves.
 export type Tab = "todo" | "compound" | "formulations" | "individuals" | "settings" | "studies" | "files";
-type Area = Exclude<Tab, "todo" | "files">;
-const TABS: [Tab, string][] = [["todo", "To do"], ["compound", "Compound"], ["formulations", "Products and dissolution"],
-                               ["studies", "Clinical studies"], ["individuals", "Populations and individuals"],
-                               ["settings", "Simulation settings"], ["files", "Client files"]];
-const AREAS = TABS.filter(([id]) => id !== "todo" && id !== "files") as [Area, string][];
+const TABS: [Tab, string][] = (["todo", "compound", "formulations", "studies", "individuals", "settings", "files"] as Tab[])
+  .map((id) => [id, AREA_NAME[id]]);
 const SOLID = ["ir_tablet", "ir_capsule", "mr", "suspension"];
-// the to-do's kinds a person settles by choosing (the status word "To decide", plan 2026-11-14 §2 rule 5); a group to
-// confirm is "To confirm"; every other kind is something "Missing". Slice 2 counts from the one work model instead.
-const DECIDE = new Set(["conflict", "correct", "pka", "review", "formulation", "process", "unit"]);
+const STATUSES: StatusFilter[] = ["missing", "to_confirm", "to_decide"];
+const isTab = (t: string | undefined): t is Tab => TABS.some(([id]) => id === t);
+const isStatus = (s: string | undefined): StatusFilter => (STATUSES.includes(s as StatusFilter) ? s as StatusFilter : null);
 
 // GET /projects/{id}/inputs (InputsPage): the readiness, choices and the open items are typed here
 type View = Narrow<Schema<"InputsPage">, {
@@ -112,19 +113,30 @@ function LiteratureProgress({ r }: { r: LiteratureRun }) {
 
 /** Step 2 · Inputs (redesign §3.2): one workspace in PK-Sim's building blocks. Values flow in from every source not
  *  excluded and the source-selection rule keeps one per input (D-32). The frame (plan 2026-11-14 slice 1): a compact head
- *  with "Add data", the step bar, and a bar of areas that stays in view; To do says what is still missing to run, each
- *  item opening where it is settled, and Client files holds the files, their reading and the Delivery review. Nothing is
- *  accepted here: the one review is at the MAP signature (D-27). */
-export function InputsWorkspace({ projectId, initialTab, steps }: { projectId: string; initialTab?: Tab; steps?: ReactNode }) {
+ *  with "Add data", the step bar, and a bar of areas that stays in view; To do lists the one list of work (slice 2,
+ *  lib/inputsWork.ts), each item opening where it is settled, and Client files holds the files, their reading and the
+ *  delivery. Every count on the page is read from that one list. The area and To do's filters are in the URL
+ *  (`?tab=…&only=1&status=…`). Nothing is accepted here: the one review is at the MAP signature (D-27). */
+export function InputsWorkspace({ projectId, initialTab, initialOnly, initialStatus, steps }: {
+  projectId: string; initialTab?: string; initialOnly?: boolean; initialStatus?: string; steps?: ReactNode;
+}) {
   const page = useResource("/api/v1/projects/{project_id}/inputs", { project_id: projectId }, { select: (d) => narrow<View>(d) });
   const client = useResource("/api/v1/projects/{project_id}/client-data", { project_id: projectId },
     { select: (d) => narrow<ClientView>(d), poll: (d) => d.running });
+  const work = useInputsWork(projectId);
+  const model = work.model;
   const mutation = useMutation();
-  // an explicit ?tab= wins; otherwise the page opens on To do while anything is still missing, else on Compound
-  const [chosen, setTab] = useState<Tab | null>(TABS.some(([id]) => id === initialTab) ? initialTab! : null);
+  const pathname = usePathname();
+  const url = useSearchParams();
+  // an explicit ?tab= wins; otherwise the page opens on To do while anything is open, else on Compound
+  const [chosen, setChosen] = useState<Tab | null>(isTab(initialTab) ? initialTab : null);
+  const [only, setOnlyState] = useState(Boolean(initialOnly));
+  const [status, setStatusState] = useState<StatusFilter>(isStatus(initialStatus));
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
-  const [onlyToConfirm, setOnlyToConfirm] = useState(false);
   const [intent, setIntent] = useState<Intent | null>(null);
+  // the card a To do row or "Next" opened: a sheet-form group in its area, a delivery subject in Client files
+  const [groupFocus, setGroupFocus] = useState<{ group: string; at: number } | null>(null);
+  const [subjectFocus, setSubjectFocus] = useState<{ subject: string; at: number } | null>(null);
   // the client files opened on their sheets, and the last sheet form saved, held while another area is shown
   const [filesOpen, setFilesOpen] = useState<ReadonlySet<string>>(new Set());
   const [lastSheet, rememberSheet] = useState<FilesShown["memory"]["last"]>(null);
@@ -141,20 +153,22 @@ export function InputsWorkspace({ projectId, initialTab, steps }: { projectId: s
     { poll: (d) => d.running, interval: 5000 });
   const refresh = useRefresh();
   // a file read by code or by the agent brings values onto the cards, whichever area is open
-  const delivery = useDeliveryRefresh(projectId);
+  useDeliveryRefresh(projectId);
   useReadingRefresh(projectId);
   const assembled = useRef(false);
   const searching = useRef(false);
   const view = page.data;
 
-  // the area the page opened on is kept once the inputs are read, so a list that empties does not move the page
+  // the area the page opened on is kept once the work is read, so a list that empties does not move the page
   useEffect(() => {
-    if (chosen === null && view) setTab(view.todo.length ? "todo" : "compound");
-  }, [chosen, view]);
-  // a link to another area of this page (Add data's "See each file on Inputs") changes ?tab= without a new page
-  useEffect(() => {
-    if (initialTab && TABS.some(([id]) => id === initialTab)) setTab(initialTab);
-  }, [initialTab]);
+    if (chosen === null && view && work.loaded) setChosen(model.counts.open ? "todo" : "compound");
+  }, [chosen, view, work.loaded, model.counts.open]);
+  // a link to another area of this page (Add data's "See each file on Inputs") changes the area and the filters without a
+  // new page; the URL this page writes itself says what the page already shows
+  const urlTab = url.get("tab") ?? undefined, urlOnly = url.get("only") === "1", urlStatus = url.get("status") ?? undefined;
+  useEffect(() => { if (isTab(urlTab)) setChosen(urlTab); }, [urlTab]);
+  useEffect(() => { setOnlyState(urlOnly); }, [urlOnly]);
+  useEffect(() => { setStatusState(isStatus(urlStatus)); }, [urlStatus]);
 
   const run: Run = async <T,>(fn: () => Promise<Envelope<T>>, ok: string) => {
     const { problem } = await mutation.run(fn);
@@ -198,7 +212,7 @@ export function InputsWorkspace({ projectId, initialTab, steps }: { projectId: s
       .then(({ problem }) => { if (problem) setNotice({ ok: false, text: problem }); });
   }, [stale]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const head = { tone: "inputs" as const, steps, eyebrow: "Step 2 of 4", title: "Inputs", noReveal: true,
+  const head = { tone: "inputs" as const, steps, eyebrow: "Step 2 of 4", title: "Inputs", noReveal: true, slim: true,
                  lede: "Fill in what the model needs and confirm the client's data." };
   if (page.problem || !view) {
     return (
@@ -209,18 +223,11 @@ export function InputsWorkspace({ projectId, initialTab, steps }: { projectId: s
   }
 
   const tab: Tab = chosen ?? (view.todo.length ? "todo" : "compound");
-  const todo = [...view.todo].sort((a, b) => ORDER.indexOf(a.kind) - ORDER.indexOf(b.kind));
-  // the client's data, by the domain it lands in (plan 2026-11-03 §3.3); "To confirm" shows only what waits for you
-  const toConfirm = review.data?.to_confirm ?? 0;
+  const todo = view.todo;
+  // the client's data, by the domain it lands in (plan 2026-11-03 §3.3)
   const groups = review.data?.groups ?? [];
-  const groupsFor = (t: Tab) => groups.filter((g) => g.tab === t && (!onlyToConfirm || g.state === "to_confirm"));
-  const confirmHere = (t: Tab) => (
-    <>
-      <ConfirmGroups projectId={projectId} groups={groupsFor(t)} run={run} />
-      {onlyToConfirm && groupsFor(t).length === 0 && <p className="muted" data-testid="nothing-to-confirm">Nothing from the client
-        waits for you in this area.</p>}
-    </>
-  );
+  const groupsFor = (t: Tab) => groups.filter((g) => g.tab === t && (!only || g.state === "to_confirm"));
+  const confirmHere = (t: Tab) => <ConfirmGroups projectId={projectId} groups={groupsFor(t)} run={run} focus={groupFocus} />;
   const forTab = (t: Tab) => todo.filter((i) => (i.tab ?? "compound") === t);
   // a group to confirm is settled on its own card, above the panel: listed in To do, not twice in the panel
   const panelTodo = (t: Tab) => forTab(t).filter((i) => i.kind !== "confirm");
@@ -245,65 +252,82 @@ export function InputsWorkspace({ projectId, initialTab, steps }: { projectId: s
       + ". They rank below the client's and the literature's values." } : null);
   }
 
-  function open(t: TodoItem) {
-    setOnlyToConfirm(false);
-    setTab((t.tab ?? "compound") as Tab);
-    // a group to confirm is settled on its own card; every other item on its row in the area's list
-    const id = t.kind === "confirm" ? `group-${t.target}` : `todo-${t.kind}-${t.target}`;
-    window.setTimeout(() => document.getElementById(id)?.scrollIntoView({ block: t.kind === "confirm" ? "start" : "center", behavior: "smooth" }), 50);
-  }
-  // a block of the Delivery review, in Client files (it is read once the area shows it)
-  function openFiles(block: string) {
-    setOnlyToConfirm(false);
-    setTab("files");
+  // the area, the "Only what needs me" filter and To do's status filter, in the URL (plan 2026-11-14 §2.1, "URL state"):
+  // the history entry is replaced, never pushed, and the page keeps its place. Through the history API, which Next's
+  // router follows (useSearchParams), not router.replace: the page is the same, so no server render is asked for at
+  // each change, and an answer that arrives late cannot put back an area already left (plan §5).
+  const sync = (t: Tab, o: boolean, s: StatusFilter) => {
+    const q = new URLSearchParams({ tab: t });
+    if (o) q.set("only", "1");
+    if (s && t === "todo") q.set("status", s);
+    window.history.replaceState(null, "", `${pathname}?${q.toString()}`);
+  };
+  const setTab = (t: Tab) => { setChosen(t); sync(t, only, t === "todo" ? status : null); if (t !== "todo") setStatusState(null); };
+  const setOnly = (o: boolean) => { setOnlyState(o); sync(tab, o, status); };
+  const setStatus = (s: StatusFilter) => { setStatusState(s); setChosen("todo"); sync("todo", only, s); };
+  // a status-line count opens To do narrowed to its word; pressed again, To do shows every item
+  const toggleStatus = (s: Exclude<StatusFilter, null>) => setStatus(tab === "todo" && status === s ? null : s);
+
+  /** Bring an element of the area just opened into view (it is drawn once the area shows it), and mark it a moment. */
+  function bringIntoView(testId: string) {
     let tries = 0;
     const find = () => {
-      const el = document.querySelector(`[data-testid="${block}"]`);
-      if (el) el.scrollIntoView({ block: "start", behavior: "smooth" });
-      else if (++tries < 20) window.setTimeout(find, 100);
+      const el = document.querySelector<HTMLElement>(`[data-testid="${CSS.escape(testId)}"]`);
+      if (!el) { if (++tries < 30) window.setTimeout(find, 100); return; }
+      el.scrollIntoView({ block: "center", behavior: "smooth" });
+      el.classList.add("just-opened");
+      window.setTimeout(() => el.classList.remove("just-opened"), 1600);
     };
     window.setTimeout(find, 50);
   }
+  /** Open where a work item is settled: its area, its card (a sheet-form group, a delivery subject) or its file's row. */
+  function go(item: WorkItem) {
+    const w = item.where;
+    setTab(w.tab);
+    const at = Date.now();
+    if (w.subject) setSubjectFocus({ subject: w.subject, at });
+    if (w.file && !filesOpen.has(w.file)) setFilesOpen((was) => new Set([...was, w.file!]));
+    const group = item.issue?.group ?? (w.anchor?.startsWith("group-") ? w.anchor.slice("group-".length) : null);
+    if (group) setGroupFocus({ group, at });
+    if (w.anchor) bringIntoView(w.anchor);
+  }
+  const openGroup = (group: string, t: Tab) => { setTab(t); setGroupFocus({ group, at: Date.now() }); bringIntoView(`group-${group}`); };
   // a tool the head's "Add data" opens on Clinical studies
   function startStudies(what: Intent["what"]) {
-    setOnlyToConfirm(false);
     setTab("studies");
     setIntent({ what, at: Date.now() });
   }
 
-  // "To confirm" filters the areas; pressed on To do or Client files, it opens the first area with something to confirm
-  function toggleToConfirm() {
-    const on = !onlyToConfirm;
-    setOnlyToConfirm(on);
-    if (on && (tab === "todo" || tab === "files")) {
-      setTab(AREAS.find(([id]) => groups.some((g) => g.tab === id && g.state === "to_confirm"))?.[0] ?? "studies");
-    }
-  }
-
-  // the status line (plan 2026-11-14 §2; slice 1): the to-do by status word, "To confirm", the delivery's open work, and
-  // the page's one primary button, "Next". The delivery's table layouts and values with no study come first while a
-  // study or product still confirms on the delivery (they hold its signature); otherwise the to-do's order holds.
-  const missing = todo.filter((t) => t.kind !== "confirm" && !DECIDE.has(t.kind)).length;
-  const decide = todo.filter((t) => DECIDE.has(t.kind)).length;
-  const layouts = delivery?.enabled ? delivery.mappings.length : 0;
-  const unlinked = delivery?.enabled ? delivery.totals.values_unassigned : 0;
-  const holds = Boolean(delivery?.enabled && delivery.subjects.some((s) => s.confirm_on === "delivery" && !s.confirmation?.current));
-  const ready = !todo.length && Boolean(view.readiness?.content?.ready);
-  const groupTitle = (id: string) => groups.find((g) => g.id === id)?.title;
+  // the status line (plan 2026-11-14 §2): the open work by status word, each opening To do narrowed to it; what is done;
+  // what the model holds now; and the page's one primary button, "Next", the first open item in the order the work is
+  // done (lib/inputsWork.ts). Every number here is counted from the one list, as are the area bar's and To do's.
+  const counts = model.counts;
+  const ready = model.ready;
+  const nextLabel = nextText(model);
   const next: { text: string; go: () => void } | { text: string; href: string } | null =
-    holds && layouts ? { text: `Next: Check how ${plural(layouts, "table")} ${layouts === 1 ? "is" : "are"} read`, go: () => openFiles("delivery-mappings") }
-      : holds && unlinked ? { text: `Next: Link ${plural(unlinked, "value")} to a study or product`, go: () => openFiles("delivery-unassigned") }
-        : todo.length ? { text: `Next: ${todoText(todo[0], groupTitle)}`, go: () => open(todo[0]) }
-          : ready ? { text: "Next: Review & sign", href: STEP_ROUTES.review(projectId) } : null;
-  const showTodo = () => { setOnlyToConfirm(false); setTab("todo"); };
+    model.next && nextLabel ? { text: nextLabel, go: () => go(model.next!) }
+      : ready ? { text: "Next: Review & sign", href: STEP_ROUTES.review(projectId) } : null;
+  const pressed = (s: StatusFilter) => tab === "todo" && status === s;
+  const inModel = model.inModel;
 
-  const tabs = TABS.map(([id, label]) => (
-    id === "todo" ? { id, label, count: todo.length, countLabel: "to do", testId: "tab-todo" }
-      : id === "files" ? { id, label, count: files.length, countLabel: files.length === 1 ? "file" : "files", testId: "tab-files",
-                           badge: unplaced > 0 ? <span className="chip medium" data-testid="files-unplaced"
-                                                       title="files not filed under an area yet: say what each is">{unplaced} to place</span> : null }
-        : { id, label, count: forTab(id).length, testId: `tab-${id}` }
-  ));
+  const tabs = TABS.map(([id, label]) => ({
+    id, label, count: model.byArea[id], countLabel: id === "todo" ? "to do" : "open", testId: `tab-${id}`,
+    badge: id === "files" && unplaced > 0 ? <span className="chip medium" data-testid="files-unplaced"
+                                                  title="files not filed under an area yet: say what each is">{unplaced} to place</span> : null,
+  }));
+  // each area's one line: what it holds and what is open in it, counted from the same list as its badge; "Only what needs
+  // me" (in the URL, as on To do and Client files) folds away the client's cards already confirmed
+  const areaLine = (t: Exclude<Tab, "todo" | "files">) => (
+    <div className="area-head-row">
+      <p className="area-head" data-testid={`area-head-${t}`}>{areaHead(model, t)}</p>
+      {groups.some((g) => g.tab === t) && (
+        <label className="only-mine">
+          <input type="checkbox" checked={only} onChange={(e) => setOnly(e.target.checked)} data-testid={`only-${t}`} />
+          Only what needs me
+        </label>
+      )}
+    </div>
+  );
 
   return (
     <PageShell {...head}
@@ -312,7 +336,6 @@ export function InputsWorkspace({ projectId, initialTab, steps }: { projectId: s
                      onTemplate={() => void downloadTemplate(client.data?.template).then((p) => { if (p) setNotice({ ok: false, text: p }); })}
                      onDigitize={() => startStudies("digitize")} onTypeTable={() => startStudies("type")}
                      onFindObserved={client.data?.agents.enabled ? () => {
-                       setOnlyToConfirm(false);
                        setTab("studies");
                        void run(() => send("post", "/api/v1/projects/{project_id}/evidence:research", { project_id: projectId }, undefined, { agent: "A3" }),
                                 "The observed-data agent is searching; datasets appear under Every dataset as it records them.");
@@ -332,28 +355,33 @@ export function InputsWorkspace({ projectId, initialTab, steps }: { projectId: s
     >
       <div className="inputs-status" data-testid="inputs-status">
         <div className="status-counts">
-          {files.length > 0 && <span className="muted">{plural(files.length, "client file")}</span>}
-          {ready && <strong className="status-ready" data-testid="status-ready">Inputs are ready</strong>}
-          {missing > 0 && (
-            <button type="button" className="btn small status-count" data-testid="status-missing" onClick={showTodo}
-                    title="What the model still needs, listed in To do">Missing <span className="status-num">{missing}</span></button>
-          )}
-          {decide > 0 && (
-            <button type="button" className="btn small status-count" data-testid="status-decide" onClick={showTodo}
-                    title="Choices only a person can make, listed in To do">To decide <span className="status-num">{decide}</span></button>
-          )}
-          <button type="button" className={`btn small to-confirm-btn${toConfirm ? " waiting" : ""}`} aria-pressed={onlyToConfirm}
-                  data-testid="to-confirm" onClick={toggleToConfirm} title="Show only the client's data that waits for your confirmation">
-            <span>{onlyToConfirm ? "Showing what to confirm" : "To confirm"}</span>
-            <span className="chip" data-testid="to-confirm-count">{toConfirm}</span>
-          </button>
-          {(layouts > 0 || unlinked > 0) && (
-            <button type="button" className="link-btn" data-testid="status-delivery" onClick={() => openFiles("delivery-section")}>
-              Delivery review: {[layouts ? `${plural(layouts, "table layout")} to check` : "", unlinked ? `${plural(unlinked, "value")} with no study` : ""]
+          {(files.length > 0 || client.data?.agents.enabled === false) && (
+            <span className="muted status-note" data-testid="status-files"
+                  title={client.data?.agents.enabled === false ? "AI reading is off on this server: the files are read by code" : undefined}>
+              {[files.length ? plural(files.length, "client file") : "", client.data && !client.data.agents.enabled ? "AI off" : ""]
                 .filter(Boolean).join(" · ")}
-            </button>
+            </span>
           )}
-          <span className="sr-only" aria-live="polite">{`${missing} missing, ${decide} to decide, ${toConfirm} to confirm`}</span>
+          {ready && <strong className="status-ready" data-testid="status-ready">Inputs are ready</strong>}
+          {counts.missing > 0 && (
+            <button type="button" className="btn small status-count" data-testid="status-missing" aria-pressed={pressed("missing")}
+                    onClick={() => toggleStatus("missing")} title={STATUS_MEANS.missing}>Missing <span className="status-num">{counts.missing}</span></button>
+          )}
+          <button type="button" className={`btn small to-confirm-btn${counts.to_confirm ? " waiting" : ""}`} aria-pressed={pressed("to_confirm")}
+                  data-testid="to-confirm" onClick={() => toggleStatus("to_confirm")} title={STATUS_MEANS.to_confirm}>
+            <span>To confirm</span>
+            <span className="chip" data-testid="to-confirm-count">{counts.to_confirm}</span>
+          </button>
+          {counts.to_decide > 0 && (
+            <button type="button" className="btn small status-count" data-testid="status-decide" aria-pressed={pressed("to_decide")}
+                    onClick={() => toggleStatus("to_decide")} title={STATUS_MEANS.to_decide}>To decide <span className="status-num">{counts.to_decide}</span></button>
+          )}
+          {counts.done > 0 && <span className="muted" data-testid="status-done">{counts.done} done</span>}
+          <span className="muted status-note" data-testid="status-in-model"
+                title="What the model holds now: the client's data only once confirmed">
+            In the model: {count(inModel.studies, "study", "studies")} · {plural(inModel.formulations, "formulation")} · {plural(inModel.values, "compound value")}
+          </span>
+          <span className="sr-only" aria-live="polite">{`${counts.missing} missing, ${counts.to_confirm} to confirm, ${counts.to_decide} to decide`}</span>
         </div>
         {next && ("href" in next
           ? <Link className="btn primary status-next" href={next.href} data-testid="inputs-next">{next.text}</Link>
@@ -367,24 +395,24 @@ export function InputsWorkspace({ projectId, initialTab, steps }: { projectId: s
 
       {tab === "todo" && (
         <TabPanel prefix="inputs" id="todo">
-          <TodoTab projectId={projectId} todo={todo} areas={AREAS.map(([id, label]) => ({ id, label }))}
-                   groupTitle={groupTitle} readiness={view.readiness?.content}
-                   selectionRule={view.selection_rule} onOpen={open} />
+          <TodoTab projectId={projectId} work={model} run={run} status={status} only={only} onStatus={setStatus} onOnly={setOnly}
+                   readiness={view.readiness?.content} selectionRule={view.selection_rule} onOpen={go} />
         </TabPanel>
       )}
 
       {tab === "compound" && (
         <TabPanel prefix="inputs" id="compound">
-          {!onlyToConfirm && literature.data?.sources && <SourcesRead run={literature.data.sources} />}{confirmHere("compound")}
-          {!onlyToConfirm && <><ValueReuse projectId={projectId} run={run} />
+          {areaLine("compound")}
+          {literature.data?.sources && <SourcesRead run={literature.data.sources} />}{confirmHere("compound")}
+          <ValueReuse projectId={projectId} run={run} />
           <InputRows rows={rows("compound")} todo={panelTodo("compound")} projectId={projectId} run={run} grouped
                    empty="The compound's values appear here as the client's files, the literature and PubChem fill them." />
-          <AccessRequests projectId={projectId} run={run} /></>}</TabPanel>
+          <AccessRequests projectId={projectId} run={run} /></TabPanel>
       )}
 
       {tab === "formulations" && (
-        <TabPanel prefix="inputs" id="formulations">{confirmHere("formulations")}
-          {!onlyToConfirm && <>
+        <TabPanel prefix="inputs" id="formulations">{areaLine("formulations")}{confirmHere("formulations")}
+          <>
           <BriefList projectId={projectId} group="products" testId="inputs-products"
                      fields={["name", "role", "dosage_form", "strength", "release", "attributes"]}
                      title="The products the proposal names"
@@ -412,12 +440,13 @@ export function InputsWorkspace({ projectId, initialTab, steps }: { projectId: s
             <Dissolution projectId={projectId} d={client.data.dissolution}
                          act={async (fn) => run(fn, "The release model is proposed; its values flow into the formulation.")} />
           )}
-          </>}
+          </>
         </TabPanel>
       )}
 
       {tab === "individuals" && (
         <TabPanel prefix="inputs" id="individuals">
+          {areaLine("individuals")}
           <BriefList projectId={projectId} group="populations" testId="inputs-populations"
                      fields={["kind", "age_range", "sex", "ethnicity", "impairment_class", "genotype", "species"]}
                      title="The populations the proposal names"
@@ -435,6 +464,7 @@ export function InputsWorkspace({ projectId, initialTab, steps }: { projectId: s
 
       {tab === "settings" && (
         <TabPanel prefix="inputs" id="settings">
+          {areaLine("settings")}
           <InputRows rows={rows("settings")} todo={panelTodo("settings")} projectId={projectId} run={run}
                      empty="The calculation methods are PK-Sim's defaults unless the published model sets them." />
           <section className="card">
@@ -460,14 +490,15 @@ export function InputsWorkspace({ projectId, initialTab, steps }: { projectId: s
       )}
 
       {tab === "studies" && (
-        <TabPanel prefix="inputs" id="studies">{confirmHere("studies")}{!onlyToConfirm && <StudiesTab studies={studies} todo={panelTodo("studies")} projectId={projectId} run={run} options={options}
-                    onIndividuals={() => setTab("individuals")} client={client.data ?? undefined} intent={intent} />}</TabPanel>
+        <TabPanel prefix="inputs" id="studies">{areaLine("studies")}{confirmHere("studies")}<StudiesTab studies={studies} todo={panelTodo("studies")} projectId={projectId} run={run} options={options}
+                    onIndividuals={() => setTab("individuals")} client={client.data ?? undefined} intent={intent} /></TabPanel>
       )}
 
       {tab === "files" && (
         <TabPanel prefix="inputs" id="files">
-          <ClientFilesTab projectId={projectId} client={client.data} run={run} act={clientAct} onRetag={retag} onSaved={clientSaved}
-                          onOpen={(area) => { setOnlyToConfirm(false); setTab(area); }} shown={shown} />
+          <ClientFilesTab projectId={projectId} client={client.data} work={model} only={only} onOnly={setOnly} run={run} act={clientAct}
+                          onRetag={retag} onSaved={clientSaved} onOpen={(area) => setTab(area)} onItem={go} onOpenGroup={openGroup}
+                          focus={subjectFocus} shown={shown} />
         </TabPanel>
       )}
     </PageShell>

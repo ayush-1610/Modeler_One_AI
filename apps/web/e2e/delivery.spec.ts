@@ -53,17 +53,22 @@ test("a delivery is reviewed by exception, spot-checked, signed and loaded once"
   await expect(section.getByTestId("delivery-total-regions")).toHaveText("12");
   await expect(section.getByTestId("delivery-total-outside")).toHaveText("1");
   await expect(section.getByTestId("delivery-total-unassigned")).toHaveText("0");
-  await expect(section.getByTestId("delivery-rules")).toHaveText("rules UNVERIFIED v0.1");
+  await expect(section.getByTestId("delivery-rules")).toHaveText("Intake rules v0.1 · UNVERIFIED");
   const delivery = await read<{ deliveries: { files: { file_id: string; name: string }[] }[]; subjects: Row[] }>("delivery");
   const files = delivery.deliveries.flatMap((d) => d.files);
   expect(files.map((f) => f.name).sort()).toEqual([...fixture.files].sort());
-  for (const f of files) await expect(section.getByTestId(`delivery-file-state-${f.file_id}`)).toHaveText("read");
-  // a file's regions, and how long each stage took
+  // each file once, in the one table of files, with one status (plan 2026-11-14 slice 2): the PDF's prose was not read
   const pdf = files.find((f) => f.name.endsWith(".pdf"))!;
-  await section.getByTestId(`delivery-file-toggle-${pdf.file_id}`).click();
-  await expect(section.getByTestId(`delivery-regions-${pdf.file_id}`)).toContainText("no model is configured");   // its prose: not read, and why
-  await expect(section.getByTestId(`delivery-stages-${pdf.file_id}`)).toContainText("parse");
-  await section.getByTestId(`delivery-file-toggle-${pdf.file_id}`).click();
+  for (const f of files) await expect(page.getByTestId(`file-state-${f.name}`)).toHaveText(f === pdf ? "partly read" : "read");
+  // a file's own reading opens under its row: its regions, and how long each stage took
+  await page.getByTestId(`file-toggle-${pdf.name}`).click();
+  await expect(page.getByTestId(`delivery-file-state-${pdf.file_id}`)).toHaveText("read");
+  await page.getByTestId(`delivery-file-toggle-${pdf.file_id}`).click();
+  await expect(page.getByTestId(`delivery-regions-${pdf.file_id}`)).toContainText("no model is configured");   // its prose: not read, and why
+  await expect(page.getByTestId(`delivery-stages-${pdf.file_id}`)).toContainText("parse");
+  await page.getByTestId(`file-toggle-${pdf.name}`).click();
+  await expect(page.getByTestId(`delivery-regions-${pdf.file_id}`)).toHaveCount(0);
+  await expect(section.getByTestId("delivery-files")).toHaveCount(0);                        // no second list of the files
   await expect(section.getByTestId(`delivery-mapping-${waiting}`)).toContainText("waits for approval");
   await shot(page, "1-coverage");
 
@@ -209,7 +214,8 @@ test("a delivery is reviewed by exception, spot-checked, signed and loaded once"
   await dialog.getByTestId("delivery-confirm-done").click();
   await expect(card.getByTestId(`delivery-manifestation-${study.subject}`)).toContainText("Dev User | Reviewed |");
   await expect(card.getByTestId(`delivery-confirm-${study.subject}`)).toHaveCount(0);
-  await expect(section.getByTestId(`delivery-subject-${study.subject}`)).toContainText("confirmed and loaded");
+  await expect(section.getByTestId(`delivery-subject-standing-${study.subject}`)).toContainText("Done");
+  await expect(section.getByTestId(`delivery-subject-standing-${study.subject}`)).toContainText("signed by Dev User");
   await shot(page, "8-confirmed");
 
   // --- on Inputs: the study is in the project once; its own card shows it loaded, with nothing to confirm there ---

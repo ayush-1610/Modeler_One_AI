@@ -166,8 +166,9 @@ test("Add data reads documents for data by default, and a large delivery goes up
   expect(files.length).toBe(21);
 });
 
-test("the reading tray on Inputs lists each file for the agent and says when the agent is off", async ({ page, request }) => {
-  // plan 2026-11-10, R3: the e2e servers run with agents off, so the files wait and the tray says why
+test("the AI reading line on Inputs says how far the files were read, and when AI reading is off", async ({ page, request }) => {
+  // plan 2026-11-10, R3: the e2e servers run with agents off, so the files wait for AI reading and the line says so; plan
+  // 2026-11-14 slice 2: each file has one status, in the files table, and the line no longer calls waiting what code read
   const started = await request.post("/api/v1/projects:initiate", { headers: AUTH, multipart: {
     drug_name: "Trayamide", extract: "false",
     files: { name: "proposal.md", mimeType: "text/markdown", buffer: Buffer.from("# Proposal") } } });
@@ -185,11 +186,19 @@ test("the reading tray on Inputs lists each file for the agent and says when the
   await page.waitForURL(/\/inputs\?tab=files/);                                   // the Client files area
   await expect(page.getByTestId("tab-files")).toHaveAttribute("aria-selected", "true");
   const tray = page.getByTestId("reading-tray");
-  await expect(page.getByTestId("reading-tray-counts")).toHaveText("0 of 2 read · 2 waiting");
-  await expect(page.getByTestId("reading-tray-off")).toContainText("2 files wait and are read once it is on");
-  await page.getByTestId("reading-tray-toggle").click();
-  await expect(page.getByTestId("reading-item-094-26 Summary Statistics.pdf")).toContainText("waiting");
-  await expect(page.getByTestId("reading-item-093-26 Synopsis.pdf")).toContainText("on arrival");
+  // the delivery reads both by code: the line says so, once it has (it said "0 of 2 read · 2 waiting" beside "2 read")
+  await expect(page.getByTestId("reading-tray-counts")).toHaveText("2 files read without AI · AI reading is off", { timeout: 60_000 });
+  await expect(page.getByTestId("reading-tray-agent")).toHaveText("AI off");
+  await expect(page.getByTestId("reading-tray-off")).toHaveCount(0);
+  // each file once, with one status, in the files table: no second list of the files in the line
+  await expect(page.getByTestId("reading-tray-toggle")).toHaveCount(0);
+  for (const name of ["094-26 Summary Statistics.pdf", "093-26 Synopsis.pdf"]) {
+    await expect(page.getByTestId(`file-state-${name}`)).toHaveText(/read$/);
+  }
+  // with AI off, a file whose AI reading has not happened lists none under its row
+  await page.getByTestId("file-toggle-094-26 Summary Statistics.pdf").click();
+  await expect(page.getByTestId("client-file-094-26 Summary Statistics.pdf")).toBeVisible();
+  await expect(page.getByTestId("reading-item-094-26 Summary Statistics.pdf")).toHaveCount(0);
   await tray.screenshot({ path: test.info().outputPath("reading-tray.png") });
 });
 
@@ -237,15 +246,16 @@ test("documents added before reading for data are listed on Inputs and read on r
   await page.goto(`/projects/${projectId}/inputs`);
   await page.getByTestId("tab-files").click();                                      // the tray is in Client files
   await expect(page.getByTestId("reading-tray")).toBeVisible();                      // shown with nothing queued
-  await expect(page.getByTestId("reading-tray-counts")).toHaveText("no file queued for the agent yet");
-  await expect(page.getByTestId("reading-tray-agent")).toHaveText("agent off");
+  await expect(page.getByTestId("reading-tray-counts")).toHaveText("no file queued for AI reading yet");
+  await expect(page.getByTestId("reading-tray-agent")).toHaveText("AI off");
   await expect(page.getByTestId("reading-tray-backlog")).toContainText("1 document in the project's library was added");
   await expect(page.getByTestId("reading-tray-backlog")).toContainText("093-26 Summary Statistics.pdf");
   await page.getByTestId("reading-tray").screenshot({ path: test.info().outputPath("reading-backlog.png") });
   await page.getByTestId("read-library").click();
   await expect(page.getByTestId("reading-tray-backlog")).toHaveCount(0);
-  await expect(page.getByTestId("reading-tray-counts")).toHaveText("0 of 1 read · 1 waiting");
-  await expect(page.getByTestId("reading-item-093-26 Summary Statistics.pdf")).toContainText("waiting");
+  // read for data now: a client file with its row, read by code (AI reading is off)
+  await expect(page.getByTestId("reading-tray-counts")).toHaveText("1 file read without AI · AI reading is off", { timeout: 60_000 });
+  await expect(page.getByTestId("file-state-093-26 Summary Statistics.pdf")).toHaveText(/read$/);
 });
 
 /** A one-page PDF with one line of text, its cross-reference table at the right offsets. */

@@ -1,100 +1,224 @@
 "use client";
 
-// The To do area (plan 2026-11-14 slice 1): what the old rail's side held, now the first area and full width. What is
-// still missing to run, by the area it is settled in (each item opens there); what to ask the client; the inputs ready
-// once nothing is missing; and the model checks with where values come from. Slice 2 builds it from the one list of work
-// (lib/inputsWork.ts) instead of the /inputs to-do alone.
+// The To do area (plan 2026-11-14 slice 2; the design text's "Tab To do"): the one list of work (lib/inputsWork.ts), by
+// group in the order a person works through it, each row one line that opens where the item is settled (its area, its
+// card, its file). Inline, with the same form its home uses, only what is settled in batches or per value: the
+// compound's values (the S0 batch) and the sheet form's disagreements; a study's facts and its confirmation are made on
+// its card only (one home per decision, plan §2.1). Then what to ask the client (with the request to download), the model
+// checks in words, the clean-up that blocks nothing, and what is done and in the model.
 
 import Link from "next/link";
+import { useState } from "react";
 
 import { STEP_ROUTES } from "@/lib/pipeline";
+import { GROUPS, GROUP_LEDE, GROUP_TITLE, INLINE_TODO, type Group, type WorkItem, type WorkModel } from "@/lib/inputsWork";
+import { STATUS_TONE, STATUS_WORD, type Status, plural } from "@/lib/words";
 
+import { IssueCard } from "./ClientConfirm";
 import { ClientRequest } from "./ClientRequest";
-import { LABEL, TITLE, type TodoItem } from "./InputsTodo";
+import { TodoAction, type Run, type TodoItem } from "./InputsTodo";
 
-type Check = { check: string; ok: boolean; detail: string[] };
-export type Readiness = { ready: boolean; checks: Check[]; engine_dry_run: string };
-type Area = { id: string; label: string };
+export type Readiness = { ready: boolean; checks: { check: string; ok: boolean; detail: string[] }[]; engine_dry_run: string };
+/** The status a person narrows To do to from the status line (`?status=`), or every item. */
+export type StatusFilter = Exclude<Status, "done"> | null;
 
-const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+const SHOWN = 5;   // rows of a group shown before "Show n more"
 
-/** A to-do item in words: what it is and what it concerns (a group to confirm by its title). */
-export function todoText(t: TodoItem, groupTitle: (id: string) => string | undefined): string {
-  return TITLE[t.kind] + (t.kind === "confirm" ? ` · ${groupTitle(t.target) ?? t.target}`
-    : t.kind !== "datasets" && t.kind !== "check" ? ` · ${LABEL[t.target] ?? t.target}` : "");
+/** A row's testid: the /inputs to-do's rows keep theirs (`missing-<kind>-<target>`), a card to confirm is
+ *  `todo-confirm-<key>`, every other row `todo-row-<id>`. */
+function rowTestId(i: WorkItem): string {
+  if (i.todo) return `missing-${i.todo.kind}-${i.todo.target}`;
+  if (i.id.startsWith("confirm:")) return `todo-confirm-${i.id.slice("confirm:".length)}`;
+  if (i.id.startsWith("layout:")) return `todo-layout-${i.id.slice("layout:".length)}`;
+  return `todo-row-${i.id.replace(/[^A-Za-z0-9:_.|-]/g, "-")}`;
 }
 
-export function TodoTab({ projectId, todo, areas, groupTitle, readiness, selectionRule, onOpen }: {
-  projectId: string;
-  /** the /inputs to-do, in the order it is settled */
-  todo: TodoItem[];
-  /** the input areas, in the area bar's order */
-  areas: Area[];
-  /** the title of a client-data group to confirm, by its id */
-  groupTitle: (id: string) => string | undefined;
+function Row({ item, projectId, run, review, onOpen }: {
+  item: WorkItem; projectId: string; run: Run; review: WorkModel["subjects"][number]["groups"]; onOpen: (item: WorkItem) => void;
+}) {
+  const [settle, setSettle] = useState(false);
+  // a compound value is settled here with its own form when there is something to settle (a value to accept, values
+  // that disagree); one that no source gives is filled in on Compound, where the row opens
+  const todo = item.todo as TodoItem | undefined;
+  const settles = todo && INLINE_TODO.has(todo.kind) && item.where.tab === "compound"
+    && (todo.kind !== "missing" || (todo.items?.length ?? 0) > 0 || Boolean(todo.identity));
+  const group = item.issue ? review.find((g) => g.id === item.issue!.group) : undefined;
+  const issue = group?.issues.find((x) => x.id === item.issue!.issue);
+  const inline = Boolean(settles) || Boolean(issue);
+  // the group heading carries the status word; a row says only why it is not counted
+  const quiet = item.group === "tidy" ? "blocks nothing" : item.blocked ? "can't be acted on yet" : null;
+  const said = [item.inModel, item.blocked, item.detail].filter(Boolean).join(" · ");
+  return (
+    <li className={`todo-line${item.open ? "" : " quiet"}`} data-item={item.id}>
+      <div className="todo-line-head">
+        {quiet && <span className="chip neutral">{quiet}</span>}
+        <button type="button" className="link-btn todo-line-label" onClick={() => onOpen(item)} data-testid={rowTestId(item)}
+                title={`Open where it is settled: ${item.where.tab === "files" ? "Client files" : "its area"}`}>{item.label}</button>
+        {said && <span className="todo-line-detail muted">{said}</span>}
+        {inline && !item.blocked && (
+          <button type="button" className="btn small" aria-expanded={settle} onClick={() => setSettle(!settle)}
+                  data-testid={`todo-settle-${item.id}`} aria-label={`${settle ? "Hide" : "Settle here"}: ${item.label}`}>
+            {settle ? "Hide" : "Settle here"}
+          </button>
+        )}
+      </div>
+      {settle && settles && todo && <div className="todo-line-inline"><TodoAction t={todo} projectId={projectId} run={run} /></div>}
+      {settle && group && issue && <div className="todo-line-inline"><IssueCard projectId={projectId} group={group} issue={issue} run={run} /></div>}
+    </li>
+  );
+}
+
+function GroupList({ group, items, projectId, run, review, onOpen, first }: {
+  group: Group; items: WorkItem[]; projectId: string; run: Run; review: WorkModel["subjects"][number]["groups"];
+  onOpen: (item: WorkItem) => void; first: boolean;
+}) {
+  const [all, setAll] = useState(false);
+  const shown = all || first ? items : items.slice(0, SHOWN);
+  const open = items.filter((i) => i.open);
+  const held = items.length - open.length;
+  // the status word, once for the group (every row of a group has the same); amber only where a person decides or signs
+  const status = (open[0] ?? items[0]).status;
+  // what holds up the signatures on the delivery, said once
+  const gates = [...new Set(items.map((i) => i.gate).filter(Boolean))];
+  return (
+    <section className="todo-group" data-testid={`todo-group-${group}`} aria-labelledby={`todo-group-${group}-title`}>
+      <h3 id={`todo-group-${group}-title`} tabIndex={-1}>
+        <span className={`chip ${STATUS_TONE[status]}`}>{STATUS_WORD[status]}</span> {GROUP_TITLE[group]}{" "}
+        <span className="muted">({open.length}{held ? ` · ${held} can't be acted on yet` : ""})</span>
+      </h3>
+      <p className="muted todo-group-lede">{GROUP_LEDE[group]}</p>
+      {gates.map((g) => <p key={g} className="todo-gate" data-testid="todo-gate">Signing on the delivery waits for its clean-up: {g}.</p>)}
+      <ul className="todo-lines">
+        {shown.map((i) => <Row key={i.id} item={i} projectId={projectId} run={run} review={review} onOpen={onOpen} />)}
+      </ul>
+      {items.length > shown.length && (
+        <button type="button" className="link-btn" onClick={() => setAll(true)} data-testid={`todo-more-${group}`}>
+          Show {items.length - shown.length} more</button>
+      )}
+    </section>
+  );
+}
+
+export function TodoTab({ projectId, work, run, status, only, onStatus, onOnly, readiness, selectionRule, onOpen }: {
+  projectId: string; work: WorkModel; run: Run;
+  status: StatusFilter; only: boolean;
+  onStatus: (status: StatusFilter) => void; onOnly: (on: boolean) => void;
   readiness: Readiness | null | undefined;
   selectionRule: string;
-  onOpen: (item: TodoItem) => void;
+  onOpen: (item: WorkItem) => void;
 }) {
-  const open = readiness ? readiness.checks.filter((c) => !c.ok).length : 0;
-  const byArea = areas.map((a) => [a, todo.filter((t) => (t.tab ?? "compound") === a.id)] as const).filter(([, items]) => items.length);
+  const review = work.subjects.flatMap((s) => s.groups);
+  const visible = work.items.filter((i) => (!status || i.status === status) && (!only || i.open));
+  const groups = GROUPS.filter((g) => g !== "tidy" && g !== "done")
+    .map((g) => [g, visible.filter((i) => i.group === g)] as const).filter(([, items]) => items.length);
+  const tidy = work.items.filter((i) => i.group === "tidy");
+  const done = work.items.filter((i) => i.group === "done");
+  const openChecks = work.checks.filter((c) => !c.ok);
+  const passed = work.checks.filter((c) => c.ok);
+  const filters: [StatusFilter, string, number][] = [
+    [null, "All", work.counts.open], ["missing", STATUS_WORD.missing, work.counts.missing],
+    ["to_confirm", STATUS_WORD.to_confirm, work.counts.to_confirm], ["to_decide", STATUS_WORD.to_decide, work.counts.to_decide],
+  ];
   return (
-    <>
-      {todo.length > 0 ? (
-        <section className="card todo-missing" data-testid="still-missing">
-          <h2 className="mt-0">Still missing to run ({todo.length})</h2>
-          <p className="muted m-0-0-8">Each item opens in the area where it is settled.</p>
-          {byArea.map(([area, items]) => (
-            <div key={area.id} className="todo-area">
-              <h3>{area.label} <span className="muted">· {items.length}</span></h3>
-              <ul className="missing-list">
-                {items.map((t, i) => (
-                  <li key={`${t.kind}-${t.target}-${i}`}>
-                    <button type="button" className="link-btn" onClick={() => onOpen(t)} data-testid={`missing-${t.kind}-${t.target}`}>
-                      {todoText(t, groupTitle)}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
-          <ClientRequest projectId={projectId} />
-        </section>
-      ) : readiness?.ready ? (
-        <section className="card todo-ready" data-testid="inputs-ready">
-          <h2 className="mt-0">Inputs are ready</h2>
-          <p className="m-0-0-8">Everything S0 needs is here, and every planned simulation builds.</p>
+    <section className="card todo-work" data-testid="still-missing">
+      <div className="todo-head">
+        <div>
+          <h2 className="m-0">What needs you</h2>
+          <p className="muted m-0">Start at the top: each group unblocks the ones below.</p>
+        </div>
+        <div className="todo-filters">
+          <div className="table-chips" role="group" aria-label="Show">
+            {filters.map(([id, label, n]) => (
+              <button key={label} type="button" aria-pressed={status === id} data-testid={`todo-filter-${id ?? "all"}`}
+                      onClick={() => onStatus(id)}>{label} <span className="status-num">{n}</span></button>
+            ))}
+          </div>
+          <label className="only-mine">
+            <input type="checkbox" checked={only} onChange={(e) => onOnly(e.target.checked)} data-testid="todo-only" />
+            Only what needs me
+          </label>
+        </div>
+      </div>
+
+      {work.counts.open === 0 && (readiness?.ready ? (
+        <div className="todo-ready" data-testid="inputs-ready">
+          <h3 className="mt-0">Everything the model needs is here</h3>
+          <p className="m-0-0-8">Every value the model needs has a source, and every planned simulation builds.</p>
           {/* the page's one primary is the status line's "Next" */}
           <Link className="btn" href={STEP_ROUTES.review(projectId)}>Go to Review &amp; sign</Link>
-        </section>
+        </div>
       ) : (
-        <section className="card" data-testid="assembling"><p className="m-0">The inputs are being put together.</p></section>
-      )}
-      {/* the checks and where values come from, folded: the list above is what the area is for (2026-11-11 audit, item 4) */}
-      <details className="card inputs-more" data-testid="inputs-more">
-        <summary>
-          <span className="inputs-more-title">Readiness and sources</span>
-          {readiness && <span className={`chip ${open ? "high" : "low"}`}>{open ? `${plural(open, "check")} open` : "all checks ok"}</span>}
-        </summary>
-        {readiness && (
-          <>
-            <ul className="checks" data-testid="readiness">
-              {readiness.checks.map((c) => (
-                <li key={c.check} data-testid={`check-${c.check}`}>
-                  <span className={`chip ${c.ok ? "low" : "high"}`}>{c.ok ? "ok" : "open"}</span> {c.check}
+        <p className="muted" data-testid="todo-nothing">Nothing needs you here now.{openChecks.length ? " The model checks below say what is left." : ""}</p>
+      ))}
+
+      {groups.map(([group, items], n) => (
+        <GroupList key={group} group={group} items={items} projectId={projectId} run={run} review={review} onOpen={onOpen} first={n === 0} />
+      ))}
+
+      {!status && (
+        <section className="todo-group" data-testid="todo-group-ask">
+          <h3>Ask the client {work.ask.length > 0 && <span className="muted">({work.ask.length})</span>}</h3>
+          {work.ask.length > 0 ? (
+            <ul className="todo-lines">
+              {work.ask.map((a) => (
+                <li key={`${a.req}|${a.what}`} className="todo-line" data-testid={`todo-ask-${a.req}`}>
+                  <div className="todo-line-head">
+                    <span className="chip neutral">{a.required ? "needed" : "useful"}</span>
+                    <span>{a.what}{a.subjects.length > 0 && <span className="muted"> · {a.subjects.join(", ")}</span>}</span>
+                  </div>
+                  <p className="todo-line-detail muted">needed for {a.why}</p>
                 </li>
               ))}
             </ul>
-            <p className="muted fs-12 m-6-0-0">PK-Sim dry run: {readiness.engine_dry_run}</p>
-          </>
-        )}
-        <h3 className="m-14-0-4">Where values come from</h3>
-        <p className="m-0 fs-13">The client&apos;s files and figures; PubChem, the FDA label and ChEMBL, read by code at the
-          project&apos;s start; the literature agent; and the published OSP model of the drug. Every value not excluded flows
-          in; where sources give several, one is kept by source and grade (the client&apos;s first, then the literature by
-          grade) and the others stay listed for the review. Values are never averaged.</p>
-        <p className="muted fs-12 m-6-0-0" data-testid="selection-rule">Source selection rules: {selectionRule}</p>
-      </details>
-    </>
+          ) : <p className="muted m-0">Nothing the client alone holds is missing from the files they sent.</p>}
+          <ClientRequest projectId={projectId} />
+        </section>
+      )}
+
+      {!status && (
+        <section className="todo-group" data-testid="todo-group-checks">
+          <h3>Model checks {openChecks.length > 0 && <span className="muted">({openChecks.length} open)</span>}</h3>
+          <ul className="checks" data-testid="readiness">
+            {openChecks.map((c) => (
+              <li key={c.raw} data-testid={`check-${c.raw}`} data-ok="false">
+                <strong>{c.label}</strong>{c.fix && <span className="muted"> · {c.fix}</span>}
+              </li>
+            ))}
+            {!only && passed.length > 0 && (
+              <li className="checks-passed">
+                <details>
+                  <summary>{plural(passed.length, "check passes", "checks pass")}</summary>
+                  <ul className="checks">
+                    {passed.map((c) => <li key={c.raw} data-testid={`check-${c.raw}`} data-ok="true"><span aria-hidden="true">✓ </span>{c.label}</li>)}
+                  </ul>
+                </details>
+              </li>
+            )}
+          </ul>
+          {readiness && <p className="muted fs-12 m-6-0-0">PK-Sim test load: {readiness.engine_dry_run}</p>}
+          <p className="muted fs-13 m-6-0-0">How values are chosen: when sources disagree, the client&apos;s value comes first, then the
+            best-graded paper. Values are never averaged.</p>
+          <p className="muted fs-12 m-4-0-0" data-testid="selection-rule">Source selection rules: {selectionRule}</p>
+        </section>
+      )}
+
+      {!only && !status && tidy.length > 0 && (
+        <details className="todo-group todo-fold" data-testid="todo-group-tidy">
+          <summary><strong>{GROUP_TITLE.tidy}</strong> <span className="muted">({tidy.length})</span></summary>
+          <p className="muted todo-group-lede">{GROUP_LEDE.tidy}</p>
+          <ul className="todo-lines">
+            {tidy.map((i) => <Row key={i.id} item={i} projectId={projectId} run={run} review={review} onOpen={onOpen} />)}
+          </ul>
+        </details>
+      )}
+      {!only && !status && done.length > 0 && (
+        <details className="todo-group todo-fold" data-testid="todo-group-done">
+          <summary><strong>{GROUP_TITLE.done}</strong> <span className="muted">({done.length})</span></summary>
+          <ul className="todo-lines">
+            {done.map((i) => <Row key={i.id} item={i} projectId={projectId} run={run} review={review} onOpen={onOpen} />)}
+          </ul>
+        </details>
+      )}
+    </section>
   );
 }
