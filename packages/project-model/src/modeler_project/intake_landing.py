@@ -597,7 +597,7 @@ class _Planner:
             sid, sub = self.submission(sha) if sha else ("", None)
             if sub is None:
                 self.held.append(f"{what}: {self.file_name(sha) or 'its file'} has no client-file record (today's "
-                                 "reading refused it): its rows wait (contracts §11.13)")
+                                 "reading refused it): its rows wait")
                 continue
             made, why = _rows(self, key, run)
             if why:
@@ -680,12 +680,12 @@ class _Planner:
     def not_landed(self, subject_type: str, label: str, values: Sequence[ValueState], *, used_rows: bool) -> None:
         excretion = sorted({v.field for v in values if v.field.startswith("excretion.")})
         if excretion:
-            self.held.append(f"{label}: excretion ({', '.join(excretion)}): kept in the ledger; no landing shape yet "
-                             "(contracts §11.8)")
+            self.held.append(f"{label}: excretion ({', '.join(excretion)}): kept in the ledger; the model inputs have "
+                             "no place for it yet")
         relations = sorted({v.field for v in values if v.field.startswith("relation.") or v.relation is not None})
         if relations:
-            self.held.append(f"{label}: relations ({', '.join(relations)}): kept in the ledger; no landing shape yet "
-                             "(contracts §11.33)")
+            self.held.append(f"{label}: relations ({', '.join(relations)}): kept in the ledger; the model inputs have "
+                             "no place for them yet")
         if subject_type == "study":
             placed = {*_NAMING, *_USED_FOR_RECORD, "concentration", "percent_dissolved"}
             facts = sorted({v.field for v in values if v.field not in placed and v.relation is None
@@ -704,7 +704,7 @@ class _Planner:
                                  and not v.field.startswith(("excretion.", "relation."))})
             if attributes:
                 self.held.append(f"{label}: product attributes ({', '.join(attributes)}): kept in the ledger; only "
-                                 "dissolution lands (contracts §11.28)")
+                                 "dissolution lands")
 
 
 def _profile_keys(rows: Sequence[dict[str, Any]]) -> set[ProfileKey]:
@@ -1000,7 +1000,7 @@ class _Profile:
             return cls(held="a negative value (check_dataset refuses it): not landed")
         occasions = {v.entity.occasion for v in conc} - {None}
         if len(occasions) > 1:
-            return cls(held="its values span several occasions (OCCASIONS_NOT_LANDED, contracts §11.27): not landed")
+            return cls(held="its values span several occasions (OCCASIONS_NOT_LANDED), and a profile holds one occasion: not landed")
         lloq, why, note = _lloq(record, conc, analyte, matrix, out.unit)
         if why:
             return cls(held=why)

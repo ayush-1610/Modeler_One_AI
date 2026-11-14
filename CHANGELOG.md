@@ -15,6 +15,11 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — what the landing holds back is said without internal references (integrator, 2026-11-14)
+- **What:** five "held back" lines of `intake_landing` no longer end in a reference to the build contract ("contracts §11.8" and the like). Excretion and relation values now read "kept in the ledger; the model inputs have no place for it yet"; the several-occasions line keeps its check code and says "a profile holds one occasion".
+- **Why:** these lines are shown to the reviewer on the subject's card and in the confirm dialog, and are part of the record that is signed. A section number of an internal document tells the reviewer nothing. Seen in the browser test's screenshot of the dialog.
+- **Impact:** wording only. No value, rule or decision changes. A confirmation signed after this change binds the new wording; none exists yet outside tests.
+
 ### Added — the Delivery section on Inputs, the signed confirmation in the browser, and the administrator's pipeline page (D6-web; plan G6, U-d; contracts §8.10; 2026-11-14)
 - **What changed.**
   - **`components/delivery/`**, shown on Inputs beside the reading tray when the pipeline is on (`enabled`):

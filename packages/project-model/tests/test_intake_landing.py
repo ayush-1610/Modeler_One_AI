@@ -228,7 +228,7 @@ def test_a_confirmed_study_becomes_accepted_client_datasets_whose_values_equal_t
     assert flag in parent.flags and flag in check_dataset(parent).flags and pdf.name in parent.note
     assert flag in landed[synthetic.METABOLITE].flags
     # what never lands is listed, and stays in the ledger
-    assert any("excretion" in held and "§11.8" in held for held in done.pending)
+    assert any("excretion" in held and "no place for it yet" in held for held in done.pending)
     assert reader.values(study=study, field="excretion.amount")
     # one audit event for the landing, with the line's hash; each dataset is an artifact its owner wrote
     (event,) = events(ws, "intake.land")
@@ -555,7 +555,7 @@ def test_what_the_models_code_refuses_is_held_back_while_the_rest_lands(ws):
     held = {text.split(": ")[1].split(" in ")[0]: text for text in plan.held}
     assert set(held) == set(analytes)
     assert "a concentration unit the unit tables lack" in held["M-units"]
-    assert "OCCASIONS_NOT_LANDED" in held["M-occasions"] and "§11.27" in held["M-occasions"]
+    assert "OCCASIONS_NOT_LANDED" in held["M-occasions"] and "one occasion" in held["M-occasions"]
     assert "ONE_LLOQ_PER_PROFILE" in held["M-lloqs"] and "no person's lloq entry" in held["M-lloqs"]
     assert "a negative value" in held["M-negative"]
     assert all(text.endswith("not landed") for text in plan.held)
@@ -652,7 +652,7 @@ def test_dissolution_rows_become_profiles_through_the_register_with_their_sd_and
         assert (row["values"]["mean"], row["values"]["sd"], row["values"]["n"]) == (float(value.value), float(value.spread), 12)
         assert row["cells"]["mean"] == value.locator and row["cells"]["sd"] == dict(value.locators)["spread"]
     # what else the product's tables state stays in the ledger, listed
-    assert any("product attributes" in text and "§11.28" in text for text in plan.held)
+    assert any("product attributes" in text and "only dissolution lands" in text for text in plan.held)
     before = {p["id"] for p in profiles(ws)}
     _plan, confirmation, done = land(ws, product, reader, "product", library=library)
     assert done.dissolution_records == len(rows) and done.datasets == () == done.evidence
@@ -714,7 +714,7 @@ def test_two_runs_that_differ_only_in_temperature_are_held_back_and_a_file_with_
     run({**method, "temperature_c": "37"}, (60.0, 90.0), target=other, entity={"product": refused})
     reader.refresh()
     plan = plan_of(ws, refused, reader, "product")
-    assert plan.dissolution == () and "listing.csv has no client-file record" in plan.held[0] and "§11.13" in plan.held[0]
+    assert plan.dissolution == () and "listing.csv has no client-file record" in plan.held[0] and "its rows wait" in plan.held[0]
     # a mean with another spread than an SD is not a row the register takes
     third = book.entity("product", "Exampleamide capsule")
     for i, value in enumerate((40.0, 70.0)):
