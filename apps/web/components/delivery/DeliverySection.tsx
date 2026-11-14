@@ -13,9 +13,11 @@ import { send } from "@/lib/api";
 import { useRefresh, useResource } from "@/lib/hooks";
 
 import { MappingReview } from "./MappingReview";
+import { ReadTable, readable } from "./ReadTable";
+import { NotDataNote, RestoreForm, restorable, useDecisionsWho } from "./Restore";
 import {
-  ChipFor, FILE_STATE, KIND_LABEL, MAPPING_STATE, Problem, REGION_STATE, WITHHELD, Why, fieldText, levelText, plural, useDecide, when,
-  type FileRow, type Page, type Region, type SubjectRow,
+  ChipFor, FILE_STATE, KIND_LABEL, MAPPING_STATE, Problem, REGION_STATE, WITHHELD, Why, fieldText, levelText, placeText, plural, tableName,
+  useDecide, when, type FileRow, type Page, type Region, type SubjectRow,
 } from "./shared";
 import { SubjectCard } from "./SubjectCard";
 import { Unassigned } from "./Unassigned";
@@ -44,7 +46,13 @@ function FileItem({ projectId, file, first, decide, busy, onMapping }: {
 }) {
   const [open, setOpen] = useState(false);
   const [aside, setAside] = useState<string | null>(null);
+  const [restoring, setRestoring] = useState<string | null>(null);   // a region's id, or a note's place
+  const [reading, setReading] = useState<Region | null>(null);       // a table given its first layout
   const shown = file.repeat && first ? first : file;
+  const who = useDecisionsWho(projectId, open && shown.regions.some(restorable));
+  // a note outside every table that no table cites stops counting only by a person's decision: it can be restored
+  const marked = (o: FileRow["outside"][number]) => !o.counted && o.region === null;
+  const noteName = (o: FileRow["outside"][number]) => (o.text ? `the note “${o.text}” of ${file.name}` : `the note at ${placeText(o.where).place} of ${file.name}`);
   const exclude = (regions: string[], scope: "regions" | "unread_prose" | "figures" | "outside") => async (why: string) => {
     const { data } = await decide(() => send("post", EXCLUDE, { project_id: projectId }, { file_sha256: file.sha256, regions, scope, why }));
     if (data) setAside(null);
@@ -76,10 +84,12 @@ function FileItem({ projectId, file, first, decide, busy, onMapping }: {
                 <tbody>
                   {shown.regions.map((r) => (
                     <tr key={r.region_id} data-testid={`delivery-region-${r.region_id}`}>
-                      <td><code>{r.where}</code></td>
+                      <td>{placeText(r.where).place}</td>
                       <td>{fieldText(r.kind)}{r.table_kind && r.table_kind !== "unknown" ? `, ${fieldText(r.table_kind)}` : ""}
                         <div className="muted fs-12">{r.caption === null ? WITHHELD : r.caption}</div></td>
-                      <td><ChipFor state={r.state} table={REGION_STATE} />{r.reason && <div className="muted fs-12">{r.reason}</div>}</td>
+                      <td><ChipFor state={r.state} table={REGION_STATE} />
+                        {restorable(r) ? <NotDataNote region={r} who={who} testId={`delivery-region-decision-${r.region_id}`} />
+                          : r.reason && <div className="muted fs-12">{r.reason}</div>}</td>
                       <td>
                         {r.mapping_id ? (
                           <button type="button" className="delivery-chip-btn" onClick={() => onMapping(r.mapping_id as string)}
@@ -90,8 +100,19 @@ function FileItem({ projectId, file, first, decide, busy, onMapping }: {
                       </td>
                       <td className="num">{r.numeric_cells ? `${r.used} used · ${r.excluded} set aside · ${r.silent} silent` : ""}</td>
                       <td>
+                        {readable(r) && (
+                          <button type="button" className="link-btn" onClick={() => setReading(r)} aria-label={`Read ${tableName(r.where, file.name)}`}
+                                  data-testid={`delivery-region-read-${r.region_id}`}>Read this table…</button>
+                        )}
                         {r.state !== "excluded" && r.state !== "waiting" && aside !== r.region_id && (
-                          <button type="button" className="link-btn" onClick={() => setAside(r.region_id)} data-testid={`delivery-region-aside-${r.region_id}`}>Not data…</button>
+                          <button type="button" className="link-btn" onClick={() => setAside(r.region_id)}
+                                  aria-label={`Mark ${tableName(r.where, file.name, r.kind)} as not data`}
+                                  data-testid={`delivery-region-aside-${r.region_id}`}>Not data…</button>
+                        )}
+                        {restorable(r) && restoring !== r.region_id && (
+                          <button type="button" className="link-btn" onClick={() => setRestoring(r.region_id)}
+                                  aria-label={`Restore ${tableName(r.where, file.name, r.kind)}`}
+                                  data-testid={`delivery-region-restore-${r.region_id}`}>Restore…</button>
                         )}
                       </td>
                     </tr>
@@ -101,23 +122,36 @@ function FileItem({ projectId, file, first, decide, busy, onMapping }: {
             </div>
           ) : <p className="muted m-0">No region was found in this file.</p>}
           {shown.regions.filter((r) => r.region_id === aside).map((r) => (
-            <Why key={r.region_id} action="Set it aside as not data" label={`Why ${r.where} is not data`} busy={busy} onCancel={() => setAside(null)}
+            <Why key={r.region_id} action="Mark as not data" actionLabel={`Mark ${tableName(r.where, file.name, r.kind)} as not data`}
+                 label={`Why ${tableName(r.where, file.name, r.kind)} is not data`} busy={busy} onCancel={() => setAside(null)}
                  testId="delivery-region-aside" onSubmit={exclude([r.region_id], scopeOf(r))}>
-              <span className="muted">{r.where}: what was read from it is set aside too.</span>
+              <span className="muted">{placeText(r.where).place}: what was read from it is set aside too; &quot;Restore…&quot; gives it back.</span>
             </Why>
+          ))}
+          {shown.regions.filter((r) => r.region_id === restoring).map((r) => (
+            <RestoreForm key={r.region_id} projectId={projectId} file={shown} items={[r.region_id]} scope={scopeOf(r)}
+                         label={tableName(r.where, file.name, r.kind)} onDone={() => setRestoring(null)} testId="delivery-region-restore" />
           ))}
           {shown.outside.length > 0 && (
             <>
               <h4 className="delivery-sub">Text with a number outside every table</h4>
               <ul className="delivery-plain">
-                {shown.outside.map((o) => (
+                {shown.outside.map((o, i) => (
                   <li key={o.where} className={o.counted ? "delivery-check open" : "delivery-check"}>
                     <div className="delivery-check-line">
-                      <span className={`chip ${o.counted ? "high" : "neutral"}`}>{o.counted ? "not read" : "accounted for"}</span>
-                      <span className="delivery-check-text">“{o.text ?? WITHHELD}” <span className="muted">{o.where}{o.region ? " · read with its table" : ""}</span></span>
+                      <span className={`chip ${o.counted ? "high" : "neutral"}`}>{o.counted ? "not read" : marked(o) ? "not data" : "accounted for"}</span>
+                      <span className="delivery-check-text">“{o.text ?? WITHHELD}” <span className="muted">{placeText(o.where).place}{o.region ? " · read with its table" : ""}</span></span>
+                      {marked(o) && restoring !== o.where && (
+                        <button type="button" className="link-btn" onClick={() => setRestoring(o.where)} aria-label={`Restore ${noteName(o)}`}
+                                data-testid={`delivery-outside-restore-${file.file_id}-${i}`}>Restore…</button>
+                      )}
                     </div>
                     {o.counted && <Why action="It is not data" label="Why this text is not data" busy={busy} testId="delivery-file-outside-accept"
                                        onSubmit={exclude([o.where], "outside")} />}
+                    {marked(o) && restoring === o.where && (
+                      <RestoreForm projectId={projectId} file={shown} items={[o.where]} scope="outside" label={noteName(o)}
+                                   onDone={() => setRestoring(null)} testId="delivery-outside-restore-form" />
+                    )}
                   </li>
                 ))}
               </ul>
@@ -138,6 +172,8 @@ function FileItem({ projectId, file, first, decide, busy, onMapping }: {
           )}
         </div>
       )}
+      {reading && <ReadTable projectId={projectId} file={shown} region={reading} onClose={() => setReading(null)}
+                             onStored={(id) => { setReading(null); onMapping(id); }} />}
     </li>
   );
 }

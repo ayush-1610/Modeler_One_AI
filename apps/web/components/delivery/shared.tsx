@@ -4,6 +4,7 @@
 // is read with are written, and the small form every decision that needs a reason is made with. A blinded study's
 // value is never written: the API withholds it (D-15), and the page says so in its place.
 
+import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { useCallback, useState, type ReactNode } from "react";
 
 import type { Envelope, Schema } from "@/lib/api";
@@ -48,6 +49,54 @@ export const MAPPING_STATE: Record<string, { label: string; tone: string }> = {
   approved: { label: "approved", tone: "low" }, proposed: { label: "waits for approval", tone: "medium" },
   rejected: { label: "rejected", tone: "high" },
 };
+
+// --- where a thing is in its file, in words -------------------------------------------------------------------------
+
+/** A spreadsheet column's letters as its number (A 1, Z 26, AA 27). */
+const columnNumber = (letters: string) => [...letters].reduce((n, c) => n * 26 + c.charCodeAt(0) - 64, 0);
+
+type Place = { name: string; place: string; columns: number | null; rows: number | null; start: number | null };
+
+/** Where a table, a paragraph or a note is in its file (a region's `where`, an outside item's locator, the intake
+ *  grammar's ranges and locators), in plain words: its short name ("Sheet1", "page 3, table 1"), the place in full
+ *  ("sheet Sheet1, cells A4 to M12") and, for a sheet range, its size and the sheet column it starts at (A: 1). A text
+ *  outside the grammar is given as it is. */
+export function placeText(where: string): Place {
+  const sheet = /^s:'((?:[^']|'')+)'!([A-Z]{1,3})([0-9]+)(?::([A-Z]{1,3})([0-9]+))?$/.exec(where);
+  if (sheet) {
+    const [, quoted, c0, r0, c1, r1] = sheet;
+    const name = quoted.replace(/''/g, "'");
+    if (!c1) return { name, place: `sheet ${name}, cell ${c0}${r0}`, columns: null, rows: null, start: columnNumber(c0) };
+    return { name, place: `sheet ${name}, cells ${c0}${r0} to ${c1}${r1}`, columns: columnNumber(c1) - columnNumber(c0) + 1,
+             rows: Number(r1) - Number(r0) + 1, start: columnNumber(c0) };
+  }
+  const words: [RegExp, (m: RegExpExecArray) => string][] = [
+    [/^p:(\d+)\/t:(\d+)/, (m) => `page ${m[1]}, table ${m[2]}`],
+    [/^p:(\d+)\/f:(\d+)/, (m) => `page ${m[1]}, figure ${m[2]}`],
+    [/^p:(\d+)\/w:/, (m) => `page ${m[1]}`],
+    [/^d:t:(\d+)/, (m) => `table ${m[1]}`],
+    [/^d:f:(\d+)/, (m) => `figure ${m[1]}`],
+    [/^d:p:(\d+)-(\d+)$/, (m) => `paragraphs ${m[1]} to ${m[2]}`],
+    [/^d:p:(\d+)\//, (m) => `paragraph ${m[1]}`],
+    [/^x:l:(\d+)-(\d+)$/, (m) => `lines ${m[1]} to ${m[2]}`],
+    [/^x:l:(\d+)\//, (m) => `line ${m[1]}`],
+  ];
+  for (const [rule, say] of words) {
+    const m = rule.exec(where);
+    if (m) return { name: say(m), place: say(m), columns: null, rows: null, start: null };
+  }
+  return { name: where, place: where, columns: null, rows: null, start: null };
+}
+
+/** A table by its short name and its file, for a button's label: "the table Sheet1 of 230-23 Fasting Reference.xlsx". */
+export const tableName = (where: string, file: string, kind = "table") =>
+  `the ${kind === "prose" ? "text" : kind === "figure" ? "figure" : "table"} ${placeText(where).name} of ${file}`;
+
+/** A person's "not data" decision as a region's reason gives it ("rd-3: why"): its id and why; null for a rule's. */
+export function personDecision(reason: string): { id: string; why: string } | null {
+  const m = /^(rd-\d+): ([\s\S]*)$/.exec(reason);
+  return m ? { id: m[1], why: m[2] } : null;
+}
 
 /** What blocks a confirmation, in words (`DeliveryBlocker.code`); the API's own detail follows it. */
 export const BLOCKER_LABEL: Record<string, string> = {
@@ -115,21 +164,55 @@ export function typed(text: string): string | number {
 
 // --- decisions ------------------------------------------------------------------------------------------------------------
 
-/** A change made on the section: `decide(() => send(...))` answers its outcome and keeps the API's refusal to show. */
+const DELIVERY = "/api/v1/projects/{project_id}/delivery" as const;
+const CARD = "/api/v1/projects/{project_id}/delivery/subjects/{type}/{subject}" as const;
+
+/** The section's resources (the page, the cards, the mappings) read again. */
+const readAgain = (client: QueryClient) => client.invalidateQueries({
+  predicate: (q) => typeof q.queryKey[0] === "string" && q.queryKey[0].startsWith(DELIVERY),
+});
+
+/** A decision's outcome, with the code of the API's refusal (`CONFLICT`: the server moved on). */
+export type Decided<T> = Outcome<T> & { code: string | null };
+
+/** A change made on the section: `decide(() => send(...))` answers its outcome and keeps the API's refusal to show.
+ *  A refusal that says the server moved on (409 `CONFLICT`: another reviewer decided first, a name exists already) is
+ *  shown in the server's words and the section is read again, so the item shows what holds now (plan 2026-11-14
+ *  §2.2.6). `{ refresh: false }`: the caller writes the answer into the page itself (`useWritePage`). */
 export function useDecide() {
   const mutation = useMutation();
+  const client = useQueryClient();
   const [problem, setProblem] = useState<string | null>(null);
-  const decide = useCallback(async <T,>(call: () => Promise<Envelope<T>>): Promise<Outcome<T>> => {
-    const out = await mutation.run(call);
+  const decide = useCallback(async <T,>(call: () => Promise<Envelope<T>>, options?: { refresh?: boolean }): Promise<Decided<T>> => {
+    let code: string | null = null;
+    const out = await mutation.run(async () => {
+      const env = await call();
+      code = (env.errors?.[0]?.detail?.code as string | undefined) ?? null;
+      return env;
+    }, options);
     setProblem(out.problem);
-    return out;
-  }, [mutation]);
+    if (code === "CONFLICT") void readAgain(client);
+    return { ...out, code };
+  }, [mutation, client]);
   return { decide, busy: mutation.busy, problem, clear: () => setProblem(null) };
 }
 
+/** Write a decision's answer (the page, which `values:assign`, `regions:exclude` and `regions:restore` return) into
+ *  the page's cache instead of reading everything again (plan 2026-11-14 §2.1): only the cards open on the page are
+ *  read again, since what they show follows the decision. */
+export function useWritePage(projectId: string) {
+  const client = useQueryClient();
+  return useCallback((page: Page) => {
+    client.setQueryData([DELIVERY, { project_id: projectId }, {}], page);
+    void client.invalidateQueries({ predicate: (q) => q.queryKey[0] === CARD });
+  }, [client, projectId]);
+}
+
 /** A decision with its reason: what the API asks `why` for. The reason is kept on the audit trail. */
-export function Why({ action, label, busy, onSubmit, onCancel, testId, optional = false, placeholder, children, disabled = false }: {
+export function Why({ action, actionLabel, label, busy, onSubmit, onCancel, testId, optional = false, placeholder, children, disabled = false }: {
   action: string;
+  /** the button's name with its context, where the same button is repeated ("Link the 4 values of 230-23.xlsx") */
+  actionLabel?: string;
   /** what the reason is for, read aloud with the field */
   label: string;
   busy: boolean;
@@ -152,7 +235,8 @@ export function Why({ action, label, busy, onSubmit, onCancel, testId, optional 
       <input type="text" aria-label={label} value={why} onChange={(e) => setWhy(e.target.value)}
              placeholder={placeholder ?? (optional ? "a note (optional)" : "why (kept on the audit trail)")}
              data-testid={testId && `${testId}-why`} />
-      <button type="submit" className="btn small primary" disabled={busy || !ready} data-testid={testId && `${testId}-submit`}>{action}</button>
+      <button type="submit" className="btn small primary" disabled={busy || !ready} aria-label={actionLabel}
+              data-testid={testId && `${testId}-submit`}>{action}</button>
       {onCancel && <button type="button" className="btn small" onClick={onCancel}>Cancel</button>}
     </form>
   );

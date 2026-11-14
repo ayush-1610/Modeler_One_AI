@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 
 import { EmptyState } from "@/components/kit";
 import { send, type Schema } from "@/lib/api";
@@ -18,7 +18,7 @@ const ev = (x: Schema<"EvidenceView">) => x as unknown as Ev;
 const FIRST: Row["state"][] = ["conflict", "held", "missing", "kept", "empty"];
 const STATE: Record<Row["state"], [string, string]> = {
   kept: ["low", "in the model"], conflict: ["high", "keep one"], held: ["medium", "check it"], missing: ["high", "missing"],
-  empty: ["low", "no value yet"],
+  empty: ["neutral", "no value yet"],
 };
 // the sources a person may cite for a value typed into a row (modeler_project.evidence.SourceType)
 const SOURCE_TYPES = [["PUBLICATION", "publication"], ["CLIENT_REPORT", "client report"], ["REGULATORY_REVIEW", "regulatory review"],
@@ -35,20 +35,29 @@ function AddValue({ row, projectId, run }: { row: Row; projectId: string; run: R
   const numeric = value.trim() !== "" && !Number.isNaN(Number(value));
   const cited = type === "ASSUMPTION" || link.trim() !== "";
   if (!row.req_id) return <p className="muted fs-13 m-0">This input has no item on the data checklist to file a value under.</p>;
+  // each field is named on screen (plan 2026-11-14, design "How the person fills what is missing"); its accessible name
+  // keeps the row's id, so a field is never one of several with the same name
   return (
     <div className="add-value" data-testid={`add-${row.id}`}>
+      <p className="muted fs-12 m-0">The value as the source states it, with its unit: it is converted to PK-Sim&apos;s unit. Cite
+        the source by its DOI or URL, or call the value an assumption.</p>
       <div className="row gap-6">
-        <input placeholder="value" value={value} onChange={(e) => setValue(e.target.value)} className="w-110" aria-label={`value for ${row.id}`} />
-        <input placeholder="unit" value={unit} onChange={(e) => setUnit(e.target.value)} className="w-90" aria-label={`unit for ${row.id}`} />
-        <select value={type} onChange={(e) => setType(e.target.value as typeof type)} aria-label={`source type for ${row.id}`}>
-          {SOURCE_TYPES.map(([v, label]) => <option key={v} value={v}>{label}</option>)}
-        </select>
-        <input placeholder="title" value={title} onChange={(e) => setTitle(e.target.value)} className="flex-1 minw-140" aria-label={`title for ${row.id}`} />
-        <input placeholder="DOI or URL" value={link} onChange={(e) => setLink(e.target.value)} className="w-170" aria-label={`link for ${row.id}`} />
+        <label className="add-field">Value
+          <input value={value} onChange={(e) => setValue(e.target.value)} className="w-110" aria-label={`value for ${row.id}`} /></label>
+        <label className="add-field">Unit
+          <input placeholder="as stated" value={unit} onChange={(e) => setUnit(e.target.value)} className="w-90" aria-label={`unit for ${row.id}`} /></label>
+        <label className="add-field">Source
+          <select value={type} onChange={(e) => setType(e.target.value as typeof type)} aria-label={`source type for ${row.id}`}>
+            {SOURCE_TYPES.map(([v, label]) => <option key={v} value={v}>{label}</option>)}
+          </select></label>
+        <label className="add-field flex-1 minw-140">Title
+          <input value={title} onChange={(e) => setTitle(e.target.value)} aria-label={`title for ${row.id}`} /></label>
+        <label className="add-field">DOI or URL
+          <input value={link} onChange={(e) => setLink(e.target.value)} className="w-170" aria-label={`link for ${row.id}`} /></label>
       </div>
       <div className="row gap-6 mt-4">
-        <input placeholder="the sentence that states it" value={quote} onChange={(e) => setQuote(e.target.value)} className="flex-1 minw-220"
-               aria-label={`quote for ${row.id}`} />
+        <label className="add-field flex-1 minw-220">The sentence that states it
+          <input value={quote} onChange={(e) => setQuote(e.target.value)} aria-label={`quote for ${row.id}`} /></label>
         <button className="btn primary" disabled={!value.trim() || !cited}
                 onClick={() => void run(() => send("post", "/api/v1/projects/{project_id}/evidence", { project_id: projectId }, {
                   req_id: row.req_id as string, target: row.id, value: numeric ? Number(value) : value, unit: unit || null, source_type: type,
@@ -133,7 +142,7 @@ function InputRow({ row, items, projectId, run }: { row: Row; items: TodoItem[];
           <code className="muted">{row.id}</code>
         </div>
         <div className="input-value">
-          {row.value === null ? <span className="muted">—</span>
+          {row.value === null ? (row.state === "empty" ? null : <span className="muted">—</span>)
             : <><strong>{typeof row.value === "number" ? +row.value.toPrecision(5) : row.value}</strong> {row.unit ?? ""}</>}
         </div>
         <div className="input-source">
@@ -141,7 +150,8 @@ function InputRow({ row, items, projectId, run }: { row: Row; items: TodoItem[];
             {kept.source.title || kept.source_type.toLowerCase().replace(/_/g, " ")}{kept.source.year ? ` · ${kept.source.year}` : ""}
             <span className="muted"> · grade {kept.confidence}</span>
             {row.state === "kept" && agree > 0 && <span className="chip low" title="sources within 10 % of the kept value">+{agree} agree</span>}
-          </> : row.state === "conflict" ? <span className="muted">{row.alternatives.length} sources disagree</span> : <span className="muted">no source yet</span>}
+          </> : row.state === "conflict" ? <span className="muted">{row.alternatives.length} sources disagree</span>
+            : row.state === "empty" ? null : <span className="muted">no source yet</span>}
         </div>
         <div className="input-state">
           <span className={`chip ${state}`}>{label}</span>
@@ -166,7 +176,8 @@ function InputRow({ row, items, projectId, run }: { row: Row; items: TodoItem[];
             {open ? "Hide the sources" : `Sources (${row.sources.length + row.alternatives.length})`}
           </button>
         )}
-        <button type="button" className="link-btn" onClick={() => setAdding(!adding)} data-testid={`add-open-${row.id}`}>
+        <button type="button" className="link-btn" onClick={() => setAdding(!adding)} data-testid={`add-open-${row.id}`} aria-expanded={adding}
+                aria-label={adding ? `Cancel the value for ${LABEL[row.id] ?? row.id}` : `Add a value for ${LABEL[row.id] ?? row.id}`}>
           {adding ? "Cancel" : "Add a value"}</button>
       </div>
       {open && row.state === "kept" && (
@@ -192,9 +203,27 @@ const BLOCKS: [string, RegExp][] = [
 ];
 const blockOf = (id: string) => BLOCKS.find(([, rule]) => rule.test(id))?.[0] ?? "Other";
 
+/** The rows to fill (state "empty": a model input the data plan owns that no source gives yet, and that nothing waits
+ *  on), folded under "+ n more you can fill in" (plan 2026-11-14 §3 API 1). Each opens the same form a missing value is
+ *  given with: a value, its unit as the source states it, and the source (`POST /evidence`, filed under the row's
+ *  data-checklist item). `name`: what they are of, for the toggle's label. */
+function ToFill({ rows, name, one }: { rows: Row[]; name: string; one: (r: Row) => ReactNode }) {
+  const [open, setOpen] = useState(false);
+  if (!rows.length) return null;
+  return (
+    <div className="input-fill" data-testid={`fill-${name}`}>
+      <button type="button" className="link-btn input-fill-toggle" aria-expanded={open} onClick={() => setOpen(!open)}
+              aria-label={`${open ? "Hide" : "Show"} the ${rows.length} more ${name === "rows" ? "inputs" : `inputs of ${name}`} you can fill in`}
+              data-testid={`fill-toggle-${name}`}>
+        {open ? "Hide the inputs you can fill in" : `+ ${rows.length} more you can fill in`}</button>
+      {open && <div className="input-fill-rows">{rows.map(one)}</div>}
+    </div>
+  );
+}
+
 /** The model inputs of one tab, each in its row, with what waits on a person settled where it is. Items about no row
  *  of the tab (a placeholder parameter, a build) come first. `grouped`: the compound's rows under their building
- *  blocks, each block's open rows first. */
+ *  blocks, each block's open rows first. The rows to fill come last, folded, in each block. */
 export function InputRows({ rows, todo, projectId, run, empty, grouped }: {
   rows: Row[]; todo: TodoItem[]; projectId: string; run: Run; empty: string; grouped?: boolean;
 }) {
@@ -204,6 +233,10 @@ export function InputRows({ rows, todo, projectId, run, empty, grouped }: {
   const one = (r: Row) => <InputRow key={r.id} row={r} items={todo.filter((t) => t.target === r.id)} projectId={projectId} run={run} />;
   const blocks = [...BLOCKS.map(([name]) => name), "Other"]
     .map((name) => [name, sorted.filter((r) => blockOf(r.id) === name)] as const).filter(([, list]) => list.length);
+  const filled = (list: Row[]) => list.filter((r) => r.state !== "empty");
+  const toFill = (list: Row[]) => list.filter((r) => r.state === "empty");
+  // what waits on a person: a value missing, in conflict or held; a row to fill is not open
+  const open = (list: Row[]) => list.filter((r) => r.state !== "kept" && r.state !== "empty").length;
   return (
     <>
       {loose.map((t, i) => <TodoCard key={`${t.kind}-${t.target}-${i}`} t={t} projectId={projectId} run={run} />)}
@@ -212,10 +245,11 @@ export function InputRows({ rows, todo, projectId, run, empty, grouped }: {
         : grouped ? blocks.map(([name, list]) => (
           <section key={name} className="input-block" aria-label={name} data-testid={`block-${name}`}>
             <h3 className="input-block-title">{name}
-              {list.some((r) => r.state !== "kept") && <span className="muted"> · {list.filter((r) => r.state !== "kept").length} open</span>}</h3>
-            {list.map(one)}
+              {open(list) > 0 && <span className="muted"> · {open(list)} open</span>}</h3>
+            {filled(list).map(one)}
+            <ToFill rows={toFill(list)} name={name} one={one} />
           </section>
-        )) : <div className="input-block">{sorted.map(one)}</div>}
+        )) : <div className="input-block">{filled(sorted).map(one)}<ToFill rows={toFill(sorted)} name="rows" one={one} /></div>}
     </>
   );
 }

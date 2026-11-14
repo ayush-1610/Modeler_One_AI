@@ -28,6 +28,63 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
   2026-11-03 §3.2 (left rail, files drawer); see the plan's §5.
 - **Impact:** none yet (no code changed).
 
+### Added — fill what is missing on Inputs: compound rows to fill, links with new arms, batches and analytes, "Restore…", and a table's layout as a form (plan 2026-11-14 §3 rows 1, 2, 4, 6; slice 5 a, b, d)
+- **What:**
+  - **Compound rows to fill** (`InputRows`): the `empty` rows of `GET /inputs` are shown, in each Compound building block
+    (and at the end of the other areas' rows) folded under "+ n more you can fill in" (`fill-<block>`,
+    `fill-toggle-<block>`, `aria-expanded`, a label naming the block). Each opens the form a missing value is given with
+    (`add-open-<id>`, `add-<id>`, `POST /evidence` under the row's own data-checklist item): the value and its unit as the
+    source states them (converted to PK-Sim's unit by the register), the source and its DOI or URL. The form's fields are
+    now named on screen. An empty row shows "no value yet" and no "—" or "no source yet"; a block's "n open" no longer
+    counts rows to fill. `InputsWorkspace` drops the one filter that hid them.
+  - **Linking values** (`Unassigned`, "Values not linked to a study or product"): beside the study (or product), an arm
+    (`assign-arm-<key>`) or batch (`assign-batch-<key>`) control listing the study's arms (the product's batches) and "A
+    new arm…" / "A new batch…" (`assign-new-arm-<key>`, `assign-new-batch-<key>`), and an analyte control
+    (`assign-analyte-<key>`) listing the delivery's analytes by id with "A new analyte…" (`assign-new-analyte-<key>`),
+    starting on the values' own analyte. The form starts from the arm, batch and analyte the values have and sends them
+    again, since a link replaces the earlier one whole. Every control and the "Link" button name the values they are for
+    ("Link the 4 values of loose-profile.csv").
+  - **409s** (`useDecide`): a refusal coded `CONFLICT` (a name that exists, a decision another reviewer made first) is
+    shown in the server's words where the decision was made, and the delivery's resources are read again.
+  - **"Restore…"** (new `Restore.tsx`): on every table, text or figure a person marked as not data
+    (`delivery-region-restore-<region>`, form `delivery-region-restore`) and on every note outside the tables a person
+    marked as not data (`delivery-outside-restore-<file>-<i>`), through `POST /delivery/regions:restore` with the
+    exclusion's own scope and a reason. Where the exclusion is shown, the decision is said: "Marked as not data by
+    <who>, <when>: <why>" (`delivery-region-decision-<region>`; who and when from the project's audit trail, read only
+    while such a decision is on screen). The answer (the page) is written into the query cache (`useWritePage`): only
+    the open study cards are read again.
+  - **A table's layout as a form** (new `LayoutEditor.tsx`): what the table holds, its layout, header and data rows,
+    the field of its values (with its unit class), statistic, time reference, units and tokens, and for each column
+    what it holds, its field, statistic, spread, cell form, the value column it qualifies, its condition or why it is not
+    data; every choice a select built only from `DeliveryMapping.vocabulary`. Row rules, label keys and constants are
+    kept as they are; "Edit as text" (`<id>-text`, the JSON in `mapping-spec`) stays for experts. Code's findings on a
+    refused layout are shown beside the column or setting they name (`<id>-col-<n>-findings`, `<id>-columns-findings`),
+    masked as the API masks them.
+    - **Corrections** in `MappingReview` ("Correct the layout…", `mapping-edit-open`) use the form instead of raw JSON.
+    - **"Read this table…"** (new `ReadTable.tsx`, `delivery-region-read-<region>`, dialog `read-table-dialog`) on a table
+      no layout reads (never read, or its layout rejected): its first layout through `POST /delivery/mappings:propose`;
+      stored, the new layout opens for review.
+  - **Words:** places in plain words (`placeText`: "sheet odd-profile, cells A1 to B4"), repeated buttons with their
+    context ("Restore the table Sheet1 of 230-23 Fasting Reference.xlsx", "Read the table …", "Mark … as not data",
+    "Add a value for Intestinal permeability").
+  - **Tests:** new `e2e/inputs-fill.spec.ts` (loose values linked to a new study, arm and analyte; later ones refused for
+    a study name that exists, then linked to that study with a new arm and the analyte named before; a table marked as
+    not data restored with no new read of the page; an unread table given its first layout in the form, with the
+    finding on a bad column choice shown beside that column; the same layout corrected in the form with its headers,
+    refused beside the column, and seen as text; a compound input filled from its folded row). Run with it: delivery,
+    client-confirm, model-inputs, compound-sources, inputs-workspace, inputs-frame, inputs-todo, published-model,
+    start-project.
+- **Why:** the owner must be able to fill what is missing (plan §1): a parameter that is not an S0 to-do had no row, the
+  Test and Reference files of one study collide without arms, an analyte could not be stated, "Mark as not data" had no
+  undo, and an unread table could never get a first layout; corrections were raw JSON.
+- **Impact:** frontend only; no API, rule, ruleset or science change. The values and names the person enters go through
+  the routes that already existed (`POST /evidence`, `values:assign`, `regions:restore`, `mappings:propose`), audited
+  there. Known gaps, for the API or the owner: the page gives no who and when of a "not data" decision (read from the
+  audit trail, its last 2,000 events) and cannot tell a note a person marked as not data from one a table's constant
+  cites when the note sits beside a table (such a note gets no "Restore…"); an unread table's cells and headers are not
+  in the page (the form numbers its columns from the sheet range, and asks how many for a PDF or Word table); the layout
+  words come only with a mapping, so in a project where no table has a layout the form offers the layout as text only.
+
 ### Changed — the Inputs page frame: a compact head, one bar of areas that stays in view, To do and Client files (plan 2026-11-14, slice 1)
 - **What:**
   - **Head.** "Step 2 of 4 · Inputs · Fill in what the model needs and confirm the client's data." One "Add data" menu
