@@ -3,7 +3,7 @@
 
 // Stepper (a server component) is imported from its own file.
 
-import type { ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
 
 /** Each area's hue for the head's wash and its curve (the "Modeler One App" design, plan 2026-11-06-app-design-merge). */
 const HUES = { projects: 211, new: 160, start: 211, inputs: 190, review: 265, run: 150, inbox: 28, library: 280, history: 220, admin: 340 } as const;
@@ -95,20 +95,40 @@ export function Banner({ tone, children, testId }: { tone: "ok" | "warn" | "err"
 export type Column<T> = { key: string; label: string; numeric?: boolean; render: (row: T) => ReactNode };
 
 /** A table that scrolls inside its own box on a narrow screen and says when it is empty. With a `label` the table has a
- *  caption (read aloud, not drawn) and its scrolling box can be reached and scrolled from the keyboard. */
-export function DataTable<T>({ columns, rows, rowKey, empty, testId, label }: {
+ *  caption (read aloud, not drawn) and its scrolling box can be reached and scrolled from the keyboard. `rowTestId`
+ *  names each row; `after` draws what a row opens on, in a full-width row under it (a study's card under its row). */
+export function DataTable<T>({ columns, rows, rowKey, empty, testId, label, rowTestId, rowClassName, after, className, group }: {
   columns: Column<T>[]; rows: T[]; rowKey: (row: T) => string; empty?: ReactNode; testId?: string; label?: string;
+  rowTestId?: (row: T) => string; rowClassName?: (row: T) => string | undefined; after?: (row: T) => ReactNode; className?: string;
+  /** rows in groups (in the order given): a heading row before each group's first row; a row that moves to another group
+   *  stays the same row, so what it opened stays open */
+  group?: { of: (row: T) => string; title: (group: string, rows: T[]) => ReactNode; testId?: (group: string) => string };
 }) {
   if (!rows.length) return <>{empty ?? <EmptyState title="Nothing here yet" />}</>;
   return (
     <div className="table-scroll" data-testid={testId} {...(label ? { role: "region", "aria-label": label, tabIndex: 0 } : {})}>
-      <table>
+      <table className={className}>
         {label && <caption className="sr-only">{label}</caption>}
         <thead><tr>{columns.map((c) => <th key={c.key} className={c.numeric ? "num" : undefined}>{c.label}</th>)}</tr></thead>
         <tbody>
-          {rows.map((r) => (
-            <tr key={rowKey(r)}>{columns.map((c) => <td key={c.key} className={c.numeric ? "num" : undefined}>{c.render(r)}</td>)}</tr>
-          ))}
+          {rows.map((r, i) => {
+            const more = after?.(r);
+            const g = group?.of(r);
+            const heading = group && g !== undefined && (i === 0 || group.of(rows[i - 1]) !== g);
+            return (
+              <Fragment key={rowKey(r)}>
+                {heading && (
+                  <tr className="row-group" data-testid={group.testId?.(g)}>
+                    <th colSpan={columns.length} scope="colgroup">{group.title(g, rows.filter((x) => group.of(x) === g))}</th>
+                  </tr>
+                )}
+                <tr data-testid={rowTestId?.(r)} className={rowClassName?.(r)}>
+                  {columns.map((c) => <td key={c.key} className={c.numeric ? "num" : undefined}>{c.render(r)}</td>)}
+                </tr>
+                {more && <tr className="row-detail"><td colSpan={columns.length}>{more}</td></tr>}
+              </Fragment>
+            );
+          })}
         </tbody>
       </table>
     </div>

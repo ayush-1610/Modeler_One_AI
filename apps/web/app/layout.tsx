@@ -17,6 +17,7 @@ import "./styles/review.css";
 import "./styles/dashboard.css";
 import "./styles/admin.css";
 import "./styles/delivery.css";
+import "./styles/cards.css";
 // the "Modeler One App" look over the shared pieces; last, so it wins (plan 2026-11-06-app-design-merge)
 import "./styles/design.css";
 // target sizes (WCAG 2.2 2.5.8): after the look, so its hit areas and sizes hold

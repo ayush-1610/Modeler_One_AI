@@ -196,3 +196,43 @@ before the next starts.
     `GET /delivery/source`; the layout vocabulary without a mapping; a pH-solubility table entry; and `POST /evidence`
     checking a word value against its vocabulary (it keeps "albumin" for `bind.partner` and shows it "in the model",
     which the model builder then refuses: the page now offers only PK-Sim's names).
+
+- Within this plan, slice 3 as built (2026-11-14; frontend only):
+  - **Where the new parts live:** `FactsForm` (with the demographics form) and the decision list (`Decisions`) are in
+    `components/delivery/`, beside `DeliveryReview`, since both post to or read a delivery subject; the cards
+    (`StudyCard`, `ProductCard`, `CompoundCard`, `ConfirmPath`, `HowRead`, the card's To do) are in
+    `components/inputs/cards/`. The sheet form's draft needs stay in `DraftItem` (not merged into `FactsForm`).
+  - **"Confirm now with the sheet form"** opens the sheet form's view on the card in its confirm form (its facts, its
+    disagreements, its own "Confirm"); it does not confirm in one click. It is offered whenever the card has a sheet-form
+    group still to confirm, as "Confirm with the sheet form instead" while the clean-up does not hold the signature,
+    because the one list of work counts that group's open items on the card (slice 2, "both confirm paths stay open").
+  - **"Confirm and sign" is disabled** while the card's own blockers include the clean-up's codes (SILENT_LOSS,
+    OUTSIDE_NUMBERS, UNASSIGNED_VALUES), read from the card; the gate line's words are the one list's (`gateText`). The
+    other blockers still let the dialog open, which names them, as before.
+  - **The decision list** reads who, when and why from the project's audit trail (its last 2,000 events) and what each
+    decision was from the card and the delivery page: checks accepted as is (by check id), entries and corrections (by
+    fact id), required items settled (by disposition id), table layouts approved or rejected (by layout id and version),
+    tables of its files marked as not data (by decision id). A value not used after a choice and a refused link are listed
+    with their reason only (the trail does not name the subject); values linked to the study from a file that did not name
+    it are not listed (the trail does not say which study a link went to). API follow-up: a subject's decisions
+    `{kind, what, by, at, why}` on its card.
+  - **The demographics form** offers the population's words from a table layout's vocabulary
+    (`GET /delivery/mappings/{id}`: the intake vocabulary is only there), typed when the project has no layout; the
+    other fields are numbers under the intake rules' names for REQ-sys.demographics. Whether person-entered demographics
+    count as found is API change 5 (slice 5 e), not checked here.
+  - **The Clinical studies list** is grouped by the facts known without new reads beyond the cards: the study in the
+    model, the sheet form's facts, and the delivery card's facts (read for the studies confirmed on the delivery and not
+    yet confirmed, two at a time, under the key the card uses, when the area opens). An oral study whose food state no
+    file states is under "Other or not stated yet". The list is one kit `DataTable` (which gains a row testid, a row's
+    detail under it and group heading rows), not one table per design: a study whose facts move it to another design (its
+    route entered) stays the same row, so its open card, and a signature dialog on it, are not lost.
+  - **Not in the design, added:** a table of values on a card is one line until opened, open by itself when a row of it
+    needs the person (the 230-23 card was over 6,000 px with every table open); a card's facts are listed once each and
+    without the subject's own id; the rows of a study's table no longer repeat "study 230-23". Up to three cards in an
+    area are all open; past three, the first to confirm (as `ConfirmGroups` did). The Delivery section in Client files
+    keeps one line naming the areas where its subjects' cards are, with links.
+  - **Not built here:** "Used by 230-23, 231-24" on a product card (nothing the page reads says which studies give a
+    product); "Show separately" for a joined card (the join has no wrong merges on either seed); "In the model" links for
+    products and the compound (a study's link scrolls to its row); the "Nothing on this tab yet" empty-state title of
+    `InputRows` (owned by the slice-4 branch). The client's compound values as a card on Compound shows only where a
+    delivery or sheet-form compound subject exists.

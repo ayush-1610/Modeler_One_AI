@@ -1,7 +1,7 @@
 // T-47: the client's data reviewed one study at a time, as data (build C, plan 2026-11-05 §3.2; the owner, 2026-11-05:
-// "one by one study/product/data, easy to review"). With more than three studies, an index names each, the first to
-// confirm is open and the others are folded; each opens from the index. The workbook is written by a Python helper
-// (software test data, never a model).
+// "one by one study/product/data, easy to review"). The client's studies are one list (plan 2026-11-14 slice 3), by how
+// each is given; with more than three, the first to confirm is open on its card and the others are folded, each opening
+// from its row. The workbook is written by a Python helper (software test data, never a model).
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -37,8 +37,9 @@ test("a delivery with four studies is reviewed one study at a time, each as data
   await expect(page.getByTestId("files-table").getByTestId("open-file-four-studies.xlsx")).toHaveText("Clinical studies");
   await expect(page.getByTestId("files-unplaced")).toHaveCount(0);
   await page.getByTestId("tab-studies").click();
-  const index = page.getByTestId("group-index");
-  for (const s of ["CL-1", "CL-2", "CL-3", "CL-4"]) await expect(index.getByTestId(`index-study:${s}`)).toBeVisible();
+  const list = page.getByTestId("studies-list");
+  for (const s of ["CL-1", "CL-2", "CL-3", "CL-4"]) await expect(list.getByTestId(`study-row-study:${s}`)).toBeVisible();
+  await expect(page.getByTestId("group-index")).toHaveCount(0);                         // no second index of the studies
   // the first to confirm is open, as data; the others are folded
   const first = page.getByTestId("group-study:CL-1");
   await expect(first.getByTestId("profile-chart")).toBeVisible();
@@ -46,8 +47,8 @@ test("a delivery with four studies is reviewed one study at a time, each as data
   await expect(page.getByTestId("group-study:CL-3").getByTestId("profile-chart")).toHaveCount(0);
   await expect(page.getByTestId("toggle-study:CL-3")).toHaveText("Open");
   await shot(page, "1-one-study-at-a-time");
-  // any study opens from the index, with its own data
-  await index.getByTestId("index-study:CL-3").click();
+  // any study opens from its row, with its own data
+  await page.getByTestId("toggle-study:CL-3").click();
   const third = page.getByTestId("group-study:CL-3");
   await expect(third.getByTestId("dataset-stats")).toContainText("123");                // 3 × 41
   // confirming the open one moves to the next to confirm

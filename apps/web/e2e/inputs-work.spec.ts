@@ -151,7 +151,9 @@ test("what holds up a card signed on the delivery is counted: its facts, require
   // the values above the range; the layout its urine table waits for is counted once, with the layouts
   expect(row("fact:study:230-23").label).toBe("Study 230-23 · not stated: the route, the number of subjects, what the study is for");
   expect(row("fact:study:230-23").status).toBe("missing");
-  expect(row("fact:study:230-23").where).toEqual({ tab: "files", anchor: "delivery-gap-route", subject: "study/st-8" });
+  // it opens on the study's card, in Clinical studies (slice 3)
+  expect(row("fact:study:230-23").where).toEqual({ tab: "studies", anchor: "delivery-gap-route", subject: "study/st-8" });
+  expect(row("confirm:study:230-23").where).toEqual({ tab: "studies", anchor: "study-card-study:230-23", subject: "study/st-8" });
   expect(row("need:study:230-23:REQ-sys.demographics").label).toMatch(/^Study 230-23 · not in the files: Demographics of every study/);
   expect(row("check:study:230-23:ck-965b759af642").status).toBe("to_decide");
   expect(model.items.some((i) => i.id.startsWith("check:") && /mapping/.test(i.label))).toBe(false);

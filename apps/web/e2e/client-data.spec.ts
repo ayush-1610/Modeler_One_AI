@@ -58,10 +58,10 @@ test("client files are read cell by cell, sorted, and what the checklist did not
   await expect(product).toContainText("To confirm");
   await product.locator("[data-testid^='confirm-product:']").click();
   await expect(product).toContainText("Confirmed by");
-  const testProfile = page.locator("tr[data-testid^='profile-']", { hasText: "Test 10 mg" });
+  const testProfile = page.locator("li[data-testid^='profile-']", { hasText: "Test 10 mg" });
   await expect(testProfile).toContainText("t50 18 min");
   await testProfile.getByPlaceholder("formulation name").fill("Test10");
-  await testProfile.getByRole("button", { name: "Propose as release model" }).click();
+  await testProfile.getByRole("button", { name: "Use as release" }).click();
   await expect(page.getByText(/Problems|Error/)).toHaveCount(0);
 
   // a dissolution sheet in the client's own layout: the guided reader finds the time and vessel columns
@@ -80,11 +80,11 @@ test("client files are read cell by cell, sorted, and what the checklist did not
 
   // the client's study arrived without the checklist promising it; the client dataset is among every dataset
   await page.getByTestId("tab-studies").click();
-  await expect(page.getByTestId("unpromised")).toContainText(/CL-01 .*delivered, not promised/);
+  await expect(page.locator("[data-testid^='dataset-unpromised-']").first()).toHaveAttribute("title", /CL-01 .*delivered, not promised/);
   await expect(page.locator(".evidence", { hasText: "CL-01" })).toContainText("client");
   await page.screenshot({ path: test.info().outputPath("client-data.png"), fullPage: true });
   await page.getByTestId("tab-formulations").click();
-  await expect(page.locator("tr[data-testid^='profile-']", { hasText: "Raw 10 mg · OTHER · phosphate pH 6.8" })).toBeVisible();
+  await expect(page.locator("li[data-testid^='profile-']", { hasText: "Raw 10 mg · OTHER · phosphate pH 6.8" })).toBeVisible();
   // the proposed release model flows in, held for the review; PK-Sim has confirmed the equation, so the value carries
   // the engine check rather than an "unconfirmed" flag
   const views = await request.get(`/api/v1/projects/${projectId}/evidence`, { headers: { Authorization: "Bearer dev" } });

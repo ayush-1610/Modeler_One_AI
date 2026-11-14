@@ -1,17 +1,32 @@
 "use client";
 
-import { useEffect, useState } from "react";
+// Clinical studies (plan 2026-11-14 slice 3; the design text's "Tab Clinical studies"): one card per study, whichever
+// reader found it, listed by how the study is given (IV · oral fasted · oral fed · multiple dose · other, as far as its
+// facts say: plan §2.2.8), each row opening on its card; the sheets whose study is not stated yet; the studies in the
+// model, with their role and regimen; and the observed data on no study card (the literature, a digitized figure, a typed
+// table, the published model). The tools that add observed data are a short row of buttons, not a paragraph.
+
+import { useEffect, useMemo, useState } from "react";
 
 import type { View as ClientView } from "@/components/client/types";
-import { EmptyState, InlineIssue } from "@/components/kit";
+import { DataTable, EmptyState, InlineIssue } from "@/components/kit";
 import { SortHeader, TableFilter, TableMore } from "@/components/kit/SortableTable";
+import { SUBJECT } from "@/components/delivery/DeliveryReview";
 import { send, type Schema } from "@/lib/api";
-import { useResource } from "@/lib/hooks";
+import { useResource, useResources } from "@/lib/hooks";
+import { normLabel, type Subject } from "@/lib/inputsWork";
 import { numericKey, ordinal, useTableView } from "@/lib/tableView";
+import { DESIGNS, DESIGN_TITLE, type Design, designOf, plural, valueWord } from "@/lib/words";
 
+import { SheetGroups } from "./ClientConfirm";
+import { type CardEnv, StatusChip, cardStatus, focused } from "./cards/ConfirmPath";
+import { StudyCard, studyNames } from "./cards/StudyCard";
 import { type Run, TodoCard, type TodoItem } from "./InputsTodo";
 import { ObservedDatasets } from "./ObservedDatasets";
 import { downloadTemplate } from "./TabFiles";
+
+type Group = Schema<"ReviewGroup">;
+type Card = Schema<"DeliverySubject">;
 
 export type StudyRow = Schema<"InputStudyRow">;
 /** A tool the head's "Add data" opened on this area (plan 2026-11-14 slice 1); `at` makes each choice a new one. */
@@ -233,17 +248,135 @@ function TypedTable({ projectId, run, options }: { projectId: string; run: Run; 
   );
 }
 
-/** The Studies tab (redesign §3.2): each study with its facts, the role the MS-01 split proposes (changed only on Review
- *  & sign), whether it is blinded (D-15), its regimen and whether it is used; then the other ways to add observed data.
- *  The client's clinical and bioanalytical files, each data sheet with its reading (R3c), are in the Client files area
- *  (plan 2026-11-14 slice 1). */
-export function StudiesTab({ studies, todo, projectId, run, options, onIndividuals, client, intent, only = false }: {
+/** A study's facts as far as they are known for the list (route, food state, design, dose): the study in the model,
+ *  the sheet form's facts, the delivery's facts of its files. */
+function factsOf(s: Subject, inModel: StudyRow | undefined, card: Card | null | undefined): Record<string, string> {
+  const out: Record<string, string> = {};
+  const put = (k: string, v: unknown) => { if (v !== null && v !== undefined && v !== "" && !(k in out)) out[k] = String(v); };
+  if (inModel) for (const k of ["route", "food_state", "design", "dose_mg"]) put(k, inModel.facts[k]);
+  for (const g of s.groups) for (const f of g.facts) put(f.field, typeof f.stored === "string" || typeof f.stored === "number" ? f.stored : f.value);
+  for (const v of (card?.tables ?? []).filter((t) => t.kind === "facts").flatMap((t) => t.values)) {
+    if (v.blinded || v.status === "superseded" || v.status === "excluded") continue;
+    put(v.field === "dose" ? (v.unit === "mg" ? "dose_mg" : "dose") : v.field, v.field === "dose" && v.unit !== "mg" ? `${v.value} ${v.unit ?? ""}`.trim() : v.value);
+  }
+  return out;
+}
+
+/** What a study's row says of how it is given: "Oral · 50 mg · fasted". */
+const givenText = (f: Record<string, string>) => [f.route ? valueWord(f.route) : "", f.dose_mg ? `${f.dose_mg} mg` : f.dose ?? "",
+                                                   f.food_state ? valueWord(f.food_state).toLowerCase() : "", f.design === "MD" ? "multiple dose" : ""]
+  .filter(Boolean).join(" · ") || "not stated yet";
+
+const SHOW_CARDS = [
+  { id: "all", label: "All", test: () => true },
+  { id: "open", label: "To confirm", test: (s: Subject) => !s.done },
+  { id: "done", label: "In the model", test: (s: Subject) => s.done },
+] as const;
+type ShowCards = (typeof SHOW_CARDS)[number]["id"];
+
+/** The client's studies, one card each, by how they are given; a row opens on its card. The first study to confirm is
+ *  open; the others open from their row, or from To do. */
+function StudyList({ subjects, studies, env, unpromised, only, onShow }: {
+  subjects: Subject[]; studies: StudyRow[]; env: CardEnv; unpromised: string[]; only: boolean; onShow: (id: string) => void;
+}) {
+  const [show, setShow] = useState<ShowCards>("all");
+  const [toggled, setToggled] = useState<Record<string, boolean>>({});
+  // the facts of a study signed on the delivery are on its card (read two at a time, under the key its card uses)
+  const rows = subjects.filter((s) => s.path === "delivery" && s.row && !s.done && !s.blinded).map((s) => s.row!);
+  const read = useResources(SUBJECT, rows.map((r) => ({ project_id: env.projectId, type: r.subject_type, subject: r.subject })),
+                            { limit: 2, staleTime: 60_000 });
+  const cards = new Map(rows.map((r, i) => [r.subject, read[i]?.data ?? null] as const));
+  const inModel = (s: Subject) => studies.find((x) => normLabel(x.study_id) === normLabel(s.label));
+  const facts = (s: Subject) => factsOf(s, inModel(s), s.row ? cards.get(s.row.subject) : null);
+  const designs = new Map(subjects.map((s) => [s.key, designOf(facts(s))] as const));
+  // the first to confirm, in the order the list shows them
+  const current = DESIGNS.flatMap((d) => subjects.filter((s) => designs.get(s.key) === d)).find((s) => !s.done && !s.blinded)?.key ?? null;
+  // the study open as "the first to confirm" stays open once confirmed, while the next one opens
+  const [shown, setShown] = useState<string | null>(current);
+  useEffect(() => {
+    if (current === shown) return;
+    if (shown && subjects.find((s) => s.key === shown)?.done) setToggled((was) => (shown in was ? was : { ...was, [shown]: true }));
+    setShown(current);
+  }, [current]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const target = env.focus ? subjects.find((s) => focused(s, env.focus)) : undefined;
+    if (target) setToggled((was) => ({ ...was, [target.key]: true }));
+  }, [env.focus]); // eslint-disable-line react-hooks/exhaustive-deps
+  // up to three studies are all open; past three, the first to confirm (the owner, 2026-11-05: "one by one"); the one
+  // that was the first to confirm stays open until the effect above has seen why it no longer is (just confirmed: it
+  // stays open, with what its signature loaded)
+  const isOpen = (s: Subject) => toggled[s.key] ?? (subjects.length <= 3 || s.key === current || s.key === shown);
+  const filter = SHOW_CARDS.find((x) => x.id === show)!.test;
+  const design = (s: Subject): Design => designs.get(s.key) ?? "other";
+  // one table, by design: a study whose facts move it to another design stays the same row, and its card stays open
+  const listed = DESIGNS.flatMap((d) => subjects.filter((s) => design(s) === d && filter(s) && (!only || !s.done)));
+  const toggle = (s: Subject) => {
+    if (s.path === "delivery" || !s.groups[0]) return `delivery-subject-open-${s.row?.subject ?? s.key}`;
+    return `toggle-${s.groups[0].id}`;
+  };
+  return (
+    <section className="studies-list" data-testid="studies-list" aria-label="The client's studies">
+      <div className="studies-list-head">
+        <h2 className="area-section-title">The client&apos;s studies <span className="muted">({subjects.length})</span></h2>
+        <div className="table-chips" role="group" aria-label="Show the studies">
+          {SHOW_CARDS.map((x) => (
+            <button key={x.id} type="button" aria-pressed={show === x.id} data-testid={`studies-cards-${x.id}`} onClick={() => setShow(x.id)}>
+              {x.label}</button>
+          ))}
+        </div>
+      </div>
+      {listed.length === 0 && <p className="muted m-0">{only ? "No study waits for you." : "No study here with this filter."}</p>}
+      {listed.length > 0 && (
+          <DataTable<Subject> rows={listed} rowKey={(s) => s.key} className="studies-cards" label="The client's studies, by how each is given"
+            rowTestId={(s) => `study-row-${s.key}`} rowClassName={(s) => (isOpen(s) ? "open" : undefined)}
+            group={{ of: design, testId: (d) => `studies-design-${d}`,
+                     title: (d, rows) => <span className="studies-design-title">{DESIGN_TITLE[d as Design]} <span className="muted">({rows.length})</span></span> }}
+            after={(s) => (isOpen(s) ? <StudyCard subject={s} env={env} unpromised={unpromised} onShow={() => onShow(inModel(s)?.study_id ?? s.label)} /> : null)}
+            columns={[
+              { key: "study", label: "Study", render: (s) => (
+                <>
+                  <strong className="card-title">{s.label}</strong>
+                  {s.aliases.length > 0 && <div className="muted fs-12">also read as {s.aliases.join(", ")}</div>}
+                  {s.blinded && <span className="chip neutral">blinded until the plan is signed</span>}
+                </>
+              ) },
+              { key: "given", label: "How it is given", render: (s) => <span className="fs-13">{givenText(facts(s))}</span> },
+              { key: "data", label: "Data", render: (s) => {
+                const datasets = s.groups.reduce((n, g) => n + g.items.filter((i) => i.data).length, 0);
+                const sheets = s.groups.reduce((n, g) => n + g.items.filter((i) => i.kind === "draft").length, 0);
+                return <span className="fs-13">{[s.row ? plural(s.row.values, "value") : "", datasets ? plural(datasets, "dataset") : "",
+                                                 sheets ? plural(sheets, "sheet") + " to read" : ""].filter(Boolean).join(" · ") || "—"}</span>;
+              } },
+              { key: "status", label: "Status", render: (s) => <StatusChip status={cardStatus(s, env.work)} testId={`study-status-${s.key}`} /> },
+              { key: "confirm", label: "Confirmed with", render: (s) => <span className="muted fs-13">{s.path === "delivery" ? "Confirm and sign"
+                : s.path === "sheet-form" ? "Confirm" : "not available yet"}</span> },
+              { key: "role", label: "Role", render: (s) => { const r = inModel(s)?.role; return r ? <span className="fs-13">{r} · {ROLE[r] ?? r.toLowerCase()}</span> : <span className="muted">—</span>; } },
+              { key: "open", label: "", render: (s) => (
+                <button type="button" className="btn small" aria-expanded={isOpen(s)} aria-label={`${isOpen(s) ? "Close" : "Open"} the card of ${s.label}`}
+                        data-testid={toggle(s)} onClick={() => setToggled({ ...toggled, [s.key]: !isOpen(s) })}>{isOpen(s) ? "Close" : "Open"}</button>
+              ) },
+            ]} />
+      )}
+    </section>
+  );
+}
+
+/** Clinical studies (redesign §3.2; plan 2026-11-14 slice 3): the client's studies, one card each; the sheets whose
+ *  study is not stated; the studies in the model, with the role the MS-01 split proposes (changed only on Review & sign),
+ *  whether each is blinded (D-15), its regimen and whether it is used; and the observed data on no study card. The
+ *  client's files and their sheets are in Client files (plan 2026-11-14 slice 1). */
+export function StudiesTab({ studies, todo, projectId, run, options, onIndividuals, client, intent, only = false, env, subjects, sheets }: {
   studies: StudyRow[]; todo: TodoItem[]; projectId: string; run: Run; options: Options; onIndividuals: () => void;
   client: ClientView | undefined;
   /** "Type a table in" or "Digitize a figure", chosen in the head's "Add data" */
   intent?: Intent | null;
-  /** "Only what needs me": the open items only, not the studies in the model, what to add or every dataset */
+  /** "Only what needs me": what waits for the person, not the studies in the model or the other observed data */
   only?: boolean;
+  env: CardEnv;
+  /** the client's studies, one card each (lib/inputsWork.ts) */
+  subjects: Subject[];
+  /** the sheets whose study is not stated yet */
+  sheets: Group[];
 }) {
   const unpromised = client?.reconciliation.unpromised ?? [];
   const [typing, setTyping] = useState(false);
@@ -254,37 +387,66 @@ export function StudiesTab({ studies, todo, projectId, run, options, onIndividua
     setTyping(true);
     window.setTimeout(() => document.querySelector('[data-testid="typed-table"]')?.scrollIntoView({ block: "start", behavior: "smooth" }), 80);
   }, [intent]);
-  if (only) return <>{todo.map((t, i) => <TodoCard key={`${t.kind}-${t.target}-${i}`} t={t} projectId={projectId} run={run} />)}</>;
+  // a dataset whose study has a card is shown on that card, not again among the other observed data
+  const onCard = useMemo(() => {
+    const tests = subjects.map(studyNames);
+    return (studyId: string) => tests.some((t) => t(studyId));
+  }, [subjects]);
+  const show = (id: string) => {
+    const el = document.getElementById(`study-${id}`);
+    el?.scrollIntoView({ block: "center", behavior: "smooth" });
+  };
+  const waiting = subjects.filter((s) => !s.done).length;
+  // what the /inputs to-do says of the observed data (no dataset yet; individual subjects only), once no client study
+  // waits for confirmation (until then it is settled by confirming one, as To do counts it); its regimen rows are filled
+  // in the table of studies in the model
+  const notes = todo.filter((t) => t.kind !== "regimen" && !(t.kind === "datasets" && waiting > 0));
   return (
     <>
-      {todo.map((t, i) => <TodoCard key={`${t.kind}-${t.target}-${i}`} t={t} projectId={projectId} run={run} />)}
-      {studies.length === 0 ? <EmptyState title="No studies yet">Add observed data below: the client&apos;s sheets, a published
-        figure or a table typed in.</EmptyState> : (
-        <StudiesTable studies={studies} projectId={projectId} run={run} onIndividuals={onIndividuals} />
+      {subjects.length > 0 && <StudyList subjects={subjects} studies={studies} env={env} unpromised={unpromised} only={only} onShow={show} />}
+      {!only && subjects.length === 0 && (
+        <EmptyState title="No client study yet">Add the client&apos;s files with Add data at the top of the page, or fill the client-data
+          template; each study they hold gets its card here, to confirm.</EmptyState>
       )}
-      {unpromised.length > 0 && (
-        <section className="client-files">
-          <h4 className="m-12-0-4">Delivered, not in the data checklist</h4>
-          <ul className="flags" data-testid="unpromised">{unpromised.map((u) => <li key={u}>{u}</li>)}</ul>
+      <SheetGroups projectId={projectId} groups={sheets.filter((g) => !only || g.state === "to_confirm")} run={run}
+                   title="Sheets not linked to a study yet" testId="studies-sheets" />
+      {notes.map((t, i) => <TodoCard key={`${t.kind}-${t.target}-${i}`} t={t} projectId={projectId} run={run} />)}
+      {!only && (
+        <section className="studies-in-model" data-testid="studies-in-model">
+          <h2 className="area-section-title">In the model <span className="muted">({studies.filter((s) => !s.excluded).length})</span></h2>
+          {/* what the client delivered that the data plan did not ask for, besides a dataset (each says so on its line) */}
+          {unpromised.some((u) => !u.startsWith("dataset ")) && (
+            <p className="muted fs-13 m-0-0-8" data-testid="unpromised-other">Delivered, not in the data plan:{" "}
+              {unpromised.filter((u) => !u.startsWith("dataset ")).join("; ")}</p>
+          )}
+          {studies.length === 0 ? (
+            <EmptyState title="No study confirmed yet">{waiting ? `${plural(waiting, "study waits", "studies wait")} for confirmation above. ` : ""}
+              A confirmed study, a table typed in, a digitized figure or a published model&apos;s study appears here with its role.</EmptyState>
+          ) : <StudiesTable studies={studies} projectId={projectId} run={run} onIndividuals={onIndividuals} />}
         </section>
       )}
-      <section className="add-data" data-testid="add-data">
-        <h3>Add observed data</h3>
-        <ul>
-          <li>The client&apos;s files, with Add data at the top of the page (workbooks are sorted sheet by sheet; PDF and Word
-            reports are read for their data; a file named as dissolution or formulation is filed under Products and
-            dissolution); each file and its sheets are under Client files. Or fill the{" "}
-            <button type="button" className="link-btn" onClick={template} data-testid="download-template">client-data template</button>,
-            which is read cell by cell with no AI.</li>
-          <li>Digitize a published figure against calibrated axes, or let the observed-data agent search, under
-            {" "}<a href="#observed-datasets">Every dataset</a>.</li>
-          <li><button type="button" className="link-btn" onClick={() => setTyping(!typing)} data-testid="type-table">
-            {typing ? "Close the typed table" : "Type a table in by hand"}</button></li>
-        </ul>
-        {problem && <InlineIssue severity="error">{problem}</InlineIssue>}
-        {typing && <TypedTable projectId={projectId} run={run} options={options} />}
-      </section>
-      <div id="observed-datasets"><ObservedDatasets projectId={projectId} run={run} digitize={intent?.what === "digitize" ? intent.at : undefined} /></div>
+      {only && studies.some((s) => s.regimen_missing) && (
+        <StudiesTable studies={studies.filter((s) => s.regimen_missing)} projectId={projectId} run={run} onIndividuals={onIndividuals} />
+      )}
+      {!only && (
+        <section className="add-data" data-testid="add-data">
+          <h3>Add observed data</h3>
+          <div className="row gap-6">
+            <button type="button" className="btn small" onClick={template} data-testid="download-template">The client-data template</button>
+            <button type="button" className="btn small" onClick={() => setTyping(!typing)} data-testid="type-table" aria-expanded={typing}>
+              {typing ? "Close the typed table" : "Type a table in"}</button>
+            <span className="muted fs-13">Digitize a figure or find observed data with AI under Other observed data, below.</span>
+          </div>
+          {problem && <InlineIssue severity="error">{problem}</InlineIssue>}
+          {typing && <TypedTable projectId={projectId} run={run} options={options} />}
+        </section>
+      )}
+      {!only && (
+        <div id="observed-datasets">
+          <ObservedDatasets projectId={projectId} run={run} digitize={intent?.what === "digitize" ? intent.at : undefined} except={onCard}
+                            unpromised={unpromised} />
+        </div>
+      )}
     </>
   );
 }

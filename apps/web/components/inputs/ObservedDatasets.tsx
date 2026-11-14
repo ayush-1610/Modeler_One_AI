@@ -17,7 +17,7 @@ import type { Run } from "./InputsTodo";
 type Dataset = Schema<"ObservedDataset">;
 // a dataset as GET /projects/{id}/evidence lists it: for an external study before the MAP is signed (D-15) the
 // redaction, its values withheld and marked `blinded`
-type Listed = Narrow<Dataset, { reported: (Omit<Schema<"ReportedPK">, "value"> & { value: number | null })[] }> & { blinded?: boolean };
+export type Listed = Narrow<Dataset, { reported: (Omit<Schema<"ReportedPK">, "value"> & { value: number | null })[] }> & { blinded?: boolean };
 type AccessRequest = { id: string; title: string; authors: string; doi: string | null; needed_for: string; status: string };
 type View = Narrow<Pick<Schema<"EvidencePage">, "agents" | "running" | "datasets" | "access_requests">, {
   datasets: Listed[]; access_requests: AccessRequest[];
@@ -27,19 +27,19 @@ const ORIGIN_CHIP: Record<string, string> = {
   CLIENT: "low", LITERATURE: "low", FIGURE_DIGITIZED: "medium", OSP_LIBRARY: "low", SYNTHETIC: "high", ILLUSTRATIVE: "high",
 };
 
-/** Where a dataset stands: used, left out with its reason, a digitized figure waiting for its overlay check, or the
- *  client's data waiting for a person to confirm its study (not used until then: `awaits_client_confirmation`, plan
- *  2026-11-03 §3.3; never shown as used, the 2026-11-14 audit). */
-function standing(d: Listed): [string, string] {
+/** Where a dataset stands: in the model, left out with its reason, a digitized figure waiting for its overlay check, or
+ *  the client's data waiting for a person to confirm its study (not in the model until then:
+ *  `awaits_client_confirmation`, plan 2026-11-03 §3.3; never shown as in the model, the 2026-11-14 audit). */
+export function standing(d: Listed): [string, string] {
   if (d.state === "REJECTED") return ["neutral", "left out"];
   if (d.origin === "CLIENT" && d.extraction !== "MANUAL" && d.state === "PROPOSED") return ["neutral", "waiting for confirmation"];
   if (d.origin === "FIGURE_DIGITIZED" && d.state !== "ACCEPTED" && !d.digitization?.overlay_approved_by) return ["medium", "overlay to check"];
-  return ["low", "used"];
+  return ["low", "in the model"];
 }
 
 const SHOW = [
   { id: "all", label: "All", test: () => true },
-  { id: "used", label: "Used", test: (d: Listed) => standing(d)[1] === "used" },
+  { id: "used", label: "In the model", test: (d: Listed) => standing(d)[1] === "in the model" },
   { id: "out", label: "Left out", test: (d: Listed) => d.state === "REJECTED" },
   { id: "overlay", label: "Overlay to check", test: (d: Listed) => standing(d)[1] === "overlay to check" },
   { id: "waiting", label: "Waiting for confirmation", test: (d: Listed) => standing(d)[1] === "waiting for confirmation" },
@@ -52,7 +52,7 @@ const datasetText = (d: Listed) => [d.study.study_id, d.origin, d.purpose, d.kin
 
 /** The dataset cards, ten at a time with a text and a state filter; a blinded dataset or a figure whose overlay is still
  *  to check is always shown (the 2026-11-11 audit, item 11). */
-function DatasetList({ datasets, projectId, run }: { datasets: Listed[]; projectId: string; run: Run }) {
+function DatasetList({ datasets, projectId, run, unpromised }: { datasets: Listed[]; projectId: string; run: Run; unpromised: string[] }) {
   const [show, setShow] = useState<Show>("all");
   const [touched, setTouched] = useState<ReadonlySet<string>>(new Set());
   const view = useTableView({
@@ -75,7 +75,7 @@ function DatasetList({ datasets, projectId, run }: { datasets: Listed[]; project
       )}
       <div className="paged-cards">
         {view.visible.map((d) => (
-          <div key={d.id} onInput={() => touch(d.id)}><DatasetCard d={d} projectId={projectId} run={run} /></div>
+          <div key={d.id} onInput={() => touch(d.id)}><DatasetCard d={d} projectId={projectId} run={run} unpromised={unpromisedOf(d, unpromised)} /></div>
         ))}
       </div>
       {view.visible.length === 0 && <p className="muted table-none">No dataset matches this filter.</p>}
@@ -84,8 +84,72 @@ function DatasetList({ datasets, projectId, run }: { datasets: Listed[]; project
   );
 }
 
-function DatasetCard({ d: listed, projectId, run }: { d: Listed; projectId: string; run: Run }) {
+/** What the client's reconciliation says of a dataset its data plan did not promise ("dataset CL-01 (ds-…): delivered,
+ *  not promised by the data plan", by the dataset's id), if anything. */
+const unpromisedOf = (d: Listed, lines: string[]) => lines.find((u) => u.includes(`(${d.id})`)) ?? null;
+
+/** Leave a dataset out of the model, or take it back, with the reason: one small button, the reason asked only when it is
+ *  pressed. */
+function LeaveOut({ d, projectId, run, onProblem }: { d: Listed; projectId: string; run: Run; onProblem: (p: string | null) => void }) {
+  const [open, setOpen] = useState(false);
   const [reason, setReason] = useState("");
+  const out = d.state === "REJECTED";
+  const id = String(d.study.study_id);
+  if (!open) {
+    return <button type="button" className="link-btn" onClick={() => setOpen(true)} data-testid={`dataset-leave-${d.id}`}
+                   aria-label={out ? `Use the dataset of ${id} again` : `Leave the dataset of ${id} out`}>{out ? "Use it again…" : "Leave it out…"}</button>;
+  }
+  return (
+    <span className="row gap-6">
+      <input autoFocus className="flex-1 minw-180" placeholder={out ? "why use it again" : "why leave it out"} value={reason}
+             onChange={(e) => setReason(e.target.value)} aria-label={`reason for dataset ${id}`}
+             onKeyDown={(e) => { if (e.key === "Escape") setOpen(false); }} />
+      <button className="btn" disabled={!reason.trim()} data-testid={`dataset-exclude-${d.id}`}
+              onClick={async () => onProblem(await run(() => send("post", "/api/v1/projects/{project_id}/datasets/{dataset_id}:decide",
+                                                                  { project_id: projectId, dataset_id: d.id },
+                                                                  { state: out ? "PROPOSED" : "REJECTED", reason }),
+                                                       out ? `${id} is used again.` : `${id} is left out: ${reason}.`))}>
+        {out ? "Use it again" : "Leave it out"}
+      </button>
+      <button type="button" className="link-btn" onClick={() => setOpen(false)}>Cancel</button>
+    </span>
+  );
+}
+
+/** A dataset on its study's card: one line with where it stands, whether the data plan promised it, and Leave out; its
+ *  points under "Show the points". */
+function DatasetLine({ d, projectId, run, unpromised }: { d: Listed; projectId: string; run: Run; unpromised: string | null }) {
+  const [problem, setProblem] = useState<string | null>(null);
+  const [points, setPoints] = useState(false);
+  const [tone, label] = standing(d);
+  const s = d.study;
+  return (
+    <li className="evidence dataset-line" data-testid={`dataset-${d.id}`}>
+      <div className="dataset-line-head">
+        <span className={`chip ${ORIGIN_CHIP[d.origin] ?? "neutral"}`}>{d.origin.toLowerCase().replace("_", " ")}</span>
+        <span>{d.kind === "profile" ? "profile" : "PK parameters only"} · {d.source.title || "source"}{d.source.locator ? ` · ${d.source.locator}` : ""}</span>
+        <span className={`chip ${tone}`} data-testid={`dataset-state-${d.id}`}>{label}</span>
+        {unpromised && <span className="chip neutral" data-testid={`dataset-unpromised-${d.id}`} title={unpromised}>not in the data plan</span>}
+        {d.blinded && <span className="chip neutral" data-testid={`dataset-blinded-${d.id}`}>blinded until the plan is signed</span>}
+        {!d.blinded && d.series.length > 0 && (
+          <button type="button" className="link-btn" aria-expanded={points} onClick={() => setPoints(!points)}>{points ? "Hide the points" : "Show the points"}</button>
+        )}
+        <LeaveOut d={d} projectId={projectId} run={run} onProblem={setProblem} />
+      </div>
+      {points && d.series.map((series) => (
+        <div key={series.name} className="series">
+          <span className="muted">{series.name} ({series.statistic?.replace("_", " ")}{series.n ? `, n ${series.n}` : ""}) · {d.time_unit} → {d.unit}:</span>{" "}
+          {series.times.map((t, i) => `${+t.toPrecision(4)}: ${series.values[i] === null ? "<LLOQ" : +(series.values[i] as number).toPrecision(4)}`).join(" · ")}
+        </div>
+      ))}
+      {d.state === "REJECTED" && d.decision_reason && <p className="muted m-0 fs-12">left out by {d.decided_by}: {d.decision_reason}</p>}
+      {problem && <InlineIssue severity="error">{problem}</InlineIssue>}
+      <span className="sr-only">{String(s.study_id)}</span>
+    </li>
+  );
+}
+
+function DatasetCard({ d: listed, projectId, run, unpromised }: { d: Listed; projectId: string; run: Run; unpromised: string | null }) {
   const [revealed, setRevealed] = useState<Listed | null>(null);
   const [revealReason, setRevealReason] = useState("");
   const [problem, setProblem] = useState<string | null>(null);
@@ -101,6 +165,7 @@ function DatasetCard({ d: listed, projectId, run }: { d: Listed; projectId: stri
           <span className={`chip ${ORIGIN_CHIP[d.origin] ?? "neutral"}`}>{d.origin.toLowerCase().replace("_", " ")}</span>
           <span className="chip neutral">{d.kind === "profile" ? "profile" : "PK parameters only"}</span>
           <span className={`chip ${tone}`} data-testid={`dataset-state-${d.id}`}>{label}</span>
+          {unpromised && <span className="chip neutral" data-testid={`dataset-unpromised-${d.id}`} title={unpromised}>not in the data plan</span>}
         </div>
         <span className="muted">{d.purpose.replace(/_/g, " ")}</span>
       </div>
@@ -147,28 +212,42 @@ function DatasetCard({ d: listed, projectId, run }: { d: Listed; projectId: stri
             The overlay matches the figure
           </button>
         )}
-        <input className="flex-1 minw-180" placeholder={out ? "why use it again" : "why leave it out"} value={reason}
-               onChange={(e) => setReason(e.target.value)} aria-label={`reason for dataset ${String(s.study_id)}`} />
-        <button className="btn" disabled={!reason.trim()} data-testid={`dataset-exclude-${d.id}`}
-                onClick={async () => setProblem(await run(() => send("post", "/api/v1/projects/{project_id}/datasets/{dataset_id}:decide",
-                                                                     { project_id: projectId, dataset_id: d.id },
-                                                                     { state: out ? "PROPOSED" : "REJECTED", reason }),
-                                                          out ? `${String(s.study_id)} is used again.` : `${String(s.study_id)} is left out: ${reason}.`))}>
-          {out ? "Use it again" : "Leave it out"}
-        </button>
+        <LeaveOut d={d} projectId={projectId} run={run} onProblem={setProblem} />
       </div>
       {problem && <InlineIssue severity="error">{problem}</InlineIssue>}
     </div>
   );
 }
 
-/** Every observed dataset, however it arrived (the client's sheets, the literature agent, a digitized figure, a typed
- *  table, the published model), with its values, its source and where it stands; a digitized figure is used once its
- *  overlay is checked. The digitizer and the observed-data agent are here too (redesign §3.2, the Studies tab). */
-export function ObservedDatasets({ projectId, run, digitize }: {
+/** The datasets of one study, on its card (plan 2026-11-14 slice 3): one line each, with where it stands, whether the
+ *  data plan promised it, and Leave out. Nothing when the study has none. */
+export function StudyDatasets({ projectId, run, study, unpromised = [] }: {
+  projectId: string; run: Run;
+  /** the study's names (its label and the names the other reader gave it), as a dataset's `study_id` says them */
+  study: (studyId: string) => boolean;
+  unpromised?: string[];
+}) {
+  const page = useResource("/api/v1/projects/{project_id}/evidence", { project_id: projectId },
+    { select: (d) => narrow<View>(d), poll: (d) => d.running, interval: 4000 });
+  const mine = (page.data?.datasets ?? []).filter((d) => study(String(d.study.study_id)));
+  if (!mine.length) return null;
+  return (
+    <ul className="dataset-lines" data-testid="study-datasets">
+      {mine.map((d) => <DatasetLine key={d.id} d={d} projectId={projectId} run={run} unpromised={unpromisedOf(d, unpromised)} />)}
+    </ul>
+  );
+}
+
+/** The observed datasets on no study card (the literature, a digitized figure, a typed table, the published model, the
+ *  observed-data agent), with their values, their source and where they stand; a digitized figure is used once its
+ *  overlay is checked. The digitizer and the observed-data agent (only while AI is on) are here too. `except`: the
+ *  datasets shown on a study card. */
+export function ObservedDatasets({ projectId, run, digitize, except, unpromised = [] }: {
   projectId: string; run: Run;
   /** set (a new time each choice) when the head's "Add data" asks for the digitizer */
   digitize?: number;
+  except?: (studyId: string) => boolean;
+  unpromised?: string[];
 }) {
   const page = useResource("/api/v1/projects/{project_id}/evidence", { project_id: projectId },
     { select: (d) => narrow<View>(d), poll: (d) => d.running, interval: 4000 });
@@ -188,10 +267,11 @@ export function ObservedDatasets({ projectId, run, digitize }: {
   const docs: DocumentView[] = documents.data?.documents ?? [];
   if (page.problem) return <InlineIssue severity="error">{page.problem}</InlineIssue>;
   if (!view) return <p className="muted">Loading the datasets…</p>;
+  const datasets = except ? view.datasets.filter((d) => !except(String(d.study.study_id))) : view.datasets;
   return (
     <section className="observed" data-testid="observed-datasets">
       <div className="spread">
-        <h3>Every dataset ({view.datasets.length})</h3>
+        <h3>Other observed data ({datasets.length})</h3>
         <div className="row">
           {/* the agent's button only while AI is on */}
           {view.agents.enabled && (
@@ -214,8 +294,9 @@ export function ObservedDatasets({ projectId, run, digitize }: {
             : <p className="muted">Loading the documents…</p>}
         </div>
       )}
-      {view.datasets.length === 0 ? <p className="muted m-0">No observed data yet.</p>
-        : <DatasetList datasets={view.datasets} projectId={projectId} run={run} />}
+      {datasets.length === 0 ? <p className="muted m-0">None: the literature, a digitized figure or a table typed in appear here; the
+        client&apos;s studies are on their cards above.</p>
+        : <DatasetList datasets={datasets} projectId={projectId} run={run} unpromised={unpromised} />}
     </section>
   );
 }

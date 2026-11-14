@@ -1,9 +1,20 @@
 "use client";
 
+// Each study's individual (the PK-Sim Individual building block; D-29), on Populations and individuals (plan 2026-11-14
+// slice 3; the design text's "Tab Populations and individuals"): one row per study. A study in the model has its form
+// (entered from the study's report, or the explicit healthy adult default, listed as a limitation in the MAP; never
+// applied silently); studies that share one individual (the same default, the same published individual, the same
+// entered demographics) sit on one line, each opening its own form. A study of the client's still to confirm on the
+// delivery takes its demographics now, through `:enter`, kept with the study and simulated once it is confirmed; one to
+// confirm with the sheet form is entered once it is confirmed, from its card.
+
 import { useState } from "react";
 
+import { DemographicsForm } from "@/components/delivery/FactsForm";
 import { EmptyState } from "@/components/kit";
 import { send } from "@/lib/api";
+import { normLabel, type Subject, type WorkItem } from "@/lib/inputsWork";
+import { plural } from "@/lib/words";
 
 import { type Run } from "./InputsTodo";
 import type { Options, StudyRow } from "./StudiesTab";
@@ -13,12 +24,11 @@ type Demographics = { population?: string; sex?: string; age_years?: number; age
 
 const STATE: Record<StudyRow["demographics"], [string, string]> = {
   entered: ["low", "entered"], published: ["low", "the published simulation's individual"],
-  default: ["medium", "healthy adult default (a MAP limitation)"], missing: ["high", "not stated"],
+  default: ["neutral", "healthy adult default (a MAP limitation)"], missing: ["high", "not stated"],
 };
 const num = (v: string) => (v.trim() === "" ? null : Number(v));
 
-/** One study's individual (the PK-Sim Individual building block): entered from the study's report, or the explicit
- *  healthy adult default (D-29; listed as a limitation in the MAP), never applied silently. */
+/** One study's individual: entered from the study's report, or the explicit healthy adult default. */
 function Individual({ s, projectId, run, options }: { s: StudyRow; projectId: string; run: Run; options: Options }) {
   const given = (s.facts.demographics ?? {}) as Demographics;
   const [d, setD] = useState({
@@ -75,11 +85,107 @@ function Individual({ s, projectId, run, options }: { s: StudyRow; projectId: st
   );
 }
 
-/** The individuals of the studies (D-29): each entered or the explicit healthy adult default. */
-export function StudyIndividuals({ studies, projectId, run, options }: {
+/** What two studies share when they share an individual: its kind and, entered, its values. */
+const sharedKey = (s: StudyRow) => (s.demographics === "missing" ? null : `${s.demographics}|${JSON.stringify(s.facts.demographics ?? {})}`);
+
+/** Studies that share one individual, on one line; each opens its own form. */
+function SharedLine({ studies, projectId, run, options }: { studies: StudyRow[]; projectId: string; run: Run; options: Options }) {
+  const [open, setOpen] = useState<string | null>(null);
+  const [tone, label] = STATE[studies[0].demographics];
+  const given = (studies[0].facts.demographics ?? {}) as Demographics;
+  const values = studies[0].demographics === "entered"
+    ? [given.population?.replace(/_/g, " "), given.sex?.toLowerCase(), given.age_years ? `${given.age_years} y` : "", given.weight_kg ? `${given.weight_kg} kg` : ""]
+      .filter(Boolean).join(" · ") : "";
+  return (
+    <div className="individual shared" data-testid={`individual-shared-${studies.map((s) => s.study_id).join("-")}`}>
+      <div className="spread">
+        <span>
+          {studies.map((s, i) => (
+            <span key={s.study_id}>{i > 0 && " · "}
+              <button type="button" className="link-btn" aria-expanded={open === s.study_id} onClick={() => setOpen(open === s.study_id ? null : s.study_id)}
+                      aria-label={`Change the individual of ${s.study_id}`}><strong>{s.study_id}</strong></button>
+            </span>
+          ))}
+          <span className="muted fs-13"> · {plural(studies.length, "study", "studies")}, one individual{values ? `: ${values}` : ""}</span>
+        </span>
+        <span className={`chip ${tone}`}>{label}</span>
+      </div>
+      {open && <div className="mt-6"><Individual s={studies.find((s) => s.study_id === open)!} projectId={projectId} run={run} options={options} /></div>}
+    </div>
+  );
+}
+
+/** The individuals of the studies (D-29): each study in the model with its form, those sharing an individual on one line;
+ *  the client's studies still to confirm, with their demographics now (on the delivery) or once confirmed (the sheet
+ *  form). */
+export function StudyIndividuals({ studies, projectId, run, options, subjects = [], vocabulary = null, onOpen }: {
   studies: StudyRow[]; projectId: string; run: Run; options: Options;
+  /** the client's studies (one card each), to list those not confirmed yet */
+  subjects?: Subject[];
+  /** a table layout to read the intake vocabulary from (the population's words), if any */
+  vocabulary?: string | null;
+  /** open a study's card */
+  onOpen?: (item: WorkItem | null, subject: Subject) => void;
 }) {
   const used = studies.filter((s) => !s.excluded);
-  if (!used.length) return <EmptyState title="No studies yet">Each study&apos;s individual is set here once its data is added.</EmptyState>;
-  return <>{used.map((s) => <Individual key={`${s.study_id}-${s.demographics}`} s={s} projectId={projectId} run={run} options={options} />)}</>;
+  const inModel = new Set(used.map((s) => normLabel(s.study_id)));
+  const pending = subjects.filter((s) => s.kind === "study" && !s.done && !inModel.has(normLabel(s.label)));
+  const groups = new Map<string, StudyRow[]>();
+  const alone: StudyRow[] = [];
+  for (const s of used) {
+    const key = sharedKey(s);
+    if (key === null) alone.push(s);
+    else groups.set(key, [...(groups.get(key) ?? []), s]);
+  }
+  for (const [key, list] of [...groups]) if (list.length < 2) { alone.push(...list); groups.delete(key); }
+  if (!used.length && !pending.length) {
+    return <EmptyState title="No study confirmed yet">Each confirmed study gets its individual here; a client&apos;s study to confirm on the
+      delivery can take its demographics as soon as it arrives.</EmptyState>;
+  }
+  return (
+    <>
+      {used.length === 0 && <p className="muted m-0 fs-13">No study is in the model yet: each confirmed study gets its individual here.</p>}
+      {[...groups.values()].map((list) => <SharedLine key={list.map((s) => s.study_id).join("|")} studies={list} projectId={projectId} run={run} options={options} />)}
+      {alone.map((s) => <Individual key={`${s.study_id}-${s.demographics}`} s={s} projectId={projectId} run={run} options={options} />)}
+      {pending.length > 0 && (
+        <div className="individuals-pending" data-testid="individuals-pending">
+          <h4 className="delivery-sub">The client&apos;s studies to confirm</h4>
+          {pending.map((s) => <Pending key={s.key} s={s} projectId={projectId} vocabulary={vocabulary} onOpen={onOpen} />)}
+        </div>
+      )}
+    </>
+  );
+}
+
+/** A client's study not confirmed yet: on the delivery, its demographics are entered now (they load with the study);
+ *  with the sheet form, they are entered once it is confirmed. */
+function Pending({ s, projectId, vocabulary, onOpen }: {
+  s: Subject; projectId: string; vocabulary: string | null; onOpen?: (item: WorkItem | null, subject: Subject) => void;
+}) {
+  const [entering, setEntering] = useState(false);
+  return (
+    <div className="individual pending" data-testid={`individual-pending-${s.key}`}>
+      <div className="spread">
+        <strong>{s.label}</strong>
+        <span className="chip neutral">{s.path === "delivery" ? "loads when the study is confirmed" : "to confirm first"}</span>
+      </div>
+      {s.path === "delivery" && s.row && !s.blinded ? (
+        entering ? (
+          <DemographicsForm projectId={projectId} params={{ project_id: projectId, type: s.row.subject_type, subject: s.row.subject }}
+                            vocabulary={{ mapping: vocabulary }} onDone={() => setEntering(false)} testId={`individual-enter-${s.row.subject}`} />
+        ) : (
+          <p className="m-4-0-0 fs-13">
+            <button type="button" className="btn small" onClick={() => setEntering(true)} data-testid={`individual-enter-open-${s.row.subject}`}>Enter them…</button>
+            <span className="muted"> the population, age, weight and share of women, from the study&apos;s report; or ask the client from its card.</span>
+          </p>
+        )
+      ) : (
+        <p className="m-4-0-0 fs-13">
+          {onOpen ? <button type="button" className="link-btn" onClick={() => onOpen(null, s)}>Enter once the study is confirmed →</button>
+            : "Enter once the study is confirmed."}
+          {s.blinded && <span className="muted"> Blinded until the plan is signed.</span>}
+        </p>
+      )}
+    </div>
+  );
 }

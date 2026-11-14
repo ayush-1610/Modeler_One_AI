@@ -192,6 +192,57 @@ export const DELIVERY_WORDS = {
   notData: "not data",
 } as const;
 
+// --- a study's and a product's facts, as a person fills them in (plan 2026-11-14 slice 3, FactsForm) ------------------
+
+/** A fact's label in a form or a list, by the intake field it is entered under (`modeler_intake.fields`, the names
+ *  `:enter` takes; the sheet form's need names `purpose` and `dose` read the same): "Number of subjects", never `n`. */
+const FIELD_LABEL: Record<string, string> = {
+  n: "Number of subjects", n_evaluable: "Evaluable subjects", intended_use: "Purpose of the study", purpose: "Purpose of the study",
+  route: "Route", dose: "Dose", dose_unit: "Dose unit", formulation: "Dosage form", food_state: "Fasted or fed", design: "Design",
+  matrix: "Matrix", lloq: "LLOQ", analyte: "Analyte", infusion_time_min: "Infusion time (min)",
+  dosing_interval_h: "Dosing interval (h)", n_doses: "Number of doses", population: "Population",
+  age_mean: "Mean age (years)", age_min: "Youngest (years)", age_max: "Oldest (years)", weight_mean_kg: "Mean weight (kg)",
+  height_mean_cm: "Mean height (cm)", percent_female: "Women (%)", n_female: "Number of women", ethnicity: "Ethnicity",
+  product_role: "Role", strength_mg: "Strength (mg)", dosage_form: "Dosage form", release: "Release", batch: "Batch",
+  particle_size_d50_um: "Particle size d50 (µm)", polymorph: "Polymorph", salt_form: "Salt form",
+  apparatus: "Apparatus", medium: "Medium", ph: "pH", rpm: "Stirring (rpm)", volume_ml: "Volume (mL)",
+};
+export const fieldLabel = (field: string) => FIELD_LABEL[field] ?? `${spaced(field).charAt(0).toUpperCase()}${spaced(field).slice(1)}`;
+
+/** A vocabulary entry in words (the study record's enums, the intake vocabulary's choices and the brief's purposes, as
+ *  the API sends them in `study_options` or a field's `choices`); an entry with no word is shown as sent. */
+const VALUE_WORD: Record<string, string> = {
+  oral: "Oral", iv_bolus: "IV bolus", iv_infusion: "IV infusion", other: "Other",
+  solution: "Solution", suspension: "Suspension", ir_tablet: "IR tablet", ir_capsule: "IR capsule", mr: "Modified release",
+  fasted: "Fasted", fed: "Fed", SD: "Single dose", MD: "Multiple dose",
+  model_building: "Model building", internal_validation: "Internal validation", external_validation: "External validation",
+  application_verification: "Application verification", supportive: "Supportive",
+  plasma: "Plasma", blood: "Blood", serum: "Serum", urine: "Urine", feces: "Feces",
+  healthy: "Healthy", patient: "Patients", TEST: "Test", RLD: "RLD", REFERENCE: "Reference", SOLUTION: "Solution", OTHER: "Other",
+  arithmetic_mean: "arithmetic mean", geometric_mean: "geometric mean", median: "median",
+};
+export const valueWord = (value: string) => VALUE_WORD[value] ?? spaced(value);
+
+/** How a study is given, as the Clinical studies list groups it (plan 2026-11-14 §2.2.8): by the facts its files or its
+ *  sheet form state; a study whose route is not stated yet is under "Other". */
+export type Design = "iv" | "oral_fasted" | "oral_fed" | "multiple" | "other";
+export const DESIGNS: Design[] = ["iv", "oral_fasted", "oral_fed", "multiple", "other"];
+export const DESIGN_TITLE: Record<Design, string> = {
+  iv: "IV", oral_fasted: "Oral, fasted", oral_fed: "Oral, fed", multiple: "Multiple dose", other: "Other or not stated yet",
+};
+export function designOf(facts: { route?: unknown; food_state?: unknown; design?: unknown }): Design {
+  const route = String(facts.route ?? "");
+  if (route.startsWith("iv")) return "iv";
+  if (String(facts.design ?? "") === "MD") return "multiple";
+  if (route === "oral") return String(facts.food_state ?? "") === "fed" ? "oral_fed" : facts.food_state ? "oral_fasted" : "other";
+  return "other";
+}
+
+/** A requirement item's disposition (`DeliveryDisposition.disposition`) in words. */
+export const DISPOSITION_WORD: Record<string, string> = {
+  ask_client: "asked of the client", literature: "taken from the literature", not_needed: "not needed for this model",
+};
+
 /** The intake rules, as the chip says them: "Intake rules v0.1 · UNVERIFIED" (UNVERIFIED stays upper case: CLAUDE.md). */
 export const rulesText = (rules: { version: string; status: string }) => `Intake rules v${rules.version} · ${rules.status}`;
 
