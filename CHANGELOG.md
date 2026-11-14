@@ -15,6 +15,27 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — the Delivery section on Inputs, the signed confirmation in the browser, and the administrator's pipeline page (D6-web; plan G6, U-d; contracts §8.10; 2026-11-14)
+- **What changed.**
+  - **`components/delivery/`**, shown on Inputs beside the reading tray when the pipeline is on (`enabled`):
+    - **`DeliverySection`**: the coverage panel. Files with their state and reason, regions, silent loss, outside numbers, unassigned values, each file's regions and stage times, mappings that wait, the rules' status ("rules UNVERIFIED v0.1"), and "read again". It polls while a run is in progress.
+    - **`SubjectCard`**: one study, product or the compound, exceptions first. Each blocker is settled where it is named, with its reason: an outside number accepted as not data, a gap or a missing study-record field entered, a requirement disposed, a failed check overridden, a conflict chosen, a cross-file link confirmed or refused. Then the values by table, what the landing holds back, the spot check and the confirmation with its signature manifestation.
+    - **`ValueSource`**: the source beside a value. A sheet or Word table as a grid that opens on the value's cell, with its time, unit and label cells highlighted by role; a PDF page drawn with the value's box over it; prose with the span marked. A blinded study's source shows no page and no cell text.
+    - **`MappingReview`**: a layout's columns, roles, units, tokens and constants, its sample with every body number masked, its versions and decisions; approve, reject with a reason, or edit (the findings of a refused edit are shown).
+    - **`Unassigned`**: the "study not stated" values, assigned to an existing study or product or to a new one the person names, keeping the table's own arm or batch.
+    - **`SpotCheck`**: the draw; each row shows the tuple it is ticked for and opens its source; ticks are kept in the page and sent in one request; a value that failed stays failed; a stale draw offers a new one.
+    - **`ConfirmDialog`**: says what is signed (the subject, the counts by evidence level, the coverage, what the landing holds back, any layout not approved, the rules' status), is disabled while a blocker stands, and signs through the step-up. Afterwards it shows the signature manifestation and what was loaded.
+  - **`app/admin/pipeline`**: pipeline health per company and in all (files by state, how tables were mapped, parser failures, unsupported formats, outside items, unresolved anchors, pages needing OCR, stage time median and p90), linked from the admin console.
+  - **`DatasetView`**: a dataset names the rule its points below the LLOQ are judged with and how many it leaves out; a point with no spread draws no error bar.
+  - **Upload pickers** (Add data, Start, the Inputs tabs) accept `.zip`.
+  - **`lib/api.ts`**: a coded refusal's `detail` (a refused confirmation's blockers, a refused mapping's findings) is kept beside its message for the page that asked. Every other page shows the message as before.
+- **Why.** The review, the spot check and the signed confirmation existed only as routes. This is where a person works by exception: nothing reaches the model inputs unseen, every value opens on its source, and one signature binds what was reviewed (gate G6).
+- **Impact.**
+  - Web only: no API, ruleset or model-building code changes. The legacy cards and their test ids are untouched.
+  - **Browser tests, run in the cloud container** (Chromium): `delivery.spec.ts` uploads the synthetic workbook and PDF, sees silent loss 0 over 12 regions, opens a value's source on its highlighted cell and a PDF value on its drawn page, approves the one waiting layout (its sample shows no digit), settles each of the study's blockers through the page, ticks the spot check in one request, signs, and finds the study on Inputs once with its two datasets accepted "confirmed on Delivery". The admin console, Inputs and client-data specs pass beside it.
+  - The whole e2e suite with the default `both` must still run once before the first deployment.
+  - Made-up data only (Exampleamide): the flow proves the software path, never a model.
+
 ### Added — client-data intake: a person names a new study or product when assigning "study not stated" values (contracts §6.6, §8.10; 2026-11-14) — science change
 - **What changed.**
   - `Ledger.name_entity(type, label, by, why)`: one `entity` line for a study or a product a person names, written as the resolver writes one, with no source (a person's statement has no anchor). It is idempotent for the same person, label and type under the log's lock, and never duplicates an entity whose key exists (followed through merges and aliases). Audited `intake.entity` with the line's hash.

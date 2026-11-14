@@ -5,6 +5,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { BriefList } from "@/components/brief/BriefList";
 import { type Act, Dissolution, FileTagLine, type Retag, retagCall } from "@/components/client/ClientFiles";
+import { DeliverySection } from "@/components/delivery/DeliverySection";
 import type { View as ClientView } from "@/components/client/types";
 import { Banner, InlineIssue, PageShell, SidePanel } from "@/components/kit";
 import { Dialog } from "@/components/kit/Dialog";
@@ -287,6 +288,7 @@ export function InputsWorkspace({ projectId, initialTab = "compound", steps }: {
       {notice && <Banner tone={notice.ok ? "ok" : "err"} testId="inputs-notice">{notice.text}</Banner>}
       {running && literature.data && <LiteratureProgress r={literature.data} />}
       <ReadingTray projectId={projectId} />
+      <DeliverySection projectId={projectId} />
       <div className="inputs-layout">
       <Tabs label="Input areas" prefix="inputs" value={tab} onChange={setTab} vertical
             tabs={TABS.map(([id, label]) => ({ id, label, count: forTab(id).length, testId: `tab-${id}` }))}>

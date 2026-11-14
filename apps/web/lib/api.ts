@@ -20,7 +20,12 @@ export type Schema<Name extends keyof components["schemas"]> = components["schem
  *  `Narrow<Schema<"BriefPage">, { brief: Brief }>`. */
 export type Narrow<S, N extends { [K in keyof N]: K extends keyof S ? unknown : never }> = Omit<S, keyof N> & N;
 
-export type ApiError = { code: string; location?: string; message: string };
+export type ApiError = {
+  code: string; location?: string; message: string;
+  /** What a coded refusal ({code, message, ...}) carries beside its message: a refused mapping's findings, the blockers
+   *  of a refused confirmation. The page that asked reads it; the message alone is what every other page shows. */
+  detail?: Record<string, unknown>;
+};
 
 export type Envelope<T> = {
   data: T | null;
@@ -161,8 +166,18 @@ async function failure(res: Response): Promise<string> {
   return `HTTP ${res.status} ${res.statusText}`.trim();
 }
 
-function errorEnvelope<T>(message: string): Envelope<T> {
-  return { data: null, meta: { request_id: "", timestamp: "", api_version: "" }, errors: [{ code: "HTTP", message }] };
+function errorEnvelope<T>(message: string, detail?: Record<string, unknown>): Envelope<T> {
+  return { data: null, meta: { request_id: "", timestamp: "", api_version: "" },
+           errors: [{ code: "HTTP", message, ...(detail ? { detail } : {}) }] };
+}
+
+/** The `detail` of a coded refusal ({code, message, ...}), kept beside the message for the page that asked. */
+async function coded(res: Response): Promise<Record<string, unknown> | undefined> {
+  try {
+    const detail = ((await res.clone().json()) as { detail?: unknown }).detail;
+    if (detail && typeof detail === "object" && !Array.isArray(detail) && "code" in detail) return detail as Record<string, unknown>;
+  } catch { /* not JSON */ }
+  return undefined;
 }
 
 const UNREACHABLE = "The web server could not be reached. Check your connection to it.";
@@ -179,7 +194,10 @@ async function request<T>(url: string, method: "GET" | "POST" | "PUT", body?: un
   } catch {
     return errorEnvelope(UNREACHABLE);
   }
-  if (!res.ok) return errorEnvelope(await failure(res));
+  if (!res.ok) {
+    const detail = await coded(res);
+    return errorEnvelope(await failure(res), detail);
+  }
   return (await res.json()) as Envelope<T>;
 }
 

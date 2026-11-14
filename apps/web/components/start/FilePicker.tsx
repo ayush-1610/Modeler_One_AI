@@ -12,10 +12,12 @@ import { type FileTag, guessStudy, guessTag, TAG_KINDS, TAG_LABELS } from "@/lib
 
 export type Picked = { file: File; tag: FileTag; study: string };
 
-export const ACCEPT = ".pdf,.docx,.md,.markdown,.txt,.csv,.tsv,.xlsx,.xlsm,.xls,.png,.jpg,.jpeg";
+export const ACCEPT = ".pdf,.docx,.md,.markdown,.txt,.csv,.tsv,.xlsx,.xlsm,.xls,.png,.jpg,.jpeg,.zip";
 
+/** What a picked file is, by its name. A ZIP is never the proposal: it is the client's files, read member by member. */
 export function picked(file: File): Picked {
-  const tag = guessTag(file.name);
+  const guess = guessTag(file.name);
+  const tag = guess === "proposal" && /\.zip$/i.test(file.name) ? "other" : guess;
   return { file, tag, study: tag === "clinical" ? guessStudy(file.name) : "" };
 }
 
@@ -61,7 +63,7 @@ export function FilePicker({ picked: list, onChange, testId = "start-files" }: {
         <input type="file" data-testid={testId} multiple accept={ACCEPT} onChange={(e) => { add(e.target.files); e.target.value = ""; }}
                hidden />
         <strong>Drop the proposal, its annexes and everything the client sent here</strong> or click to choose
-        <span className="muted">Excel, CSV, Word (.docx), PDF, Markdown or text; scans and images are kept and flagged for OCR</span>
+        <span className="muted">Excel, CSV, Word (.docx), PDF, Markdown or text, or a ZIP of them; scans and images are kept and flagged for OCR</span>
       </label>
       {list.length > 0 && (
         <>
