@@ -38,6 +38,7 @@ from modeler_intake.document_reading import _CONC_UNIT, _DOSE_UNIT, name_key
 from modeler_intake.mapping_spec import CellForm, Cite, Constant
 from modeler_intake.recipe import DEFAULT_BELOW_LLOQ_TOKENS
 from modeler_intake.sheet_form import _COMMA_DECIMAL, MISSING_TOKENS
+from modeler_intake.sheet_form import _N as _COUNT_HEADER
 from modeler_intake.source_model import GridCell, RegionGrid, is_numeric_text
 from modeler_intake.validate import TIME_UNITS, canonical_unit
 
@@ -548,6 +549,29 @@ def read_spread_kind(text: str) -> str | None:
         return t
     found = [name for name, pattern in _SPREAD_WORDS if re.search(pattern, t, re.IGNORECASE)]
     return found[0] if found else None
+
+
+def spread_only(text: str) -> str | None:
+    """The spread kind of a header that names a spread and nothing else ("SD", "SE (ng/mL)", "SEM", "%CV", "Geo CV%",
+    "Std. Dev."), else None. A header that names a statistic with its spread ("Mean (SD)", "Mean ± SD", "Geometric mean
+    (geo CV%)") heads a value column whose cells write both (a `cell_form` splits them): None. So does a label that
+    only starts like a spread ("SE-101", "SD 03": a subject's or a site's code, with its number): None."""
+    t = nfkc(text).strip()
+    kind = read_spread_kind(t)
+    if kind is None:
+        return None
+    rest = t
+    for _name, pattern in _SPREAD_WORDS:
+        rest = re.sub(pattern, " ", rest, flags=re.IGNORECASE)        # "Geo CV%": its "geo" is the spread's, no mean
+    if read_statistic(rest) is not None or re.search(r"\d", re.sub(r"\([^)]*\)", " ", rest)):
+        return None
+    return kind
+
+
+def count_only(text: str) -> bool:
+    """Whether a header names a count and nothing else ("n", "N", "N (subjects)", "No. of subjects"): today's reader
+    of an N column (`sheet_form._N`)."""
+    return _COUNT_HEADER.match(nfkc(text)) is not None
 
 
 def statistic_agrees(typed: str, text: str) -> bool:

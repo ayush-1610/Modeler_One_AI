@@ -3,9 +3,10 @@
 One hash-chained log, `intake/mappings.jsonl` (`IntakeStore.mappings`), two kinds of line:
 - `entry` (`MappingEntry`): a spec stored under the layout fingerprint it was made for (`mapping.fingerprint`), as a
   version of the mapping `"mp-" + fingerprint[:12]`. A rule's or the LLM's spec is proposed and executed at once
-  (evidence level `new_mapping`); the same spec as the latest version is that version again, nothing is appended; the
-  same spec as a version a person rejected is that rejected version again, never a fresh proposal (a rejection is not
-  undone by the rules proposing the same spec once more).
+  (evidence level `new_mapping`); the same spec as a stored version, WHICHEVER version that is, is that version
+  again and nothing is appended (two tables of one layout that need two specs take turns on every run: neither turn
+  makes a version); a spec only a rejected version holds comes back as that rejected version, never as a fresh
+  proposal (a rejection is not undone by the rules proposing the same spec once more).
 - `decision` (`MappingDecision`): a person approves or rejects one version. The latest decision of a version is its
   status (the ledger's fold reads the same lines: `ledger_view`), and a person's approval raises the values read under
   it to `approved_mapping`. One audit event per decision (`intake.mapping.approve` / `.reject`) carries the hash of
@@ -15,13 +16,18 @@ A spec is stored with every `Constant.text` set to None: the model's reading of 
 code's at proposal and then dropped; on each use the value is what code reads at the cite (`validate_spec` re-reads
 every constant and unit from the new region, and a spec that does not read there is a different layout).
 
-`lookup` answers with the latest approved version, else the latest version not rejected; the pipeline uses it only
-when `validate_spec` passes on the new region (§6.2 mapping order).
+`candidates` lists the versions the pipeline may try on a region of the layout: the approved ones, newest first, then
+the proposed ones, newest first, never a rejected one. The pipeline validates each on the region's own grid
+(`validate_spec`) and uses the first that passes (§6.2 mapping order), so an approved version is not shadowed by a
+later version of the same layout that reads another table. `lookup` answers with the first candidate (the latest
+approved version, else the latest version not rejected), as before.
 
-For W (§6.2 mapping order): `propose` returns a `MappingEntry`, which carries no status, and may return a version a
-person rejected (the rules made the same spec again). Check `status(mapping_id, version)` after `propose`: a
-"rejected" version is never executed; the region goes on to the LLM (or is `unread`, "a person rejected the rule's
-mapping of this layout"). Reported to the integrator: `propose` could answer (entry, status) instead.
+For W (§6.2 mapping order): try `candidates(fingerprint)` in their order and use the first whose spec has no error
+on the region's own grid; only when none passes go on to the rules (then the LLM). `propose` returns a
+`MappingEntry`, which carries no status, and may return a version a person rejected (the rules made the same spec
+again). Check `status(mapping_id, version)` after `propose`: a "rejected" version is never executed; the region goes
+on to the LLM (or is `unread`, "a person rejected the rule's mapping of this layout"). Reported to the integrator:
+`propose` could answer (entry, status) instead.
 """
 
 from __future__ import annotations
@@ -94,9 +100,10 @@ class MappingCache:
         """The (mapping id, version) pairs whose latest decision is an approval."""
         return {key for key, decision in self._fold()[1].items() if decision.status == "approved"}
 
-    def lookup(self, fingerprint: str) -> tuple[MappingEntry, str] | None:
-        """The spec to try on a region of this layout: (the latest approved version, "approved"), else (the latest
-        version not rejected, "proposed"); None when the layout has no usable version."""
+    def candidates(self, fingerprint: str) -> list[tuple[MappingEntry, str]]:
+        """The versions to try on a region of this layout, each with its status: the approved versions, newest first,
+        then the proposed ones, newest first; never a rejected one. The caller validates each on the region's own grid
+        and uses the first that passes: one layout may hold several versions that each read another table."""
         mapping_id = mapping_id_of(fingerprint)
         entries, decisions = self._fold()
         versions = sorted((e for e in entries if e.mapping_id == mapping_id and e.fingerprint == fingerprint),
@@ -106,21 +113,24 @@ class MappingCache:
             decision = decisions.get((entry.mapping_id, entry.version))
             return decision.status if decision is not None else "proposed"
 
-        approved = next((e for e in versions if status(e) == "approved"), None)
-        if approved is not None:
-            return approved, "approved"
-        proposed = next((e for e in versions if status(e) == "proposed"), None)
-        return (proposed, "proposed") if proposed is not None else None
+        return [(e, wanted) for wanted in ("approved", "proposed") for e in versions if status(e) == wanted]
+
+    def lookup(self, fingerprint: str) -> tuple[MappingEntry, str] | None:
+        """The spec to try on a region of this layout: (the latest approved version, "approved"), else (the latest
+        version not rejected, "proposed"); None when the layout has no usable version. The first of `candidates`."""
+        found = self.candidates(fingerprint)
+        return found[0] if found else None
 
     # --- writing ---------------------------------------------------------------------------------------------------
 
     def propose(self, fingerprint: str, spec: MappingSpec, *, origin: Origin, origin_detail: str,
                 first_seen: tuple[str, str], by: str) -> MappingEntry:
         """Store `spec` (its constants' text dropped) as the next version of the layout's mapping and return it. The same
-        spec as the latest version returns that version and appends nothing (decided under the log's lock, so two
-        threads proposing one spec store it once). The same spec as a version a person rejected returns that version and
-        appends nothing: the caller checks `status` and never executes a rejected version. `first_seen` is (file
-        sha256, region id)."""
+        spec as a stored version, whichever version that is, returns that version and appends nothing (decided under
+        the log's lock, so two threads proposing one spec store it once). When several versions hold the spec: the
+        newest approved one, else the newest proposed one, else the newest rejected one (the order of `candidates`).
+        The answer may therefore be a version a person rejected: the caller checks `status` and never executes a
+        rejected version. `first_seen` is (file sha256, region id)."""
         mapping_id = mapping_id_of(fingerprint)
         check_id("sha256", first_seen[0])
         check_id("region", first_seen[1])
@@ -134,16 +144,14 @@ class MappingCache:
             if any(v.fingerprint != fingerprint for v in versions):
                 raise ValueError(f"{mapping_id} already holds another layout's mapping (a fingerprint prefix collision)")
             latest = max(versions, key=lambda v: v.version, default=None)
-            if latest is not None and sha256_of(latest.spec) == digest:
-                found.append(latest)
-                return []
-            status: dict[int, str] = {}
-            for line in lines:
-                if line.kind == "decision" and line.body.get("mapping_id") == mapping_id:
-                    status[int(line.body["version"])] = str(line.body["status"])        # the latest decision stands
-            rejected = [v for v in versions if sha256_of(v.spec) == digest and status.get(v.version) == "rejected"]
-            if rejected:
-                found.append(max(rejected, key=lambda v: v.version))
+            same = [v for v in versions if sha256_of(v.spec) == digest]
+            if same:
+                status: dict[int, str] = {}
+                for line in lines:
+                    if line.kind == "decision" and line.body.get("mapping_id") == mapping_id:
+                        status[int(line.body["version"])] = str(line.body["status"])    # the latest decision stands
+                rank = {"approved": 2, "proposed": 1, "rejected": 0}
+                found.append(max(same, key=lambda v: (rank[status.get(v.version, "proposed")], v.version)))
                 return []
             entry = MappingEntry(mapping_id=mapping_id, version=(latest.version + 1) if latest else 1,
                                  fingerprint=fingerprint, spec=kept, origin=origin, origin_detail=origin_detail,
@@ -160,9 +168,9 @@ class MappingCache:
         return self._decide(mapping_id, version, "approved", by=by, why=note)
 
     def reject(self, mapping_id: str, version: int, *, by: str, why: str) -> MappingDecision:
-        """A person's rejection of one version, with why (audit `intake.mapping.reject`). `lookup` no longer answers with
-        it; when the rules make the same spec again, `propose` returns this version and the caller, checking `status`,
-        goes on to the LLM. The values read under it keep the level `new_mapping`."""
+        """A person's rejection of one version, with why (audit `intake.mapping.reject`). `candidates` and `lookup` no
+        longer answer with it; when the rules make the same spec again, `propose` returns this version and the caller,
+        checking `status`, goes on to the LLM. The values read under it keep the level `new_mapping`."""
         if not why.strip():
             raise ValueError("a rejection says why")
         return self._decide(mapping_id, version, "rejected", by=by, why=why)

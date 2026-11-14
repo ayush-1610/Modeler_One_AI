@@ -15,6 +15,34 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Fixed — the mapper's seams: one spec per layout, no spread read as a value, the arm a caption names (seam group b, 2026-11-13)
+- **What (science: how client tables are read by rule, and what a mapping spec may say):**
+  - **One layout, one rule spec (SEAM-2).** A rule spec no longer writes a table's own value.
+    - A name (study id, analyte, batch, product, medium, apparatus) is cited where it stands and read there by its shape (`mapping.rules.SHAPES`: today's reader of that name, in a form the validator runs), never by a pattern that writes the name. A cell that holds only the name is cited with no pattern. A name no shape reads is left out with a note.
+    - The below-LLOQ and no-sample tokens of a rule spec are the rule's whole vocabulary, not the tokens one table holds. A "BLQ" in a Mean column is therefore read as a mean below the LLOQ, where it was an unparseable cell.
+    - `MappingCache.propose` returns the stored version that holds the same spec, whichever version that is, and appends nothing.
+    - New `MappingCache.candidates(fingerprint)`: the versions the pipeline may try, approved newest first, then proposed newest first, never a rejected one. `lookup` is unchanged.
+  - **A spread or a count is never a value (SEAM-3).**
+    - `validate_spec` refuses (LAYOUT, error) a value column under a header that names only a spread kind (SD, SE, SEM, CV%) or only a count (n, N), whatever statistic is typed. "Mean (SD)" and "Mean ± SD" head value columns; so does "n" over a column of the field n.
+    - The rules leave such a column out; its cells stay unaccounted and counted. A table left with its Mean column only is read as the mean profile.
+    - The analyte is the one the table states when it is a name built on the drug's (a metabolite's table), never the drug.
+  - **The arm a caption names (SEAM-4).** The rules read a `treatment` constant where the caption or a line above the table names exactly one arm ("Cohort 1", "Treatment A"), found by the field registry's cue and read by its shape (`rules.ARM_SHAPE`). A plural, a range, a list or two names give no arm: none is guessed.
+- **Why:** the seam probe ran the merged builds together on the synthetic delivery with an empty cache.
+  - The Fasting and Fed sheets share a layout but got two specs (a literal study id, the tokens each sheet held). Every run appended two cache versions, and after approval only the later version was found.
+  - The metabolite table's SE column was mapped as concentrations (five SEs in the ledger) and its analyte was lost.
+  - Two cohort tables of one study landed on one arm-less profile: seven open conflicts, each settled only by discarding a cohort's value.
+- **Impact:**
+  - With an empty cache, a second run now writes nothing (mapping lines 16, 16, 16; before 17, 19, 21), and one approval covers both sheets.
+  - No SE or n reaches the ledger as a concentration; study 230-26 has no open conflict.
+  - With approved mappings nothing changes: every synthetic value is still found (score 100 %).
+  - A model's or a person's spec that maps an SD, SE, CV% or N column as a value is now rejected with the reason.
+- **Known gap:**
+  - The pipeline uses the first cached version that validates. A version made for a table whose title states less, or which has fewer rows, can validate on another table of the layout and read it worse (a dose not read; a subject left unaccounted, which the coverage count shows). The choice among passing versions is the wiring's (W) and is open.
+  - Names are read by a finite set of shapes: a title that writes the analyte in another form ("Exampleamide (ng/mL) in serum") leaves it out with a note.
+  - "Period 1" in a caption is read as an arm, because the registry's cue for `treatment` includes period.
+  - A row rule that reads an "SD" row as a mean is not refused (the new check is on columns).
+- Commits: `8b753a9`, `c0507c3`, `8865cf1`, `ffdf442`, `6d13e83`, `5838775` (branch `build/seam-b`).
+
 ### Fixed — the intake ledger and its read side at the seams between builds (seam group a, 2026-11-13)
 Four findings of the seam probe that ran C, D0, D2, D3, D4 and D5 together. Each was reproduced by a failing test first.
 - **What (SEAM-1, science: which values block a subject):** a batch is not a subject. `ledger_view.is_unassigned` is now "no study, no product, not a compound field".

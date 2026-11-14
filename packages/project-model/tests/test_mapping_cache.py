@@ -13,8 +13,11 @@ from modeler_intake import synthetic
 from modeler_intake.anchors import AnchorError, sha256_of
 from modeler_intake.mapping.execute import execute
 from modeler_intake.mapping.fingerprint import layout_fingerprint
+from modeler_intake.mapping.rules import map_by_rule
 from modeler_intake.mapping.validate import validate_spec
 from modeler_intake.mapping_spec import Cite, ColumnMap, Constant, MappingSpec
+from modeler_intake.source import parse_document, region_grid
+from modeler_intake.source_model import Region, RegionGrid
 from modeler_project.intake_fixtures import write_truth
 from modeler_project.intake_store import IntakeStore
 from modeler_project.ledger_view import LedgerView
@@ -34,6 +37,7 @@ SPEC = MappingSpec(kind="pk_summary", layout="wide_series", header_rows=1, first
                                        text="230-23"),
                               Constant(field="food_state", cite=Cite(near="caption", line=1), text="fasted")))
 OTHER = SPEC.model_copy(update={"statistic": "arithmetic_mean"})
+THIRD = SPEC.model_copy(update={"statistic": "median"})
 
 
 @pytest.fixture
@@ -57,7 +61,8 @@ def test_propose_approve_reject_and_versions(ws):
     assert first.mapping_id == "mp-ffffffffffff" and first.first_seen == (SHA, REGION)
     assert _propose(cache) == first                                      # the same spec: that version, nothing appended
     second = _propose(cache, OTHER, origin="llm")
-    third = _propose(cache)                                              # the first spec again, after another: a version
+    assert _propose(cache) == first                                      # the first spec again, after another: still v1
+    third = _propose(cache, THIRD)                                       # a spec no version holds: a version
     assert [(e.version, e.origin) for e in cache.entries()] == [(1, "rule"), (2, "llm"), (3, "rule")]
     assert (second.version, third.version) == (2, 3)
     assert cache.get(first.mapping_id) == third and cache.get(first.mapping_id, 2) == second
@@ -222,3 +227,116 @@ def test_a_spec_a_person_rejected_comes_back_rejected_never_as_a_fresh_proposal(
     back = _propose(cache)                                               # the rejected spec after another: still v1
     assert (back.version, cache.status(back.mapping_id, back.version)) == (1, "rejected")
     assert [e.version for e in cache.entries()] == [1, 2] and cache.lookup(FP)[0].version == 2
+
+
+# --- one layout, several tables: the cache generalises a rule mapping (seam finding SEAM-2) ---------------------------------
+
+
+def test_the_same_spec_as_any_stored_version_is_that_version_again(ws):
+    """Two tables of one layout that need two specs take turns on every run: `propose` answers with the version that
+    already holds the spec, whichever it is (not only the latest), so a re-run appends nothing."""
+    cache = MappingCache(ws)
+    first, second = _propose(cache), _propose(cache, OTHER, origin="llm")
+    for _run in range(3):
+        assert (_propose(cache), _propose(cache, OTHER, origin="llm")) == (first, second)
+    assert [e.version for e in cache.entries()] == [1, 2] and len(IntakeStore(ws).mappings.entries()) == 2
+    cache.approve(first.mapping_id, 1, by="u-reviewer")                  # a decision changes nothing of this
+    assert _propose(cache) == first and [e.version for e in cache.entries()] == [1, 2]
+
+
+def test_candidates_are_the_approved_versions_newest_first_then_the_proposed_never_a_rejected_one(ws):
+    cache = MappingCache(ws)
+    assert cache.candidates(FP) == []
+    specs = [SPEC, OTHER, THIRD, SPEC.model_copy(update={"statistic": "geometric_mean"}),
+             SPEC.model_copy(update={"statistic": "individual"})]
+    one, two, three, four, five = (_propose(cache, spec) for spec in specs)
+    assert cache.candidates(FP) == [(five, "proposed"), (four, "proposed"), (three, "proposed"), (two, "proposed"),
+                                    (one, "proposed")]
+    cache.approve(one.mapping_id, 1, by="u-reviewer")
+    cache.approve(one.mapping_id, 3, by="u-reviewer")
+    cache.reject(one.mapping_id, 4, by="u-reviewer", why="reads the SD column as values")
+    assert cache.candidates(FP) == [(three, "approved"), (one, "approved"), (five, "proposed"), (two, "proposed")]
+    assert cache.lookup(FP) == cache.candidates(FP)[0]                   # lookup keeps its meaning: the first candidate
+    cache.reject(one.mapping_id, 3, by="u-reviewer", why="withdrawn")    # the latest decision of a version stands
+    assert cache.candidates(FP) == [(one, "approved"), (five, "proposed"), (two, "proposed")]
+    assert cache.candidates("e" * 64) == []
+    with pytest.raises(AnchorError):
+        cache.candidates("not a fingerprint")
+
+
+def _mapped_as_the_pipeline_maps(cache: MappingCache, file, wheres: tuple[str, ...]) -> list:
+    """§6.2's mapping order with no model, for the file's table regions at `wheres` (D2's parse): the cache's
+    candidates, each validated on the region's own grid, the first that passes; else the rules, proposed. Per region:
+    (how it was mapped, the entry, what it reads)."""
+    doc = parse_document(file.data, file.name)
+    by_where = {r.where: r for r in doc.regions if r.kind == "table"}
+    out = []
+    for where in wheres:
+        region = by_where[where]
+        grid = region_grid(doc, region.id)
+        fingerprint = layout_fingerprint(grid)
+        hit = next(((entry, status) for entry, status in cache.candidates(fingerprint)
+                    if not [f for f in validate_spec(entry.spec, grid) if f.severity == "error"]), None)
+        if hit is None:
+            mapped = map_by_rule(grid, region, filename=file.name, drug=synthetic.DRUG, document_role=doc.role)
+            entry = cache.propose(fingerprint, mapped.spec, origin="rule", origin_detail=mapped.rule,
+                                  first_seen=(doc.file_sha256, region.id), by="code")
+            hit = (entry, "rule")
+        out.append((hit[1], hit[0], execute(hit[0].spec, grid)))
+    return out
+
+
+def test_two_sheets_of_one_layout_share_one_version_and_a_second_run_appends_nothing(ws):
+    """The Fasting and the Fed sheet of the delivery's workbook: one layout, one mapping id. By rule both get the same
+    spec, so ONE version; a second run writes nothing; after a person's approval both read through the approved
+    version, each with its own study, dose and food state."""
+    messy = next(f for f in synthetic.delivery() if f.name == synthetic.messy_workbook().name)
+    wheres = ("s:'Fasting'!A2:G14", "s:'Fed'!A2:G14")
+    cache = MappingCache(ws)
+
+    def stated(result) -> tuple:
+        constants = {c.field: c.value for c in result.constants}
+        return constants["study_id"], constants["dose"], constants["food_state"], len(result.rows)
+
+    first = _mapped_as_the_pipeline_maps(cache, messy, wheres)
+    assert [(how, entry.mapping_id, entry.version) for how, entry, _r in first] == [
+        ("rule", first[0][1].mapping_id, 1), ("proposed", first[0][1].mapping_id, 1)]
+    assert [stated(result) for _h, _e, result in first] == [("230-23", 50.0, "fasted", 36), ("231-24", 100.0, "fed", 36)]
+    lines = len(IntakeStore(ws).mappings.entries())
+    assert lines == 1
+    again = _mapped_as_the_pipeline_maps(cache, messy, wheres)
+    assert [(how, entry.version) for how, entry, _r in again] == [("proposed", 1), ("proposed", 1)]
+    assert len(IntakeStore(ws).mappings.entries()) == lines             # the second run appended nothing
+    entry = first[0][1]
+    cache.approve(entry.mapping_id, entry.version, by="u-reviewer")
+    approved = _mapped_as_the_pipeline_maps(cache, messy, wheres)
+    assert [(how, e.version) for how, e, _r in approved] == [("approved", 1), ("approved", 1)]
+    assert [stated(result) for _h, _e, result in approved] == [("230-23", 50.0, "fasted", 36), ("231-24", 100.0, "fed", 36)]
+    assert [e.version for e in cache.entries()] == [1] and len(IntakeStore(ws).mappings.entries()) == lines + 1
+
+
+def test_an_approved_version_is_not_shadowed_by_a_later_one_of_the_same_layout(ws):
+    """Two tables of one layout whose specs differ (one title states a dose, the other a food state): each has its own
+    approved version. `lookup` answers with the later one only; `candidates` offers both, so each table finds the
+    version that reads on its own grid and neither is mapped by rule again."""
+    body = [["Time (h)", "Conc (ng/mL)"], [0.5, 2.5], [1, 3.5]]
+    dosed = RegionGrid.from_rows(body, caption=["Study 230-77: Exampleamide plasma concentrations after 50 mg"])
+    fed = RegionGrid.from_rows(body, caption=["Study 230-78 (fed): Exampleamide plasma concentrations"])
+    fingerprint = layout_fingerprint(dosed)
+    assert fingerprint == layout_fingerprint(fed)
+    region = Region(id=dosed.region_id, kind="table", where="s:'T'!A2:B4", table_kind="pk_summary")
+    cache = MappingCache(ws)
+    for grid in (dosed, fed):
+        mapped = map_by_rule(grid, region, filename="listing.xlsx", drug=synthetic.DRUG)
+        entry = cache.propose(fingerprint, mapped.spec, origin="rule", origin_detail=mapped.rule, first_seen=(SHA, REGION),
+                              by="code")
+        cache.approve(entry.mapping_id, entry.version, by="u-reviewer")
+    assert [e.version for e in cache.entries()] == [1, 2] and cache.lookup(fingerprint)[0].version == 2
+
+    def passing(grid: RegionGrid) -> list[tuple[int, str]]:
+        return [(entry.version, status) for entry, status in cache.candidates(fingerprint)
+                if not [f for f in validate_spec(entry.spec, grid) if f.severity == "error"]]
+
+    assert passing(dosed) == [(1, "approved")] and passing(fed) == [(2, "approved")]
+    constants = {c.field: c.value for c in execute(cache.get(entry.mapping_id, 1).spec, dosed).constants}
+    assert (constants["study_id"], constants["dose"]) == ("230-77", 50.0)

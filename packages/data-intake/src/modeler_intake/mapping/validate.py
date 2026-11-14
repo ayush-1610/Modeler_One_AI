@@ -25,6 +25,10 @@ the rules. Findings are errors unless marked:
   rule's labels or the key's labels name otherwise ("Geometric mean" typed arithmetic_mean, "SEM" typed SD);
 - LAYOUT also: two spreads (or two n) for one value, as two columns or two row rules that both match rows ("exclude
   one with a reason"): the second would overwrite the first;
+- LAYOUT also: a value column under a header that names only a spread kind ("SD", "SE", "SEM", "CV%") or only a count
+  ("n", "N"), whatever statistic it types: its numbers would land as values of the column's field (an SE as a
+  concentration). A header that names a statistic with its spread ("Mean (SD)", "Mean ± SD": a `cell_form` splits the
+  cell) heads a value column, and so does a count header over a column of a count field (the template's Studies "n");
 - HEADER_ROWS_HOLD_VALUES: a header row below the header band (`fingerprint.header_band`) whose value-column cells
   read as values under the column's cell_form: the spec's header swallows data rows, which would be counted as header;
 - HEADER_HOLDS_NUMBERS (warn): another header row (not the time row) holds two or more values in cells the spec
@@ -46,6 +50,7 @@ from modeler_intake.mapping.reading import (
     DecimalMark,
     cite_cells,
     cite_exists,
+    count_only,
     decimal_convention,
     match_text,
     nfkc,
@@ -56,6 +61,7 @@ from modeler_intake.mapping.reading import (
     same_name,
     split_cell,
     spread_kind_agrees,
+    spread_only,
     statistic_agrees,
     unit_at,
     value_like,
@@ -436,10 +442,31 @@ def _header_texts(spec: MappingSpec, grid: RegionGrid, column: int) -> list[str]
             if r != spec.time_row and grid.cell(r, column).text.strip()]
 
 
+def not_a_value_header(text: str, field: str | None) -> str | None:
+    """What a header names when it does not head values of `field`: "a spread (SE)" for a header that names only a
+    spread kind, "a count" for one that names only a count (unless the field is itself a count: an integer field such
+    as n); None for any other header."""
+    kind = spread_only(text)
+    if kind is not None:
+        return f"a spread ({kind})"
+    definition = fields.field(field) if field is not None else None
+    if count_only(text) and not (definition is not None and definition.value == "integer"):
+        return "a count"
+    return None
+
+
 def _statistics(spec: MappingSpec, grid: RegionGrid, add) -> None:
-    """A typed statistic or spread kind is checked against the words code reads where the table writes them."""
+    """A typed statistic or spread kind is checked against the words code reads where the table writes them; a value
+    column is never one whose header names only a spread or a count."""
     for i, column in enumerate(spec.columns):
         texts = _header_texts(spec, grid, column.column)
+        if column.role == "value":
+            named = next(((text, what) for text in texts
+                          if (what := not_a_value_header(text, value_field(spec, column))) is not None), None)
+            if named is not None:
+                add("LAYOUT", f"columns[{i}]", f"the header {named[0][:60]!r} names {named[1]}, not a value: map the column "
+                                               "as the spread or the n of its value column (role and of), or ignore it "
+                                               "with a reason")
         if column.role == "value" and column.statistic is not None:
             for text in texts:
                 if not statistic_agrees(column.statistic, text):

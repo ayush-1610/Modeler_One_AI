@@ -10,7 +10,7 @@ from modeler_intake import synthetic
 from modeler_intake.client_template import SHEETS
 from modeler_intake.mapping.execute import execute, read_constant, read_text_constant
 from modeler_intake.mapping.validate import validate_spec
-from modeler_intake.mapping_spec import Cite, ColumnMap, Constant, KeyMap, MappingSpec, RowRule
+from modeler_intake.mapping_spec import Cite, ColumnMap, Constant, KeyMap, MappingError, MappingSpec, RowRule
 from modeler_intake.source_model import RegionGrid
 
 pytestmark = pytest.mark.req("T-47")
@@ -202,6 +202,59 @@ def test_a_typed_statistic_or_spread_kind_must_agree_with_the_words_of_its_heade
                                   RowRule(column=1, pattern="se", role="spread", spread_kind="SD")))
     assert [(f.code, f.location) for f in validate_spec(spec, rows)] == [
         ("STATISTIC_NOT_STATED", "row_rules[0]"), ("SPREAD_KIND_NOT_STATED", "row_rules[1]")]
+
+
+@pytest.mark.parametrize("header", ["SE", "SD", "S.D.", "SEM", "CV%", "%CV", "Geo CV%", "SD (ng/mL)", "Std. Dev.",
+                                    "Standard error", "n", "N", "N (subjects)"])
+def test_a_value_column_under_a_header_that_names_only_a_spread_or_a_count_is_refused(header):
+    """A spread or a count read as a value lands in the ledger as a concentration: the spec is refused, whatever
+    statistic it types on the column (a spread is mapped with role spread, a count with role n, or ignored)."""
+    grid = RegionGrid.from_rows([["Time (h)", "Mean", header], [0.5, 1.12, 0.21], [1, 2.35, 0.41]])
+    for statistic in (None, "arithmetic_mean", "individual"):
+        spec = MappingSpec(kind="pk_summary", layout="long", header_rows=1, first_data_row=2, field="concentration",
+                           columns=(ColumnMap(column=1, role="time"), ColumnMap(column=2, role="value", statistic="arithmetic_mean"),
+                                    ColumnMap(column=3, role="value", statistic=statistic)))
+        findings = [f for f in validate_spec(spec, grid) if f.code == "LAYOUT"]
+        assert [(f.severity, f.location) for f in findings] == [("error", "columns[2]")], findings
+        assert "not a value" in findings[0].message
+        with pytest.raises(MappingError):
+            execute(spec, grid)
+    series = MappingSpec(kind="pk_individual", layout="wide_series", header_rows=1, first_data_row=2, field="concentration",
+                         columns=(ColumnMap(column=1, role="time"),
+                                  *(ColumnMap(column=c, role="value", series=Cite(row=1, column=c), series_role="subject")
+                                    for c in (2, 3))))
+    assert [(f.code, f.location) for f in validate_spec(series, grid)] == [("LAYOUT", "columns[2]")]
+    right = MappingSpec(kind="pk_summary", layout="long", header_rows=1, first_data_row=2, field="concentration",
+                        columns=(ColumnMap(column=1, role="time"), ColumnMap(column=2, role="value", statistic="arithmetic_mean"),
+                                 ColumnMap(column=3, role="ignore", reason="not read")))
+    assert validate_spec(right, grid) == ()
+
+
+@pytest.mark.parametrize(("header", "form", "cell"), [
+    ("Mean (SD)", "value (spread)", "12.3 (4.5)"), ("Mean ± SD", "value ± spread", "12.3 ± 4.5"),
+    ("Mean (SD) ng/mL", "value (spread)", "12.3 (4.5)"), ("Geometric mean (geo CV%)", "value (spread)", "12.3 (30)"),
+    ("Mean ± SEM", "value ± spread", "12.3 ± 1.5"), ("Mean", "value", "12.3"), ("Median", "value", "12.3"),
+    ("Conc (ng/mL)", "value", "12.3"), ("S01", "value", "12.3"), ("Vessel 1", "value", "12.3"),
+    ("SE-101", "value", "12.3"), ("SD 03", "value", "12.3"),              # a subject's code that starts like a spread
+])
+def test_a_header_that_names_a_statistic_with_its_spread_is_a_value_column(header, form, cell):
+    grid = RegionGrid.from_rows([["Time (h)", header], [0.5, cell], [1, cell]])
+    spec = MappingSpec(kind="pk_summary", layout="long", header_rows=1, first_data_row=2, field="concentration",
+                       columns=(ColumnMap(column=1, role="time"), ColumnMap(column=2, role="value", cell_form=form)))
+    assert validate_spec(spec, grid) == ()
+    assert [r.value for r in execute(spec, grid).rows] == [12.3, 12.3]
+
+
+def test_a_count_column_of_a_count_field_is_a_value_column():
+    """The template's Studies sheet has a column "n" whose values ARE the field n: a count under a count header is
+    refused only as a value of another field."""
+    grid = RegionGrid.from_rows([["study_id", "n", "dose"], ["230-23", 24, 50]])
+    columns = (ColumnMap(column=1, role="study"), ColumnMap(column=2, role="value", field="n"),
+               ColumnMap(column=3, role="value", field="dose"))
+    spec = MappingSpec(kind="study_design", layout="long", header_rows=1, first_data_row=2, columns=columns)
+    assert validate_spec(spec, grid) == ()
+    wrong = spec.model_copy(update={"columns": (columns[0], ColumnMap(column=2, role="value", field="dose"), columns[2])})
+    assert [(f.code, f.location) for f in validate_spec(wrong, grid)] == [("LAYOUT", "columns[1]")]
 
 
 @pytest.mark.parametrize(("pattern", "words"), [

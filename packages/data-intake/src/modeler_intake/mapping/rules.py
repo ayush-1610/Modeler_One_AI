@@ -12,7 +12,20 @@ Values `suggest` assumes without a cell (unit "ng/ml", time unit "h", matrix "pl
 from the file name) are NOT carried into the spec: a spec states only what a `Cite` supports, and every constant and
 unit is one code reads again at its cite; what is missing becomes a requirement gap or a person's entry. Today's
 `SheetForm` has one mean row and a mean SD column, no SD row and no N row: the rules map what it maps, and the rest of
-such a table is `unaccounted`, counted, never dropped.
+such a table is `unaccounted`, counted, never dropped. A column today's form takes for a subject's values although its
+header names only a spread or a count ("SE", "n": `validate.not_a_value_header`) is NOT read as values: it stays
+unaccounted too, never mapped as a concentration.
+
+A rule spec never holds a value of its own table, so two tables of one layout get ONE spec (one version in the mapping
+cache) and each reads its own title. A name (study id, analyte, batch, product, medium, apparatus) is cited where it
+stands and read there by its SHAPE (`SHAPES`: today's reader of that name, written so `reading.pattern_problem` passes
+it), never by a pattern that writes the name itself; a name with no shape is cited only where a cell holds nothing
+else. The below-LLOQ and no-sample tokens are the rule's whole vocabulary (`recipe.DEFAULT_BELOW_LLOQ_TOKENS`,
+`sheet_form.MISSING_TOKENS`), not the tokens one table happens to hold.
+
+The arm (`treatment`) is the one reading today's form does not make: where the caption or a line above the table names
+exactly one arm ("Cohort 1", "Treatment A": `ARM_SHAPE`, on a line the field registry's cue for `treatment` finds), it
+is cited there, so two cohort tables of one study land on two arms. Where no arm is stated, none is guessed.
 
 `template_spec` reads a client-data template sheet exactly (`client_template.SHEETS` is the one column list).
 """
@@ -32,11 +45,18 @@ from modeler_intake.anchors import AnchorError, SheetCell, parse_locator
 from modeler_intake.client_template import PK_PARAMETERS, SHEETS
 from modeler_intake.grid import Cell, SheetGrid, as_text
 from modeler_intake.mapping.execute import execute
-from modeler_intake.mapping.reading import DecimalMark, decimal_convention, read_constant
-from modeler_intake.mapping.validate import validate_spec
+from modeler_intake.mapping.reading import (
+    DecimalMark,
+    decimal_convention,
+    read_cited,
+    read_constant,
+    read_text_constant,
+    same_name,
+)
+from modeler_intake.mapping.validate import not_a_value_header, validate_spec
 from modeler_intake.mapping_spec import Cite, ColumnMap, Constant, KeyMap, MappingError, MappingSpec, RowRule
 from modeler_intake.recipe import DEFAULT_BELOW_LLOQ_TOKENS
-from modeler_intake.sheet_form import _STUDY_ID, SheetForm, suggest
+from modeler_intake.sheet_form import _STUDY_ID, MISSING_TOKENS, SheetForm, suggest
 from modeler_intake.source_model import DocumentRole, GridCell, Region, RegionGrid, is_numeric_text
 
 RULES = "rules-1"
@@ -52,6 +72,57 @@ _FIELD_OF_KEY: Mapping[str, str] = {"study_id": "study_id", "analyte": "analyte"
                                     "batch": "batch", "medium": "medium", "ph": "ph", "apparatus": "apparatus", "rpm": "rpm",
                                     "product": "product", "role": "product_role", "strength_mg": "strength_mg",
                                     "volume_ml": "volume_ml", "infusion_time_min": "infusion_time_min"}
+
+# --- names by their shape -----------------------------------------------------------------------------------------------
+# How a rule spec reads a name at its cite: by the name's shape, never by the name. Each is today's reader of that name
+# (`sheet_form._STUDY_ID`, `_BATCH`, `_MEDIUM`, `_APPARATUS`), written flat so that `reading.pattern_problem` passes it
+# (no repeated group that holds a repeat, at most three open repeats, one group), and reading a whole token only, never
+# a part of a longer one ("230-23" is not stated by "230-23-A"). Tried in order; the rules cite a name with the first
+# shape that reads, exactly once at the cite, the name today's form found; a name no shape reads there is left out of
+# the spec with a note (a person enters it, or the requirement is a gap), never cited by a pattern that writes it.
+_WHOLE = (r"(?<![\w-])", r"(?![\w-])")                                   # no letter, digit or hyphen before, none after
+_DIGITS = r"\d\d\d?\d?"                                                # two to four digits
+_MORE = rf"(?:[-/]{_DIGITS})?"                                            # one more group of a study id
+# a study id: digits in two or more groups (230-23), or letters, a hyphen and digits (EX-201)
+_STUDY_SHAPE = rf"[A-Z]{{0,4}}{_DIGITS}[-/]{_DIGITS}{_MORE}{_MORE}|[A-Z]{{1,4}}-{_DIGITS}{_MORE}{_MORE}"
+_MATRIX_WORDS = r"(?:plasma|serum|whole blood|blood|urine)"
+# an analyte's name where a title writes one: a word, but none of the commonest words a title of another table writes at
+# the same place ("Mean plasma concentrations": a statistic is no analyte; a cached spec then does not read there and the
+# table is mapped anew). The list is short on purpose (a pattern holds at most 200 characters): it is no vocabulary.
+_NAME = rf"{_WHOLE[0]}(?!(?:mean|median|individual|total|human|plasma|serum|blood|urine|the|of|in|and)\b)([A-Z][\w-]*)"
+# the medium's word; "buffer" after it belongs to it ("phosphate buffer" is one medium, not two)
+_MEDIUM_SHAPE = (rf"(?i){_WHOLE[0]}(0\.1\s*n\s*hcl|hcl|acetate|phosphate|citrate|fassif|fessif|fassgf|sgf|sif|water|buffer|PB)"
+                 rf"{_WHOLE[1]}(?:\s+buffer\b)?")
+# "USP apparatus 2 (paddle)" is one apparatus, not two
+_APPARATUS_SHAPE = (rf"(?i){_WHOLE[0]}(usp\s?(?:apparatus\s?)?(?:type\s?)?(?:iii|ii|iv|i|[1-4])|paddle|basket){_WHOLE[1]}"
+                    r"(?:\s?\((?:paddle|basket)\))?")
+# The arm a caption names ("Cohort 1", "Treatment A", "Arm B", "Group 2"): one of the words the field registry's cue for
+# `treatment` announces an arm with (never a second list), and the short name after it (a number, or a capital letter
+# with at most one digit). Not a plural ("Cohorts 1 and 2"), and not the first of a range or a list ("Cohort 1-3",
+# "Cohort 1 and 2", "Treatment A/B"): those name more than one arm.
+_ARM_WORDS = "|".join(re.findall(r"\\b([a-z]+)s\?\\b", fields.FIELDS["treatment"].cue))
+ARM_SHAPE = (rf"{_WHOLE[0]}((?i:{_ARM_WORDS})\s+(?:\d\d?\d?|[A-Z]\d?)){_WHOLE[1]}"
+             r"(?!\s?(?:&|/|-|–|and\b|or\b|to\b)\s?(?:\d|[A-Z]\b))")
+SHAPES: Mapping[str, tuple[str, ...]] = {
+    # after the word that announces it (the field registry's cue: "Study 230-23: ... doses of 10-30 mg" names one
+    # study), else wherever a token of its shape stands
+    "study_id": (rf"(?i)\bstudy\s+({_STUDY_SHAPE}){_WHOLE[1]}",          # "Study 230-23 (protocol EX-201)": the study
+                 rf"(?i)(?:{fields.FIELDS['study_id'].cue})\s+({_STUDY_SHAPE}){_WHOLE[1]}",
+                 rf"(?i){_WHOLE[0]}({_STUDY_SHAPE}){_WHOLE[1]}"),
+    "batch": (rf"(?i)\b(?:batch|lot)\s*(?:no\.?|number)?[\s#:]*{_WHOLE[0]}([A-Z0-9][A-Z0-9/_.-]*[A-Z0-9/_-])",),
+    # "Exampleamide plasma concentrations", "plasma concentrations of Exampleamide", "plasma Exampleamide concentrations",
+    # "Exampleamide in plasma", "Exampleamide concentrations in plasma"
+    "analyte": (rf"(?i){_NAME}\s+{_MATRIX_WORDS}\b",
+                rf"(?i)\bconcentrations?\s+of\s+{_NAME}",
+                rf"(?i)\b{_MATRIX_WORDS}\s+{_NAME}\s+concentrations?\b",
+                rf"(?i){_NAME}\s+in\s(?:human\s)?{_MATRIX_WORDS}\b",
+                rf"(?i){_NAME}\s+(?:concentrations?|levels?)\b"),
+    # the product a title names before its batch ("Exampleamide IR tablet, batch L2301")
+    "product": (r"(?i)^(?:dissolution of\s+)?(.+?),?\s+(?:batch|lot)\b",),
+    "medium": (_MEDIUM_SHAPE,),
+    "apparatus": (_APPARATUS_SHAPE,),
+    "treatment": (ARM_SHAPE,),                  # read by `_arm` from the caption or a line above, not from today's form
+}
 
 
 class _B(BaseModel):
@@ -212,13 +283,28 @@ def _agrees(name: str, value: str, text: str, decimal: DecimalMark) -> Constant 
         return None
     if definition.value == "choice":
         return Constant(field=name, cite=Cite(row=1, column=1)) if fields.read_choice(name, text) == value else None
-    if name == "study_id" and _STUDY_ID.fullmatch(value.strip()) is None:
+    wanted = value.strip()
+    if not wanted or (name == "study_id" and _STUDY_ID.fullmatch(wanted) is None):
         return None                                 # a study id made from the file name's stem is never a cell's
-    # a whole name, never a part of a longer one ("Exampleamide" is not stated by "Exampleamide-M1")
-    pattern = rf"(?i)(?<![\w-])({re.escape(value.strip())})(?![\w-])"
-    if value.strip() and len(re.findall(pattern, text)) == 1:
-        return Constant(field=name, cite=Cite(row=1, column=1), pattern=pattern)
+    if _is_name(name, text.strip(), wanted):
+        return Constant(field=name, cite=Cite(row=1, column=1))        # the cell holds the name and nothing else
+    # the name by its shape, never written into the pattern: another table of this layout reads its own name there
+    for shape in SHAPES.get(name, ()):
+        constant = Constant(field=name, cite=Cite(row=1, column=1), pattern=shape)
+        read = read_text_constant(constant, text)
+        if read is not None and _is_name(name, read, wanted):
+            return constant
     return None
+
+
+def _is_name(name: str, read: str, wanted: str) -> bool:
+    """Whether what is read at a cite is the name today's form found (case, spaces and punctuation aside). An analyte
+    may also be one name built on the drug's ("Exampleamide-M1" in a metabolite's table): the analyte is then the one
+    the table states, never the drug."""
+    if same_name(read, wanted):
+        return True
+    return (name == "analyte" and re.fullmatch(r"\S+", read) is not None
+            and re.search(rf"(?<![^\W_]){re.escape(wanted)}(?![^\W_])", read, re.IGNORECASE) is not None)
 
 
 def _candidates(place: _Placement, grid: RegionGrid, first_data_row: int, evidence: Sequence[str]) -> list[tuple[Cite, str]]:
@@ -263,7 +349,28 @@ def _constants(form: SheetForm, place: _Placement, grid: RegionGrid, first_data_
             notes.append(f"{name} {value!r} is not stated once in a cell of this table or its context (not written, written "
                          "as a range or a list, or ambiguous under the table's decimal mark): left out of the spec (a "
                          "person enters it, or the requirement is a gap).")
+    if form.kind != "dissolution":
+        arm = _arm(grid, notes)
+        if arm is not None:
+            found.append(arm)
     return found
+
+
+def _arm(grid: RegionGrid, notes: list[str]) -> Constant | None:
+    """The arm the table's caption, or a line above it, names: cited at that line and read there by `ARM_SHAPE` (no
+    name is written into the spec, so two cohort tables of one layout share one spec and land on two arms). The line is
+    found by the field registry's cue for `treatment`. None when no such line names exactly one arm: an arm is never
+    guessed (two tables of one study with no arm stated are then a conflict a person settles)."""
+    cue = re.compile(fields.FIELDS["treatment"].cue, re.IGNORECASE)
+    for near, line, cells in _context(grid):
+        if near == "below" or line > _CITABLE_LINES or not any(cue.search(cell.text) for cell in cells):
+            continue
+        constant = Constant(field="treatment", cite=Cite(near=near, line=line), pattern=ARM_SHAPE)  # type: ignore[arg-type]
+        if len(read_cited(constant, cells)) == 1:
+            return constant
+        notes.append(f"The {near} line {line} writes an arm, a treatment, a cohort, a group or a period but names no one "
+                     "arm of this table: no arm is read (a person assigns it).")
+    return None
 
 
 def from_sheet_form(form: SheetForm, grid: RegionGrid) -> MappingSpec:
@@ -300,7 +407,11 @@ def _from_form(form: SheetForm, grid: RegionGrid, place: _Placement, notes: list
     values = [col(c) for c in form.value_columns]
     if any(not 1 <= c <= grid.n_cols for c in values):
         raise ValueError("the form's value columns are not inside this region")
-    wide = form.layout == "times_down" and len(values) > 1 and not form.subject_column
+    several = len(values) > 1                 # the form's own count: a subject's column stays one when its neighbour is left out
+    values = _value_columns(values, form, grid, header, notes)
+    if not values and not (form.layout == "times_down" and form.mean_column and not dissolution):
+        raise ValueError("the form's value columns hold spreads or counts, not values")
+    wide = form.layout == "times_down" and several and not form.subject_column
     series_role = "vessel" if dissolution else "subject"
     if form.layout == "times_down" and form.time_column:
         columns.append(ColumnMap(column=col(form.time_column), role="time"))
@@ -313,7 +424,7 @@ def _from_form(form: SheetForm, grid: RegionGrid, place: _Placement, notes: list
             columns.append(ColumnMap(column=c, role="value", series=Cite(row=header, column=c), series_role=series_role))
         else:
             columns.append(ColumnMap(column=c, role="value"))
-    if form.layout == "times_down" and len(values) == 1:
+    if form.layout == "times_down" and len(values) == 1 and not several:
         if form.sd_column:
             columns.append(ColumnMap(column=col(form.sd_column), role="spread", spread_kind="SD", of=values[0]))
         if form.n_column:
@@ -328,9 +439,10 @@ def _from_form(form: SheetForm, grid: RegionGrid, place: _Placement, notes: list
         label = as_text(place.sheet.cell(mean_row, form.subject_column).value)
         if label:
             row_rules = (RowRule(column=col(form.subject_column), pattern=re.escape(label), role=form.mean_statistic),)
-    individual = form.statistic == "individual"
+    individual = form.statistic == "individual" and bool(values)       # no subject's column left: the mean profile only
     has_subjects = bool(form.subject_column) or (wide and header >= 1)
-    statistic = form.statistic if not individual else ("individual" if has_subjects else None)
+    summary = form.statistic if values else form.mean_statistic
+    statistic = summary if not individual else ("individual" if has_subjects else None)
     unit = _unit(form, place, "value_unit", form.value_unit)
     time_unit = _unit(form, place, "time_unit", form.time_unit)
     lloq = next((place.cite(e.cell) for e in form.evidence if e.field == "lloq"), None) if form.lloq is not None else None
@@ -346,6 +458,22 @@ def _from_form(form: SheetForm, grid: RegionGrid, place: _Placement, notes: list
         missing_tokens=tuple(form.missing_tokens), row_rules=row_rules,
         constants=tuple(_constants(form, place, grid, first, notes)))
     return _without_unstated(spec, grid, notes)
+
+
+def _value_columns(values: list[int], form: SheetForm, grid: RegionGrid, header: int, notes: list[str]) -> list[int]:
+    """The form's value columns without those whose header names only a spread or a count (`validate_spec` refuses
+    such a value column): today's form takes an "SE" or an "n" column next to a Mean column for a subject's values.
+    Left out with a note, their cells stay unaccounted and counted."""
+    kept: list[int] = []
+    for c in values:
+        texts = [grid.cell(r, c).text for r in range(1, header + 1) if not (form.layout == "times_across" and r == header)]
+        named = next(((t, what) for t in texts if (what := not_a_value_header(t, None)) is not None), None)
+        if named is None:
+            kept.append(c)
+        else:
+            notes.append(f"Column {get_column_letter(c)} of the table ({named[0]!r}) holds {named[1]}, not values: not read "
+                         "by the rules (its cells stay unaccounted).")
+    return kept
 
 
 def _unit(form: SheetForm, place: _Placement, name: str, typed: str) -> tuple[str, Cite] | None:
@@ -398,6 +526,7 @@ def map_by_rule(grid: RegionGrid, region: Region, *, filename: str = "", drug: s
                           products=[dict(p) for p in products])
     if not form.value_columns or (form.layout == "times_down" and not form.time_column):
         return None
+    form = form.model_copy(update=_vocabulary(form))
     more: list[str] = []
     try:
         spec = _from_form(form, grid, place, more)
@@ -407,6 +536,15 @@ def map_by_rule(grid: RegionGrid, region: Region, *, filename: str = "", drug: s
     if not any(r.value is not None or r.censored for r in result.rows):
         return None
     return RuleMapping(spec=spec, rule=f"sheet_form/{RULES}", notes=(*notes, *more))
+
+
+def _vocabulary(form: SheetForm) -> dict[str, list[str]]:
+    """The rule's whole token vocabulary, whichever of its tokens this table's cells hold: today's below-LLOQ tokens
+    (and any other "<..." word the form found) and today's no-sample tokens. `suggest` lists only the tokens it sees, so
+    two tables of one layout (one with an "NS" cell, one without) would get two specs."""
+    known = {t.upper() for t in DEFAULT_BELOW_LLOQ_TOKENS}
+    other = [t for t in form.below_lloq_tokens if t.strip().upper() not in known]
+    return {"below_lloq_tokens": [*DEFAULT_BELOW_LLOQ_TOKENS, *other], "missing_tokens": list(MISSING_TOKENS)}
 
 
 def _sheet_name(grid: RegionGrid) -> str | None:
