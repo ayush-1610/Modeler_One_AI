@@ -15,6 +15,18 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+
+### Docs — the Inputs page audited, and the task-first redesign planned (2026-11-14)
+- **What:** `docs/plans/2026-11-14-inputs-ux-audit.md` (97 findings from five lenses on two seeded projects, each with
+  what the user sees and its cause); `docs/plans/2026-11-14-inputs-task-first.md` (the plan: one list of work, one card
+  per study or product, one row per file; the judges' grafts; the lead's decisions; seven additive API changes; five
+  slices) and `docs/plans/2026-11-14-inputs-task-first-design.md` (the winning design's full text and the judges).
+- **Why:** the owner, 2026-11-14, using the merged intake line: the page is cluttered, repetitive, unorganized and
+  unclear, and a person cannot fill what is missing. On the 9-file project the input areas start about 6,100 px down,
+  every file is listed in 5–6 places, and two review systems show the same studies under different names.
+- **Deviations recorded:** from intake contracts §8.10 (the Delivery review beside the reading tray) and from plan
+  2026-11-03 §3.2 (left rail, files drawer); see the plan's §5.
+- **Impact:** none yet (no code changed).
 ### Changed — what the landing holds back is said without internal references (integrator, 2026-11-14)
 - **What:** five "held back" lines of `intake_landing` no longer end in a reference to the build contract ("contracts §11.8" and the like). Excretion and relation values now read "kept in the ledger; the model inputs have no place for it yet"; the several-occasions line keeps its check code and says "a profile holds one occasion".
 - **Why:** these lines are shown to the reviewer on the subject's card and in the confirm dialog, and are part of the record that is signed. A section number of an internal document tells the reviewer nothing. Seen in the browser test's screenshot of the dialog.
@@ -7093,3 +7105,4 @@ record it here so a reader knows which context produced which work.
 | 2026-11-10 (cloud session, branch `claude/quirky-mccarthy-ln0y7g`) | per commit trailer | Small UX fixes track: "Add data" dialog scrolls inside itself with many files; large uploads through the web proxy; the plan `2026-11-10-add-data-agent-reads-everything.md` and its builds R1 (reading queue), R2 (documents read for data, batched uploads) and R3 (reading tray), each with an adversarial review and its fixes |
 | 2026-11-12 (cloud session, branch `claude/hopeful-carson-kvrvxc`) | per commit trailer | Exploration of the client-data intake with four agents; the redesign proposal `2026-11-12-client-data-intake-redesign.md` (for the owner's decisions) |
 | 2026-11-12 → 13 (same cloud session, continued after context resets) | per commit trailer | The owner's Decision Memo (plan revision 3); the build contracts and shared contract code; D0, D1a, D4, D5 and SD built in parallel worktrees, each reviewed from two lenses, fixed and squash-merged; D1b as its own locked-file draft PR (#173); D2, D3, W and D6 in progress |
+| 2026-11-14 (cloud session, branch `claude/stoic-bohr-9ymlx9`; the owner switched the model) | Claude Opus 5.5 | Recap of the intake rebuild (found #173 merged with its conditions unticked, and `main` CI red on one upload e2e); the intake line merged onto `main`'s head; the Inputs UX audit and the task-first plan; its build |
