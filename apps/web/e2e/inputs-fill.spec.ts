@@ -87,29 +87,32 @@ test("loose values are linked with new arms and an analyte, a table set aside is
   await expect(section.getByTestId(`delivery-subject-${study.subject}`)).toContainText("ABC-9");
 
   // --- the unread table, marked as not data, then restored with the reason: the page is not read again for it ---
-  await section.getByTestId(`delivery-file-toggle-${odd.file_id}`).click();
-  await section.getByTestId(`delivery-region-aside-${table.region_id}`).click();
-  await section.getByTestId("delivery-region-aside-why").fill("a scratch table, not data");
-  await section.getByTestId("delivery-region-aside-submit").click();
-  await expect(section.getByTestId(`delivery-region-read-${table.region_id}`)).toHaveCount(0);
-  await expect(section.getByTestId(`delivery-region-decision-${table.region_id}`))
+  // a file's tables and texts open under its row in the table of files (slice 2: one row per file)
+  const rows = page.getByTestId("files-table");
+  await rows.getByTestId(`file-toggle-${odd.name}`).click();
+  await rows.getByTestId(`delivery-file-toggle-${odd.file_id}`).click();
+  await rows.getByTestId(`delivery-region-aside-${table.region_id}`).click();
+  await rows.getByTestId("delivery-region-aside-why").fill("a scratch table, not data");
+  await rows.getByTestId("delivery-region-aside-submit").click();
+  await expect(rows.getByTestId(`delivery-region-read-${table.region_id}`)).toHaveCount(0);
+  await expect(rows.getByTestId(`delivery-region-decision-${table.region_id}`))
     .toContainText(/Marked as not data by .+, \d{4}-\d\d-\d\d \d\d:\d\d: a scratch table, not data/);
-  const restore = section.getByTestId(`delivery-region-restore-${table.region_id}`);
+  const restore = rows.getByTestId(`delivery-region-restore-${table.region_id}`);
   await expect(restore).toHaveAccessibleName("Restore the table odd-profile of odd-profile.csv");
   await restore.click();
   let pageReads = 0;
   const counting = (r: { method(): string; url(): string }) => { if (r.method() === "GET" && /\/delivery(\?|$)/.test(r.url())) pageReads += 1; };
   page.on("request", counting);
-  await section.getByTestId("delivery-region-restore-why").fill("it is the client's profile after all");
-  await section.getByTestId("delivery-region-restore-submit").click();
-  await expect(section.getByTestId(`delivery-region-decision-${table.region_id}`)).toHaveCount(0);
-  await expect(section.getByTestId(`delivery-region-aside-${table.region_id}`)).toBeVisible();     // not read, as before
+  await rows.getByTestId("delivery-region-restore-why").fill("it is the client's profile after all");
+  await rows.getByTestId("delivery-region-restore-submit").click();
+  await expect(rows.getByTestId(`delivery-region-decision-${table.region_id}`)).toHaveCount(0);
+  await expect(rows.getByTestId(`delivery-region-aside-${table.region_id}`)).toBeVisible();     // not read, as before
   page.off("request", counting);
   expect(pageReads).toBe(0);                                  // the answer was written into the page
   await shot(page, "2-restored");
 
   // --- "Read this table…": its first layout in the form; a bad choice is shown beside its column ---
-  const readIt = section.getByTestId(`delivery-region-read-${table.region_id}`);
+  const readIt = rows.getByTestId(`delivery-region-read-${table.region_id}`);
   await expect(readIt).toHaveAccessibleName("Read the table odd-profile of odd-profile.csv");
   await readIt.click();
   const dialog = page.getByTestId("read-table-dialog");
@@ -179,8 +182,8 @@ test("loose values are linked with new arms and an analyte, a table set aside is
   await expect(mapping.getByTestId("mapping-status")).toHaveText("waits for approval");
   await mapping.getByTestId("mapping-close").click();
   await expect(section.getByTestId("delivery-running")).toHaveCount(0, { timeout: 120_000 });
-  await expect(section.getByTestId(`delivery-region-mapping-${table.region_id}`)).toContainText("waits for approval");
-  await expect(section.getByTestId(`delivery-region-read-${table.region_id}`)).toHaveCount(0);
+  await expect(rows.getByTestId(`delivery-region-mapping-${table.region_id}`)).toContainText("waits for approval");
+  await expect(rows.getByTestId(`delivery-region-read-${table.region_id}`)).toHaveCount(0);
   await expect(section.getByTestId("delivery-unassigned")).toBeVisible();
 
   // --- its values: a new study by a name that exists is refused in the server's words; then that study, a new arm and
