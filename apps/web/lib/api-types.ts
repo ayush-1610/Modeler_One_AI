@@ -1428,7 +1428,8 @@ export interface paths {
          * Exclude Regions
          * @description A person's decision that regions of a file are not data (scope `regions`: any region, and what was read from
          *     it is set aside; `unread_prose`; `figures`), or that items outside every region are not (`outside`: their
-         *     locators). The file's coverage is recomputed.
+         *     locators). The file's coverage is recomputed. 409 `CONFLICT`, naming the decision, for one a person's decision sets
+         *     aside already (restore it to decide again); nothing is written then.
          */
         post: operations["exclude_regions_api_v1_projects__project_id__delivery_regions_exclude_post"];
         delete?: never;
@@ -1448,8 +1449,8 @@ export interface paths {
         put?: never;
         /**
          * Restore Regions
-         * @description Undo a person's "not data" decision, with the reason: an appended line that names the decisions it undoes (the
-         *     earlier ones stay, audited `intake.region.restore`). What they set aside counts again: the values read from those
+         * @description Undo a person's "not data" decision, with the reason: an appended line that names the decisions it undoes,
+         *     every one in force on what it lists (the earlier lines stay, audited `intake.region.restore`). What they set aside counts again: the values read from those
          *     regions are proposed again and the file's coverage is recomputed. 409 `CONFLICT` when one listed is not marked as
          *     not data by a person (nothing to restore); nothing is written then. A region excluded before its outcome was kept
          *     is read again (its file is queued).
@@ -4578,7 +4579,9 @@ export interface components {
          * @description Values given their subject. A study is named by its id (`study`) or, when no file's label gave it one, by a
          *     new label (`new_study`): one of them, and so a product (`product`, `new_product`), an arm of the study (`arm`,
          *     `new_arm`), a batch of the product (`batch`, `new_batch`) and an analyte (`analyte`, `new_analyte`). Ids are the
-         *     ledger's. Left out, the assignment clears the arm (the batch) the values had; the analyte the file gave stays.
+         *     ledger's (an analyte's: the page's `analytes`). An assignment replaces the earlier one whole: left out, it clears
+         *     the arm (the batch) the values had, and the values have the analyte the file gave, not one an earlier assignment
+         *     stated. A re-link that keeps a stated arm or analyte names it again.
          */
         DeliveryAssignment: {
             /** Analyte */
@@ -5348,6 +5351,8 @@ export interface components {
         /** DeliveryPage */
         DeliveryPage: {
             agents: components["schemas"]["AgentsStatus"];
+            /** Analytes */
+            analytes: components["schemas"]["DeliveryEntity"][];
             /** Deliveries */
             deliveries: components["schemas"]["DeliveryArrival"][];
             /** Enabled */

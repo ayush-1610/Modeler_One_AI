@@ -248,27 +248,36 @@ def _before_decision(outcome: RegionOutcome | None) -> RegionOutcome | None:
     return outcome.replaced
 
 
-def person_exclusion(decisions: Sequence[RegionDecision], region_id: str, kind: str) -> RegionDecision | None:
-    """The person's decision that sets this region (of this kind) aside now, as `file_coverage` applies them: the
-    latest decision of a file's region scope that covers the kind and lists the region, unless it is a restore (None
-    then, as with none). `decisions`: the file's, in log order."""
-    last = None
+def person_exclusions(decisions: Sequence[RegionDecision], region_id: str, kind: str) -> list[RegionDecision]:
+    """The person's decisions that set this region (of this kind) aside now, as `file_coverage` applies them: those of
+    a file's region scope that cover the kind and list the region, written after the last restore that lists it, in
+    log order (the last is the one `file_coverage` names; empty: no person's decision sets it aside). More than one
+    only in a log written before a second exclusion of a region set aside already was refused: a restore undoes them
+    all. `decisions`: the file's, in log order."""
+    found: list[RegionDecision] = []
     for decision in decisions:
         if decision.scope in _SCOPE_KINDS and region_id in decision.regions \
                 and (_SCOPE_KINDS[decision.scope] is None or kind in _SCOPE_KINDS[decision.scope]):  # type: ignore[operator]
-            last = decision
-    return None if last is None or last.restores else last
+            found = [] if decision.restores else [*found, decision]
+    return found
+
+
+def person_acceptances(decisions: Sequence[RegionDecision], where: str) -> list[RegionDecision]:
+    """The person's decisions that accept the outside item at `where` as not data now: those of scope `outside` that
+    name its place, written after the last restore that names it, in log order (empty: the item counts).
+    `decisions`: the file's, in log order."""
+    found: list[RegionDecision] = []
+    for decision in decisions:
+        if decision.scope == "outside" and where in _Places(decision.regions):
+            found = [] if decision.restores else [*found, decision]
+    return found
 
 
 def person_acceptance(decisions: Sequence[RegionDecision], where: str) -> RegionDecision | None:
-    """The person's decision that accepts the outside item at `where` as not data now: the latest decision of scope
-    `outside` that names its place, unless it is a restore (the item counts again). `decisions`: the file's, in log
-    order."""
-    last = None
-    for decision in decisions:
-        if decision.scope == "outside" and where in _Places(decision.regions):
-            last = decision
-    return None if last is None or last.restores else last
+    """The latest of `person_acceptances`: the person's decision that accepts the outside item at `where` as not data
+    now (None: none does, or a restore gave it back to the count)."""
+    found = person_acceptances(decisions, where)
+    return found[-1] if found else None
 
 
 def replaced_outcome_lost(coverage: FileCoverage, region_id: str) -> bool:

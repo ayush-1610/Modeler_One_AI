@@ -2227,3 +2227,147 @@ def test_a_subject_names_the_client_review_groups_of_the_same_source(project):
     assert rows["230-23"]["loaded_elsewhere"] == [legacy.id]
     assert rows["230-23"]["legacy_groups"] == [_group_of(p, legacy.id)["id"]]
     assert all(row["legacy_groups"] == [] for row in rows.values() if not row["loaded_elsewhere"])
+
+
+@pytest.mark.req("T-47", "F-404", "T-05")
+def test_a_region_set_aside_already_is_refused_and_a_restore_undoes_every_decision_in_force(project):
+    p = project()
+    p.deliver(("loose-profile.csv", LOOSE))
+    loose = _sha(LOOSE)
+    page = p.page()
+    (region,) = page["deliveries"][0]["files"][0]["regions"]
+    values = sorted(v.id for v in LedgerView(p.ws).values(file_sha256=loose))
+    body = {"file_sha256": loose, "regions": [region["region_id"]], "scope": "regions"}
+
+    def restored_as_before(answer: Any) -> None:
+        assert answer.status_code == 200, answer.text
+        data = answer.json()["data"]
+        (back,) = data["deliveries"][0]["files"][0]["regions"]
+        assert back["state"] == "mapped" and data["totals"] == page["totals"]
+        assert sorted(v["id"] for v in data["unassigned"]) == sorted(v["id"] for v in page["unassigned"])
+        assert sorted(v.id for v in LedgerView(p.ws).values(file_sha256=loose)) == values
+
+    assert p.post("delivery/regions:exclude", {**body, "why": "a duplicate of the Fed sheet"}).status_code == 200
+    (decision,) = IntakeStore(p.ws).review.entries("region")
+    # a second reviewer marks it again: refused (409), naming the decision in force, and nothing is written; so is an
+    # outside item accepted already
+    again = p.post("delivery/regions:exclude", {**body, "why": "not data"})
+    assert again.status_code == 409 and again.json()["detail"]["code"] == "CONFLICT"
+    assert f"already marked as not data: {region['region_id']} by {decision.body['id']}" in again.json()["detail"]["message"]
+    assert len(IntakeStore(p.ws).review.entries("region")) == 1 and len(p.events("intake.region")) == 1
+    restored_as_before(p.post("delivery/regions:restore", {**body, "why": "data after all"}))
+
+    # a log written before a second decision was refused holds two in force: the restore undoes both, and the values
+    # the first one set aside are back (the second set nothing aside)
+    assert p.post("delivery/regions:exclude", {**body, "why": "a duplicate after all"}).status_code == 200
+    store = IntakeStore(p.ws)
+    first = store.review.entries("region")[-1]
+    second = store.review.append("region", lambda seq: {**first.body, "id": f"rd-{seq}", "why": "not data", "by": "u-other"})
+    assert LedgerView(p.ws).values(file_sha256=loose) == []
+    restore = p.post("delivery/regions:restore", {**body, "why": "data after all, again"})
+    restored_as_before(restore)
+    line = IntakeStore(p.ws).review.entries("region")[-1]
+    assert line.body["restores"] == [first.body["id"], second.body["id"]]
+    assert p.events("intake.region.restore")[-1].after["restores"] == line.body["restores"]
+
+
+@pytest.mark.req("T-47", "F-404", "T-05", "T-06")
+def test_a_restore_leaves_another_persons_exclusion_of_a_value_as_that_person_wrote_it(project):
+    p = project()
+    p.deliver(("loose-profile.csv", LOOSE))
+    loose = _sha(LOOSE)
+    page = p.page()
+    (region,) = page["deliveries"][0]["files"][0]["regions"]
+    one = page["unassigned"][1]["id"]
+    extract = one.split("#")[0]
+    Ledger(p.ws).exclude(one, why="the client corrected this point", by="u-other")      # as a choice that settles a conflict
+    body = {"file_sha256": loose, "regions": [region["region_id"]], "scope": "regions"}
+    assert p.post("delivery/regions:exclude", {**body, "why": "a duplicate of the Fed sheet"}).status_code == 200
+    written = len(IntakeStore(p.ws).facts.entries("status"))
+    assert all("restored_by" not in line.body for line in IntakeStore(p.ws).facts.entries("status"))   # written as before
+    restored = p.post("delivery/regions:restore", {**body, "why": "data after all"})
+    assert restored.status_code == 200, restored.text
+    rd = IntakeStore(p.ws).review.entries("region")[-1].body["id"]
+    # the restorer's lines only, each marked with the restore: nothing is written again in another person's name
+    new = [line.body for line in IntakeStore(p.ws).facts.entries("status")[written:]]
+    assert extract in {b["target"] for b in new} and one not in {b["target"] for b in new}
+    assert {(b["status"], b["by"], b["restored_by"], b["reason"]) for b in new} == {("proposed", "u1", rd, f"{rd}: data after all")}
+    # the value excluded on its own stays so, by its own line; the others of the table are back
+    own = [line.body for line in IntakeStore(p.ws).facts.entries("status") if line.body["target"] == one]
+    assert [(b["by"], b["status"]) for b in own] == [("u-other", "excluded")]
+    value = LedgerView(p.ws).value(one)
+    assert (value.status, value.status_reason) == ("excluded", "the client corrected this point")
+    assert sorted(v["id"] for v in restored.json()["data"]["unassigned"]) == sorted(
+        v["id"] for v in page["unassigned"] if v["id"] != one)
+    # set aside again and restored again: the same, the value still by its own line
+    assert p.post("delivery/regions:exclude", {**body, "why": "a duplicate after all"}).status_code == 200
+    assert p.post("delivery/regions:restore", {**body, "why": "data after all, again"}).status_code == 200
+    assert LedgerView(p.ws).value(one).status_reason == "the client corrected this point"
+    assert {v.id for v in LedgerView(p.ws).values(file_sha256=loose)} == {v["id"] for v in page["unassigned"]} - {one}
+
+
+@pytest.mark.req("T-47", "F-404", "T-05", "T-06")
+def test_a_restore_that_undoes_a_decision_a_confirmation_binds_makes_it_not_current(project):
+    p = project()
+    path = _ready(p)                                    # the delivery's outside note accepted as not data
+    study = path.rsplit("/", 1)[1]
+    sha = _sha(synthetic.messy_workbook().data)
+    signed = p.post(f"{path}:confirm")
+    assert signed.status_code == 200 and signed.json()["data"]["confirmation"]["current"] is True
+    (confirmation,) = review.confirmations(p.ws)
+
+    def current() -> tuple[bool, bool]:
+        row = next(s for s in p.page()["subjects"] if s["subject"] == study)
+        return row["confirmation"]["current"], p.card(path)["confirmation"]["current"]
+
+    # a decision made after the signature, and restored: the record never bound it, so it stays current
+    other = p.card(p.subject("231-24"))
+    table = next(t["region_id"] for t in other["tables"] if t["region_id"])
+    aside = {"file_sha256": sha, "regions": [table], "scope": "regions"}
+    assert p.post("delivery/regions:exclude", {**aside, "why": "a duplicate"}).status_code == 200
+    assert p.post("delivery/regions:restore", {**aside, "why": "not a duplicate"}).status_code == 200
+    assert current() == (True, True)
+    # a record computed now, then the note it binds restored before it is signed: refused as stale
+    record, record_sha = review.bound_record(p.ws, "study", study, reader=LedgerView(p.ws), brief=None, matrix=None,
+                                             mol_weight=None)
+    note = {"file_sha256": sha, "regions": [OUTSIDE_NOTE], "scope": "outside", "why": "a re-assay count after all"}
+    restored = p.post("delivery/regions:restore", note)
+    assert restored.status_code == 200, restored.text
+    # the values are the ones it binds, but the note it saw set aside counts again: changed since signed
+    assert confirmation.record["subject_digest"] == intake_landing.subject_digest(LedgerView(p.ws), "study", study)
+    assert current() == (False, False)
+    assert "OUTSIDE_NUMBERS" in [b["code"] for b in p.card(path)["blockers"]]
+    with pytest.raises(review.ReviewError) as stale:
+        review.record_confirmation(p.ws, subject_type="study", subject=study, record=record, record_sha256=record_sha,
+                                   signature_id="sig-0001", manifestation="Reviewed", by="u1", printed_name="Dev User",
+                                   blinded=False)
+    assert stale.value.code == "STALE" and "restored" in str(stale.value)
+    assert len(review.confirmations(p.ws)) == 1
+
+
+@pytest.mark.req("T-47", "F-404", "T-05")
+def test_a_relink_replaces_the_assignment_whole_and_the_page_gives_each_analyte_its_id(project):
+    p = project()
+    p.deliver(("loose-profile.csv", LOOSE))
+    loose = _sha(LOOSE)
+    page = p.page()
+    assert page["analytes"] == []
+    extract = page["unassigned"][0]["id"].split("#")[0]
+
+    def analytes() -> set[str | None]:
+        return {v.entity.analyte for v in LedgerView(p.ws).values(file_sha256=loose) if v.id.startswith(extract)}
+
+    named = p.post("delivery/values:assign", {"targets": [extract], "new_study": "LOOSE-1", "new_analyte": "M1",
+                                              "why": "the title names study LOOSE-1 and M1"})
+    assert named.status_code == 200, named.text
+    data = named.json()["data"]
+    (m1,) = data["analytes"]
+    study = next(s["subject"] for s in data["subjects"] if s["label"] == "LOOSE-1")
+    assert m1["label"] == "M1" and analytes() == {m1["id"]}
+    # linked again with no analyte: the assignment replaces the earlier one whole, so the stated analyte goes with it
+    relinked = p.post("delivery/values:assign", {"targets": [extract], "study": study, "why": "the same study, arm unknown"})
+    assert relinked.status_code == 200 and analytes() == {None}
+    # a re-link that keeps it names it again, by the id the page gives
+    kept = p.post("delivery/values:assign", {"targets": [extract], "study": study, "analyte": m1["id"],
+                                             "why": "the same study, M1"})
+    assert kept.status_code == 200 and analytes() == {m1["id"]} and kept.json()["data"]["analytes"] == [m1]

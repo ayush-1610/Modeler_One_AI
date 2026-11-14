@@ -12,7 +12,16 @@ import pytest
 from modeler_intake import synthetic
 from modeler_intake.mapping_spec import CellUse, ExtractResult
 from modeler_intake.source_model import AnchorProblem, OutsideItem, Page, Region, RegionGrid, SourceDocument, has_number
-from modeler_project.coverage import MAX_LOCATORS, file_coverage, outcome_from, silent_loss, values_unassigned
+from modeler_project.coverage import (
+    MAX_LOCATORS,
+    file_coverage,
+    outcome_from,
+    person_acceptance,
+    person_acceptances,
+    person_exclusions,
+    silent_loss,
+    values_unassigned,
+)
 from modeler_project.intake_fixtures import write_truth
 from modeler_project.intake_records import FileRecord, RegionDecision, RegionOutcome
 from modeler_project.intake_rules import rules
@@ -363,6 +372,29 @@ def test_a_restore_gives_a_region_back_its_outcome_and_an_outside_item_back_to_t
     assert file_coverage(_record(sha), doc, [mapped], [accept]).summary.outside_numeric == 0
     counted = file_coverage(_record(sha), doc, [mapped], [accept, restore((note.where,), "rd-4", 5, "outside")])
     assert counted.summary.outside_numeric == 1 and counted.decisions == ("rd-4", "rd-5")
+
+
+@pytest.mark.req("T-47", "T-42", "F-404")
+def test_the_decisions_in_force_on_a_region_are_every_exclusion_since_its_last_restore():
+    """What a restore undoes (plan 2026-11-14 §3 API 6): every person's decision that sets the region aside now. A log
+    written before a second exclusion of a region set aside already was refused holds two; a restore clears them."""
+    sha, region, other, where = "9" * 64, "rg-0000000001", "rg-0000000002", "s:'T'!A9"
+
+    def restore(regions: tuple[str, ...], undone: tuple[str, ...], n: int, scope: str = "regions") -> RegionDecision:
+        return _decision(sha, regions, scope, n).model_copy(update={"restores": undone})
+
+    one, two = _decision(sha, (region, other), n=1), _decision(sha, (region,), n=2)
+    assert [d.id for d in person_exclusions([one, two], region, "table")] == ["rd-1", "rd-2"]
+    assert person_exclusions([one, two], region, "prose") == [one, two]          # scope regions takes any kind
+    assert person_exclusions([_decision(sha, (region,), "figures", 1)], region, "table") == []    # not of its kind
+    back = restore((region,), ("rd-1", "rd-2"), 3)
+    assert person_exclusions([one, two, back], region, "table") == []
+    assert person_exclusions([one, two, back], other, "table") == [one]          # a restore lists what it gives back
+    assert person_exclusions([one, two, back, _decision(sha, (region,), n=4)], region, "table")[0].id == "rd-4"
+    # outside items alike; the latest in force is the one coverage names
+    first, second = _decision(sha, (where,), "outside", 5), _decision(sha, (where,), "outside", 6)
+    assert person_acceptances([first, second], where) == [first, second] and person_acceptance([first, second], where) == second
+    assert person_acceptance([first, second, restore((where,), ("rd-5", "rd-6"), 7, "outside")], where) is None
 
 
 def test_silent_loss_sums_the_files():

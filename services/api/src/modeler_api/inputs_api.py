@@ -57,8 +57,9 @@ def _drug(ws: Workspace) -> str:
 
 
 def _study_options(ws: Workspace) -> dict[str, list[str]]:
-    """`_STUDY_OPTIONS` and `analyte`: the brief's parent drug, as the brief names it. No field of the brief names a
-    metabolite, so none is offered: a metabolite is named as a new analyte on Delivery (`values:assign`)."""
+    """`_STUDY_OPTIONS` and `analyte`: the brief's parent drug, as the brief names it (a label: one the ledger has as an
+    analyte already is posted by its id, the Delivery page's `analytes`; else as `new_analyte`). No field of the brief
+    names a metabolite, so none is offered: a metabolite is named as a new analyte on Delivery (`values:assign`)."""
     drug = _drug(ws).strip()
     return {**_STUDY_OPTIONS, "analyte": [drug] if drug else []}
 

@@ -58,7 +58,7 @@ from __future__ import annotations
 import hashlib
 import re
 from collections import Counter
-from collections.abc import Collection, Iterable, Sequence
+from collections.abc import Callable, Collection, Iterable, Sequence
 from typing import Any, Literal
 
 from pydantic import ValidationError
@@ -73,8 +73,8 @@ from modeler_project import blinding, client_data, intake_landing
 from modeler_project.brief import ProjectBrief
 from modeler_project.coverage import (
     file_coverage,
-    person_acceptance,
-    person_exclusion,
+    person_acceptances,
+    person_exclusions,
     replaced_outcome_lost,
     values_unassigned,
 )
@@ -319,6 +319,30 @@ def current_confirmation(ws: Workspace, subject_type: SubjectType, subject: str,
     return mine[-1] if mine else None
 
 
+def _restores(store: IntakeStore) -> list[tuple[str, tuple[str, ...]]]:
+    """Every restore of the review log (a `region` line with `restores`): its id and the decisions it undoes."""
+    return [(str(e.body.get("id")), tuple(e.body["restores"])) for e in _lines(store, "region") if e.body.get("restores")]
+
+
+def _undone_since(record: dict[str, Any], restores: Sequence[tuple[str, tuple[str, ...]]]) -> bool:
+    """Whether a restore written after the record was computed (one its `regions` does not bind) undoes a "not data"
+    decision the record binds (`regions`: the "<id>:<hash>" refs of its files' region lines)."""
+    bound = {str(ref).split(":", 1)[0] for ref in record.get("regions", ())}
+    return any(line_id not in bound and bound.intersection(undone) for line_id, undone in restores)
+
+
+def confirmation_current(ws: Workspace, confirmation: Confirmation, *, reader: LedgerReader, subject_type: str,
+                         subject: str, restores: Sequence[tuple[str, tuple[str, ...]]] | None = None) -> bool:
+    """Whether a confirmation's record still describes its subject (False: "changed since signed, confirm again"): the
+    subject's active values are the ones it binds (`subject_digest`), and no restore written since undoes a "not data"
+    decision it binds. A restore that brings back no value of the subject still changes what the signer saw: an
+    outside number counts again, a table is silent loss again. `restores`: `_restores` read once, for a caller that
+    asks for many subjects."""
+    if confirmation.record.get("subject_digest") != subject_digest(reader, subject_type, subject):
+        return False
+    return not _undone_since(confirmation.record, _restores(IntakeStore(ws)) if restores is None else restores)
+
+
 def landed(ws: Workspace, confirmation_id: str) -> Landed | None:
     """The `landed` line of a confirmation, if its landing completed."""
     return intake_landing.landed(ws, confirmation_id)
@@ -328,7 +352,8 @@ def subjects(ws: Workspace, *, reader: LedgerReader) -> list[dict[str, Any]]:
     """The studies, the products and the compound that have active values (or a confirmation), each with its counts and
     its confirmation state: `subject_type`, `subject`, `label`, `values`, `by_level`, `by_method`, `files` (sha256s of
     the files its values were read from), `deliveries`, `confirmation` (None, or id, at, by, printed_name,
-    signature_id, manifestation, record_sha256, `current`: the record still describes the subject's values, `landed`),
+    signature_id, manifestation, record_sha256, `current`: the record still describes the subject (its values, and
+    no restore since undid a decision it binds: `confirmation_current`), `landed`),
     `loaded_elsewhere` (the non-rejected legacy client datasets that overlap it by source, §2), `legacy_groups` (the
     client-review groups, `client_review.groups` ids, whose items hold one of those datasets: where the same source is
     reviewed by the sheet form) and `confirm_on` ("client-review" when every file its values come from is a filled
@@ -341,6 +366,7 @@ def subjects(ws: Workspace, *, reader: LedgerReader) -> list[dict[str, Any]]:
     found = confirmations(ws)
     replaced = {c.supersedes for c in found if c.supersedes}
     done = {e.body.get("confirmation") for e in _lines(store, "landed")}
+    restores = _restores(store)
     legacy = [d for d in all_datasets(ws) if d.origin is Origin.CLIENT and not intake_landing.is_delivery_dataset(d)
               and d.state is not EvidenceState.REJECTED]
     rows = []
@@ -360,7 +386,8 @@ def subjects(ws: Workspace, *, reader: LedgerReader) -> list[dict[str, Any]]:
             confirmation = {"id": last.id, "at": last.at, "by": last.by, "printed_name": last.printed_name,
                             "signature_id": last.signature_id, "manifestation": last.manifestation,
                             "record_sha256": last.record_sha256, "landed": last.id in done,
-                            "current": last.record.get("subject_digest") == subject_digest(reader, subject_type, subject)}
+                            "current": confirmation_current(ws, last, reader=reader, subject_type=subject_type,
+                                                            subject=subject, restores=restores)}
         elsewhere = [d.id for d in intake_landing.legacy_overlap(ws, subject_type, subject, reader=reader, candidates=legacy)]
         rows.append({"subject_type": subject_type, "subject": subject, "label": label, "values": len(values),
                      "by_level": dict(sorted(Counter(v.level for v in values).items())),
@@ -628,7 +655,9 @@ def assign(ws: Workspace, *, targets: Sequence[str], study: str | None = None, a
     land as two arms and do not disagree.
 
     `analyte` (an analyte's id) or `new_analyte` (a label: a new analyte, never a duplicate) states the values'
-    analyte; left out, the analyte the file gave stays. The assignment is still a study's or a product's."""
+    analyte; left out, the values have the analyte the file gave. An assignment replaces the earlier one whole (plan
+    2026-11-14 §2.2.4: a link is changed by linking again), so an analyte an earlier assignment stated is not kept: a
+    re-link that keeps it names it again, as it does the arm. The assignment is still a study's or a product's."""
     why = _why(why, "an assignment")
     if not targets:
         raise ReviewError("INVALID", "an assignment names the values it assigns")
@@ -794,7 +823,12 @@ def exclude_regions(ws: Workspace, *, file_sha256: str, regions: Sequence[str], 
     leave silent loss through a prose or figure decision), `outside` the locators of outside items accepted as not
     data. One `region` line, one `intake.region` event. A decision of scope `regions`, `unread_prose` or `figures`
     also excludes what the ledger read from those regions (how a "study not stated" table is excluded). The file's
-    coverage is recomputed and stored in the same call."""
+    coverage is recomputed and stored in the same call.
+
+    Decided under the review log's lock: one listed that a person's decision sets aside now already
+    (`coverage.person_exclusions`, `person_acceptances`) is refused, ReviewError CONFLICT naming that decision, and
+    nothing is written (a second decision would set nothing aside, and a restore must undo the one that did: two
+    reviewers deciding at once get the one decision and a 409)."""
     why = _why(why, "excluding regions")
     if scope not in _SCOPES:
         raise ReviewError("INVALID", f"a region decision's scope is one of {', '.join(_SCOPES)}, not {scope!r}")
@@ -806,31 +840,19 @@ def exclude_regions(ws: Workspace, *, file_sha256: str, regions: Sequence[str], 
     if doc is None:
         raise ReviewError("CONFLICT", "the file's source model is not cached: run the file first, then decide")
     listed = tuple(dict.fromkeys(regions))
-    if scope == "outside":
-        items = []
-        for text in listed:
-            try:
-                items.append(parse_locator(text))
-            except AnchorError as exc:
-                raise ReviewError("INVALID", f"not a locator: {text!r}") from exc
-        places = [parse_locator(item.where) for item in doc.outside if _is_locator(item.where)]
-        for text, place in zip(listed, items, strict=True):
-            if not any(type(p) is type(place) and same_place(p, place) for p in places):
-                raise ReviewError("UNKNOWN", f"{text} is not an item outside every region of that file")
-    else:
-        kinds = {r.id: r.kind for r in doc.regions}
-        allowed = _SCOPE_KINDS[scope]
-        for region_id in listed:
-            _id("region", region_id, "a region")
-            if region_id not in kinds:
-                raise ReviewError("UNKNOWN", f"no region {region_id} in that file")
-            if allowed is not None and kinds[region_id] not in allowed:
-                raise ReviewError("INVALID", f"region {region_id} is a {kinds[region_id]}: scope {scope} excludes only "
-                                             f"{' and '.join(allowed)} regions (a table's numbers leave silent loss only "
-                                             "through scope regions)")
-    entry = store.review.append("region", lambda seq: RegionDecision(
-        id=f"rd-{seq}", file_sha256=file_sha256, parser_version=doc.parser_version, regions=listed, scope=scope,  # type: ignore[arg-type]
-        why=why, by=by, at=now()).model_dump(mode="json", exclude={"restores"}))
+    in_force = _decided(doc, listed, scope, "excludes", note="(a table's numbers leave silent loss only through scope regions)")
+
+    def decide(entries: list[ChainEntry]) -> list[tuple[str, Any]]:
+        already = [(text, found[-1].id) for text, found in in_force(_decisions_of(entries, file_sha256)).items() if found]
+        if already:
+            raise ReviewError("CONFLICT", "already marked as not data: " + ", ".join(f"{text} by {decision}"
+                                                                                     for text, decision in already)
+                              + " (restore it to decide again)")
+        return [("region", lambda seq: RegionDecision(
+            id=f"rd-{seq}", file_sha256=file_sha256, parser_version=doc.parser_version, regions=listed, scope=scope,  # type: ignore[arg-type]
+            why=why, by=by, at=now()).model_dump(mode="json", exclude={"restores"}))]
+
+    (entry,) = store.review.append_if(decide)
     record = RegionDecision.model_validate(entry.body)
     store.audit(actor=by, action="intake.region", resource_id=record.id, after={"id": record.id, "row_hash": entry.hash},
                 reason=why)
@@ -841,6 +863,44 @@ def exclude_regions(ws: Workspace, *, file_sha256: str, regions: Sequence[str], 
                 ledger.exclude(target, why=f"{record.id}: {why}", by=by)
     _store_coverage(store, file_sha256, ledger, needs_source=True)
     return record
+
+
+def _decisions_of(entries: Sequence[ChainEntry], file_sha256: str) -> list[RegionDecision]:
+    """The file's region decisions among the review log's entries, in log order."""
+    return [RegionDecision.model_validate(e.body) for e in entries
+            if e.kind == "region" and e.body.get("file_sha256") == file_sha256]
+
+
+def _decided(doc: SourceDocument, listed: Sequence[str], scope: str, verb: str, *,
+             note: str = "") -> Callable[[Sequence[RegionDecision]], dict[str, list[RegionDecision]]]:
+    """What a region decision of `scope` lists, checked against the file (ReviewError INVALID: not a region id or not a
+    locator, or a region of a kind the scope does not take; UNKNOWN: no such region or outside item). Returns, for the
+    file's decisions, the person's decisions that set each one listed aside now (`coverage.person_exclusions`,
+    `person_acceptances`; empty: none does), so a caller decides under the review log's lock."""
+    if scope == "outside":
+        items = [item for item in doc.outside if _is_locator(item.where)]
+        wheres: dict[str, str] = {}
+        for text in listed:
+            try:
+                place = parse_locator(text)
+            except AnchorError as exc:
+                raise ReviewError("INVALID", f"not a locator: {text!r}") from exc
+            found = [item for item in items if type(parse_locator(item.where)) is type(place)
+                     and same_place(parse_locator(item.where), place)]
+            if not found:
+                raise ReviewError("UNKNOWN", f"{text} is not an item outside every region of that file")
+            wheres[text] = found[0].where
+        return lambda mine: {text: person_acceptances(mine, where) for text, where in wheres.items()}
+    kinds = {r.id: r.kind for r in doc.regions}
+    allowed = _SCOPE_KINDS[scope]
+    for region_id in listed:
+        _id("region", region_id, "a region")
+        if region_id not in kinds:
+            raise ReviewError("UNKNOWN", f"no region {region_id} in that file")
+        if allowed is not None and kinds[region_id] not in allowed:
+            raise ReviewError("INVALID", f"region {region_id} is a {kinds[region_id]}: scope {scope} {verb} only "
+                                         f"{' and '.join(allowed)} regions" + (f" {note}" if note else ""))
+    return lambda mine: {region_id: person_exclusions(mine, region_id, kinds[region_id]) for region_id in listed}
 
 
 def _set_aside_by(ledger: Ledger, store: IntakeStore, doc: SourceDocument, decision_id: str,
@@ -874,16 +934,18 @@ def restore_regions(ws: Workspace, *, file_sha256: str, regions: Sequence[str], 
                     by: str) -> tuple[RegionDecision, list[str]]:
     """Undo a person's "not data" decision, with the reason: `regions` lists region ids (scope `regions`,
     `unread_prose`, `figures`, as `exclude_regions` takes them) or the locators of outside items (scope `outside`).
-    Every one listed must be set aside now by a person's decision that covers it (`coverage.person_exclusion`,
-    `coverage.person_acceptance`): else ReviewError CONFLICT naming it, "nothing to restore" (not excluded, excluded by
-    a rule or a not-data layout, or restored already), and nothing is written.
+    Every one listed must be set aside now by a person's decision that covers it (`coverage.person_exclusions`,
+    `coverage.person_acceptances`): else ReviewError CONFLICT naming it, "nothing to restore" (not excluded, excluded
+    by a rule or a not-data layout, or restored already), and nothing is written. Decided under the review log's lock.
 
-    One `region` line with `restores` (the decisions undone), appended: the earlier decisions stay in the log. One
-    `intake.region.restore` event with the line's hash. What those decisions set aside in the ledger and nothing
+    One `region` line with `restores` (every decision in force that it undoes: one, or several in a log written before
+    a second exclusion of a region set aside already was refused), appended: the earlier decisions stay in the log.
+    One `intake.region.restore` event with the line's hash. What those decisions set aside in the ledger and nothing
     changed since (`_set_aside_by`) is proposed again (`Ledger.restore`), the derived facts follow, and the file's
-    coverage is recomputed and stored: a region gets back the outcome its exclusion replaced. The answer: the line,
-    and the regions whose replaced outcome was not kept (excluded before it was): they show as unread until the file
-    is read again."""
+    coverage is recomputed and stored: a region gets back the outcome its exclusion replaced. A confirmation whose
+    record binds an undone decision is no longer current (`confirmation_current`). The answer: the line, and the
+    regions whose replaced outcome was not kept (excluded before it was): they show as unread until the file is read
+    again."""
     why = _why(why, "restoring regions")
     if scope not in _SCOPES:
         raise ReviewError("INVALID", f"a region decision's scope is one of {', '.join(_SCOPES)}, not {scope!r}")
@@ -895,48 +957,24 @@ def restore_regions(ws: Workspace, *, file_sha256: str, regions: Sequence[str], 
     if doc is None:
         raise ReviewError("CONFLICT", "the file's source model is not cached: run the file first, then decide")
     listed = tuple(dict.fromkeys(regions))
-    mine = [d for d in _region_decisions(store) if d.file_sha256 == file_sha256]
-    undone: dict[str, str] = {}
-    nothing: list[str] = []
-    if scope == "outside":
-        items = [item for item in doc.outside if _is_locator(item.where)]
-        for text in listed:
-            try:
-                place = parse_locator(text)
-            except AnchorError as exc:
-                raise ReviewError("INVALID", f"not a locator: {text!r}") from exc
-            found = [item for item in items if type(parse_locator(item.where)) is type(place)
-                     and same_place(parse_locator(item.where), place)]
-            if not found:
-                raise ReviewError("UNKNOWN", f"{text} is not an item outside every region of that file")
-            decision = person_acceptance(mine, found[0].where)
-            if decision is None:
-                nothing.append(text)
-            else:
-                undone[text] = decision.id
-    else:
-        kinds = {r.id: r.kind for r in doc.regions}
-        allowed = _SCOPE_KINDS[scope]
-        for region_id in listed:
-            _id("region", region_id, "a region")
-            if region_id not in kinds:
-                raise ReviewError("UNKNOWN", f"no region {region_id} in that file")
-            if allowed is not None and kinds[region_id] not in allowed:
-                raise ReviewError("INVALID", f"region {region_id} is a {kinds[region_id]}: scope {scope} restores only "
-                                             f"{' and '.join(allowed)} regions")
-            decision = person_exclusion(mine, region_id, kinds[region_id])
-            if decision is None:
-                nothing.append(region_id)
-            else:
-                undone[region_id] = decision.id
-    if nothing:
-        raise ReviewError("CONFLICT", f"nothing to restore: {', '.join(nothing)} "
-                                      f"{'is' if len(nothing) == 1 else 'are'} not marked as not data by a person")
+    in_force = _decided(doc, listed, scope, "restores")
     current = store.coverage(file_sha256)
     lost = [r for r in listed if scope != "outside" and current is not None and replaced_outcome_lost(current, r)]
-    entry = store.review.append("region", lambda seq: RegionDecision(
-        id=f"rd-{seq}", file_sha256=file_sha256, parser_version=doc.parser_version, regions=listed, scope=scope,  # type: ignore[arg-type]
-        why=why, by=by, at=now(), restores=tuple(dict.fromkeys(undone.values()))).model_dump(mode="json"))
+    undone: dict[str, list[str]] = {}                       # each one listed -> the decisions it undoes
+
+    def decide(entries: list[ChainEntry]) -> list[tuple[str, Any]]:
+        undone.clear()
+        undone.update({text: [d.id for d in found] for text, found in in_force(_decisions_of(entries, file_sha256)).items()})
+        nothing = [text for text, found in undone.items() if not found]
+        if nothing:
+            raise ReviewError("CONFLICT", f"nothing to restore: {', '.join(nothing)} "
+                                          f"{'is' if len(nothing) == 1 else 'are'} not marked as not data by a person")
+        restores = tuple(dict.fromkeys(d for found in undone.values() for d in found))
+        return [("region", lambda seq: RegionDecision(
+            id=f"rd-{seq}", file_sha256=file_sha256, parser_version=doc.parser_version, regions=listed, scope=scope,  # type: ignore[arg-type]
+            why=why, by=by, at=now(), restores=restores).model_dump(mode="json"))]
+
+    (entry,) = store.review.append_if(decide)
     record = RegionDecision.model_validate(entry.body)
     store.audit(actor=by, action="intake.region.restore", resource_id=record.id,
                 after={"id": record.id, "restores": list(record.restores), "row_hash": entry.hash}, reason=why)
@@ -944,10 +982,9 @@ def restore_regions(ws: Workspace, *, file_sha256: str, regions: Sequence[str], 
     if scope != "outside":
         back: list[str] = []
         for decision_id in record.restores:
-            regions_of = {r for r, d in undone.items() if d == decision_id}
-            back += _set_aside_by(ledger, store, doc, decision_id, regions_of)
+            back += _set_aside_by(ledger, store, doc, decision_id, {r for r, found in undone.items() if decision_id in found})
         if back:
-            ledger.restore(list(dict.fromkeys(back)), why=f"{record.id}: {why}", by=by)
+            ledger.restore(list(dict.fromkeys(back)), why=f"{record.id}: {why}", by=by, decision=record.id)
             ledger.derive()
     _store_coverage(store, file_sha256, ledger, needs_source=True)
     return record, lost
@@ -1484,8 +1521,9 @@ def record_confirmation(ws: Workspace, *, subject_type: SubjectType, subject: st
 
     The route signs only after `prepare_confirmation`; this function does not rely on that. It refuses, and writes
     nothing, when:
-    - the record's hash is not `record_sha256`, the record is not this subject's, or its digest is no longer the
-      subject's (ReviewError INVALID, STALE);
+    - the record's hash is not `record_sha256`, the record is not this subject's, its digest is no longer the
+      subject's, or a restore written since it was computed undoes a "not data" decision it binds (ReviewError
+      INVALID, STALE);
     - the subject has no active value, or an intake log's hash chain does not verify (ReviewError CONFLICT);
     - the record itself shows a refusal (`_record_refusals`: silent loss, outside numbers or unassigned values in its
       coverage, a failed check nobody cleared, no spot check, a landing that cannot be planned: ReviewError CONFLICT);
@@ -1508,13 +1546,16 @@ def record_confirmation(ws: Workspace, *, subject_type: SubjectType, subject: st
         raise ReviewError("INVALID", "the record is not this subject's")
     if record.get("subject_digest") != subject_digest(reader, subject_type, subject):
         raise ReviewError("STALE", "the subject's values changed since the record was computed: compute it again")
+    store = IntakeStore(ws)
+    if _undone_since(record, _restores(store)):
+        raise ReviewError("STALE", "a \"not data\" decision the record binds was restored since it was computed: "
+                                   "compute it again")
     _nothing_to_confirm(reader, subject_type, subject)
-    _chains_verify(IntakeStore(ws))
+    _chains_verify(store)
     shown = _record_refusals(record)
     if shown:
         raise ReviewError("CONFLICT", "the record shows what still refuses the confirmation (" + "; ".join(shown)
                           + "): every refusal is checked before a confirmation is signed")
-    store = IntakeStore(ws)
     refusals = _own_refusals(ws, store, reader, subject_type, subject, blinded=blinded, links=True)
     if refusals:
         raise ConfirmationRefused(refusals)

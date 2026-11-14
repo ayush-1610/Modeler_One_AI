@@ -533,7 +533,7 @@ def _empty_page(enabled: bool) -> dict[str, Any]:
             "totals": {"files": 0, "files_by_state": {}, "regions": 0, "regions_mapped": 0, "regions_excluded": 0,
                        "regions_unread": 0, "silent_loss": 0, "outside_numeric": 0, "values_unassigned": 0,
                        "anchors_unresolved": 0, "needs_ocr_pages": 0, "values": 0},
-            "subjects": [], "unassigned": [], "mappings": [], "request": [], "rules": _rules()}
+            "subjects": [], "unassigned": [], "analytes": [], "mappings": [], "request": [], "rules": _rules()}
 
 
 def _request_lines(scope: _Scope) -> list[dict[str, Any]]:
@@ -595,6 +595,7 @@ def _page(scope: _Scope) -> dict[str, Any]:
     running = jobs.running(ws.store, ws.tenant_id, ws.project_id, "intake") or intake_pipeline.unfinished(ws)
     return {"enabled": True, "running": running, "agents": agent_jobs.agents_status("A4"), "deliveries": deliveries,
             "totals": totals, "subjects": subjects, "unassigned": scope.rows(review.unassigned(ws, reader=reader)),
+            "analytes": [{"id": e.id, "label": e.label} for e in reader.entities("analyte")],
             "mappings": _waiting_mappings(scope), "request": _request_lines(scope), "rules": _rules()}
 
 
@@ -692,7 +693,8 @@ def _confirmation(scope: _Scope, subject_type: str, subject: str, blinded: bool)
         "id": found.id, "at": found.at, "by": found.by, "printed_name": found.printed_name,
         "signature_id": found.signature_id, "manifestation": found.manifestation, "record_sha256": found.record_sha256,
         "supersedes": found.supersedes,
-        "current": record.get("subject_digest") == intake_landing.subject_digest(scope.reader, subject_type, subject),
+        "current": review.confirmation_current(scope.ws, found, reader=scope.reader, subject_type=subject_type,
+                                               subject=subject),
         "rules": {k: str(rules.get(k, "")) for k in ("version", "status", "sha256")} if rules else None,
         "coverage": {str(k): int(v) for k, v in coverage.items() if isinstance(v, int) and not isinstance(v, bool)},
         "held": None if blinded else [str(text) for text in record.get("held", ())],
@@ -958,7 +960,9 @@ class DeliveryAssignment(BaseModel):
     """Values given their subject. A study is named by its id (`study`) or, when no file's label gave it one, by a
     new label (`new_study`): one of them, and so a product (`product`, `new_product`), an arm of the study (`arm`,
     `new_arm`), a batch of the product (`batch`, `new_batch`) and an analyte (`analyte`, `new_analyte`). Ids are the
-    ledger's. Left out, the assignment clears the arm (the batch) the values had; the analyte the file gave stays."""
+    ledger's (an analyte's: the page's `analytes`). An assignment replaces the earlier one whole: left out, it clears
+    the arm (the batch) the values had, and the values have the analyte the file gave, not one an earlier assignment
+    stated. A re-link that keeps a stated arm or analyte names it again."""
 
     targets: list[str] = Field(min_length=1)          # value ids, or an extract's id (every value of that table)
     study: str | None = None
@@ -1004,7 +1008,8 @@ def assign_values(project_id: str, body: DeliveryAssignment, principal: Writer, 
 def exclude_regions(project_id: str, body: DeliveryExclusion, principal: Writer, store: StoreDep) -> dict[str, Any]:
     """A person's decision that regions of a file are not data (scope `regions`: any region, and what was read from
     it is set aside; `unread_prose`; `figures`), or that items outside every region are not (`outside`: their
-    locators). The file's coverage is recomputed."""
+    locators). The file's coverage is recomputed. 409 `CONFLICT`, naming the decision, for one a person's decision sets
+    aside already (restore it to decide again); nothing is written then."""
     scope = _scope(project_id, principal, store)
     with _refusals():
         check_id("sha256", body.file_sha256)
@@ -1029,8 +1034,8 @@ class DeliveryRestore(BaseModel):
 
 
 def restore_regions(project_id: str, body: DeliveryRestore, principal: Writer, store: StoreDep) -> dict[str, Any]:
-    """Undo a person's "not data" decision, with the reason: an appended line that names the decisions it undoes (the
-    earlier ones stay, audited `intake.region.restore`). What they set aside counts again: the values read from those
+    """Undo a person's "not data" decision, with the reason: an appended line that names the decisions it undoes,
+    every one in force on what it lists (the earlier lines stay, audited `intake.region.restore`). What they set aside counts again: the values read from those
     regions are proposed again and the file's coverage is recomputed. 409 `CONFLICT` when one listed is not marked as
     not data by a person (nothing to restore); nothing is written then. A region excluded before its outcome was kept
     is read again (its file is queued)."""

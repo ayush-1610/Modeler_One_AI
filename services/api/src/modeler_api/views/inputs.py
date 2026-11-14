@@ -98,7 +98,8 @@ class InputsPage(View):
     compound: list[CompoundRow]            # every model input on its tab
     studies: list[InputStudyRow]
     # route, formulation, food state, purpose, sex, PK-Sim population (harvested); for the client data's values, matrix
-    # (the intake vocabulary's words) and analyte (the brief's parent drug)
+    # (the intake vocabulary's words) and analyte (the brief's parent drug, a label: the Delivery page's `analytes`
+    # give an existing analyte's id)
     study_options: dict[str, list[str]]
     selection_rule: str                    # the source-selection rule that picked the values (D-32), with its status
     published_models: list[PublishedModel]  # the published OSP models of the drug, a source like any other

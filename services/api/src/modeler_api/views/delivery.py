@@ -216,7 +216,8 @@ class DeliveryConfirmationState(View):
     manifestation: str
     record_sha256: str
     landed: bool
-    current: bool                             # the record still describes the subject's values
+    current: bool                             # the record still describes the subject: its values, and no restore since
+                                              # undid a "not data" decision it binds (`confirmation_current`)
 
 
 class DeliveryEntity(View):
@@ -274,6 +275,7 @@ class DeliveryPage(View):
     totals: DeliveryTotals
     subjects: list[DeliverySubjectRow]
     unassigned: list[DeliveryValue]           # the "study not stated" values
+    analytes: list[DeliveryEntity]            # the ledger's analytes: `values:assign` takes one by its id (`analyte`)
     mappings: list[DeliveryMappingRow]
     request: list[RequestLineView]            # one line of the client request per item still to ask for
     rules: DeliveryRules
@@ -381,7 +383,7 @@ class DeliveryConfirmation(View):
     manifestation: str
     record_sha256: str
     supersedes: str | None
-    current: bool
+    current: bool                             # as `DeliveryConfirmationState.current`
     rules: DeliveryRules | None
     coverage: dict[str, int]                  # the record's coverage counts
     held: list[str] | None                    # what the landing held back; null for a blinded subject

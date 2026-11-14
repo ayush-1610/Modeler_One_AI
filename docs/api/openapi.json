@@ -4383,7 +4383,7 @@
         "type": "object"
       },
       "DeliveryAssignment": {
-        "description": "Values given their subject. A study is named by its id (`study`) or, when no file's label gave it one, by a\nnew label (`new_study`): one of them, and so a product (`product`, `new_product`), an arm of the study (`arm`,\n`new_arm`), a batch of the product (`batch`, `new_batch`) and an analyte (`analyte`, `new_analyte`). Ids are the\nledger's. Left out, the assignment clears the arm (the batch) the values had; the analyte the file gave stays.",
+        "description": "Values given their subject. A study is named by its id (`study`) or, when no file's label gave it one, by a\nnew label (`new_study`): one of them, and so a product (`product`, `new_product`), an arm of the study (`arm`,\n`new_arm`), a batch of the product (`batch`, `new_batch`) and an analyte (`analyte`, `new_analyte`). Ids are the\nledger's (an analyte's: the page's `analytes`). An assignment replaces the earlier one whole: left out, it clears\nthe arm (the batch) the values had, and the values have the analyte the file gave, not one an earlier assignment\nstated. A re-link that keeps a stated arm or analyte names it again.",
         "properties": {
           "analyte": {
             "anyOf": [
@@ -6837,6 +6837,13 @@
           "agents": {
             "$ref": "#/components/schemas/AgentsStatus"
           },
+          "analytes": {
+            "items": {
+              "$ref": "#/components/schemas/DeliveryEntity"
+            },
+            "title": "Analytes",
+            "type": "array"
+          },
           "deliveries": {
             "items": {
               "$ref": "#/components/schemas/DeliveryArrival"
@@ -6895,6 +6902,7 @@
           "totals",
           "subjects",
           "unassigned",
+          "analytes",
           "mappings",
           "request",
           "rules"
@@ -33261,7 +33269,7 @@
     },
     "/api/v1/projects/{project_id}/delivery/regions:exclude": {
       "post": {
-        "description": "A person's decision that regions of a file are not data (scope `regions`: any region, and what was read from\nit is set aside; `unread_prose`; `figures`), or that items outside every region are not (`outside`: their\nlocators). The file's coverage is recomputed.",
+        "description": "A person's decision that regions of a file are not data (scope `regions`: any region, and what was read from\nit is set aside; `unread_prose`; `figures`), or that items outside every region are not (`outside`: their\nlocators). The file's coverage is recomputed. 409 `CONFLICT`, naming the decision, for one a person's decision sets\naside already (restore it to decide again); nothing is written then.",
         "operationId": "exclude_regions_api_v1_projects__project_id__delivery_regions_exclude_post",
         "parameters": [
           {
@@ -33330,7 +33338,7 @@
     },
     "/api/v1/projects/{project_id}/delivery/regions:restore": {
       "post": {
-        "description": "Undo a person's \"not data\" decision, with the reason: an appended line that names the decisions it undoes (the\nearlier ones stay, audited `intake.region.restore`). What they set aside counts again: the values read from those\nregions are proposed again and the file's coverage is recomputed. 409 `CONFLICT` when one listed is not marked as\nnot data by a person (nothing to restore); nothing is written then. A region excluded before its outcome was kept\nis read again (its file is queued).",
+        "description": "Undo a person's \"not data\" decision, with the reason: an appended line that names the decisions it undoes,\nevery one in force on what it lists (the earlier lines stay, audited `intake.region.restore`). What they set aside counts again: the values read from those\nregions are proposed again and the file's coverage is recomputed. 409 `CONFLICT` when one listed is not marked as\nnot data by a person (nothing to restore); nothing is written then. A region excluded before its outcome was kept\nis read again (its file is queued).",
         "operationId": "restore_regions_api_v1_projects__project_id__delivery_regions_restore_post",
         "parameters": [
           {

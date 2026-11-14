@@ -296,7 +296,8 @@ class Assignment(_B):                        # as-n; values with no study (fact,
     """A person gives values their subject: a study (and its arm), a product (and its batch), or both. A study
     assignment sets the study and the arm, as before (an arm left out clears it); a product assignment sets the product
     and the batch. At least one of study or product; an arm needs its study, a batch its product (§13). `analyte`, when
-    given, states the values' analyte too (left out, the analyte the file gave stays)."""
+    given, states the values' analyte too (left out, the values have the analyte the file gave: the latest assignment
+    replaces an earlier one whole, an analyte it stated included)."""
 
     id: str
     targets: tuple[str, ...]

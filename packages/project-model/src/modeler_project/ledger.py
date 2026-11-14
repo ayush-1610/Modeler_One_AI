@@ -781,18 +781,19 @@ class Ledger(LedgerView):
         self.retire_orphans()                               # a derived fact never outlives its input
         return change
 
-    def restore(self, targets: Sequence[str], *, why: str, by: str) -> list[StatusChange]:
+    def restore(self, targets: Sequence[str], *, why: str, by: str, decision: str) -> list[StatusChange]:
         """Bring back facts, extracts or values of extracts that a person's decision set aside (a "not data" region
-        decision undone), with the reason: one status line `proposed` each (a target whose last status line already
-        says so for this reason is not written again). The caller says which: only what that decision excluded and
-        nothing changed since. The derived facts follow with `derive` (one set aside because an input had gone is
-        back when its inputs are).
+        decision undone by the review line `decision`, rd-n), with the reason: one status line `proposed` each, marked
+        `restored_by` that line (a target whose last status line already says so for this reason is not written
+        again). The caller says which: only what that decision excluded and nothing changed since. The derived facts
+        follow with `derive` (one set aside because an input had gone is back when its inputs are).
 
         A value of a restored extract that was excluded on its own (a choice that settled a conflict, an orphan) stays
-        excluded: the fold takes the later of a value's and its extract's status lines, so the value's own last line is
-        written again after the extract's, unchanged (its reason and who), in the same write."""
+        excluded, as its own last line says, by whom and why: the fold lets an extract's `restored_by` line override
+        none of its values' own lines. Nothing of theirs is written again."""
         if not why or not why.strip():
             raise ValueError("bringing a value back needs a reason")
+        check_id("line", decision)
         self.refresh()
         for target in targets:
             kind = "value" if "#" in target else "extract" if target.startswith("tx-") else "line"
@@ -816,12 +817,10 @@ class Ledger(LedgerView):
                 if earlier is not None and earlier.status == "proposed" and earlier.reason == reason:
                     found.append(earlier)
                     continue
-                change = StatusChange(target=target, status="proposed", reason=reason, by=by, at=now())
+                change = StatusChange(target=target, status="proposed", reason=reason, by=by, at=now(),
+                                      restored_by=decision)
                 found.append(change)
                 rows.append(("status", change.model_dump(mode="json")))
-                if target.startswith("tx-") and "#" not in target:
-                    rows += [("status", own.model_copy(update={"at": now()}).model_dump(mode="json"))
-                             for value_id, own in last.items() if value_id.startswith(f"{target}#") and own.status == "excluded"]
             return rows
 
         self.store.facts.append_if(decide)
