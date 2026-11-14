@@ -1390,6 +1390,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project_id}/delivery/mappings:propose": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Propose Mapping
+         * @description A person's layout for one table, which needs no mapping to exist yet: the first layout of a table no version
+         *     reads (unread, or its reading rejected), or a new version of its layout's mapping. The spec is checked by code on
+         *     that table (422 `MAPPING_INVALID` with the findings), stored as a person's version of the mapping of the table's
+         *     layout fingerprint (audited `intake.mapping.propose`), and the files that hold a table of that layout are read
+         *     again. It waits for approval like any version. 409: the table's source model is not cached, the region is no
+         *     table, or the spec is a version a person rejected.
+         */
+        post: operations["propose_mapping_api_v1_projects__project_id__delivery_mappings_propose_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project_id}/delivery/regions:exclude": {
         parameters: {
             query?: never;
@@ -1406,6 +1431,30 @@ export interface paths {
          *     locators). The file's coverage is recomputed.
          */
         post: operations["exclude_regions_api_v1_projects__project_id__delivery_regions_exclude_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/delivery/regions:restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Restore Regions
+         * @description Undo a person's "not data" decision, with the reason: an appended line that names the decisions it undoes (the
+         *     earlier ones stay, audited `intake.region.restore`). What they set aside counts again: the values read from those
+         *     regions are proposed again and the file's coverage is recomputed. 409 `CONFLICT` when one listed is not marked as
+         *     not data by a person (nothing to restore); nothing is written then. A region excluded before its outcome was kept
+         *     is read again (its file is queued).
+         */
+        post: operations["restore_regions_api_v1_projects__project_id__delivery_regions_restore_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1634,9 +1683,11 @@ export interface paths {
         put?: never;
         /**
          * Assign Values
-         * @description Give "study not stated" values their subject: a study (and its arm), a product (and its batch), or both. A
-         *     study or a product no file's label gave an entity is named here (`new_study`, `new_product`): it is created, never
-         *     as a duplicate of one that exists (409, naming it), and the values are assigned to it.
+         * @description Give "study not stated" values their subject: a study (and its arm), a product (and its batch), or both, and
+         *     their analyte when stated. A study, a product, an arm, a batch or an analyte no file's label gave an entity is
+         *     named here (`new_study`, `new_product`, `new_arm`, `new_batch`, `new_analyte`): it is created, never as a duplicate
+         *     of one that exists (409, naming it; an arm inside its study, a batch inside its product), and the values are
+         *     assigned to it.
          */
         post: operations["assign_values_api_v1_projects__project_id__delivery_values_assign_post"];
         delete?: never;
@@ -4103,7 +4154,8 @@ export interface components {
         };
         /**
          * CompoundRow
-         * @description One model input (`inputs_view.compound_rows`): kept, in conflict, held for a check, or missing.
+         * @description One model input (`inputs_view.compound_rows`): kept, in conflict, held for a check, missing (S0 needs it), or
+         *     empty (a model input the data plan owns with no value yet: a row to fill, not counted as missing).
          */
         CompoundRow: {
             /** Alternatives */
@@ -4128,7 +4180,7 @@ export interface components {
              * State
              * @enum {string}
              */
-            state: "kept" | "conflict" | "held" | "missing";
+            state: "kept" | "conflict" | "held" | "missing" | "empty";
             /** Status */
             status: string | null;
             /**
@@ -4524,14 +4576,23 @@ export interface components {
         /**
          * DeliveryAssignment
          * @description Values given their subject. A study is named by its id (`study`) or, when no file's label gave it one, by a
-         *     new label (`new_study`): one of them, and so a product (`product`, `new_product`). `arm` and `batch` are the
-         *     ledger's ids: left out, the assignment clears the arm (the batch) the values had.
+         *     new label (`new_study`): one of them, and so a product (`product`, `new_product`), an arm of the study (`arm`,
+         *     `new_arm`), a batch of the product (`batch`, `new_batch`) and an analyte (`analyte`, `new_analyte`). Ids are the
+         *     ledger's. Left out, the assignment clears the arm (the batch) the values had; the analyte the file gave stays.
          */
         DeliveryAssignment: {
+            /** Analyte */
+            analyte?: string | null;
             /** Arm */
             arm?: string | null;
             /** Batch */
             batch?: string | null;
+            /** New Analyte */
+            new_analyte?: string | null;
+            /** New Arm */
+            new_arm?: string | null;
+            /** New Batch */
+            new_batch?: string | null;
             /** New Product */
             new_product?: string | null;
             /** New Study */
@@ -4960,6 +5021,7 @@ export interface components {
             version: number;
             /** Versions */
             versions: components["schemas"]["DeliveryMappingVersion"][];
+            vocabulary: components["schemas"]["DeliveryMappingVocabulary"];
             /** Waiting */
             waiting: boolean;
         };
@@ -5051,6 +5113,25 @@ export interface components {
             /** Why */
             why: string;
         };
+        /**
+         * DeliveryMappingField
+         * @description A field of the ledger's vocabulary (`modeler_intake.fields`): what a value, a constant or a label is of.
+         */
+        DeliveryMappingField: {
+            /** Choices */
+            choices: string[];
+            /** Level */
+            level: string;
+            /** Name */
+            name: string;
+            /** Unit Class */
+            unit_class: string;
+            /**
+             * Value
+             * @enum {string}
+             */
+            value: "number" | "integer" | "choice" | "name" | "text";
+        };
         /** DeliveryMappingFinding */
         DeliveryMappingFinding: {
             /** Code */
@@ -5072,6 +5153,22 @@ export interface components {
             spread_kind: string | null;
             /** Statistic */
             statistic: string | null;
+        };
+        /**
+         * DeliveryMappingProposal
+         * @description A person's layout for a table named by its file and region: a `mapping/2` spec, checked by code on that table.
+         */
+        DeliveryMappingProposal: {
+            /** File Sha256 */
+            file_sha256: string;
+            /** Region Id */
+            region_id: string;
+            /** Spec */
+            spec: {
+                [key: string]: unknown;
+            };
+            /** Why */
+            why: string;
         };
         /** DeliveryMappingRejection */
         DeliveryMappingRejection: {
@@ -5196,6 +5293,37 @@ export interface components {
             version: number;
         };
         /**
+         * DeliveryMappingVocabulary
+         * @description The words a mapping spec (`mapping/2`) is written with, read from `modeler_intake.mapping_spec` and
+         *     `modeler_intake.fields`: a form that edits a layout offers these and never makes one up.
+         */
+        DeliveryMappingVocabulary: {
+            /** Cell Forms */
+            cell_forms: string[];
+            /** Cite Near */
+            cite_near: string[];
+            /** Conditions */
+            conditions: string[];
+            /** Fields */
+            fields: components["schemas"]["DeliveryMappingField"][];
+            /** Kinds */
+            kinds: string[];
+            /** Labels */
+            labels: string[];
+            /** Layouts */
+            layouts: string[];
+            /** Roles */
+            roles: string[];
+            /** Row Roles */
+            row_roles: string[];
+            /** Spread Kinds */
+            spread_kinds: string[];
+            /** Statistics */
+            statistics: string[];
+            /** Time References */
+            time_references: string[];
+        };
+        /**
          * DeliveryOutside
          * @description An item with a number outside every region that is not page furniture. `counted`: it is in the summary's
          *     `outside_numeric` (no mapped table cites it and no person accepted it as not data), so it blocks a confirmation.
@@ -5297,6 +5425,24 @@ export interface components {
             template: string;
             /** Values */
             values: string[];
+        };
+        /**
+         * DeliveryRestore
+         * @description Regions (or outside items) a person marked as not data, given back: the same ids and scope as the exclusion.
+         */
+        DeliveryRestore: {
+            /** File Sha256 */
+            file_sha256: string;
+            /** Regions */
+            regions: string[];
+            /**
+             * Scope
+             * @default regions
+             * @enum {string}
+             */
+            scope?: "regions" | "unread_prose" | "figures" | "outside";
+            /** Why */
+            why: string;
         };
         /**
          * DeliveryRules
@@ -5611,6 +5757,8 @@ export interface components {
             files: string[];
             /** Label */
             label: string;
+            /** Legacy Groups */
+            legacy_groups: string[];
             /** Loaded Elsewhere */
             loaded_elsewhere: string[];
             /** Subject */
@@ -15514,6 +15662,43 @@ export interface operations {
             };
         };
     };
+    propose_mapping_api_v1_projects__project_id__delivery_mappings_propose_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeliveryMappingProposal"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_DeliveryMapping_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     exclude_regions_api_v1_projects__project_id__delivery_regions_exclude_post: {
         parameters: {
             query?: never;
@@ -15528,6 +15713,43 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["DeliveryExclusion"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_DeliveryPage_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    restore_regions_api_v1_projects__project_id__delivery_regions_restore_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeliveryRestore"];
             };
         };
         responses: {

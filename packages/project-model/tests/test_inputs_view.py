@@ -14,9 +14,11 @@ from modeler_project.dataset_register import propose_dataset, set_study_facts
 from modeler_project.datasets import HUMAN_POPULATIONS, DatasetError, ObservedDataset, Origin, Series, new_dataset_id
 from modeler_project.evidence import EvidenceItem, EvidenceState, SourceRef, SourceType, new_id
 from modeler_project.evidence_register import decide, propose
-from modeler_project.inputs import assemble, set_choice, tab_of, todo
+from modeler_project.inputs import assemble, placement, set_choice, tab_of, todo
 from modeler_project.inputs_view import compound_rows, study_rows
-from modeler_project.requirements import derive
+from modeler_project.requirements import RequirementMatrix, derive
+from modeler_project.review import review_rows
+from pbpk_domain import parameters
 
 pytestmark = pytest.mark.req("T-49")
 
@@ -60,6 +62,37 @@ def test_each_input_shows_its_kept_value_its_agreeing_sources_and_what_waits(ws)
     assert fu["state"] == "conflict" and fu["value"] is None and {a["id"] for a in fu["alternatives"]} == {low.id, high.id}
     assert rows["phys.mw"]["state"] == "missing" and rows["phys.mw"]["sources"] == []
     assert (logp["req_id"], rows["phys.mw"]["req_id"]) == ("REQ-phys.logp", "REQ-phys.mw")   # where a typed value is filed
+
+
+def test_the_inputs_page_has_a_row_to_fill_for_every_model_input_the_data_plan_owns(ws):
+    """Plan 2026-11-14 §3 API 1: a row ("empty") for every exact registry id PK-Sim takes that an item of the data plan
+    owns, so a value no to-do asks for can be entered. Empty is not missing: the to-do list, S0 and the review table
+    are what they were, and nothing is made up (a family's members and an id no item owns are left out)."""
+    _propose(ws, "phys.logp", 2.1)
+    assemble(ws, by="u")
+    items = todo(ws)
+    before = compound_rows(ws, items)
+    rows = {r["id"]: r for r in compound_rows(ws, items, empty=True)}
+    matrix = RequirementMatrix.from_content(ws.latest(ArtifactKind.REQUIREMENTS, "main").content)
+    owned = {i for i in parameters.model_ids()
+             if any(i == item.target or i.startswith(item.target + ".") for item in matrix.items)}
+    empty = {k: r for k, r in rows.items() if r["state"] == "empty"}
+    assert set(empty) == owned - {r["id"] for r in before} and empty
+    assert {"perm.intestinal", "bind.partner", "elim.ehc_fraction"} <= set(empty)
+    assert not {"alt.select", "perm.cellular", "dist.partition_method"} & set(rows)          # no item owns them
+    for row in empty.values():
+        assert placement(row["id"]) == "model" and row["req_id"] is not None and row["tab"] == tab_of(row["id"])
+        assert (row["value"], row["sources"], row["alternatives"], row["message"]) == (None, [], [], None)
+    assert empty["perm.intestinal"]["req_id"] == "REQ-perm.intestinal"
+    # the rows that were there are unchanged; nothing new is missing; the review table is the CPF's alone
+    assert [r for r in rows.values() if r["state"] != "empty"] == before
+    assert todo(ws) == items and not any(i["kind"] == "missing" and i["target"] in empty for i in items)
+    assert [r["id"] for r in review_rows(ws)] == [r["id"] for r in before]
+    # a value kept fills the row: it is no longer empty
+    decide(ws, _propose(ws, "perm.intestinal", 1.5e-5, "cm/s").id, state=EvidenceState.ACCEPTED, reason="read", by="u")
+    assemble(ws, by="u")
+    filled = {r["id"]: r for r in compound_rows(ws, todo(ws), empty=True)}
+    assert filled["perm.intestinal"]["state"] == "kept"
 
 
 def test_the_tabs_follow_pksims_building_blocks():

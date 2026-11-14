@@ -1592,11 +1592,12 @@ def test_naming_an_entity_is_idempotent_for_the_same_person_under_two_threads_an
                                                "entity": file_study, "source": "person", "by": BY, "at": AT})
     with pytest.raises(ValueError, match="'EXA-401' exists already"):
         ledger.name_entity("study", "Protocol 77", by=BY, why="x")
-    # the same label is free for another type; only a study and a product are named; a name needs a key and a reason
+    # the same label is free for another type; an arm is named in its study (an analyte in none); a name needs a key
+    # and a reason
     product = ledger.name_entity("product", "ABC-1", by=BY, why="the client's name for the capsule")
     assert product.id.startswith("pr-") and (product.type, product.source) == ("product", None)
     for refusal in (lambda: ledger.name_entity("arm", "Cohort 1", by=BY, why="x"),
-                    lambda: ledger.name_entity("analyte", "M1", by=BY, why="x"),
+                    lambda: ledger.name_entity("analyte", "M1", by=BY, why="x", parent=file_study),
                     lambda: ledger.name_entity("study", " ", by=BY, why="x"),
                     lambda: ledger.name_entity("study", "!!", by=BY, why="x"),
                     lambda: ledger.name_entity("study", "B" * 81, by=BY, why="x"),
@@ -1611,6 +1612,41 @@ def test_naming_an_entity_is_idempotent_for_the_same_person_under_two_threads_an
     merge(ledger, type="study", from_id=merged.id, into_id=file_study, link_fact=None, why="the same protocol", by=BY)
     with pytest.raises(ValueError, match=rf"exists already \({file_study}\)"):
         Ledger(ws).name_entity("study", "ABC-9", by=BY, why="x")
+
+
+def test_an_arm_a_batch_and_an_analyte_are_named_in_their_parent_never_a_duplicate_there(ws):
+    """Plan 2026-11-14 §3 API 2: the Test and the Reference file of one study write the same subject and period, so a
+    person names an arm for each; a batch in its product; an analyte (no parent, as the resolver writes one)."""
+    book = Book(ws)
+    study, other = book.entity("study", "EXA-401"), book.entity("study", "EXA-402")
+    product = book.entity("product", "Comparamide tablet")
+    cohort = book.entity("arm", "Cohort 1", parent=study)
+    ledger = Ledger(ws)
+    test = ledger.name_entity("arm", "Test", parent=study, by=BY, why="the file name says Test")
+    assert (test.type, test.parent, test.source, test.by) == ("arm", study, None, BY) and test.id.startswith("arm-")
+    assert ledger.name_entity("arm", "test", parent=study, by=BY, why="again").id == test.id     # the same: written once
+    (created,) = events(ws, "intake.entity")
+    assert created.after == {"entity": test.id, "type": "arm", "label": "Test", "row_hash": _entity_lines(ws)[-1].hash,
+                             "parent": study}
+    # never a duplicate inside its study (the message names it); the same name in another study is that study's own
+    with pytest.raises(ValueError, match=rf"an arm named 'Cohort 1' exists already in 'EXA-401' \({cohort}\)"):
+        ledger.name_entity("arm", "COHORT 1", parent=study, by=BY, why="x")
+    assert ledger.name_entity("arm", "Cohort 1", parent=other, by=BY, why="its own cohort").parent == other
+    batch = ledger.name_entity("batch", "L9002", parent=product, by=BY, why="the certificate's batch")
+    analyte = ledger.name_entity("analyte", "M1", by=BY, why="the metabolite the assay reports")
+    assert (batch.parent, batch.id[:3], analyte.parent, analyte.id[:3]) == (product, "ba-", None, "an-")
+    with pytest.raises(ValueError, match=rf"an analyte named 'M1' exists already \({analyte.id}\)"):
+        ledger.name_entity("analyte", "m 1", by="u-other", why="x")
+    # an arm in a product, a batch in a study, a parent that is none, an arm with no study, an analyte with a parent
+    lines = len(_entity_lines(ws))
+    for refusal, error in ((lambda: ledger.name_entity("arm", "X", parent=product, by=BY, why="x"), ValueError),
+                           (lambda: ledger.name_entity("batch", "X", parent=study, by=BY, why="x"), ValueError),
+                           (lambda: ledger.name_entity("batch", "X", parent="pr-99999", by=BY, why="x"), KeyError),
+                           (lambda: ledger.name_entity("arm", "X", by=BY, why="x"), ValueError),
+                           (lambda: ledger.name_entity("analyte", "X", parent=study, by=BY, why="x"), ValueError)):
+        with pytest.raises(error):
+            refusal()
+    assert len(_entity_lines(ws)) == lines and IntakeStore(ws).entities.verify() == []
 
 
 def test_a_product_is_named_for_a_dissolution_table_that_states_only_its_batch(ws):

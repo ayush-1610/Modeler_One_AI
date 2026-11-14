@@ -24,7 +24,7 @@ cache whenever a person excludes regions or assigns values (§6.6).
 from __future__ import annotations
 
 import re
-from collections.abc import Iterable, Sequence
+from collections.abc import Container, Iterable, Sequence
 from datetime import UTC, datetime
 
 from modeler_intake.anchors import AnchorError, parse_locator
@@ -110,7 +110,11 @@ def file_coverage(file: FileRecord, doc: SourceDocument, outcomes: Sequence[Regi
     to it); else its outcome; else, with no outcome or an unread one, a rule of `coverage.excluded_by_rule` for its kind
     (a figure) excludes it with the rule's reason; else it is unread. A decision of scope `outside` accepts the outside items it lists as not data. A decision names regions by
     id, and a region's id does not depend on the parser version (§4.2), so a decision made under an earlier version
-    still applies to the same region after a re-parse. The source document must be the file's (else ValueError)."""
+    still applies to the same region after a re-parse. The source document must be the file's (else ValueError).
+
+    A decision with `restores` undoes, for what it lists, the decisions before it: the latest line naming a region
+    (or an outside item) decides, so a restore gives the region back its outcome (the one the exclusion kept in
+    `RegionOutcome.replaced`) and a later exclusion sets it aside again."""
     rules = rules or load_rules()
     if values_unassigned < 0:
         raise ValueError("values_unassigned is a count")
@@ -120,22 +124,30 @@ def file_coverage(file: FileRecord, doc: SourceDocument, outcomes: Sequence[Regi
     by_region = {o.region_id: o for o in outcomes}
     kinds = {region.id: region.kind for region in doc.regions}
     excluded_by: dict[str, RegionDecision] = {}
+    restored_by: dict[str, str] = {}
     for decision in mine:                                   # in log order: the latest decision naming a region wins
         if decision.scope not in _SCOPE_KINDS:
             continue
         allowed = _SCOPE_KINDS[decision.scope]
         for region_id in decision.regions:
             if allowed is None or kinds.get(region_id) in allowed:
-                excluded_by[region_id] = decision
+                if not decision.restores:
+                    excluded_by[region_id] = decision
+                    restored_by.pop(region_id, None)
+                elif excluded_by.pop(region_id, None) is not None:      # a restore: the region counts again
+                    restored_by[region_id] = decision.id
     applied: list[str] = []
     regions: list[RegionCoverage] = []
     for region in doc.regions:
-        outcome = by_region.get(region.id)
+        stored = by_region.get(region.id)
+        outcome = _before_decision(stored)
         decision = excluded_by.get(region.id)
         if decision is not None:
             applied.append(decision.id)
-            base = outcome or RegionOutcome(region_id=region.id, state="excluded", numeric_cells=region.numeric_cells)
-            outcome = base.model_copy(update={"state": "excluded", "reason": f"{decision.id}: {decision.why}"})
+            base = outcome or stored or RegionOutcome(region_id=region.id, state="excluded",
+                                                      numeric_cells=region.numeric_cells)
+            outcome = base.model_copy(update={"state": "excluded", "reason": f"{decision.id}: {decision.why}",
+                                              "replaced": outcome})
         elif outcome is None or outcome.state == "unread":
             rule = rules.coverage.excluded_by_rule.get(region.kind)
             if rule is not None:
@@ -147,15 +159,13 @@ def file_coverage(file: FileRecord, doc: SourceDocument, outcomes: Sequence[Regi
                                         reason="no mapping or reading was recorded for this region",
                                         numeric_cells=region.numeric_cells)
         regions.append(_region_coverage(region, outcome))
+    applied += [restored_by[r.id] for r in doc.regions if r.id in restored_by]
 
     cited = _Places(c for r in regions if r.outcome.state == "mapped" for c in r.outcome.cited)
-    accepted = _Places(())
     for decision in mine:
-        if decision.scope == "outside":
-            places = _Places(decision.regions)
-            if any(item.where in places for item in doc.outside):
-                applied.append(decision.id)
-            accepted = accepted | places
+        if decision.scope == "outside" and any(item.where in _Places(decision.regions) for item in doc.outside):
+            applied.append(decision.id)
+    accepted = {item.where for item in doc.outside if person_acceptance(mine, item.where) is not None}
     outside_numeric = sum(1 for item in doc.outside if _counts(item, cited, accepted))
 
     mapped = [r for r in regions if r.outcome.state == "mapped" and r.region.kind in _COUNTED]
@@ -216,12 +226,56 @@ def _region_coverage(region: Region, outcome: RegionOutcome) -> RegionCoverage:
                           excluded=set_aside, silent=outcome.unaccounted[:MAX_LOCATORS], silent_count=silent)
 
 
-def _counts(item: OutsideItem, cited: _Places, accepted: _Places) -> bool:
+def _counts(item: OutsideItem, cited: _Places, accepted: Container[str]) -> bool:
     """Whether an outside item counts in `outside_numeric`: it holds a number, is not page furniture, is not a line a
-    mapped region's constant cited, and no person accepted it as not data."""
+    mapped region's constant cited, and no person accepted it as not data (`accepted`: the accepted items' places)."""
     if not item.numeric or item.furniture:
         return False
     return item.where not in cited and item.where not in accepted
+
+
+# --- a person's decisions ----------------------------------------------------------------------------------------------
+
+
+_PERSON = re.compile(r"^rd-\d+: ")
+
+
+def _before_decision(outcome: RegionOutcome | None) -> RegionOutcome | None:
+    """A stored outcome as it was before a person's decision set its region aside (`RegionOutcome.replaced`): None
+    when the decision set aside a region with no outcome, or was applied before the outcome it replaced was kept."""
+    if outcome is None or outcome.state != "excluded" or not _PERSON.match(outcome.reason):
+        return outcome
+    return outcome.replaced
+
+
+def person_exclusion(decisions: Sequence[RegionDecision], region_id: str, kind: str) -> RegionDecision | None:
+    """The person's decision that sets this region (of this kind) aside now, as `file_coverage` applies them: the
+    latest decision of a file's region scope that covers the kind and lists the region, unless it is a restore (None
+    then, as with none). `decisions`: the file's, in log order."""
+    last = None
+    for decision in decisions:
+        if decision.scope in _SCOPE_KINDS and region_id in decision.regions \
+                and (_SCOPE_KINDS[decision.scope] is None or kind in _SCOPE_KINDS[decision.scope]):  # type: ignore[operator]
+            last = decision
+    return None if last is None or last.restores else last
+
+
+def person_acceptance(decisions: Sequence[RegionDecision], where: str) -> RegionDecision | None:
+    """The person's decision that accepts the outside item at `where` as not data now: the latest decision of scope
+    `outside` that names its place, unless it is a restore (the item counts again). `decisions`: the file's, in log
+    order."""
+    last = None
+    for decision in decisions:
+        if decision.scope == "outside" and where in _Places(decision.regions):
+            last = decision
+    return None if last is None or last.restores else last
+
+
+def replaced_outcome_lost(coverage: FileCoverage, region_id: str) -> bool:
+    """Whether a region a person set aside lost the outcome its decision replaced (a decision applied before
+    `RegionOutcome.replaced` was kept): restored, it shows as unread until its file is read again."""
+    found = next((r.outcome for r in coverage.regions if r.region.id == region_id), None)
+    return found is not None and found.state == "excluded" and bool(_PERSON.match(found.reason)) and found.replaced is None
 
 
 _SHEET_RANGE = re.compile(r"^s:'((?:[^']|'')+)'!([A-Z]{1,3})([1-9][0-9]*):([A-Z]{1,3})([1-9][0-9]*)$")

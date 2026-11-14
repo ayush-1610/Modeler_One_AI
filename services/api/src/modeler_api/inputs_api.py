@@ -18,6 +18,7 @@ from modeler_api.deps import Reader, StoreDep, Writer, blinded_studies, redact, 
 from modeler_api.reference_models import published_models
 from modeler_api.responses import answers, envelope
 from modeler_api.views.inputs import IdentityProposal, InputsPage
+from modeler_intake.fields import FIELDS as INTAKE_FIELDS
 from modeler_project import ArtifactKind, Workspace
 from modeler_project.brief import PURPOSES, ProjectBrief
 from modeler_project.datasets import HUMAN_POPULATIONS
@@ -43,14 +44,23 @@ from pbpk_domain.cpf.process_bindings import binding_candidates, is_process_id
 router = APIRouter(prefix="/api/v1", tags=["inputs"])
 
 # What a person may give a study (the Studies and Individuals tabs): the study record's own enums and the harvested
-# PK-Sim population databases, never free text the builder would not know.
+# PK-Sim population databases, never free text the builder would not know. With them, for the client data's values:
+# the intake vocabulary's matrix words (`modeler_intake.fields`, stated through Delivery's `:enter` with field "matrix")
+# and the analytes the brief names (`_study_options`).
 _STUDY_OPTIONS = {"route": [r.value for r in Route], "formulation": [f.value for f in FormulationKind],
                   "food_state": [f.value for f in FoodState], "purpose": list(PURPOSES), "sex": [s.value for s in Sex],
-                  "population": list(HUMAN_POPULATIONS)}
+                  "population": list(HUMAN_POPULATIONS), "matrix": list(INTAKE_FIELDS["matrix"].choices)}
 
 def _drug(ws: Workspace) -> str:
     brief = ws.latest(ArtifactKind.BRIEF, MAIN)
     return ProjectBrief.from_content(brief.content).drug_name if brief else ""
+
+
+def _study_options(ws: Workspace) -> dict[str, list[str]]:
+    """`_STUDY_OPTIONS` and `analyte`: the brief's parent drug, as the brief names it. No field of the brief names a
+    metabolite, so none is offered: a metabolite is named as a new analyte on Delivery (`values:assign`)."""
+    drug = _drug(ws).strip()
+    return {**_STUDY_OPTIONS, "analyte": [drug] if drug else []}
 
 
 def _view(ws: Workspace) -> dict[str, Any]:
@@ -75,9 +85,9 @@ def _view(ws: Workspace) -> dict[str, Any]:
         "readiness": version_view(ws, ready) if ready else None,
         "choices": choices(ws).model_dump(),
         "todo": open_items,
-        "compound": compound_rows(ws, open_items),
+        "compound": compound_rows(ws, open_items, empty=True),
         "studies": study_rows(ws, blinded_studies(ws)),
-        "study_options": _STUDY_OPTIONS,
+        "study_options": _study_options(ws),
         "selection_rule": f"source selection {rule().version} ({rule().status})",
         "published_models": [{"id": tid, "name": spec["name"]} for tid, spec in published_models(_drug(ws))],
     }

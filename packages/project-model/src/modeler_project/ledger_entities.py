@@ -57,6 +57,11 @@ def now() -> str:
     return datetime.now(UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
 
+def with_article(kind: str) -> str:
+    """An entity type as a message names it: "a study", "an arm", "an analyte"."""
+    return f"{'an' if kind[:1] in 'aeiou' else 'a'} {kind}"
+
+
 def label_key(label: Any) -> str:
     """A label as resolution compares it: its `name_key`, with a "." kept between two runs of digits the label writes
     apart. `name_key` alone makes "EXA-1-2" and "EXA-12" (or "230-23" and "23023") one name; the digits of a study, an

@@ -22,7 +22,7 @@ import time
 import types
 import uuid
 from pathlib import Path
-from typing import Any
+from typing import Any, get_args
 
 import pytest
 from fastapi.routing import APIRoute
@@ -37,7 +37,9 @@ from modeler_api.main import app
 from modeler_api.views.common import View
 from modeler_intake import synthetic
 from modeler_intake.document_reading import name_key
+from modeler_intake.fields import CONDITION_FIELDS, FIELDS, LABEL_FIELDS, SpreadKind, Statistic
 from modeler_intake.mapping.fingerprint import layout_fingerprint
+from modeler_intake.mapping_spec import Role
 from modeler_intake.source import parse_document, region_grid
 from modeler_project import (
     ArtifactKind,
@@ -59,9 +61,10 @@ from modeler_project.datasets import ObservedDataset, Origin, Series
 from modeler_project.evidence import EvidenceState, SourceRef
 from modeler_project.intake_rules import RULES_SHA256
 from modeler_project.intake_store import IntakeStore
+from modeler_project.ledger import Ledger
 from modeler_project.ledger_models import Entity
 from modeler_project.ledger_view import LedgerView
-from modeler_project.mapping_cache import MappingCache
+from modeler_project.mapping_cache import MappingCache, mapping_id_of
 from modeler_project.requirements import derive
 from modeler_storage.filestore import FileWriteStore
 
@@ -1124,11 +1127,21 @@ def test_a_blinded_studys_values_blq_counts_and_source_cells_are_withheld_on_eve
         p.get(mapping), p.get(mapping, version=1), p.post(f"{mapping}:approve", {"version": 1, "note": "again"}),
         p.get(f"delivery/mappings/{pdf_value['mapping_id']}"),
         _accept_note(p, workbook),
+        p.post("delivery/regions:restore", {"file_sha256": _sha(workbook.data), "regions": [OUTSIDE_NOTE],
+                                            "scope": "outside", "why": "a number after all"}),
     ]
     p.settle()
     for answer in answers:
         assert answer.status_code == 200, (answer.request.url, answer.text[:300])
         assert _leaks(secrets, answer.text) == [], answer.request.url
+    # a person's layout refused on a blinded study's table: the validator's findings name no digit of it
+    region_id = next(t["region_id"] for t in open_card["tables"] if any(v["id"] == value["id"] for v in t["values"]))
+    broken = {**p.get(mapping).json()["data"]["spec"], "first_data_row": 99}
+    refused = p.post("delivery/mappings:propose", {"file_sha256": value["file_sha256"], "region_id": region_id,
+                                                   "spec": broken, "why": "a first layout"})
+    assert refused.status_code == 422 and refused.json()["detail"]["code"] == "MAPPING_INVALID"
+    assert not any(ch.isdigit() for f in refused.json()["detail"]["findings"] for ch in f["message"])
+    assert _leaks(secrets, refused.text) == []
     # the card: every value of the study without what D-15 withholds, and no way to count the values below the LLOQ
     card = p.card(path)
     rows = [v for t in card["tables"] for v in t["values"]]
@@ -1292,6 +1305,8 @@ def test_in_legacy_the_page_answers_enabled_false_and_no_other_delivery_route_do
     posts = {
         "delivery:run": None, "delivery/values:assign": {"targets": ["f-1"], "study": "st-1", **why},
         "delivery/regions:exclude": {"file_sha256": sha, "regions": ["rg-0123456789"], **why},
+        "delivery/regions:restore": {"file_sha256": sha, "regions": ["rg-0123456789"], **why},
+        "delivery/mappings:propose": {"file_sha256": sha, "region_id": "rg-0123456789", "spec": {}, **why},
         "delivery/mappings/mp-0123456789ab:approve": {"version": 1},
         "delivery/mappings/mp-0123456789ab:reject": {"version": 1, **why},
         "delivery/mappings/mp-0123456789ab:edit": {"spec": {}, **why},
@@ -1308,7 +1323,7 @@ def test_in_legacy_the_page_answers_enabled_false_and_no_other_delivery_route_do
         assert answer.json()["detail"]["code"] == "INTAKE_PIPELINE_OFF"
     # every /delivery route but the page was asked, and nothing was written: no intake folder, no event
     mounted = {(m, r.path) for r in client_api.router.routes if isinstance(r, APIRoute) and "/delivery" in r.path for m in r.methods}
-    assert len(mounted) == len(posts) + len(gets) + 1 == 18
+    assert len(mounted) == len(posts) + len(gets) + 1 == 20
     assert not (Path(p.store.root) / "t1" / "projects" / "p1" / "intake").exists()
     assert [e.action for e in p.events() if e.action.startswith(("intake.", "signature."))] == []
 
@@ -1389,13 +1404,13 @@ def test_delivery_routes_defines_no_router_and_imports_no_module_that_defines_on
     # its handlers are client_api's routes: mounted on that router, covered by the response ratchet
     assert not hasattr(delivery_routes, "router")
     handlers = {r.endpoint for r in client_api.router.routes if isinstance(r, APIRoute) and "/delivery" in r.path}
-    assert len(handlers) == 18 and all(h.__module__ == "modeler_api.delivery_routes" for h in handlers)
+    assert len(handlers) == 20 and all(h.__module__ == "modeler_api.delivery_routes" for h in handlers)
 
 
 def test_every_delivery_route_and_the_admin_pipeline_route_has_a_typed_answer():
     routes = [r for router in (client_api.router, admin_api.router) for r in router.routes
               if isinstance(r, APIRoute) and ("/delivery" in r.path or r.path.endswith("/admin/pipeline"))]
-    assert len(routes) == 19
+    assert len(routes) == 21
     names = set()
     for route in routes:
         model = route.response_model
@@ -1963,3 +1978,252 @@ def test_a_subjects_card_is_computed_once_per_request(project, monkeypatch):
     assert len(calls) == 1                                    # the card and its blockers: the checks run once
     calls.clear()
     assert p.post(f"{path}/spot-check:draw").status_code == 200 and calls == []      # a draw needs no card
+
+
+# --- what a person fills in (plan 2026-11-14 §3): arms, batches, analytes; a table's first layout; demographics;
+# --- a "not data" decision restored; the client-review groups of the same source
+
+ODD = b"Hrs (h),Result (ng/mL)\n0.5,1.2\n1,2.3\n2,3.4\n"     # a table no rule reads: unread, with no model configured
+ODD_SPEC = {"schema": "mapping/2", "kind": "pk_summary", "layout": "long", "header_rows": 1, "first_data_row": 2,
+            "field": "concentration", "statistic": "arithmetic_mean", "time_unit": "h", "time_unit_cite": {"row": 1, "column": 1},
+            "value_unit": "ng/mL", "value_unit_cite": {"row": 1, "column": 2},
+            "columns": [{"column": 1, "role": "time"}, {"column": 2, "role": "value"}]}
+
+
+@pytest.mark.req("T-47", "F-404", "T-05")
+def test_values_are_assigned_to_a_new_arm_batch_or_analyte_never_a_duplicate(project):
+    p = project()
+    p.deliver(synthetic.messy_workbook(), synthetic.pdf_report(unruled_table=False), ("loose-profile.csv", LOOSE))
+    page = p.page()
+    extract = page["unassigned"][0]["id"].split("#")[0]
+    subjects = {s["label"]: s for s in page["subjects"]}
+    study, product = subjects["230-26"], subjects["Exampleamide IR tablet"]
+    cohort = next(a for a in study["arms"] if a["label"] == "Cohort 1")
+    body = {"targets": [extract], "study": study["subject"], "why": "the Test arm, per the file name"}
+    entities = len(IntakeStore(p.ws).entities.entries("entity"))
+    # refused, and nothing is written: an arm with no study; an arm by id and by name; a batch with no product; a name
+    # too long; an analyte id that is no analyte's; an analyte by id and by name; an arm the study has, however spelt
+    for wrong, status in (({"study": None, "product": product["subject"], "new_arm": "Test"}, 422),
+                          ({"arm": cohort["id"], "new_arm": "Test"}, 422), ({"new_batch": "L2302"}, 422),
+                          ({"new_arm": "T" * 81}, 422), ({"analyte": study["subject"]}, 404),
+                          ({"new_analyte": "M1", "analyte": "an-99999"}, 422), ({"new_arm": "COHORT-1"}, 409)):
+        refused = p.post("delivery/values:assign", {**body, **wrong})
+        assert refused.status_code == status, (wrong, refused.text)
+    duplicate = p.post("delivery/values:assign", {**body, "new_arm": "cohort 1"}).json()["detail"]
+    assert duplicate["code"] == "CONFLICT"
+    assert f"an arm named 'Cohort 1' exists already in '230-26' ({cohort['id']})" in duplicate["message"]
+    assert len(IntakeStore(p.ws).entities.entries("entity")) == entities and p.events("intake.entity") == []
+    assert p.events("intake.assign") == []
+
+    # named: the arm is created in its study, the analyte beside it, and the values are theirs
+    assigned = p.post("delivery/values:assign", {**body, "new_arm": "Test", "new_analyte": "M1"})
+    assert assigned.status_code == 200, assigned.text
+    after = assigned.json()["data"]
+    row = next(s for s in after["subjects"] if s["subject"] == study["subject"])
+    test = next(a for a in row["arms"] if a["label"] == "Test")
+    assert [a["label"] for a in row["arms"]] == ["Cohort 1", "Cohort 2", "Test"] and after["unassigned"] == []
+    view = LedgerView(p.ws)
+    values = [v for v in view.values(study=study["subject"]) if v.id.startswith(extract)]
+    analyte = view.entity(values[0].entity.analyte)
+    assert len(values) == 4 and {v.entity.arm for v in values} == {test["id"]} and analyte.label == "M1"
+    assert (analyte.type, analyte.parent, analyte.source) == ("analyte", None, None)
+    assert [(e.after["type"], e.after["label"], e.after.get("parent")) for e in p.events("intake.entity")] == [
+        ("arm", "Test", study["subject"]), ("analyte", "M1", None)]
+    again = p.post("delivery/values:assign", {**body, "new_arm": "test"})
+    assert again.status_code == 409 and test["id"] in again.json()["detail"]["message"]
+    assert p.post("delivery/values:assign", {**body, "new_analyte": "m-1"}).status_code == 409
+
+    # a batch in its product, never a duplicate there; an analyte by its id. The assignment replaces the earlier one
+    batch = {"targets": [extract], "product": product["subject"], "analyte": analyte.id, "why": "the client's new batch"}
+    assert p.post("delivery/values:assign", {**batch, "new_batch": "l2301"}).status_code == 409
+    moved = p.post("delivery/values:assign", {**batch, "new_batch": "L2302"})
+    assert moved.status_code == 200, moved.text
+    row = next(s for s in moved.json()["data"]["subjects"] if s["subject"] == product["subject"])
+    assert [b["label"] for b in row["batches"]] == ["L2301", "L2302"]
+    values = [v for v in LedgerView(p.ws).values(product=product["subject"]) if v.id.startswith(extract)]
+    assert len(values) == 4 and {v.entity.analyte for v in values} == {analyte.id} and {v.entity.study for v in values} == {None}
+    # a new study and its first arm, in one assignment
+    fresh = p.post("delivery/values:assign", {"targets": [extract], "new_study": "ABC-7", "new_arm": "Reference",
+                                              "why": "the title says study ABC-7, reference arm"})
+    assert fresh.status_code == 200, fresh.text
+    row = next(s for s in fresh.json()["data"]["subjects"] if s["label"] == "ABC-7")
+    assert [a["label"] for a in row["arms"]] == ["Reference"]
+    # what the Inputs page offers for them: the brief's parent drug and the intake vocabulary's matrix words
+    options = p.get("inputs").json()["data"]["study_options"]
+    assert options["analyte"] == [synthetic.DRUG] and options["matrix"] == list(FIELDS["matrix"].choices)
+
+
+@pytest.mark.req("T-47", "F-404", "T-05")
+def test_a_table_no_layout_reads_gets_a_persons_first_layout_checked_on_it_and_read(project):
+    p = project()
+    p.deliver(("odd-profile.csv", ODD))
+    sha = _sha(ODD)
+    page = p.page()
+    (region,) = page["deliveries"][0]["files"][0]["regions"]
+    assert (region["state"], region["mapping_id"]) == ("unread", None) and page["mappings"] == []
+    assert page["totals"]["silent_loss"] == 6
+    body = {"file_sha256": sha, "region_id": region["region_id"], "spec": ODD_SPEC, "why": "hours, and the mean level"}
+    # refused, and nothing is written: a reader; no reason; a file never sent; a region it has not; an id that is none;
+    # not a spec; a spec that does not read the table (the validator's findings)
+    assert p.post("delivery/mappings:propose", body, token="viewer").status_code == 403
+    assert p.post("delivery/mappings:propose", {**body, "why": ""}).status_code == 422
+    assert p.post("delivery/mappings:propose", {**body, "file_sha256": _sha(b"never sent")}).status_code == 404
+    assert p.post("delivery/mappings:propose", {**body, "region_id": "rg-0123456789"}).status_code == 404
+    assert p.post("delivery/mappings:propose", {**body, "region_id": "../rg-1"}).status_code == 422
+    assert p.post("delivery/mappings:propose", {**body, "spec": {**ODD_SPEC, "layout": "sideways"}}).status_code == 422
+    unreadable = p.post("delivery/mappings:propose", {**body, "spec": {**ODD_SPEC, "columns": [{"column": 2, "role": "value"}]}})
+    assert unreadable.status_code == 422 and unreadable.json()["detail"]["code"] == "MAPPING_INVALID"
+    assert "LAYOUT" in [f["code"] for f in unreadable.json()["detail"]["findings"]]
+    assert MappingCache(p.ws).entries() == [] and p.events("intake.mapping.propose") == []
+
+    # proposed: a person's version of the table's layout, its file read again
+    proposed = p.post("delivery/mappings:propose", body)
+    assert proposed.status_code == 200, proposed.text
+    mapping = proposed.json()["data"]
+    doc = parse_document(ODD, "odd-profile.csv")
+    assert mapping["mapping_id"] == mapping_id_of(layout_fingerprint(region_grid(doc, region["region_id"])))
+    assert (mapping["version"], mapping["status"], mapping["origin"], mapping["origin_detail"], mapping["queued"]) == (
+        1, "proposed", "person", "u1", [sha])
+    assert mapping["findings"] == [] and mapping["sample"]["file"] == "odd-profile.csv"
+    (event,) = p.events("intake.mapping.propose")
+    line = IntakeStore(p.ws).mappings.entries("entry")[-1]
+    assert event.after == {"mapping_id": mapping["mapping_id"], "version": 1, "file_sha256": sha,
+                           "region_id": region["region_id"], "spec_sha256": event.after["spec_sha256"], "row_hash": line.hash}
+    assert event.reason == "hours, and the mean level"
+    # the words a form edits a layout with: the intake package's own, never made up in the web
+    vocabulary = mapping["vocabulary"]
+    assert vocabulary["roles"] == list(get_args(Role)) and vocabulary["statistics"] == list(get_args(Statistic))
+    assert vocabulary["spread_kinds"] == list(get_args(SpreadKind)) and vocabulary["cite_near"] == ["caption", "above", "below"]
+    assert vocabulary["time_references"] == ["first_dose", "last_dose", "occasion_dose"] and "pk_summary" in vocabulary["kinds"]
+    fields = {f["name"]: f for f in vocabulary["fields"]}
+    assert set(fields) == set(FIELDS) and fields["matrix"]["choices"] == list(FIELDS["matrix"].choices)
+    assert (fields["concentration"]["level"], fields["concentration"]["unit_class"]) == ("observation", "concentration")
+    assert vocabulary["conditions"] == list(CONDITION_FIELDS) and vocabulary["labels"] == list(LABEL_FIELDS)
+    assert p.get(f"delivery/mappings/{mapping['mapping_id']}", "viewer").json()["data"]["vocabulary"] == vocabulary
+    p.settle()
+    page = p.page()
+    (region,) = page["deliveries"][0]["files"][0]["regions"]
+    assert (region["state"], region["origin"], region["mapping_version"], region["mapping_status"]) == (
+        "mapped", "cache", 1, "proposed")
+    assert page["totals"]["silent_loss"] == 0 and [v["value"] for v in page["unassigned"]] == [1.2, 2.3, 3.4]
+    assert [(m["mapping_id"], m["origin"]) for m in page["mappings"]] == [(mapping["mapping_id"], "person")]
+    # the same spec again is that version: nothing new is written
+    same = p.post("delivery/mappings:propose", body)
+    assert same.status_code == 200 and same.json()["data"]["version"] == 1 and len(p.events("intake.mapping.propose")) == 1
+    p.settle()
+    # once a person rejected it, the same spec is refused
+    assert p.post(f"delivery/mappings/{mapping['mapping_id']}:reject", {"version": 1, "why": "the unit is µg/L"}).status_code == 200
+    p.settle()
+    refused = p.post("delivery/mappings:propose", body)
+    assert refused.status_code == 409 and "rejected" in refused.json()["detail"]["message"]
+
+
+@pytest.mark.req("T-47", "F-404")
+def test_demographics_a_person_enters_on_the_card_are_found_for_the_study(project):
+    p = project()
+    p.deliver(synthetic.messy_workbook())
+    path = p.subject("230-23")
+
+    def demographics(card: dict[str, Any]) -> dict[str, Any]:
+        return next(r for r in card["requirements"] if r["req_id"] == "REQ-sys.demographics")
+
+    assert demographics(p.card(path))["status"] == "missing"
+    for field, value in (("population", "healthy"), ("age_mean", 34.5)):            # field names: modeler_intake.fields
+        answer = p.post(f"{path}:enter", {"field": field, "value": value, "why": "from the protocol synopsis"})
+        assert answer.status_code == 200, answer.text
+    card = p.card(path)
+    found = demographics(card)
+    entered = {v["id"] for t in card["tables"] if t["id"] == "facts:entered" for v in t["values"]}
+    assert found["status"] == "found" and len(found["values"]) == 2 and set(found["values"]) <= entered
+    assert not [c for c in card["checks"] if c["code"] == "REQUIRED_ITEM_UNDISPOSED" and not c["overridden"]
+                and "REQ-sys.demographics" in (c["message"] or "")]
+    assert not [line for line in p.page()["request"] if line["req_id"] == "REQ-sys.demographics" and "230-23" in line["what"]]
+
+
+@pytest.mark.req("T-47", "F-404", "T-05")
+def test_a_persons_not_data_decision_is_restored_with_a_reason_and_the_coverage_follows(project):
+    p = project()
+    workbook = synthetic.messy_workbook()
+    p.deliver(workbook, ("loose-profile.csv", LOOSE))
+    loose = _sha(LOOSE)
+
+    def file(page: dict[str, Any]) -> dict[str, Any]:
+        return next(f for d in page["deliveries"] for f in d["files"] if f["sha256"] == loose)
+
+    # one value of the table set aside on its own first (as a choice that settles a conflict does): it stays so
+    first = p.page()["unassigned"]
+    Ledger(p.ws).exclude(first[1]["id"], why="the client corrected this point", by="u1")
+    assert p.post("delivery/values:assign", {"targets": [first[0]["id"]], "new_study": "LOOSE-1",
+                                             "why": "recompute the coverage"}).status_code == 200
+    page = p.page()
+    (region,) = file(page)["regions"]
+    values = [v["id"] for v in page["unassigned"]]
+    assert first[1]["id"] not in values and len(values) == 2
+    body = {"file_sha256": loose, "regions": [region["region_id"]], "scope": "regions", "why": "data after all: the fed means"}
+    nothing = p.post("delivery/regions:restore", body)                          # nothing is marked as not data yet
+    assert nothing.status_code == 409 and nothing.json()["detail"]["code"] == "CONFLICT"
+    assert "nothing to restore" in nothing.json()["detail"]["message"]
+    excluded = p.post("delivery/regions:exclude", {**body, "why": "a duplicate of the Fed sheet"}).json()["data"]
+    assert file(excluded)["regions"][0]["state"] == "excluded" and excluded["unassigned"] == []
+    # refused, and nothing is written: a reader; no reason; a file never sent; a region it has not; a table under
+    # scope figures; an outside item no person accepted
+    assert p.post("delivery/regions:restore", body, token="viewer").status_code == 403
+    assert p.post("delivery/regions:restore", {**body, "why": ""}).status_code == 422
+    assert p.post("delivery/regions:restore", {**body, "file_sha256": _sha(b"never sent")}).status_code == 404
+    assert p.post("delivery/regions:restore", {**body, "regions": ["rg-0123456789"]}).status_code == 404
+    assert p.post("delivery/regions:restore", {**body, "scope": "figures"}).status_code == 422
+    note = {"file_sha256": _sha(workbook.data), "regions": [OUTSIDE_NOTE], "scope": "outside", "why": "it is data"}
+    assert p.post("delivery/regions:restore", note).status_code == 409
+    assert p.events("intake.region.restore") == [] and len(IntakeStore(p.ws).review.entries("region")) == 1
+
+    # restored: the table is read as before, its values are back, and the coverage follows
+    restored = p.post("delivery/regions:restore", body)
+    assert restored.status_code == 200, restored.text
+    after = restored.json()["data"]
+    (back,) = file(after)["regions"]
+    assert (back["state"], back["origin"], back["mapping_id"], back["mapping_status"]) == (
+        "mapped", region["origin"], region["mapping_id"], "proposed")
+    assert file(after)["coverage"]["regions_excluded"] == 0 and file(after)["coverage"] == file(page)["coverage"]
+    assert [v["id"] for v in after["unassigned"]] == values and after["totals"] == page["totals"]
+    assert after["running"] is False                                            # nothing had to be read again
+    # appended, never deleted: the exclusion stays, the restore names it; one audit event with the line's hash
+    lines = IntakeStore(p.ws).review.entries("region")
+    assert [line.body.get("restores") for line in lines] == [None, [lines[0].body["id"]]]
+    (event,) = p.events("intake.region.restore")
+    assert event.after == {"id": lines[1].body["id"], "restores": [lines[0].body["id"]], "row_hash": lines[1].hash}
+    assert event.reason == body["why"]
+    assert p.post("delivery/regions:restore", body).status_code == 409          # restored already: nothing to restore
+
+    # a decision applied before the outcome it replaced was kept: restored, its file is read again
+    assert p.post("delivery/regions:exclude", {**body, "why": "a duplicate after all"}).status_code == 200
+    store = IntakeStore(p.ws)
+    stored = store.coverage(loose)
+    store.put_coverage(stored.model_copy(update={"regions": tuple(
+        r.model_copy(update={"outcome": r.outcome.model_copy(update={"replaced": None})}) for r in stored.regions)}))
+    runs = len(intake_pipeline.runs(p.ws))
+    assert p.post("delivery/regions:restore", body).status_code == 200
+    p.settle()
+    assert len(intake_pipeline.runs(p.ws)) == runs + 1
+    (back,) = file(p.page())["regions"]
+    assert (back["state"], back["mapping_id"]) == ("mapped", region["mapping_id"])
+
+    # an outside number accepted as not data is given back to the count the same way
+    assert _accept_note(p, workbook).json()["data"]["totals"]["outside_numeric"] == 0
+    counted = p.post("delivery/regions:restore", note)
+    assert counted.status_code == 200, counted.text
+    assert counted.json()["data"]["totals"]["outside_numeric"] == 1
+    book = next(f for d in counted.json()["data"]["deliveries"] for f in d["files"] if f["name"] == workbook.name)
+    assert [o["counted"] for o in book["outside"] if o["where"] == OUTSIDE_NOTE] == [True]
+
+
+@pytest.mark.req("T-47", "F-404")
+def test_a_subject_names_the_client_review_groups_of_the_same_source(project):
+    p = project()
+    workbook = synthetic.messy_workbook()
+    p.deliver(workbook)
+    assert all(s["legacy_groups"] == [] for s in p.page()["subjects"])
+    legacy = _legacy_dataset(p, workbook, "230-23", "Fasting", "joined")
+    rows = {s["label"]: s for s in p.page()["subjects"]}
+    assert rows["230-23"]["loaded_elsewhere"] == [legacy.id]
+    assert rows["230-23"]["legacy_groups"] == [_group_of(p, legacy.id)["id"]]
+    assert all(row["legacy_groups"] == [] for row in rows.values() if not row["loaded_elsewhere"])

@@ -235,6 +235,7 @@ class DeliverySubjectRow(View):
     deliveries: list[str]
     confirmation: DeliveryConfirmationState | None
     loaded_elsewhere: list[str]               # legacy client datasets of the same source, not rejected
+    legacy_groups: list[str]                  # the client-review groups (`/client-review` ids) holding those datasets
     confirm_on: Literal["delivery", "client-review"]
     arms: list[DeliveryEntity]                # a study's arms (for `values:assign`)
     batches: list[DeliveryEntity]             # a product's batches
@@ -597,6 +598,34 @@ class DeliveryMappingVersion(View):
     decisions: list[DeliveryMappingDecision]
 
 
+class DeliveryMappingField(View):
+    """A field of the ledger's vocabulary (`modeler_intake.fields`): what a value, a constant or a label is of."""
+
+    name: str
+    value: Literal["number", "integer", "choice", "name", "text"]
+    level: str                                # study | arm | product | batch | analyte | observation | compound | condition | label
+    unit_class: str                           # mass | concentration | time | percentage | ratio | other | none
+    choices: list[str]                        # a choice field's choices
+
+
+class DeliveryMappingVocabulary(View):
+    """The words a mapping spec (`mapping/2`) is written with, read from `modeler_intake.mapping_spec` and
+    `modeler_intake.fields`: a form that edits a layout offers these and never makes one up."""
+
+    kinds: list[str]                          # what a table is (MappingSpec.kind)
+    layouts: list[str]
+    roles: list[str]                          # a column's role
+    row_roles: list[str]                      # a row rule's role
+    cell_forms: list[str]
+    statistics: list[str]
+    spread_kinds: list[str]
+    time_references: list[str]
+    cite_near: list[str]                      # where a context line is cited: caption, above, below
+    fields: list[DeliveryMappingField]        # a CPF id of the parameter registry is a field too (not listed)
+    conditions: list[str]                     # a condition column's or series' name
+    labels: list[str]                         # the labels a column may write (subject, period ...)
+
+
 class DeliveryMapping(View):
     mapping_id: str
     version: int                              # the version shown
@@ -631,3 +660,4 @@ class DeliveryMapping(View):
     used_in: list[DeliveryMappingUse]
     waiting: bool                             # a file that uses it is queued or being read
     queued: list[str]                         # sha256s of the files queued again by this request
+    vocabulary: DeliveryMappingVocabulary     # the words a spec may use, for a form that edits it

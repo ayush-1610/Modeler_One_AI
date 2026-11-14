@@ -76,6 +76,7 @@ from modeler_project.ledger_entities import (
     now,
     resolve,
     review_targets,
+    with_article,
 )
 from modeler_project.ledger_models import (
     Entity,
@@ -780,6 +781,53 @@ class Ledger(LedgerView):
         self.retire_orphans()                               # a derived fact never outlives its input
         return change
 
+    def restore(self, targets: Sequence[str], *, why: str, by: str) -> list[StatusChange]:
+        """Bring back facts, extracts or values of extracts that a person's decision set aside (a "not data" region
+        decision undone), with the reason: one status line `proposed` each (a target whose last status line already
+        says so for this reason is not written again). The caller says which: only what that decision excluded and
+        nothing changed since. The derived facts follow with `derive` (one set aside because an input had gone is
+        back when its inputs are).
+
+        A value of a restored extract that was excluded on its own (a choice that settled a conflict, an orphan) stays
+        excluded: the fold takes the later of a value's and its extract's status lines, so the value's own last line is
+        written again after the extract's, unchanged (its reason and who), in the same write."""
+        if not why or not why.strip():
+            raise ValueError("bringing a value back needs a reason")
+        self.refresh()
+        for target in targets:
+            kind = "value" if "#" in target else "extract" if target.startswith("tx-") else "line"
+            check_id(kind, target)
+            known = self.value(target) is not None if kind != "extract" else any(
+                v.id.startswith(f"{target}#") for v in self.values(active=False))
+            if not known:
+                raise KeyError(target)
+        reason = why.strip()
+        found: list[StatusChange] = []
+
+        def decide(entries: list[ChainEntry]) -> list[tuple[str, Any]]:
+            last: dict[str, StatusChange] = {}
+            for line in entries:
+                if line.kind == "status":
+                    change = StatusChange.model_validate(line.body)
+                    last[change.target] = change
+            rows: list[tuple[str, Any]] = []
+            for target in dict.fromkeys(targets):
+                earlier = last.get(target)
+                if earlier is not None and earlier.status == "proposed" and earlier.reason == reason:
+                    found.append(earlier)
+                    continue
+                change = StatusChange(target=target, status="proposed", reason=reason, by=by, at=now())
+                found.append(change)
+                rows.append(("status", change.model_dump(mode="json")))
+                if target.startswith("tx-") and "#" not in target:
+                    rows += [("status", own.model_copy(update={"at": now()}).model_dump(mode="json"))
+                             for value_id, own in last.items() if value_id.startswith(f"{target}#") and own.status == "excluded"]
+            return rows
+
+        self.store.facts.append_if(decide)
+        self.refresh()
+        return found
+
     def _exclude(self, targets: Sequence[str], reason: str, by: str) -> list[StatusChange]:
         return self._status(targets, "excluded", reason, by)
 
@@ -812,51 +860,69 @@ class Ledger(LedgerView):
 
     # --- a study or a product a person names ----------------------------------------------------------------------
 
-    def name_entity(self, type: EntityType, label: str, *, by: str, why: str) -> Entity:
-        """A person names a study or a product that no file's label gave an entity (a table whose title the rules do
-        not read as a study id, a dissolution table that names only its batch), so that its values can be assigned to
-        it. One `entity` line, written as the resolver writes one (`ledger_entities.resolve`: the label's `name_key`
-        as its key, its id from the line's seq), with `by` the person and no source: a person's statement has no
-        anchor. Such an entity has no home file, so nothing assigned to it is a cross-file value and nothing waits for
-        a link confirmation: the assignment is the person's decision. Audited `intake.entity` with the line's hash and
-        the reason.
+    def name_entity(self, type: EntityType, label: str, *, by: str, why: str, parent: str | None = None) -> Entity:
+        """A person names an entity that no file's label gave: a study or a product (a table whose title the rules do
+        not read as a study id, a dissolution table that names only its batch), an arm of a study or a batch of a
+        product (`parent`: that study's or product's id; the arms of a Test and a Reference file that write the same
+        subject and period), or an analyte (no parent, as the resolver writes one), so that values can be assigned to
+        it. One `entity` line, written as the resolver writes one (`ledger_entities.resolve`: the label's `name_key` as
+        its key, its id from the line's seq, its parent followed through merges), with `by` the person and no source:
+        a person's statement has no anchor. Such an entity has no home file, so nothing assigned to it is a cross-file
+        value and nothing waits for a link confirmation: the assignment is the person's decision. Audited
+        `intake.entity` with the line's hash and the reason (and the parent, for an arm or a batch).
 
-        Decided under the entities log's lock. The same person naming the same label of the same type again (a double
-        submit, two threads) gets the entity already written and appends nothing. Never a duplicate: when an entity of
-        that type has the label's `label_key` already (a file's or another person's, followed through merges; or one a
-        ledger alias, or a person-confirmed alias of today's review record, sends the label to), ValueError names it:
-        the values are assigned to that one. ValueError too for a type a person does not name (only a study and a
-        product are subjects), a label with no letter or digit, with a control character or longer than 80
+        Decided under the entities log's lock. The same person naming the same label of the same type (under the same
+        parent) again (a double submit, two threads) gets the entity already written and appends nothing. Never a
+        duplicate: when an entity of that type has the label's `label_key` already, under the same parent (a file's or
+        another person's, followed through merges; or one a ledger alias, or a person-confirmed alias of today's
+        review record, sends the label to), ValueError names it: the values are assigned to that one. ValueError too
+        for an arm or a batch without its parent or with a parent of another type (KeyError: an unknown parent), a
+        parent given for any other type, a label with no letter or digit, with a control character or longer than 80
         characters, or no reason."""
-        if type not in ("study", "product"):
-            raise ValueError(f"a person names a study or a product, not a {type}")
+        if type not in ("study", "product", "arm", "batch", "analyte"):
+            raise ValueError(f"a person names a study, a product, an arm, a batch or an analyte, not a {type}")
+        owner_type = {"arm": "study", "batch": "product"}.get(type)
+        named = with_article(type)
+        if (owner_type is None) != (parent is None):
+            raise ValueError(f"an arm is named in its study and a batch in its product; {named} has "
+                             f"{'its parent' if owner_type else 'no parent'}")
         label = label.strip() if isinstance(label, str) else ""
         key, written = name_key(label), label_key(label)
         if not key or not written or len(label) > 80 or any(ord(ch) < 32 or ord(ch) == 127 for ch in label):
-            raise ValueError(f"a {type}'s name is at most 80 characters with a letter or a digit, on one line: {label!r}")
+            raise ValueError(f"{named}'s name is at most 80 characters with a letter or a digit, on one line: {label!r}")
         if not isinstance(why, str) or not why.strip():
-            raise ValueError(f"naming a {type} needs a reason")
+            raise ValueError(f"naming {named} needs a reason")
         from modeler_project.client_data import review_record
 
-        keys = frozenset((written, *review_targets(type, written, None, review_record(self.ws))))
+        review = review_record(self.ws)
         found: list[Entity] = []
 
         def decide(entries: list[ChainEntry]) -> list[tuple[str, Any]]:
             book = EntityBook(entries)
-            same = {alive.id: alive for e in book.named(type, keys, None) if (alive := book.alive(e.id)) is not None}
+            parent_id = book.follow(parent) if parent is not None else None
+            owner = book.alive(parent_id) if parent_id is not None else None
+            if parent is not None:
+                if parent not in book.entities:
+                    raise KeyError(parent)
+                if owner is None or owner.type != owner_type:
+                    raise ValueError(f"{parent} is not a {owner_type}: {named} is named in its {owner_type}")
+            keys = frozenset((written, *review_targets(type, written, owner, review)))
+            same = {alive.id: alive for e in book.named(type, keys, parent_id) if (alive := book.alive(e.id)) is not None}
             same.update({alive.id: alive for alias in book.aliases if alias.type == type and alias.key == key
-                         and alias.parent is None and (alive := book.alive(alias.entity)) is not None})
+                         and book.follow(alias.parent) == parent_id and (alive := book.alive(alias.entity)) is not None})
             if same:
                 mine = next((e for e in same.values() if e.source is None and e.by == by and label_key(e.label) == written),
                             None)
                 if mine is None:
                     other = next(iter(same.values()))
-                    raise ValueError(f"a {type} named {other.label!r} exists already ({other.id}): assign the values to it")
+                    where = f" in {owner.label!r}" if owner is not None else ""
+                    raise ValueError(f"{named} named {other.label!r} exists already{where} ({other.id}): assign the values "
+                                     "to it")
                 found.append(mine)
                 return []
 
             def body(seq: int) -> dict[str, Any]:
-                entity = Entity(id=f"{PREFIX[type]}-{seq}", type=type, label=label, key=key, parent=None, source=None,
+                entity = Entity(id=f"{PREFIX[type]}-{seq}", type=type, label=label, key=key, parent=parent_id, source=None,
                                 by=by, at=now())
                 found.append(entity)
                 return entity.model_dump(mode="json")
@@ -865,9 +931,10 @@ class Ledger(LedgerView):
         written_lines = self.store.entities.append_if(decide)
         entity = found[-1]
         if written_lines:
-            self.store.audit(actor=by, action="intake.entity", resource_id=entity.id,
-                             after={"entity": entity.id, "type": type, "label": entity.label,
-                                    "row_hash": written_lines[0].hash}, reason=why.strip())
+            after = {"entity": entity.id, "type": type, "label": entity.label, "row_hash": written_lines[0].hash}
+            if entity.parent is not None:
+                after["parent"] = entity.parent
+            self.store.audit(actor=by, action="intake.entity", resource_id=entity.id, after=after, reason=why.strip())
             self.refresh()
         return entity
 

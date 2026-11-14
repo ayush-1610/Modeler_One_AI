@@ -27,6 +27,56 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
 - **Deviations recorded:** from intake contracts §8.10 (the Delivery review beside the reading tray) and from plan
   2026-11-03 §3.2 (left rail, files drawer); see the plan's §5.
 - **Impact:** none yet (no code changed).
+
+### Added — the API lets a person fill what is missing on Inputs (task-first plan §3, changes 1, 2, 4, 5, 6 and 7; 2026-11-14) — science-adjacent
+- **What changed.**
+  - **1 · Rows to fill on `GET /inputs`.**
+    - `compound` gains a row with the new state `empty` for every exact parameter-registry id that PK-Sim takes (`placement: model`), that an item of the project's data plan owns (its `req_id`), and that has no value yet (`inputs_view.compound_rows(..., empty=True)`; `CompoundRow.state` gains `"empty"`).
+    - The registry is only read. A family's members, and ids that no data-plan item owns, get no row (for example `alt.select`, `perm.cellular`, `phys.solubility.ref_ph` and the calculation methods).
+    - A value is entered through `POST /evidence`, as before.
+    - "Empty" is not "missing": S0, readiness, the to-do list and the Review & sign table (`review.review_rows`) are unchanged.
+  - **2 · Arms, batches and analytes on `POST /delivery/values:assign`.**
+    - The request takes `new_arm`, `new_batch` and `new_analyte` (labels, at most 80 characters) and `analyte` (an analyte's id).
+    - `Ledger.name_entity` names an arm in its study and a batch in its product (`parent`), and an analyte with no parent, as the resolver writes one. The duplicate check is the same as before: 409 `CONFLICT` naming the one that exists, inside that study or product. The `intake.entity` event now carries `parent`.
+    - `Assignment` gains `analyte`. When it is left out, the analyte the file gave stays.
+    - `GET /inputs` `study_options` gains `matrix` (the matrix words of the intake vocabulary, `modeler_intake.fields`) and `analyte` (the brief's parent drug). The brief has no field for a metabolite, so none is offered.
+  - **4 · A table's first layout: `POST /delivery/mappings:propose {file_sha256, region_id, spec, why}`.**
+    - It takes a person's layout for one table and needs no mapping to exist yet, so a table that no version reads (unread, or its reading rejected) can get its first layout.
+    - It computes the table's layout fingerprint, stores the spec with `MappingCache.propose(origin="person")` and reads the files that hold that layout again. Audited `intake.mapping.propose`.
+    - The existing validator checks the spec. A spec that does not read the table gets 422 `MAPPING_INVALID` with the findings, masked for a file that holds a blinded study's values. A spec a person rejected gets 409.
+    - Every mapping answer (`GET /delivery/mappings/{id}` and the decisions) gains `vocabulary`, read from `modeler_intake.mapping_spec` and `fields`: `kinds`, `layouts`, `roles`, `row_roles`, `cell_forms`, `statistics`, `spread_kinds`, `time_references`, `cite_near`, `fields` (each with its level, unit class and choices), `conditions` and `labels`.
+  - **5 · Demographics entered through `:enter` count as found.**
+    - This was checked, not changed. `study_requirements.requirement_status` already counts a person's `population` with one of `age_mean`, `age_min`, `weight_mean_kg` or `percent_female` as found for REQ-sys.demographics.
+    - The study then leaves the client request. A test pins this.
+  - **6 · Undo "Mark as not data": `POST /delivery/regions:restore {file_sha256, regions, scope, why}`.**
+    - One `region` line is appended, with `restores` naming the decisions it undoes. The earlier lines stay. Audited `intake.region.restore`.
+    - What those decisions set aside in the ledger, and nothing has changed since, is proposed again (`Ledger.restore`). A value of the table that was excluded on its own before (a choice that settled a conflict) stays excluded. Derived facts follow, and the file's coverage is recomputed. An outside number counts again.
+    - 409 `CONFLICT` ("nothing to restore") when a listed region or item is not marked as not data by a person. Nothing is written then.
+    - The latest line that names a region or an outside item decides (`coverage.person_exclusion`, `person_acceptance`).
+    - So that a restored region gets its reading back, `RegionOutcome.replaced` keeps the outcome that a person's exclusion replaced. A region excluded before this change has no such outcome, so its file is queued to be read again.
+  - **7 · `DeliverySubjectRow.legacy_groups`**: the ids of the client-review groups whose items hold the subject's `loaded_elsewhere` datasets. The web can then join the two review systems without fetching every card.
+  - **Web:** only the types. The Inputs tabs leave the `empty` rows out until slice 5 shows them, so the page is unchanged.
+- **Why.** The owner must be able to fill what is missing and make the data available downstream (plan §1, §2.2):
+  - a parameter that S0 does not ask for had no row to fill;
+  - the 230-23 Test and Reference files collide on subject 001 · period I without arms;
+  - CL-01's analyte cannot be stated;
+  - an unread or rejected table could never get a first layout;
+  - "Mark as not data" had no undo;
+  - the join of the two review systems needed every card.
+- **Impact.**
+  - **API:** additive only. Two new routes, new optional request fields and new response fields. `docs/api/openapi.json` and `apps/web/lib/api-types.ts` were regenerated.
+  - **Science-adjacent:** a person can now state an arm, a batch or an analyte, with a reason, audited. A restored region counts in the coverage again: its values are back on their subjects' cards (a confirmation signed meanwhile is no longer `current`), and an unread table is silent loss again. What counts as excluded is unchanged: change 3 (per-cell "not data") waits for the owner's review.
+  - **Not touched:** no locked file, ruleset, requirement template, `intake_rules.yaml` or registry.
+  - **Stored records:**
+    - new `region` lines may carry `restores`;
+    - new `assignment` lines carry `analyte`;
+    - a stored coverage keeps `replaced` for a person's exclusion.
+    - Old lines read as before, through the defaults, and exclusion lines are written as before.
+  - **Tests:**
+    - new: `test_inputs_view` (empty rows), `test_coverage` (restore), `test_intake_review` (arm, batch and analyte naming), and five `test_delivery_api` tests (arms and analytes, first layout and vocabulary, demographics, restore, `legacy_groups`);
+    - the blinding test also covers `:restore` and `:propose`;
+    - three existing assertions were updated: the route counts (18→20 and 19→21, with the two routes in the `legacy` switch test) and the name_entity test, where an analyte is no longer refused but an analyte with a parent is.
+
 ### Changed — what the landing holds back is said without internal references (integrator, 2026-11-14)
 - **What:** five "held back" lines of `intake_landing` no longer end in a reference to the build contract ("contracts §11.8" and the like). Excretion and relation values now read "kept in the ledger; the model inputs have no place for it yet"; the several-occasions line keeps its check code and says "a profile holds one occasion".
 - **Why:** these lines are shown to the reviewer on the subject's card and in the confirm dialog, and are part of the record that is signed. A section number of an internal document tells the reviewer nothing. Seen in the browser test's screenshot of the dialog.

@@ -326,6 +326,45 @@ def test_a_prose_or_figure_decision_never_excludes_a_table():
     assert nothing.decisions == () and nothing.summary.silent_loss == table.numeric_cells
 
 
+@pytest.mark.req("T-47", "T-42", "F-404")
+def test_a_restore_gives_a_region_back_its_outcome_and_an_outside_item_back_to_the_count():
+    """Plan 2026-11-14 §3 API 6: a person's "not data" decision is undone by a later line with `restores`; the latest
+    line naming a region or an outside item decides, and the region gets back the outcome its exclusion replaced."""
+    sha = "8" * 64
+    grid = RegionGrid.from_rows([["Time", "Conc"], ["1", "10"], ["2", "12"]])
+    region = _region(grid)
+    note = OutsideItem(where="s:'T'!A9", text="Note: 3 samples re-assayed", numeric=True)
+    doc = _doc(sha, (region,), (note,))
+    mapped = outcome_from(region, _result(grid), state="mapped", mapping=MAPPING, origin="rule")
+
+    def restore(regions: tuple[str, ...], undone: str, n: int, scope: str = "regions") -> RegionDecision:
+        return _decision(sha, regions, scope, n).model_copy(update={"restores": (undone,), "why": "it is data after all"})
+
+    exclude = _decision(sha, (region.id,), n=1)
+    excluded = file_coverage(_record(sha), doc, [mapped], [exclude])
+    (only,) = excluded.regions
+    assert (only.outcome.state, only.outcome.replaced) == ("excluded", mapped) and excluded.summary.regions_mapped == 0
+    # recomputed from the stored outcomes, as every later decision recomputes a file: the replaced outcome is kept
+    stored = [r.outcome for r in excluded.regions]
+    assert file_coverage(_record(sha), doc, stored, [exclude]).regions == excluded.regions
+    # restored: the region is mapped again, its cells used, and the restore is a decision applied
+    back = file_coverage(_record(sha), doc, stored, [exclude, restore((region.id,), "rd-1", 2)])
+    assert back.regions[0].outcome == mapped and back.summary.regions_mapped == 1 and back.summary.silent_loss == 0
+    assert back.decisions == ("rd-2",)
+    # the latest line decides: set aside again after the restore
+    again = file_coverage(_record(sha), doc, stored, [exclude, restore((region.id,), "rd-1", 2), _decision(sha, (region.id,), n=3)])
+    assert again.regions[0].outcome.state == "excluded" and again.regions[0].outcome.reason.startswith("rd-3: ")
+    # a decision applied before the replaced outcome was kept: restored, the region is unread until read again
+    old = only.outcome.model_copy(update={"replaced": None})
+    lost = file_coverage(_record(sha), doc, [old], [exclude, restore((region.id,), "rd-1", 2)])
+    assert lost.regions[0].outcome.state == "unread" and lost.summary.silent_loss == region.numeric_cells
+    # an outside number accepted as not data, then restored: it counts again
+    accept = _decision(sha, (note.where,), "outside", 4)
+    assert file_coverage(_record(sha), doc, [mapped], [accept]).summary.outside_numeric == 0
+    counted = file_coverage(_record(sha), doc, [mapped], [accept, restore((note.where,), "rd-4", 5, "outside")])
+    assert counted.summary.outside_numeric == 1 and counted.decisions == ("rd-4", "rd-5")
+
+
 def test_silent_loss_sums_the_files():
     one = file_coverage(_record("1" * 64), _doc("1" * 64, (Region(id="rg-0000000001", kind="table", where="s:'A'!A1:B2",
                                                                       numeric_cells=4),)), [])

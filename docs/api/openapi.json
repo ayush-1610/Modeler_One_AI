@@ -3137,7 +3137,7 @@
       },
       "CompoundRow": {
         "additionalProperties": false,
-        "description": "One model input (`inputs_view.compound_rows`): kept, in conflict, held for a check, or missing.",
+        "description": "One model input (`inputs_view.compound_rows`): kept, in conflict, held for a check, missing (S0 needs it), or\nempty (a model input the data plan owns with no value yet: a row to fill, not counted as missing).",
         "properties": {
           "alternatives": {
             "items": {
@@ -3223,7 +3223,8 @@
               "kept",
               "conflict",
               "held",
-              "missing"
+              "missing",
+              "empty"
             ],
             "title": "State",
             "type": "string"
@@ -4382,8 +4383,19 @@
         "type": "object"
       },
       "DeliveryAssignment": {
-        "description": "Values given their subject. A study is named by its id (`study`) or, when no file's label gave it one, by a\nnew label (`new_study`): one of them, and so a product (`product`, `new_product`). `arm` and `batch` are the\nledger's ids: left out, the assignment clears the arm (the batch) the values had.",
+        "description": "Values given their subject. A study is named by its id (`study`) or, when no file's label gave it one, by a\nnew label (`new_study`): one of them, and so a product (`product`, `new_product`), an arm of the study (`arm`,\n`new_arm`), a batch of the product (`batch`, `new_batch`) and an analyte (`analyte`, `new_analyte`). Ids are the\nledger's. Left out, the assignment clears the arm (the batch) the values had; the analyte the file gave stays.",
         "properties": {
+          "analyte": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Analyte"
+          },
           "arm": {
             "anyOf": [
               {
@@ -4405,6 +4417,42 @@
               }
             ],
             "title": "Batch"
+          },
+          "new_analyte": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "New Analyte"
+          },
+          "new_arm": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "New Arm"
+          },
+          "new_batch": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "New Batch"
           },
           "new_product": {
             "anyOf": [
@@ -5810,6 +5858,9 @@
             "title": "Versions",
             "type": "array"
           },
+          "vocabulary": {
+            "$ref": "#/components/schemas/DeliveryMappingVocabulary"
+          },
           "waiting": {
             "title": "Waiting",
             "type": "boolean"
@@ -5848,7 +5899,8 @@
           "versions",
           "used_in",
           "waiting",
-          "queued"
+          "queued",
+          "vocabulary"
         ],
         "title": "DeliveryMapping",
         "type": "object"
@@ -6129,6 +6181,51 @@
         "title": "DeliveryMappingEdit",
         "type": "object"
       },
+      "DeliveryMappingField": {
+        "additionalProperties": false,
+        "description": "A field of the ledger's vocabulary (`modeler_intake.fields`): what a value, a constant or a label is of.",
+        "properties": {
+          "choices": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Choices",
+            "type": "array"
+          },
+          "level": {
+            "title": "Level",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "unit_class": {
+            "title": "Unit Class",
+            "type": "string"
+          },
+          "value": {
+            "enum": [
+              "number",
+              "integer",
+              "choice",
+              "name",
+              "text"
+            ],
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "value",
+          "level",
+          "unit_class",
+          "choices"
+        ],
+        "title": "DeliveryMappingField",
+        "type": "object"
+      },
       "DeliveryMappingFinding": {
         "additionalProperties": false,
         "properties": {
@@ -6199,6 +6296,37 @@
           "spread_kind"
         ],
         "title": "DeliveryMappingKey",
+        "type": "object"
+      },
+      "DeliveryMappingProposal": {
+        "description": "A person's layout for a table named by its file and region: a `mapping/2` spec, checked by code on that table.",
+        "properties": {
+          "file_sha256": {
+            "title": "File Sha256",
+            "type": "string"
+          },
+          "region_id": {
+            "title": "Region Id",
+            "type": "string"
+          },
+          "spec": {
+            "additionalProperties": true,
+            "title": "Spec",
+            "type": "object"
+          },
+          "why": {
+            "minLength": 1,
+            "title": "Why",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file_sha256",
+          "region_id",
+          "spec",
+          "why"
+        ],
+        "title": "DeliveryMappingProposal",
         "type": "object"
       },
       "DeliveryMappingRejection": {
@@ -6534,6 +6662,112 @@
         "title": "DeliveryMappingVersion",
         "type": "object"
       },
+      "DeliveryMappingVocabulary": {
+        "additionalProperties": false,
+        "description": "The words a mapping spec (`mapping/2`) is written with, read from `modeler_intake.mapping_spec` and\n`modeler_intake.fields`: a form that edits a layout offers these and never makes one up.",
+        "properties": {
+          "cell_forms": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Cell Forms",
+            "type": "array"
+          },
+          "cite_near": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Cite Near",
+            "type": "array"
+          },
+          "conditions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Conditions",
+            "type": "array"
+          },
+          "fields": {
+            "items": {
+              "$ref": "#/components/schemas/DeliveryMappingField"
+            },
+            "title": "Fields",
+            "type": "array"
+          },
+          "kinds": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Kinds",
+            "type": "array"
+          },
+          "labels": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Labels",
+            "type": "array"
+          },
+          "layouts": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Layouts",
+            "type": "array"
+          },
+          "roles": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Roles",
+            "type": "array"
+          },
+          "row_roles": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Row Roles",
+            "type": "array"
+          },
+          "spread_kinds": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Spread Kinds",
+            "type": "array"
+          },
+          "statistics": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Statistics",
+            "type": "array"
+          },
+          "time_references": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Time References",
+            "type": "array"
+          }
+        },
+        "required": [
+          "kinds",
+          "layouts",
+          "roles",
+          "row_roles",
+          "cell_forms",
+          "statistics",
+          "spread_kinds",
+          "time_references",
+          "cite_near",
+          "fields",
+          "conditions",
+          "labels"
+        ],
+        "title": "DeliveryMappingVocabulary",
+        "type": "object"
+      },
       "DeliveryOutside": {
         "additionalProperties": false,
         "description": "An item with a number outside every region that is not page furniture. `counted`: it is in the summary's\n`outside_numeric` (no mapped table cites it and no person accepted it as not data), so it blocks a confirmation.",
@@ -6856,6 +7090,46 @@
           "disposition"
         ],
         "title": "DeliveryRequirement",
+        "type": "object"
+      },
+      "DeliveryRestore": {
+        "description": "Regions (or outside items) a person marked as not data, given back: the same ids and scope as the exclusion.",
+        "properties": {
+          "file_sha256": {
+            "title": "File Sha256",
+            "type": "string"
+          },
+          "regions": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Regions",
+            "type": "array"
+          },
+          "scope": {
+            "default": "regions",
+            "enum": [
+              "regions",
+              "unread_prose",
+              "figures",
+              "outside"
+            ],
+            "title": "Scope",
+            "type": "string"
+          },
+          "why": {
+            "minLength": 1,
+            "title": "Why",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file_sha256",
+          "regions",
+          "why"
+        ],
+        "title": "DeliveryRestore",
         "type": "object"
       },
       "DeliveryRules": {
@@ -7835,6 +8109,13 @@
             "title": "Label",
             "type": "string"
           },
+          "legacy_groups": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Legacy Groups",
+            "type": "array"
+          },
           "loaded_elsewhere": {
             "items": {
               "type": "string"
@@ -7871,6 +8152,7 @@
           "deliveries",
           "confirmation",
           "loaded_elsewhere",
+          "legacy_groups",
           "confirm_on",
           "arms",
           "batches",
@@ -32908,6 +33190,75 @@
         ]
       }
     },
+    "/api/v1/projects/{project_id}/delivery/mappings:propose": {
+      "post": {
+        "description": "A person's layout for one table, which needs no mapping to exist yet: the first layout of a table no version\nreads (unread, or its reading rejected), or a new version of its layout's mapping. The spec is checked by code on\nthat table (422 `MAPPING_INVALID` with the findings), stored as a person's version of the mapping of the table's\nlayout fingerprint (audited `intake.mapping.propose`), and the files that hold a table of that layout are read\nagain. It waits for approval like any version. 409: the table's source model is not cached, the region is no\ntable, or the spec is a version a person rejected.",
+        "operationId": "propose_mapping_api_v1_projects__project_id__delivery_mappings_propose_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeliveryMappingProposal"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_DeliveryMapping_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Propose Mapping",
+        "tags": [
+          "client-data"
+        ]
+      }
+    },
     "/api/v1/projects/{project_id}/delivery/regions:exclude": {
       "post": {
         "description": "A person's decision that regions of a file are not data (scope `regions`: any region, and what was read from\nit is set aside; `unread_prose`; `figures`), or that items outside every region are not (`outside`: their\nlocators). The file's coverage is recomputed.",
@@ -32972,6 +33323,75 @@
           }
         },
         "summary": "Exclude Regions",
+        "tags": [
+          "client-data"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/delivery/regions:restore": {
+      "post": {
+        "description": "Undo a person's \"not data\" decision, with the reason: an appended line that names the decisions it undoes (the\nearlier ones stay, audited `intake.region.restore`). What they set aside counts again: the values read from those\nregions are proposed again and the file's coverage is recomputed. 409 `CONFLICT` when one listed is not marked as\nnot data by a person (nothing to restore); nothing is written then. A region excluded before its outcome was kept\nis read again (its file is queued).",
+        "operationId": "restore_regions_api_v1_projects__project_id__delivery_regions_restore_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeliveryRestore"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_DeliveryPage_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Restore Regions",
         "tags": [
           "client-data"
         ]
@@ -33868,7 +34288,7 @@
     },
     "/api/v1/projects/{project_id}/delivery/values:assign": {
       "post": {
-        "description": "Give \"study not stated\" values their subject: a study (and its arm), a product (and its batch), or both. A\nstudy or a product no file's label gave an entity is named here (`new_study`, `new_product`): it is created, never\nas a duplicate of one that exists (409, naming it), and the values are assigned to it.",
+        "description": "Give \"study not stated\" values their subject: a study (and its arm), a product (and its batch), or both, and\ntheir analyte when stated. A study, a product, an arm, a batch or an analyte no file's label gave an entity is\nnamed here (`new_study`, `new_product`, `new_arm`, `new_batch`, `new_analyte`): it is created, never as a duplicate\nof one that exists (409, naming it; an arm inside its study, a batch inside its product), and the values are\nassigned to it.",
         "operationId": "assign_values_api_v1_projects__project_id__delivery_values_assign_post",
         "parameters": [
           {
