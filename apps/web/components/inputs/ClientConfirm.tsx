@@ -156,11 +156,13 @@ const NOUN: Record<Group["kind"], string> = { study: "study", product: "product"
  *  does not say a fact with the form that asks it), what is to decide, then its one Confirm. `mode` "read": shown for
  *  reference on a card confirmed on the delivery, with no form. `files` sits after the data (the card's "Files and
  *  tables"). */
-export function GroupCard({ projectId, group, run, mode = "confirm", alsoOnDelivery, files }: {
+export function GroupCard({ projectId, group, run, mode = "confirm", alsoOnDelivery, files, drawn = true }: {
   projectId: string; group: Group; run: Run; mode?: "confirm" | "read";
   /** the study or product is also confirmed and signed on the delivery: whichever is confirmed first is what loads */
   alsoOnDelivery?: boolean;
   files?: ReactNode;
+  /** false where the card draws the group's data already (its Observed data, its dissolution): each item is one line */
+  drawn?: boolean;
 }) {
   const confirmed = group.state === "confirmed";
   const read = mode === "read";
@@ -217,10 +219,10 @@ export function GroupCard({ projectId, group, run, mode = "confirm", alsoOnDeliv
                 <span className="confirm-item-value">{i.value}{i.note && <span className="muted"> · {i.note}</span>}</span>
                 <PeekButton projectId={projectId} source={src(i.source)} label={itemLabel(i.label, i.target)} testId={`peek-item-${i.id}`} />
               </div>
-              {i.kind === "draft" && !read ? <DraftItem projectId={projectId} item={i} run={run} /> : <>
+              {i.kind === "draft" && !read ? <DraftItem projectId={projectId} item={i} run={run} /> : drawn ? <>
                 {i.data && <DatasetView data={i.data} label={`${group.title}: ${itemLabel(i.label, i.target)}`} />}
                 {i.release && <ReleaseView p={i.release as Profile} />}
-              </>}
+              </> : (i.data || i.release) && <p className="muted m-0 fs-12">Drawn above, on the card.</p>}
             </li>
           ))}
         </ul>

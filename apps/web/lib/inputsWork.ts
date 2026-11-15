@@ -390,8 +390,10 @@ export function buildWork(sources: WorkSources): WorkModel {
   }
 
   // the sheet form's own open items: the issues (settled with the card's own form) and the sheets that do not say a fact
-  // (filled in on the card). A subject signed on the delivery that the sheet form also read keeps them: it can be
-  // confirmed with the sheet form instead (plan §2.2.1), and its sheet card offers that today
+  // (filled in on the card). A subject signed on the delivery that the sheet form also read keeps its issues: it can be
+  // confirmed with the sheet form instead (plan §2.2.1). Its sheets' missing facts are not asked again there: the
+  // delivery's own facts row asks for them, once (slice 3 after its review); the sheet form asks them inside its path,
+  // when the person chooses it ("The sheet form has n things first")
   for (const s of subjects.filter((x) => x.groups.length > 0 && !x.done)) {
     const also = s.path === "delivery" ? "To confirm it with the sheet form instead of signing it on the delivery." : undefined;
     for (const g of s.groups.filter((x) => x.state === "to_confirm")) {
@@ -401,6 +403,7 @@ export function buildWork(sources: WorkSources): WorkModel {
               blocked: s.blinded ? "Blinded until the plan is signed." : undefined, detail: also,
               files: s.files, subjects: [s.key], weight: 1, issue: { group: g.id, issue: issue.id } });
       }
+      if (s.path === "delivery") continue;
       for (const i of g.items.filter((x) => x.kind === "draft")) draftItem(add, g, i, `${KIND_WORD[s.kind]} ${s.label}`, [s.key], s.blinded, fileOf, also);
     }
   }

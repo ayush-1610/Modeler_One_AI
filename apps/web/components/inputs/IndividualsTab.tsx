@@ -10,9 +10,11 @@
 
 import { useState } from "react";
 
-import { DemographicsForm } from "@/components/delivery/FactsForm";
+import { SUBJECT } from "@/components/delivery/DeliveryReview";
+import { DemographicsForm, demographicsText, enteredDemographics } from "@/components/delivery/FactsForm";
 import { EmptyState } from "@/components/kit";
 import { send } from "@/lib/api";
+import { useResource } from "@/lib/hooks";
 import { normLabel, type Subject, type WorkItem } from "@/lib/inputsWork";
 import { plural } from "@/lib/words";
 
@@ -157,25 +159,39 @@ export function StudyIndividuals({ studies, projectId, run, options, subjects = 
   );
 }
 
-/** A client's study not confirmed yet: on the delivery, its demographics are entered now (they load with the study);
- *  with the sheet form, they are entered once it is confirmed. */
+/** A client's study not confirmed yet: on the delivery, its demographics are entered now (they load with the study),
+ *  and once entered they are shown on its line, to correct; with the sheet form, they are entered once it is confirmed. */
 function Pending({ s, projectId, vocabulary, onOpen }: {
   s: Subject; projectId: string; vocabulary: string | null; onOpen?: (item: WorkItem | null, subject: Subject) => void;
 }) {
   const [entering, setEntering] = useState(false);
+  const delivery = s.path === "delivery" && s.row && !s.blinded ? s.row : null;
+  // the study's card, under the key its card uses: what a person entered on it already
+  const card = useResource(SUBJECT, { project_id: projectId, type: delivery?.subject_type ?? "study", subject: delivery?.subject ?? "" },
+                           { enabled: Boolean(delivery) });
+  const entered = enteredDemographics((card.data?.tables ?? []).flatMap((t) => t.values));
+  const said = demographicsText(entered);
   return (
     <div className="individual pending" data-testid={`individual-pending-${s.key}`}>
       <div className="spread">
         <strong>{s.label}</strong>
         <span className="chip neutral">{s.path === "delivery" ? "loads when the study is confirmed" : "to confirm first"}</span>
       </div>
-      {s.path === "delivery" && s.row && !s.blinded ? (
+      {delivery ? (
         entering ? (
-          <DemographicsForm projectId={projectId} params={{ project_id: projectId, type: s.row.subject_type, subject: s.row.subject }}
-                            vocabulary={{ mapping: vocabulary }} onDone={() => setEntering(false)} testId={`individual-enter-${s.row.subject}`} />
+          <DemographicsForm key={said} projectId={projectId} params={{ project_id: projectId, type: delivery.subject_type, subject: delivery.subject }}
+                            vocabulary={{ mapping: vocabulary }} onDone={() => setEntering(false)} testId={`individual-enter-${delivery.subject}`}
+                            entered={entered} />
+        ) : said ? (
+          <p className="m-4-0-0 fs-13" data-testid={`individual-entered-${delivery.subject}`}>
+            <span className="chip low">entered</span> {said}{" "}
+            <button type="button" className="link-btn" onClick={() => setEntering(true)} data-testid={`individual-enter-open-${delivery.subject}`}
+                    aria-label={`Correct the demographics of ${s.label}`}>Correct…</button>
+          </p>
         ) : (
           <p className="m-4-0-0 fs-13">
-            <button type="button" className="btn small" onClick={() => setEntering(true)} data-testid={`individual-enter-open-${s.row.subject}`}>Enter them…</button>
+            <button type="button" className="btn small" onClick={() => setEntering(true)} data-testid={`individual-enter-open-${delivery.subject}`}
+                    disabled={!card.data && !card.problem}>Enter them…</button>
             <span className="muted"> the population, age, weight and share of women, from the study&apos;s report; or ask the client from its card.</span>
           </p>
         )

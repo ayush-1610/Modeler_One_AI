@@ -31,7 +31,11 @@ export function productOf(s: Subject) {
 
 /** One dissolution profile: drawn (unless its sheet's own reading draws it on the card already), its fit, and "Use as
  *  release" with the formulation's name. */
-function ProfileLine({ p, projectId, run, product, drawn }: { p: Profile; projectId: string; run: Run; product: string; drawn: boolean }) {
+function ProfileLine({ p, projectId, run, product, drawn, notes }: {
+  p: Profile; projectId: string; run: Run; product: string; drawn: boolean;
+  /** what the register says of this profile: a later file replaced it, or a file was kept over another */
+  notes: string[];
+}) {
   const [name, setName] = useState(product);
   const [problem, setProblem] = useState<string | null>(null);
   const fit = p.fit;
@@ -39,6 +43,8 @@ function ProfileLine({ p, projectId, run, product, drawn }: { p: Profile; projec
     <li className="profile-line" data-testid={`profile-${p.id}`}>
       {drawn ? <p className="m-0 fs-13"><strong>{p.label}</strong> <span className="muted">· drawn below, as the sheet form read it</span></p>
         : <ReleaseView p={p} />}
+      {p.files.length > 0 && <p className="muted m-0 fs-12" data-testid={`profile-files-${p.id}`}>From {p.files.join(", ")}</p>}
+      {notes.length > 0 && <ul className="flags" data-testid={`profile-notes-${p.id}`}>{notes.map((n) => <li key={n}>{n}</li>)}</ul>}
       {drawn && fit && fit.t50_min !== null && <p className="m-0 fs-13">t50 {sig(fit.t50_min)} min · shape {sig(fit.shape)}</p>}
       {p.release_model !== "Table" ? (
         <form className="row gap-6 profile-use" onSubmit={async (e) => {
@@ -62,11 +68,21 @@ function ProfileLine({ p, projectId, run, product, drawn }: { p: Profile; projec
 
 /** The dissolution profiles of a product (or of no product), with f2 against the reference where this product is the
  *  test. */
-export function Dissolution({ profiles, comparisons, label, projectId, run, product, drawnIds = new Set(), testId }: {
+/** The register's notes on one profile ("<label>: b.xlsx replaces a.xlsx", "<label>: a.xlsx kept over b.xlsx (selected on
+ *  Inputs)"), without its label; the notes of a file it could not read name no profile (`dissolutionNotes`). */
+export const profileNotes = (p: Profile, problems: string[]) =>
+  problems.filter((x) => x.startsWith(`${p.label}: `)).map((x) => x.slice(p.label.length + 2));
+/** The register's notes that name no profile: a file's dissolution rows it could not read. */
+export const dissolutionNotes = (profiles: Profile[], problems: string[]) =>
+  problems.filter((x) => !profiles.some((p) => x.startsWith(`${p.label}: `)));
+
+export function Dissolution({ profiles, comparisons, label, projectId, run, product, drawnIds = new Set(), testId, problems = [] }: {
   profiles: Profile[]; comparisons: Comparison[]; label: (id: string) => string; projectId: string; run: Run; product: string;
   /** profiles its sheet's reading already draws on the card */
   drawnIds?: ReadonlySet<string>;
   testId: string;
+  /** the register's notes (a profile replaced by a later file, or kept over one; a file's rows not read) */
+  problems?: string[];
 }) {
   const mine = new Set(profiles.map((p) => p.id));
   const f2 = comparisons.filter((c) => mine.has(c.test));
@@ -77,7 +93,8 @@ export function Dissolution({ profiles, comparisons, label, projectId, run, prod
       <p className="muted m-0 fs-13">Pick the profile that best represents release in the body. Its Weibull fit (t50, shape) becomes the
         formulation&apos;s release.</p>
       <ul className="profile-lines">
-        {profiles.map((p) => <ProfileLine key={p.id} p={p} projectId={projectId} run={run} product={product} drawn={drawnIds.has(p.label)} />)}
+        {profiles.map((p) => <ProfileLine key={p.id} p={p} projectId={projectId} run={run} product={product} drawn={drawnIds.has(p.label)}
+                                          notes={profileNotes(p, problems)} />)}
       </ul>
       {f2.length > 0 && (
         <div className="table-scroll">
@@ -102,10 +119,12 @@ export function Dissolution({ profiles, comparisons, label, projectId, run, prod
   );
 }
 
-export function ProductCard({ subject, env, open, onToggle, profiles, comparisons, label }: {
+export function ProductCard({ subject, env, open, onToggle, profiles, comparisons, label, problems = [] }: {
   subject: Subject; env: CardEnv; open: boolean; onToggle: () => void;
   /** the dissolution profiles of this product */
   profiles: Profile[]; comparisons: Comparison[]; label: (id: string) => string;
+  /** the dissolution register's notes (each profile's are said on its line) */
+  problems?: string[];
 }) {
   const batches = subject.row?.batches.map((b) => b.label) ?? [];
   // the profiles its sheet-form group draws on the card already (a profile item, on a card confirmed with the sheet form):
@@ -122,7 +141,7 @@ export function ProductCard({ subject, env, open, onToggle, profiles, comparison
         <div id={`${cardAnchor(subject)}-body`}>
           <ConfirmPath subject={subject} env={env} files={<CardFiles subject={subject} env={env} />}
                        observed={<Dissolution profiles={profiles} comparisons={comparisons} label={label} projectId={env.projectId} run={env.run}
-                                              product={subject.label} drawnIds={drawn} testId={`card-dissolution-${subject.key}`} />} />
+                                              product={subject.label} drawnIds={drawn} testId={`card-dissolution-${subject.key}`} problems={problems} />} />
         </div>
       )}
     </article>

@@ -21,7 +21,7 @@ import { AddDataMenu } from "./AddDataMenu";
 import { SheetGroups } from "./ClientConfirm";
 import { ClientFilesTab, type FilesShown } from "./ClientFilesTab";
 import { type CardEnv, type CardFocus, focused } from "./cards/ConfirmPath";
-import { Dissolution, ProductCard, productOf } from "./cards/ProductCard";
+import { Dissolution, ProductCard, dissolutionNotes, productOf } from "./cards/ProductCard";
 import { CompoundCard } from "./cards/StudyCard";
 import { StudyIndividuals } from "./IndividualsTab";
 import { InputRows, type Row } from "./InputRows";
@@ -276,6 +276,7 @@ export function InputsWorkspace({ projectId, initialTab, initialOnly, initialSta
   // a status-line count opens To do narrowed to its word; pressed again, To do shows every item
   const toggleStatus = (s: Exclude<StatusFilter, null>) => setStatus(tab === "todo" && status === s ? null : s);
 
+  const FOCUSABLE = "input:not([type=hidden]):not([disabled]), select:not([disabled]), textarea:not([disabled]), button:not([disabled]), a[href]";
   /** Bring an element of the area just opened into view (it is drawn once the area shows it, and its card once opened),
    *  opening the folds around it, and mark it a moment; `fallback` when the element is not drawn there. */
   function bringIntoView(testId: string, fallback?: string) {
@@ -285,7 +286,23 @@ export function InputsWorkspace({ projectId, initialTab, initialOnly, initialSta
         ?? (tries > 10 && fallback ? document.querySelector<HTMLElement>(`[data-testid="${CSS.escape(fallback)}"]`) : null);
       if (!el) { if (++tries < 30) window.setTimeout(find, 100); return; }
       for (let fold = el.closest("details"); fold; fold = fold.parentElement?.closest("details") ?? null) if (!fold.open) fold.open = true;
-      el.scrollIntoView({ block: "center", behavior: "smooth" });
+      // a card opens at its head (a study's: its row in the list), under the area bar, with the focus on the control that
+      // opens it; a place inside a card is brought to the middle, the focus on its first control
+      const card = /^(study|product|compound)-card-/.test(el.dataset.testid ?? "");
+      const row = card ? el.closest("tr.row-detail")?.previousElementSibling as HTMLElement | null : null;
+      const target = row ?? el;
+      target.scrollIntoView({ block: card ? "start" : "center", behavior: "smooth" });
+      // a card's head stays where it was brought once what is above it has finished drawing (cards read as they open)
+      if (card) {
+        window.setTimeout(() => {
+          const pad = parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop) || 0;
+          const top = target.getBoundingClientRect().top;
+          if (top < pad - 8 || top > pad + 48) target.scrollIntoView({ block: "start" });
+        }, 900);
+      }
+      const control = card ? target.querySelector<HTMLElement>("button[aria-expanded]")
+        : el.matches(FOCUSABLE) ? el : el.querySelector<HTMLElement>(FOCUSABLE);
+      control?.focus({ preventScroll: true });
       el.classList.add("just-opened");
       window.setTimeout(() => el.classList.remove("just-opened"), 1600);
     };
@@ -316,7 +333,9 @@ export function InputsWorkspace({ projectId, initialTab, initialOnly, initialSta
     }
     const fallback = item.todo?.kind === "regimen" ? `study-${item.todo.target}` : item.todo?.kind === "demographics" ? `individual-${item.todo.target}`
       : card ? cardAnchor(card) : undefined;
-    if (w.anchor) bringIntoView(w.anchor, fallback);
+    // a card to confirm opens at its head (its whole body is what is confirmed); an item on a card, at its place there
+    if (card && item.id.startsWith("confirm:")) bringIntoView(cardAnchor(card));
+    else if (w.anchor) bringIntoView(w.anchor, fallback);
     else if (card) bringIntoView(cardAnchor(card));
   }
   // a link to an area (the delivery's line in Client files: `group` ""), or to a sheet-form group's card
@@ -488,7 +507,8 @@ export function InputsWorkspace({ projectId, initialTab, initialOnly, initialSta
               {products.map((s) => (
                 <ProductCard key={s.key} subject={s} env={env} open={cardOpen(s, opens(products, s))}
                              onToggle={() => toggleCard(s, opens(products, s))}
-                             profiles={profilesOf(s)} comparisons={dissolution?.comparisons ?? []} label={profileLabel} />
+                             profiles={profilesOf(s)} comparisons={dissolution?.comparisons ?? []} label={profileLabel}
+                             problems={dissolution?.problems ?? []} />
               ))}
             </section>
           )}
@@ -496,7 +516,13 @@ export function InputsWorkspace({ projectId, initialTab, initialOnly, initialSta
                        title="Sheets not linked to a product yet" testId="formulation-sheets" />
           {!only && unlinkedProfiles.length > 0 && (
             <Dissolution profiles={unlinkedProfiles} comparisons={dissolution?.comparisons ?? []} label={profileLabel} projectId={projectId}
-                         run={run} product="" testId="dissolution-unlinked" />
+                         run={run} product="" testId="dissolution-unlinked" problems={dissolution?.problems ?? []} />
+          )}
+          {!only && dissolutionNotes(dissolution?.profiles ?? [], dissolution?.problems ?? []).length > 0 && (
+            <section className="card-section" data-testid="dissolution-notes">
+              <h3 className="area-section-title">Notes on the dissolution data</h3>
+              <ul className="flags">{dissolutionNotes(dissolution?.profiles ?? [], dissolution?.problems ?? []).map((x) => <li key={x}>{x}</li>)}</ul>
+            </section>
           )}
           {!only && <BriefList projectId={projectId} group="products" testId="inputs-products"
                      fields={["name", "role", "dosage_form", "strength", "release", "attributes"]}

@@ -50,6 +50,12 @@ const ref = (s: Subject) => (s.row ? `${s.row.subject_type}/${s.row.subject}` : 
 export const focused = (s: Subject, focus: CardFocus | null | undefined) => Boolean(focus && (
   (focus.key && focus.key === s.key) || (focus.ref && focus.ref === ref(s)) || (focus.group && s.groups.some((g) => g.id === focus.group))));
 
+/** A card confirmed on the delivery whose study, product or compound the sheet form confirmed first (whichever is
+ *  confirmed first is what loads, plan §2.2.1): it then reads as a card confirmed with the sheet form, the delivery's
+ *  reading folded under it for reference, never its forms. A card signed on the delivery is never one (its signature
+ *  marks the sheet form's group confirmed too, and its dialog stays open while it loads). */
+export const viaSheet = (s: Subject) => s.path === "delivery" && s.groups.some((g) => g.state === "confirmed") && !s.row?.confirmation;
+
 /** The card's one status word: Done once confirmed; else the most pressing of its open items (Missing, then To decide),
  *  else To confirm. */
 export function cardStatus(s: Subject, work: WorkModel): Status {
@@ -151,11 +157,13 @@ export function ConfirmPath({ subject: s, env, observed, files, onShow }: {
   const [sheet, setSheet] = useState(false);           // the sheet form's path, chosen on a card confirmed on the delivery
   const body = useRef<HTMLDivElement>(null);
   const { projectId, run, work, focus } = env;
+  // the path the card is read on: a card the sheet form confirmed first is a sheet-form card from then on
+  const path = viaSheet(s) ? "sheet-form" : s.path;
   const toConfirm = s.groups.filter((g) => g.state === "to_confirm" && g.kind !== "sheet");
   // a To do row that opens a sheet-form item (a sheet to read, a disagreement) of a card confirmed on the delivery opens
   // the sheet form's path there, where it is settled
   useEffect(() => {
-    if (!focus || !focused(s, focus) || s.path !== "delivery") return;
+    if (!focus || !focused(s, focus) || path !== "delivery") return;
     const inside = focus.anchor && (focus.anchor.startsWith("issue-") || focus.anchor.startsWith("group-"));
     if (inside || focus.group) { setReading(true); setSheet(true); }
   }, [focus]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -176,18 +184,18 @@ export function ConfirmPath({ subject: s, env, observed, files, onShow }: {
   return (
     <div className="card-body" ref={body}>
       <InModel subject={s} onShow={onShow} />
-      {s.path === "delivery" && s.row && (
+      {path === "delivery" && s.row && (
         <DeliveryReview projectId={projectId} row={s.row} mode="confirm" gate={gate} onMapping={setMapping} todo={todo}
                         suggestions={suggestionsOf(s.groups)} observed={observed} sheetPath={sheetPath}
                         howRead={s.groups.length > 0 ? (
                           <HowRead subject={s} title={sheet ? "the sheet form, to confirm it this way" : "the sheet form (for reference)"}
                                    open={reading} onOpen={setReading}>
-                            {() => s.groups.map((g) => <GroupCard key={g.id} projectId={projectId} group={g} run={run}
+                            {() => s.groups.map((g) => <GroupCard key={g.id} projectId={projectId} group={g} run={run} drawn={false}
                                                                   mode={sheet && g.state === "to_confirm" ? "confirm" : "read"} alsoOnDelivery />)}
                           </HowRead>
                         ) : undefined} />
       )}
-      {s.path === "sheet-form" && (
+      {path === "sheet-form" && (
         <>
           {!s.done && (
             <section className="card-section" data-testid={`card-todo-section-${s.key}`}>
@@ -199,17 +207,23 @@ export function ConfirmPath({ subject: s, env, observed, files, onShow }: {
           {s.groups.map((g) => <GroupCard key={g.id} projectId={projectId} group={g} run={run} files={files} />)}
           {s.row && (
             <HowRead subject={s} title="the delivery (for reference)" open={reading} onOpen={setReading}>
-              {() => <DeliveryReview projectId={projectId} row={s.row!} mode="read" onMapping={setMapping} />}
+              {/* a study the project blinds (D-15) that the delivery does not: its reading is not shown until the plan is signed */}
+              {() => (s.blinded && !s.row!.blinded
+                ? <p className="delivery-withheld m-0" data-testid={`how-read-withheld-${s.key}`}>Withheld: the study is blinded until the plan is
+                    signed, and the delivery&apos;s reading shows its values.</p>
+                : <DeliveryReview projectId={projectId} row={s.row!} mode="read" onMapping={setMapping} />)}
             </HowRead>
           )}
         </>
       )}
-      {s.path === "read-only" && s.row && (
+      {path === "read-only" && s.row && (
         <>
           <p className="inline-issue note" data-testid={`card-read-only-${s.key}`}>A filled client-data template: it is confirmed with the
             sheet form on this card, which is not available yet. Read the file again from Client files. The delivery&apos;s reading is shown
             for reference.</p>
-          <DeliveryReview projectId={projectId} row={s.row} mode="read" onMapping={setMapping} />
+          {s.blinded && !s.row.blinded
+            ? <p className="delivery-withheld m-0" data-testid={`how-read-withheld-${s.key}`}>Withheld: the study is blinded until the plan is signed.</p>
+            : <DeliveryReview projectId={projectId} row={s.row} mode="read" onMapping={setMapping} />}
         </>
       )}
       {mapping && <MappingReview projectId={projectId} mappingId={mapping} onClose={() => setMapping(null)} />}
@@ -233,7 +247,8 @@ export function CardHead({ subject: s, status, open, onToggle, children }: {
       <StatusChip status={status} testId={`card-status-${s.key}`} />
       {s.blinded && <span className="chip neutral">blinded until the plan is signed</span>}
       {children}
-      <span className="muted fs-13 card-path">{s.path === "delivery" ? "Confirm and sign" : s.path === "sheet-form" ? "Confirm" : "not available yet"}
+      <span className="muted fs-13 card-path">{viaSheet(s) ? "Confirmed with the sheet form" : s.path === "delivery" ? "Confirm and sign"
+        : s.path === "sheet-form" ? "Confirm" : "not available yet"}
         {" "}· {AREA_NAME[s.area as Tab]}</span>
     </header>
   );

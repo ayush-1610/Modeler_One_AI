@@ -10,7 +10,7 @@
 // link went to, so they are not listed here (an API follow-up: a subject's decisions on its card).
 
 import { useResource } from "@/lib/hooks";
-import { fieldLabel, placeText, tableKindText, whenText, DISPOSITION_WORD } from "@/lib/words";
+import { engineWords, fieldLabel, placeText, tableKindText, valueWord, whenText, DISPOSITION_WORD } from "@/lib/words";
 
 import { personDecision, plural, valueText, type Subject, type Value } from "./shared";
 
@@ -50,11 +50,11 @@ export function Decisions({ projectId, subject, files: shas }: { projectId: stri
   const name = (v: Value) => `${fieldLabel(v.field)}${v.time !== null ? ` at ${v.time}${v.time_unit ? ` ${v.time_unit}` : ""}` : ""}`;
 
   const decided: Line[] = [
-    ...overridden.map((c) => ({ id: `ov-${c.id}`, what: `Accepted as is: ${c.message ?? c.code}`,
+    ...overridden.map((c) => ({ id: `ov-${c.id}`, what: `Accepted as is: ${engineWords(c.message ?? "a check")}`,
                                 ...said(find("intake.override", (e) => after(e).check_id === c.id)) })),
     ...disposed.map((r) => ({ id: `dp-${r.req_id}`, what: `${r.label}: ${DISPOSITION_WORD[r.status]}`,
                               ...said(find("intake.disposition", (e) => after(e).disposition === r.disposition)) })),
-    ...entered.map((v) => ({ id: `en-${v.id}`, what: `${v.blinded ? "Entered" : `Entered ${valueText(v)}${v.unit ? ` ${v.unit}` : ""}`} for ${name(v)}`,
+    ...entered.map((v) => ({ id: `en-${v.id}`, what: `${v.blinded ? "Entered" : `Entered ${typeof v.value === "string" ? valueWord(v.value) : valueText(v)}${v.unit ? ` ${v.unit}` : ""}`} for ${name(v)}`,
                              ...said(find("intake.entry", (e) => last(e.resource_id) === v.id)) })),
     ...unused.map((v) => ({ id: `ex-${v.id}`, what: `Not used: ${name(v)} from ${v.file ?? "a person's entry"}`, why: v.status_reason })),
     ...refused.map((l) => ({ id: `lk-${l.id}`, what: `${l.file} is not about this study` })),

@@ -19,10 +19,10 @@ import { numericKey, ordinal, useTableView } from "@/lib/tableView";
 import { DESIGNS, DESIGN_TITLE, type Design, designOf, plural, valueWord } from "@/lib/words";
 
 import { SheetGroups } from "./ClientConfirm";
-import { type CardEnv, StatusChip, cardStatus, focused } from "./cards/ConfirmPath";
+import { type CardEnv, StatusChip, cardStatus, focused, viaSheet } from "./cards/ConfirmPath";
 import { StudyCard, studyNames } from "./cards/StudyCard";
 import { type Run, TodoCard, type TodoItem } from "./InputsTodo";
-import { ObservedDatasets } from "./ObservedDatasets";
+import { ObservedDatasets, datasetsWaiting, useDatasets } from "./ObservedDatasets";
 import { downloadTemplate } from "./TabFiles";
 
 type Group = Schema<"ReviewGroup">;
@@ -286,6 +286,9 @@ function StudyList({ subjects, studies, env, unpromised, only, onShow }: {
   const read = useResources(SUBJECT, rows.map((r) => ({ project_id: env.projectId, type: r.subject_type, subject: r.subject })),
                             { limit: 2, staleTime: 60_000 });
   const cards = new Map(rows.map((r, i) => [r.subject, read[i]?.data ?? null] as const));
+  // what waits among a study's datasets (blinded, an overlay to check), said on its row: acted on in its card
+  const datasets = useDatasets(env.projectId) ?? [];
+  const waitingOn = (s: Subject) => { const named = studyNames(s); return datasetsWaiting(datasets.filter((d) => named(String(d.study.study_id)))); };
   const inModel = (s: Subject) => studies.find((x) => normLabel(x.study_id) === normLabel(s.label));
   const facts = (s: Subject) => factsOf(s, inModel(s), s.row ? cards.get(s.row.subject) : null);
   const designs = new Map(subjects.map((s) => [s.key, designOf(facts(s))] as const));
@@ -344,12 +347,14 @@ function StudyList({ subjects, studies, env, unpromised, only, onShow }: {
               { key: "data", label: "Data", render: (s) => {
                 const datasets = s.groups.reduce((n, g) => n + g.items.filter((i) => i.data).length, 0);
                 const sheets = s.groups.reduce((n, g) => n + g.items.filter((i) => i.kind === "draft").length, 0);
+                const waiting = waitingOn(s);
                 return <span className="fs-13">{[s.row ? plural(s.row.values, "value") : "", datasets ? plural(datasets, "dataset") : "",
-                                                 sheets ? plural(sheets, "sheet") + " to read" : ""].filter(Boolean).join(" · ") || "—"}</span>;
+                                                 sheets ? plural(sheets, "sheet") + " to read" : ""].filter(Boolean).join(" · ") || "—"}
+                  {waiting && <span className="muted" data-testid={`study-datasets-waiting-${s.key}`}> · {waiting}</span>}</span>;
               } },
               { key: "status", label: "Status", render: (s) => <StatusChip status={cardStatus(s, env.work)} testId={`study-status-${s.key}`} /> },
-              { key: "confirm", label: "Confirmed with", render: (s) => <span className="muted fs-13">{s.path === "delivery" ? "Confirm and sign"
-                : s.path === "sheet-form" ? "Confirm" : "not available yet"}</span> },
+              { key: "confirm", label: "Confirmed with", render: (s) => <span className="muted fs-13">{viaSheet(s) ? "the sheet form"
+                : s.path === "delivery" ? "Confirm and sign" : s.path === "sheet-form" ? "Confirm" : "not available yet"}</span> },
               { key: "role", label: "Role", render: (s) => { const r = inModel(s)?.role; return r ? <span className="fs-13">{r} · {ROLE[r] ?? r.toLowerCase()}</span> : <span className="muted">—</span>; } },
               { key: "open", label: "", render: (s) => (
                 <button type="button" className="btn small" aria-expanded={isOpen(s)} aria-label={`${isOpen(s) ? "Close" : "Open"} the card of ${s.label}`}

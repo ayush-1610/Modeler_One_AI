@@ -103,15 +103,59 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
   - **Words**: `lib/words.ts` gains the fact labels, the vocabulary words (route, dosage form, purpose, matrix, …), the
     study designs and the disposition words; the Delivery section in Client files says in one line where the cards are
     (`delivery-subjects`, links per area) instead of listing them.
+  - **After its review (2026-11-15):**
+    - **Nothing possible before is lost on a card.** A study's dataset on its card keeps every action the dataset list
+      has: "Reveal for this check" for a blinded one (`blinded-<id>`, its points shown once revealed), "The overlay
+      matches the figure" for a digitized figure (`overlay-<id>`), its flags, its digitization and the PK its source
+      reports; the study's row says "n blinded" or "n overlay to check" while its card is closed
+      (`study-datasets-waiting-<key>`). A missing dose or matrix (DOSE_MISSING, MATRIX_MISSING) can be accepted as is
+      again, beside its fact in the facts form (`delivery-override-open-<check id>`, with its reason, `:override`); a
+      missing route, number of subjects or purpose (LANDING_FIELD_MISSING) is still only entered.
+    - **Concentrations that name no analyte** (ANALYTE_MISSING) get "State it…" beside "Accept as is…"
+      (`delivery-analyte-open-<check id>`): the analyte chosen from the delivery's analytes or a new one named, given to
+      the check's values by linking them again (`values:assign`) with their study and arm, product and batch named
+      again, so only the analyte changes and the values keep their file as their source.
+    - **A card the sheet form confirmed first reads as confirmed**: the sheet form's group is its body and the delivery's
+      reading is folded under it for reference, with no form, no gate line and no "Confirm and sign" (it showed the
+      delivery's open forms under its Done chip); its head says "Confirmed with the sheet form".
+    - **Asked once:** on a card confirmed on the delivery, the facts its sheet does not say are no longer a second
+      Missing row (the delivery's facts row asks for them; the sheet form asks them inside its path, when chosen). The
+      Clinical studies count on exampleamide goes from 15 to 13 missing.
+    - **Facts keep what they are stated for**: an LLOQ says its analyte and matrix ("LLOQ 0.2 ng/mL · Exampleamide-M1,
+      plasma"), two facts that differ only in it are two rows, and the facts of one field sit together.
+    - **Dissolution**: each profile says the file it was read from and the register's notes on it (a later file replaced
+      it, or a file was kept over another, `profile-notes-<id>`); notes that name no profile are listed after the cards
+      (`dissolution-notes`).
+    - **Words**: a dataset's place in its file in words ("sheet Studies, cells A2 to AK2; sheet PK_Summary, rows 2 to 7";
+      the sheet form's recipe name dropped); what is not loaded ("Kept, not used by the model: dosage form, particle size
+      d50 (µm), polymorph, release (only the dissolution is loaded)"); why a card cannot be loaded ("the number of
+      subjects is not stated"); a check's own words in the facts form only where they add something; a decision's value
+      in words ("Entered Oral for Route").
+    - **The page**: a card opened from To do or "Next" lands at its head under the area bar, the focus on the control that
+      opens it (an item inside a card: its first control); the phone rule that wrapped a long name in the study list no
+      longer reaches a card's tables (they were one letter a line), the chart's scale toggle keeps its width, and a sheet's
+      "Missing: …" chip wraps; the reason form of the facts and demographics forms has its own testid
+      (`…-reason`; its field and button keep `-why`/`-submit`); "Enter them…" on Populations shows the demographics once
+      entered, with "Correct…" (`individual-entered-<subject>`; a change corrects the entry, never enters it twice), and the
+      population field waits for its words instead of changing type while they load; a table layout is checked from its
+      table's head and listed apart only when no table on the card shows it; a profile already drawn on the card is not
+      drawn again in "How the files were read"; an empty "Observed data" heading is gone; the delivery's reading of a study
+      the project blinds and the delivery does not is withheld in "How the files were read".
 - **Why:** the owner, 2026-11-14: the page is repetitive and uncategorized and a person cannot fill what is missing. The
   same study was two cards in two places with contradictory states; the delivery's cards sat in Client files; facts were
-  entered as free text one by one; the signer could not see the decisions made on a study.
+  entered as free text one by one; the signer could not see the decisions made on a study. After the review: three
+  things a person could do before (reveal a blinded dataset, approve a figure's overlay, accept a missing dose or matrix)
+  had become impossible (plan rule 6), a card confirmed one way still showed the other way's open forms, and facts were
+  asked twice.
 - **Impact:** frontend only (no API, no locked file, no ruleset). Specs updated: delivery (card on Clinical studies, the
   gate line, the loose note settled with its file, the facts form, the decisions), client-confirm, inputs-data-cards,
   client-data (`dataset-unpromised-*`, "Use as release"), client-documents ("Done"), inputs-fill (the study's row on
   Clinical studies; and a file's reading found under its row in the table of files, where slice 2 put it: the spec still
   looked for it inside the delivery's section, and failed there since the fill round's merge), inputs-work (where items
-  open). Deviations in the plan's §5 ("Within this plan, slice 3 as built").
+  open). Deviations in the plan's §5 ("Within this plan, slice 3 as built"). After the review: digitize (the dataset
+  reads "in the model"), delivery (a layout is opened from its table's head; the signed study's profile is found under
+  its card's Observed data, not again in the sheet form's folded reading), inputs-work (a card's sheet facts are not
+  counted twice); "Fill in…" for an incomplete dissolution method is not built (§5).
 
 ### Changed — the Inputs page counts from one list of work, in one vocabulary, with one status per file (plan 2026-11-14, slice 2)
 - **What:**

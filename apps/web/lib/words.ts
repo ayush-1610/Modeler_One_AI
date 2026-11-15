@@ -162,6 +162,45 @@ export function whereIs(where: string): FilePlace {
 /** Where in a file, as a person reads it ("sheet Sheet1, cells A4 to M12", "page 3, table 1"), never the raw locator. */
 export const placeText = (where: string) => whereIs(where).place;
 
+/** A dataset's source locator as the sheet form writes it ("Studies!A2:AK2; PK_Summary!2:7"), in plain words: "sheet
+ *  Studies, cells A2 to AK2; sheet PK_Summary, rows 2 to 7"; a sheet named by the reading's recipe ("Fed (recipe
+ *  file-…-r1 v1)") as "sheet Fed". A part in the intake grammar is said as `placeText` says it; any other part is given
+ *  as it is. */
+export function locatorText(locator: string): string {
+  // the sheet form's reading of a sheet is named by its recipe ("Fed (recipe file-…-r1 v1)"): the sheet is what a person reads
+  return locator.split(";").map((raw) => raw.trim()).filter(Boolean).map((raw) => {
+    const recipe = /\(recipe [^)]*\)/.test(raw);
+    const part = raw.replace(/\s*\(recipe [^)]*\)/g, "").trim();
+    const cells = /^'?((?:[^'!]|'')+?)'?!\$?([A-Z]{1,3})\$?([0-9]+)(?::\$?([A-Z]{1,3})\$?([0-9]+))?$/.exec(part);
+    if (cells) {
+      const [, sheet, c0, r0, c1, r1] = cells;
+      return c1 ? `sheet ${sheet}, cells ${c0}${r0} to ${c1}${r1}` : `sheet ${sheet}, cell ${c0}${r0}`;
+    }
+    const rows = /^'?((?:[^'!]|'')+?)'?!([0-9]+)(?::([0-9]+))?$/.exec(part);
+    if (rows) return rows[3] && rows[3] !== rows[2] ? `sheet ${rows[1]}, rows ${rows[2]} to ${rows[3]}` : `sheet ${rows[1]}, row ${rows[2]}`;
+    const place = placeText(part);
+    return recipe && place === part ? `sheet ${part}` : place;
+  }).join("; ");
+}
+
+/** What the loading leaves out of the model (a card's `held`, as the landing writes it), in a person's words: the
+ *  fields named by their labels, the engine's terms and check codes dropped ("product attributes (dosage_form,
+ *  polymorph): kept in the ledger; only dissolution lands" → "Kept, not used by the model: dosage form, polymorph (only
+ *  the dissolution is loaded)"). `own`: the card's own name, not said again at the start of a line. */
+export function heldText(line: string, own?: string): string {
+  const fields = (list: string) => list.split(",").map((f) => fieldLabel(f.trim()).toLowerCase()).join(", ");
+  let text = own && line.startsWith(`${own}: `) ? line.slice(own.length + 2) : line;
+  text = text
+    .replace(/^product attributes \(([^)]+)\): kept in the ledger; only dissolution lands$/, (_m, l: string) => `Kept, not used by the model: ${fields(l)} (only the dissolution is loaded)`)
+    .replace(/^study facts with no place in the study record \(([^)]+)\): kept in the ledger$/, (_m, l: string) => `Kept, not used by the model: ${fields(l)} (the study record has no place for them)`)
+    .replace(/\b(excretion|relations) \(([^)]+)\): kept in the ledger; the model inputs have no place for (?:it|them) yet/,
+             (_m, what: string, l: string) => `${what === "excretion" ? "Excretion" : "Drug interactions"} (${fields(l)}): kept, not used by the model (no place for ${what === "excretion" ? "it" : "them"} yet)`)
+    .replace(/ \([A-Z][A-Z_]+[A-Z]\)/g, "")
+    .replace(/kept in the ledger/g, "kept with the delivery").replace(/\bnot landed\b/g, "not loaded").replace(/\(lands PROPOSED\)/g, "(loaded as proposed)")
+    .replace(/the client-review card/g, "the sheet form's card");
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
 /** A fact a study record needs (the intake's field, as a gap's `tag` or a check's "needs <field>" names it), in words:
  *  the sheet form's own labels for the same facts and the landing's "(what the study is for)". */
 const FACT_WORD: Record<string, string> = {
@@ -169,6 +208,17 @@ const FACT_WORD: Record<string, string> = {
   dose: "the dose", formulation: "the dosage form", food_state: "fasted or fed",
 };
 export const factText = (field: string) => FACT_WORD[field] ?? `the ${spaced(field)}`;
+
+/** Why a card cannot be loaded yet (its `landing_problem`, the landing's "230-23: the study record needs n, which no
+ *  active value states: enter it; …"), in words: "the number of subjects is not stated; the route is not stated". `own`:
+ *  the card's own name, not said again. A part the landing words otherwise is given with its engine terms replaced. */
+export function landingText(text: string, own?: string): string {
+  return text.split("; ").map((part) => {
+    const p = own && part.startsWith(`${own}: `) ? part.slice(own.length + 2) : part;
+    const need = /^the study record needs (\w+), which no active value states(?: \([^)]*\))?: enter it$/.exec(p);
+    return need ? `${factText(need[1])} is not stated` : engineWords(p);
+  }).join("; ");
+}
 
 /** A reading stage (the intake pipeline's `StageName`, modeler_project.intake_records) in words. */
 const STAGE_WORD: Record<string, string> = {

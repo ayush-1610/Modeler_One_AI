@@ -10,6 +10,7 @@ import { narrow, send, upload, type Narrow, type Schema } from "@/lib/api";
 import type { DocumentView } from "@/lib/brief";
 import { useResource } from "@/lib/hooks";
 import { useTableView } from "@/lib/tableView";
+import { locatorText } from "@/lib/words";
 
 import type { Run } from "./InputsTodo";
 
@@ -116,32 +117,103 @@ function LeaveOut({ d, projectId, run, onProblem }: { d: Listed; projectId: stri
   );
 }
 
+/** A blinded dataset (an external study before the MAP is signed, D-15): revealed for one check with the reason, which
+ *  the audit trail keeps. `onRevealed` receives the dataset with its values. */
+function Reveal({ d, projectId, onRevealed, onProblem, compact = false }: {
+  d: Listed; projectId: string; onRevealed: (d: Listed) => void; onProblem: (p: string | null) => void; compact?: boolean;
+}) {
+  const [reason, setReason] = useState("");
+  return (
+    <div className={`banner warn ${compact ? "m-4-0 fs-13" : "m-6-0"}`} data-testid={`blinded-${d.id}`}>
+      {compact ? "Its values are blinded until the MAP is signed (ICH M15). To check them now, give the reason; the access is recorded in the audit trail."
+        : <>External study: its values are blinded until the MAP is signed (ICH M15). The metadata above is what the split uses. To
+          check this dataset now, give the reason; the access is recorded in the audit trail.</>}
+      <div className="row mt-6">
+        <input className="flex-1 minw-180" placeholder="why it must be seen now (required)" value={reason}
+               onChange={(e) => setReason(e.target.value)} aria-label={`why ${String(d.study.study_id)} must be seen now`} />
+        <button className="btn" disabled={!reason.trim()} onClick={async () => {
+          const env = await send("post", "/api/v1/projects/{project_id}/datasets/{dataset_id}:reveal",
+                                 { project_id: projectId, dataset_id: d.id }, { reason });
+          if (env.data) { onRevealed(env.data as Listed); onProblem(null); } else onProblem(env.errors?.[0]?.message ?? "not revealed");
+        }}>Reveal for this check</button>
+      </div>
+    </div>
+  );
+}
+
+/** What a dataset carries besides its points: the PK the source reports, how a figure was digitized, and its flags. */
+function DatasetNotes({ d }: { d: Listed }) {
+  return (
+    <>
+      {!d.blinded && d.reported.length > 0 && <div className="series">{d.reported.map((r) => `${r.parameter} ${r.value} ${r.unit}`).join(" · ")}</div>}
+      {d.digitization && (
+        <p className="muted m-4-0 fs-12">
+          digitized from p.{d.digitization.page}{d.digitization.crop ? ", cropped to the figure" : ""}; resolution ±{(d.digitization.resolution.x / 2).toPrecision(2)} {d.time_unit},
+          ±{(d.digitization.resolution.y / 2).toPrecision(2)} {d.unit}; overlay {d.digitization.overlay_approved_by ? `checked by ${d.digitization.overlay_approved_by}` : "not checked yet"}
+        </p>
+      )}
+      {d.flags.length > 0 && <ul className="flags">{d.flags.map((f) => <li key={f}>{f}</li>)}</ul>}
+    </>
+  );
+}
+
+/** "The overlay matches the figure": a digitized figure's points count once a person has checked its overlay (D-27). */
+function Overlay({ d, projectId, run, onProblem, small = false }: {
+  d: Listed; projectId: string; run: Run; onProblem: (p: string | null) => void;
+  /** on a study's card, where the card's own confirmation is the one primary button */
+  small?: boolean;
+}) {
+  if (!d.digitization || d.digitization.overlay_approved_by || d.state === "REJECTED") return null;
+  return (
+    <button className={small ? "btn small" : "btn primary"} data-testid={`overlay-${d.id}`}
+            onClick={async () => onProblem(await run(() => send("post", "/api/v1/projects/{project_id}/datasets/{dataset_id}:overlay",
+                                                                { project_id: projectId, dataset_id: d.id }),
+                                                    `${String(d.study.study_id)}: the overlay is checked; the study is used.`))}>
+      The overlay matches the figure
+    </button>
+  );
+}
+
+/** Where a dataset was read from: its source and the place in it, in words. */
+const sourceText = (d: Listed, page = true) => `${d.source.title || "source"}${d.source.locator ? ` · ${locatorText(d.source.locator)}` : ""}${page && d.source.page ? ` p.${d.source.page}` : ""}`;
+
 /** A dataset on its study's card: one line with where it stands, whether the data plan promised it, and Leave out; its
- *  points under "Show the points". */
-function DatasetLine({ d, projectId, run, unpromised }: { d: Listed; projectId: string; run: Run; unpromised: string | null }) {
+ *  points under "Show the points", with what the source reports and how a figure was digitized. Everything the dataset
+ *  list offers is here too: a blinded dataset is revealed for a check, a digitized figure's overlay is checked. */
+function DatasetLine({ d: listed, projectId, run, unpromised }: { d: Listed; projectId: string; run: Run; unpromised: string | null }) {
   const [problem, setProblem] = useState<string | null>(null);
   const [points, setPoints] = useState(false);
+  const [revealed, setRevealed] = useState<Listed | null>(null);
+  const d = revealed ?? listed;
   const [tone, label] = standing(d);
   const s = d.study;
+  const more = d.series.length > 0 || d.reported.length > 0 || Boolean(d.digitization) || d.flags.length > 0;
   return (
     <li className="evidence dataset-line" data-testid={`dataset-${d.id}`}>
       <div className="dataset-line-head">
         <span className={`chip ${ORIGIN_CHIP[d.origin] ?? "neutral"}`}>{d.origin.toLowerCase().replace("_", " ")}</span>
-        <span>{d.kind === "profile" ? "profile" : "PK parameters only"} · {d.source.title || "source"}{d.source.locator ? ` · ${d.source.locator}` : ""}</span>
+        <span>{d.kind === "profile" ? "profile" : "PK parameters only"} · {sourceText(d, !/\.(xlsx?|csv)$/i.test(d.source.title ?? ""))}</span>
         <span className={`chip ${tone}`} data-testid={`dataset-state-${d.id}`}>{label}</span>
         {unpromised && <span className="chip neutral" data-testid={`dataset-unpromised-${d.id}`} title={unpromised}>not in the data plan</span>}
         {d.blinded && <span className="chip neutral" data-testid={`dataset-blinded-${d.id}`}>blinded until the plan is signed</span>}
-        {!d.blinded && d.series.length > 0 && (
-          <button type="button" className="link-btn" aria-expanded={points} onClick={() => setPoints(!points)}>{points ? "Hide the points" : "Show the points"}</button>
+        {!d.blinded && more && (
+          <button type="button" className="link-btn" aria-expanded={points} onClick={() => setPoints(!points)}>
+            {points ? "Hide" : "Show"} the {d.series.length ? "points" : "details"}</button>
         )}
+        <Overlay d={d} projectId={projectId} run={run} onProblem={setProblem} small />
         <LeaveOut d={d} projectId={projectId} run={run} onProblem={setProblem} />
       </div>
-      {points && d.series.map((series) => (
+      {d.blinded && <Reveal d={d} projectId={projectId} onRevealed={(x) => { setRevealed(x); setPoints(true); }} onProblem={setProblem} compact />}
+      {!d.blinded && points && d.series.map((series) => (
         <div key={series.name} className="series">
           <span className="muted">{series.name} ({series.statistic?.replace("_", " ")}{series.n ? `, n ${series.n}` : ""}) · {d.time_unit} → {d.unit}:</span>{" "}
           {series.times.map((t, i) => `${+t.toPrecision(4)}: ${series.values[i] === null ? "<LLOQ" : +(series.values[i] as number).toPrecision(4)}`).join(" · ")}
         </div>
       ))}
+      {(points || d.blinded) && <DatasetNotes d={d} />}
+      {!points && !d.blinded && d.digitization && !d.digitization.overlay_approved_by && (
+        <p className="muted m-0 fs-12">A digitized figure: its points count once you have checked the overlay against the figure.</p>
+      )}
       {d.state === "REJECTED" && d.decision_reason && <p className="muted m-0 fs-12">left out by {d.decided_by}: {d.decision_reason}</p>}
       {problem && <InlineIssue severity="error">{problem}</InlineIssue>}
       <span className="sr-only">{String(s.study_id)}</span>
@@ -151,7 +223,6 @@ function DatasetLine({ d, projectId, run, unpromised }: { d: Listed; projectId: 
 
 function DatasetCard({ d: listed, projectId, run, unpromised }: { d: Listed; projectId: string; run: Run; unpromised: string | null }) {
   const [revealed, setRevealed] = useState<Listed | null>(null);
-  const [revealReason, setRevealReason] = useState("");
   const [problem, setProblem] = useState<string | null>(null);
   const d = revealed ?? listed;
   const s = d.study;
@@ -171,47 +242,19 @@ function DatasetCard({ d: listed, projectId, run, unpromised }: { d: Listed; pro
       </div>
       <p className="muted m-4-0 fs-13">
         {String(s.route).replace("_", " ")} · {String(s.dose_mg)} mg · {String(s.formulation ?? "")} · {String(s.food_state ?? "fasted")} · n {String(s.n)}
-        {" · "}{d.source.title || "source"}{d.source.locator ? ` · ${d.source.locator}` : ""}{d.source.page ? ` p.${d.source.page}` : ""}
+        {" · "}{sourceText(d)}
       </p>
-      {d.blinded && (
-        <div className="banner warn m-6-0" data-testid={`blinded-${d.id}`}>
-          External study: its values are blinded until the MAP is signed (ICH M15). The metadata above is
-          what the split uses. To check this dataset now, give the reason; the access is recorded in the audit trail.
-          <div className="row mt-6">
-            <input className="flex-1 minw-180" placeholder="why it must be seen now (required)" value={revealReason}
-                   onChange={(e) => setRevealReason(e.target.value)} aria-label={`why ${String(s.study_id)} must be seen now`} />
-            <button className="btn" disabled={!revealReason.trim()} onClick={async () => {
-              const env = await send("post", "/api/v1/projects/{project_id}/datasets/{dataset_id}:reveal",
-                                     { project_id: projectId, dataset_id: listed.id }, { reason: revealReason });
-              if (env.data) { setRevealed(env.data as Listed); setProblem(null); } else setProblem(env.errors?.[0]?.message ?? "not revealed");
-            }}>Reveal for this check</button>
-          </div>
-        </div>
-      )}
+      {d.blinded && <Reveal d={d} projectId={projectId} onRevealed={setRevealed} onProblem={setProblem} />}
       {!d.blinded && d.series.map((series) => (
         <div key={series.name} className="series">
           <span className="muted">{series.name} ({series.statistic?.replace("_", " ")}{series.n ? `, n ${series.n}` : ""}) · {d.time_unit} → {d.unit}:</span>{" "}
           {series.times.map((t, i) => `${+t.toPrecision(4)}: ${series.values[i] === null ? "<LLOQ" : +(series.values[i] as number).toPrecision(4)}`).join(" · ")}
         </div>
       ))}
-      {!d.blinded && d.reported.length > 0 && <div className="series">{d.reported.map((r) => `${r.parameter} ${r.value} ${r.unit}`).join(" · ")}</div>}
-      {d.digitization && (
-        <p className="muted m-4-0 fs-12">
-          digitized from p.{d.digitization.page}{d.digitization.crop ? ", cropped to the figure" : ""}; resolution ±{(d.digitization.resolution.x / 2).toPrecision(2)} {d.time_unit},
-          ±{(d.digitization.resolution.y / 2).toPrecision(2)} {d.unit}; overlay {d.digitization.overlay_approved_by ? `checked by ${d.digitization.overlay_approved_by}` : "not checked yet"}
-        </p>
-      )}
-      {d.flags.length > 0 && <ul className="flags">{d.flags.map((f) => <li key={f}>{f}</li>)}</ul>}
+      <DatasetNotes d={d} />
       {out && d.decision_reason && <p className="muted m-0 fs-12">left out by {d.decided_by}: {d.decision_reason}</p>}
       <div className="row mt-6">
-        {d.digitization && !d.digitization.overlay_approved_by && !out && (
-          <button className="btn primary" data-testid={`overlay-${d.id}`}
-                  onClick={async () => setProblem(await run(() => send("post", "/api/v1/projects/{project_id}/datasets/{dataset_id}:overlay",
-                                                                       { project_id: projectId, dataset_id: d.id }),
-                                                           `${String(s.study_id)}: the overlay is checked; the study is used.`))}>
-            The overlay matches the figure
-          </button>
-        )}
+        <Overlay d={d} projectId={projectId} run={run} onProblem={setProblem} />
         <LeaveOut d={d} projectId={projectId} run={run} onProblem={setProblem} />
       </div>
       {problem && <InlineIssue severity="error">{problem}</InlineIssue>}
@@ -219,21 +262,36 @@ function DatasetCard({ d: listed, projectId, run, unpromised }: { d: Listed; pro
   );
 }
 
-/** The datasets of one study, on its card (plan 2026-11-14 slice 3): one line each, with where it stands, whether the
- *  data plan promised it, and Leave out. Nothing when the study has none. */
-export function StudyDatasets({ projectId, run, study, unpromised = [] }: {
-  projectId: string; run: Run;
-  /** the study's names (its label and the names the other reader gave it), as a dataset's `study_id` says them */
-  study: (studyId: string) => boolean;
-  unpromised?: string[];
-}) {
+/** The project's datasets, as the dataset list reads them (one read, shared). */
+export function useDatasets(projectId: string): Listed[] | null {
   const page = useResource("/api/v1/projects/{project_id}/evidence", { project_id: projectId },
     { select: (d) => narrow<View>(d), poll: (d) => d.running, interval: 4000 });
-  const mine = (page.data?.datasets ?? []).filter((d) => study(String(d.study.study_id)));
-  if (!mine.length) return null;
+  return page.data?.datasets ?? null;
+}
+
+/** The datasets of one study (by its names, as a dataset's `study_id` says them), read from the project's datasets. */
+export function useStudyDatasets(projectId: string, study: (studyId: string) => boolean): Listed[] | null {
+  const all = useDatasets(projectId);
+  return all ? all.filter((d) => study(String(d.study.study_id))) : null;
+}
+
+/** What waits for a person among a study's datasets, said on its row while its card is closed: "1 blinded · 1 overlay
+ *  to check". */
+export const datasetsWaiting = (datasets: Listed[]) => [
+  datasets.filter((d) => d.blinded).length ? `${datasets.filter((d) => d.blinded).length} blinded` : "",
+  datasets.filter((d) => standing(d)[1] === "overlay to check").length ? `${datasets.filter((d) => standing(d)[1] === "overlay to check").length} overlay to check` : "",
+].filter(Boolean).join(" · ");
+
+/** The datasets of one study, on its card (plan 2026-11-14 slice 3): one line each, with where it stands, whether the
+ *  data plan promised it, Leave out and, where they apply, the reveal of a blinded dataset and the overlay check of a
+ *  digitized figure. Nothing when the study has none. */
+export function StudyDatasets({ datasets, projectId, run, unpromised = [] }: {
+  datasets: Listed[]; projectId: string; run: Run; unpromised?: string[];
+}) {
+  if (!datasets.length) return null;
   return (
     <ul className="dataset-lines" data-testid="study-datasets">
-      {mine.map((d) => <DatasetLine key={d.id} d={d} projectId={projectId} run={run} unpromised={unpromisedOf(d, unpromised)} />)}
+      {datasets.map((d) => <DatasetLine key={d.id} d={d} projectId={projectId} run={run} unpromised={unpromisedOf(d, unpromised)} />)}
     </ul>
   );
 }

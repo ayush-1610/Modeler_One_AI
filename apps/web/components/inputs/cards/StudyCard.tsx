@@ -10,9 +10,9 @@ import type { ReactNode } from "react";
 import { cardAnchor, normLabel, type Subject } from "@/lib/inputsWork";
 
 import { DatasetView } from "../DatasetView";
-import { StudyDatasets } from "../ObservedDatasets";
+import { StudyDatasets, useStudyDatasets } from "../ObservedDatasets";
 
-import { CardHead, ConfirmPath, cardStatus, type CardEnv } from "./ConfirmPath";
+import { CardHead, ConfirmPath, cardStatus, viaSheet, type CardEnv } from "./ConfirmPath";
 
 /** The names a dataset of this study is stored under: its label and the names the other reader gave it. */
 export const studyNames = (s: Subject) => {
@@ -38,15 +38,19 @@ export function CardFiles({ subject, env }: { subject: Subject; env: CardEnv }) 
 }
 
 /** The observed data of a study on its card: the sheet form's profiles (drawn) when the study is confirmed on the
- *  delivery (on a sheet-form card they are drawn in its group), and every dataset of the study with where it stands. */
+ *  delivery (on a sheet-form card they are drawn in its group), and every dataset of the study with where it stands.
+ *  Nothing on a sheet-form card whose study has no dataset yet (its data are in its group, below). */
 function Observed({ subject: s, env, unpromised }: { subject: Subject; env: CardEnv; unpromised: string[] }) {
-  const drawn = s.path === "delivery" ? s.groups.flatMap((g) => g.items.filter((i) => i.kind !== "draft" && i.data).map((i) => ({ g, i }))) : [];
+  const delivery = s.path === "delivery" && !viaSheet(s);
+  const drawn = delivery ? s.groups.flatMap((g) => g.items.filter((i) => i.kind !== "draft" && i.data).map((i) => ({ g, i }))) : [];
+  const datasets = useStudyDatasets(env.projectId, studyNames(s));
+  if (!delivery && !datasets?.length) return null;
   return (
     <section className="delivery-block card-section" data-testid={`card-observed-${s.key}`}>
       <div className="delivery-block-head"><h3>Observed data</h3></div>
       {drawn.map(({ g, i }) => <DatasetView key={i.id} data={i.data!} label={`${g.title}: ${i.label}`} />)}
-      <StudyDatasets projectId={env.projectId} run={env.run} study={studyNames(s)} unpromised={unpromised} />
-      {!drawn.length && s.path === "delivery" && (
+      {datasets && <StudyDatasets datasets={datasets} projectId={env.projectId} run={env.run} unpromised={unpromised} />}
+      {!drawn.length && delivery && (
         <p className="muted m-0 fs-13">Its profile is drawn here once it is in the model; the values read from its files are under
           Files and tables.</p>
       )}

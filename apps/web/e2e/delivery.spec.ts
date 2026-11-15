@@ -19,7 +19,7 @@ const REPO = resolve(__dirname, "../../..");
 
 type Row = { subject: string; label: string };
 type Value = { id: string; verbatim: string | null };
-type Card = { tables: { id: string; kind: string; values: Value[] }[]; blockers: { code: string }[] };
+type Card = { tables: { id: string; kind: string; values: Value[]; mapping_id: string | null }[]; blockers: { code: string }[] };
 
 async function shot(page: Page, name: string) {
   await page.screenshot({ path: test.info().outputPath(`${name}.png`), fullPage: true });
@@ -126,7 +126,9 @@ test("a delivery is reviewed by exception, spot-checked, signed and loaded once"
   await page.getByTestId(`delivery-subject-open-${other.subject}`).click();      // closed again
 
   // --- the one mapping that waits: shown with its table's numbers masked, then approved ---
-  await card.getByTestId(`delivery-card-mapping-${waiting}`).click();
+  // a layout is checked from the head of the table it reads (not listed again apart)
+  const urine = before.tables.find((t) => t.mapping_id === waiting)!;
+  await card.getByTestId(`delivery-table-mapping-${urine.id}`).click();
   const mapping = page.getByTestId("delivery-mapping-dialog");
   await expect(mapping.getByTestId("mapping-status")).toHaveText("waits for approval");
   await expect(mapping.getByTestId("mapping-columns")).toContainText("Amount (mg)");
@@ -261,8 +263,9 @@ test("a delivery is reviewed by exception, spot-checked, signed and loaded once"
   await expect(legacy).toContainText("in the model");
   await expect(legacy).not.toContainText("To confirm");
   await expect(page.getByTestId("confirm-study:230-23")).toHaveCount(0);
-  // each dataset names the rule its points below the LLOQ are judged with, and how many it leaves out
-  await expect(legacy.getByTestId("dataset-blq").first()).toContainText("judged by the rule “omit”");
+  // each dataset names the rule its points below the LLOQ are judged with, and how many it leaves out (drawn once, under
+  // the card's Observed data, not again in the sheet form's reading)
+  await expect(page.getByTestId("card-observed-study:230-23").getByTestId("dataset-blq").first()).toContainText("judged by the rule “omit”");
   // the project holds the study's two datasets (the parent and the metabolite), both from the signed confirmation
   const evidence = await read<{ datasets: { study: { study_id: string }; state: string; decision_reason: string }[] }>("evidence");
   const loaded = evidence.datasets.filter((d) => d.study.study_id === "230-23");

@@ -236,3 +236,28 @@ before the next starts.
     products and the compound (a study's link scrolls to its row); the "Nothing on this tab yet" empty-state title of
     `InputRows` (owned by the slice-4 branch). The client's compound values as a card on Compound shows only where a
     delivery or sheet-form compound subject exists.
+- Within this plan, slice 3 after its review (2026-11-15; frontend only):
+  - **Asked once, counted once:** on a card confirmed on the delivery, the sheet form's sheets that do not say a fact
+    are no longer rows of the one list of work (they were counted beside the delivery's own facts row, which asks for the
+    same facts). They are asked inside the sheet form's path when the person chooses it; the card's sheet path says how
+    many things the sheet form has first. The sheet form's disagreements on such a card are still counted. This narrows
+    slice 2's "both confirm paths stay open … its open items are counted too" to the disagreements.
+  - **A card the sheet form confirmed first** reads as a sheet-form card (the group as its body, the delivery's reading
+    folded for reference), whatever its `confirm_on`.
+  - **"State it…" for ANALYTE_MISSING** links the check's values again (`values:assign`) with their study, arm, product
+    and batch named again and the analyte chosen or named, one link per set of values that share those: an assignment
+    replaces the earlier one whole, so naming them again is what keeps them. Not offered while the study is blinded.
+  - **"Fill in…" for DISSOLUTION_METHOD_INCOMPLETE is not built.** The method a run must state is the `conditions` of
+    each dissolved value of the run (`intake_checks._dissolution_method_incomplete`); the check names no values, and
+    the only way to give values new conditions today is to correct each one through `:enter`, which would re-enter every
+    point of the run as a person's entry and drop its file as its source. The check keeps "Accept as is…". API
+    follow-up: a run's method stated once (its batch and conditions, with a reason), kept beside the values it applies to.
+  - **A study's datasets on its card keep every action** of the dataset list (reveal for a check, the overlay check, the
+    flags, the digitization, the reported PK; plan rule 6); the study's row says what waits among them while its card is
+    closed.
+  - **A card opened from To do or "Next"** lands at its head (a study's: its row) with the focus on the control that
+    opens it; an item inside a card at its place, the focus on its first control.
+  - **Not changed here:** the delivery API does not blind a client study that the project blinds by its id (CL-2 on
+    clientamide with an external dataset filed under it): the page now withholds the delivery's reading of such a study
+    in "How the files were read", but the sheet form's group shows what the client-review API sends. Whether the client
+    review and the delivery should blind it is an API question for the owner.

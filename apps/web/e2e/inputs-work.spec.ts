@@ -166,16 +166,16 @@ test("what holds up a card signed on the delivery is counted: its facts, require
   expect(model.counts.missing + model.counts.to_confirm + model.counts.to_decide).toBe(model.counts.open);
   const areas = (["compound", "formulations", "studies", "individuals", "settings", "files"] as const).reduce((n, t) => n + model.byArea[t], 0);
   expect(areas).toBe(model.counts.open);
-  expect(areaHead(model, "studies")).toBe("8 studies · 15 missing · 8 to confirm · 1 to decide");
+  expect(areaHead(model, "studies")).toBe("8 studies · 13 missing · 8 to confirm · 1 to decide");
   expect(onDelivery(model, "studies").map((x) => `${x.subject.label} ${x.open.length}`)).toEqual(["230-23 3", "231-24 3", "230-25 2", "230-26 3"]);
   // the confirm row says what holds it, in the order it is done; the clean-up is said once, as the gate
   const confirm = row("confirm:study:230-23");
   expect(confirm.detail).toContain("first 3 items on its card (2 missing · 1 to decide) and the delivery clean-up; then the spot check and the signature");
   expect(confirm.detail).toContain("or confirm it with the sheet form on Clinical studies (1 thing first): whichever is confirmed first is what loads");
   expect(confirm.gate).toBe("10 table layouts to check · 6 files to link · 8 files with numbers not read");
-  // the sheet form's own open item of 230-23 is counted too: it can be confirmed with the sheet form instead
-  const draft = model.items.find((i) => i.id.startsWith("draft:") && i.subjects.includes("study:230-23"))!;
-  expect(draft.open).toBe(true);
+  // the facts its sheet does not say are not asked a second time: the delivery's facts row asks for them once, and the
+  // sheet form asks them inside its own path when the person chooses it (slice 3, after its review)
+  expect(model.items.some((i) => i.id.startsWith("draft:") && i.subjects.includes("study:230-23"))).toBe(false);
   // a card not read yet: its row says it is being checked, and only what is known is counted
   const sources = load("exampleamide");
   delete sources.cards!["study/st-11"];

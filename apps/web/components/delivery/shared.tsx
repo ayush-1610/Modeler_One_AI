@@ -178,8 +178,8 @@ export function useWritePage(projectId: string) {
 }
 
 /** A decision with its reason: what the API asks `why` for. The reason is kept on the audit trail. */
-export function Why({ action, actionLabel, label, busy, onSubmit, onCancel, testId, optional = false, placeholder, children, disabled = false,
-                     autoFocus = false }: {
+export function Why({ action, actionLabel, label, busy, onSubmit, onCancel, testId, formTestId, optional = false, placeholder, children,
+                     disabled = false, autoFocus = false }: {
   action: string;
   /** the button's name with its context, where the same button is repeated ("Link the 4 values of 230-23.xlsx") */
   actionLabel?: string;
@@ -189,6 +189,8 @@ export function Why({ action, actionLabel, label, busy, onSubmit, onCancel, test
   onSubmit: (why: string) => void | Promise<unknown>;
   onCancel?: () => void;
   testId?: string;
+  /** the form's own testid, where `testId` names a wrapper around it (its field and button keep `testId`'s prefix) */
+  formTestId?: string;
   /** the API takes this decision without a reason */
   optional?: boolean;
   placeholder?: string;
@@ -201,7 +203,7 @@ export function Why({ action, actionLabel, label, busy, onSubmit, onCancel, test
   const [why, setWhy] = useState("");
   const ready = (optional || Boolean(why.trim())) && !disabled;
   return (
-    <form className="delivery-why" data-testid={testId}
+    <form className="delivery-why" data-testid={formTestId ?? testId}
           onSubmit={(e) => { e.preventDefault(); if (ready && !busy) void onSubmit(why.trim()); }}>
       {children}
       <input type="text" aria-label={label} value={why} onChange={(e) => setWhy(e.target.value)} autoFocus={autoFocus}
