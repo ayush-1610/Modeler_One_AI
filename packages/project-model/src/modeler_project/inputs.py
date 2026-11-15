@@ -22,7 +22,7 @@ from __future__ import annotations
 import hashlib
 import re
 from collections import defaultdict
-from typing import Any
+from typing import Any, get_args
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -48,6 +48,7 @@ from pbpk_domain import parameters
 from pbpk_domain.cpf.models import CPF, EngineBinding, ParameterRecord, ParameterStatus, Provenance
 from pbpk_domain.cpf.process_bindings import binding_candidates, is_process_id
 from pbpk_domain.data_origin import REAL_ORIGINS
+from pbpk_domain.snapshot.builder import CompoundSpec
 
 MAIN = "main"
 CHOICES = "choices"
@@ -85,6 +86,41 @@ def placement(cpf_id: str) -> str | None:
     """"model" (PK-Sim takes it), "process" (a process parameter the harvested table places), "reference" (kept for
     checks, not set in PK-Sim), or None: not a parameter the model uses (`pbpk_domain.parameters.placement`)."""
     return parameters.placement(cpf_id)
+
+
+def _literal_words(annotation: Any) -> tuple[str, ...]:
+    """The words of a Literal (inside an Optional too), in their order."""
+    out: list[str] = []
+    for arg in get_args(annotation):
+        if isinstance(arg, str):
+            out.append(arg)
+        elif arg is not type(None):
+            out += _literal_words(arg)
+    return tuple(out)
+
+
+# The values PK-Sim takes for a model input that is one of a set of names, read from the model builder's own types
+# (never typed here): the plasma protein binding partner, by the names `CompoundSpec.binding_partner` allows. The CPF's
+# "unspecified" (`cpf.build.UNSPECIFIED_PARTNER`, a published model that leaves it unset) is the OSP import's, not a
+# person's value.
+_ALLOWED: dict[str, tuple[str, ...]] = {
+    "bind.partner": _literal_words(CompoundSpec.model_fields["binding_partner"].annotation),
+}
+
+
+def allowed_values(target: str) -> tuple[str, ...]:
+    """The values a value of `target` must be one of, where PK-Sim takes only a harvested set of names (empty: any
+    value its kind takes)."""
+    return _ALLOWED.get(target, ())
+
+
+def value_problem(target: str, value: float | str) -> str | None:
+    """Why `value` cannot be a value of `target` (None: it can): a parameter PK-Sim takes only by one of its names
+    (`allowed_values`) refuses any other value, a number or a name written otherwise ("albumin")."""
+    allowed = allowed_values(target)
+    if allowed and value not in allowed:
+        return f"{target} takes one of PK-Sim's names, as written: {', '.join(allowed)} (not {value!r})"
+    return None
 
 
 def target_problem(target: str) -> str | None:

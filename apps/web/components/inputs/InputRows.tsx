@@ -24,31 +24,28 @@ const STATE: Record<Row["state"], [string, string]> = {
 // the sources a person may cite for a value typed into a row (modeler_project.evidence.SourceType)
 const SOURCE_TYPES = [["PUBLICATION", "publication"], ["CLIENT_REPORT", "client report"], ["REGULATORY_REVIEW", "regulatory review"],
                       ["DATABASE", "database"], ["ASSUMPTION", "assumption (no source)"]] as const;
-// PK-Sim's plasma protein binding partners, as the API's compound spec names them (`CompoundSpec.binding_partner`,
-// harvested into the model builder): `satisfies` keeps this list the API's own, so a name is never made up here
-type Partner = NonNullable<Schema<"CompoundSpec">["binding_partner"]>;
-const PARTNERS = Object.keys({ Albumin: 0, Glycoprotein: 0, Unknown: 0 } satisfies Record<Partner, 0>) as Partner[];
-
 /** How a person gives a model input its value: typed with its unit as the source states it, except for the model ids
  *  (pbpk_domain/parameters/registry.yaml) whose value is a word or a document (`modeler_project.evidence.numeric_target`):
- *  the binding partner is one of PK-Sim's names, "neutral" is a statement about the pKa, and what this form cannot take
- *  (a table, a method's name, a rule) is not offered here. */
-type Entry = { kind: "typed" | "partner" | "neutral" } | { kind: "elsewhere"; what: string };
+ *  one PK-Sim takes only by its names is chosen from the names the API gives on the row (`CompoundRow.allowed`, read from
+ *  the model builder's own types, as `POST /evidence` checks them: the binding partner's), "neutral" is a statement about
+ *  the pKa, and what this form cannot take (a table, a method's name, a rule) is not offered here. */
+type Entry = { kind: "typed" | "choice" | "neutral" } | { kind: "elsewhere"; what: string };
 const NOT_A_NUMBER: Record<string, Entry> = {
-  "bind.partner": { kind: "partner" },
   "phys.pka.neutral": { kind: "neutral" },
   "phys.solubility.table": { kind: "elsewhere", what: "a table of solubility by pH" },
   "dist.partition_method": { kind: "elsewhere", what: "the name of a PK-Sim calculation method" },
   "dist.permeability_method": { kind: "elsewhere", what: "the name of a PK-Sim calculation method" },
   "alt.select": { kind: "elsewhere", what: "which alternative each product and food state uses" },
 };
-const entryOf = (id: string): Entry => NOT_A_NUMBER[id] ?? { kind: "typed" };
+const entryOf = (row: Row): Entry => (row.allowed.length ? { kind: "choice" } : NOT_A_NUMBER[row.id] ?? { kind: "typed" });
+// what a name chosen for the input is, said above its names
+const CHOICE_HELP: Record<string, string> = { "bind.partner": "The plasma protein the compound binds to, by PK-Sim's name." };
 
 /** A value with its source, typed into the row (p2-add): filed under the row's data-checklist item, cited. A value is
- *  typed with its unit as the source states it; the binding partner is chosen from PK-Sim's names; a neutral compound
+ *  typed with its unit as the source states it; a name (the binding partner) is chosen from PK-Sim's; a neutral compound
  *  is stated as such (phys.pka.neutral set to 1, as the CPF records it for a published model, `osp_import`). */
 function AddValue({ row, name, projectId, run }: { row: Row; name: string; projectId: string; run: Run }) {
-  const entry = entryOf(row.id);
+  const entry = entryOf(row);
   const [value, setValue] = useState(entry.kind === "neutral" ? "1" : "");
   const [unit, setUnit] = useState(row.unit ?? "");
   const [type, setType] = useState<(typeof SOURCE_TYPES)[number][0]>("PUBLICATION");
@@ -68,7 +65,7 @@ function AddValue({ row, name, projectId, run }: { row: Row; name: string; proje
       <p className="muted fs-12 m-0">
         {typed ? <>Type the value and its unit as the source states them. A number in a unit PK-Sim does not use is converted
           where the unit allows; otherwise it is held for you to check.</>
-          : entry.kind === "partner" ? <>The plasma protein the compound binds to, by PK-Sim&apos;s name.</>
+          : entry.kind === "choice" ? <>{CHOICE_HELP[row.id] ?? "One of PK-Sim's names for it, as the model builder takes it."}</>
             : <>The source states that the compound is neutral: it has no pKa.</>}
         {" "}Cite the source by its DOI or URL, or call it an assumption.</p>
       <div className="row gap-6">
@@ -78,11 +75,11 @@ function AddValue({ row, name, projectId, run }: { row: Row; name: string; proje
           <label className="add-field">Unit
             <input placeholder="as stated" value={unit} onChange={(e) => setUnit(e.target.value)} className="w-90" aria-label={`unit for ${row.id}`} /></label>
         </>}
-        {entry.kind === "partner" && (
-          <label className="add-field">Binding partner
+        {entry.kind === "choice" && (
+          <label className="add-field">PK-Sim&apos;s name
             <select value={value} onChange={(e) => setValue(e.target.value)} aria-label={`value for ${row.id}`}>
               {!value && <option value="">choose…</option>}
-              {PARTNERS.map((p) => <option key={p} value={p}>{p}</option>)}
+              {row.allowed.map((p) => <option key={p} value={p}>{p}</option>)}
             </select></label>
         )}
         <label className="add-field">Source
@@ -172,7 +169,7 @@ function InputRow({ row, name, items, projectId, run }: { row: Row; name: string
   const [open, setOpen] = useState(false);
   const [adding, setAdding] = useState(false);
   const [state, label] = STATE[row.state];
-  const entry = entryOf(row.id);
+  const entry = entryOf(row);
   const kept = row.sources.length ? ev(row.sources[0]) : undefined;
   const agree = row.sources.length - 1;
   return (
@@ -294,11 +291,11 @@ export function InputRows({ rows, todo, projectId, run, empty, grouped }: {
     .map((name) => [name, sorted.filter((r) => blockOf(r.id) === name)] as const).filter(([, list]) => list.length);
   // "neutral" is the alternative to a pKa: offered only while the compound has none
   const pka = rows.some((r) => r.id.startsWith("phys.pka.") && r.id !== "phys.pka.neutral" && r.state !== "empty");
-  const offered = (r: Row) => entryOf(r.id).kind !== "elsewhere" && !(r.id === "phys.pka.neutral" && pka);
+  const offered = (r: Row) => entryOf(r).kind !== "elsewhere" && !(r.id === "phys.pka.neutral" && pka);
   const filled = (list: Row[]) => list.filter((r) => r.state !== "empty");
   const toFill = (list: Row[]) => list.filter((r) => r.state === "empty" && offered(r));
-  const elsewhere = (list: Row[]) => list.filter((r) => r.state === "empty" && entryOf(r.id).kind === "elsewhere")
-    .map((r) => { const e = entryOf(r.id); return `${nameOf(r)} (${e.kind === "elsewhere" ? e.what : ""})`; });
+  const elsewhere = (list: Row[]) => list.filter((r) => r.state === "empty" && entryOf(r).kind === "elsewhere")
+    .map((r) => { const e = entryOf(r); return `${nameOf(r)} (${e.kind === "elsewhere" ? e.what : ""})`; });
   // what waits on a person: a value missing, in conflict or held; a row to fill is not open
   const open = (list: Row[]) => list.filter((r) => r.state !== "kept" && r.state !== "empty").length;
   return (

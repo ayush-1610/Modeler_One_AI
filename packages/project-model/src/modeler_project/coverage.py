@@ -280,6 +280,28 @@ def person_acceptance(decisions: Sequence[RegionDecision], where: str) -> Region
     return found[-1] if found else None
 
 
+def region_restore(decisions: Sequence[RegionDecision], region_id: str, kind: str) -> RegionDecision | None:
+    """The latest restore that gave this region (of this kind) back: a decision with `restores` of a scope that covers
+    the kind and lists the region (None: none did). It stays the region's record when a later decision sets the
+    region aside again. `decisions`: the file's, in log order."""
+    found = None
+    for decision in decisions:
+        if decision.restores and decision.scope in _SCOPE_KINDS and region_id in decision.regions \
+                and (_SCOPE_KINDS[decision.scope] is None or kind in _SCOPE_KINDS[decision.scope]):  # type: ignore[operator]
+            found = decision
+    return found
+
+
+def outside_restore(decisions: Sequence[RegionDecision], where: str) -> RegionDecision | None:
+    """The latest restore that gave the outside item at `where` back to the count: a decision with `restores` of scope
+    `outside` that names its place (None: none did). `decisions`: the file's, in log order."""
+    found = None
+    for decision in decisions:
+        if decision.restores and decision.scope == "outside" and where in _Places(decision.regions):
+            found = decision
+    return found
+
+
 def replaced_outcome_lost(coverage: FileCoverage, region_id: str) -> bool:
     """Whether a region a person set aside lost the outcome its decision replaced (a decision applied before
     `RegionOutcome.replaced` was kept): restored, it shows as unread until its file is read again."""

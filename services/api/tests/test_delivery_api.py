@@ -288,7 +288,8 @@ def test_the_page_lists_every_delivery_with_its_files_their_coverage_the_subject
         ("table", "mapped", "cache", "approved")}
     assert all(r["used"] + r["excluded"] == r["numeric_cells"] and r["silent"] == 0 for r in book["regions"])
     assert [o for o in book["outside"] if o["counted"]] == [
-        {"where": OUTSIDE_NOTE, "text": "Note: 3 samples were re-assayed on day 14", "region": None, "counted": True}]
+        {"where": OUTSIDE_NOTE, "text": "Note: 3 samples were re-assayed on day 14", "region": None, "counted": True,
+         "decision": None, "restored": None}]
     assert book["coverage"]["outside_numeric"] == 1
     # the PDF's prose is unread and says why (no model); the Word figure is excluded by the rule
     prose = next(r for r in files[pdf.name]["regions"] if r["kind"] == "prose")
@@ -1316,14 +1317,14 @@ def test_in_legacy_the_page_answers_enabled_false_and_no_other_delivery_route_do
         f"{subject}:link": {"file_sha256": sha, "confirmed": True}, f"{subject}:enter": {"field": "route", "value": "oral", **why},
         f"{subject}:confirm": None, f"{subject}/spot-check:draw": None,
         f"{subject}/spot-check": {"draw_id": "sd-1", "ticks": []}}
-    gets = ["delivery/source?value=f-1", "delivery/mappings/mp-0123456789ab", subject]
+    gets = ["delivery/source?value=f-1", "delivery/mappings/mp-0123456789ab", subject, "delivery/vocabulary"]
     answers = [p.post(path, body) for path, body in posts.items()] + [p.get(path) for path in gets]
     for answer in answers:
         assert answer.status_code == 409, (answer.request.url, answer.text)
         assert answer.json()["detail"]["code"] == "INTAKE_PIPELINE_OFF"
     # every /delivery route but the page was asked, and nothing was written: no intake folder, no event
     mounted = {(m, r.path) for r in client_api.router.routes if isinstance(r, APIRoute) and "/delivery" in r.path for m in r.methods}
-    assert len(mounted) == len(posts) + len(gets) + 1 == 20
+    assert len(mounted) == len(posts) + len(gets) + 1 == 21
     assert not (Path(p.store.root) / "t1" / "projects" / "p1" / "intake").exists()
     assert [e.action for e in p.events() if e.action.startswith(("intake.", "signature."))] == []
 
@@ -1404,13 +1405,13 @@ def test_delivery_routes_defines_no_router_and_imports_no_module_that_defines_on
     # its handlers are client_api's routes: mounted on that router, covered by the response ratchet
     assert not hasattr(delivery_routes, "router")
     handlers = {r.endpoint for r in client_api.router.routes if isinstance(r, APIRoute) and "/delivery" in r.path}
-    assert len(handlers) == 20 and all(h.__module__ == "modeler_api.delivery_routes" for h in handlers)
+    assert len(handlers) == 21 and all(h.__module__ == "modeler_api.delivery_routes" for h in handlers)
 
 
 def test_every_delivery_route_and_the_admin_pipeline_route_has_a_typed_answer():
     routes = [r for router in (client_api.router, admin_api.router) for r in router.routes
               if isinstance(r, APIRoute) and ("/delivery" in r.path or r.path.endswith("/admin/pipeline"))]
-    assert len(routes) == 21
+    assert len(routes) == 22
     names = set()
     for route in routes:
         model = route.response_model
@@ -1420,7 +1421,7 @@ def test_every_delivery_route_and_the_admin_pipeline_route_has_a_typed_answer():
         names.add(data.__name__)
         assert route.response_model_exclude_unset is True
     assert names == {"DeliveryPage", "DeliverySubject", "DeliverySource", "DeliveryMapping", "DeliverySpotCheck",
-                     "TriageStart", "PipelineHealth"}
+                     "DeliveryMappingVocabulary", "TriageStart", "PipelineHealth"}
     # no new model takes the name of a schema the API already published: FastAPI would rename both
     schemas = app.openapi()["components"]["schemas"]
     assert not [name for name in schemas if name.startswith("modeler_api__views__delivery")]
@@ -2371,3 +2372,163 @@ def test_a_relink_replaces_the_assignment_whole_and_the_page_gives_each_analyte_
     kept = p.post("delivery/values:assign", {"targets": [extract], "study": study, "analyte": m1["id"],
                                              "why": "the same study, M1"})
     assert kept.status_code == 200 and analytes() == {m1["id"]} and kept.json()["data"]["analytes"] == [m1]
+
+
+# --- the fill round's API follow-ups (plan 2026-11-14 §5): who decided, a table's first rows, the layout words -----------
+
+
+@pytest.mark.req("T-47", "F-404", "T-05", "T-06")
+def test_a_persons_not_data_decision_is_on_its_region_and_note_with_who_when_and_why_and_its_restore_stays(project):
+    p = project()
+    workbook = synthetic.messy_workbook()
+    p.deliver(workbook, ("loose-profile.csv", LOOSE))
+    loose, book, lloq = _sha(LOOSE), _sha(workbook.data), "s:'Fasting'!A16"   # the LLOQ line its table reads
+
+    def file(page: dict[str, Any], sha: str) -> dict[str, Any]:
+        return next(f for d in page["deliveries"] for f in d["files"] if f["sha256"] == sha)
+
+    def note(page: dict[str, Any], where: str) -> dict[str, Any]:
+        return next(o for o in file(page, book)["outside"] if o["where"] == where)
+
+    def line(rd: str, *keys: str) -> dict[str, Any]:
+        """A decision as its own line of the review log has it."""
+        body = next(e.body for e in IntakeStore(p.ws).review.entries("region") if e.body["id"] == rd)
+        return {k: body[k] for k in ("id", "by", "at", "why", *keys)}
+
+    page = p.page()
+    (region,) = file(page, loose)["regions"]
+    assert (region["state"], region["decision"], region["restored"]) == ("mapped", None, None)
+    # a note its table reads and the stray note: no decision on either, so the one not counted is its table's
+    assert (note(page, lloq)["counted"], note(page, lloq)["decision"], note(page, lloq)["restored"]) == (False, None, None)
+    assert (note(page, OUTSIDE_NOTE)["counted"], note(page, OUTSIDE_NOTE)["decision"]) == (True, None)
+
+    # marked as not data: the region and both notes say who, when and why, from the decision's own line
+    body = {"file_sha256": loose, "regions": [region["region_id"]], "scope": "regions"}
+    assert p.post("delivery/regions:exclude", {**body, "why": "a duplicate of the Fed sheet"}).status_code == 200
+    assert _accept_note(p, workbook).status_code == 200
+    beside = {"file_sha256": book, "regions": [lloq], "scope": "outside"}
+    marked = p.post("delivery/regions:exclude", {**beside, "why": "the assay's limit, said again"})
+    assert marked.status_code == 200, marked.text
+    page = marked.json()["data"]
+    (excluded,) = file(page, loose)["regions"]
+    first = excluded["reason"].split(":")[0]
+    assert excluded["state"] == "excluded" and excluded["decision"] == line(first)
+    assert (excluded["decision"]["by"], excluded["decision"]["why"], excluded["restored"]) == (
+        "u1", "a duplicate of the Fed sheet", None)
+    stray, cited = note(page, OUTSIDE_NOTE), note(page, lloq)
+    assert stray["counted"] is False and stray["decision"]["why"] == "a working note, not data"
+    assert cited["counted"] is False and cited["decision"] == line(cited["decision"]["id"])
+    assert cited["decision"]["why"] == "the assay's limit, said again"
+    assert note(page, "s:'Fed'!A16")["decision"] is None                       # the same words beside another table
+
+    # restored: no decision is in force, and the restore stays on the record, naming the decision it undid
+    restored = p.post("delivery/regions:restore", {**body, "why": "the fed means after all"}).json()["data"]
+    (back,) = file(restored, loose)["regions"]
+    again = back["restored"]["id"]
+    assert (back["state"], back["decision"]) == ("mapped", None)
+    assert back["restored"] == {**line(again), "restores": [first]} and back["restored"]["why"] == "the fed means after all"
+    page = p.post("delivery/regions:restore", {**beside, "why": "a limit, said beside its table"}).json()["data"]
+    cited = note(page, lloq)
+    undone = cited["restored"]["restores"]
+    assert (cited["counted"], cited["decision"]) == (False, None) and len(undone) == 1    # its table still reads it
+    assert line(undone[0])["why"] == "the assay's limit, said again" and note(page, OUTSIDE_NOTE)["restored"] is None
+    # set aside again: the new decision is in force, and the restore before it is still its record
+    aside = p.post("delivery/regions:exclude", {**body, "why": "a duplicate after all"}).json()["data"]
+    (excluded,) = file(aside, loose)["regions"]
+    assert excluded["decision"]["why"] == "a duplicate after all" and excluded["decision"]["id"] not in (first, again)
+    assert excluded["restored"]["id"] == again
+
+
+# a table no rule reads, wider than what is shown of it, with a header cell longer than what is shown of a cell
+WIDE = (",".join(["Item"] + [f"Q{d} result" for d in range(1, 35)] + ["x" * 100]) + "\n"
+        + "\n".join(",".join([f"row {s}"] + [f"{s}.{d}" for d in range(1, 36)]) for s in range(1, 8)) + "\n").encode()
+
+
+@pytest.mark.req("T-47", "F-404", "F-402")
+def test_a_table_no_layout_reads_shows_its_first_rows_and_a_blinded_file_only_its_header_masked(project):
+    p = project()
+    p.deliver(("odd-profile.csv", ODD), ("wide-troughs.csv", WIDE))
+
+    def regions(name: str) -> list[dict[str, Any]]:
+        return next(f for d in p.page()["deliveries"] for f in d["files"] if f["name"] == name)["regions"]
+
+    (region,) = regions("odd-profile.csv")
+    first = {"n_rows": 4, "n_cols": 2, "header_rows": 1, "blinded": False,
+             "rows": [["Hrs (h)", "Result (ng/mL)"], ["0.5", "1.2"], ["1", "2.3"], ["2", "3.4"]]}
+    assert region["state"] == "unread" and region["head"] == first
+    # at most 5 rows and 30 columns of a wide table, each cell cut at 80 characters
+    (wide,) = regions("wide-troughs.csv")
+    head = wide["head"]
+    assert wide["state"] == "unread" and (head["n_rows"], head["n_cols"], head["header_rows"]) == (8, 36, 1)
+    assert len(head["rows"]) == 5 and {len(row) for row in head["rows"]} == {30}
+    assert head["rows"][0][:2] == ["Item", "Q1 result"] and head["rows"][4][:2] == ["row 4", "4.1"]
+    # read with a person's layout: no rows (it has a layout to review); its layout rejected, its rows again
+    proposed = p.post("delivery/mappings:propose", {"file_sha256": _sha(ODD), "region_id": region["region_id"],
+                                                    "spec": ODD_SPEC, "why": "hours, and the mean level"})
+    assert proposed.status_code == 200, proposed.text
+    p.settle()
+    (read,) = regions("odd-profile.csv")
+    assert (read["state"], read["head"]) == ("mapped", None)
+    mapping = proposed.json()["data"]["mapping_id"]
+    assert p.post(f"delivery/mappings/{mapping}:reject", {"version": 1, "why": "the unit is µg/L"}).status_code == 200
+    p.settle()
+    (back,) = regions("odd-profile.csv")
+    assert back["head"] == first
+
+    # a file that holds a blinded study's values: the header band only, every digit masked, and no value
+    b = project(blinding=True, project_id="p2")
+    workbook = synthetic.messy_workbook()
+    b.deliver(workbook)
+    secrets = _secrets(b.ws, "230-23")
+    path = b.subject("230-23")
+    table = next(t for t in b.card(path)["tables"] if t["mapping_id"])
+    entered = b.post(f"{path}:enter", {"field": "intended_use", "value": "external_validation", "why": "the plan says so"})
+    assert entered.status_code == 200 and entered.json()["data"]["blinded"] is True
+    for version in (table["mapping_version"], table["mapping_version"] + 1):     # the layout, then the rules' own reading
+        rejected = b.post(f"delivery/mappings/{table['mapping_id']}:reject", {"version": version, "why": "not this layout"})
+        assert rejected.status_code == 200, rejected.text
+        b.settle()
+    answer = b.get("delivery")
+    book = next(f for d in answer.json()["data"]["deliveries"] for f in d["files"] if f["name"] == workbook.name)
+    shown = [r for r in book["regions"] if r["head"] is not None]
+    assert book["blinded"] is True and {r["where"] for r in shown} == {"s:'Fasting'!A2:G14", "s:'Fed'!A2:G14"}
+    doc = parse_document(workbook.data, workbook.name)
+    for r in shown:
+        grid = region_grid(doc, r["region_id"])
+        rows = r["head"]["rows"]
+        assert r["head"]["blinded"] is True and 0 < len(rows) <= r["head"]["header_rows"]
+        assert rows == [[re.sub(r"\d", "•", grid.cell(row, c).text.strip()) for c in range(1, min(grid.n_cols, 30) + 1)]
+                        for row in range(1, len(rows) + 1)]
+        assert not any(ch.isdigit() for row in rows for ch in "".join(row))
+    assert _leaks(secrets, answer.text) == []
+    # what a person wrote about a blinded file has its digits masked too, its decision's id kept
+    other = next(r for r in book["regions"] if r["state"] == "mapped")
+    aside = b.post("delivery/regions:exclude", {"file_sha256": _sha(workbook.data), "regions": [other["region_id"]],
+                                                "scope": "regions", "why": "rows 4 to 12 repeat 25.2"})
+    assert aside.status_code == 200, aside.text
+    noted = b.post("delivery/regions:exclude", {"file_sha256": _sha(workbook.data), "regions": [OUTSIDE_NOTE],
+                                                "scope": "outside", "why": "3 samples, re-assayed"}).json()["data"]
+    book = next(f for d in noted["deliveries"] for f in d["files"] if f["name"] == workbook.name)
+    marked = next(r for r in book["regions"] if r["region_id"] == other["region_id"])
+    assert marked["decision"]["why"] == "rows • to •• repeat ••.•"
+    assert marked["reason"] == f"{marked['decision']['id']}: rows • to •• repeat ••.•"
+    assert next(o for o in book["outside"] if o["where"] == OUTSIDE_NOTE)["decision"]["why"] == "• samples, re-assayed"
+
+
+@pytest.mark.req("T-47", "F-404")
+def test_the_layout_words_are_given_to_a_project_where_no_table_has_a_layout_yet(project):
+    p = project()
+    p.deliver(("odd-profile.csv", ODD))
+    page = p.page()
+    assert page["mappings"] == [] and not [r for d in page["deliveries"] for f in d["files"] for r in f["regions"]
+                                          if r["mapping_id"]]
+    answer = p.get("delivery/vocabulary", "viewer")
+    assert answer.status_code == 200, answer.text
+    vocabulary = answer.json()["data"]
+    # the intake package's own words, the same every mapping answer gives
+    assert vocabulary["roles"] == list(get_args(Role)) and vocabulary["statistics"] == list(get_args(Statistic))
+    assert {f["name"] for f in vocabulary["fields"]} == set(FIELDS) and vocabulary["labels"] == list(LABEL_FIELDS)
+    (region,) = page["deliveries"][0]["files"][0]["regions"]
+    proposed = p.post("delivery/mappings:propose", {"file_sha256": _sha(ODD), "region_id": region["region_id"],
+                                                    "spec": ODD_SPEC, "why": "hours, and the mean level"})
+    assert proposed.status_code == 200 and proposed.json()["data"]["vocabulary"] == vocabulary

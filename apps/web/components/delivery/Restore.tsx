@@ -2,47 +2,51 @@
 
 // Undo "Mark as not data" (plan 2026-11-14 §2.2.4, API 6): a table, a text or a note a person marked as not data is
 // given back with the reason, through `regions:restore` with the exclusion's own ids and scope. The decision it undoes
-// is said where it is shown: why (the region's reason) and who and when (the project's audit trail, read only while
-// such a decision is on screen). The answer is the page, written into the cache: nothing else is read again.
+// is said where it is shown, as the page gives it (`DeliveryRegion.decision`, `DeliveryOutside.decision`: who, when and
+// why, from the decision's own line), and so is the restore that gave a thing back (`restored`), which stays on the
+// record. The answer is the page, written into the cache: nothing else is read again.
 
-import { send } from "@/lib/api";
-import { useResource } from "@/lib/hooks";
+import { send, type Schema } from "@/lib/api";
 
-import { Problem, Why, personDecision, useDecide, useWritePage, when, type FileRow, type Region } from "./shared";
+import { Problem, Why, useDecide, useWritePage, when, type FileRow, type Region } from "./shared";
 
 const RESTORE = "/api/v1/projects/{project_id}/delivery/regions:restore" as const;
-// the project's audit events read back for who made a decision: enough for any delivery under review
-const AUDIT_EVENTS = "2000";
 
 export type Scope = "regions" | "unread_prose" | "figures" | "outside";
-type Who = { by: string; at: string };
+type Decision = Schema<"DeliveryRegionDecision">;
+type Restored = Schema<"DeliveryRegionRestore">;
+type Note = FileRow["outside"][number];
 
-/** Who made each person's "not data" decision on screen, and when (`intake.region` events, by the decision's id). Read
- *  only when `wanted`; an empty map until read, or when the trail is not readable. */
-export function useDecisionsWho(projectId: string, wanted: boolean): Map<string, Who> {
-  const read = useResource("/api/v1/projects/{project_id}/audit", { project_id: projectId }, {
-    query: { limit: AUDIT_EVENTS }, enabled: wanted,
-    select: (trail) => new Map(trail.events.filter((e) => e.action === "intake.region")
-      .map((e) => [e.resource_id.slice(e.resource_id.lastIndexOf("/") + 1), { by: e.actor, at: e.occurred_at }] as const)),
-  });
-  return read.data ?? new Map();
+/** Kept so a caller written against the audit-trail version still compiles: who made a decision is on the page now
+ *  (`decision.by`, `decision.at`), so nothing is read. Drop it with the caller's `who`. */
+export function useDecisionsWho(_projectId: string, _wanted: boolean): Map<string, unknown> {
+  return new Map<string, unknown>();
 }
 
-/** A region's "not data" decision in words: by whom, when and why ("Marked as not data by dev-user, 2026-11-14 18:15:
- *  a working note"). Null for a region a rule set aside or one nobody did. */
-export function NotDataNote({ region, who, testId }: { region: Region; who: Map<string, Who>; testId?: string }) {
-  const decision = region.state === "excluded" ? personDecision(region.reason) : null;
-  if (!decision) return null;
-  const by = who.get(decision.id);
-  return (
-    <div className="muted fs-12" data-testid={testId}>
-      Marked as not data{by ? ` by ${by.by}, ${when(by.at)}` : ""}: {decision.why}
-    </div>
-  );
+/** A person's "not data" decision in force, in words: "Marked as not data by dev-user, 2026-11-14 18:15: a working
+ *  note". With none, the restore that gave the thing back, if any: "Restored by …: why". Null when neither. */
+export function DecisionNote({ decision, restored, testId }: { decision: Decision | null; restored?: Restored | null; testId?: string }) {
+  if (decision) {
+    return <div className="muted fs-12" data-testid={testId}>Marked as not data by {decision.by}, {when(decision.at)}: {decision.why}</div>;
+  }
+  if (restored) {
+    return <div className="muted fs-12" data-testid={testId}>Restored by {restored.by}, {when(restored.at)}: {restored.why}</div>;
+  }
+  return null;
+}
+
+/** A region's "not data" decision (or, with none, its restore) in words; null for a region a rule set aside, or one
+ *  nobody decided on. `who` is no longer read (see `useDecisionsWho`). */
+export function NotDataNote({ region, testId }: { region: Region; who?: Map<string, unknown>; testId?: string }) {
+  return <DecisionNote decision={region.decision} restored={region.restored} testId={testId} />;
 }
 
 /** Whether a person's decision sets this region aside (what "Restore…" can undo); a rule's exclusion cannot be. */
-export const restorable = (r: Region) => r.state === "excluded" && personDecision(r.reason) !== null;
+export const restorable = (r: Region) => r.decision !== null;
+
+/** Whether a person's decision sets this note aside: what "Restore…" can undo. A note that is not counted with no
+ *  decision is one a table that is read cites (a fact read once for the table). */
+export const restorableNote = (o: Note) => o.decision !== null;
 
 /** The reason form that restores `items` of `file` (region ids, or with scope `outside` the notes' locators). */
 export function RestoreForm({ projectId, file, items, scope, label, onDone, testId }: {

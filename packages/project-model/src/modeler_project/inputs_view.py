@@ -20,6 +20,7 @@ from modeler_project.artifacts import ArtifactKind
 from modeler_project.inputs import (
     MAIN,
     MODEL_IDS,
+    allowed_values,
     catalog_rows,
     choices,
     cpf_assembly,
@@ -45,7 +46,7 @@ def _requirement_of(matrix: RequirementMatrix | None, cpf_id: str) -> str | None
 def _row(cpf_id: str, state: str, matrix: RequirementMatrix | None, **fields: Any) -> dict[str, Any]:
     return {"id": cpf_id, "tab": tab_of(cpf_id), "state": state, "req_id": _requirement_of(matrix, cpf_id), "value": None,
             "unit": None, "status": None, "placement": placement(cpf_id), "binding": None, "candidates": [], "sources": [],
-            "alternatives": [], "message": None, **fields}
+            "alternatives": [], "message": None, "allowed": list(allowed_values(cpf_id)), **fields}
 
 
 def compound_rows(ws: Workspace, todo: list[dict[str, Any]], *, empty: bool = False) -> list[dict[str, Any]]:

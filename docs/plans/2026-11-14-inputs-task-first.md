@@ -196,3 +196,25 @@ before the next starts.
     `GET /delivery/source`; the layout vocabulary without a mapping; a pH-solubility table entry; and `POST /evidence`
     checking a word value against its vocabulary (it keeps "albumin" for `bind.partner` and shows it "in the model",
     which the model builder then refuses: the page now offers only PK-Sim's names).
+
+- Within this plan, the fill round's API follow-ups as built (branch ux-api2, 2026-11-15; CHANGELOG "who marked a thing
+  'not data', a table's first rows, the layout words and PK-Sim's names"): done, all but the pH-solubility table entry,
+  which was not part of this branch and is still open. The notes above on the audit trail, on a note beside a table that
+  is read, on "Read this table…" showing no cells and on the layout words coming only with a mapping no longer hold.
+  - **The restore stays in the record** as a second field, `restored` (the latest restore that gave a region or a note
+    back, with what it undid), beside `decision` (the one in force), on both `DeliveryRegion` and `DeliveryOutside`.
+  - **A table's first rows are on `DeliveryRegion.head`**, not on `GET /delivery/source` by region: "Read this table…"
+    needs them with no further request. They are masked by file, as a mapping's sample is (a file that holds a blinded
+    study's values shows its header band only, digits masked), not by region as a value's source view is: an unread table
+    holds no value yet, so the source view's rule would show it whole in a blinded study's file.
+  - **The layout words are on their own route** (`GET /delivery/vocabulary`), not on `DeliveryPage`, which the page reads
+    again every 3 seconds while a file is read.
+  - **Blinded files, a hardening beyond the brief:** the digits of a person's "not data" why are masked, on the region's
+    `reason` too (its decision's id kept), as a failed run's message is, since the new fields put that why beside a note
+    whose text is withheld.
+  - **PK-Sim's names** are checked on `POST /evidence` only (the person's path): the literature agents' proposals and the
+    published-model import ("unspecified") are not, nor are values stored before. `GET /inputs` gains `CompoundRow.allowed`
+    so the row's form reads the names from the API, not from a list typed in the web.
+  - **`DeliverySection`'s region rows are not changed here** (another branch rewrites them): `Restore.tsx` keeps
+    `useDecisionsWho` (now reading nothing) and `NotDataNote`'s `who` so they compile; only the note lines use the new
+    fields, and a region's `restored` is shown once its row renders `NotDataNote` on every region.

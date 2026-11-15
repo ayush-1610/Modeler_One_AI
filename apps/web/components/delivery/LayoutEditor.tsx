@@ -9,15 +9,19 @@
 // rules, label keys, constants read from the caption, a column's LLOQ or series cite) is kept as it is, and the whole
 // layout stays editable as text for experts. A layout the code refuses comes back with its findings, each shown beside
 // the column or the setting it names; one the form has no place for is said above it, so nothing the API says is lost.
+// A table no layout reads yet shows its first rows above the form (`DeliveryRegion.head`, masked as the API gives them),
+// and each column is named by its header: the rows the form says are header rows.
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { Schema } from "@/lib/api";
 
-import { Why, fieldText } from "./shared";
+import { Why, fieldText, plural } from "./shared";
 
 export type Vocabulary = Schema<"DeliveryMappingVocabulary">;
 export type Finding = Schema<"DeliveryMappingFinding">;
+/** A table's first rows, as the page gives them for a table no layout reads (`DeliveryRegion.head`). */
+export type Head = Schema<"DeliveryRegionHead">;
 type Spec = Record<string, unknown>;
 
 /** Where the table states a thing read once (a unit, the time reference), as the form edits it: `at` "" (not cited: a
@@ -71,6 +75,45 @@ function citeOf(p: Place): Spec | null {
 }
 /** A column's letters on its sheet, from the column the table starts at (1: A). */
 const letters = (n: number) => { let s = ""; for (let x = n; x > 0; x = Math.floor((x - 1) / 26)) s = String.fromCharCode(65 + ((x - 1) % 26)) + s; return s; };
+
+/** Each column's header, by column number: the non-empty texts of the first `n` rows, joined as the API joins a
+ *  mapping's headers ("Conc / (ng/mL)"). */
+function headersFrom(rows: string[][], n: number): Record<number, string> {
+  const out: Record<number, string> = {};
+  for (const row of rows.slice(0, n)) {
+    row.forEach((text, i) => { if (text.trim()) out[i + 1] = out[i + 1] && out[i + 1] !== text ? `${out[i + 1]} / ${text}` : text; });
+  }
+  return out;
+}
+
+/** The table's first rows above the form: its header rows (as the form says them) set apart from the rows under them,
+ *  each column numbered as the form numbers it. A blinded file's: its header only, as the API gives it. */
+function FirstRows({ head, headerRows, start, testId }: { head: Head; headerRows: number; start?: number | null; testId: string }) {
+  const width = head.rows[0]?.length ?? 0;
+  const columns = Array.from({ length: width }, (_, i) => i + 1);
+  const said = head.blinded ? "Its header only, every digit masked: the file holds a blinded study's values."
+    : `Its first ${plural(head.rows.length, "row")} of ${head.n_rows}${head.n_cols > width ? `, the first ${width} of its ${head.n_cols} columns` : ""}, as written.`;
+  return (
+    <>
+      <p className="muted fs-12 m-0" data-testid={`${testId}-said`}>{said}</p>
+      <div className="delivery-source-grid" role="region" aria-label="The table's first rows" tabIndex={0} data-testid={testId}>
+        <table>
+          <thead>
+            <tr><th scope="col">Row</th>{columns.map((c) => <th key={c} scope="col">{start ? `${c} (${letters(start + c - 1)})` : c}</th>)}</tr>
+          </thead>
+          <tbody>
+            {head.rows.map((row, i) => (
+              <tr key={i}>
+                <th scope="row">{i + 1}{i < headerRows ? " · header" : ""}</th>
+                {row.map((text, k) => (i < headerRows ? <th key={k} title={text}>{text}</th> : <td key={k} title={text}>{text}</td>))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+}
 
 function tableOf(spec: Spec): Table {
   return {
@@ -202,12 +245,13 @@ function StatedIn({ label, place, onChange, near, none, name, testId }: {
 
 /** The layout form and its reason. `spec`: the layout it starts from (an existing version, or a new table's first
  *  guess). `columns`: how many columns the table has (0: not known, the person says); `headers`: each column's header
- *  text, when known; `start`: the sheet column the table's first column is, for its letters (0: not a sheet).
+ *  text, when known; `head`: the table's first rows, shown above the form, which name the columns when `headers` is not
+ *  given; `start`: the sheet column the table's first column is, for its letters (0: not a sheet).
  *  `findings`: what code found wrong on the last layout sent (`sent`: that layout's column numbers, in its order).
  *  `onSubmit` gets the layout written (from the form, or the text parsed) and the reason. */
-export function LayoutEditor({ vocabulary, spec, columns: count, headers, start, findings, sent, busy, action, whyLabel, onSubmit,
+export function LayoutEditor({ vocabulary, spec, columns: count, headers, head, start, findings, sent, busy, action, whyLabel, onSubmit,
                                onCancel, testId, whyTestId = `${testId}-save` }: {
-  vocabulary: Vocabulary | null; spec: Spec; columns: number; headers?: Record<number, string>; start?: number | null;
+  vocabulary: Vocabulary | null; spec: Spec; columns: number; headers?: Record<number, string>; head?: Head | null; start?: number | null;
   findings: Finding[]; sent: number[]; busy: boolean; action: string; whyLabel: string;
   onSubmit: (spec: Spec, why: string) => void | Promise<unknown>; onCancel: () => void; testId: string; whyTestId?: string;
 }) {
@@ -225,6 +269,9 @@ export function LayoutEditor({ vocabulary, spec, columns: count, headers, start,
 
   const form = asText === null && vocabulary !== null;
   const notData = table.kind === "not_data";
+  const headerRows = whole(table.header_rows) ?? 0;
+  // each column named by its header: the one given, else the table's first rows above its data (as the form says them)
+  const named = headers ?? (head ? headersFrom(head.rows, headerRows) : {});
   const placed = useMemo(() => findings.map((f) => ({ f, ...standsAt(f.location, sent) })), [findings, sent]);
   const at = (key: string) => placed.filter((p) => p.key === key).map((p) => p.f);
   const atColumn = (n: number) => placed.filter((p) => p.column === n).map((p) => p.f);
@@ -295,6 +342,7 @@ export function LayoutEditor({ vocabulary, spec, columns: count, headers, start,
   return (
     <div className="layout-editor" data-testid={testId} ref={root}>
       <Said findings={loose} testId={`${testId}-findings`} />
+      {head && head.rows.length > 0 && <FirstRows head={head} headerRows={headerRows} start={start} testId={`${testId}-head`} />}
       {asText !== null ? (
         <section>
           <textarea className="delivery-spec" aria-label="The layout as text (JSON)" value={asText} spellCheck={false} rows={14}
@@ -388,14 +436,14 @@ export function LayoutEditor({ vocabulary, spec, columns: count, headers, start,
               <ol className="layout-cols">
                 {cols.map((c) => {
                   const said = atColumn(c.column);
-                  const head = headers?.[c.column];
+                  const header = named[c.column];
                   const n = `column ${c.column}`;
                   return (
                     <li key={c.column} className={said.some((f) => f.severity === "error") ? "layout-col wrong" : "layout-col"}
                         data-testid={`${testId}-col-${c.column}`}>
                       <div className="layout-col-name">
                         <strong>Column {c.column}{start ? ` (${letters(start + c.column - 1)})` : ""}</strong>
-                        {head ? <span className="muted"> “{head}”</span> : null}
+                        {header ? <span className="muted"> “{header}”</span> : null}
                       </div>
                       <div className="layout-line">
                         <Pick label="Holds" name={`What ${n} holds`} value={c.role} onChange={setC(c.column, "role")} words={vocabulary.roles}

@@ -56,6 +56,8 @@ class CompoundRow(View):
     sources: list[EvidenceView]                   # the kept value's source first, then the sources that agree
     alternatives: list[AlternativeView]
     message: str | None
+    allowed: list[str]                            # the only values PK-Sim takes for it, by its names (the binding
+                                                  # partner's, `inputs.allowed_values`); empty: any value its kind takes
 
 
 class InputStudyRow(View):

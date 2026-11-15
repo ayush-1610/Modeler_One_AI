@@ -28,6 +28,65 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
   2026-11-03 §3.2 (left rail, files drawer); see the plan's §5.
 - **Impact:** none yet (no code changed).
 
+### Added — who marked a thing "not data", a table's first rows, the layout words and PK-Sim's names, from the API (plan 2026-11-14 §5, the fill round's API follow-ups) — science-adjacent
+- **What:**
+  - **Who decided, on the page.** `DeliveryRegion.decision` and `DeliveryOutside.decision` (`{id, by, at, why}`) are the
+    person's "not data" decision in force, from the decision's own line of the review log (null for a rule's exclusion,
+    or none). Each region and note also has `restored` (`{id, by, at, why, restores}`): the latest "Restore…" that gave
+    it back, which stays its record when a later decision sets it aside again (`coverage.region_restore`,
+    `outside_restore`). `Restore.tsx` no longer reads `GET /audit?limit=2000`: "Marked as not data by <who>, <when>:
+    <why>" comes from the region or note itself, and a restored note says "Restored by <who>, <when>: <why>".
+  - **A note beside a table that is read is told apart.** With a decision it is the person's "not data" and gets
+    "Restore…" (`delivery-outside-restore-<file>-<i>`) wherever it sits; not counted with no decision, its table's layout
+    reads it ("read with its table", where the page said "accounted for … beside a table that is read"). The note line
+    has its state chip (`delivery-outside-state-<file>-<i>`) and the decision or restore under it
+    (`delivery-outside-decision-<file>-<i>`).
+  - **A table's first rows.** `DeliveryRegion.head` on a table no layout reads (never read, or its layout rejected):
+    `{n_rows, n_cols, header_rows, rows, blinded}`, at most 5 rows and 30 columns, each cell as written, cut at 80
+    characters; `header_rows` is the header band code finds (`mapping.fingerprint.header_band`). For a file that holds a
+    blinded study's values: the header band only, every digit masked, as a mapping's sample shows it, and no row of
+    values. "Read this table…" shows them above the form (`read-table-head`, `read-table-head-said`), names each column by
+    its header (the rows the form says are header rows), starts on the header rows code found, and knows how many columns
+    a PDF or Word table has.
+  - **The layout words without a mapping.** `GET /delivery/vocabulary` (`DeliveryMappingVocabulary`: the words every
+    mapping answer carries, read from `modeler_intake.mapping_spec` and `fields`; 409 while the pipeline is off).
+    "Read this table…" reads them there, so a project where no table has a layout yet gets the form; the layout as text
+    stays for a failed read.
+  - **PK-Sim's names checked by `POST /evidence`.** A value for an input PK-Sim takes only by one of its names (the
+    plasma protein binding partner: the names `CompoundSpec.binding_partner` allows, read from the model builder's type by
+    `inputs.allowed_values`, never typed) is refused unless it is one of them as written: 422
+    `{code: NOT_ALLOWED, message, allowed}`, and nothing is stored. `CompoundRow.allowed` gives the same names on
+    `GET /inputs`, and the row's form offers them from there instead of a list typed in the web.
+  - **A blinded file:** the digits of the why of a person's decision are masked, on the region's `reason` too (its id
+    kept: "rd-4: rows • to ••"), as a failed run's message is: a person may have quoted the file.
+- **Why:** the fill round's review left these for the API (plan §5): who and when came from the audit trail's last 2,000
+  events; a note beside a table that is read could not be restored; "Read this table…" showed no cells and named no
+  column; a project with no layout got the layout as text only; a binding partner typed "albumin" showed "in the model"
+  and the model builder then refused it.
+- **Impact:**
+  - **API:** additive. One route (`GET /delivery/vocabulary`), new response fields (`DeliveryRegion.decision`,
+    `restored`, `head`; `DeliveryOutside.decision`, `restored`; `CompoundRow.allowed`) and three new schemas
+    (`DeliveryRegionDecision`, `DeliveryRegionRestore`, `DeliveryRegionHead`). `docs/api/openapi.json` and
+    `apps/web/lib/api-types.ts` regenerated.
+  - **Science-adjacent:** `POST /evidence` accepts less: a binding partner not written as one of PK-Sim's names is
+    refused (it used to be stored, shown "in the model" and refused by the builder). Not checked here (known gaps):
+    values stored before, the literature agents' proposals, and the published-model import's "unspecified". No rule,
+    ruleset, registry or acceptance change; what counts as excluded is unchanged.
+  - **Not touched:** no locked file (the names are read from `snapshot/builder.py`, not changed), ruleset,
+    `intake_rules.yaml`, requirement template or registry. No stored record changes.
+  - **Web:** `Restore.tsx` keeps `useDecisionsWho` (it now reads nothing) and `NotDataNote`'s `who` for the region rows
+    of `DeliverySection`, which another branch rewrites; a region's restore is shown once that row renders `NotDataNote`
+    on every region.
+  - **Tests:** three new `test_delivery_api` tests (the decisions and restores on regions and notes; a table's first
+    rows, capped, and a blinded file's masked header and whys; the layout words with no mapping) and one
+    `test_evidence_api` test (PK-Sim's names, refused and offered); the route counts (20→21, 21→22) and the page's outside
+    item updated. `e2e/inputs-fill.spec.ts`: a note marked as not data and restored, each said with who, when and why;
+    "Read this table…" shows the first rows and names the columns by their headers; the binding partner's names come from
+    the row. The spec also opens a file's tables and texts under its row in the table of files (slice 2 moved them there:
+    since the merge of the fill round onto slice 2 it waited for them in the Delivery section and timed out). Run with it:
+    delivery, client-confirm, model-inputs, compound-sources, inputs-workspace, inputs-frame, inputs-todo, inputs-work,
+    published-model, start-project (23 passed).
+
 ### Changed — the Inputs page counts from one list of work, in one vocabulary, with one status per file (plan 2026-11-14, slice 2)
 - **What:**
   - **One list of work** (`apps/web/lib/inputsWork.ts`, pure functions, no React). From the /inputs page, the client

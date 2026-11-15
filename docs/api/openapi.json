@@ -3139,6 +3139,13 @@
         "additionalProperties": false,
         "description": "One model input (`inputs_view.compound_rows`): kept, in conflict, held for a check, missing (S0 needs it), or\nempty (a model input the data plan owns with no value yet: a row to fill, not counted as missing).",
         "properties": {
+          "allowed": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Allowed",
+            "type": "array"
+          },
           "alternatives": {
             "items": {
               "$ref": "#/components/schemas/AlternativeView"
@@ -3293,7 +3300,8 @@
           "candidates",
           "sources",
           "alternatives",
-          "message"
+          "message",
+          "allowed"
         ],
         "title": "CompoundRow",
         "type": "object"
@@ -6770,11 +6778,21 @@
       },
       "DeliveryOutside": {
         "additionalProperties": false,
-        "description": "An item with a number outside every region that is not page furniture. `counted`: it is in the summary's\n`outside_numeric` (no mapped table cites it and no person accepted it as not data), so it blocks a confirmation.",
+        "description": "An item with a number outside every region that is not page furniture. `counted`: it is in the summary's\n`outside_numeric` (no mapped table cites it and no person accepted it as not data), so it blocks a confirmation.\nNot counted with no `decision`: a table that is read cites it (a fact read once for the table).",
         "properties": {
           "counted": {
             "title": "Counted",
             "type": "boolean"
+          },
+          "decision": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeliveryRegionDecision"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "region": {
             "anyOf": [
@@ -6786,6 +6804,16 @@
               }
             ],
             "title": "Region"
+          },
+          "restored": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeliveryRegionRestore"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "text": {
             "anyOf": [
@@ -6807,7 +6835,9 @@
           "where",
           "text",
           "region",
-          "counted"
+          "counted",
+          "decision",
+          "restored"
         ],
         "title": "DeliveryOutside",
         "type": "object"
@@ -6925,9 +6955,29 @@
             ],
             "title": "Caption"
           },
+          "decision": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeliveryRegionDecision"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "excluded": {
             "title": "Excluded",
             "type": "integer"
+          },
+          "head": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeliveryRegionHead"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "kind": {
             "title": "Kind",
@@ -6989,6 +7039,16 @@
             "title": "Region Id",
             "type": "string"
           },
+          "restored": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeliveryRegionRestore"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "silent": {
             "title": "Silent",
             "type": "integer"
@@ -7031,9 +7091,121 @@
           "numeric_cells",
           "used",
           "excluded",
-          "silent"
+          "silent",
+          "decision",
+          "restored",
+          "head"
         ],
         "title": "DeliveryRegion",
+        "type": "object"
+      },
+      "DeliveryRegionDecision": {
+        "additionalProperties": false,
+        "description": "A person's \"not data\" decision in force on a region or an outside item (a `RegionDecision`, rd-n): who made it,\nwhen and why. For a file that holds a blinded study's values, the digits of `why` are masked (a person may have\nquoted what the file holds).",
+        "properties": {
+          "at": {
+            "title": "At",
+            "type": "string"
+          },
+          "by": {
+            "title": "By",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "why": {
+            "title": "Why",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "by",
+          "at",
+          "why"
+        ],
+        "title": "DeliveryRegionDecision",
+        "type": "object"
+      },
+      "DeliveryRegionHead": {
+        "additionalProperties": false,
+        "description": "The first rows of a table no layout reads (never read, or its layout rejected), for a person to give it a\nlayout: at most 5 rows and 30 columns, each cell as written (cut at 80 characters, \"\" for an empty one). For a file\nthat holds a blinded study's values, only the header band (its rows above the first row of values, as a mapping's\nsample shows it) with every digit masked: no row of values.",
+        "properties": {
+          "blinded": {
+            "title": "Blinded",
+            "type": "boolean"
+          },
+          "header_rows": {
+            "title": "Header Rows",
+            "type": "integer"
+          },
+          "n_cols": {
+            "title": "N Cols",
+            "type": "integer"
+          },
+          "n_rows": {
+            "title": "N Rows",
+            "type": "integer"
+          },
+          "rows": {
+            "items": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "title": "Rows",
+            "type": "array"
+          }
+        },
+        "required": [
+          "n_rows",
+          "n_cols",
+          "header_rows",
+          "rows",
+          "blinded"
+        ],
+        "title": "DeliveryRegionHead",
+        "type": "object"
+      },
+      "DeliveryRegionRestore": {
+        "additionalProperties": false,
+        "description": "The latest \"Restore…\" that gave a region or an outside item back (a `RegionDecision` with `restores`): who, when,\nwhy (masked as a decision's is) and the decisions it undid. It stays the item's record when a later decision sets\nthe item aside again.",
+        "properties": {
+          "at": {
+            "title": "At",
+            "type": "string"
+          },
+          "by": {
+            "title": "By",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "restores": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Restores",
+            "type": "array"
+          },
+          "why": {
+            "title": "Why",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "by",
+          "at",
+          "why",
+          "restores"
+        ],
+        "title": "DeliveryRegionRestore",
         "type": "object"
       },
       "DeliveryRequirement": {
@@ -10313,6 +10485,31 @@
           "errors"
         ],
         "title": "Envelope[CpfView]",
+        "type": "object"
+      },
+      "Envelope_DeliveryMappingVocabulary_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/DeliveryMappingVocabulary"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[DeliveryMappingVocabulary]",
         "type": "object"
       },
       "Envelope_DeliveryMapping_": {
@@ -34358,6 +34555,65 @@
           }
         },
         "summary": "Assign Values",
+        "tags": [
+          "client-data"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/delivery/vocabulary": {
+      "get": {
+        "description": "The words a table's layout (`mapping/2`) is written with, as every mapping answer gives them (`vocabulary`,\nread from `modeler_intake.mapping_spec` and `fields`), for a project where no table has a layout yet: the form\nthat gives a table its first layout offers these and never makes one up. 409 while the pipeline is off.",
+        "operationId": "get_vocabulary_api_v1_projects__project_id__delivery_vocabulary_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_DeliveryMappingVocabulary_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Vocabulary",
         "tags": [
           "client-data"
         ]

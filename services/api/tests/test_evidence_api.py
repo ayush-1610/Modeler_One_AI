@@ -119,6 +119,35 @@ def test_a_hand_entered_value_must_name_a_parameter_the_model_uses(setup):
     assert c.post("/api/v1/projects/p1/evidence", headers=H, json={**body, "target": "bind.fu"}).status_code == 201
 
 
+@pytest.mark.req("T-44", "T-49")
+def test_a_value_pksim_takes_only_by_name_must_be_one_of_its_names(setup):
+    """Plan 2026-11-14 §5 (the fill round's API follow-ups): the plasma protein binding partner is one of PK-Sim's names,
+    read from the model builder's own type (`CompoundSpec.binding_partner`). Any other value, a number or a name written
+    otherwise, is refused with the names, and nothing is stored; the Inputs row offers the same names."""
+    from typing import get_args
+
+    from modeler_project.evidence_register import items
+    from pbpk_domain.snapshot.builder import CompoundSpec
+
+    c, ws = setup
+    names = [w for arg in get_args(CompoundSpec.model_fields["binding_partner"].annotation) for w in get_args(arg)]
+    assert names and all(isinstance(w, str) for w in names)
+    body = {"req_id": "REQ-bind.partner", "target": "bind.partner", "source_type": "ASSUMPTION"}
+    for wrong in ("albumin", "human serum albumin", 1.0):
+        refused = c.post("/api/v1/projects/p1/evidence", headers=H, json={**body, "value": wrong})
+        assert refused.status_code == 422, wrong
+        detail = refused.json()["detail"]
+        assert detail["code"] == "NOT_ALLOWED" and detail["allowed"] == names and all(n in detail["message"] for n in names)
+    assert items(ws) == []
+    stored = c.post("/api/v1/projects/p1/evidence", headers=H, json={**body, "value": names[0]})
+    assert stored.status_code == 201 and stored.json()["data"]["value"] == names[0]
+    # a word for another input is not checked against these names (its row has none)
+    assert c.post("/api/v1/projects/p1/evidence", headers=H, json={"req_id": "REQ-bind.fu", "target": "bind.fu", "value": 0.1,
+                                                                   "source_type": "ASSUMPTION"}).status_code == 201
+    rows = {r["id"]: r for r in c.get("/api/v1/projects/p1/inputs", headers=H).json()["data"]["compound"]}
+    assert rows["bind.partner"]["allowed"] == names and rows["bind.fu"]["allowed"] == []
+
+
 def _wait_until_idle(jobs, store, project_id: str) -> None:
     for _ in range(200):
         if not jobs.running(store, "t1", project_id, "research"):

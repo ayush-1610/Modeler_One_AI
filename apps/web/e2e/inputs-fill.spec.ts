@@ -1,11 +1,13 @@
 // Filling what is missing on Inputs (plan docs/plans/2026-11-14-inputs-task-first.md §3, API 1, 2, 4 and 6): values no
 // file links to a study are linked to a new study with a new arm and a new analyte, and later ones to that study with
 // another arm (a name that exists is refused in the server's words); a table marked as not data is restored with a
-// reason, its answer written into the page with no new read of it; a table no layout reads gets its first layout in the
-// layout form, where code's finding on a bad choice is shown beside the column or the setting it names (and, edited as
-// text, above it); and compound inputs no source gives yet are filled from their rows, each in the form its value takes
-// (a number with its unit, a binding partner by PK-Sim's name, a neutral compound as a statement). Software test data
-// (made-up numbers of the made-up Exampleamide), never a model.
+// reason, its answer written into the page with no new read of it, and a note outside the tables is marked and restored,
+// each decision said with who, when and why; a table no layout reads gets its first layout in the layout form, its first
+// rows shown and its columns named by their headers, where code's finding on a bad choice is shown beside the column or
+// the setting it names (and, edited as text, above it); and compound inputs no source gives yet are filled from their
+// rows, each in the form its value takes (a number with its unit, a binding partner by PK-Sim's name as the API gives
+// them, a neutral compound as a statement). Software test data (made-up numbers of the made-up Exampleamide), never a
+// model.
 import { expect, type APIRequestContext, type Page, test } from "@playwright/test";
 
 import { AUTH, finishStart } from "./fixtures/inputs";
@@ -13,6 +15,8 @@ import { AUTH, finishStart } from "./fixtures/inputs";
 // a profile whose header the rules read (its values belong to no study), and a table no rule reads
 const LOOSE = "Time (h),Mean concentration (ng/mL),SD\n0.5,11.5,2.1\n1,24.25,4.4\n2,18.75,3.9\n4,9.5,1.7\n";
 const ODD = "Hrs (h),Result (ng/mL)\n0.5,1.2\n1,2.3\n2,3.4\n";
+// a table no rule reads with a note under it: a number outside every table
+const NOTED = "Hrs (h),Reading\n0.5,1.2\n1,2.3\n2,3.4\n\nNote: 2 samples were re-assayed on day 9\n";
 const NEW = "__new__";
 
 type Region = { region_id: string; state: string; mapping_id: string | null; mapping_status: string | null };
@@ -53,10 +57,11 @@ test("loose values are linked with new arms and an analyte, a table set aside is
   await page.getByTestId("client-upload-studies").setInputFiles([
     { name: "loose-profile.csv", mimeType: "text/csv", buffer: Buffer.from(LOOSE) },
     { name: "odd-profile.csv", mimeType: "text/csv", buffer: Buffer.from(ODD) },
+    { name: "noted-profile.csv", mimeType: "text/csv", buffer: Buffer.from(NOTED) },
   ]);
   await page.getByTestId("tab-files").click();
   const section = page.getByTestId("delivery-section");
-  await expect(section.getByTestId("delivery-total-files")).toHaveText("2", { timeout: 120_000 });
+  await expect(section.getByTestId("delivery-total-files")).toHaveText("3", { timeout: 120_000 });
   await expect(section.getByTestId("delivery-running")).toHaveCount(0, { timeout: 120_000 });
   await expect(section.getByTestId("delivery-unassigned")).toBeVisible();
   let delivery = await read();
@@ -86,34 +91,70 @@ test("loose values are linked with new arms and an analyte, a table set aside is
   expect(m1).toBeTruthy();
   await expect(section.getByTestId(`delivery-subject-${study.subject}`)).toContainText("ABC-9");
 
-  // --- the unread table, marked as not data, then restored with the reason: the page is not read again for it ---
-  await section.getByTestId(`delivery-file-toggle-${odd.file_id}`).click();
-  await section.getByTestId(`delivery-region-aside-${table.region_id}`).click();
-  await section.getByTestId("delivery-region-aside-why").fill("a scratch table, not data");
-  await section.getByTestId("delivery-region-aside-submit").click();
-  await expect(section.getByTestId(`delivery-region-read-${table.region_id}`)).toHaveCount(0);
-  await expect(section.getByTestId(`delivery-region-decision-${table.region_id}`))
+  // --- the unread table, marked as not data, then restored with the reason: the page is not read again for it. A
+  // file's tables and texts open under its row in the table of files (plan 2026-11-14 slice 2) ---
+  await page.getByTestId("file-toggle-odd-profile.csv").click();
+  const oddItem = page.getByTestId(`delivery-file-${odd.file_id}`);
+  await oddItem.getByTestId(`delivery-file-toggle-${odd.file_id}`).click();
+  await oddItem.getByTestId(`delivery-region-aside-${table.region_id}`).click();
+  await oddItem.getByTestId("delivery-region-aside-why").fill("a scratch table, not data");
+  await oddItem.getByTestId("delivery-region-aside-submit").click();
+  await expect(oddItem.getByTestId(`delivery-region-read-${table.region_id}`)).toHaveCount(0);
+  await expect(oddItem.getByTestId(`delivery-region-decision-${table.region_id}`))
     .toContainText(/Marked as not data by .+, \d{4}-\d\d-\d\d \d\d:\d\d: a scratch table, not data/);
-  const restore = section.getByTestId(`delivery-region-restore-${table.region_id}`);
+  const restore = oddItem.getByTestId(`delivery-region-restore-${table.region_id}`);
   await expect(restore).toHaveAccessibleName("Restore the table odd-profile of odd-profile.csv");
   await restore.click();
   let pageReads = 0;
   const counting = (r: { method(): string; url(): string }) => { if (r.method() === "GET" && /\/delivery(\?|$)/.test(r.url())) pageReads += 1; };
   page.on("request", counting);
-  await section.getByTestId("delivery-region-restore-why").fill("it is the client's profile after all");
-  await section.getByTestId("delivery-region-restore-submit").click();
-  await expect(section.getByTestId(`delivery-region-decision-${table.region_id}`)).toHaveCount(0);
-  await expect(section.getByTestId(`delivery-region-aside-${table.region_id}`)).toBeVisible();     // not read, as before
+  await oddItem.getByTestId("delivery-region-restore-why").fill("it is the client's profile after all");
+  await oddItem.getByTestId("delivery-region-restore-submit").click();
+  await expect(oddItem.getByTestId(`delivery-region-decision-${table.region_id}`)).toHaveCount(0);
+  await expect(oddItem.getByTestId(`delivery-region-aside-${table.region_id}`)).toBeVisible();     // not read, as before
   page.off("request", counting);
   expect(pageReads).toBe(0);                                  // the answer was written into the page
   await shot(page, "2-restored");
 
+  // --- a note outside the tables: marked as not data, said with who, when and why; restored, said so ---
+  const noted = files.find((f) => f.name === "noted-profile.csv")!;
+  await page.getByTestId("file-toggle-noted-profile.csv").click();
+  const notedItem = page.getByTestId(`delivery-file-${noted.file_id}`);
+  await notedItem.getByTestId(`delivery-file-toggle-${noted.file_id}`).click();
+  const noteState = notedItem.getByTestId(`delivery-outside-state-${noted.file_id}-0`);
+  const noteSaid = notedItem.getByTestId(`delivery-outside-decision-${noted.file_id}-0`);
+  await expect(noteState).toHaveText("not read");
+  await expect(noteSaid).toHaveCount(0);
+  await notedItem.getByTestId("delivery-file-outside-accept-why").fill("a lab note, not data");
+  await notedItem.getByTestId("delivery-file-outside-accept-submit").click();
+  await expect(noteState).toHaveText("not data");
+  await expect(noteSaid).toContainText(/^Marked as not data by .+, \d{4}-\d\d-\d\d \d\d:\d\d: a lab note, not data$/);
+  const restoreNote = notedItem.getByTestId(`delivery-outside-restore-${noted.file_id}-0`);
+  await expect(restoreNote).toHaveAccessibleName("Restore the note “Note: 2 samples were re-assayed on day 9” of noted-profile.csv");
+  await restoreNote.click();
+  await notedItem.getByTestId("delivery-outside-restore-form-why").fill("the re-assay matters for the profile");
+  await notedItem.getByTestId("delivery-outside-restore-form-submit").click();
+  await expect(noteState).toHaveText("not read");
+  await expect(noteSaid).toContainText(/^Restored by .+, \d{4}-\d\d-\d\d \d\d:\d\d: the re-assay matters for the profile$/);
+  await expect(restoreNote).toHaveCount(0);
+  await shot(page, "2b-note-restored");
+  await page.getByTestId("file-toggle-noted-profile.csv").click();
+
   // --- "Read this table…": its first layout in the form; a bad choice is shown beside its column ---
-  const readIt = section.getByTestId(`delivery-region-read-${table.region_id}`);
+  const readIt = oddItem.getByTestId(`delivery-region-read-${table.region_id}`);
   await expect(readIt).toHaveAccessibleName("Read the table odd-profile of odd-profile.csv");
   await readIt.click();
   const dialog = page.getByTestId("read-table-dialog");
   await expect(dialog).toContainText("sheet odd-profile, cells A1 to B4");
+  // the table's first rows are shown, and each column is named by its header; the form's words are the API's own
+  await expect(dialog.getByTestId("read-table-head-said")).toHaveText("Its first 4 rows of 4, as written.");
+  await expect(dialog.getByTestId("read-table-head")).toContainText("Result (ng/mL)");
+  await expect(dialog.getByTestId("read-table-head").locator("tbody tr").nth(1)).toContainText("1.2");
+  await expect(dialog.getByTestId("read-table-col-1")).toContainText("Column 1 (A) “Hrs (h)”");
+  await expect(dialog.getByTestId("read-table-col-2")).toContainText("“Result (ng/mL)”");
+  await expect(dialog.getByTestId("read-table-text-only")).toHaveCount(0);
+  await expect(dialog.getByTestId("read-table-header-rows")).toHaveValue("1");
+  await dialog.locator('[role="dialog"]').screenshot({ path: test.info().outputPath("2c-read-table.png") });
   // what the table holds is chosen before anything is sent: the rules could not tell
   await expect(dialog.getByTestId("read-table-kind")).toHaveValue("");
   await expect(dialog.getByTestId("read-table-needs")).toContainText("Choose what the table holds.");
@@ -179,8 +220,8 @@ test("loose values are linked with new arms and an analyte, a table set aside is
   await expect(mapping.getByTestId("mapping-status")).toHaveText("waits for approval");
   await mapping.getByTestId("mapping-close").click();
   await expect(section.getByTestId("delivery-running")).toHaveCount(0, { timeout: 120_000 });
-  await expect(section.getByTestId(`delivery-region-mapping-${table.region_id}`)).toContainText("waits for approval");
-  await expect(section.getByTestId(`delivery-region-read-${table.region_id}`)).toHaveCount(0);
+  await expect(oddItem.getByTestId(`delivery-region-mapping-${table.region_id}`)).toContainText("waits for approval");
+  await expect(oddItem.getByTestId(`delivery-region-read-${table.region_id}`)).toHaveCount(0);
   await expect(section.getByTestId("delivery-unassigned")).toBeVisible();
 
   // --- its values: a new study by a name that exists is refused in the server's words; then that study, a new arm and

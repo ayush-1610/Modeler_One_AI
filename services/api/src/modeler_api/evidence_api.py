@@ -238,10 +238,15 @@ def add_evidence(project_id: str, body: ManualEvidence, principal: Writer, store
         raise HTTPException(status_code=404, detail=f"no requirement {body.req_id}")
     # the parameter must be the item's own (its placeholder is settled in P4) or one the model uses (the reference
     # solubility's pH goes with REQ-phys.solubility.ref): a free name ("plasma protein binding") never reaches PK-Sim
-    from modeler_project.inputs import target_problem
+    from modeler_project.inputs import allowed_values, target_problem, value_problem
 
     if body.target != requirement.target and (problem := target_problem(body.target)):
         raise HTTPException(status_code=422, detail=problem)
+    # a parameter PK-Sim takes only by one of its names (the binding partner): any other value, a number or a name
+    # written otherwise ("albumin"), would show in the inputs and then be refused by the model builder
+    if problem := value_problem(body.target, body.value):
+        raise HTTPException(status_code=422, detail={"code": "NOT_ALLOWED", "message": problem,
+                                                     "allowed": list(allowed_values(body.target))})
     stated = None
     if body.doc_sha256:
         library = DocumentLibrary(ws)
