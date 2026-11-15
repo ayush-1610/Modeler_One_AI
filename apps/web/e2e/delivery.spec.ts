@@ -1,14 +1,17 @@
 // The Delivery section, end to end (contracts 2026-11-12 §8.10): two client files arrive (a messy workbook and a PDF
 // report of the made-up Exampleamide), code reads them with the layouts a person signed off earlier (all but one), and
 // a reviewer works by exception: the coverage panel, a value's source with its cell highlighted, the one mapping that
-// waits, the study's blockers each settled with its decision and reason, the spot check ticked and sent once, the
-// signed confirmation, and the study in the project once. Software test data: it proves the review path, never a model.
+// waits, the study's card on Clinical studies (plan 2026-11-14 slice 3) with the delivery's clean-up said once as its
+// gate line (the loose note settled with its file, in Client files), its facts filled in one typed form, its other
+// blockers each settled with its decision and reason, the spot check ticked and sent once, the decisions listed before
+// the signed confirmation, and the study in the project once. Software test data: it proves the review path, never a
+// model.
 import { execFileSync } from "node:child_process";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
-import { expect, type Page, test } from "@playwright/test";
+import { expect, type Locator, type Page, test } from "@playwright/test";
 
 import { AUTH, finishStart } from "./fixtures/inputs";
 
@@ -16,7 +19,7 @@ const REPO = resolve(__dirname, "../../..");
 
 type Row = { subject: string; label: string };
 type Value = { id: string; verbatim: string | null };
-type Card = { tables: { kind: string; values: Value[] }[]; blockers: { code: string }[] };
+type Card = { tables: { id: string; kind: string; values: Value[]; mapping_id: string | null }[]; blockers: { code: string }[] };
 
 async function shot(page: Page, name: string) {
   await page.screenshot({ path: test.info().outputPath(`${name}.png`), fullPage: true });
@@ -72,15 +75,31 @@ test("a delivery is reviewed by exception, spot-checked, signed and loaded once"
   await expect(section.getByTestId(`delivery-mapping-${waiting}`)).toContainText("To decide");   // it holds up the study's signature
   await shot(page, "1-coverage");
 
-  // --- a value's source: its cell highlighted, with its time ---
+  // --- the study's card is on Clinical studies, its row in the list of the client's studies; the delivery's clean-up
+  // (here the stray note) is its one gate line, not a blocker of its own, and "Confirm and sign" waits on it ---
   const study = delivery.subjects.find((s) => s.label === "230-23")!;
-  await section.getByTestId(`delivery-subject-open-${study.subject}`).click();
-  const card = section.getByTestId(`delivery-card-${study.subject}`);
-  for (const code of ["OUTSIDE_NUMBERS", "SCHEMA_GAP", "CHECK_FAILED", "SPOT_CHECK"]) {
+  // a card, or a table of values on it, opened unless it is open already
+  const expand = async (toggle: Locator) => {
+    await expect(toggle).toBeVisible();
+    if ((await toggle.getAttribute("aria-expanded")) !== "true") await toggle.click();
+  };
+  const open = (subject: string) => expand(page.getByTestId(`delivery-subject-open-${subject}`));
+  await page.getByTestId("tab-studies").click();
+  await expect(page.getByTestId("studies-list")).toBeVisible();
+  await open(study.subject);
+  const card = page.getByTestId(`delivery-card-${study.subject}`);
+  for (const code of ["SCHEMA_GAP", "CHECK_FAILED", "SPOT_CHECK"]) {
     await expect(card.getByTestId(`delivery-blocker-${code}`)).toBeVisible();
   }
+  await expect(card.getByTestId("delivery-blocker-OUTSIDE_NUMBERS")).toHaveCount(0);
+  await expect(card.getByTestId(`delivery-gate-${study.subject}`)).toHaveAttribute("data-codes", /OUTSIDE_NUMBERS/);
+  await expect(card.getByTestId(`delivery-gate-${study.subject}`)).toContainText("Waits for the delivery clean-up");
+  await expect(card.getByTestId(`delivery-confirm-${study.subject}`)).toBeDisabled();
   const before = await read<Card>(`delivery/subjects/study/${study.subject}`);
   const value = before.tables.flatMap((t) => t.values).find((v) => v.verbatim === "25.2")!;
+  // a table of the card is one line until opened (unless a row of it needs the person)
+  const table = before.tables.find((t) => t.values.some((v) => v.id === value.id))!;
+  await expand(card.getByTestId(`delivery-table-toggle-${table.id}`));
   await card.getByTestId(`delivery-source-open-${value.id}`).click();
   const source = card.getByTestId(`delivery-source-${value.id}`);
   await expect(source.getByTestId("source-cell-value")).toHaveText("25.2");
@@ -92,20 +111,24 @@ test("a delivery is reviewed by exception, spot-checked, signed and loaded once"
 
   // a PDF's value: its page drawn, with the value's box over it
   const other = delivery.subjects.find((s) => s.label === "230-25")!;
-  await section.getByTestId(`delivery-subject-open-${other.subject}`).click();
+  await open(other.subject);
   const pdfCard = await read<Card>(`delivery/subjects/study/${other.subject}`);
-  const pdfValue = pdfCard.tables.find((t) => t.kind === "table")!.values[0];
-  const otherCard = section.getByTestId(`delivery-card-${other.subject}`);
+  const pdfTable = pdfCard.tables.find((t) => t.kind === "table")!;
+  const pdfValue = pdfTable.values[0];
+  const otherCard = page.getByTestId(`delivery-card-${other.subject}`);
+  await expand(otherCard.getByTestId(`delivery-table-toggle-${pdfTable.id}`));
   await otherCard.getByTestId(`delivery-source-open-${pdfValue.id}`).click();
   const drawn = otherCard.getByTestId(`delivery-source-${pdfValue.id}`);
   await expect(drawn.getByTestId("source-page")).toHaveAttribute("data-drawn", "true", { timeout: 30_000 });
   await expect(drawn.getByTestId("source-box")).toBeVisible();
   await expect(drawn.getByTestId("source-cell-value")).toHaveAttribute("data-role", /value/);
   await shot(page, "3-pdf-source");
-  await section.getByTestId(`delivery-subject-open-${study.subject}`).click();
+  await page.getByTestId(`delivery-subject-open-${other.subject}`).click();      // closed again
 
   // --- the one mapping that waits: shown with its table's numbers masked, then approved ---
-  await card.getByTestId(`delivery-card-mapping-${waiting}`).click();
+  // a layout is checked from the head of the table it reads (not listed again apart)
+  const urine = before.tables.find((t) => t.mapping_id === waiting)!;
+  await card.getByTestId(`delivery-table-mapping-${urine.id}`).click();
   const mapping = page.getByTestId("delivery-mapping-dialog");
   await expect(mapping.getByTestId("mapping-status")).toHaveText("waits for approval");
   await expect(mapping.getByTestId("mapping-columns")).toContainText("Amount (mg)");
@@ -118,43 +141,50 @@ test("a delivery is reviewed by exception, spot-checked, signed and loaded once"
   await expect(mapping.getByTestId("mapping-status")).toHaveText("approved");
   await mapping.getByTestId("mapping-close").click();
   // its file is read again with the approved layout; nothing waits, and nothing was lost
+  await expect(card.locator('[data-code="MAPPING_NOT_APPROVED"]')).toHaveCount(0, { timeout: 120_000 });
+  await expect(card.getByTestId(`delivery-card-mappings-${study.subject}`)).toHaveCount(0);
+  await page.getByTestId("tab-files").click();
   await expect(section.getByTestId("delivery-running")).toHaveCount(0, { timeout: 120_000 });
   await expect(section.getByTestId("delivery-mappings")).toHaveCount(0);
   await expect(section.getByTestId("delivery-total-silent-loss")).toHaveText("0");
-  await expect(card.locator('[data-code="MAPPING_NOT_APPROVED"]')).toHaveCount(0);
 
-  // --- the study's blockers, each settled with its decision and the reason ---
-  // the stray note with a number: not data
-  await card.getByTestId("delivery-outside-accept-0-why").fill("a working note, not data");
-  await card.getByTestId("delivery-outside-accept-0-submit").click();
-  await expect(card.getByTestId("delivery-blocker-OUTSIDE_NUMBERS")).toHaveCount(0);
+  // --- the delivery's clean-up, with its file in Client files: the stray note with a number is not data ---
+  const workbook = files.find((f) => !f.name.endsWith(".pdf"))!;
+  await page.getByTestId(`file-toggle-${workbook.name}`).click();
+  await page.getByTestId(`delivery-file-toggle-${workbook.file_id}`).click();
+  await page.getByTestId("delivery-file-outside-accept-why").fill("a working note, not data");
+  await page.getByTestId("delivery-file-outside-accept-submit").click();
   await expect(section.getByTestId("delivery-total-outside")).toHaveText("0");
-  // the route no file states
-  await card.getByTestId("delivery-gap-enter-route").click();
-  await card.getByTestId("delivery-enter-gap-route-value").fill("oral");
-  await card.getByTestId("delivery-enter-gap-route-why").fill("from the protocol");
-  await card.getByTestId("delivery-enter-gap-route-submit").click();
+  await page.getByTestId("tab-studies").click();
+  await open(study.subject);
+  await expect(card.getByTestId(`delivery-gate-${study.subject}`)).toHaveCount(0);
+
+  // --- the study's facts no file states, in one typed form with one reason: the route first (an oral study then also
+  // needs its dosage form), then what the study record needs before it can be loaded ---
+  const facts = card.getByTestId(`delivery-facts-form-${study.subject}`);
+  await card.getByTestId("delivery-enter-gap-route-value").selectOption("oral");
+  await facts.getByTestId(`delivery-facts-form-${study.subject}-why`).fill("from the protocol");
+  await facts.getByTestId(`delivery-facts-form-${study.subject}-submit`).click();
+  await expect(card.getByTestId("delivery-gap-route")).toHaveCount(0);
   await expect(card.getByTestId("delivery-blocker-SCHEMA_GAP")).toHaveCount(0);
-  // what the study record still needs before it can be loaded (an oral study also its dosage form): entered on the
-  // check that names it
-  for (const [needs, entered] of [["needs n,", "24"], ["needs intended_use,", "model_building"], ["needs formulation,", "ir_tablet"]]) {
-    const check = card.locator('[data-code="LANDING_FIELD_MISSING"]').filter({ hasText: needs });
-    await check.getByRole("button", { name: "Enter it…" }).click();
-    await check.locator('[data-testid$="-value"]').fill(entered);
-    await check.locator('[data-testid$="-why"]').fill("from the protocol");
-    await check.locator('[data-testid$="-submit"]').click();
-    await expect(check).toHaveCount(0);
+  for (const [label, entered] of [["Number of subjects", "24"], ["Purpose of the study", "model_building"], ["Dosage form", "ir_tablet"]]) {
+    const control = facts.locator(".facts-row", { hasText: label }).locator('[data-testid$="-value"]');
+    if (await control.evaluate((e) => e.tagName) === "SELECT") await control.selectOption(entered);
+    else await control.fill(entered);
   }
+  await facts.getByTestId(`delivery-facts-form-${study.subject}-why`).fill("from the protocol");
+  await facts.getByTestId(`delivery-facts-form-${study.subject}-submit`).click();
   await expect(card.locator('[data-code="LANDING_FIELD_MISSING"]')).toHaveCount(0);
+  await expect(facts).toHaveCount(0);
   await expect(card.getByTestId(`delivery-landing-problem-${study.subject}`)).toHaveCount(0);
   // the required item no file gives: asked of the client
   await card.getByTestId("delivery-dispose-REQ-sys.demographics-choice").selectOption("ask_client");
   await card.getByTestId("delivery-dispose-REQ-sys.demographics-why").fill("asked in the data request");
   await card.getByTestId("delivery-dispose-REQ-sys.demographics-submit").click();
   await expect(card.getByTestId("delivery-requirement-REQ-sys.demographics")).toContainText("asked of the client");
-  // the failed check that stands as written: overridden, with why
+  // the failed check that stands as written: accepted as is, with why
   const above = card.locator('[data-code="ABOVE_RANGE"]');
-  await above.getByRole("button", { name: "Override…" }).click();
+  await above.locator('[data-testid^="delivery-override-open-"]').click();
   await above.locator('[data-testid$="-why"]').fill("read against the source: written as >1000");
   await above.locator('[data-testid$="-submit"]').click();
   await expect(card.getByTestId("delivery-blocker-CHECK_FAILED")).toHaveCount(0);
@@ -186,13 +216,19 @@ test("a delivery is reviewed by exception, spot-checked, signed and loaded once"
   await expect(card.getByTestId(`spot-state-${study.subject}`)).toHaveText("complete");
   expect(tickRequests).toBe(1);                                             // every tick, once
   await expect(card.getByTestId(`delivery-ready-${study.subject}`)).toBeVisible();
+  // before the signature, the decisions made on the study, each with who made it and why
+  const decisions = card.getByTestId(`delivery-decisions-${study.subject}`);
+  await expect(decisions).toContainText("Accepted as is");
+  await expect(decisions).toContainText("read against the source: written as >1000");
+  await expect(decisions).toContainText("asked of the client");
+  await expect(decisions).toContainText("Table layout approved");
 
   // --- the signed confirmation ---
   await card.getByTestId(`delivery-confirm-${study.subject}`).click();
   const dialog = page.getByTestId("delivery-confirm-dialog");
   await expect(dialog.getByTestId("delivery-confirm-record")).toContainText("230-23");
-  await expect(dialog.getByTestId("delivery-confirm-rules")).toContainText("rules UNVERIFIED v0.1");
-  await expect(dialog.getByTestId("delivery-confirm-coverage")).toContainText("0 numbers in tables not read");
+  await expect(dialog.getByTestId("delivery-confirm-rules")).toContainText("v0.1, UNVERIFIED");
+  await expect(dialog.getByTestId("delivery-confirm-coverage")).toContainText("0 numbers not read in their tables");
   await expect(dialog.getByTestId("delivery-confirm-blockers")).toHaveCount(0);
   await shot(page, "7-confirm");
   // the API's refusal of a signature without a recent step-up opens the step-up over the dialog (the Keycloak
@@ -214,19 +250,22 @@ test("a delivery is reviewed by exception, spot-checked, signed and loaded once"
   await dialog.getByTestId("delivery-confirm-done").click();
   await expect(card.getByTestId(`delivery-manifestation-${study.subject}`)).toContainText("Dev User | Reviewed |");
   await expect(card.getByTestId(`delivery-confirm-${study.subject}`)).toHaveCount(0);
-  await expect(section.getByTestId(`delivery-subject-standing-${study.subject}`)).toContainText("Done");
-  await expect(section.getByTestId(`delivery-subject-standing-${study.subject}`)).toContainText("signed by Dev User");
+  // the card says who signed it and that it is in the model; its row in the list says Done
+  await expect(page.locator('[data-testid^="card-loaded-"]')).toContainText("Signed by Dev User");
+  await expect(page.locator(`[data-testid="study-row-study:230-23"] [data-testid="study-status-study:230-23"]`)).toHaveText("Done");
   await shot(page, "8-confirmed");
 
-  // --- on Inputs: the study is in the project once; its own card shows it loaded, with nothing to confirm there ---
-  await page.getByTestId("tab-studies").click();
+  // --- on Inputs: the study is in the project once; the sheet form's reading of it, folded on its card, shows it
+  // loaded, with nothing to confirm there ---
   await expect(page.getByTestId("study-230-23")).toHaveCount(1);
+  await page.getByTestId("how-read-study:230-23").locator("summary").click();
   const legacy = page.getByTestId("group-study:230-23");
-  await expect(legacy).toContainText("loaded");
+  await expect(legacy).toContainText("in the model");
   await expect(legacy).not.toContainText("To confirm");
   await expect(page.getByTestId("confirm-study:230-23")).toHaveCount(0);
-  // each dataset names the rule its points below the LLOQ are judged with, and how many it leaves out
-  await expect(legacy.getByTestId("dataset-blq").first()).toContainText("judged by the rule “omit”");
+  // each dataset names the rule its points below the LLOQ are judged with, and how many it leaves out (drawn once, under
+  // the card's Observed data, not again in the sheet form's reading)
+  await expect(page.getByTestId("card-observed-study:230-23").getByTestId("dataset-blq").first()).toContainText("judged by the rule “omit”");
   // the project holds the study's two datasets (the parent and the metabolite), both from the signed confirmation
   const evidence = await read<{ datasets: { study: { study_id: string }; state: string; decision_reason: string }[] }>("evidence");
   const loaded = evidence.datasets.filter((d) => d.study.study_id === "230-23");

@@ -4,7 +4,8 @@
 // by exception. On Inputs it sits in the Client files area (plan 2026-11-14 slice 1), under the one table of files
 // (slice 2: each file's own reading, `FileItem`, opens under that file's row there, so no second list of files is kept
 // here): when the files arrived and what of them was read (the totals behind "Details"), the table layouts that wait for
-// a person, the values no file links to a study, and each study, product and the compound with its card. What to ask
+// a person and the values no file links to a study. Each study, product and the compound is confirmed on its card in its
+// area (plan 2026-11-14 slice 3, components/inputs/cards): one line here says where. What to ask
 // the client is in To do. The section is not shown while the pipeline is off (`enabled` false); it reads again every
 // few seconds while a file is being read.
 
@@ -12,7 +13,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { send } from "@/lib/api";
 import { useRefresh, useResource } from "@/lib/hooks";
-import { layoutAnchor, type Subject, type WorkItem, type WorkModel } from "@/lib/inputsWork";
+import { layoutAnchor, type WorkItem, type WorkModel } from "@/lib/inputsWork";
 import {
   AREA_NAME, type Tab, engineWords, whereIs, layoutOrigin, placeText, plural as count, rulesText, stageText, tableKindText, whenText,
 } from "@/lib/words";
@@ -24,7 +25,6 @@ import {
   ChipFor, FILE_STATE, KIND_LABEL, MAPPING_STATE, Problem, REGION_STATE, WITHHELD, Why, fieldText, levelText, plural, tableName,
   useDecide, when, type FileRow, type Page, type Region, type SubjectRow,
 } from "./shared";
-import { SubjectCard } from "./SubjectCard";
 import { Unassigned } from "./Unassigned";
 
 const RUN = "/api/v1/projects/{project_id}/delivery:run" as const;
@@ -200,32 +200,6 @@ function FileItem({ projectId, file, first, decide, busy, onMapping, inRow = fal
   );
 }
 
-/** Where a subject stands, in the four status words, and how it is confirmed (plan 2026-11-14 §2, rule 5): never
- *  "loaded" while nothing is confirmed (the audit's "to review · confirmed on its own card · loaded from its own card"
- *  on a subject nobody had confirmed). `unified` is the one card the work model joins the subject into. */
-function Standing({ s, unified, onOpenGroup }: {
-  s: SubjectRow; unified: Subject | undefined; onOpenGroup?: (group: string, tab: Tab) => void;
-}) {
-  const c = s.confirmation;
-  if (s.blinded) return <span className="chip neutral">blinded until the plan is signed</span>;
-  if (s.confirm_on === "delivery") {
-    if (c && c.current && c.landed) return <><span className="chip low">Done</span> <span className="muted">signed by {c.printed_name || c.by}, {whenText(c.at)}</span></>;
-    return <><span className="chip medium">To confirm</span> <span className="muted">{c && !c.current ? "changed since it was signed: confirm again"
-      : c ? "signed; the loading is not finished" : "confirm and sign on its card"}</span></>;
-  }
-  const group = unified?.groups[0];
-  if (!group) return <><span className="chip neutral">To confirm</span> <span className="muted">with the sheet form; its card is not available yet</span></>;
-  const area = AREA_NAME[group.tab as Tab] ?? group.tab;
-  if (unified?.done) return <><span className="chip low">Done</span> <span className="muted">confirmed with the sheet form, on {area}</span></>;
-  return (
-    <>
-      <span className="chip medium">To confirm</span>{" "}
-      {onOpenGroup ? <button type="button" className="link-btn" onClick={() => onOpenGroup(group.id, group.tab as Tab)}>on its card in {area}</button>
-        : <span className="muted">on its card in {area}</span>}
-    </>
-  );
-}
-
 function Coverage({ page }: { page: Page }) {
   const t = page.totals;
   const states = Object.entries(t.files_by_state).map(([state, n]) => `${n} ${FILE_STATE[state]?.label ?? fieldText(state)}`).join(", ");
@@ -272,22 +246,20 @@ export function DeliverySection({ projectId, work, focus, onOpenGroup }: {
   /** the one list of work (lib/inputsWork.ts): each subject's one card, for its standing, and whether each table layout
    *  holds up a signature now (amber only then, plan 2026-11-14 §2 rule 5) */
   work?: WorkModel;
-  /** a subject's card to open and bring into view (a To do row, "Next"): `${subject_type}/${subject}` */
+  /** a subject's card a To do row or "Next" opened: the section unfolds (the cards themselves are in their areas since
+   *  plan 2026-11-14 slice 3) */
   focus?: { subject: string; at: number } | null;
-  /** open a sheet-form card in its area (a template subject is confirmed there) */
+  /** open an area where the delivery's studies, products and compound are confirmed on their cards (`group` "": the area) */
   onOpenGroup?: (group: string, tab: Tab) => void;
 }) {
   const read = useResource("/api/v1/projects/{project_id}/delivery", { project_id: projectId }, { poll: (d) => d.running, interval: 3000 });
   const { decide, busy, problem } = useDecide();
   const [folded, setFolded] = useState(false);
-  const [subject, setSubject] = useState<string | null>(null);
   const [mapping, setMapping] = useState<string | null>(null);
   const page = read.data;
   const running = page?.running ?? false;
   useEffect(() => {
-    if (!focus) return;
-    setFolded(false);
-    setSubject(focus.subject);
+    if (focus) setFolded(false);
   }, [focus]);
 
   if (!page) return read.problem ? <section className="delivery"><Problem text={`The delivery review could not be read: ${read.problem}`} /></section> : null;
@@ -303,8 +275,8 @@ export function DeliverySection({ projectId, work, focus, onOpenGroup }: {
        t.silent_loss ? `${count(t.silent_loss, "number")} not read` : "", t.outside_numeric ? count(t.outside_numeric, "loose number") : "",
        t.values_unassigned ? `${count(t.values_unassigned, "value")} not linked to a study` : ""].filter(Boolean).join(" · ")
     : "no client file has arrived yet";
-  const subjects: Subject[] = work?.subjects ?? [];
-  const unified = (s: SubjectRow) => subjects.find((u) => u.row?.subject === s.subject && u.row.subject_type === s.subject_type);
+  // where the delivery's studies, products and compound are confirmed: on their cards, by area
+  const areas = [...new Set((work?.subjects ?? []).filter((u) => u.row).map((u) => u.area))];
   // each layout's item in the one list: open (amber, To decide), or not counted now and why (neutral)
   const layoutItem = (m: Page["mappings"][number]): WorkItem | undefined =>
     work?.items.find((i) => i.id === `layout:${m.mapping_id}@${m.version}`);
@@ -374,29 +346,24 @@ export function DeliverySection({ projectId, work, focus, onOpenGroup }: {
 
           <Unassigned projectId={projectId} page={page} />
 
-          <section className="delivery-block" data-testid="delivery-subjects">
-            <div className="delivery-block-head"><h3>Studies, products and the compound, as read from the files</h3></div>
-            {page.subjects.length === 0 && <p className="muted m-0">No study, product or compound value was read yet.</p>}
-            <ul className="delivery-plain">
-              {page.subjects.map((s) => {
-                const open = subject === `${s.subject_type}/${s.subject}`;
-                return (
-                  <li key={`${s.subject_type}/${s.subject}`} className={open ? "delivery-subject open" : "delivery-subject"} data-testid={`delivery-subject-${s.subject}`}>
-                    <div className="delivery-subject-line">
-                      <button type="button" className="delivery-subject-name" aria-expanded={open} data-testid={`delivery-subject-open-${s.subject}`}
-                              onClick={() => setSubject(open ? null : `${s.subject_type}/${s.subject}`)}>
-                        <span className="muted">{KIND_LABEL[s.subject_type]}</span> {s.label}
-                      </button>
-                      <span className="muted">{plural(s.values, "value")}{Object.keys(s.by_level).length ? `: ${Object.entries(s.by_level).map(([l, n]) => `${n} ${levelText(l)}`).join(", ")}` : ""}</span>
-                      {(unified(s)?.aliases.length ?? 0) > 0 && <span className="muted">· also read as {unified(s)!.aliases.join(", ")} by the sheet form</span>}
-                      <span data-testid={`delivery-subject-standing-${s.subject}`}><Standing s={s} unified={unified(s)} onOpenGroup={onOpenGroup} /></span>
-                    </div>
-                    {open && <SubjectCard projectId={projectId} row={s} deliveries={page.deliveries} onMapping={setMapping} />}
-                  </li>
-                );
-              })}
-            </ul>
-          </section>
+          {/* each study, product and the compound is confirmed on its card in its area (plan 2026-11-14 slice 3): no
+              second list of them here */}
+          {page.subjects.length > 0 && (
+            <p className="muted fs-13 m-0" data-testid="delivery-subjects">
+              {[count(page.subjects.filter((s) => s.subject_type === "study").length, "study", "studies"),
+                count(page.subjects.filter((s) => s.subject_type === "product").length, "product"),
+                page.subjects.some((s) => s.subject_type === "compound") ? "the compound's values" : ""]
+                .filter((w) => w && !w.startsWith("0 ")).join(", ")} read from these files: each is confirmed on its card in its area
+              {areas.length ? ": " : "."}
+              {areas.map((a, i) => (
+                <span key={a}>{i > 0 && " · "}
+                  {onOpenGroup ? <button type="button" className="link-btn" onClick={() => onOpenGroup("", a)} data-testid={`delivery-subjects-${a}`}>
+                    {AREA_NAME[a]} ({(work?.subjects ?? []).filter((u) => u.row && u.area === a).length})</button>
+                    : AREA_NAME[a]}
+                </span>
+              ))}
+            </p>
+          )}
         </div>
       )}
       {mapping && <MappingReview projectId={projectId} mappingId={mapping} onClose={() => setMapping(null)} />}

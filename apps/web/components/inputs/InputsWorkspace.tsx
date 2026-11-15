@@ -5,21 +5,24 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { BriefList } from "@/components/brief/BriefList";
-import { type Act, Dissolution, type Retag, retagCall } from "@/components/client/ClientFiles";
+import { type Act, type Retag, retagCall } from "@/components/client/ClientFiles";
 import { useDeliveryRefresh } from "@/components/delivery/DeliverySection";
 import type { View as ClientView } from "@/components/client/types";
-import { Banner, InlineIssue, PageShell } from "@/components/kit";
+import { Banner, PageShell } from "@/components/kit";
 import { TabPanel, Tabs } from "@/components/kit/Tabs";
 import { narrow, send, type Envelope, type Narrow, type Schema } from "@/lib/api";
 import { TAG_LABELS } from "@/lib/fileTags";
 import { useMutation, useRefresh, useResource } from "@/lib/hooks";
-import { areaHead, nextText, onDelivery, statusSummary, type WorkItem } from "@/lib/inputsWork";
+import { areaHead, cardAnchor, nextText, type Subject, type WorkItem } from "@/lib/inputsWork";
 import { type ArtifactView, STEP_ROUTES } from "@/lib/pipeline";
 import { AREA_NAME, STATUS_MEANS, plural as count } from "@/lib/words";
 
 import { AddDataMenu } from "./AddDataMenu";
-import { ConfirmGroups } from "./ClientConfirm";
+import { SheetGroups } from "./ClientConfirm";
 import { ClientFilesTab, type FilesShown } from "./ClientFilesTab";
+import { type CardEnv, type CardFocus, focused } from "./cards/ConfirmPath";
+import { Dissolution, ProductCard, dissolutionNotes, productOf } from "./cards/ProductCard";
+import { CompoundCard } from "./cards/StudyCard";
 import { StudyIndividuals } from "./IndividualsTab";
 import { InputRows, type Row } from "./InputRows";
 import type { Run, TodoItem } from "./InputsTodo";
@@ -39,6 +42,7 @@ export type Tab = "todo" | "compound" | "formulations" | "individuals" | "settin
 const TABS: [Tab, string][] = (["todo", "compound", "formulations", "studies", "individuals", "settings", "files"] as Tab[])
   .map((id) => [id, AREA_NAME[id]]);
 const SOLID = ["ir_tablet", "ir_capsule", "mr", "suspension"];
+const ONE_BY_ONE = 3;   // past this many cards in an area, one is open at a time
 const STATUSES: StatusFilter[] = ["missing", "to_confirm", "to_decide"];
 const isTab = (t: string | undefined): t is Tab => TABS.some(([id]) => id === t);
 const isStatus = (s: string | undefined): StatusFilter => (STATUSES.includes(s as StatusFilter) ? s as StatusFilter : null);
@@ -134,9 +138,11 @@ export function InputsWorkspace({ projectId, initialTab, initialOnly, initialSta
   const [status, setStatusState] = useState<StatusFilter>(isStatus(initialStatus));
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
   const [intent, setIntent] = useState<Intent | null>(null);
-  // the card a To do row or "Next" opened: a sheet-form group in its area, a delivery subject in Client files
-  const [groupFocus, setGroupFocus] = useState<{ group: string; at: number } | null>(null);
-  const [subjectFocus, setSubjectFocus] = useState<{ subject: string; at: number } | null>(null);
+  // the card a To do row, "Next" or a link opened, in its area (plan 2026-11-14 slice 3): by its key, its delivery subject
+  // or its sheet-form group, with the element to bring into view in it
+  const [cardFocus, setCardFocus] = useState<CardFocus | null>(null);
+  // the products and the compound open on their cards (a study opens under its row in Clinical studies)
+  const [cardsOpen, setCardsOpen] = useState<Record<string, boolean>>({});
   // the client files opened on their sheets, and the last sheet form saved, held while another area is shown
   const [filesOpen, setFilesOpen] = useState<ReadonlySet<string>>(new Set());
   const [lastSheet, rememberSheet] = useState<FilesShown["memory"]["last"]>(null);
@@ -153,7 +159,7 @@ export function InputsWorkspace({ projectId, initialTab, initialOnly, initialSta
     { poll: (d) => d.running, interval: 5000 });
   const refresh = useRefresh();
   // a file read by code or by the agent brings values onto the cards, whichever area is open
-  useDeliveryRefresh(projectId);
+  const deliveryPage = useDeliveryRefresh(projectId);
   useReadingRefresh(projectId);
   const assembled = useRef(false);
   const searching = useRef(false);
@@ -224,13 +230,11 @@ export function InputsWorkspace({ projectId, initialTab, initialOnly, initialSta
 
   const tab: Tab = chosen ?? (view.todo.length ? "todo" : "compound");
   const todo = view.todo;
-  // the client's data, by the domain it lands in (plan 2026-11-03 §3.3)
+  // the client's data, by the domain it lands in (plan 2026-11-03 §3.3): one card per study, product and compound
+  // (lib/inputsWork.ts), and the sheets whose study or product is not stated yet
   const groups = review.data?.groups ?? [];
-  const groupsFor = (t: Tab) => groups.filter((g) => g.tab === t && (!only || g.state === "to_confirm"));
-  // a sheet-form card of a study or product also signed on the delivery: both paths stay open (plan §2.2.1), and the
-  // card says so
-  const onBoth = new Set(model.subjects.filter((s) => s.path === "delivery" && !s.done).flatMap((s) => s.groups.map((g) => g.id)));
-  const confirmHere = (t: Tab) => <ConfirmGroups projectId={projectId} groups={groupsFor(t)} run={run} focus={groupFocus} onDelivery={onBoth} />;
+  const sheetsFor = (t: Tab) => groups.filter((g) => g.kind === "sheet" && g.tab === t);
+  const cardsFor = (t: Tab) => model.subjects.filter((s) => s.area === t && (!only || !s.done));
   const forTab = (t: Tab) => todo.filter((i) => (i.tab ?? "compound") === t);
   // a group to confirm is settled on its own card, above the panel: listed in To do, not twice in the panel
   const panelTodo = (t: Tab) => forTab(t).filter((i) => i.kind !== "confirm");
@@ -272,30 +276,74 @@ export function InputsWorkspace({ projectId, initialTab, initialOnly, initialSta
   // a status-line count opens To do narrowed to its word; pressed again, To do shows every item
   const toggleStatus = (s: Exclude<StatusFilter, null>) => setStatus(tab === "todo" && status === s ? null : s);
 
-  /** Bring an element of the area just opened into view (it is drawn once the area shows it), and mark it a moment. */
-  function bringIntoView(testId: string) {
+  const FOCUSABLE = "input:not([type=hidden]):not([disabled]), select:not([disabled]), textarea:not([disabled]), button:not([disabled]), a[href]";
+  /** Bring an element of the area just opened into view (it is drawn once the area shows it, and its card once opened),
+   *  opening the folds around it, and mark it a moment; `fallback` when the element is not drawn there. */
+  function bringIntoView(testId: string, fallback?: string) {
     let tries = 0;
     const find = () => {
-      const el = document.querySelector<HTMLElement>(`[data-testid="${CSS.escape(testId)}"]`);
+      const el = document.querySelector<HTMLElement>(`[data-testid="${CSS.escape(testId)}"]`)
+        ?? (tries > 10 && fallback ? document.querySelector<HTMLElement>(`[data-testid="${CSS.escape(fallback)}"]`) : null);
       if (!el) { if (++tries < 30) window.setTimeout(find, 100); return; }
-      el.scrollIntoView({ block: "center", behavior: "smooth" });
+      for (let fold = el.closest("details"); fold; fold = fold.parentElement?.closest("details") ?? null) if (!fold.open) fold.open = true;
+      // a card opens at its head (a study's: its row in the list), under the area bar, with the focus on the control that
+      // opens it; a place inside a card is brought to the middle, the focus on its first control
+      const card = /^(study|product|compound)-card-/.test(el.dataset.testid ?? "");
+      const row = card ? el.closest("tr.row-detail")?.previousElementSibling as HTMLElement | null : null;
+      const target = row ?? el;
+      target.scrollIntoView({ block: card ? "start" : "center", behavior: "smooth" });
+      // a card's head stays where it was brought once what is above it has finished drawing (cards read as they open)
+      if (card) {
+        window.setTimeout(() => {
+          const pad = parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop) || 0;
+          const top = target.getBoundingClientRect().top;
+          if (top < pad - 8 || top > pad + 48) target.scrollIntoView({ block: "start" });
+        }, 900);
+      }
+      const control = card ? target.querySelector<HTMLElement>("button[aria-expanded]")
+        : el.matches(FOCUSABLE) ? el : el.querySelector<HTMLElement>(FOCUSABLE);
+      control?.focus({ preventScroll: true });
       el.classList.add("just-opened");
       window.setTimeout(() => el.classList.remove("just-opened"), 1600);
     };
     window.setTimeout(find, 50);
   }
-  /** Open where a work item is settled: its area, its card (a sheet-form group, a delivery subject) or its file's row. */
+  /** Open a card in its area and bring `anchor` in it into view (the card itself by default). */
+  function openCard(s: Subject, anchor?: string) {
+    setTab(s.area);
+    setCardsOpen((was) => ({ ...was, [s.key]: true }));
+    setCardFocus({ key: s.key, anchor, at: Date.now() });
+    bringIntoView(anchor ?? cardAnchor(s), cardAnchor(s));
+  }
+  /** Open where a work item is settled: its area, its card (the study, product or compound it concerns, in its area) or
+   *  its file's row. An item of the /inputs to-do on a study opens that study's row (its regimen) or its individual. */
   function go(item: WorkItem) {
     const w = item.where;
     setTab(w.tab);
     const at = Date.now();
-    if (w.subject) setSubjectFocus({ subject: w.subject, at });
     if (w.file && !filesOpen.has(w.file)) setFilesOpen((was) => new Set([...was, w.file!]));
-    const group = item.issue?.group ?? (w.anchor?.startsWith("group-") ? w.anchor.slice("group-".length) : null);
-    if (group) setGroupFocus({ group, at });
-    if (w.anchor) bringIntoView(w.anchor);
+    const group = item.issue?.group ?? (w.anchor?.startsWith("group-") ? w.anchor.slice("group-".length) : undefined);
+    const card = w.tab !== "files" && w.tab !== "todo"
+      ? model.subjects.find((s) => (w.subject && s.row && `${s.row.subject_type}/${s.row.subject}` === w.subject) || (group && s.groups.some((g) => g.id === group))
+                                   || (item.id.startsWith("confirm:") && item.subjects[0] === s.key))
+      : undefined;
+    if (card) {
+      setCardsOpen((was) => ({ ...was, [card.key]: true }));
+      setCardFocus({ key: card.key, ref: w.subject, group, anchor: w.anchor, at });
+    }
+    const fallback = item.todo?.kind === "regimen" ? `study-${item.todo.target}` : item.todo?.kind === "demographics" ? `individual-${item.todo.target}`
+      : card ? cardAnchor(card) : undefined;
+    // a card to confirm opens at its head (its whole body is what is confirmed); an item on a card, at its place there
+    if (card && item.id.startsWith("confirm:")) bringIntoView(cardAnchor(card));
+    else if (w.anchor) bringIntoView(w.anchor, fallback);
+    else if (card) bringIntoView(cardAnchor(card));
   }
-  const openGroup = (group: string, t: Tab) => { setTab(t); setGroupFocus({ group, at: Date.now() }); bringIntoView(`group-${group}`); };
+  // a link to an area (the delivery's line in Client files: `group` ""), or to a sheet-form group's card
+  const openGroup = (group: string, t: Tab) => {
+    const card = group ? model.subjects.find((s) => s.groups.some((g) => g.id === group)) : undefined;
+    if (card) openCard(card, `group-${group}`);
+    else setTab(t);
+  };
   // a tool the head's "Add data" opens on Clinical studies
   function startStudies(what: Intent["what"]) {
     if (only) setOnly(false);   // the tool opens among what is there to add, not under "Only what needs me"
@@ -320,38 +368,40 @@ export function InputsWorkspace({ projectId, initialTab, initialOnly, initialSta
     badge: id === "files" && unplaced > 0 ? <span className="chip medium" data-testid="files-unplaced"
                                                   title="files not filed under an area yet: say what each is">{unplaced} to place</span> : null,
   }));
-  // each area's one line: what it holds and what is open in it, counted from the same list as its badge; the cards of
-  // its studies or products signed on the delivery, which open in Client files until they move into their area (slice
-  // 3), named with what is open on each; "Only what needs me" (in the URL, as on To do and Client files) leaves out
-  // what is done and what is there to read (the proposal's lists, the sources read, every dataset)
-  const areaLine = (t: Exclude<Tab, "todo" | "files">) => {
-    const there = onDelivery(model, t);
-    return (
-      <>
-        <div className="area-head-row">
-          <p className="area-head" data-testid={`area-head-${t}`}>{areaHead(model, t)}</p>
-          <label className="only-mine">
-            <input type="checkbox" checked={only} onChange={(e) => setOnly(e.target.checked)} data-testid={`only-${t}`} />
-            Only what needs me
-          </label>
-        </div>
-        {there.length > 0 && (
-          <p className="area-elsewhere muted" data-testid={`area-elsewhere-${t}`}>
-            {count(there.length, t === "studies" ? "study is" : "product is", t === "studies" ? "studies are" : "products are")} signed on the
-            delivery: {there.length === 1 ? "its card is" : "their cards are"} in Client files for now, counted here.{" "}
-            {there.map(({ subject, open, confirm }, i) => (
-              <span key={subject.key}>
-                {i > 0 && " · "}
-                <button type="button" className="link-btn" data-testid={`area-elsewhere-${t}-${subject.row!.subject}`}
-                        onClick={() => confirm && go(confirm)}>{subject.label}</button>
-                {open.length > 0 && <span> ({statusSummary(open)})</span>}
-              </span>
-            ))}
-          </p>
-        )}
-      </>
-    );
+  // each area's one line: what it holds and what is open in it, counted from the same list as its badge; "Only what
+  // needs me" (in the URL, as on To do and Client files) leaves out what is done and what is there to read (the
+  // proposal's lists, the sources read, the studies in the model, the other observed data)
+  const areaLine = (t: Exclude<Tab, "todo" | "files">) => (
+    <div className="area-head-row">
+      <p className="area-head" data-testid={`area-head-${t}`}>{areaHead(model, t)}</p>
+      <label className="only-mine">
+        <input type="checkbox" checked={only} onChange={(e) => setOnly(e.target.checked)} data-testid={`only-${t}`} />
+        Only what needs me
+      </label>
+    </div>
+  );
+  // what every card needs from the page
+  const fileNames = new Map(files.map((f) => [f.id, f.file] as const));
+  const env: CardEnv = {
+    projectId, work: model, run, onGo: go, onTodo: () => setTab("todo"), focus: cardFocus,
+    fileName: (id) => fileNames.get(id) ?? null,
+    onFile: (id) => { setTab("files"); if (!filesOpen.has(id)) setFilesOpen((was) => new Set([...was, id])); bringIntoView(`inputs-file-${fileNames.get(id) ?? ""}`); },
   };
+  const cardOpen = (s: Subject, first: boolean) => cardsOpen[s.key] ?? (focused(s, cardFocus) || first);
+  const toggleCard = (s: Subject, first: boolean) => setCardsOpen((was) => ({ ...was, [s.key]: !(was[s.key] ?? (focused(s, cardFocus) || first)) }));
+  // the dissolution profiles, each on its product's card; those of no product's card after them
+  const dissolution = client.data?.dissolution;
+  const profileLabel = (id: string) => dissolution?.profiles.find((p) => p.id === id)?.label ?? id;
+  const products = cardsFor("formulations").filter((s) => s.kind === "product");
+  const profilesOf = (s: Subject) => (dissolution?.profiles ?? []).filter(productOf(s));
+  const unlinkedProfiles = (dissolution?.profiles ?? []).filter((p) => !model.subjects.some((s) => s.kind === "product" && productOf(s)(p)));
+  // up to three cards are all open; past three, the first to confirm is (the owner, 2026-11-05: "one by one")
+  const opens = (list: Subject[], s: Subject) => list.length <= ONE_BY_ONE || s.key === list.find((x) => !x.done && !x.blinded)?.key;
+  // Simulation settings: shown behind "Change…", or by themselves while one needs the person
+  const settingsOpen = cardsOpen["settings"] ?? false;
+  const setSettingsOpen = (o: boolean) => setCardsOpen((was) => ({ ...was, settings: o }));
+  const settingsNeed = rows("settings").some((r) => r.state === "missing" || r.state === "conflict" || r.state === "held")
+    || panelTodo("settings").length > 0;
 
   return (
     <PageShell {...head}
@@ -430,7 +480,18 @@ export function InputsWorkspace({ projectId, initialTab, initialOnly, initialSta
       {tab === "compound" && (
         <TabPanel prefix="inputs" id="compound">
           {areaLine("compound")}
-          {!only && literature.data?.sources && <SourcesRead run={literature.data.sources} />}{confirmHere("compound")}
+          {!only && literature.data?.sources && <SourcesRead run={literature.data.sources} />}
+          {cardsFor("compound").length > 0 && (
+            <section className="subject-cards" data-testid="compound-cards" aria-label="The client's compound values">
+              <h2 className="area-section-title">The client&apos;s compound values</h2>
+              {cardsFor("compound").map((s) => (
+                <CompoundCard key={s.key} subject={s} env={env} open={cardOpen(s, opens(cardsFor("compound"), s))}
+                              onToggle={() => toggleCard(s, opens(cardsFor("compound"), s))} />
+              ))}
+            </section>
+          )}
+          <SheetGroups projectId={projectId} groups={sheetsFor("compound").filter((g) => !only || g.state === "to_confirm")} run={run}
+                       title="Sheets not linked to the compound yet" testId="compound-sheets" />
           {!only && <ValueReuse projectId={projectId} run={run} />}
           <InputRows rows={listed("compound")} todo={panelTodo("compound")} projectId={projectId} run={run} grouped
                    empty={only ? "Nothing on Compound needs you now." : "The compound's values appear here as the client's files, the literature and PubChem fill them."} />
@@ -438,14 +499,35 @@ export function InputsWorkspace({ projectId, initialTab, initialOnly, initialSta
       )}
 
       {tab === "formulations" && (
-        <TabPanel prefix="inputs" id="formulations">{areaLine("formulations")}{confirmHere("formulations")}
-          <>
+        <TabPanel prefix="inputs" id="formulations">
+          {areaLine("formulations")}
+          {products.length > 0 && (
+            <section className="subject-cards" data-testid="product-cards" aria-label="The client's products">
+              <h2 className="area-section-title">The client&apos;s products <span className="muted">({products.length})</span></h2>
+              {products.map((s) => (
+                <ProductCard key={s.key} subject={s} env={env} open={cardOpen(s, opens(products, s))}
+                             onToggle={() => toggleCard(s, opens(products, s))}
+                             profiles={profilesOf(s)} comparisons={dissolution?.comparisons ?? []} label={profileLabel}
+                             problems={dissolution?.problems ?? []} />
+              ))}
+            </section>
+          )}
+          <SheetGroups projectId={projectId} groups={sheetsFor("formulations").filter((g) => !only || g.state === "to_confirm")} run={run}
+                       title="Sheets not linked to a product yet" testId="formulation-sheets" />
+          {!only && unlinkedProfiles.length > 0 && (
+            <Dissolution profiles={unlinkedProfiles} comparisons={dissolution?.comparisons ?? []} label={profileLabel} projectId={projectId}
+                         run={run} product="" testId="dissolution-unlinked" problems={dissolution?.problems ?? []} />
+          )}
+          {!only && dissolutionNotes(dissolution?.profiles ?? [], dissolution?.problems ?? []).length > 0 && (
+            <section className="card-section" data-testid="dissolution-notes">
+              <h3 className="area-section-title">Notes on the dissolution data</h3>
+              <ul className="flags">{dissolutionNotes(dissolution?.profiles ?? [], dissolution?.problems ?? []).map((x) => <li key={x}>{x}</li>)}</ul>
+            </section>
+          )}
           {!only && <BriefList projectId={projectId} group="products" testId="inputs-products"
                      fields={["name", "role", "dosage_form", "strength", "release", "attributes"]}
-                     title="The products the proposal names"
-                     lede="Each product is built as its own formulation; the data plan asks for its dissolution and, for a test and its reference, the study that compares them." />}
-          <InputRows rows={listed("formulations")} todo={panelTodo("formulations")} projectId={projectId} run={run}
-                     empty={only ? "Nothing else on Products and dissolution needs you now." : "No formulation yet: a solution needs none; a tablet's release comes from its dissolution profile or the literature."} />
+                     title="Products named in the proposal"
+                     lede="Each product becomes its own formulation. Add its dissolution data; for a test against a reference, add the study that compares them." />}
           {used.some((s) => SOLID.includes(String(s.facts.formulation)) && (!only || !s.facts.formulation_name)) && (
             <section className="card">
               <h3 className="mt-0">The formulation of each solid study</h3>
@@ -463,11 +545,10 @@ export function InputsWorkspace({ projectId, initialTab, initialOnly, initialSta
               </table>
             </section>
           )}
-          {client.data && client.data.dissolution.profiles.length > 0 && (
-            <Dissolution projectId={projectId} d={client.data.dissolution}
-                         act={async (fn) => run(fn, "The release model is proposed; its values flow into the formulation.")} />
-          )}
-          </>
+          <h3 className="area-section-title">Formulations in the model</h3>
+          <InputRows rows={listed("formulations")} todo={panelTodo("formulations")} projectId={projectId} run={run}
+                     empty={only ? "Nothing else on Products and dissolution needs you now."
+                       : "No formulation in the model yet. Confirm a product's dissolution above, or choose a release model; a solution needs none."} />
         </TabPanel>
       )}
 
@@ -481,54 +562,70 @@ export function InputsWorkspace({ projectId, initialTab, initialOnly, initialSta
           {panelTodo("individuals").filter((t) => t.kind !== "demographics").length > 0 && (
             <InputRows rows={[]} todo={panelTodo("individuals").filter((t) => t.kind !== "demographics")} projectId={projectId} run={run} empty="" />
           )}
-          {!only && <>
-          <h3>Each study&apos;s individual</h3>
-          <StudyIndividuals studies={studies} projectId={projectId} run={run} options={options} />
-          <h3>Values set on the individual</h3>
-          <InputRows rows={listed("individuals")} todo={[]} projectId={projectId} run={run}
-                     empty="None: enzyme and transporter expression and individual values appear here when a source gives them." />
+          <h3 className="area-section-title">Each study&apos;s individual</h3>
+          <StudyIndividuals studies={only ? studies.filter((s) => s.demographics === "missing") : studies} projectId={projectId} run={run} options={options}
+                            subjects={model.subjects.filter((s) => s.kind === "study")} vocabulary={deliveryPage?.mappings[0]?.mapping_id ?? null}
+                            onOpen={(_item, s) => openCard(s)} />
+          {(!only || listed("individuals").length > 0) && <>
+            <h3 className="area-section-title">Values set on the individual</h3>
+            <InputRows rows={listed("individuals")} todo={[]} projectId={projectId} run={run}
+                       empty="None yet: enzyme and transporter expression and individual values appear when a source gives them." />
           </>}
-          {only && listed("individuals").length > 0 && <InputRows rows={listed("individuals")} todo={[]} projectId={projectId} run={run} empty="" />}
         </TabPanel>
       )}
 
       {tab === "settings" && (
         <TabPanel prefix="inputs" id="settings">
           {areaLine("settings")}
-          <InputRows rows={listed("settings")} todo={panelTodo("settings")} projectId={projectId} run={run}
-                     empty={only ? "Nothing on Simulation settings needs you now." : "The calculation methods are PK-Sim's defaults unless the published model sets them."} />
-          {!only && <section className="card">
-            <h3 className="mt-0">Solver settings</h3>
-            <table>
-              <tbody>
-                {used.map((s) => {
-                  const solver = (s.facts.solver ?? {}) as Record<string, number>;
-                  return (
-                    <tr key={s.study_id}>
-                      <td><strong>{s.study_id}</strong></td>
-                      <td>{Object.keys(solver).length ? Object.entries(solver).map(([k, v]) => `${k} ${v}`).join(" · ")
-                        : <span className="muted">PK-Sim&apos;s defaults</span>}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-            <InlineIssue severity="note">Each study is simulated over its whole sampled window. Prediction regimens are applications,
-              set on Review &amp; sign.</InlineIssue>
-          </section>}
+          <section className="settings-line" data-testid="settings-line">
+            <p className="m-0">PK-Sim&apos;s default calculation methods and solver settings are used. Each study runs over its full sampling
+              time. Dosing for predictions is set on Review &amp; sign.</p>
+            {/* a setting that needs the person is shown without asking; otherwise "Change…" shows them */}
+            {!settingsNeed && (
+              <button type="button" className="btn small" aria-expanded={settingsOpen} onClick={() => setSettingsOpen(!settingsOpen)}
+                      data-testid="settings-change">{settingsOpen ? "Hide the settings" : "Change…"}</button>
+            )}
+          </section>
+          {(settingsOpen || settingsNeed) && (
+            <>
+              <InputRows rows={listed("settings")} todo={panelTodo("settings")} projectId={projectId} run={run}
+                         empty={only ? "Nothing on Simulation settings needs you now." : "PK-Sim's default calculation methods are used: nothing to set."} />
+              {used.length > 0 && (
+                <section className="card" data-testid="settings-solver">
+                  <h3 className="mt-0">Solver settings, per study</h3>
+                  <table>
+                    <tbody>
+                      {used.map((s) => {
+                        const solver = (s.facts.solver ?? {}) as Record<string, number>;
+                        return (
+                          <tr key={s.study_id}>
+                            <td><strong>{s.study_id}</strong></td>
+                            <td>{Object.keys(solver).length ? Object.entries(solver).map(([k, v]) => `${k} ${v}`).join(" · ")
+                              : <span className="muted">PK-Sim&apos;s defaults</span>}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </section>
+              )}
+            </>
+          )}
         </TabPanel>
       )}
 
       {tab === "studies" && (
-        <TabPanel prefix="inputs" id="studies">{areaLine("studies")}{confirmHere("studies")}<StudiesTab studies={studies} todo={panelTodo("studies")} projectId={projectId} run={run} options={options}
-                    onIndividuals={() => setTab("individuals")} client={client.data ?? undefined} intent={intent} only={only} /></TabPanel>
+        <TabPanel prefix="inputs" id="studies">{areaLine("studies")}
+          <StudiesTab studies={studies} todo={panelTodo("studies")} projectId={projectId} run={run} options={options}
+                      onIndividuals={() => setTab("individuals")} client={client.data ?? undefined} intent={intent} only={only} env={env}
+                      subjects={cardsFor("studies").filter((s) => s.kind === "study")} sheets={sheetsFor("studies")} /></TabPanel>
       )}
 
       {tab === "files" && (
         <TabPanel prefix="inputs" id="files">
           <ClientFilesTab projectId={projectId} client={client.data} work={model} only={only} onOnly={setOnly} run={run} act={clientAct}
                           onRetag={retag} onSaved={clientSaved} onOpen={(area) => setTab(area)} onItem={go} onOpenGroup={openGroup}
-                          focus={subjectFocus} shown={shown} />
+                          focus={cardFocus?.ref ? { subject: cardFocus.ref, at: cardFocus.at } : null} shown={shown} />
         </TabPanel>
       )}
     </PageShell>

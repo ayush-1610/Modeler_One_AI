@@ -10,7 +10,7 @@ import { Fragment, useState } from "react";
 
 import { send, type Schema } from "@/lib/api";
 
-import { Problem, TUPLE_HEADS, TupleCells, fieldText, num, plural, useDecide, valueText, type Subject } from "./shared";
+import { Problem, TUPLE_HEADS, TupleCells, fieldText, num, plural, timeText, useDecide, valueText, type Subject } from "./shared";
 import { ValueSource } from "./ValueSource";
 
 type Spot = Schema<"DeliverySpotCheck">;
@@ -39,11 +39,11 @@ function reasonText(reason: string | null): string {
 }
 
 const STATE: Record<Subject["spot_check"]["state"], string> = {
-  none: "not drawn yet",
-  drawn: "drawn: tick each value against its source",
-  failed: "a value does not match its source",
+  none: "not started",
+  drawn: "in progress",
+  failed: "a value does not match its file",
   complete: "complete",
-  stale: "the values changed since it was drawn",
+  stale: "values changed: start again",
 };
 
 /** How a row that is not ticked now stands. */
@@ -97,15 +97,15 @@ export function SpotCheck({ projectId, subject }: { projectId: string; subject: 
           is signed, so they cannot be checked against their source: its spot check is drawn after that.</p>
       ) : (
         <>
-          <p className="muted m-0">Code draws the values to read against their source: the key facts always, and a sample of
-            the rest. A tick says the value, its unit, its time, its labels and its statistic are as in the source.</p>
+          <p className="muted m-0">Compare a few values with the file: the key study facts plus a random sample. Tick each one that
+            matches: its value, unit, time, labels and statistic as the file writes them.</p>
           {!spot && (
             <div className="row gap-8">
-              <button type="button" className="btn small primary" disabled={busy} onClick={() => void draw()} data-testid={`spot-draw-${subject.subject}`}>
-                {card.state === "none" ? "Draw the spot check" : card.state === "stale" ? "Draw again" : "Show the values drawn"}
+              <button type="button" className="btn small" disabled={busy} onClick={() => void draw()} data-testid={`spot-draw-${subject.subject}`}>
+                {card.state === "none" ? "Start the spot check" : card.state === "stale" ? "Start again" : "Show the values to check"}
               </button>
-              {card.state === "stale" && <span className="muted" data-testid="spot-stale">The values or their overrides changed since
-                the draw: draw again. Ticks of values that did not change carry over.</span>}
+              {card.state === "stale" && <span className="muted" data-testid="spot-stale">The values, or the checks accepted as is,
+                changed since it started: start again. Ticks of values that did not change carry over.</span>}
             </div>
           )}
           <Problem text={problem} testId="spot-problem" />
@@ -136,7 +136,7 @@ export function SpotCheck({ projectId, subject }: { projectId: string; subject: 
                             <td>
                               {row.wanted ? (
                                 <fieldset className="delivery-tick">
-                                  <legend className="sr-only">{fieldText(v.field)} {v.id}</legend>
+                                  <legend className="sr-only">{fieldText(v.field)}{v.time !== null ? ` at ${timeText(v)}` : ""}: does it match the file?</legend>
                                   <label><input type="radio" name={`spot-${id}-${v.id}`} checked={tick?.ok === true}
                                                 onChange={() => set(v.id, { ok: true })} data-testid={`spot-tick-${v.id}`} /> matches</label>
                                   <label><input type="radio" name={`spot-${id}-${v.id}`} checked={tick?.ok === false}

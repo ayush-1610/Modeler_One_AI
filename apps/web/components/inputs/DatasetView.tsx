@@ -3,17 +3,38 @@
 // One dataset on its study's card, as data (plan 2026-11-05 §3.2, build C; the owner, 2026-11-05: "no data points, no
 // graph, no metadata, no statistics"): the profile drawn (linear or log), code's statistics of each series
 // (`modeler_project.dataset_points`: Cmax, tmax, AUC by the platform's NCA), the client's reported PK beside them, and
-// the table of points. A blinded dataset (D-15) shows its times only.
+// the table of points. A blinded dataset (D-15) shows its times only. A chart is drawn at the width of its card (its
+// box measured, the drawing as wide as the box), so its labels stay 11 px on a phone and it never leaves half the card
+// empty; a dissolution profile is drawn as everywhere else in the app: observed in amber, the fit in blue (plan
+// 2026-11-14 slice 3).
 
-import { useState } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 
 import type { Schema } from "@/lib/api";
 
 type Data = Schema<"DatasetPoints">;
 type Series = Schema<"SeriesPoints">;
 
-const W = 560, H = 230, PAD = { l: 56, r: 12, t: 12, b: 40 };
+const H = 240, PAD = { l: 56, r: 14, t: 12, b: 40 };
 const CATEGORICAL = 8;    // series past this are drawn in one neutral ink (subjects), never in generated hues
+const NARROW = 440;       // below this width, fewer time ticks
+
+/** The width of the box a chart is drawn in (at least 200 px), followed as the box changes. */
+function useBoxWidth(): [RefObject<HTMLDivElement | null>, number] {
+  const box = useRef<HTMLDivElement | null>(null);
+  const [width, setWidth] = useState(560);
+  useEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    const measure = () => { const w = Math.max(200, Math.round(el.clientWidth)); setWidth((was) => (was === w ? was : w)); };
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const watch = new ResizeObserver(measure);
+    watch.observe(el);
+    return () => watch.disconnect();
+  }, []);
+  return [box, width];
+}
 
 const sig = (x: number | null | undefined, digits = 3) =>
   x === null || x === undefined || !Number.isFinite(x) ? "—" : Number(x.toPrecision(digits)).toLocaleString();
@@ -39,6 +60,7 @@ function logTicks(lo: number, hi: number): number[] {
  *  markers on the axis. A point that states no spread has no entry in `error` (null): it is drawn without a whisker. */
 function ProfileChart({ data, label }: { data: Data; label: string }) {
   const [log, setLog] = useState(false);
+  const [box, W] = useBoxWidth();
   const series = data.series;
   const many = series.length > CATEGORICAL;
   const shown = (v: number | null) => v !== null && (!log || v > 0);
@@ -56,6 +78,7 @@ function ProfileChart({ data, label }: { data: Data; label: string }) {
     return H - PAD.b - Math.min(Math.max(f, 0), 1) * (H - PAD.t - PAD.b);
   };
   const yTicks = log ? logTicks(yLo, yHi) : ticks(0, yHi);
+  const xTicks = ticks(tMin, tMax, W < NARROW ? 4 : 6);
   const color = (i: number) => (many ? "var(--series-neutral)" : `var(--series-${(i % CATEGORICAL) + 1})`);
   return (
     <figure className="profile-chart" data-testid="profile-chart">
@@ -66,14 +89,15 @@ function ProfileChart({ data, label }: { data: Data; label: string }) {
           <button type="button" aria-pressed={log} onClick={() => setLog(true)} data-testid="chart-log">Log</button>
         </span>
       </div>
-      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`${label}, ${log ? "log" : "linear"} scale`}>
+      <div className="chart-box" ref={box}>
+      <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} role="img" aria-label={`${label}, ${log ? "log" : "linear"} scale`}>
         {yTicks.filter((v) => !log || (v >= yLo / 1.0001 && v <= yHi * 1.0001)).map((v) => (
           <g key={v} className="grid">
             <line x1={PAD.l} x2={W - PAD.r} y1={y(v)} y2={y(v)} />
             <text x={PAD.l - 6} y={y(v) + 4} textAnchor="end">{sig(v, 3)}</text>
           </g>
         ))}
-        {ticks(tMin, tMax).map((t) => (
+        {xTicks.map((t) => (
           <text key={t} className="tick" x={x(t)} y={H - PAD.b + 16} textAnchor="middle">{sig(t, 3)}</text>
         ))}
         <text className="axis-label" x={(W + PAD.l) / 2} y={H - 4} textAnchor="middle">time ({data.time_unit})</text>
@@ -113,6 +137,7 @@ function ProfileChart({ data, label }: { data: Data; label: string }) {
           );
         })}
       </svg>
+      </div>
       <figcaption className="profile-legend">
         {many ? <span><i className="swatch bg-series-neutral" />{series.length} subjects, each a line</span>
           : series.map((s, i) => (
@@ -232,6 +257,7 @@ type Profile = import("@/components/client/types").Profile;
 /** A dissolution profile on its product's card (build C): the mean % dissolved with its spread, PK-Sim's Weibull fit,
  *  the conditions, and the table of points. */
 export function ReleaseView({ p }: { p: Profile }) {
+  const [box, W] = useBoxWidth();
   const tMax = Math.max(...p.times_min, 1);
   const x = (t: number) => PAD.l + (t / tMax) * (W - PAD.l - PAD.r);
   const y = (v: number) => H - PAD.b - (Math.min(Math.max(v, 0), 110) / 110) * (H - PAD.t - PAD.b);
@@ -245,16 +271,17 @@ export function ReleaseView({ p }: { p: Profile }) {
     <div className="dataset-view" data-testid="release-view">
       <figure className="profile-chart">
         <div className="profile-chart-bar"><span className="muted">{p.label}</span></div>
-        <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`release of ${p.label}`}>
+        <div className="chart-box" ref={box}>
+        <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} role="img" aria-label={`release of ${p.label}`}>
           {[0, 25, 50, 75, 100].map((v) => (
             <g key={v} className="grid"><line x1={PAD.l} x2={W - PAD.r} y1={y(v)} y2={y(v)} />
               <text x={PAD.l - 6} y={y(v) + 4} textAnchor="end">{v}</text></g>
           ))}
-          {ticks(0, tMax).map((t) => <text key={t} className="tick" x={x(t)} y={H - PAD.b + 16} textAnchor="middle">{sig(t)}</text>)}
+          {ticks(0, tMax, W < NARROW ? 4 : 6).map((t) => <text key={t} className="tick" x={x(t)} y={H - PAD.b + 16} textAnchor="middle">{sig(t)}</text>)}
           <text className="axis-label" x={(W + PAD.l) / 2} y={H - 4} textAnchor="middle">time (min)</text>
           <text className="axis-label" transform={`translate(12 ${(H - PAD.b) / 2}) rotate(-90)`} textAnchor="middle">% dissolved</text>
-          {curve && <g className="series text-series-2"><polyline points={curve} /></g>}
-          <g className="series text-series-1">
+          {curve && <g className="series fit-sim"><polyline points={curve} /></g>}
+          <g className="series observed-obs">
             {p.times_min.map((t, i) => {
               const sd = p.cv[i] !== null && p.cv[i] !== undefined ? (p.cv[i] as number) * p.mean[i] / 100 : 0;
               return (
@@ -268,9 +295,10 @@ export function ReleaseView({ p }: { p: Profile }) {
             })}
           </g>
         </svg>
+        </div>
         <figcaption className="profile-legend">
-          <span><i className="swatch bg-series-1" />mean of {p.n} vessels ± SD (from the CV)</span>
-          {fit && <span><i className="swatch bg-series-2" />PK-Sim Weibull fit</span>}
+          <span><i className="swatch swatch-obs" />observed: mean of {p.n} vessels ± SD (from the CV)</span>
+          {fit && <span><i className="swatch swatch-sim" />PK-Sim Weibull fit</span>}
         </figcaption>
       </figure>
       {conditions.length > 0 && (

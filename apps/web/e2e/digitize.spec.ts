@@ -100,6 +100,6 @@ test("a figure is digitized against calibrated axes, its overlay checked, and th
   await expect(page.getByTestId("study-doe-2019-po-10mg")).toHaveCount(0);
   await card.getByRole("button", { name: "The overlay matches the figure" }).click();
   await expect(card).toContainText("overlay checked by");
-  await expect(card).toContainText("used");
+  await expect(card).toContainText("in the model");
   await expect(page.getByTestId("study-doe-2019-po-10mg")).toBeVisible();
 });

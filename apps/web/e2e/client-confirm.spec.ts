@@ -36,11 +36,13 @@ test("a study two client files contradict is settled on its card, then confirmed
 
   await page.goto(`/projects/${projectId}/inputs?tab=studies`);
   await page.getByTestId("tab-studies").click();
+  // the study's one card, under its row in the list of the client's studies (plan 2026-11-14 slice 3)
+  await expect(page.getByTestId("study-row-study:EX-101")).toContainText("To decide");
   const card = page.getByTestId("group-study:EX-101");
-  await expect(card).toContainText("To confirm · 2 items");
+  await expect(card.getByTestId("group-open-study:EX-101")).toHaveText("2 to decide");
   const confirm = card.getByTestId("confirm-study:EX-101");
   await expect(confirm).toBeDisabled();
-  await expect(card).toContainText("Settle 2 open items first");
+  await expect(card).toContainText("Settle 2 open items above first");
   const dose = card.getByTestId("issue-study:EX-101|dose_mg");
   await expect(dose).toContainText("Dose (mg): the client's files give 2 values");
   // each dataset as data (build C): its profile drawn, code's statistics from its points, the table of points
@@ -56,14 +58,14 @@ test("a study two client files contradict is settled on its card, then confirmed
   // select the protocol's dose and confirm the selection: no reason asked; it stays in place, resolved
   await dose.getByRole("radio", { name: /^10 · EX-101_protocol_PK/ }).check();
   await dose.getByTestId("issue-confirm-study:EX-101|dose_mg").click();
-  await expect(dose).toContainText("Resolved");
+  await expect(dose).toContainText("Done");
   await expect(card.getByTestId("issue-final-study:EX-101|dose_mg")).toHaveText("10");
   await expect(dose).toContainText("Not used: 5");
   // changeable until the group is confirmed
   await dose.getByTestId("issue-change-study:EX-101|dose_mg").click();
   await dose.getByRole("radio", { name: /^10 · EX-101_protocol_PK/ }).check();
   await dose.getByTestId("issue-confirm-study:EX-101|dose_mg").click();
-  await expect(dose).toContainText("Resolved");
+  await expect(dose).toContainText("Done");
 
   // dosed against PK-evaluable: marked explained
   const n = card.getByTestId("issue-study:EX-101|n");
@@ -84,8 +86,11 @@ test("a study two client files contradict is settled on its card, then confirmed
   await expect(card).toBeVisible();
 
   await expect(confirm).toBeEnabled();
+  await expect(confirm).toHaveText("Confirm study EX-101");
+  await expect(card).toContainText("Ready. Confirming adds this study to the model under your name.");
   await confirm.click();
   await expect(card).toContainText("Confirmed by");
+  await expect(page.getByTestId("card-loaded-study:EX-101")).toContainText("Confirmed with the sheet form by");
   await expect(card.getByTestId("issue-final-study:EX-101|dose_mg")).toHaveText("10");   // still shown, final
   await expect(page.getByTestId("study-EX-101")).toBeVisible();                          // loaded into the project
   await shot(page, "3-confirmed-and-loaded");
@@ -121,7 +126,7 @@ test("a study the client named at upload is linked to the sheet's other name onc
   await link.getByRole("radio", { name: /Yes: EX-101 is EXZ-101/ }).check();
   await link.getByTestId("issue-confirm-link|EX-101").click();
   const linked = page.getByTestId("group-study:EXZ-101");                          // regrouped under the study's name
-  await expect(linked).toContainText("Resolved");
+  await expect(linked).toContainText("Done");
   await expect(linked.getByTestId("notes-study:EXZ-101")).toContainText("Also called EX-101");
   await linked.getByTestId("confirm-study:EXZ-101").click();
   await expect(linked).toContainText("Confirmed by");

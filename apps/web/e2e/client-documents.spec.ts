@@ -91,7 +91,7 @@ test("a Word synopsis is read for its study's facts, and its dose against the PK
 
   await dose.getByRole("radio", { name: /^10 · EX-301_synopsis/ }).check();
   await dose.getByTestId("issue-confirm-study:EX-301|dose_mg").click();
-  await expect(dose).toContainText("Resolved");
+  await expect(dose).toContainText("Done");
   await expect(card.getByTestId("issue-final-study:EX-301|dose_mg")).toHaveText("10");
   await card.getByTestId("confirm-study:EX-301").click();
   await expect(card).toContainText("Confirmed by");
@@ -136,10 +136,10 @@ test("a synopsis's demographics become the study's individual once the person ch
 
   await population.getByTestId("issue-option-study:EX-302|demographics:population-European_ICRP_2002").check();
   await population.getByTestId("issue-confirm-study:EX-302|demographics:population").click();
-  await expect(population).toContainText("Resolved");
+  await expect(population).toContainText("Done");
   await sex.getByTestId("issue-option-study:EX-302|demographics:sex-MALE").check();
   await sex.getByTestId("issue-confirm-study:EX-302|demographics:sex").click();
-  await expect(sex).toContainText("Resolved");
+  await expect(sex).toContainText("Done");
   await card.getByTestId("confirm-study:EX-302").click();
   await expect(card).toContainText("Confirmed by");
   await shot(page, "4-demographics-confirmed");

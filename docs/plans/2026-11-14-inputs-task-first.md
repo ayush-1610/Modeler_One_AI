@@ -196,3 +196,68 @@ before the next starts.
     `GET /delivery/source`; the layout vocabulary without a mapping; a pH-solubility table entry; and `POST /evidence`
     checking a word value against its vocabulary (it keeps "albumin" for `bind.partner` and shows it "in the model",
     which the model builder then refuses: the page now offers only PK-Sim's names).
+
+- Within this plan, slice 3 as built (2026-11-14; frontend only):
+  - **Where the new parts live:** `FactsForm` (with the demographics form) and the decision list (`Decisions`) are in
+    `components/delivery/`, beside `DeliveryReview`, since both post to or read a delivery subject; the cards
+    (`StudyCard`, `ProductCard`, `CompoundCard`, `ConfirmPath`, `HowRead`, the card's To do) are in
+    `components/inputs/cards/`. The sheet form's draft needs stay in `DraftItem` (not merged into `FactsForm`).
+  - **"Confirm now with the sheet form"** opens the sheet form's view on the card in its confirm form (its facts, its
+    disagreements, its own "Confirm"); it does not confirm in one click. It is offered whenever the card has a sheet-form
+    group still to confirm, as "Confirm with the sheet form instead" while the clean-up does not hold the signature,
+    because the one list of work counts that group's open items on the card (slice 2, "both confirm paths stay open").
+  - **"Confirm and sign" is disabled** while the card's own blockers include the clean-up's codes (SILENT_LOSS,
+    OUTSIDE_NUMBERS, UNASSIGNED_VALUES), read from the card; the gate line's words are the one list's (`gateText`). The
+    other blockers still let the dialog open, which names them, as before.
+  - **The decision list** reads who, when and why from the project's audit trail (its last 2,000 events) and what each
+    decision was from the card and the delivery page: checks accepted as is (by check id), entries and corrections (by
+    fact id), required items settled (by disposition id), table layouts approved or rejected (by layout id and version),
+    tables of its files marked as not data (by decision id). A value not used after a choice and a refused link are listed
+    with their reason only (the trail does not name the subject); values linked to the study from a file that did not name
+    it are not listed (the trail does not say which study a link went to). API follow-up: a subject's decisions
+    `{kind, what, by, at, why}` on its card.
+  - **The demographics form** offers the population's words from a table layout's vocabulary
+    (`GET /delivery/mappings/{id}`: the intake vocabulary is only there), typed when the project has no layout; the
+    other fields are numbers under the intake rules' names for REQ-sys.demographics. Whether person-entered demographics
+    count as found is API change 5 (slice 5 e), not checked here.
+  - **The Clinical studies list** is grouped by the facts known without new reads beyond the cards: the study in the
+    model, the sheet form's facts, and the delivery card's facts (read for the studies confirmed on the delivery and not
+    yet confirmed, two at a time, under the key the card uses, when the area opens). An oral study whose food state no
+    file states is under "Other or not stated yet". The list is one kit `DataTable` (which gains a row testid, a row's
+    detail under it and group heading rows), not one table per design: a study whose facts move it to another design (its
+    route entered) stays the same row, so its open card, and a signature dialog on it, are not lost.
+  - **Not in the design, added:** a table of values on a card is one line until opened, open by itself when a row of it
+    needs the person (the 230-23 card was over 6,000 px with every table open); a card's facts are listed once each and
+    without the subject's own id; the rows of a study's table no longer repeat "study 230-23". Up to three cards in an
+    area are all open; past three, the first to confirm (as `ConfirmGroups` did). The Delivery section in Client files
+    keeps one line naming the areas where its subjects' cards are, with links.
+  - **Not built here:** "Used by 230-23, 231-24" on a product card (nothing the page reads says which studies give a
+    product); "Show separately" for a joined card (the join has no wrong merges on either seed); "In the model" links for
+    products and the compound (a study's link scrolls to its row); the "Nothing on this tab yet" empty-state title of
+    `InputRows` (owned by the slice-4 branch). The client's compound values as a card on Compound shows only where a
+    delivery or sheet-form compound subject exists.
+- Within this plan, slice 3 after its review (2026-11-15; frontend only):
+  - **Asked once, counted once:** on a card confirmed on the delivery, the sheet form's sheets that do not say a fact
+    are no longer rows of the one list of work (they were counted beside the delivery's own facts row, which asks for the
+    same facts). They are asked inside the sheet form's path when the person chooses it; the card's sheet path says how
+    many things the sheet form has first. The sheet form's disagreements on such a card are still counted. This narrows
+    slice 2's "both confirm paths stay open … its open items are counted too" to the disagreements.
+  - **A card the sheet form confirmed first** reads as a sheet-form card (the group as its body, the delivery's reading
+    folded for reference), whatever its `confirm_on`.
+  - **"State it…" for ANALYTE_MISSING** links the check's values again (`values:assign`) with their study, arm, product
+    and batch named again and the analyte chosen or named, one link per set of values that share those: an assignment
+    replaces the earlier one whole, so naming them again is what keeps them. Not offered while the study is blinded.
+  - **"Fill in…" for DISSOLUTION_METHOD_INCOMPLETE is not built.** The method a run must state is the `conditions` of
+    each dissolved value of the run (`intake_checks._dissolution_method_incomplete`); the check names no values, and
+    the only way to give values new conditions today is to correct each one through `:enter`, which would re-enter every
+    point of the run as a person's entry and drop its file as its source. The check keeps "Accept as is…". API
+    follow-up: a run's method stated once (its batch and conditions, with a reason), kept beside the values it applies to.
+  - **A study's datasets on its card keep every action** of the dataset list (reveal for a check, the overlay check, the
+    flags, the digitization, the reported PK; plan rule 6); the study's row says what waits among them while its card is
+    closed.
+  - **A card opened from To do or "Next"** lands at its head (a study's: its row) with the focus on the control that
+    opens it; an item inside a card at its place, the focus on its first control.
+  - **Not changed here:** the delivery API does not blind a client study that the project blinds by its id (CL-2 on
+    clientamide with an external dataset filed under it): the page now withholds the delivery's reading of such a study
+    in "How the files were read", but the sheet form's group shows what the client-review API sends. Whether the client
+    review and the delivery should blind it is an API question for the owner.

@@ -228,6 +228,10 @@ export function layoutAnchor(m: { mapping_id: string; version: number }, all: { 
   return `delivery-mapping-${m.mapping_id}${m.version === first ? "" : `-v${m.version}`}`;
 }
 
+/** A study's, product's or compound's card in its area (plan 2026-11-14 slice 3): `study-card-<key>`, `product-card-<key>`,
+ *  `compound-card-<key>`. Every item of a card opens there, whichever reader found the subject. */
+export const cardAnchor = (s: Pick<Subject, "kind" | "key">) => `${s.kind}-card-${s.key}`;
+
 /** A file's id in the Unassigned list of the delivery review (its table, or its facts): the anchor of its link form. */
 export const unassignedAnchor = (valueId: string, sha: string | null) =>
   `delivery-unassigned-${(valueId.includes("#") ? valueId.split("#")[0] : `facts:${sha ?? "entered"}`).replace(/[^A-Za-z0-9-]/g, "-")}`;
@@ -341,9 +345,11 @@ export function buildWork(sources: WorkSources): WorkModel {
     const alias = prefixAlias(s.label, studyRows);
     const shas = s.groups.flatMap(groupShas);
     if (!alias || items.some((i) => i.id === `alias:${s.key}`) || !shas.some((sha) => alias.files.includes(sha))) continue;
+    // settled: it opens the card of the study it was linked to, in its area
+    const into = subjects.find((x) => x.row === alias);
     add({ id: `alias:${s.key}`, group: "done", status: "done", area: "files", pipeline: "delivery", subjects: [s.key],
           label: `Same study as ${alias.label}? ${s.label}`, inModel: `Its file is linked to ${alias.label} in the delivery.`,
-          where: { tab: "files", anchor: `delivery-subject-${alias.subject}`, subject: `${alias.subject_type}/${alias.subject}` },
+          where: { tab: into?.area ?? "studies", anchor: into ? cardAnchor(into) : undefined, subject: `${alias.subject_type}/${alias.subject}` },
           files: shas.map(fileOf), weight: 0 });
   }
 
@@ -384,8 +390,10 @@ export function buildWork(sources: WorkSources): WorkModel {
   }
 
   // the sheet form's own open items: the issues (settled with the card's own form) and the sheets that do not say a fact
-  // (filled in on the card). A subject signed on the delivery that the sheet form also read keeps them: it can be
-  // confirmed with the sheet form instead (plan §2.2.1), and its sheet card offers that today
+  // (filled in on the card). A subject signed on the delivery that the sheet form also read keeps its issues: it can be
+  // confirmed with the sheet form instead (plan §2.2.1). Its sheets' missing facts are not asked again there: the
+  // delivery's own facts row asks for them, once (slice 3 after its review); the sheet form asks them inside its path,
+  // when the person chooses it ("The sheet form has n things first")
   for (const s of subjects.filter((x) => x.groups.length > 0 && !x.done)) {
     const also = s.path === "delivery" ? "To confirm it with the sheet form instead of signing it on the delivery." : undefined;
     for (const g of s.groups.filter((x) => x.state === "to_confirm")) {
@@ -395,6 +403,7 @@ export function buildWork(sources: WorkSources): WorkModel {
               blocked: s.blinded ? "Blinded until the plan is signed." : undefined, detail: also,
               files: s.files, subjects: [s.key], weight: 1, issue: { group: g.id, issue: issue.id } });
       }
+      if (s.path === "delivery") continue;
       for (const i of g.items.filter((x) => x.kind === "draft")) draftItem(add, g, i, `${KIND_WORD[s.kind]} ${s.label}`, [s.key], s.blinded, fileOf, also);
     }
   }
@@ -418,7 +427,8 @@ export function buildWork(sources: WorkSources): WorkModel {
     if (!card) continue;
     const name = `${KIND_WORD[s.kind]} ${s.label}`;
     const base = { area: s.area, pipeline: "delivery" as const, files: s.files, subjects: [s.key], weight: 1 };
-    const at = (anchor: string): Where => ({ tab: "files", anchor, subject: ref });
+    // on the card in its area (slice 3; until then the card opened in Client files)
+    const at = (anchor: string): Where => ({ tab: s.area, anchor, subject: ref });
     const failing = card.checks.filter((c) => c.severity === "fail" && !c.overridden);
     const facts = new Map<string, string>();
     for (const g of card.gaps) if (!facts.has(g.tag)) facts.set(g.tag, `delivery-gap-${g.tag}`);
@@ -465,7 +475,7 @@ export function buildWork(sources: WorkSources): WorkModel {
     const aliases = s.aliases.length ? ` · also read by the sheet form as ${s.aliases.join(", ")}` : "";
     const g = s.groups[0];
     const where: Where = s.path === "sheet-form" && g ? { tab: g.tab as Tab, anchor: `group-${g.id}` }
-      : { tab: "files", anchor: `delivery-subject-${s.row!.subject}`, subject: `${s.row!.subject_type}/${s.row!.subject}` };
+      : { tab: s.area, anchor: cardAnchor(s), subject: `${s.row!.subject_type}/${s.row!.subject}` };
     const base = { area: s.area, where, pipeline: (s.path === "delivery" ? "delivery" : "sheet-form") as WorkItem["pipeline"],
                    files: s.files, subjects: [s.key], weight: s.row?.values ?? s.groups.reduce((n, x) => n + x.items.length, 0) };
     if (s.done) {
@@ -627,8 +637,8 @@ export function areaHead(model: WorkModel, tab: Tab, files = 0): string {
   return parts.length > (lead ? 1 : 0) ? parts.join(" · ") : `${lead ? `${lead} · ` : ""}nothing open here`;
 }
 
-/** The cards of an area that are signed on the delivery and not done: until slice 3 moves them into their area they open
- *  in Client files, so the area's head names them there with what is open on each (counted in this area). */
+/** The cards of an area that are signed on the delivery and not done, with what is open on each (counted in this area).
+ *  Since slice 3 they are in their area; until then they opened in Client files, and the area's head named them. */
 export function onDelivery(model: WorkModel, tab: Tab): { subject: Subject; open: WorkItem[]; confirm: WorkItem | undefined }[] {
   return model.subjects.filter((s) => s.area === tab && s.path === "delivery" && !s.done).map((s) => ({
     subject: s, open: model.items.filter((i) => i.open && i.subjects.includes(s.key) && CARD_ITEM.test(i.id)),

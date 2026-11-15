@@ -11,8 +11,16 @@ import { useState } from "react";
 
 import { Dialog } from "@/components/kit/Dialog";
 import { send } from "@/lib/api";
+import { engineWords, tableKindText } from "@/lib/words";
 
 import { BLOCKER_LABEL, KIND_LABEL, Problem, WITHHELD, levelText, plural, useDecide, type Blocker, type Subject } from "./shared";
+
+// what holds a signature, in the card's words (the delivery's clean-up is one of them)
+const BLOCKER_WORD: Record<string, string> = {
+  SILENT_LOSS: "Numbers not read in its files' tables", OUTSIDE_NUMBERS: "Loose numbers in its files",
+  UNASSIGNED_VALUES: "Values in its files not linked to a study", SCHEMA_GAP: "Facts not stated", CHECK_FAILED: "Checks to decide",
+  LINK_UNCONFIRMED: "A link between files to decide", SPOT_CHECK: "The spot check",
+};
 
 const CONFIRM = "/api/v1/projects/{project_id}/delivery/subjects/{type}/{subject}:confirm" as const;
 
@@ -75,10 +83,10 @@ export function ConfirmDialog({ projectId, subject, onClose }: { projectId: stri
         <dt>You sign</dt><dd>{KIND_LABEL[subject.subject_type]} <strong>{subject.label}</strong></dd>
         <dt>Values</dt>
         <dd data-testid="delivery-confirm-values">{subject.values}{levels.length > 0 && <> ({levels.map(([level, n]) => `${n} ${levelText(level)}`).join(", ")})</>}</dd>
-        <dt>Coverage</dt>
-        <dd data-testid="delivery-confirm-coverage">{plural(counts.files, "file")} · {plural(counts.silent, "number")} in tables not read
-          {" "}· {plural(counts.unread, "table or text", "tables or texts")} not read · {plural(counts.outside, "loose number")}
-          {" "}· {plural(counts.unassigned, "value")} not linked to a study</dd>
+        <dt>From the files</dt>
+        <dd data-testid="delivery-confirm-coverage">{plural(counts.files, "file")}: {plural(counts.silent, "number")} not read in their tables,
+          {" "}{plural(counts.unread, "table or text", "tables or texts")} not read, {plural(counts.outside, "loose number")},
+          {" "}{plural(counts.unassigned, "value")} not linked to a study</dd>
         <dt>Held back</dt>
         <dd data-testid="delivery-confirm-held">
           {subject.held === null ? WITHHELD : subject.held.length === 0 ? "nothing: every value that can be loaded is loaded"
@@ -86,19 +94,19 @@ export function ConfirmDialog({ projectId, subject, onClose }: { projectId: stri
         </dd>
         {waiting.length > 0 && (
           <>
-            <dt>Mappings not approved</dt>
-            <dd data-testid="delivery-confirm-mappings">{waiting.map((m) => `${m.kind.replace(/_/g, " ")} table, version ${m.version} (${m.status})`).join("; ")}</dd>
+            <dt>Table layouts not approved</dt>
+            <dd data-testid="delivery-confirm-mappings">{waiting.map((m) => `${tableKindText(m.kind)}, version ${m.version} (${m.status === "rejected" ? "rejected" : "to approve"})`).join("; ")}</dd>
           </>
         )}
-        <dt>Rules</dt>
-        <dd data-testid="delivery-confirm-rules">rules {subject.rules.status} v{subject.rules.version}
-          {subject.rules.status === "UNVERIFIED" && <span className="muted"> · not yet signed by the SME</span>}</dd>
+        <dt>Intake rules</dt>
+        <dd data-testid="delivery-confirm-rules">v{subject.rules.version}, {subject.rules.status}
+          {subject.rules.status === "UNVERIFIED" && <span className="muted"> (SME sign-off pending)</span>}</dd>
       </dl>
       {(blocked || refusedFor.length > 0) && (
         <div className="delivery-blocked" role="alert" data-testid="delivery-confirm-blockers">
           <strong>It cannot be signed yet:</strong>
           <ul className="plain-list">
-            {blockers.map((b, i) => <li key={`${b.code}-${i}`}><strong>{BLOCKER_LABEL[b.code] ?? b.code}</strong>: {b.detail}</li>)}
+            {blockers.map((b, i) => <li key={`${b.code}-${i}`}><strong>{BLOCKER_WORD[b.code] ?? BLOCKER_LABEL[b.code] ?? b.code}</strong>: {engineWords(b.detail)}</li>)}
             {subject.landing_problem && <li><strong>It cannot be loaded</strong>: {subject.landing_problem}</li>}
           </ul>
         </div>

@@ -162,6 +162,45 @@ export function whereIs(where: string): FilePlace {
 /** Where in a file, as a person reads it ("sheet Sheet1, cells A4 to M12", "page 3, table 1"), never the raw locator. */
 export const placeText = (where: string) => whereIs(where).place;
 
+/** A dataset's source locator as the sheet form writes it ("Studies!A2:AK2; PK_Summary!2:7"), in plain words: "sheet
+ *  Studies, cells A2 to AK2; sheet PK_Summary, rows 2 to 7"; a sheet named by the reading's recipe ("Fed (recipe
+ *  file-…-r1 v1)") as "sheet Fed". A part in the intake grammar is said as `placeText` says it; any other part is given
+ *  as it is. */
+export function locatorText(locator: string): string {
+  // the sheet form's reading of a sheet is named by its recipe ("Fed (recipe file-…-r1 v1)"): the sheet is what a person reads
+  return locator.split(";").map((raw) => raw.trim()).filter(Boolean).map((raw) => {
+    const recipe = /\(recipe [^)]*\)/.test(raw);
+    const part = raw.replace(/\s*\(recipe [^)]*\)/g, "").trim();
+    const cells = /^'?((?:[^'!]|'')+?)'?!\$?([A-Z]{1,3})\$?([0-9]+)(?::\$?([A-Z]{1,3})\$?([0-9]+))?$/.exec(part);
+    if (cells) {
+      const [, sheet, c0, r0, c1, r1] = cells;
+      return c1 ? `sheet ${sheet}, cells ${c0}${r0} to ${c1}${r1}` : `sheet ${sheet}, cell ${c0}${r0}`;
+    }
+    const rows = /^'?((?:[^'!]|'')+?)'?!([0-9]+)(?::([0-9]+))?$/.exec(part);
+    if (rows) return rows[3] && rows[3] !== rows[2] ? `sheet ${rows[1]}, rows ${rows[2]} to ${rows[3]}` : `sheet ${rows[1]}, row ${rows[2]}`;
+    const place = placeText(part);
+    return recipe && place === part ? `sheet ${part}` : place;
+  }).join("; ");
+}
+
+/** What the loading leaves out of the model (a card's `held`, as the landing writes it), in a person's words: the
+ *  fields named by their labels, the engine's terms and check codes dropped ("product attributes (dosage_form,
+ *  polymorph): kept in the ledger; only dissolution lands" → "Kept, not used by the model: dosage form, polymorph (only
+ *  the dissolution is loaded)"). `own`: the card's own name, not said again at the start of a line. */
+export function heldText(line: string, own?: string): string {
+  const fields = (list: string) => list.split(",").map((f) => fieldLabel(f.trim()).toLowerCase()).join(", ");
+  let text = own && line.startsWith(`${own}: `) ? line.slice(own.length + 2) : line;
+  text = text
+    .replace(/^product attributes \(([^)]+)\): kept in the ledger; only dissolution lands$/, (_m, l: string) => `Kept, not used by the model: ${fields(l)} (only the dissolution is loaded)`)
+    .replace(/^study facts with no place in the study record \(([^)]+)\): kept in the ledger$/, (_m, l: string) => `Kept, not used by the model: ${fields(l)} (the study record has no place for them)`)
+    .replace(/\b(excretion|relations) \(([^)]+)\): kept in the ledger; the model inputs have no place for (?:it|them) yet/,
+             (_m, what: string, l: string) => `${what === "excretion" ? "Excretion" : "Drug interactions"} (${fields(l)}): kept, not used by the model (no place for ${what === "excretion" ? "it" : "them"} yet)`)
+    .replace(/ \([A-Z][A-Z_]+[A-Z]\)/g, "")
+    .replace(/kept in the ledger/g, "kept with the delivery").replace(/\bnot landed\b/g, "not loaded").replace(/\(lands PROPOSED\)/g, "(loaded as proposed)")
+    .replace(/the client-review card/g, "the sheet form's card");
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
 /** A fact a study record needs (the intake's field, as a gap's `tag` or a check's "needs <field>" names it), in words:
  *  the sheet form's own labels for the same facts and the landing's "(what the study is for)". */
 const FACT_WORD: Record<string, string> = {
@@ -169,6 +208,17 @@ const FACT_WORD: Record<string, string> = {
   dose: "the dose", formulation: "the dosage form", food_state: "fasted or fed",
 };
 export const factText = (field: string) => FACT_WORD[field] ?? `the ${spaced(field)}`;
+
+/** Why a card cannot be loaded yet (its `landing_problem`, the landing's "230-23: the study record needs n, which no
+ *  active value states: enter it; …"), in words: "the number of subjects is not stated; the route is not stated". `own`:
+ *  the card's own name, not said again. A part the landing words otherwise is given with its engine terms replaced. */
+export function landingText(text: string, own?: string): string {
+  return text.split("; ").map((part) => {
+    const p = own && part.startsWith(`${own}: `) ? part.slice(own.length + 2) : part;
+    const need = /^the study record needs (\w+), which no active value states(?: \([^)]*\))?: enter it$/.exec(p);
+    return need ? `${factText(need[1])} is not stated` : engineWords(p);
+  }).join("; ");
+}
 
 /** A reading stage (the intake pipeline's `StageName`, modeler_project.intake_records) in words. */
 const STAGE_WORD: Record<string, string> = {
@@ -191,6 +241,57 @@ export const DELIVERY_WORDS = {
   layout: "table layout",
   notData: "not data",
 } as const;
+
+// --- a study's and a product's facts, as a person fills them in (plan 2026-11-14 slice 3, FactsForm) ------------------
+
+/** A fact's label in a form or a list, by the intake field it is entered under (`modeler_intake.fields`, the names
+ *  `:enter` takes; the sheet form's need names `purpose` and `dose` read the same): "Number of subjects", never `n`. */
+const FIELD_LABEL: Record<string, string> = {
+  n: "Number of subjects", n_evaluable: "Evaluable subjects", intended_use: "Purpose of the study", purpose: "Purpose of the study",
+  route: "Route", dose: "Dose", dose_unit: "Dose unit", formulation: "Dosage form", food_state: "Fasted or fed", design: "Design",
+  matrix: "Matrix", lloq: "LLOQ", analyte: "Analyte", infusion_time_min: "Infusion time (min)",
+  dosing_interval_h: "Dosing interval (h)", n_doses: "Number of doses", population: "Population",
+  age_mean: "Mean age (years)", age_min: "Youngest (years)", age_max: "Oldest (years)", weight_mean_kg: "Mean weight (kg)",
+  height_mean_cm: "Mean height (cm)", percent_female: "Women (%)", n_female: "Number of women", ethnicity: "Ethnicity",
+  product_role: "Role", strength_mg: "Strength (mg)", dosage_form: "Dosage form", release: "Release", batch: "Batch",
+  particle_size_d50_um: "Particle size d50 (µm)", polymorph: "Polymorph", salt_form: "Salt form",
+  apparatus: "Apparatus", medium: "Medium", ph: "pH", rpm: "Stirring (rpm)", volume_ml: "Volume (mL)",
+};
+export const fieldLabel = (field: string) => FIELD_LABEL[field] ?? `${spaced(field).charAt(0).toUpperCase()}${spaced(field).slice(1)}`;
+
+/** A vocabulary entry in words (the study record's enums, the intake vocabulary's choices and the brief's purposes, as
+ *  the API sends them in `study_options` or a field's `choices`); an entry with no word is shown as sent. */
+const VALUE_WORD: Record<string, string> = {
+  oral: "Oral", iv_bolus: "IV bolus", iv_infusion: "IV infusion", other: "Other",
+  solution: "Solution", suspension: "Suspension", ir_tablet: "IR tablet", ir_capsule: "IR capsule", mr: "Modified release",
+  fasted: "Fasted", fed: "Fed", SD: "Single dose", MD: "Multiple dose",
+  model_building: "Model building", internal_validation: "Internal validation", external_validation: "External validation",
+  application_verification: "Application verification", supportive: "Supportive",
+  plasma: "Plasma", blood: "Blood", serum: "Serum", urine: "Urine", feces: "Feces",
+  healthy: "Healthy", patient: "Patients", TEST: "Test", RLD: "RLD", REFERENCE: "Reference", SOLUTION: "Solution", OTHER: "Other",
+  arithmetic_mean: "arithmetic mean", geometric_mean: "geometric mean", median: "median",
+};
+export const valueWord = (value: string) => VALUE_WORD[value] ?? spaced(value);
+
+/** How a study is given, as the Clinical studies list groups it (plan 2026-11-14 §2.2.8): by the facts its files or its
+ *  sheet form state; a study whose route is not stated yet is under "Other". */
+export type Design = "iv" | "oral_fasted" | "oral_fed" | "multiple" | "other";
+export const DESIGNS: Design[] = ["iv", "oral_fasted", "oral_fed", "multiple", "other"];
+export const DESIGN_TITLE: Record<Design, string> = {
+  iv: "IV", oral_fasted: "Oral, fasted", oral_fed: "Oral, fed", multiple: "Multiple dose", other: "Other or not stated yet",
+};
+export function designOf(facts: { route?: unknown; food_state?: unknown; design?: unknown }): Design {
+  const route = String(facts.route ?? "");
+  if (route.startsWith("iv")) return "iv";
+  if (String(facts.design ?? "") === "MD") return "multiple";
+  if (route === "oral") return String(facts.food_state ?? "") === "fed" ? "oral_fed" : facts.food_state ? "oral_fasted" : "other";
+  return "other";
+}
+
+/** A requirement item's disposition (`DeliveryDisposition.disposition`) in words. */
+export const DISPOSITION_WORD: Record<string, string> = {
+  ask_client: "asked of the client", literature: "taken from the literature", not_needed: "not needed for this model",
+};
 
 /** The intake rules, as the chip says them: "Intake rules v0.1 · UNVERIFIED" (UNVERIFIED stays upper case: CLAUDE.md). */
 export const rulesText = (rules: { version: string; status: string }) => `Intake rules v${rules.version} · ${rules.status}`;
