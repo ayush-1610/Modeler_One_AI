@@ -4745,6 +4745,8 @@ export interface components {
             };
             /** Time */
             time: number | null;
+            /** Time Unit */
+            time_unit: string | null;
             /** Values */
             values: string[];
         };
@@ -4970,6 +4972,8 @@ export interface components {
             legacy_refusal: string | null;
             /** Legacy Sid */
             legacy_sid: string | null;
+            /** Links */
+            links: components["schemas"]["DeliveryFileLink"][];
             /** Name */
             name: string;
             /** Outside */
@@ -4987,6 +4991,41 @@ export interface components {
             size_bytes: number;
             /** State */
             state: string;
+        };
+        /**
+         * DeliveryFileLink
+         * @description A person's link in force on this file's values (`link_carry.file_links`): what it covers here (`targets`: an
+         *     extract id for a whole table, else value ids; fact ids), how many values, where it sent them (entity ids, followed
+         *     through merges, with their labels), who linked them, when and why (the digits masked in a blinded file). Linking the
+         *     targets again replaces it whole.
+         */
+        DeliveryFileLink: {
+            /** Analyte */
+            analyte: string | null;
+            /** Arm */
+            arm: string | null;
+            /** Assignment */
+            assignment: string;
+            /** At */
+            at: string;
+            /** Batch */
+            batch: string | null;
+            /** By */
+            by: string;
+            /** Labels */
+            labels: {
+                [key: string]: string;
+            };
+            /** Product */
+            product: string | null;
+            /** Study */
+            study: string | null;
+            /** Targets */
+            targets: string[];
+            /** Values */
+            values: number;
+            /** Why */
+            why: string;
         };
         /** DeliveryGap */
         DeliveryGap: {
@@ -5461,6 +5500,8 @@ export interface components {
             enabled: boolean;
             /** Mappings */
             mappings: components["schemas"]["DeliveryMappingRow"][];
+            /** Relink */
+            relink: components["schemas"]["DeliveryRelink"][];
             /** Request */
             request: components["schemas"]["RequestLineView"][];
             rules: components["schemas"]["DeliveryRules"];
@@ -5569,6 +5610,41 @@ export interface components {
             id: string;
             /** Restores */
             restores: string[];
+            /** Why */
+            why: string;
+        };
+        /**
+         * DeliveryRelink
+         * @description A person's link a re-read of its table did not carry over (`link_carry.waiting`): the values of `targets` (extract
+         *     or fact ids on the "study not stated" list now) were read from the table that `assignment` linked, in part (`whole`
+         *     false: which part it would cover now cannot be told), or whole before links were carried over. Where it sent them
+         *     (entity ids, followed through merges), who linked them, when and why (the digits masked when the study is blinded).
+         */
+        DeliveryRelink: {
+            /** Analyte */
+            analyte: string | null;
+            /** Arm */
+            arm: string | null;
+            /** Assignment */
+            assignment: string;
+            /** At */
+            at: string;
+            /** Batch */
+            batch: string | null;
+            /** By */
+            by: string;
+            /** Labels */
+            labels: {
+                [key: string]: string;
+            };
+            /** Product */
+            product: string | null;
+            /** Study */
+            study: string | null;
+            /** Targets */
+            targets: string[];
+            /** Whole */
+            whole: boolean;
             /** Why */
             why: string;
         };
@@ -5879,6 +5955,8 @@ export interface components {
             loaded_elsewhere: string[];
             /** Mappings */
             mappings: components["schemas"]["DeliveryMappingRow"][];
+            /** Proposed Elsewhere */
+            proposed_elsewhere: string[];
             /** Requirements */
             requirements: components["schemas"]["DeliveryRequirement"][];
             rules: components["schemas"]["DeliveryRules"];
@@ -5930,6 +6008,8 @@ export interface components {
             legacy_groups: string[];
             /** Loaded Elsewhere */
             loaded_elsewhere: string[];
+            /** Proposed Elsewhere */
+            proposed_elsewhere: string[];
             /** Subject */
             subject: string;
             /**

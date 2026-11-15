@@ -55,7 +55,7 @@ from modeler_project import intake_review as review
 from modeler_project.blinding import redact_dataset
 from modeler_project.brief import empty_brief
 from modeler_project.dataset_points import card_points
-from modeler_project.dataset_register import dataset, propose_dataset
+from modeler_project.dataset_register import dataset, decide_dataset, propose_dataset
 from modeler_project.dataset_register import datasets as all_datasets
 from modeler_project.datasets import ObservedDataset, Origin, Series
 from modeler_project.evidence import EvidenceState, SourceRef
@@ -799,6 +799,7 @@ def test_a_cross_file_link_is_confirmed_or_refused_and_a_conflict_is_settled_by_
     entered = p.post(f"{path}:enter", {"field": "dose", "value": 60, "unit": "mg", "why": "the protocol says 60 mg"}).json()["data"]
     (conflict,) = entered["conflicts"]
     assert (conflict["field"], conflict["kind"], conflict["labels"]) == ("dose", "value", {"study": "230-23"})
+    assert conflict["time_unit"] is None                                   # a dose has no time
     assert "CONFLICT_OPEN" in {c["code"] for c in entered["checks"] if c["severity"] == "fail"}
     values = {v["id"]: v for t in entered["tables"] for v in t["values"]}
     mine = next(i for i in conflict["values"] if values[i]["method"] == "person")
@@ -1248,7 +1249,7 @@ def test_the_legacy_client_review_confirm_refuses_what_delivery_confirmed(projec
     # before Delivery confirms it, the legacy card may still load the study (nothing is covered yet)
     early = _legacy_dataset(p, workbook, "230-23", "Fasting", "early")
     client_api._not_on_delivery(p.ws, [dataset(p.ws, early.id)])                          # no refusal
-    assert p.card(path)["loaded_elsewhere"] == [early.id]
+    assert (p.card(path)["loaded_elsewhere"], p.card(path)["proposed_elsewhere"]) == ([], [early.id])   # not confirmed
     signed = p.post(f"{path}:confirm")
     assert signed.status_code == 200, signed.text
     (confirmation,) = review.confirmations(p.ws)
@@ -1467,7 +1468,8 @@ def test_reading_a_sheet_in_again_on_the_legacy_card_is_refused_once_delivery_co
     (legacy_id,) = first.json()["data"]["datasets"]
     assert dataset(p.ws, legacy_id).state is EvidenceState.PROPOSED
     path = p.subject("230-31")
-    assert p.card(path)["loaded_elsewhere"] == [legacy_id]                 # Delivery shows what the legacy card holds
+    assert p.card(path)["proposed_elsewhere"] == [legacy_id]               # Delivery shows what the legacy card holds
+    assert p.card(path)["loaded_elsewhere"] == []                          # proposed: not in the model yet
     _decide(p, path, {"n": 2, "intended_use": "model_building", "formulation": "ir_tablet"})
     _spot_check(p, path)
     signed = p.post(f"{path}:confirm")
@@ -2225,9 +2227,15 @@ def test_a_subject_names_the_client_review_groups_of_the_same_source(project):
     assert all(s["legacy_groups"] == [] for s in p.page()["subjects"])
     legacy = _legacy_dataset(p, workbook, "230-23", "Fasting", "joined")
     rows = {s["label"]: s for s in p.page()["subjects"]}
-    assert rows["230-23"]["loaded_elsewhere"] == [legacy.id]
+    # proposed: read with the sheet form, not confirmed yet; accepted: in the model (review OWN-3)
+    assert (rows["230-23"]["loaded_elsewhere"], rows["230-23"]["proposed_elsewhere"]) == ([], [legacy.id])
     assert rows["230-23"]["legacy_groups"] == [_group_of(p, legacy.id)["id"]]
-    assert all(row["legacy_groups"] == [] for row in rows.values() if not row["loaded_elsewhere"])
+    assert all(row["legacy_groups"] == [] for row in rows.values() if not row["proposed_elsewhere"])
+    decide_dataset(p.ws, legacy.id, state=EvidenceState.ACCEPTED, reason="confirmed with the sheet form", by="u1")
+    rows = {s["label"]: s for s in p.page()["subjects"]}
+    assert (rows["230-23"]["loaded_elsewhere"], rows["230-23"]["proposed_elsewhere"]) == ([legacy.id], [])
+    assert rows["230-23"]["legacy_groups"] == [_group_of(p, legacy.id)["id"]]
+    assert p.card(p.subject("230-23"))["loaded_elsewhere"] == [legacy.id]
 
 
 @pytest.mark.req("T-47", "F-404", "T-05")
@@ -2375,6 +2383,183 @@ def test_a_relink_replaces_the_assignment_whole_and_the_page_gives_each_analyte_
     kept = p.post("delivery/values:assign", {"targets": [extract], "study": study, "analyte": m1["id"],
                                              "why": "the same study, M1"})
     assert kept.status_code == 200 and analytes() == {m1["id"]} and kept.json()["data"]["analytes"] == [m1]
+
+
+def _reread_without_sd(p: Project, loose: str) -> None:
+    """The loose profile's layout corrected (its SD column not read) and approved: the file is read again under it, and
+    its table becomes a new extract (new value ids) that supersedes the earlier one."""
+    (row,) = [m for m in p.page()["mappings"] if m["used_in"][0]["file_sha256"] == loose]
+    path = f"delivery/mappings/{row['mapping_id']}"
+    spec = p.get(path).json()["data"]["spec"]
+    region = row["used_in"][0]["region_id"]
+    columns = [{"column": c["column"], "role": "ignore", "reason": "the client withdrew this column"} if c["role"] == "spread"
+               else c for c in spec["columns"]]
+    edited = p.post(f"{path}:edit", {"spec": {**spec, "columns": columns}, "why": "the client withdrew the SD column",
+                                     "file_sha256": loose, "region_id": region})
+    assert edited.status_code == 200, edited.text
+    p.settle()
+    approved = p.post(f"{path}:approve", {"version": edited.json()["data"]["version"], "note": "checked"})
+    assert approved.status_code == 200, approved.text
+    p.settle()
+
+
+@pytest.mark.req("T-47", "F-404", "T-05")
+def test_a_persons_link_survives_a_corrected_layout_with_one_audited_line_naming_it(project):
+    p = project()
+    p.deliver(synthetic.messy_workbook(), ("loose-profile.csv", LOOSE))
+    loose = _sha(LOOSE)
+    page = p.page()
+    study = p.subject("231-24").rsplit("/", 1)[1]
+    before = next(s for s in page["subjects"] if s["subject"] == study)["values"]
+    old = page["unassigned"][0]["id"].split("#")[0]
+    # linked as the page links them: every value of the file by its id, with an arm
+    linked = p.post("delivery/values:assign", {"targets": [v["id"] for v in page["unassigned"]], "study": study,
+                                               "new_arm": "Fed", "why": "the fed arm, per the client's e-mail"})
+    assert linked.status_code == 200, linked.text
+    (person,) = IntakeStore(p.ws).review.entries("assignment")
+    _reread_without_sd(p, loose)
+    page = p.page()
+    # the table is a new extract, and the link went with it: nothing waits, the study holds its values
+    new = next(v.id for v in LedgerView(p.ws).values(file_sha256=loose)).split("#")[0]
+    assert new != old and page["unassigned"] == [] and page["relink"] == []
+    assert page["totals"]["values_unassigned"] == 0
+    assert next(s for s in page["subjects"] if s["subject"] == study)["values"] == before + 4
+    first, carried = IntakeStore(p.ws).review.entries("assignment")
+    assert first.hash == person.hash
+    assert carried.body["targets"] == [new] and carried.body["by"] == "code"
+    assert (carried.body["study"], carried.body["arm"]) == (person.body["study"], person.body["arm"])
+    assert carried.body["why"] == f"carried over from {person.body['id']} after a re-read: the fed arm, per the client's e-mail"
+    event = p.events("intake.assign")[-1]
+    assert (event.actor, event.after["carried_from"], event.after["row_hash"]) == ("code", person.body["id"], carried.hash)
+    # read again with the same layout: kept as it is, nothing carried twice
+    assert p.post("delivery:run", {"files": [loose]}).status_code == 202
+    p.settle()
+    assert len(IntakeStore(p.ws).review.entries("assignment")) == 2 and p.page()["unassigned"] == []
+
+
+@pytest.mark.req("T-47", "F-404", "T-05")
+def test_a_link_that_covered_part_of_a_table_is_not_carried_and_the_page_says_where_it_went(project):
+    p = project()
+    p.deliver(("loose-profile.csv", LOOSE))
+    loose = _sha(LOOSE)
+    page = p.page()
+    part = [v["id"] for v in page["unassigned"][:2]]
+    linked = p.post("delivery/values:assign", {"targets": part, "new_study": "LOOSE-1", "why": "the first two times"})
+    assert linked.status_code == 200, linked.text
+    assert linked.json()["data"]["relink"] == []                 # nothing was read again yet
+    study = next(s["subject"] for s in linked.json()["data"]["subjects"] if s["label"] == "LOOSE-1")
+    _reread_without_sd(p, loose)
+    page = p.page()
+    # which part of the new reading the link would cover cannot be told: every value waits, with where it went before
+    new = {v["id"].split("#")[0] for v in page["unassigned"]}
+    assert len(page["unassigned"]) == 4 and len(new) == 1 and not new & {i.split("#")[0] for i in part}
+    (relink,) = page["relink"]
+    (person,) = IntakeStore(p.ws).review.entries("assignment")
+    assert relink == {"targets": sorted(new), "assignment": person.body["id"], "study": study, "arm": None, "product": None,
+                      "batch": None, "analyte": None, "labels": {"study": "LOOSE-1"}, "whole": False, "by": "u1",
+                      "at": person.body["at"], "why": "the first two times"}
+    # the study has no value left, so the page names it here: the row can still be linked to it
+    assert study not in {s["subject"] for s in page["subjects"]}
+    assert [e.actor for e in p.events("intake.assign")] == ["u1"]
+    # linked again by the person: nothing waits any more
+    again = p.post("delivery/values:assign", {"targets": sorted(new), "study": study, "why": "the whole table, LOOSE-1"})
+    assert again.status_code == 200 and again.json()["data"]["relink"] == [] and again.json()["data"]["unassigned"] == []
+
+
+def _arm_workbook(arm: str, *, period: bool) -> bytes:
+    """A BE arm's workbook as a CRO sends it (the times across the top), under a title the rules do not read as a study
+    id: subjects 001 to 004, with their period ("I", "II") when `period`."""
+    book = Workbook()
+    sheet = book.active
+    sheet.title = "Sheet1"
+    times = ["1.00", "2.00", "4.00", "8.00"]
+    sheet.append([f"Study ABC-1: plasma concentrations of {synthetic.DRUG} (ng/mL), {arm}, 50 mg, fasting"])
+    sheet.append([])
+    sheet.append(["Time (hr)"])
+    sheet.append(["Subject No.", *(["Period"] if period else []), *times])
+    for i in range(1, 5):
+        sheet.append([f"{i:03d}", *(["I" if i % 2 else "II"] if period else []), *(round(10.0 * i / float(t), 2) for t in times)])
+    raw = io.BytesIO()
+    book.save(raw)
+    return raw.getvalue()
+
+
+@pytest.mark.req("T-47", "F-404", "T-05")
+def test_two_files_with_the_same_subjects_are_refused_one_arm_of_a_study_whatever_the_page_sent(project):
+    p = project()
+    ref, test = _arm_workbook("Reference", period=False), _arm_workbook("Test", period=True)
+    p.deliver(("abc-reference.xlsx", ref), ("abc-test.xlsx", test))
+    page = p.page()
+    of = {sha: _all_targets([v for v in page["unassigned"] if v["file_sha256"] == sha]) for sha in (_sha(ref), _sha(test))}
+    assert all(of.values())
+    n_test = len([v for v in page["unassigned"] if v["file_sha256"] == _sha(test)])
+    analytes = {v["file_sha256"]: v["entity"].get("analyte") for v in page["unassigned"]}
+    why = "the title names study ABC-1"
+    # in one call: both files hold subject 001 (a period left out matches period I), whatever analyte each states
+    both = p.post("delivery/values:assign", {"targets": [*of[_sha(ref)], *of[_sha(test)]], "new_study": "ABC-1", "why": why})
+    assert both.status_code == 409, both.text
+    detail = both.json()["detail"]
+    assert detail["code"] == "CONFLICT" and "abc-reference.xlsx and abc-test.xlsx both hold subject 001" in detail["message"]
+    assert "the new study (no arm) each file needs its own arm" in detail["message"]
+    assert p.events("intake.assign") == [] and p.events("intake.entity") == []          # nothing is written
+    made = p.post("delivery/values:assign", {"targets": of[_sha(ref)], "new_study": "ABC-1", "why": why})
+    assert made.status_code == 200, made.text
+    study = next(s for s in made.json()["data"]["subjects"] if s["label"] == "ABC-1")["subject"]
+    # one at a time: what the study holds in that arm counts, with the analyte stated as the other file's or not at all
+    for stated in ({}, {"analyte": analytes[_sha(ref)]} if analytes[_sha(ref)] else {}):
+        refused = p.post("delivery/values:assign", {"targets": of[_sha(test)], "study": study, "why": why, **stated})
+        assert refused.status_code == 409, refused.text
+        assert refused.json()["detail"]["message"] == (
+            "abc-test.xlsx holds subject 001, period I, which study ABC-1 (no arm) holds already from abc-reference.xlsx: "
+            "each file needs its own arm")
+    assert len(p.events("intake.assign")) == 1
+    # each file its own arm: linked; the same file linked again to its own study is never refused by its own values
+    armed = p.post("delivery/values:assign", {"targets": of[_sha(test)], "study": study, "new_arm": "Test", "why": why})
+    assert armed.status_code == 200, armed.text
+    again = p.post("delivery/values:assign", {"targets": of[_sha(ref)], "study": study, "why": "linked again"})
+    assert again.status_code == 200, again.text
+    # but not into the arm the other file holds
+    test_arm = next(a["id"] for s in armed.json()["data"]["subjects"] if s["subject"] == study for a in s["arms"])
+    mixed = p.post("delivery/values:assign", {"targets": of[_sha(ref)], "study": study, "arm": test_arm, "why": why})
+    assert mixed.status_code == 409 and "arm Test" in mixed.json()["detail"]["message"]
+    # each file says the link in force on its values: what it covers there, where it went, who, when, why (review INT-5)
+    files = {f["sha256"]: f for d in p.page()["deliveries"] for f in d["files"]}
+    (link,) = files[_sha(test)]["links"]
+    assert (link["targets"], link["values"], link["study"], link["arm"], link["labels"], link["by"], link["why"]) == (
+        of[_sha(test)], n_test, study, test_arm, {"study": "ABC-1", "arm": "Test"}, "u1", why)
+    (again_link,) = files[_sha(ref)]["links"]
+    assert again_link["why"] == "linked again" and again_link["arm"] is None
+    # linked elsewhere by its targets: the link is replaced whole
+    elsewhere = p.post("delivery/values:assign", {"targets": link["targets"], "new_study": "ABC-2", "why": "the wrong study"})
+    assert elsewhere.status_code == 200, elsewhere.text
+    moved = next(f for d in elsewhere.json()["data"]["deliveries"] for f in d["files"] if f["sha256"] == _sha(test))["links"]
+    assert [(m["labels"], m["values"]) for m in moved] == [({"study": "ABC-2"}, n_test)]
+
+
+@pytest.mark.req("T-47", "F-404")
+def test_the_sheet_forms_group_of_a_file_a_person_linked_to_a_study_is_named_on_that_study(project):
+    p = project()
+    ref, test = _arm_workbook("Reference", period=False), _arm_workbook("Test", period=True)
+    p.deliver(("abc-reference.xlsx", ref), ("abc-test.xlsx", test))
+    groups = {g["id"]: g for g in p.get("client-review").json()["data"]["groups"]}
+    assert {"study:abc-REF", "study:abc-TEST"} <= set(groups)             # the sheet form read each under its own name
+    page = p.page()
+    of = {sha: [v["id"] for v in page["unassigned"] if v["file_sha256"] == sha] for sha in (_sha(ref), _sha(test))}
+    # part of a file linked: some of its values are still of no study, so its group stays its own
+    made = p.post("delivery/values:assign", {"targets": of[_sha(ref)][:2], "new_study": "ABC-1", "why": "the title"})
+    assert made.status_code == 200, made.text
+    study = next(s for s in made.json()["data"]["subjects"] if s["label"] == "ABC-1")
+    assert study["legacy_groups"] == []
+    # every value of each file linked to the study: their groups are the same source, named on its row
+    whole = p.post("delivery/values:assign", {"targets": of[_sha(ref)], "study": study["subject"], "new_arm": "Reference",
+                                              "why": "the title names study ABC-1, Reference"})
+    assert whole.status_code == 200, whole.text
+    armed = p.post("delivery/values:assign", {"targets": of[_sha(test)], "study": study["subject"], "new_arm": "Test",
+                                              "why": "the title names study ABC-1, Test"})
+    assert armed.status_code == 200, armed.text
+    rows = {s["label"]: s for s in armed.json()["data"]["subjects"]}
+    assert rows["ABC-1"]["legacy_groups"] == ["study:abc-REF", "study:abc-TEST"]
+    assert (rows["ABC-1"]["loaded_elsewhere"], rows["ABC-1"]["proposed_elsewhere"]) == ([], [])
 
 
 # --- the fill round's API follow-ups (plan 2026-11-14 §5): who decided, a table's first rows, the layout words -----------

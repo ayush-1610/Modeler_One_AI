@@ -10,8 +10,8 @@
 // the card is confirmed and signed (the DEV sign-in carries a fresh step-up); then the card says who signed, when and
 // what loaded, the status line's "In the model" rose, To do fell to what remains, and GET /inputs holds the study's data
 // for what comes after Inputs. At every step the status line, the area badges, To do's filter and its groups (and the
-// Clinical studies head) count the same open work. Software test data on the stub engine: it proves the review path,
-// never a model.
+// Clinical studies head) count the same open work; the sheet form's own reading of a file linked on the delivery joins the
+// card it was linked to (no second card). Software test data on the stub engine: it proves the review path, never a model.
 import { execFileSync } from "node:child_process";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -28,7 +28,7 @@ const AREAS = ["compound", "formulations", "studies", "individuals", "settings",
 type File = { file_id: string; name: string };
 type Delivery = {
   running: boolean; deliveries: { files: File[] }[];
-  subjects: { subject: string; label: string; subject_type: string; arms: { id: string; label: string }[] }[];
+  subjects: { subject: string; label: string; subject_type: string; arms: { id: string; label: string }[]; legacy_groups: string[] }[];
   unassigned: { file: string | null; level: string }[];
   mappings: { mapping_id: string; version: number; kind: string; status: string }[];
 };
@@ -184,6 +184,11 @@ test("the owner's job: files uploaded, layouts checked, values linked with arms,
   await expect(bar.getByTestId("bulk-link-bar-count")).toHaveText("2 files picked");
   await bar.getByTestId("bulk-link-one").check();
   await bar.getByTestId("link-study-bulk").selectOption({ label: seed.study });
+  // each file's analyte is an entity of its own, both called Exampleamide: offered once, and "as the file says" names
+  // what the picked files state (review OWN-11, this job's gap 8)
+  const analyte = bar.getByTestId("link-analyte-bulk");
+  await expect(analyte.locator("option").first()).toHaveText("as each file says (Exampleamide)");
+  await expect(analyte.locator("option", { hasText: /^Exampleamide$/ })).toHaveCount(1);
   // each file names Exampleamide, read as an analyte of its own: still one analyte, so the two collide
   await expect(bar.getByTestId("link-collision")).toContainText(
     "OJ-101 Reference.xlsx and OJ-101 Test.xlsx both hold subject 001, period I: in study OJ-101 each file needs its own arm.");
@@ -218,7 +223,17 @@ test("the owner's job: files uploaded, layouts checked, values linked with arms,
   expect(linked.unassigned).toHaveLength(0);
   expect(linked.subjects.find((s) => s.subject === study)!.arms.map((a) => a.label).sort()).toEqual(["Reference", "Test"]);
   expect(linked.subjects.map((s) => s.label)).toContain("OJ-102");
+  // the sheet form read the linked files under names of its own (OJ-101-REF, OJ-101-TEST, and one for the file that names
+  // no study): each is named on the subject its file's values were linked to (review OWN-4, INT-9; this job's gap 4), so
+  // it joins that card: no card, no Confirm and no "not stated" row of its own
+  const joinedTo = (label: string) => linked.subjects.find((s) => s.label === label)!.legacy_groups;
+  expect(joinedTo(seed.study)).toEqual(expect.arrayContaining([`study:${seed.study}-REF`, `study:${seed.study}-TEST`]));
+  expect(joinedTo("OJ-102")).toHaveLength(1);
   await agreed(page);
+  for (const group of [...joinedTo(seed.study), ...joinedTo("OJ-102")]) {
+    await expect(page.getByTestId(`todo-confirm-${group}`)).toHaveCount(0);
+    await expect(page.locator(`[data-testid^="todo-row-draft:"]`, { hasText: group.replace(/^study:/, "") })).toHaveCount(0);
+  }
 
   // --- the number outside the tables: Next opens its file's row; marked as not data, with a reason ---
   await expect(next).toHaveText("Next: Numbers not read in 1 file");
@@ -245,6 +260,8 @@ test("the owner's job: files uploaded, layouts checked, values linked with arms,
   const card = page.getByTestId(`delivery-card-${study}`);
   await expect(card.getByTestId("delivery-enter-gap-route-value")).toBeFocused();     // at the fact To do named
   await agreed(page);
+  // two studies, not five: the arms' files and the file that named no study are read on the cards they were linked to
+  await expect(page.getByTestId("area-head-studies")).toContainText(/^2 studies\b/);
   const facts = card.getByTestId(`delivery-facts-form-${study}`);
   const row = (label: string) => facts.locator(".facts-row", { hasText: label });
   // the sheet form's answers are offered as chips the person still saves
@@ -334,6 +351,10 @@ test("the owner's job: files uploaded, layouts checked, values linked with arms,
   // --- confirmed and signed: Next says so; the dialog names what is signed; the DEV sign-in carries the step-up ---
   const before = await agreed(page);
   expect(studiesInModel(before)).toBe(0);
+  // the /inputs to-do as it stands before the signature (what it lists of the studies once they are in the model, below)
+  const inputsTodo = async () => (await read<{ todo: { kind: string; target: string }[] }>(request, "inputs")).todo
+    .filter((t) => !["confirm", "check", "datasets"].includes(t.kind)).map((t) => `${t.kind}:${t.target}`);
+  const todoBefore = await inputsTodo();
   await expect(next).toHaveText(`Next: Confirm study ${seed.study}`);
   await next.click();
   await card.getByTestId(`delivery-confirm-${study}`).click();
@@ -363,10 +384,18 @@ test("the owner's job: files uploaded, layouts checked, values linked with arms,
   await expect(page.getByTestId("status-in-model")).toContainText("In the model: 3 studies");
   const after = await agreed(page);
   expect(studiesInModel(after)).toBe(3);                                     // the status line's "In the model" rose
-  // To do: fallen to what remains, and nothing of OJ-101's signature is open there
+  // To do: what remains, and nothing of OJ-101's signature is open there. OJ-101's confirm row is gone; what the loading
+  // adds is the /inputs to-do of the studies now in the model, two known gaps of their own (CHANGELOG, this job's gaps
+  // 1 and 11): the demographics of the study and each arm (held back at loading) and the tablet studies' formulation (no
+  // product came in this delivery). Until the linked files' sheet-form groups joined OJ-101 (review OWN-4), the signature
+  // also settled their double-counted rows, so the total happened to fall
   await page.getByTestId("tab-todo").click();
   const left = await agreed(page);
-  expect(open(left)).toBeLessThan(open(before));
+  const added = (await inputsTodo()).filter((t) => !todoBefore.includes(t));
+  expect(added.filter((t) => !/^(demographics|formulation):/.test(t))).toEqual([]);
+  expect(added.filter((t) => t.startsWith("demographics:")).sort())
+    .toEqual([`demographics:${seed.study}`, `demographics:${seed.study}-Reference`, `demographics:${seed.study}-Test`]);
+  expect(open(left)).toBe(open(before) - 1 + added.length);
   for (const id of [`todo-row-fact:study:${seed.study}`, `todo-row-need:study:${seed.study}:REQ-sys.demographics`]) {
     await expect(page.getByTestId(id)).toHaveCount(0);
   }

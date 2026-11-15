@@ -17,6 +17,7 @@ import { InlineIssue } from "@/components/kit";
 import { SortHeader, TableFilter, TableMore } from "@/components/kit/SortableTable";
 import { send, type Schema } from "@/lib/api";
 import { useResource } from "@/lib/hooks";
+import { analyteChoices, normLabel } from "@/lib/inputsWork";
 import { numericKey, useTableView } from "@/lib/tableView";
 import {
   DISPOSITION_WORD, engineWords, fieldLabel, heldText, landingText, placeText, rulesText, tableKindText, valueWord, whenText,
@@ -231,13 +232,21 @@ function StateAnalyte({ projectId, check, values, onDone }: {
   projectId: string; check: Check; values: Map<string, Value>; onDone: () => void;
 }) {
   const page = useResource("/api/v1/projects/{project_id}/delivery", { project_id: projectId });
-  const analytes = page.data?.enabled ? page.data.analytes : [];
-  const [analyte, setAnalyte] = useState("");
+  const all = page.data?.enabled ? page.data.analytes : [];
+  // one option per name (review OWN-11): of two analytes both called "Exampleamide", the one the study's values carry
+  const used = [...new Set([...values.values()].map((v) => v.entity.analyte).filter((x): x is string => Boolean(x)))];
+  const analytes = analyteChoices(all, null, used);
+  const theirs = analytes.filter((a) => used.includes(a.id));
+  const [picked, setAnalyte] = useState<string | null>(null);
+  // the one analyte the study already uses, chosen to begin with
+  const analyte = picked ?? (theirs.length === 1 ? theirs[0].id : "");
   const [named, setNamed] = useState("");
   const { decide, busy, problem } = useDecide();
   const mine = check.values.map((id) => values.get(id)).filter((v): v is Value => Boolean(v));
   const sets = new Map<string, Value[]>();
   for (const v of mine) { const k = LINKED.map((r) => v.entity[r] ?? "").join("|"); sets.set(k, [...(sets.get(k) ?? []), v]); }
+  // a new analyte is never one of a name that exists (the ledger refuses it too): pick that one
+  const exists = analyte === NEW ? all.find((a) => normLabel(a.label) === normLabel(named)) : undefined;
   const ready = mine.length > 0 && Boolean(analyte) && (analyte !== NEW || Boolean(named.trim()));
   async function state(why: string) {
     let chosen = analyte === NEW ? null : analyte;
@@ -257,7 +266,7 @@ function StateAnalyte({ projectId, check, values, onDone }: {
   return (
     <>
       <Why action="State the analyte" label={`Why the ${plural(mine.length, "value")} are of this analyte`} busy={busy} disabled={!ready}
-           testId={`delivery-analyte-${check.id}`} onCancel={onDone} placeholder="where it comes from, e.g. the bioanalytical report (kept on the audit trail)"
+           missing={exists ? `An analyte named ${exists.label} exists already: pick it` : null} testId={`delivery-analyte-${check.id}`} onCancel={onDone} placeholder="where it comes from, e.g. the bioanalytical report (kept on the audit trail)"
            onSubmit={state}>
         <label className="delivery-pick">Analyte
           <select value={analyte} onChange={(e) => setAnalyte(e.target.value)} data-testid={`delivery-analyte-${check.id}-choice`}>
@@ -590,9 +599,13 @@ export function DeliveryReview({ projectId, row, mode, gate, onMapping, todo, su
         the plan is signed. Its values, their spread and what is below the LLOQ are not shown, and it waits to be confirmed until then.</p>}
       {looking && s.confirm_on === "client-review" && <InlineIssue severity="note" testId={`delivery-confirm-on-${s.subject}`}>A filled
         client-data template: it is confirmed with the sheet form, on this card. What the delivery read is shown here for reference.</InlineIssue>}
+      {/* the same source read with the sheet form: confirmed there (in the model), or only read there, not confirmed yet */}
       {s.loaded_elsewhere.length > 0 && <InlineIssue severity="note" testId={`delivery-loaded-elsewhere-${s.subject}`}>
         {plural(s.loaded_elsewhere.length, "dataset")} of the same source {s.loaded_elsewhere.length === 1 ? "is" : "are"} in the model
         already, confirmed with the sheet form. Nothing is loaded twice.</InlineIssue>}
+      {s.proposed_elsewhere.length > 0 && <InlineIssue severity="note" testId={`delivery-proposed-elsewhere-${s.subject}`}>
+        {plural(s.proposed_elsewhere.length, "dataset")} of the same source {s.proposed_elsewhere.length === 1 ? "was" : "were"} read with
+        the sheet form, not confirmed yet: whichever is confirmed first is what loads.</InlineIssue>}
 
       {!looking && (
         <Section title={`To do on this ${KIND_LABEL[s.subject_type].toLowerCase()}`} testId={`delivery-todo-${s.subject}`}>

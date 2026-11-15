@@ -210,7 +210,28 @@ class DeliveryFile(View):
     run: DeliveryRunState | None
     regions: list[DeliveryRegion]
     outside: list[DeliveryOutside]
+    links: list[DeliveryFileLink]             # the links in force on its values (none on a repeat: listed on the first)
     blinded: bool                             # the file holds a value of a blinded study
+
+
+class DeliveryFileLink(View):
+    """A person's link in force on this file's values (`link_carry.file_links`): what it covers here (`targets`: an
+    extract id for a whole table, else value ids; fact ids), how many values, where it sent them (entity ids, followed
+    through merges, with their labels), who linked them, when and why (the digits masked in a blinded file). Linking the
+    targets again replaces it whole."""
+
+    assignment: str                           # as-n
+    targets: list[str]
+    values: int
+    study: str | None
+    arm: str | None
+    product: str | None
+    batch: str | None
+    analyte: str | None
+    labels: dict[str, str]
+    by: str
+    at: str
+    why: str
 
 
 class DeliveryArrival(View):
@@ -280,8 +301,10 @@ class DeliverySubjectRow(View):
     files: list[str]                          # sha256s
     deliveries: list[str]
     confirmation: DeliveryConfirmationState | None
-    loaded_elsewhere: list[str]               # legacy client datasets of the same source, not rejected
-    legacy_groups: list[str]                  # the client-review groups (`/client-review` ids) holding those datasets
+    loaded_elsewhere: list[str]               # legacy client datasets of the same source a person accepted (in the model)
+    proposed_elsewhere: list[str]             # legacy client datasets of the same source still proposed (not confirmed)
+    legacy_groups: list[str]                  # the client-review groups (`/client-review` ids) of the same source: holding
+                                              # those datasets, or read from files a person linked to this subject
     confirm_on: Literal["delivery", "client-review"]
     arms: list[DeliveryEntity]                # a study's arms (for `values:assign`)
     batches: list[DeliveryEntity]             # a product's batches
@@ -312,6 +335,26 @@ class DeliveryMappingRow(View):
     waiting: bool                             # a file that uses it is queued or being read
 
 
+class DeliveryRelink(View):
+    """A person's link a re-read of its table did not carry over (`link_carry.waiting`): the values of `targets` (extract
+    or fact ids on the "study not stated" list now) were read from the table that `assignment` linked, in part (`whole`
+    false: which part it would cover now cannot be told), or whole before links were carried over. Where it sent them
+    (entity ids, followed through merges), who linked them, when and why (the digits masked when the study is blinded)."""
+
+    targets: list[str]
+    assignment: str                           # as-n
+    study: str | None
+    arm: str | None
+    product: str | None
+    batch: str | None
+    analyte: str | None
+    labels: dict[str, str]                    # role -> the label of each of those (a study with no value left is named)
+    whole: bool
+    by: str
+    at: str
+    why: str
+
+
 class DeliveryPage(View):
     enabled: bool                             # false: the intake pipeline is off (`legacy`); everything else is empty
     running: bool                             # the intake job runs, or a run waits: poll while true
@@ -320,6 +363,7 @@ class DeliveryPage(View):
     totals: DeliveryTotals
     subjects: list[DeliverySubjectRow]
     unassigned: list[DeliveryValue]           # the "study not stated" values
+    relink: list[DeliveryRelink]              # links to an earlier reading of their tables a re-read did not carry over
     analytes: list[DeliveryEntity]            # the ledger's analytes: `values:assign` takes one by its id (`analyte`)
     mappings: list[DeliveryMappingRow]
     request: list[RequestLineView]            # one line of the client request per item still to ask for
@@ -350,8 +394,9 @@ class DeliveryConflict(View):
     id: str
     field: str
     time: Number | None
+    time_unit: str | None                     # the time's unit as the first value writes it
     kind: Literal["value", "unit"]
-    labels: dict[str, str]
+    labels: dict[str, str]                    # the subject, period, arm ... the values are read with
     values: list[str]                         # the value ids that disagree
 
 
@@ -478,7 +523,8 @@ class DeliverySubject(View):
     label: str
     blinded: bool
     confirm_on: Literal["delivery", "client-review"]
-    loaded_elsewhere: list[str]
+    loaded_elsewhere: list[str]               # as `DeliverySubjectRow`: accepted (in the model)
+    proposed_elsewhere: list[str]             # proposed (read with the sheet form, not confirmed yet)
     values: int
     by_level: dict[str, int]
     by_method: dict[str, int]

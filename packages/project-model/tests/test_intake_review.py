@@ -989,9 +989,15 @@ def test_the_subjects_are_the_studies_the_products_and_the_compound_with_their_c
     same = _legacy_dataset(ws, sha=sha_of(workbook), study_id="230-23", locator="Fasting!A2:G14")
     _legacy_dataset(ws, sha=sha_of(workbook), study_id="999-99", locator="Fasting!A40:G52")
     rows = {r["label"]: r for r in review.subjects(ws, reader=reader)}
-    assert rows["230-23"]["loaded_elsewhere"] == [same.id] and rows["231-24"]["loaded_elsewhere"] == []
+    # proposed: read with the sheet form, not confirmed yet (in the model only once accepted)
+    assert rows["230-23"]["proposed_elsewhere"] == [same.id] and rows["231-24"]["proposed_elsewhere"] == []
+    assert rows["230-23"]["loaded_elsewhere"] == []
+    decide_dataset(ws, same.id, state=EvidenceState.ACCEPTED, reason="confirmed", by=BY)
+    row = {r["label"]: r for r in review.subjects(ws, reader=reader)}["230-23"]
+    assert (row["loaded_elsewhere"], row["proposed_elsewhere"]) == ([same.id], [])
     decide_dataset(ws, same.id, state=EvidenceState.REJECTED, reason="read again", by=BY)
-    assert {r["label"]: r for r in review.subjects(ws, reader=reader)}["230-23"]["loaded_elsewhere"] == []
+    row = {r["label"]: r for r in review.subjects(ws, reader=reader)}["230-23"]
+    assert (row["loaded_elsewhere"], row["proposed_elsewhere"]) == ([], [])
     # the compound is a subject once a compound-level value arrives, with its own card
     fact = Book(ws, sha=sha_of(workbook), name=workbook.name, sheet="Physchem").fact("phys.logp", 2.1, {})
     reader.refresh()

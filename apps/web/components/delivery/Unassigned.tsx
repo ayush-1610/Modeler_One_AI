@@ -15,7 +15,7 @@
 import { useState } from "react";
 
 import { type Schema } from "@/lib/api";
-import { NEW, type LinkPart, type LinkRow, type LinkTarget } from "@/lib/inputsWork";
+import { NEW, analyteChoice, analyteChoices, normLabel, type LinkPart, type LinkRow, type LinkTarget } from "@/lib/inputsWork";
 
 import { Problem, TUPLE_HEADS, TupleCells, Why, fieldText, plural, type SubjectRow } from "./shared";
 import { ValueSource } from "./ValueSource";
@@ -56,18 +56,26 @@ function withOwn(own: Entity | null, others: Entity[]): Entity[] {
 }
 
 /** The choices of where one file's values go, as fields (the row's editor and the table's bulk bar both read `target`). */
-export function TargetFields({ row, target, onTarget, subjects, analytes, keyId, context }: {
+export function TargetFields({ row, target, onTarget, subjects, analytes, keyId, context, used = [], noneAnalyte }: {
   row: Pick<LinkRow, "own">; target: LinkTarget; onTarget: (t: LinkTarget) => void; subjects: SubjectRow[]; analytes: Entity[];
   /** the test ids' key (`link-study-<key>`) */
   keyId: string;
   context: string;
+  /** the analyte ids the chosen study's values carry: of two analytes of one name, the one it uses is offered */
+  used?: string[];
+  /** the analyte's empty choice in words, where the values have no one analyte of their own (the bulk bar's picked files) */
+  noneAnalyte?: string;
 }) {
   const set = (patch: Partial<LinkTarget>) => onTarget({ ...target, ...patch });
   const studies = subjects.filter((s) => s.subject_type === "study");
   const products = subjects.filter((s) => s.subject_type === "product");
   const arms = withOwn(row.own.arm, studies.find((s) => s.subject === target.study)?.arms ?? []);
   const batches = withOwn(row.own.batch, products.find((p) => p.subject === target.product)?.batches ?? []);
-  const kinds = withOwn(row.own.analyte, analytes);
+  // one option per analyte's name (review OWN-11), the file's own name marked as its own
+  const mine = row.own.analyte ? normLabel(row.own.analyte.label) : null;
+  const kinds = analyteChoices(analytes, row.own.analyte, used)
+    .map((a) => (normLabel(a.label) === mine ? { ...a, label: `${a.label} (the file's own)` } : a));
+  const analyte = analyteChoice(target.analyte, kinds, analytes, row.own.analyte);
   return (
     <span className="link-fields">
       <Choose label="Study" value={target.study} named={target.newStudy} onNamed={(v) => set({ newStudy: v })} none="no study"
@@ -87,8 +95,8 @@ export function TargetFields({ row, target, onTarget, subjects, analytes, keyId,
                 none="no batch" newWord="A new batch…" options={batches} context={context} testId={`link-batch-${keyId}`}
                 newTestId={`link-new-batch-${keyId}`} />
       )}
-      <Choose label="Analyte" value={target.analyte} onChange={(v) => set({ analyte: v })} named={target.newAnalyte}
-              onNamed={(v) => set({ newAnalyte: v })} none={row.own.analyte ? undefined : "as the file says (none stated)"}
+      <Choose label="Analyte" value={analyte} onChange={(v) => set({ analyte: v })} named={target.newAnalyte}
+              onNamed={(v) => set({ newAnalyte: v })} none={row.own.analyte ? undefined : noneAnalyte ?? "as the file says (none stated)"}
               newWord="A new analyte…" options={kinds} context={context} testId={`link-analyte-${keyId}`} newTestId={`link-new-analyte-${keyId}`} />
     </span>
   );
@@ -99,9 +107,15 @@ export type Split = { on: boolean; set: (on: boolean) => void; target: (p: LinkP
 
 /** One file's row, expanded: where its values go (all of them, or each table's), its values (the first few, then all),
  *  and "Link" for this file alone. */
-export function LinkEditor({ projectId, row, target, onTarget, subjects, analytes, busy, missing, suggestions, onLink, problem, split }: {
-  projectId: string; row: LinkRow; target: LinkTarget; onTarget: (t: LinkTarget) => void; subjects: SubjectRow[]; analytes: Entity[];
+export function LinkEditor({ projectId, row, target, onTarget, subjects, analytes, busy, missing, suggestions, onLink, problem, split,
+                             used = () => [], action = "Link" }: {
+  projectId: string; row: Pick<LinkRow, "values" | "file" | "fileId" | "parts" | "own">; target: LinkTarget; onTarget: (t: LinkTarget) => void;
+  subjects: SubjectRow[]; analytes: Entity[];
   busy: boolean;
+  /** the analyte ids a study's values carry (its card, when the page has read it) */
+  used?: (study: string) => string[];
+  /** the button's word: "Link", or "Link elsewhere" for values linked already (Client files) */
+  action?: string;
   /** given for a file with more than one table */
   split?: Split;
   /** what the link still needs (a study or product, a new one's name, an arm that keeps two files apart), in words */
@@ -116,7 +130,8 @@ export function LinkEditor({ projectId, row, target, onTarget, subjects, analyte
   const shown = all ? row.values : row.values.slice(0, SHOWN);
   return (
     <div className="link-editor" data-testid={`link-editor-${row.fileId}`}>
-      <Why action="Link" actionLabel={`Link the ${plural(row.values.length, "value")} of ${row.file}`} label={`Why the values of ${row.file} belong there`}
+      <Why action={action} actionLabel={`${action} the ${plural(row.values.length, "value")} of ${row.file}`}
+           label={`Why the values of ${row.file} belong there`}
            busy={busy} onSubmit={onLink} missing={missing} suggestions={suggestions} kind="link" testId={`link-edit-${row.fileId}`}
            placeholder="reason, e.g. the file name says 230-23 (kept on the audit trail)">
         {split && (
@@ -132,16 +147,18 @@ export function LinkEditor({ projectId, row, target, onTarget, subjects, analyte
           <fieldset key={p.key} className="link-part" data-testid={`link-part-${row.fileId}-${n}`}>
             <legend>{p.label}</legend>
             <TargetFields row={p} target={split.target(p)} onTarget={(t) => split.onTarget(p, t)} subjects={subjects} analytes={analytes}
-                          keyId={`${row.fileId}-${n}`} context={`for the ${plural(p.values.length, "value")} of ${p.name}`} />
+                          keyId={`${row.fileId}-${n}`} context={`for the ${plural(p.values.length, "value")} of ${p.name}`}
+                          used={used(split.target(p).study)} />
           </fieldset>
-        )) : <TargetFields row={row} target={target} onTarget={onTarget} subjects={subjects} analytes={analytes} keyId={row.fileId} context={context} />}
+        )) : <TargetFields row={row} target={target} onTarget={onTarget} subjects={subjects} analytes={analytes} keyId={row.fileId} context={context}
+                           used={used(target.study)} />}
       </Why>
       <Problem text={problem} testId={`link-problem-${row.fileId}`} />
       <details className="link-values" onToggle={(e) => { if (!(e.currentTarget as HTMLDetailsElement).open) setSource(null); }}>
         <summary data-testid={`link-values-${row.fileId}`}>Show its {plural(row.values.length, "value")}</summary>
         <div className="table-scroll">
           <table className="delivery-values">
-            <caption className="sr-only">The values of {row.file} with no study or product</caption>
+            <caption className="sr-only">The values of {row.file}{action === "Link" ? " with no study or product" : ""}</caption>
             <thead><tr><th>Field</th>{TUPLE_HEADS}<th>Source</th></tr></thead>
             <tbody>
               {shown.map((v) => (

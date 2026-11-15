@@ -4841,6 +4841,17 @@
             ],
             "title": "Time"
           },
+          "time_unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Time Unit"
+          },
           "values": {
             "items": {
               "type": "string"
@@ -4853,6 +4864,7 @@
           "id",
           "field",
           "time",
+          "time_unit",
           "kind",
           "labels",
           "values"
@@ -5673,6 +5685,13 @@
             ],
             "title": "Legacy Sid"
           },
+          "links": {
+            "items": {
+              "$ref": "#/components/schemas/DeliveryFileLink"
+            },
+            "title": "Links",
+            "type": "array"
+          },
           "name": {
             "title": "Name",
             "type": "string"
@@ -5740,9 +5759,121 @@
           "run",
           "regions",
           "outside",
+          "links",
           "blinded"
         ],
         "title": "DeliveryFile",
+        "type": "object"
+      },
+      "DeliveryFileLink": {
+        "additionalProperties": false,
+        "description": "A person's link in force on this file's values (`link_carry.file_links`): what it covers here (`targets`: an\nextract id for a whole table, else value ids; fact ids), how many values, where it sent them (entity ids, followed\nthrough merges, with their labels), who linked them, when and why (the digits masked in a blinded file). Linking the\ntargets again replaces it whole.",
+        "properties": {
+          "analyte": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Analyte"
+          },
+          "arm": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Arm"
+          },
+          "assignment": {
+            "title": "Assignment",
+            "type": "string"
+          },
+          "at": {
+            "title": "At",
+            "type": "string"
+          },
+          "batch": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Batch"
+          },
+          "by": {
+            "title": "By",
+            "type": "string"
+          },
+          "labels": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Labels",
+            "type": "object"
+          },
+          "product": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Product"
+          },
+          "study": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Study"
+          },
+          "targets": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Targets",
+            "type": "array"
+          },
+          "values": {
+            "title": "Values",
+            "type": "integer"
+          },
+          "why": {
+            "title": "Why",
+            "type": "string"
+          }
+        },
+        "required": [
+          "assignment",
+          "targets",
+          "values",
+          "study",
+          "arm",
+          "product",
+          "batch",
+          "analyte",
+          "labels",
+          "by",
+          "at",
+          "why"
+        ],
+        "title": "DeliveryFileLink",
         "type": "object"
       },
       "DeliveryGap": {
@@ -7204,6 +7335,13 @@
             "title": "Mappings",
             "type": "array"
           },
+          "relink": {
+            "items": {
+              "$ref": "#/components/schemas/DeliveryRelink"
+            },
+            "title": "Relink",
+            "type": "array"
+          },
           "request": {
             "items": {
               "$ref": "#/components/schemas/RequestLineView"
@@ -7244,6 +7382,7 @@
           "totals",
           "subjects",
           "unassigned",
+          "relink",
           "analytes",
           "mappings",
           "request",
@@ -7529,6 +7668,117 @@
           "restores"
         ],
         "title": "DeliveryRegionRestore",
+        "type": "object"
+      },
+      "DeliveryRelink": {
+        "additionalProperties": false,
+        "description": "A person's link a re-read of its table did not carry over (`link_carry.waiting`): the values of `targets` (extract\nor fact ids on the \"study not stated\" list now) were read from the table that `assignment` linked, in part (`whole`\nfalse: which part it would cover now cannot be told), or whole before links were carried over. Where it sent them\n(entity ids, followed through merges), who linked them, when and why (the digits masked when the study is blinded).",
+        "properties": {
+          "analyte": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Analyte"
+          },
+          "arm": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Arm"
+          },
+          "assignment": {
+            "title": "Assignment",
+            "type": "string"
+          },
+          "at": {
+            "title": "At",
+            "type": "string"
+          },
+          "batch": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Batch"
+          },
+          "by": {
+            "title": "By",
+            "type": "string"
+          },
+          "labels": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Labels",
+            "type": "object"
+          },
+          "product": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Product"
+          },
+          "study": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Study"
+          },
+          "targets": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Targets",
+            "type": "array"
+          },
+          "whole": {
+            "title": "Whole",
+            "type": "boolean"
+          },
+          "why": {
+            "title": "Why",
+            "type": "string"
+          }
+        },
+        "required": [
+          "targets",
+          "assignment",
+          "study",
+          "arm",
+          "product",
+          "batch",
+          "analyte",
+          "labels",
+          "whole",
+          "by",
+          "at",
+          "why"
+        ],
+        "title": "DeliveryRelink",
         "type": "object"
       },
       "DeliveryRequirement": {
@@ -8467,6 +8717,13 @@
             "title": "Mappings",
             "type": "array"
           },
+          "proposed_elsewhere": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Proposed Elsewhere",
+            "type": "array"
+          },
           "requirements": {
             "items": {
               "$ref": "#/components/schemas/DeliveryRequirement"
@@ -8526,6 +8783,7 @@
           "blinded",
           "confirm_on",
           "loaded_elsewhere",
+          "proposed_elsewhere",
           "values",
           "by_level",
           "by_method",
@@ -8634,6 +8892,13 @@
             "title": "Loaded Elsewhere",
             "type": "array"
           },
+          "proposed_elsewhere": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Proposed Elsewhere",
+            "type": "array"
+          },
           "subject": {
             "title": "Subject",
             "type": "string"
@@ -8663,6 +8928,7 @@
           "deliveries",
           "confirmation",
           "loaded_elsewhere",
+          "proposed_elsewhere",
           "legacy_groups",
           "confirm_on",
           "arms",

@@ -110,7 +110,7 @@ from modeler_project.intake_store import ChainEntry, IntakeStore
 from modeler_project.ledger import Ledger
 from modeler_project.ledger_entities import label_key, now, with_article
 from modeler_project.ledger_models import EntityType, ExtractRef, ValueState
-from modeler_project.ledger_view import LedgerReader, LedgerView, in_subject, is_spread_fact, is_unassigned
+from modeler_project.ledger_view import LedgerReader, LedgerView, in_subject, is_compound_field, is_spread_fact, is_unassigned
 from modeler_project.requirements import RequirementMatrix
 from modeler_project.scorecard import scorecard
 from modeler_project.study_requirements import product_requirements, requirement_status
@@ -369,12 +369,14 @@ def subjects(ws: Workspace, *, reader: LedgerReader) -> list[dict[str, Any]]:
     the files its values were read from), `deliveries`, `confirmation` (None, or id, at, by, printed_name,
     signature_id, manifestation, record_sha256, `current`: the record still describes the subject (its values, and
     no restore since undid a decision it binds: `confirmation_current`), `landed`),
-    `loaded_elsewhere` (the non-rejected legacy client datasets that overlap it by source, §2), `legacy_groups` (the
-    client-review groups, `client_review.groups` ids, whose items hold one of those datasets: where the same source is
-    reviewed by the sheet form) and `confirm_on` ("client-review" when every file its values come from is a filled
-    client-data template, which is confirmed on its legacy card; else "delivery"). No blockers: the subject's own
-    route computes them. No count here tells anything of the values themselves, so a blinded study's row is shown as
-    it is."""
+    `loaded_elsewhere` (the legacy client datasets that overlap it by source, §2, that a person accepted: in the model
+    already), `proposed_elsewhere` (those still proposed: read with the sheet form, not confirmed yet), `legacy_groups`
+    (the client-review groups, `client_review.groups` ids, where the same source is reviewed by the sheet form: those
+    whose items hold one of those datasets, and those all of whose items were read from files a person linked to this
+    subject, every value of each, `_linked_groups`) and `confirm_on` ("client-review" when every file its values come
+    from is a filled client-data template, which is confirmed on its legacy card; else "delivery"). No blockers: the
+    subject's own route computes them. No count here tells anything of the values themselves, so a blinded study's row
+    is shown as it is."""
     store = IntakeStore(ws)
     if not store.available:
         return []
@@ -403,23 +405,83 @@ def subjects(ws: Workspace, *, reader: LedgerReader) -> list[dict[str, Any]]:
                             "record_sha256": last.record_sha256, "landed": last.id in done,
                             "current": confirmation_current(ws, last, reader=reader, subject_type=subject_type,
                                                             subject=subject, restores=restores)}
-        elsewhere = [d.id for d in intake_landing.legacy_overlap(ws, subject_type, subject, reader=reader, candidates=legacy)]
+        elsewhere = intake_landing.legacy_overlap(ws, subject_type, subject, reader=reader, candidates=legacy)
         rows.append({"subject_type": subject_type, "subject": subject, "label": label, "values": len(values),
                      "by_level": dict(sorted(Counter(v.level for v in values).items())),
                      "by_method": dict(sorted(Counter(v.method for v in values).items())), "files": files,
                      "deliveries": sorted({v.delivery for v in values if v.delivery}), "confirmation": confirmation,
-                     "loaded_elsewhere": elsewhere, "legacy_groups": [], "confirm_on": confirm_on(ws, values)})
-    if any(row["loaded_elsewhere"] for row in rows):          # the client review's groups, read once and only then
-        from modeler_project.client_review import groups as review_groups
+                     "loaded_elsewhere": [d.id for d in elsewhere if d.state is EvidenceState.ACCEPTED],
+                     "proposed_elsewhere": [d.id for d in elsewhere if d.state is not EvidenceState.ACCEPTED],
+                     "legacy_groups": [], "confirm_on": confirm_on(ws, values)})
+    owned = _linked_files(store, reader)
+    if any(row["loaded_elsewhere"] or row["proposed_elsewhere"] for row in rows) or owned:
+        from modeler_project.client_review import groups as review_groups  # read once, and only then
 
+        found = review_groups(ws, offers=False)
         group_of: dict[str, list[str]] = {}
-        for group in review_groups(ws):
+        for group in found:
             for item in group["items"]:
                 if item["kind"] == "dataset":
                     group_of.setdefault(str(item["id"]), []).append(str(group["id"]))
         for row in rows:
-            row["legacy_groups"] = list(dict.fromkeys(g for d in row["loaded_elsewhere"] for g in group_of.get(d, ())))
+            row["legacy_groups"] = list(dict.fromkeys(
+                g for d in (*row["loaded_elsewhere"], *row["proposed_elsewhere"]) for g in group_of.get(d, ())))
+        taken = {g for row in rows for g in row["legacy_groups"]}
+        joined = _linked_groups(found, owned)
+        for row in rows:
+            mine = [g for g in joined.get((row["subject_type"], row["subject"]), []) if g not in taken]
+            row["legacy_groups"] += mine
+            taken |= set(mine)
     return rows
+
+
+def _linked_files(store: IntakeStore, reader: LedgerReader) -> dict[str, dict[str, str]]:
+    """The files a person linked to a study or a product (`assign`), each with the one study and the one product all of
+    its values now belong to (sha256 -> {"study": id, "product": id}, either left out when its values name none or
+    more than one): a file with a value still of no subject is left out."""
+    linked: set[str] = set()
+    targets = {t.split("#")[0] for e in store.review.entries("assignment") for t in e.body.get("targets", ())}
+    if not targets:
+        return {}
+    by_file: dict[str, list[ValueState]] = {}
+    for value in reader.values():
+        if value.file_sha256 is None or is_spread_fact(value) or is_compound_field(value.field):
+            continue
+        by_file.setdefault(value.file_sha256, []).append(value)
+        if value.id.split("#")[0] in targets:
+            linked.add(value.file_sha256)
+    out: dict[str, dict[str, str]] = {}
+    for sha in linked:
+        values = by_file[sha]
+        if any(is_unassigned(v.entity, v.field) for v in values):
+            continue
+        studies = {v.entity.study for v in values if v.entity.study}
+        products = {v.entity.product for v in values if v.entity.product and not v.entity.study}
+        owner = {**({"study": next(iter(studies))} if len(studies) == 1 else {}),
+                 **({"product": next(iter(products))} if len(products) == 1 else {})}
+        if owner:
+            out[sha] = owner
+    return out
+
+
+def _linked_groups(groups: Sequence[dict[str, Any]], owned: dict[str, dict[str, str]]) -> dict[tuple[str, str], list[str]]:
+    """The client-review groups whose source a person linked to one subject on the delivery (plan 2026-11-14 §5, final
+    review OWN-4, INT-9): a study's group (or a sheet of the studies' tab) all of whose items were read from files whose
+    values all belong to one study, a product's group (or a dissolution sheet) the same for a product. Such a group is
+    the same source as that subject's: its card joins it, so the sheet form does not ask for it, or count it, again.
+    (subject type, subject) -> group ids."""
+    out: dict[tuple[str, str], list[str]] = {}
+    for group in groups:
+        kind = group["kind"]
+        part = ("study" if kind == "study" or (kind == "sheet" and group.get("tab") == "studies")
+                else "product" if kind in ("product", "sheet") else None)
+        if part is None:
+            continue
+        shas = {str(i["source"]["doc_sha256"]) for i in group["items"] if (i.get("source") or {}).get("doc_sha256")}
+        owners = {owned.get(sha, {}).get(part) for sha in shas}
+        if len(shas) and len(owners) == 1 and None not in owners:
+            out.setdefault((part, owners.pop()), []).append(str(group["id"]))  # type: ignore[arg-type]
+    return out
 
 
 def unassigned(ws: Workspace, *, reader: LedgerReader) -> list[ValueState]:
@@ -660,6 +722,70 @@ def _new_name(reader: LedgerReader, kind: EntityType, label: Any, parent: str | 
     return label
 
 
+def _arm_collision(reader: LedgerReader, store: IntakeStore, values: Sequence[ValueState], *, study: str | None,
+                   arm: str | None, new_arm: bool, analyte: str | None) -> str | None:
+    """Why these values cannot go to one arm of one study, in words, or None (plan 2026-11-14 §2.2.2; review INT-4):
+    two of them from different files, or one of them and a value the study holds in that arm (no arm counts as one)
+    from another file, hold the same subject in the same period with the same analyte. A period left out matches any
+    period, and an analyte left out (the file states none) matches any analyte; analytes are compared by name, since
+    each file's analyte is an entity of its own (`analyte`: the one the assignment states, by its `label_key`; else each
+    value's own). Never one file's values with each other, nor with what the study holds of that file. A new arm holds
+    nothing yet; a new study neither (`study` None)."""
+    names: dict[str, str] = {}
+
+    def analyte_of(value: ValueState) -> str:
+        if analyte is not None:
+            return analyte
+        found = value.entity.analyte
+        if not found:
+            return ""
+        if found not in names:
+            entity = reader.entity(found)
+            names[found] = label_key(entity.label) if entity is not None else found
+        return names[found]
+
+    def key(value: ValueState) -> tuple[str, str, str] | None:
+        subject = name_key(value.entity.subject) if value.entity.subject else ""
+        if not subject:
+            return None
+        return subject, name_key(value.entity.period) if value.entity.period else "", analyte_of(value)
+
+    def meet(a: tuple[str, str, str], b: tuple[str, str, str]) -> bool:
+        return a[0] == b[0] and (not a[1] or not b[1] or a[1] == b[1]) and (not a[2] or not b[2] or a[2] == b[2])
+
+    files = {f.sha256: f.name for f in _file_lines(store)}
+    named = reader.entity(study) if study is not None else None
+    where = (f"study {named.label}" if named is not None else "the new study") + (
+        "" if new_arm else f", arm {getattr(reader.entity(arm), 'label', arm)}" if arm else " (no arm)")
+
+    def said(k: tuple[str, str, str]) -> str:
+        return f"subject {k[0]}" + (f", period {k[1]}" if k[1] else "")
+
+    def name(sha: str | None) -> str:
+        return files.get(sha or "", "values a person entered")
+
+    mine = {v.id for v in values}
+    going = [(k, v) for v in values if v.status in ("proposed", "confirmed") and (k := key(v)) is not None]
+    for i, (ka, a) in enumerate(going):
+        for kb, b in going[i + 1:]:
+            if a.file_sha256 != b.file_sha256 and meet(ka, kb):
+                return (f"{name(a.file_sha256)} and {name(b.file_sha256)} both hold {said(ka)}: in {where} each file "
+                        f"needs its own arm")
+    if study is None or new_arm:
+        return None
+    held: dict[str, list[tuple[tuple[str, str, str], ValueState]]] = {}
+    for v in reader.values(study=study):
+        if v.id in mine or (v.entity.arm or None) != (arm or None) or (k := key(v)) is None:
+            continue
+        held.setdefault(k[0], []).append((k, v))
+    for ka, a in going:
+        for kb, b in held.get(ka[0], []):
+            if b.file_sha256 != a.file_sha256 and meet(ka, kb):
+                return (f"{name(a.file_sha256)} holds {said(ka)}, which {where} holds already from "
+                        f"{name(b.file_sha256)}: each file needs its own arm")
+    return None
+
+
 def assign(ws: Workspace, *, targets: Sequence[str], study: str | None = None, arm: str | None = None,
            product: str | None = None, batch: str | None = None, why: str, by: str, new_study: str | None = None,
            new_product: str | None = None, new_arm: str | None = None, new_batch: str | None = None,
@@ -685,7 +811,11 @@ def assign(ws: Workspace, *, targets: Sequence[str], study: str | None = None, a
     `analyte` (an analyte's id) or `new_analyte` (a label: a new analyte, never a duplicate) states the values'
     analyte; left out, the values have the analyte the file gave. An assignment replaces the earlier one whole (plan
     2026-11-14 §2.2.4: a link is changed by linking again), so an analyte an earlier assignment stated is not kept: a
-    re-link that keeps it names it again, as it does the arm. The assignment is still a study's or a product's."""
+    re-link that keeps it names it again, as it does the arm. The assignment is still a study's or a product's.
+
+    Two files that hold the same subject in the same period are refused one arm of one study, and so is a file whose
+    subjects the study holds in that arm already from another file (`_arm_collision`: CONFLICT naming the files, the
+    subject, the period and the arm), so a page that did not check, or a direct call, cannot mix two arms' values."""
     why = _why(why, "an assignment")
     if not targets:
         raise ReviewError("INVALID", "an assignment names the values it assigns")
@@ -744,6 +874,14 @@ def assign(ws: Workspace, *, targets: Sequence[str], study: str | None = None, a
         new_arm = _new_name(ledger, "arm", new_arm, study_id)
     if new_batch is not None:
         new_batch = _new_name(ledger, "batch", new_batch, product_id)
+    if study_id is not None or new_study is not None:
+        stated = label_key(new_analyte) if new_analyte is not None else (
+            label_key(ledger.entity(analyte_id).label) if analyte_id is not None and ledger.entity(analyte_id) else None)
+        found = [v for target in checked for v in _target_values(ledger, target)]
+        clash = _arm_collision(ledger, IntakeStore(ws), found, study=study_id, arm=arm_id, new_arm=new_arm is not None,
+                               analyte=stated)
+        if clash is not None:
+            raise ReviewError("CONFLICT", clash)
     # every refusal is behind us: only now is an entity the person names written, by the ledger's write side
     try:
         if new_study is not None:

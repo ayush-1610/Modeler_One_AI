@@ -77,14 +77,26 @@ export function CardTodo({ subject, env }: { subject: Subject; env: CardEnv }) {
   const items = cardItems(subject, env.work);
   if (!items.length) return null;
   const name = new RegExp(`^(Study|Product|Compound) ${subject.label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}( · |: )`);
+  const line = (i: WorkItem, text: string) => (
+    <li key={i.id} className={i.open ? undefined : "quiet"}>
+      <StatusChip status={i.status} />
+      <button type="button" className="link-btn" onClick={() => env.onGo(i)} data-testid={`card-todo-${i.id}`}>{text}</button>
+      {(i.blocked || i.why) && <span className="muted fs-12">{i.blocked ?? i.why}</span>}
+    </li>
+  );
+  // the files' disagreements by whom they are about (review INT-10): "Subject 001, period I (11)", each time under it
+  const about = new Map<string, WorkItem[]>();
+  for (const i of items) if (i.about) about.set(i.about, [...(about.get(i.about) ?? []), i]);
+  const grouped = new Set([...about.values()].filter((l) => l.length > 1).flat());
   return (
     <ul className="card-todo" data-testid={`card-todo-${subject.key}`}>
-      {items.map((i) => (
-        <li key={i.id} className={i.open ? undefined : "quiet"}>
-          <StatusChip status={i.status} />
-          <button type="button" className="link-btn" onClick={() => env.onGo(i)} data-testid={`card-todo-${i.id}`}>
-            {i.label.replace(name, "")}</button>
-          {(i.blocked || i.why) && <span className="muted fs-12">{i.blocked ?? i.why}</span>}
+      {items.filter((i) => !grouped.has(i)).map((i) => line(i, i.label.replace(name, "")))}
+      {[...about.entries()].filter(([, l]) => l.length > 1).map(([who, list]) => (
+        <li key={who} className="card-todo-group" data-testid={`card-todo-about-${subject.key}-${who.replace(/[^A-Za-z0-9-]/g, "-")}`}>
+          <details open={list.some((i) => i.open) && about.size <= 3}>
+            <summary>{who.charAt(0).toUpperCase() + who.slice(1)}: {plural(list.length, "disagreement")}</summary>
+            <ul className="card-todo">{list.map((i) => line(i, i.label.replace(name, "").replace(`, ${who}`, "")))}</ul>
+          </details>
         </li>
       ))}
     </ul>

@@ -21,6 +21,7 @@ import {
   AREA_NAME, type Tab, engineWords, whereIs, layoutOrigin, plural as count, rulesText, stageText, whenText,
 } from "@/lib/words";
 
+import { FileLinks } from "./LinkElsewhere";
 import { MappingReview } from "./MappingReview";
 import { ReadTable, readable } from "./ReadTable";
 import { DecisionNote, NotDataNote, RestoreForm, restorable, restorableNote } from "./Restore";
@@ -98,6 +99,8 @@ function FileItem({ projectId, file, first, decide, busy, onMapping, inRow = fal
       </div>
       {file.reason && <p className="delivery-file-why" data-testid={`delivery-file-reason-${file.file_id}`}>{file.reason}</p>}
       {file.coverage && <p className="muted fs-13 m-0" data-testid={`delivery-file-coverage-${file.file_id}`}>{coverageLine(file)}</p>}
+      {/* where a person linked its values, and "Link elsewhere…" (review INT-5: a link is changed by linking again) */}
+      <FileLinks projectId={projectId} file={file} />
       {file.legacy_refusal && <p className="muted fs-13 m-0">Not read onto the cards below: {file.legacy_refusal}</p>}
       {file.run?.state === "failed" && file.run.error && <p className="delivery-file-why">{file.run.error}</p>}
       {open && (

@@ -235,7 +235,9 @@ export function InputsWorkspace({ projectId, initialTab, initialOnly, initialSta
   // the client's data, by the domain it lands in (plan 2026-11-03 §3.3): one card per study, product and compound
   // (lib/inputsWork.ts), and the sheets whose study or product is not stated yet
   const groups = review.data?.groups ?? [];
-  const sheetsFor = (t: Tab) => groups.filter((g) => g.kind === "sheet" && g.tab === t);
+  // a sheet whose file a person linked to a study or product on the delivery is that card's: not listed apart (OWN-4)
+  const joinedSheets = new Set(model.subjects.flatMap((s) => s.groups.map((g) => g.id)));
+  const sheetsFor = (t: Tab) => groups.filter((g) => g.kind === "sheet" && g.tab === t && !joinedSheets.has(g.id));
   const cardsFor = (t: Tab) => model.subjects.filter((s) => s.area === t && (!only || !s.done));
   const forTab = (t: Tab) => todo.filter((i) => (i.tab ?? "compound") === t);
   // a group to confirm is settled on its own card, above the panel: listed in To do, not twice in the panel
