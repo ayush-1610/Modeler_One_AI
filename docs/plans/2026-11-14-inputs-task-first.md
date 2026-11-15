@@ -451,7 +451,10 @@ before the next starts.
   Start step's document viewer (says "original withheld"). No caller needs the original after a recorded reveal: the
   reveal (`POST datasets/{id}:reveal`, a reason on the audit chain) gives the dataset's values, never the file, and is
   unchanged; so no reveal path to the original was kept. **Cost, file-level as the delivery's rule:** a paper that holds
-  a listed study's figure is withheld whole, so its other figures wait for the plan too. **Not changed:** the delivery
+  a listed study's figure is withheld whole, so its other figures wait for the plan too. *(Incomplete, corrected in
+  "Final review fixes round 3: downstream and blinding follow-ups" below: a library paper waits whole too, and the
+  digits of every page of it are masked in the "Show the source" peeks of the Start step and the compound rows, not
+  only in the Digitizer; the owner's decision is asked there.)* **Not changed:** the delivery
   report command (`delivery_report.py`, a command-line report, not a page) still prints the figures' captions.
 - **A study blinded only by the project's list** is withheld on the sheet form as a delivery-blinded one is: its group
   says `blinded` (facts, options, answers and points withheld), reading its sheet, `:map` on it, `:finish` and
@@ -462,7 +465,9 @@ before the next starts.
   refuses a group whose datasets were read for another purpose; `:map` (Save these data) refuses the same; each with
   409 `PURPOSE_DIFFERS` naming both. A use the sheet form cannot state (internal validation, supportive) is refused, not
   taken: such a study is confirmed on its delivery card. **Not built:** the sheet form on the page still asks what the
-  study is for (left empty, the card's is taken).
+  study is for (left empty, the card's is taken). *(Round 3: the other way round is refused too: once the sheet form
+  loaded a study's data, its card's intended use is set, corrected or kept in a disagreement only to what they were
+  loaded for; "Final review fixes round 3: downstream and blinding follow-ups" below.)*
 - **The arm guard compares the ledger's conflict key** (`intake_review._arm_collision`, web `collisions` and
   `pairsMeet`): the same subject and field, the same period, analyte (by name) and matrix or one of them left out, for
   the values that take part in conflicts (`ledger_view.in_conflicts`). A matrix left out matching any is wider than the
@@ -495,7 +500,8 @@ before the next starts.
   "rCYP)", "fu", "inc"), so `evidence.assess` flags each piece and grades a source that states only its system
   (or "fu,inc" as one) as incomplete. Reading the list whole changes evidence grades: it needs the entries quoted in
   `core_small_molecule.yaml` (locked, SME-governed, a ruleset version bump). Until then the page joins a bracket's
-  pieces when it shows them, and shows a piece of one without a stray bracket; the grade is the API's.
+  pieces when it shows them, and shows a piece of one without a stray bracket; the grade is the API's. *(Round 3: the page also
+  joins "fu" and "inc" as the one condition "fu,inc"; it did not, as the skeptic found.)*
 - **Accept refused (OWN-5):** a numeric value is never accepted without its value in PK-Sim's unit. Where the unit does
   not convert, the API names the unit (`EvidenceView.pksim_unit`, from the registry or the one harvested process
   parameter that takes it) and the row asks for the value in it; where nothing names one (the placeholder, a kind of
@@ -514,11 +520,14 @@ before the next starts.
   either path runs against. `source` tells them apart; the Run page's "Run campaign" (campaign:prepare, which stages
   uploads) counts the uploads only, so a pipeline project still runs from Review & sign. `GET /compounds/{c}/cpf`
   prefers the CPF Inputs assembles (a pipeline project could otherwise read the tenant-wide CPF of another project on
-  the same drug, the store's old fallback).
+  the same drug, the store's old fallback). *(Corrected in round 3: only once that CPF holds a value; one that holds none yet
+  answered 200 with an empty table where the page said "No values … filled in on Inputs".)*
 - **The checks on Run and Review & sign (OWN-13):** said in the step bar's words with what to do and a link to the area
   of Inputs (To do for the minimum compound data and the build); the relation to To do's count is said in a sentence,
   not as a number (the count is the page's work model, which Run and Review & sign do not read). A link opens the area,
-  not the item's own row: the page has no URL for one item.
+  not the item's own row: the page has no URL for one item. *(Round 3: two ways now land on their place, `?tab=formulations&add=product`
+  on the form that adds a product and `?tab=todo&at=<place>` on the line of To do that asks the client; a single item's
+  row still has no URL. The raw readiness text Review & sign still printed under the list is gone.)*
 
 ### Final review fixes: the gate, layouts and To do (2026-11-15; OWN-2, OWN-15, A11Y-2, CODE-2, CODE-3, CODE-5, CODE-9, CODE-10, OWN-8's layout part, the owner-job gaps 2 and 5; CHANGELOG "Fixed — final review, the gate, layouts and To do")
 - **The read-only part of API 3 is built; per-cell "not data" is not.** A read table's numbers not read are listed on
@@ -622,3 +631,84 @@ before the next starts.
   round 1's API follow-up. Not reproduced, so not changed: "How the files were read" twice on one card (the skeptic
   found it once). Not in this group's list and left: a client file's name repeated on the first To do view (3 to 8
   times for a file with several kinds of work).
+
+### Final review fixes round 3: downstream and blinding follow-ups (2026-11-15; OWN-8, owner-job gap 11, the words, the risks round 2's skeptics found, INT-2 the other way round, the blinding scope; CHANGELOG "Fixed — final review round 3, downstream and blinding follow-ups")
+- **Review & sign in words (OWN-8):** `StepBlocked` prints what the API said only where no list of the earlier step's
+  checks says it, and then in the step bar's words (`readinessText`); `PlanCanvas` gives it every `inputs_ready`
+  refusal (not ready, not put together, changed, no CPF or no study), not only "not ready". The same refusal can reach
+  the open plan later (the inputs change while it is open: `GET /plan/review`, a change to the plan, the signature):
+  those messages go through `readinessText` too, which leaves any other refusal as it came. The Run page passes no
+  detail. No other page prints the readiness text: the step bar and To do already say each check in words; the plan's
+  stale banner names artifact versions, not checks (left). A check's other ways read as the step bar's ("(add a
+  product on Products and dissolution, or ask the client on To do)"), not two bracketed links.
+- **Gap 11, the ask that was missing.** A per-product item (`per: solid_product`, today REQ-form.release) is judged per
+  product (`study_requirements.product_requirements`), so a tablet study whose delivery names no product had its
+  release model asked nowhere. `study_requirements.unnamed_product_items` (unlocked code; the locked templates are read,
+  not changed) adds, for each delivery study whose dosage form is solid (the study record's choices the readiness check
+  reads as solid) while no value of it names a product, no product of the delivery has values, the model holds no
+  formulation and no dissolution profile is here, the item as the study's own line of the client request: "The
+  formulation or dissolution data of the product the study used (no file names the product) · OJ-101", needed for the
+  model itself. It is not an item of the study's card, so the study's signature does not wait for it and no disposition
+  is offered for it (the card's route answers only the card's items): the line goes once a product of the delivery has
+  values (its own card then asks for its release), a dissolution profile is here or the model holds a formulation.
+  **Deviation:** derived from the delivery's studies (the ledger). A study confirmed only with the sheet form, with no
+  product, gets no ask line: its readiness item says to add a product or ask the client, and the client request
+  download (the data plan's `client_request`) asks for a product's release once a product is added. **Not built:** a
+  form to give a release by hand (as round 2 recorded). On a copy of the review data the four Clientamide projects
+  now ask it for their five solid oral studies (one line, EX-101 and CL-1 to CL-4); the Exampleamide projects, whose
+  delivery names products, ask it per product as before.
+- **The lever named:** "add a product" (the brief's products list on Products and dissolution; its form opens, focused,
+  from `?tab=formulations&add=product`) is named by the step bar ("a tablet study has no formulation (add a product on
+  Products and dissolution, or ask the client)"), Review & sign's line (its fix sentence and a link), To do's
+  formulation row (when no product of the client's is here) and the formulation item's own text. "Ask the client" opens
+  To do on the line that asks (`at=todo-ask-REQ-form.release`, focused; the group when there is none). The solid study's
+  row on Products says "no product here: add the product it used (“Add a product”, above) …, or ask the client" when
+  no product (the client's or the proposal's) is here, "no dissolution data for a product here" when products are here
+  without a profile, and "use a product's dissolution profile as its release, above" only when a profile is. The step
+  bar cannot tell these cases apart (it reads the steps only), so it names "add a product" whatever the case; where a
+  product with a profile is here, the area it opens says to use the profile.
+- **The words:** a product card's done line says the release is said "above" (it is); "fu,inc" is one condition again
+  (`bracketed`: a known pair the template writes with a comma and no bracket, `COMMA_CONDITIONS`; either piece alone
+  is said whole, since "fu" alone would read as the plasma's fraction unbound and no template has a lone "fu"). The
+  grade the API gives each piece is unchanged (SME, as recorded above).
+- **The compound page's CPF:** `GET /compounds/{c}/cpf` answers the CPF Inputs assembles only once it holds a value;
+  otherwise the stored one, else 404 (the page's "No values … filled in on Inputs").
+- **The formulation problems one by one:** the formulation item carries its problems as a list (`details`, the readiness
+  check's own; `todo` is untyped, so no contract change), and the page splits the joined message only before a
+  problem's study (`formulationParts`), so "formulation 'X' is of type 'Y'; the builder places …" is one problem said
+  by its own rule.
+- **INT-2 the other way round:** setting or correcting a delivery study's intended use (`:enter`), or keeping one
+  purpose in a disagreement between two (`:choose`), is refused (409 `PURPOSE_DIFFERS`, naming both) when the sheet
+  form loaded its joined data (a client dataset a person accepted, of its `legacy_groups` or of its name) for another
+  purpose (`intake_review.joined_purposes`). A reading not confirmed yet does not hold the card (`:confirm` refuses it
+  instead, as round 2 built). The refusal says to keep the card's purpose or take the sheet form's data out of the
+  model first; the card's form shows it in words (the API's message, under the form that sent it). Purpose words are
+  one list now (`intake_review.use_words`, also the sheet form's refusal). **Not caught:** a purpose read from a file
+  delivered after the sheet form loaded the study (a value read, not set by a person) is not refused: it shows as the
+  card's value and, if it disagrees with an entered one, as a disagreement whose keeping is checked; and
+  `POST datasets/{id}:decide` with ACCEPTED, called directly (the page offers only REJECTED and PROPOSED there), is not
+  purpose-checked (the remainders skeptic's minor note; left).
+- **The blinding scope, a decision for the owner (round 2's skeptic, side effect 1).** A file is withheld whole as the
+  delivery's rule withholds it, and that now includes a library paper one figure of which was digitized for a study on
+  the project's blinding list: its original is not served, its other figures are not offered to the Digitizer, and the
+  digits of every page are masked, also in the "Show the source" peeks of the Start step and the compound rows (a
+  compound value quoted from that paper cannot be checked against its page until the plan is signed). Kept as it is
+  (conservative). The page now says why where it bites: the Digitizer's line and the peek name the blinded study the
+  file waits for and that the whole file waits (`DocumentView.blinded_by`, `DocumentPage.blinded_by`: additive). **Owner
+  decision:** (a) keep the whole paper withheld, as now; or (b) withhold only the blinded dataset's figure and the
+  pages it was digitized from, so the paper's other figures, and the pages a compound value is quoted from, stay open.
+  (b) needs the figure's page kept with the dataset (the Digitizer keeps the page it was drawn on) and a page-level
+  rule in `blinded_sources`, the documents' pages and the original (which would then be served with the blinded pages
+  left out, or not at all).
+- **The blinding scope, the name match (side effect 3):** a delivery study is blinded by the project's list when its
+  name is a listed study's (or the sheet form read it as one), compared whole on the readers' key (`blinding.study_key`:
+  case, spaces and punctuation aside), never as a prefix or a part: "Study 1" listed leaves "Study 10" open (a test).
+  The card and the page's row say why (`DeliverySubjectRow.blinded_why`, `DeliverySubject.blinded_why`: "the project's
+  blinding list names it (study STUDY-1)", "it is entered for external validation on its card", "the project's
+  blinding list holds a dataset loaded from it (study …)"), so a wrong match is seen; the To do rows of a blinded
+  delivery study say it too ("Blinded until the plan is signed, because …"). Left as it is: the key ignores
+  punctuation, so "230-23" and "23-023" are one study for blinding, as for the join (§2.1).
+- **Left, not in this group's list:** Review & sign's "Overall Data" still lists the CPF by its ids and PK-Sim's units
+  ("bind.fu 0.7", "phys.logp 0.21 Log Units"; round 2's skeptic, outside OWN-8's readiness line). The diagrams beside it
+  name the same ids; saying the list in words is for the Review & sign page as a whole. The purpose refusal on the card
+  is checked by the API tests only: the card shows it through the form's existing problem line, not by a browser test.

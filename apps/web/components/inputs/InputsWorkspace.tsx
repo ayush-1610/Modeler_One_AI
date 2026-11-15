@@ -11,11 +11,12 @@ import type { View as ClientView } from "@/components/client/types";
 import { Banner, PageShell } from "@/components/kit";
 import { TabPanel, Tabs } from "@/components/kit/Tabs";
 import { narrow, send, type Envelope, type Narrow, type Schema } from "@/lib/api";
+import type { BriefView } from "@/lib/brief";
 import { TAG_LABELS } from "@/lib/fileTags";
 import { useMutation, useRefresh, useResource } from "@/lib/hooks";
 import { areaHead, cardAnchor, type InputsLike, nextText, releaseOf, type Subject, type WorkItem } from "@/lib/inputsWork";
 import { type ArtifactView, STEP_ROUTES } from "@/lib/pipeline";
-import { AREA_NAME, STATUS_MEANS, plural as count, valueWord } from "@/lib/words";
+import { AREA_NAME, ASK_FORMULATION, STATUS_MEANS, plural as count, valueWord } from "@/lib/words";
 
 import { AddDataMenu } from "./AddDataMenu";
 import { SheetGroups } from "./ClientConfirm";
@@ -158,6 +159,8 @@ export function InputsWorkspace({ projectId, initialTab, initialOnly, initialSta
     }),
   };
   const review = useResource("/api/v1/projects/{project_id}/client-review", { project_id: projectId });
+  // the products the proposal names (Products and dissolution lists them; one read with that list)
+  const proposal = useResource("/api/v1/projects/{project_id}/brief", { project_id: projectId }, { select: (d) => narrow<BriefView>(d) });
   const literature = useResource("/api/v1/projects/{project_id}/literature-run", { project_id: projectId },
     { poll: (d) => d.running, interval: 5000 });
   const refresh = useRefresh();
@@ -182,6 +185,35 @@ export function InputsWorkspace({ projectId, initialTab, initialOnly, initialSta
   useEffect(() => { if (isTab(urlTab)) setChosen(urlTab); }, [urlTab]);
   useEffect(() => { setOnlyState(urlOnly); }, [urlOnly]);
   useEffect(() => { setStatusState(isStatus(urlStatus)); }, [urlStatus]);
+  // a link that names the way forward lands on it (round 3, owner-job gap 11): `add=product` opens the form that adds a
+  // product on Products and dissolution (the step bar's, To do's and Review & sign's "add a product"); `at=<place>` brings
+  // a place of the area into view and gives it the focus ("ask the client": the line of To do that asks for it, else the
+  // group "Ask the client")
+  const urlAdd = url.get("add"), urlAt = url.get("at");
+  const [addProduct, setAddProduct] = useState<number | null>(null);
+  useEffect(() => {
+    if (urlAdd !== "product") return;
+    setChosen("formulations");
+    setOnlyState(false);          // the form is among what is there to add, not under "Only what needs me"
+    setAddProduct(Date.now());
+  }, [urlAdd]);
+  const shownNow = Boolean(view) && work.loaded;
+  useEffect(() => {
+    if (!urlAt || !shownNow) return;
+    let tries = 0, timer = 0;
+    const find = () => {
+      const el = document.querySelector<HTMLElement>(`[data-testid="${CSS.escape(urlAt)}"]`)
+        ?? (urlAt.startsWith("todo-ask-") && tries > 10 ? document.querySelector<HTMLElement>('[data-testid="todo-group-ask"]') : null);
+      if (!el) { if (++tries < 30) timer = window.setTimeout(find, 100); return; }
+      el.scrollIntoView({ block: "center" });
+      if (!el.hasAttribute("tabindex")) el.setAttribute("tabindex", "-1");
+      el.focus({ preventScroll: true });
+      el.classList.add("just-opened");
+      window.setTimeout(() => el.classList.remove("just-opened"), 1600);
+    };
+    timer = window.setTimeout(find, 50);
+    return () => window.clearTimeout(timer);
+  }, [urlAt, shownNow]);
 
   const run: Run = async <T,>(fn: () => Promise<Envelope<T>>, ok: string) => {
     const { problem } = await mutation.run(fn);
@@ -414,6 +446,8 @@ export function InputsWorkspace({ projectId, initialTab, initialOnly, initialSta
   const dissolution = client.data?.dissolution;
   const profileLabel = (id: string) => dissolution?.profiles.find((p) => p.id === id)?.label ?? id;
   const products = cardsFor("formulations").filter((s) => s.kind === "product");
+  // a product is here when the client's files hold one or the proposal names one (whatever "Only what needs me" shows)
+  const anyProduct = model.subjects.some((s) => s.kind === "product") || (proposal.data?.brief.groups.products ?? []).length > 0;
   const profilesOf = (s: Subject) => (dissolution?.profiles ?? []).filter(productOf(s));
   const unlinkedProfiles = (dissolution?.profiles ?? []).filter((p) => !model.subjects.some((s) => s.kind === "product" && productOf(s)(p)));
   // up to three cards are all open; past three, the first to confirm is (the owner, 2026-11-05: "one by one")
@@ -547,7 +581,7 @@ export function InputsWorkspace({ projectId, initialTab, initialOnly, initialSta
               <ul className="flags">{dissolutionNotes(dissolution?.profiles ?? [], dissolution?.problems ?? []).map((x) => <li key={x}>{x}</li>)}</ul>
             </section>
           )}
-          {!only && <BriefList projectId={projectId} group="products" testId="inputs-products"
+          {!only && <BriefList projectId={projectId} group="products" testId="inputs-products" addAt={addProduct}
                      fields={["name", "role", "dosage_form", "strength", "release", "attributes"]}
                      title="Products named in the proposal"
                      lede="Each product becomes its own formulation. Add its dissolution data; for a test against a reference, add the study that compares them." />}
@@ -561,7 +595,16 @@ export function InputsWorkspace({ projectId, initialTab, initialOnly, initialSta
                       <td><strong>{s.study_id}</strong> <span className="muted">{valueWord(String(s.facts.formulation))}</span></td>
                       <td>{s.facts.formulation_name ? String(s.facts.formulation_name)
                         : formulations.length ? <FormulationChoice study={s.study_id} options={formulations} projectId={projectId} run={run} />
-                          : <span className="muted">no formulation in the model yet: use a product&apos;s dissolution profile as its release, above</span>}</td>
+                          // what can give it its formulation here, as it stands (round 3, owner-job gap 11): a product's
+                          // dissolution profile above; with none, the product first, or the client
+                          : (dissolution?.profiles ?? []).length
+                            ? <span className="muted">no formulation in the model yet: use a product&apos;s dissolution profile as its release, above</span>
+                            : <span className="muted" data-testid={`formulation-none-${s.study_id}`}>no formulation in the model yet, and no
+                              {anyProduct ? " dissolution data for a product here: add the product's dissolution file (Add data)" : " product here: "}
+                              {!anyProduct && <button type="button" className="link-btn" onClick={() => { if (only) setOnly(false); setAddProduct(Date.now()); }}
+                                                      data-testid={`formulation-add-product-${s.study_id}`}>add the product it used</button>}
+                              {!anyProduct && " (“Add a product”, above) with its dissolution data"}, or{" "}
+                              <a href={`?tab=todo&at=${ASK_FORMULATION}`}>ask the client</a></span>}</td>
                     </tr>
                   ))}
                 </tbody>

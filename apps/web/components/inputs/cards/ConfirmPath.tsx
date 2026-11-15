@@ -182,7 +182,7 @@ function InModel({ subject, onShow }: { subject: Subject; onShow?: () => void })
     <p className="card-loaded" data-testid={`card-loaded-${subject.key}`}>
       <StatusChip status="done" /> {who}.{" "}
       {/* a product's data are its dissolution: its release is said on its own line (OWN-10) */}
-      {subject.kind === "product" ? "Its data are in the model; whether they set a formulation's release is said below"
+      {subject.kind === "product" ? "Its data are in the model; whether they set a formulation's release is said above"
         : `In the model${datasets ? `: ${plural(datasets, "dataset")}` : ""}`}
       {c?.landed ? " (what was loaded and held back is under Confirm and sign)" : ""}.{" "}
       {onShow && <button type="button" className="link-btn" onClick={onShow} data-testid={`card-in-model-${subject.key}`}>Show it in the model</button>}

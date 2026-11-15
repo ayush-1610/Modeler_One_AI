@@ -155,6 +155,7 @@ class DocumentPage(View):
     n_pages: int
     text: str
     blinded: bool                       # the file holds a blinded study's values: every digit of `text` is masked (D-15)
+    blinded_by: list[str]               # those studies ([] when it is not withheld): what the peek says it is masked for
 
 
 class BriefIssue(View):

@@ -12,8 +12,8 @@
 
 import type { Schema } from "./api";
 import {
-  AREA_NAME, STATUS_WORD, type Status, type Tab, UNREADABLE, checkFix, checkLabel, factText, layoutOrigin, placeText, plural, tableKindText,
-  todoLabel, whenText, whereIs,
+  AREA_NAME, STATUS_WORD, type Status, type Tab, UNREADABLE, checkFix, checkLabel, factText, formulationParts, layoutOrigin, placeText, plural,
+  tableKindText, todoLabel, whenText, whereIs,
 } from "./words";
 
 type DeliveryPage = Schema<"DeliveryPage">;
@@ -24,7 +24,7 @@ type ReviewGroup = Schema<"ReviewGroup">;
 type ReviewItem = Schema<"ReviewItem">;
 
 /** An open item of the /inputs to-do (components/inputs/InputsTodo.tsx `TodoItem`), as far as the work model reads it. */
-export type TodoLike = { kind: string; target: string; message: string; tab?: string; dataset_id?: string | null };
+export type TodoLike = { kind: string; target: string; message: string; tab?: string; dataset_id?: string | null; details?: string[] };
 /** The /inputs page, as far as the work model reads it. */
 export type InputsLike = {
   todo: TodoLike[];
@@ -438,6 +438,8 @@ export function buildWork(sources: WorkSources): WorkModel {
   // the one product whose release a tablet study needs (final review OWN-10): the formulation item opens its card, where
   // "Use this profile as the release" is the card's first action, and the card counts it as open work
   const releaseNeeded = subjects.filter((s) => s.kind === "product" && !releaseOf(s, inputs).name && releaseOf(s, inputs).needed);
+  // no product of the client's here: the product comes first, or the client is asked (round 3, owner-job gap 11)
+  const noProduct = !subjects.some((s) => s.kind === "product");
   for (const t of inputs?.todo ?? []) {
     if (t.kind === "confirm") continue;                      // a group to confirm is its subject's card, below
     if (t.kind === "check") continue;                        // the software build is a model check
@@ -451,7 +453,8 @@ export function buildWork(sources: WorkSources): WorkModel {
       label: todoLabel(t.kind, t.target), pipeline: "inputs",
       where: product ? { tab: product.area, anchor: releaseAnchor(product), subject: product.row ? `${product.row.subject_type}/${product.row.subject}` : undefined }
         : { tab, anchor: `todo-${t.kind}-${t.target}` },
-      detail: product ? `Use the dissolution profile of ${product.label} as its release, on its card.` : undefined,
+      detail: product ? `Use the dissolution profile of ${product.label} as its release, on its card.`
+        : t.kind === "formulation" && noProduct ? NO_PRODUCT : undefined,
       blocked: blinded ? "Blinded until the plan is signed: its facts are set afterwards." : undefined,
       files: [], subjects: product ? [product.key] : [], weight: 1, todo: t,
     });
@@ -468,7 +471,7 @@ export function buildWork(sources: WorkSources): WorkModel {
       for (const issue of g.issues.filter((i) => i.selected === null && i.answered === null)) {
         add({ id: `issue:${g.id}:${issue.id}`, group: "disagree", status: "to_decide", area: g.tab as Tab, pipeline: "sheet-form",
               label: `${KIND_WORD[s.kind]} ${s.label}: ${issue.text}`, where: { tab: g.tab as Tab, anchor: `issue-${issue.id}` },
-              blocked: s.blinded ? "Blinded until the plan is signed." : undefined, detail: also,
+              blocked: s.blinded ? blindedText(s, ".") : undefined, detail: also,
               files: s.files, subjects: [s.key], weight: 1, issue: { group: g.id, issue: issue.id } });
       }
       if (s.path === "delivery") continue;
@@ -572,7 +575,7 @@ export function buildWork(sources: WorkSources): WorkModel {
     if (s.path === "sheet-form") {
       add({ ...base, id: `confirm:${s.key}`, group: sheetOpen ? "confirm" : "ready", status: "to_confirm", label: name,
             detail: [from, sheetOpen ? `${plural(sheetOpen, "thing")} first, on its card` : ""].filter(Boolean).join(" · ") + aliases || undefined,
-            blocked: s.blinded ? "Blinded until the plan is signed: it is confirmed afterwards." : undefined });
+            blocked: s.blinded ? blindedText(s, ": it is confirmed afterwards.") : undefined });
       continue;
     }
     // signed on the delivery: what holds it, in the order it is done (its own items and the clean-up, then the spot
@@ -596,7 +599,7 @@ export function buildWork(sources: WorkSources): WorkModel {
     add({ ...base, id: `confirm:${s.key}`, group: ready ? "ready" : "confirm", status: "to_confirm", label: name,
           detail: [from, step].filter(Boolean).join(" · ") + sheet + aliases, gate: held.length ? gateText(held) : undefined,
           owner: held.length ? ownerText(held) : undefined,
-          blocked: s.blinded ? "Blinded until the plan is signed: it is confirmed afterwards." : undefined });
+          blocked: s.blinded ? blindedText(s, ": it is confirmed afterwards.") : undefined });
   }
 
   // counted: open, not blocked, and holding up a signature a person can make now
@@ -763,13 +766,23 @@ export function formulationsHeld(inputs: InputsLike | null): string[] {
 export function releaseOf(s: Pick<Subject, "label" | "aliases">, inputs: InputsLike | null): { name: string | null; needed: boolean } {
   const names = new Set([s.label, ...s.aliases].map(normLabel));
   const name = formulationsHeld(inputs).find((n) => names.has(normLabel(n))) ?? null;
-  const parts = (inputs?.todo ?? []).filter((t) => t.kind === "formulation").flatMap((t) => t.message.split("; "));
+  const parts = (inputs?.todo ?? []).filter((t) => t.kind === "formulation").flatMap(formulationParts);
   const needed = parts.some((p) => /defines no formulation \(/.test(p)
     || [...p.matchAll(/formulation '([^']+)'/g)].some((m) => names.has(normLabel(m[1]))));
   return { name, needed };
 }
 /** Where a product's card says its release, and offers to set it. */
 export const releaseAnchor = (s: Pick<Subject, "key">) => `card-release-${s.key}`;
+
+/** What the formulation item says when no product of the client's is here (round 3, owner-job gap 11): the lever is the
+ *  product, added on Products and dissolution, or the client, asked under "Ask the client". */
+export const NO_PRODUCT = "No product is here to give it a release: add the product the study used (“Add a product”, on Products and "
+  + "dissolution) with its dissolution data, or ask the client for them (“Ask the client”, on To do).";
+
+/** Why a subject waits until the plan is signed, in words: the delivery says why it is blinded (`blinded_why`: "the
+ *  project's blinding list names it (study X)"), so a wrong match is seen on its row too (round 3). */
+export const blindedText = (s: Pick<Subject, "row">, after: string) =>
+  `Blinded until the plan is signed${s.row?.blinded_why ? `, because ${s.row.blinded_why}` : ""}${after}`;
 
 /** What only the client can send, one line per requirement with the subjects it is asked for. */
 export function askLines(delivery: DeliveryPage | null): AskLine[] {
@@ -1055,7 +1068,7 @@ export function linkRows(items: WorkItem[], page: DeliveryPage | null, subjects:
       return [{
         subject_type: r.study ? "study" : "product", subject, label: named(r.study ? "study" : "product"), values: 0, by_level: {},
         by_method: {}, files: [], deliveries: [], confirmation: null, loaded_elsewhere: [], proposed_elsewhere: [], legacy_groups: [],
-        confirm_on: "delivery", blinded: false,
+        confirm_on: "delivery", blinded: false, blinded_why: null,
         arms: r.study && r.arm ? [{ id: r.arm, label: named("arm") }] : [], batches: r.product && r.batch ? [{ id: r.batch, label: named("batch") }] : [],
       } satisfies SubjectRow];
     }).filter((s, i, all) => all.findIndex((x) => x.subject === s.subject) === i);

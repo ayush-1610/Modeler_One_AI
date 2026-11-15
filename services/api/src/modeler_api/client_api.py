@@ -806,16 +806,11 @@ def confirm_review_group(project_id: str, body: ReviewGroupRef, principal: Write
     return _act(project_id, principal, store, confirm)
 
 
-_USE_WORDS = {"model_building": "model building", "internal_validation": "internal validation",
-              "external_validation": "external validation", "application_verification": "application verification",
-              "supportive": "supportive data"}
-
-
 def _purpose_refusal(label: str, uses: tuple[str, ...], said: str) -> HTTPException:
     """409 PURPOSE_DIFFERS naming both: what the study's delivery card says it is for, and what the sheet form says."""
-    card = " or ".join(_USE_WORDS.get(u, u) for u in uses)
+    card = " or ".join(delivery_review.use_words(u) for u in uses)
     return HTTPException(status_code=409, detail={"code": "PURPOSE_DIFFERS", "message": (
-        f"study {label} is entered for {card} on its card in the delivery, and the sheet form says {_USE_WORDS.get(said, said)}: "
+        f"study {label} is entered for {card} on its card in the delivery, and the sheet form says {delivery_review.use_words(said)}: "
         f"it is loaded only for what its card says. Read it for {card}, or change what its card says first, with a reason")})
 
 

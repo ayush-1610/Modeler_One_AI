@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { DocumentView } from "@/lib/brief";
 import { BROWSER_TOKEN, apiFile, send, type Schema } from "@/lib/api";
 import { useMutation, useResource } from "@/lib/hooks";
+import { withheldWhy } from "@/lib/words";
 
 type Mode = "x1" | "x2" | "y1" | "y2" | "points" | "crop";
 type Box = [number, number, number, number];   // left, top, right, bottom as fractions of the page (or image)
@@ -158,10 +159,10 @@ export function Digitizer({ projectId, documents, onSaved, initial }: {
   const others = withheld.filter((d) => d !== askedWithheld);
   const notOffered = withheld.length > 0 && (
     <p className="delivery-withheld m-0" data-testid="digitize-withheld">
-      {[askedWithheld ? `${askedWithheld.name} is not drawn: it holds the values of a study blinded until the plan is signed.` : "",
-        others.length === 0 ? ""
-          : `${others.length === 1 ? `${others[0].name} is` : `${others.length} files (${others.map((d) => d.name).join(", ")}) are`} not offered `
-            + `here until the plan is signed: ${others.length === 1 ? "it holds" : "they hold"} the values of a blinded study.`]
+      {/* each file says the blinded study it waits for, and that it waits whole (round 3: a paper one figure of which is a
+          blinded study's waits with its other figures) */}
+      {[askedWithheld ? `${askedWithheld.name} is not drawn: ${withheldWhy(askedWithheld.blinded_by)}.` : "",
+        ...others.map((d) => `${d.name} is not offered here until the plan is signed: ${withheldWhy(d.blinded_by)}.`)]
         .filter(Boolean).join(" ")}
     </p>
   );

@@ -19,17 +19,19 @@ Each item is judged against the subject's active values, by the rules file's `ro
 
 A per-product item keeps its `@` id (`REQ-form.release@<slug>`): the data plan's id when the matrix has the item for a
 product of that name, else the same slug rule applied to the ledger's product label. A missing item drafts a line of
-the client request (`request_lines`).
+the client request (`request_lines`). A solid oral study whose product no file names asks for the per-product items
+itself while the model holds no formulation (`unnamed_product_items`), so a tablet study is never left with nothing to ask.
 """
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from typing import Any
 
 from modeler_intake.client_template import SHEET_FOR_CATEGORY
 from modeler_intake.document_reading import name_key
 from modeler_project.brief import APPLICATIONS, ProjectBrief
+from modeler_project.inputs import SOLID  # the study record's dosage forms the readiness check reads as solid
 from modeler_project.intake_records import RequirementDisposition, RequirementStatus, StudyRequirements
 from modeler_project.intake_rules import IntakeRules, ItemFields
 from modeler_project.intake_rules import rules as load_rules
@@ -46,6 +48,8 @@ from modeler_project.study_routing import (
     study_when,
     subject_values,
 )
+from pbpk_domain.cpf.formulations import formulation_names
+from pbpk_domain.cpf.models import CPF, ParameterStatus
 
 # The field whose values `per` ranges over: the subject's concentration profile (contracts §4.7, the YAML's comment)
 PER_FIELD = "concentration"
@@ -109,6 +113,66 @@ def product_requirements(reader: LedgerReader, product: str, *, brief: ProjectBr
             applies = "no" if per_product and not solid else _applies(raw, study_when(raw.get("when"), tags, brief=brief))
             out[req_id] = _status(raw, template["id"], req_id, "product", product, f"{raw['label']} — {label}", applies,
                                   rules.routing.item_fields.get(raw["id"]), values, conflicted, dispositions, reader)
+    return tuple(out.values())
+
+
+# What a solid oral study whose product no file names asks the client for (final review round 3, owner-job gap 11), in
+# words: a per-product item is evaluated per product, so with no product it was never asked
+UNNAMED_PRODUCT = "The formulation or dissolution data of the product the study used (no file names the product)"
+
+
+def formulations_held(cpf: CPF | None) -> tuple[str, ...]:
+    """The formulations the model holds: each the CPF defines whose release model (`form.<name>.type`) has a value."""
+    if cpf is None:
+        return ()
+    return tuple(name for name in formulation_names(cpf)
+                 if (kind := cpf.get(f"form.{name}.type")) is not None and kind.value is not None
+                 and kind.status is not ParameterStatus.MISSING)
+
+
+def unnamed_product_items(reader: LedgerReader, study: str, *, brief: ProjectBrief | None, matrix: RequirementMatrix | None,
+                          release_here: bool | Callable[[], bool], dispositions: Sequence[RequirementDisposition] = (),
+                          rules: IntakeRules | None = None) -> tuple[RequirementStatus, ...]:
+    """The per-product items (`per: solid_product`: a product's release model, from its dissolution) a solid oral study
+    asks the client for when no product is there to give them: the study's dosage form is solid (a tablet, a capsule,
+    a modified release, a suspension: the study record's choices the readiness check "formulations of solid studies"
+    reads as solid), no value of the study names a product, no product of the delivery has values, and nothing in the
+    project sets a release without the client (`release_here`: the model holds a formulation, or the project holds a
+    dissolution profile a product's release is set from; a callable is asked last, only for a study that would ask).
+
+    A per-product item is evaluated per product (`product_requirements`), so with no product it was never asked (round
+    3, owner-job gap 11). Each is the study's (`scope` "study", its subject the study), under the item's own id, so the
+    client request asks for it once per study ("… — study OJ-101"). It is not an item of the study's card (the card's
+    signature does not wait for it): it goes once a product of the delivery has values (its card asks for its
+    release), a dissolution profile is here or the model holds a formulation; a disposition recorded for the study and
+    item would answer it as for any item. The items are those `product_requirements` evaluates: of the core template
+    and the templates the project's applications select."""
+    if any(reader.values(product=product.id) for product in reader.entities("product")):
+        return ()
+    rules = rules or load_rules()
+    study = _resolved(reader, study)
+    forms = study_tags(reader, study, brief=None).get("formulation", "")
+    if not any(form in SOLID or _SOLID.search(form) for form in forms.split("; ") if form):
+        return ()
+    if any(v.entity.product for v in reader.values(study=study)):
+        return ()
+    if release_here() if callable(release_here) else release_here:
+        return ()
+    codes = application_codes(_applications(brief, matrix))
+    scoped = set(rules.routing.item_scope.get("product", ()))
+    out: dict[str, RequirementStatus] = {}
+    for template in load_templates():
+        scope = template.get("applies_to")
+        if template["id"] != rules.routing.core and not (scope != "all" and codes & set(scope or ())):
+            continue
+        for raw in template["items"]:
+            if raw["id"] not in scoped or raw.get("per") != "solid_product" or raw["id"] in out:
+                continue
+            base = dict(req_id=raw["id"], template=template["id"], label=UNNAMED_PRODUCT, scope="study", subject=study,
+                        criticality=str(raw.get("criticality", "")), applies="yes")
+            disposition = _disposition(dispositions, reader, study, raw["id"])
+            out[raw["id"]] = (RequirementStatus(**base, status=disposition.disposition, disposition=disposition.id)
+                              if disposition is not None else RequirementStatus(**base, status="missing"))
     return tuple(out.values())
 
 

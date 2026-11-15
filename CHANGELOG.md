@@ -16,6 +16,63 @@ Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: compl
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
 
+### Fixed — final review round 3, downstream and blinding follow-ups (OWN-8, owner-job gap 11, the words, round 2's risks, INT-2 the other way round, the blinding scope; plan 2026-11-14 §5) — science-adjacent
+- **OWN-8 (was PARTLY): Review & sign says nothing raw.** Under its list of checks it still printed the API's
+  "the model inputs are not ready: S0 completeness (MS-01 §2.2); formulations of solid studies; …". `StepBlocked` now
+  prints what the API said only where no list says it, and then in the step bar's words (`lib/words.ts`
+  `readinessText`); `PlanCanvas` routes every refusal of the inputs (not ready, not put together, changed, no CPF or no
+  study) to it, and says the same refusal in words where it reaches the open plan later (`GET /plan/review`, a change
+  to the plan, the signature). A check's other ways read as the step bar's: "(add a product on Products and
+  dissolution, or ask the client on To do)". The Run page passes no detail; no other page printed it.
+- **Owner-job gap 11 (was PARTLY): "ask the client" asks, and "add a product" is named.** With no product in the
+  delivery, the release model of a tablet study's product (REQ-form.release, judged per product) was asked nowhere, so
+  To do's "Ask the client" held nothing about it. `study_requirements.unnamed_product_items` (unlocked; the locked
+  templates are read, not changed) makes it the study's own line of the client request while nothing here can set a
+  release (no product of the delivery, no formulation in the model, no dissolution profile): "The formulation or
+  dissolution data of the product the study used (no file names the product) · OJ-101". "Add a product" (the
+  proposal's products on Products and dissolution) is named, with a link that opens its form focused
+  (`?tab=formulations&add=product`), by the step bar, Review & sign's line, To do's formulation row and the formulation
+  item; "ask the client" opens To do on the line that asks (`?tab=todo&at=…`, focused). Products no longer says "use a
+  product's dissolution profile as its release, above" under "Products named in the proposal · 0": it says what is
+  missing (no product, or no dissolution data) and offers to add the product.
+- **The words:** a product card's done line says the release is said "above"; "fu,inc" is one condition, not two, and
+  either piece alone is said whole (`bracketed`).
+- **Round 2's risks:** `GET /compounds/{c}/cpf` prefers the CPF Inputs assembled only once it holds a value (an empty one
+  answered 200 with no parameter where it answered 404, and the compound page showed an empty table). The formulation
+  item carries its problems as a list (`details`) and the page splits its message only before a problem's study
+  (`formulationParts`), so "formulation 'X' is of type 'Y'; the builder places …" is one problem, said by its rule.
+- **INT-2 the other way round:** once the sheet form loaded a study's joined data (read and confirmed) for one
+  purpose, setting or correcting its delivery card's intended use to another (`:enter`), or keeping another in a
+  disagreement between two (`:choose`), is refused (409 `PURPOSE_DIFFERS`, naming both; `intake_review.joined_purposes`);
+  the card's form shows the refusal in words. A reading not confirmed yet does not hold the card (`:confirm` refuses it
+  instead). The purpose words are one list (`intake_review.use_words`).
+- **The blinding scope:** a withheld file names the blinded studies it holds (`DocumentView.blinded_by`,
+  `DocumentPage.blinded_by`), so the Digitizer and the "Show the source" peek say why and that the whole file waits;
+  a library paper with one figure digitized for a study on the project's blinding list stays withheld whole (the
+  conservative choice; the alternative, only that figure's pages, is an owner's decision in plan §5). A delivery
+  study blinded by the project's list is matched on its whole name key, never a prefix ("Study 1" listed leaves
+  "Study 10" open), and its row, card and To do rows say why (`DeliverySubjectRow.blinded_why`,
+  `DeliverySubject.blinded_why`).
+- **Corrected notes:** round 2's entries below said Run and Review & sign "use the step bar's words" (Review & sign still
+  printed the raw text), that the page joins "fu", "inc" when it shows them (it did not), that the compound route
+  answers the assembled CPF "when it has one" (now: when it holds a value) and that "ask the client" was a second way
+  (it opened a list that did not ask); round 2's §5 notes on the file-level cost, the sheet form's purpose and links
+  opening only an area are completed there.
+- **Why:** round 2's skeptics found OWN-8 and gap 11 only partly fixed and these risks; the owner must be able to fill
+  what is missing and see why something is withheld.
+- **Impact:** API contract (additive): `DocumentView.blinded_by`, `DocumentPage.blinded_by`,
+  `DeliverySubjectRow.blinded_why`, `DeliverySubject.blinded_why`, a `details` list on the formulation item of
+  `GET /inputs`'s untyped `todo`, a new client-request line, 409 `PURPOSE_DIFFERS` on a delivery study's `:enter` and
+  `:choose` of `intended_use`; `docs/api/openapi.json` and `apps/web/lib/api-types.ts` regenerated. No ruleset,
+  template, registry, acceptance or locked file changes; the evidence grades of the split conditions are unchanged.
+- **Tests:** `test_study_requirements.py` (the ask and when it is not made), `test_delivery_api.py` (the client request
+  asks for a tablet study's product's release; the card refused another purpose than the data were loaded for, by
+  `:enter` and by `:choose`; the name match and its why; a withheld paper names its study and waits whole),
+  `test_plan_api.py` (the CPF route), `inputs-work.spec.ts` (the words, the ways forward, the gate in words, the
+  problems one by one, `NO_PRODUCT`, `blindedText`), e2e `inputs-owner-job` (the "ask the client" and "add a product"
+  links land on the ask and on the form; the whole Review & sign panel in words), `inputs-blinded` (the why on the card
+  and in the Digitizer). Software test data on the stub engine: none of it is PBPK evidence.
+
 ### Fixed — final review, round-1 remainders: blinding, the arm guard, link elsewhere (INT-3, INT-2 a and b, INT-4, INT-5, INT-1's over-masking, OWN-1; plan 2026-11-14 §5) — science-adjacent
 - **INT-3 (blocker): a blinded study's file is not drawn, served or suggested.** Round 1 withheld a blinded file's lines
   and masked its pages, but the Digitizer on the Studies area still listed the report and drew 230-25's whole
@@ -101,7 +158,8 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
     meets it. The data plan's template lists are read split at every comma, so the API flags "system (HLM",
     "hepatocytes", "rCYP)" and "fu", "inc" one by one and grades a source that states only its system "incomplete";
     reading them whole changes evidence grades and needs the template quoted (`core_small_molecule.yaml`, locked, SME):
-    for the owner, plan §5. The page joins the pieces only when it shows them.
+    for the owner, plan §5. The page joins the pieces only when it shows them. *(Round 3: it joined a bracket's pieces
+    but not "fu", "inc"; it does now.)*
 - **OWN-10 (major) and owner-e2e gap 11: a confirmed product says what is in the model, and a tablet study's missing
   formulation is never a dead end.** Confirming Test 10 mg said "confirmed, in the model" while the model held no
   formulation, and the empty "Formulations in the model" pointed back to confirming.
@@ -122,7 +180,8 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
     profile line beside the sheet form's drawing); the chart's own title is not repeated under the item that names it,
     and its conditions read by their labels ("Stirring (rpm) 50 · Volume (mL) 900"), not "rpm 50 · volume ml 900".
   - Gap 11: the step bar's "a tablet study has no formulation" (and every model check it lists) links to the area of
-    Inputs where it is done, with a second link "ask the client" to To do.
+    Inputs where it is done, with a second link "ask the client" to To do. *(Round 3: that To do asked nothing about the
+    formulation when no product came; it does now, and "add a product" is named.)*
 - **OWN-13 (major): the pages downstream of Inputs agree with it.** The Run page said "No observed data yet" while
   Inputs had a study in the model, its compound link said "No CPF", and Run and Review & sign listed "S0 completeness
   (MS-01 §2.2)" with no link and no relation to To do's count.
@@ -131,7 +190,7 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
     ("upload" | "inputs") says which (additive API change, OpenAPI and web types updated). The Run page lists both with
     where each comes from; its "Run campaign" (which stages uploads) still counts the uploads only.
   - `GET /compounds/{compound}/cpf` answers the CPF Inputs assembles for the project when it has one (the system of
-    record), else the stored one; the compound page names each parameter in words, the CPF's ids under "Technical
+    record; *round 3: once it holds a value*), else the stored one; the compound page names each parameter in words, the CPF's ids under "Technical
     detail".
   - Run and Review & sign ("Inputs is not finished") say each model check in the step bar's words, what to do, and link
     to the area of Inputs where it is done, and say how the checks stand to To do's count (items, not checks).
@@ -140,7 +199,8 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
   by CYP3A4 (CLspec)"), no CPF id line, "Log Units" not written; notices name parameters, not ids or evidence ids;
   "The formulation of the tablet studies" has no `form.*` line; reused values name their parameters; the spot check's
   "Why it is here" says its group in words ("picked at random among the concentrations of individual PK tables, those
-  written “BLQ”"), not the draw's key; Run and Review & sign use the step bar's words.
+  written “BLQ”"), not the draw's key; Run and Review & sign use the step bar's words (*round 3: Review & sign still
+  printed the API's raw text under its list; it does not now*).
 - **Tests:** `packages/project-model/tests/test_inputs_view.py` (the pathways, their units and processes, the `elim`
   item and rows, a value under a pathway meeting S0, `pksim_unit`, suggestions on a held template value; the empty rows
   now include the pathways), `services/api/tests/test_plan_api.py` (the Run page's studies and the compound's CPF from

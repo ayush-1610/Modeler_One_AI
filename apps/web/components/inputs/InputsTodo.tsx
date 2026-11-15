@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 import { send, type Envelope } from "@/lib/api";
-import { flagLines, formulationProblem, PARAM_LABEL, paramLabel, todoLabel, todoMessage, unitText } from "@/lib/words";
+import { ASK_FORMULATION, flagLines, formulationParts, formulationProblem, PARAM_LABEL, paramLabel, todoLabel, todoMessage, unitText } from "@/lib/words";
 
 export type Ev = {
   id: string; target: string; value: number | string | null; unit: string | null; value_pksim: number | null;
@@ -30,6 +30,8 @@ export type TodoItem = {
   tab?: string;
   /** an item about the data plan's "elim": the pathways a value for it is filed under (OWN-5) */
   pathways?: Pathway[];
+  /** the formulation item's problems one by one (the readiness check's own list; its message joins them with "; ") */
+  details?: string[];
 };
 export type Run = <T>(fn: () => Promise<Envelope<T>>, ok: string) => Promise<string | null>;
 
@@ -353,13 +355,15 @@ export function TodoAction({ t, projectId, run }: { t: TodoItem; projectId: stri
       {t.kind === "formulation" && (
         <>
           <ul className="m-2-0 fs-13" data-testid="formulation-problems">
-            {t.message.split("; ").map((m) => <li key={m}>{formulationProblem(m)}</li>)}
+            {formulationParts(t).map((m) => <li key={m}>{formulationProblem(m)}</li>)}
           </ul>
+          {/* the ways forward, each a link (round 3, owner-job gap 11): with no product here, adding one is the lever */}
           <p className="muted m-2-0 fs-13" data-testid="formulation-how">A formulation&apos;s release comes from a product&apos;s dissolution
             profile: &ldquo;Use this profile as the release&rdquo; on the product&apos;s card, on <a href="?tab=formulations">Products and
-            dissolution</a>. With no dissolution data here, add the product&apos;s dissolution file (Add data) or ask the client for it
-            (<a href="?tab=todo">To do</a>, &ldquo;Ask the client&rdquo;). A study wrongly read as a tablet or capsule is corrected on its
-            card on <a href="?tab=studies">Clinical studies</a>.</p>
+            dissolution</a>. With no product there, <a href={"?tab=formulations&add=product"} data-testid="formulation-add-product">add
+            the product the study used</a> (&ldquo;Add a product&rdquo;) and its dissolution file (Add data), or <a href={`?tab=todo&at=${ASK_FORMULATION}`}
+            data-testid="formulation-ask">ask the client for it</a> (To do, &ldquo;Ask the client&rdquo;). A study wrongly read as a tablet or
+            capsule is corrected on its card on <a href="?tab=studies">Clinical studies</a>.</p>
           {(t.items as Ev[]).map((e) => <Decide key={e.id} e={e} projectId={projectId} run={run} />)}
         </>
       )}

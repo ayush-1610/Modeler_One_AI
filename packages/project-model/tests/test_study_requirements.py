@@ -23,7 +23,13 @@ from modeler_project.ledger_models import Conflict, Entity, EntityRef, Fact, Pen
 from modeler_project.ledger_view import LedgerView
 from modeler_project.requirements import derive, load_templates
 from modeler_project.store import FileProjectStore
-from modeler_project.study_requirements import product_requirements, request_lines, requirement_status
+from modeler_project.study_requirements import (
+    UNNAMED_PRODUCT,
+    product_requirements,
+    request_lines,
+    requirement_status,
+    unnamed_product_items,
+)
 from modeler_project.workspace import Workspace
 
 pytestmark = pytest.mark.req("T-47", "T-42")
@@ -196,6 +202,36 @@ def test_a_per_product_item_keeps_its_at_id_and_judges_its_conditions(tmp_path):
     assert product_requirements(reader, tablet, brief=None, matrix=None,
                                 dispositions=[disposition(tablet, "REQ-vbe.rld_dissolution", "ask_client")]) \
         == product_requirements(reader, tablet, brief=None, matrix=None)       # no VBE application: no VBE item
+
+
+def test_a_tablet_study_with_no_product_asks_the_client_for_the_products_release(tmp_path):
+    """Round 3, owner-job gap 11: a per-product item is evaluated per product, so a tablet study whose delivery names no
+    product left the release model unasked. It is now the study's own line of the client request while nothing here
+    can set a release: no product of the delivery has values, the model holds no formulation and no dissolution
+    profile is here. A solution, a study with a product, a product anywhere in the delivery or a release that can be
+    set here asks nothing; a person's disposition answers it."""
+    book = Book(tmp_path)
+    tablet, solution = book.entity("study", "OJ-101"), book.entity("study", "OJ-102")
+    book.fact("route", "oral", {"study": tablet})
+    book.fact("formulation", "ir_tablet", {"study": tablet})
+    book.fact("route", "oral", {"study": solution})
+    book.fact("formulation", "solution", {"study": solution})
+    reader = Reader(book.ws)
+    (asked,) = unnamed_product_items(reader, tablet, brief=None, matrix=None, release_here=False)
+    assert (asked.req_id, asked.scope, asked.subject, asked.status, asked.label, asked.applies) == (
+        "REQ-form.release", "study", tablet, "missing", UNNAMED_PRODUCT, "yes")
+    (line,) = request_lines([asked], labels={tablet: "OJ-101"})
+    assert line.what == f"{UNNAMED_PRODUCT} — study OJ-101" and line.required and line.why == "the model itself"
+    assert line.sheet == SHEET_FOR_CATEGORY["dissolution"] and line.product is None
+    assert unnamed_product_items(reader, solution, brief=None, matrix=None, release_here=False) == ()
+    assert unnamed_product_items(reader, tablet, brief=None, matrix=None, release_here=True) == ()    # a release is set here
+    answered = unnamed_product_items(reader, tablet, brief=None, matrix=None, release_here=False,
+                                     dispositions=[disposition(tablet, "REQ-form.release", "literature")])
+    assert [(s.status, s.disposition) for s in answered] == [("literature", "dp-1")] and not request_lines(answered, labels={})
+    # a product in the delivery: its own card asks for its release (and its dissolution sets it), not the study
+    product = book.entity("product", TABLET)
+    book.fact("strength_mg", 50, {"product": product})
+    assert unnamed_product_items(Reader(book.ws), tablet, brief=None, matrix=None, release_here=False) == ()
 
 
 def test_project_scope_items_are_not_a_studys(tmp_path):

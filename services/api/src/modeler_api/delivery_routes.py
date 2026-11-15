@@ -66,7 +66,16 @@ from modeler_intake.mapping.validate import validate_spec
 from modeler_intake.mapping_spec import CellForm, Cite, Layout, MappingError, MappingSpec, Role, RowRule
 from modeler_intake.source import region_grid
 from modeler_intake.source_model import Finding, RegionGrid, SourceDocument
-from modeler_project import ArtifactKind, Workspace, intake_decisions, intake_files, intake_landing, intake_pipeline, link_carry
+from modeler_project import (
+    ArtifactKind,
+    Workspace,
+    blinding,
+    intake_decisions,
+    intake_files,
+    intake_landing,
+    intake_pipeline,
+    link_carry,
+)
 from modeler_project import intake_review as review
 from modeler_project.brief import ProjectBrief
 from modeler_project.client_data import ClientDataError
@@ -76,6 +85,7 @@ from modeler_project.coverage import _counts as outside_item_counts
 from modeler_project.coverage import _Places as places_of
 from modeler_project.coverage import outside_restore, person_acceptance, region_restore
 from modeler_project.datasets import HUMAN_POPULATIONS, DatasetError
+from modeler_project.dissolution_register import profiles as dissolution_profiles
 from modeler_project.documents import DocumentLibrary
 from modeler_project.evidence import EvidenceState
 from modeler_project.inputs import current_cpf, refresh_inputs
@@ -98,7 +108,13 @@ from modeler_project.ledger_models import EntityRef, ValueState
 from modeler_project.ledger_view import in_subject, is_compound_field
 from modeler_project.mapping_cache import MappingCache, mapping_id_of
 from modeler_project.requirements import RequirementMatrix
-from modeler_project.study_requirements import product_requirements, request_lines, requirement_status
+from modeler_project.study_requirements import (
+    formulations_held,
+    product_requirements,
+    request_lines,
+    requirement_status,
+    unnamed_product_items,
+)
 from modeler_project.study_routing import subject_values
 
 PREFIX = "/projects/{project_id}/delivery"
@@ -218,13 +234,15 @@ class _Scope:
         self.mol_weight = _mol_weight(ws)
         self._project, self._risk = project_record(ws), model_risk(ws)
         self.hidden: set[str] = set()
+        self.hidden_why: dict[str, str] = {}
         self.refresh()
 
     def refresh(self) -> None:
         """After a write: fold the ledger again, and read again which studies are blinded (an entered purpose, a
         landed dataset or a signed MAP changes it)."""
         self.reader.refresh()
-        self.hidden = review.blinded_subjects(self.ws, self._project, self._risk)
+        self.hidden_why = review.blinded_why(self.ws, self._project, self._risk)
+        self.hidden = set(self.hidden_why)
         self._names: dict[str, str] | None = None
         self._runs: dict[str, RunRecord] | None = None
         self._entries: dict[tuple[str, int], MappingEntry] | None = None
@@ -242,6 +260,15 @@ class _Scope:
     def blinded(self, subject_type: str, subject: str) -> bool:
         """Whether the subject is blinded now (ReviewError UNKNOWN for a subject that is not one of the project's)."""
         return review.is_blinded(self.reader, subject_type, subject, self.hidden)  # type: ignore[arg-type]
+
+    def blinded_why(self, subject_type: str, subject: str) -> str | None:
+        """Why the subject is blinded, in words (`intake_review.blinded_why`; a product or the compound: it holds a
+        blinded study's values), or None when it is not: the card says it, so a wrong match is seen (round 3)."""
+        if not self.blinded(subject_type, subject):
+            return None
+        if subject_type == "study":
+            return self.hidden_why.get(subject) or self.hidden_why.get(intake_landing.resolve_subject(self.reader, "study", subject))
+        return "it holds the values of a blinded study"
 
     def rows(self, values: Iterable[ValueState | None]) -> list[dict[str, Any]]:
         """Values as an answer shows them: the ONLY way a value leaves this module."""
@@ -707,9 +734,20 @@ def _empty_page(enabled: bool) -> dict[str, Any]:
 
 
 def _request_lines(scope: _Scope) -> list[dict[str, Any]]:
-    """One line of the client request per study or product item still to ask for (`study_requirements.request_lines`)."""
+    """One line of the client request per study or product item still to ask for (`study_requirements.request_lines`),
+    and for a solid oral study whose product no file names, while the model holds no formulation, the product's items
+    (`unnamed_product_items`: round 3, owner-job gap 11)."""
     reader = scope.reader
     dispositions = [RequirementDisposition.model_validate(e.body) for e in scope.store.review.entries("disposition")]
+    # a release is set without the client when the model holds a formulation or a dissolution profile is here to set one
+    # (read once, and only for a tablet study whose product no file names)
+    found: list[bool] = []
+
+    def release_here() -> bool:
+        if not found:
+            found.append(bool(formulations_held(current_cpf(scope.ws))) or bool(dissolution_profiles(scope.ws)))
+        return found[0]
+
     statuses: list[Any] = []
     labels: dict[str, str] = {}
     for study in reader.entities("study"):
@@ -717,6 +755,8 @@ def _request_lines(scope: _Scope) -> list[dict[str, Any]]:
             labels[study.id] = study.label
             statuses += requirement_status(reader, study.id, brief=scope.brief, matrix=scope.matrix,
                                            dispositions=dispositions).items
+            statuses += unnamed_product_items(reader, study.id, brief=scope.brief, matrix=scope.matrix,
+                                              release_here=release_here, dispositions=dispositions)
     for product in reader.entities("product"):
         if reader.values(product=product.id):
             labels[product.id] = product.label
@@ -761,7 +801,8 @@ def _page(scope: _Scope) -> dict[str, Any]:
         children = arms.get(row["subject"], [])
         subjects.append({**row, "arms": children if row["subject_type"] == "study" else [],
                          "batches": children if row["subject_type"] == "product" else [],
-                         "blinded": scope.blinded(row["subject_type"], row["subject"])})
+                         "blinded": scope.blinded(row["subject_type"], row["subject"]),
+                         "blinded_why": scope.blinded_why(row["subject_type"], row["subject"])})
     running = jobs.running(ws.store, ws.tenant_id, ws.project_id, "intake") or intake_pipeline.unfinished(ws)
     unassigned = review.unassigned(ws, reader=reader)
     return {"enabled": True, "running": running, "agents": agent_jobs.agents_status("A4"), "deliveries": deliveries,
@@ -1022,6 +1063,7 @@ def _subject_view(scope: _Scope, subject_type: str, subject: str, *, signature: 
     used = {(v.mapping.mapping_id, v.mapping.version) for v in values if v.mapping is not None}
     view = {
         "subject_type": subject_type, "subject": subject, "label": card.label, "blinded": blinded,
+        "blinded_why": scope.blinded_why(subject_type, subject),
         "confirm_on": review.confirm_on(ws, values), "values": card.values,
         "loaded_elsewhere": [d.id for d in elsewhere if d.state is EvidenceState.ACCEPTED],
         "proposed_elsewhere": [d.id for d in elsewhere if d.state is not EvidenceState.ACCEPTED],
@@ -1168,8 +1210,12 @@ def choose_value(project_id: str, subject_type: SubjectType, subject: str, body:
         subject = _subject_id(subject_type, subject)
         check_id("conflict", body.conflict_id)
         keep = _value_id(body.keep)
-        if body.conflict_id not in {c.id for c in scope.card(subject_type, subject).conflicts}:
+        card = scope.card(subject_type, subject)
+        if body.conflict_id not in {c.id for c in card.conflicts}:
             raise _refused(404, "UNKNOWN", f"no open conflict {body.conflict_id} on this subject's card")
+        kept = scope.reader.value(keep)
+        if subject_type == "study" and kept is not None and kept.field == "intended_use":
+            _purpose_loaded(scope, card.subject, kept.value)   # keeping a purpose is setting it: as `:enter` (round 3, INT-2)
         review.choose(scope.ws, conflict_id=body.conflict_id, keep=keep, why=body.why, by=principal.user_id)
         return _decided(scope, subject_type, subject)
 
@@ -1225,6 +1271,26 @@ def _individual_choice(subject_type: str, field: str | None, value: Any) -> None
         raise _refused(422, "NOT_ALLOWED", f"{value!r} is not one of PK-Sim's names for it ({names})")
 
 
+def _purpose_loaded(scope: _Scope, subject: str, value: Any) -> None:
+    """The card's intended use is set only to what the sheet form loaded the study's joined data for (round 3, INT-2 the
+    other way round: `client-review:finish`, `:confirm` and `:map` refuse to load a study for another purpose than its
+    card says; here the card is refused another purpose than the data were loaded for): 409 PURPOSE_DIFFERS naming both.
+    A value cleared (None) says no purpose and is not refused."""
+    if value is None or not str(value).strip():
+        return
+    use = read_choice("intended_use", str(value)) or str(value)
+    label = scope.label(subject) or subject
+    for study_id, purpose in review.joined_purposes(scope.ws, subject, reader=scope.reader):
+        if purpose != use:
+            other = blinding.study_key(study_id) != blinding.study_key(label)
+            said = f"study {label}" + (f" (read by the sheet form as study {study_id})" if other else "")
+            raise _refused(409, "PURPOSE_DIFFERS", (
+                f"{said} is in the model for {review.use_words(purpose)}, confirmed with the sheet form, and its card would say "
+                f"{review.use_words(use)}: a study is loaded only for what its card says. Keep the card at "
+                f"{review.use_words(purpose)}, or take the sheet form's data of it out of the model first (its datasets, on "
+                f"Clinical studies), with a reason"))
+
+
 def enter_value(project_id: str, subject_type: SubjectType, subject: str, body: DeliveryEntry, principal: Writer,
                 store: StoreDep) -> dict[str, Any]:
     """A person's entry or correction of a value of the subject, with the reason (method "person": no source, the
@@ -1241,6 +1307,8 @@ def enter_value(project_id: str, subject_type: SubjectType, subject: str, body: 
         if subject_type == "compound" and (field is None or not is_compound_field(field)):
             raise _refused(422, "INVALID", f"{field!r} is not a compound-level field")
         _individual_choice(subject_type, field, body.value)
+        if subject_type == "study" and field == "intended_use":
+            _purpose_loaded(scope, subject, body.value)     # 409 PURPOSE_DIFFERS: what the sheet form loaded it for
         parts: dict[str, Any] = {role: text for role, text in body.labels.items() if text.strip()}
         if body.analyte is not None:
             parts["analyte"] = _entity_of(scope, body.analyte, "analyte")

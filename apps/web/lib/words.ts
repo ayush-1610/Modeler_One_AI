@@ -32,11 +32,19 @@ const spaced = (text: string) => text.replace(/_/g, " ");
 
 // --- the model checks (the readiness report) and the step bar's line ---------------------------------------------------
 
+/** Where To do's "Ask the client" lists the release of a tablet study's product (the client request's line for the
+ *  data plan's REQ-form.release: `study_requirements.unnamed_product_items` when no product is here). */
+export const ASK_FORMULATION = "todo-ask-REQ-form.release";
+/** Another way to settle a check than its area: what the link says, the area it opens and what it opens there
+ *  (`query`, added to the area's URL: `add=product` opens the form that adds a product, `at=<place>` brings a place of
+ *  the area into view). */
+export type Way = { say: string; area: Tab; query?: string };
 /** A readiness check in words, keyed by its raw name without the reference in brackets ("S0 completeness (MS-01
  *  §2.2)" is keyed "S0 completeness"); `waiting` says what is open in a few words, `fix` what a person does and where,
  *  `area` the area of Inputs where that is done (a link from the step bar, Run and Review & sign: final review OWN-13),
- *  and `or` a second way, with its own area (gap 11: a tablet study with no product is not a dead end). */
-const CHECKS: Record<string, { label: string; waiting: string; fix: string; area: Tab; or?: { say: string; area: Tab } }> = {
+ *  `add` the form that adds what is missing and `or` a second way, each with its own area (gap 11: a tablet study with
+ *  no product is not a dead end; round 3: "add a product" is named, and "ask the client" opens the line that asks). */
+const CHECKS: Record<string, { label: string; waiting: string; fix: string; area: Tab; add?: Way; or?: Way }> = {
   "assembly": { label: "Inputs put together", waiting: "the inputs could not be put together",
                 fix: "Put together from every source; a problem names its source.", area: "todo" },
   "S0 completeness": { label: "Minimum compound data", waiting: "compound values missing",
@@ -46,8 +54,9 @@ const CHECKS: Record<string, { label: string; waiting: string; fix: string; area
   "expression profiles": { label: "Enzyme and transporter expression", waiting: "enzyme or transporter expression missing",
                            fix: "Set on Populations and individuals.", area: "individuals" },
   "formulations of solid studies": { label: "A formulation for each tablet study", waiting: "a tablet study has no formulation",
-                                     fix: "Use a product's dissolution profile as its release on Products and dissolution, or ask the client for the dissolution data.",
-                                     area: "formulations", or: { say: "ask the client", area: "todo" } },
+                                     fix: "On Products and dissolution, use a product's dissolution profile as its release. With no product there, add the product the study used (“Add a product”) and its dissolution data, or ask the client for them.",
+                                     area: "formulations", add: { say: "add a product", area: "formulations", query: "add=product" },
+                                     or: { say: "ask the client", area: "todo", query: `at=${ASK_FORMULATION}` } },
   "multiple-dose regimens": { label: "Dosing of multiple-dose studies", waiting: "the dosing of a multiple-dose study is missing",
                               fix: "Fill it in on its study, on Clinical studies.", area: "studies" },
   "demographics stated": { label: "Demographics of confirmed studies", waiting: "the demographics of a study are missing",
@@ -71,14 +80,33 @@ export function checkLabel(raw: string, detail: string[] = [], ok = true): strin
 export const checkFix = (raw: string) => CHECKS[checkKey(raw)]?.fix ?? "";
 /** A reason the step bar gives for Inputs (a raw check name, or the step's own sentence), in plain words. */
 export const stepReason = (raw: string) => CHECKS[checkKey(raw)]?.waiting ?? raw;
-/** Where on Inputs a reason the step bar gives is settled (`?tab=`), and the second way where there is one: null for a
- *  reason that is not a model check (the step's own sentence). */
-export function stepWhere(raw: string): { area: Tab; name: string; fix: string; or?: { say: string; area: Tab; name: string } } | null {
+/** Why the plan cannot read the inputs yet (`modeler_project.inputs.inputs_ready`, the plan route's 409), in words: each
+ *  failing check in the step bar's words, never its raw name or its reference (final review round 3, OWN-8: Review &
+ *  sign printed "S0 completeness (MS-01 §2.2); formulations of solid studies; …" under the list that names them). */
+export function readinessText(raw: string): string {
+  const text = raw.trim();
+  const failing = /^the model inputs are not ready: (.+)$/i.exec(text);
+  if (failing) {
+    const said = failing[1].split("; ").map((c) => CHECKS[checkKey(c)]?.waiting ?? spaced(checkKey(c)));
+    return `The model inputs are not ready: ${said.join("; ")}.`;
+  }
+  if (/^the model inputs are not assembled yet$/i.test(text)) return "The model inputs have not been put together yet: Inputs puts them together when it opens.";
+  if (/^the model inputs changed since they were checked/i.test(text)) return "The model inputs changed since they were last checked: Inputs checks them again when it opens.";
+  if (/^the inputs have no CPF or no study$/i.test(text)) return "The inputs hold no compound values or no study yet.";
+  return text;
+}
+/** Where on Inputs a reason the step bar gives is settled (`?tab=`), the form that adds what is missing and the second
+ *  way where there are: null for a reason that is not a model check (the step's own sentence). */
+export function stepWhere(raw: string): { area: Tab; name: string; fix: string; add?: Way & { name: string }; or?: Way & { name: string } } | null {
   const known = CHECKS[checkKey(raw)];
   if (!known) return null;
   return { area: known.area, name: AREA_NAME[known.area], fix: known.fix,
+           ...(known.add ? { add: { ...known.add, name: AREA_NAME[known.add.area] } } : {}),
            ...(known.or ? { or: { ...known.or, name: AREA_NAME[known.or.area] } } : {}) };
 }
+/** The URL of an area of Inputs, or of another way to settle a check there (`?tab=<area>&<query>`). */
+export const inputsHref = (projectId: string, way: Pick<Way, "area" | "query">) =>
+  `/projects/${encodeURIComponent(projectId)}/inputs?tab=${way.area}${way.query ? `&${way.query}` : ""}`;
 
 // --- the compound's and the studies' open items (the /inputs to-do) ----------------------------------------------------
 
@@ -146,8 +174,24 @@ export function formulationLine(name: string, values: Record<string, { value: un
   return parts.join(" · ");
 }
 
+/** Why a file is withheld until the plan is signed (D-15), from the blinded studies whose values it holds
+ *  (`DocumentView.blinded_by`): it waits whole, its other figures and pages too, as the delivery's rule withholds a file
+ *  (round 3: a paper one figure of which was digitized for a blinded study waits with the rest; the owner's decision). */
+export function withheldWhy(studies: string[]): string {
+  const held = studies.length ? `the values of ${studies.length === 1 ? "study" : "studies"} ${studies.join(", ")}` : "the values of a blinded study";
+  return `it holds ${held}, blinded until the plan is signed, and the whole file waits until then, its other figures and pages too`;
+}
+
 /** A unit as a person writes it: PK-Sim's "Log Units" of a lipophilicity is a log ratio, written without a unit. */
 export const unitText = (unit: string | null | undefined) => (!unit || unit === "Log Units" ? "" : unit);
+
+/** The problems of the formulation item one by one: its own list (`details`, the readiness check's), else its message
+ *  split between problems only, never inside one: each problem starts with its study ("CL-01: …"), and a problem may
+ *  itself hold "; " ("formulation 'X' is of type 'Y'; the builder places Weibull, …": round 3, the skeptic's risk). */
+export function formulationParts(t: { message: string; details?: unknown }): string[] {
+  if (Array.isArray(t.details) && t.details.every((d) => typeof d === "string")) return t.details as string[];
+  return t.message.split(/; (?=[^;:\s][^;:]*: )/).map((p) => p.trim()).filter(Boolean);
+}
 
 /** Why a solid study has no formulation the model can use (the readiness check "formulations of solid studies", from
  *  `pbpk_domain.cpf.formulations`), in words: "CL-01: a tablet or capsule study, and the model holds no formulation". */
@@ -192,22 +236,29 @@ export function todoMessage(kind: string, message: string): string {
 
 // --- why a value waits for a check (an evidence item's flags, modeler_project.evidence) -----------------------------
 
+/** The conditions a template writes with a comma and no bracket, one condition each: "fu,inc" (the fraction unbound in
+ *  the incubation; `core_small_molecule.yaml` REQ-elim.clint, `app_ddi.yaml`), which the split gives as "fu" · "inc". */
+const COMMA_CONDITIONS: [string, string][] = [["fu", "inc"]];
 /** A list of conditions as its template writes it: the data plan's template list is read split at every comma, so
- *  "system (HLM, hepatocytes, rCYP)" arrives as "system (HLM" · "hepatocytes" · "rCYP)"; the pieces of one bracket are
- *  one condition again. A piece whose bracket is not among the pieces given (the source stated another piece of it) is
- *  closed or opened on its own: "system (HLM)", "rCYP", never a stray bracket. */
+ *  "system (HLM, hepatocytes, rCYP)" arrives as "system (HLM" · "hepatocytes" · "rCYP)" and "fu,inc" as "fu" · "inc";
+ *  the pieces of one bracket, or of one such condition, are one condition again. A piece whose bracket is not among the
+ *  pieces given (the source stated another piece of it) is closed or opened on its own: "system (HLM)", "rCYP", never a
+ *  stray bracket; a piece of "fu,inc" alone ("fu" would read as the plasma's fraction unbound, "inc" as nothing) is said
+ *  as the whole condition. */
 export function bracketed(parts: string[]): string[] {
   const out: string[] = [];
   let depth = 0;
-  for (const part of parts) {
-    if (depth > 0 && out.length) out[out.length - 1] = `${out[out.length - 1]}, ${part.trim()}`;
-    else out.push(part.trim());
+  for (const raw of parts) {
+    const part = raw.trim();
+    const whole = COMMA_CONDITIONS.find((pair) => pair.includes(part));
+    if (depth > 0 && out.length) out[out.length - 1] = `${out[out.length - 1]}, ${part}`;
+    else out.push(whole ? whole.join(",") : part);
     depth = Math.max(0, depth + (part.match(/\(/g)?.length ?? 0) - (part.match(/\)/g)?.length ?? 0));
   }
-  return out.map((c) => {
+  return [...new Set(out.map((c) => {
     const open = c.match(/\(/g)?.length ?? 0, shut = c.match(/\)/g)?.length ?? 0;
     return open > shut ? `${c})` : shut > open ? c.replace(/\)\s*$/, "") : c;
-  });
+  }))];
 }
 const CONDITION = "condition_missing: ";
 /** One flag in a person's words (no engine codes, no ids). */

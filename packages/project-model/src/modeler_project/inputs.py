@@ -886,7 +886,10 @@ def todo(ws: Workspace) -> list[dict[str, Any]]:
     formulations = checks.get("formulations of solid studies")
     if formulations and not formulations["ok"]:
         proposed = [evidence_view(e) for e in evidence.values() if e.target.startswith("form.") and included(e)]
-        out.append({"kind": "formulation", "target": "form.*", "message": "; ".join(formulations["detail"]), "items": proposed})
+        # its problems one by one as well (`details`): a problem may itself hold "; " (a formulation of a type the builder
+        # does not place says which it places), so the page never splits the message
+        out.append({"kind": "formulation", "target": "form.*", "message": "; ".join(formulations["detail"]),
+                    "details": list(formulations["detail"]), "items": proposed})
     build = checks.get("every planned simulation builds (software)")
     if build and not build["ok"] and not out:
         out.append({"kind": "check", "target": "build", "message": "; ".join(build["detail"]), "items": []})

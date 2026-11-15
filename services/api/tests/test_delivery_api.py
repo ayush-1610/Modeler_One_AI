@@ -3257,3 +3257,151 @@ def test_the_sheet_form_loads_a_study_only_for_what_its_delivery_card_says_it_is
     taken = q.post("client-review:finish", {**sheet, "answers": abc})
     assert taken.status_code == 200, taken.text
     assert {d.purpose for d in all_datasets(q.ws) if d.study.get("study_id") == "abc-REF"} == {"external_validation"}
+
+
+@pytest.mark.req("T-47", "F-402", "F-404")
+def test_the_card_says_for_what_only_what_the_sheet_form_loaded_its_data_for(project):
+    """Round 3, INT-2 the other way round (the remainders skeptic's probe): once the sheet form loaded a study's data for
+    model building (read and confirmed), its delivery card cannot be set to external validation: 409 PURPOSE_DIFFERS
+    naming both, nothing entered, the card unchanged. The same purpose is entered; a reading not confirmed yet (still
+    proposed) does not hold the card, as `client-review:confirm` refuses it instead."""
+    p = project()
+    workbook = synthetic.messy_workbook()
+    p.deliver(workbook)
+    sid = client_data.submission_id(_sha(workbook.data))
+    answers = {"n": 6, "route": "oral", "formulation": "ir_tablet", "food_state": "fed", "dose": 100, "purpose": "model_building"}
+    assert p.post("client-review:finish", {"file": sid, "sheet": "Fed", "answers": answers}).status_code == 200
+    assert p.post("client-review:confirm", {"group": "study:231-24"}).status_code == 200
+    (loaded,) = [d for d in all_datasets(p.ws) if d.study.get("study_id") == "231-24"]
+    assert (loaded.purpose, loaded.state) == ("model_building", EvidenceState.ACCEPTED)
+    path = p.subject("231-24")
+    before = len(LedgerView(p.ws).values(field="intended_use"))
+    refused = p.post(f"{path}:enter", {"field": "intended_use", "value": "external_validation", "why": "the plan keeps it for validation"})
+    assert refused.status_code == 409 and refused.json()["detail"]["code"] == "PURPOSE_DIFFERS", refused.text
+    message = refused.json()["detail"]["message"]
+    assert "study 231-24 is in the model for model building, confirmed with the sheet form" in message
+    assert "its card would say external validation" in message
+    assert len(LedgerView(p.ws).values(field="intended_use")) == before and p.card(path)["blinded"] is False
+    # what it was loaded for is entered; a correction of it to another purpose is refused the same way
+    agreed = p.post(f"{path}:enter", {"field": "intended_use", "value": "model_building", "why": "as loaded"})
+    assert agreed.status_code == 200, agreed.text
+    (entered,) = [v for v in LedgerView(p.ws).values(field="intended_use") if v.method == "person"]
+    again = p.post(f"{path}:enter", {"supersedes": entered.id, "value": "external_validation", "why": "changed my mind"})
+    assert again.status_code == 409 and again.json()["detail"]["code"] == "PURPOSE_DIFFERS", again.text
+    # another study of the delivery, its data not loaded by the sheet form, takes any purpose
+    assert p.post(f"{p.subject('230-23')}:enter", {"field": "intended_use", "value": "external_validation",
+                                                   "why": "kept for validation"}).status_code == 200
+
+    # settling a disagreement on the purpose is setting it: keeping another purpose is refused the same way
+    other = p.post(f"{path}:enter", {"field": "intended_use", "value": "supportive", "why": "a second reading"})
+    assert other.status_code == 409 and other.json()["detail"]["code"] == "PURPOSE_DIFFERS"
+
+
+@pytest.mark.req("T-47", "F-402", "F-404")
+def test_keeping_another_purpose_in_a_disagreement_is_refused_once_the_sheet_form_loaded_the_study(project):
+    """Round 3, INT-2 the other way round: two purposes entered on a study's card disagree; once the sheet form loaded its
+    data for one of them, keeping the other (`:choose`) is refused (409 PURPOSE_DIFFERS) and the disagreement stays
+    open; keeping the one its data were loaded for settles it."""
+    p = project()
+    workbook = synthetic.messy_workbook()
+    p.deliver(workbook)
+    path = p.subject("231-24")
+    for use in ("model_building", "external_validation"):
+        entered = p.post(f"{path}:enter", {"field": "intended_use", "value": use, "why": "two readings of the protocol"})
+        assert entered.status_code == 200, entered.text
+    (conflict,) = [c for c in p.card(path)["conflicts"] if c["field"] == "intended_use"]
+    sid = client_data.submission_id(_sha(workbook.data))
+    answers = {"n": 6, "route": "oral", "formulation": "ir_tablet", "food_state": "fed", "dose": 100, "purpose": "model_building"}
+    assert p.post("client-review:finish", {"file": sid, "sheet": "Fed", "answers": answers}).status_code == 200
+    assert p.post("client-review:confirm", {"group": "study:231-24"}).status_code == 200
+    by_use = {str(LedgerView(p.ws).value(i).value): i for i in conflict["values"]}
+    refused = p.post(f"{path}:choose", {"conflict_id": conflict["id"], "keep": by_use["external_validation"], "why": "validation"})
+    assert refused.status_code == 409 and refused.json()["detail"]["code"] == "PURPOSE_DIFFERS", refused.text
+    assert [c["id"] for c in p.card(path)["conflicts"] if c["field"] == "intended_use"] == [conflict["id"]]
+    kept = p.post(f"{path}:choose", {"conflict_id": conflict["id"], "keep": by_use["model_building"], "why": "as loaded"})
+    assert kept.status_code == 200, kept.text
+    assert not [c for c in kept.json()["data"]["conflicts"] if c["field"] == "intended_use"]
+
+def _named_studies(p: Project, *names: str) -> dict[str, str]:
+    """One delivered arm workbook per name, its values linked to a new study of that name; label -> subject id."""
+    books = {name: _arm_workbook(arm, period=False) for name, arm in zip(names, ("Reference", "Test", "Extra"), strict=False)}
+    p.deliver(*((f"{name.replace(' ', '-').lower()}.xlsx", data) for name, data in books.items()))
+    for name, data in books.items():
+        mine = [v for v in p.page()["unassigned"] if v["file_sha256"] == _sha(data)]
+        linked = p.post("delivery/values:assign", {"targets": _all_targets(mine), "new_study": name, "why": "the file's own title"})
+        assert linked.status_code == 200, linked.text
+    return {s["label"]: s["subject"] for s in p.page()["subjects"] if s["subject_type"] == "study"}
+
+
+@pytest.mark.req("T-47", "F-402")
+def test_the_projects_list_blinds_a_delivery_study_of_its_name_only_whole_and_the_card_says_why(project):
+    """Round 3 (the remainders skeptic's side effect 3): a delivery study is blinded by the project's blinding list when
+    its name is a listed study's, matched whole on the readers' key (case, spaces and punctuation aside), never as a
+    prefix or a part: with "Study 1" listed, "Study 10" stays open. The page's row and the card say why, so a wrong
+    match is seen; a study entered for external validation on its card says that instead."""
+    p = project(blinding=True)
+    ids = _named_studies(p, "Study 1", "Study 10")
+    assert set(ids) == {"Study 1", "Study 10"}
+    listed = ObservedDataset(id="ds-0a1b2c3d4e", kind="profile", origin=Origin.LITERATURE, purpose="external_validation",
+                             study={"study_id": "STUDY-1", "n": 4, "route": "oral", "dose_mg": 50.0, "formulation": "ir_tablet",
+                                    "food_state": "fasted", "n_timepoints": 3},
+                             series=(Series(times=(1.0, 2.0, 4.0), values=(3.0, 4.0, 2.0), n=4),))
+    propose_dataset(p.ws, listed, actor="u1")
+    rows = {s["label"]: s for s in p.page()["subjects"]}
+    assert rows["Study 1"]["blinded"] is True
+    assert rows["Study 1"]["blinded_why"] == "the project's blinding list names it (study STUDY-1)"
+    assert (rows["Study 10"]["blinded"], rows["Study 10"]["blinded_why"]) == (False, None)
+    card = p.card(f"delivery/subjects/study/{ids['Study 1']}")
+    assert card["blinded"] is True and card["blinded_why"] == "the project's blinding list names it (study STUDY-1)"
+    assert p.card(f"delivery/subjects/study/{ids['Study 10']}")["blinded_why"] is None
+    # the rule itself: the whole key, never a prefix or a part
+    why = review.blinded_why(p.ws, {"blinding": {"on": True}}, None)
+    assert set(why) == {ids["Study 1"]}
+    # entered for external validation on its card: said so
+    assert p.post(f"delivery/subjects/study/{ids['Study 10']}:enter", {"field": "intended_use", "value": "external_validation",
+                                                                       "why": "kept for validation"}).status_code == 200
+    row = next(s for s in p.page()["subjects"] if s["label"] == "Study 10")
+    assert (row["blinded"], row["blinded_why"]) == (True, "it is entered for external validation on its card")
+
+
+@pytest.mark.req("T-47", "F-402")
+def test_a_withheld_paper_names_the_blinded_study_it_is_withheld_for_and_waits_whole(project):
+    """Round 3 (the remainders skeptic's side effect 1): a library paper one figure of which was digitized for a study on
+    the project's blinding list is withheld whole (its original, its other figures, the digits of every page), as the
+    delivery's rule withholds a file; the documents' list and its pages name the study it waits for (`blinded_by`), so
+    the Digitizer and the source peek say why. Before, and for another paper, nothing is withheld or named."""
+    p = project(blinding=True)
+    pdf = synthetic.pdf_report(unruled_table=False)
+    added = p.client.post(f"{p.api}/documents", headers=_auth("t"), data={"role": "paper"},
+                          files=[("files", ("paper.pdf", pdf.data, "application/pdf"))])
+    assert added.status_code == 201, added.text
+    paper = added.json()["data"]["documents"][0]["sha256"]
+    assert added.json()["data"]["documents"][0]["blinded_by"] == []
+    digitized = ObservedDataset(id="ds-5f6e7d8c9b", kind="profile", origin=Origin.LITERATURE, extraction="FIGURE_DIGITIZED",
+                                purpose="external_validation", source=SourceRef(doc_sha256=paper, page=2, title="paper.pdf"),
+                                study={"study_id": "EXA-301", "n": 6, "route": "oral", "dose_mg": 50.0, "formulation": "ir_tablet",
+                                       "food_state": "fasted", "n_timepoints": 3},
+                                series=(Series(times=(1.0, 2.0, 4.0), values=(3.0, 4.0, 2.0), n=6),))
+    propose_dataset(p.ws, digitized, actor="u1")
+    shown = {d["sha256"]: d for d in p.get("documents").json()["data"]["documents"]}
+    assert (shown[paper]["blinded"], shown[paper]["blinded_by"]) == (True, ["EXA-301"])
+    for number in (1, 2):                                   # every page, not only the figure's
+        page = p.get(f"documents/{paper}/pages/{number}").json()["data"]
+        assert page["blinded"] is True and page["blinded_by"] == ["EXA-301"] and not any(ch.isdigit() for ch in page["text"])
+    assert p.get(f"documents/{paper}/raw").status_code == 409
+
+
+@pytest.mark.req("T-47", "T-42")
+def test_a_tablet_study_whose_delivery_names_no_product_asks_the_client_for_its_products_release(project):
+    """Round 3, owner-job gap 11: the client request (To do's "Ask the client") asks for the formulation or dissolution
+    of the product a tablet study used when the delivery names no product and nothing here can set a release; a
+    solution study asks nothing of it."""
+    from modeler_project.study_requirements import UNNAMED_PRODUCT
+
+    p = project()
+    ids = _named_studies(p, "OJ-1", "OJ-2")
+    for name, form in (("OJ-1", "ir_tablet"), ("OJ-2", "solution")):
+        entered = p.post(f"delivery/subjects/study/{ids[name]}:enter", {"field": "formulation", "value": form, "why": "the protocol"})
+        assert entered.status_code == 200, entered.text
+    asked = [(line["req_id"], line["what"], line["required"]) for line in p.page()["request"] if line["req_id"] == "REQ-form.release"]
+    assert asked == [("REQ-form.release", f"{UNNAMED_PRODUCT} — study OJ-1", True)]

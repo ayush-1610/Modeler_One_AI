@@ -10,15 +10,16 @@ import { join } from "node:path";
 import { expect, test } from "@playwright/test";
 
 import {
-  NEW, NO_TARGET, aboutText, analyteChoice, analyteChoices, areaHead, assignBody, buildWork, collisions, columnSummary, destinationKey,
+  NEW, NO_PRODUCT, NO_TARGET, aboutText, blindedText, analyteChoice, analyteChoices, areaHead, assignBody, buildWork, collisions, columnSummary, destinationKey,
   formulationsHeld, heldBy, inModel, layoutRows, linkPlaces, linkRows, linkTarget, linkWords, linkedPiece, looseGroups, markedText, nextText,
   noLayoutReads, noSampleCells, normLabel, notReadRows, onDelivery, oneCheck, pairsMeet, prefixAlias, releaseAnchor, releaseOf, seriesKey,
   targetProblem, type WorkSources,
 } from "../lib/inputsWork";
 import {
-  alreadyDecidedText, bracketed, checkLabel, constantText, drawText, escapePattern, flagLines, formulationLine, formulationProblem, heldText,
-  individualNeeds, individualText, layoutFieldText, layoutFindingText, paramLabel, patternWords, placeText, rowRuleText, rowsLeftOut,
-  spotGroupText, stepReason, stepWhere, todoMessage, unitText, unreadWhy,
+  ASK_FORMULATION, alreadyDecidedText, bracketed, checkLabel, constantText, drawText, escapePattern, flagLines, formulationLine,
+  formulationParts, formulationProblem, heldText, individualNeeds, individualText, inputsHref, layoutFieldText, layoutFindingText, paramLabel,
+  patternWords, placeText, readinessText, rowRuleText, rowsLeftOut, spotGroupText, stepReason, stepWhere, todoMessage, unitText, unreadWhy,
+  withheldWhy,
 } from "../lib/words";
 
 const load = (name: string): WorkSources => JSON.parse(readFileSync(join(__dirname, "fixtures", "inputs-work", `${name}.json`), "utf8"));
@@ -632,17 +633,29 @@ test("a confirmed product says whether its release is set; a tablet study's miss
   none.inputs!.todo.push({ kind: "formulation", target: "form.*", tab: "formulations",
                            message: "CL-1: the study is a solid oral form but the CPF defines no formulation (form.{name}.type)" });
   expect(buildWork(none).items.find((i) => i.id === "todo:formulation:form.*")!.where).toEqual({ tab: "formulations", anchor: "todo-formulation-form.*" });
+  // and, no product of the client's being here, it names the lever: add the product, or ask the client (round 3, gap 11)
+  expect(buildWork(none).items.find((i) => i.id === "todo:formulation:form.*")!.detail).toBe(NO_PRODUCT);
+  expect(NO_PRODUCT).toContain("“Add a product”");
+  const products = copy(load("exampleamide"));                         // products here: the lever is theirs, not "add one"
+  products.inputs!.todo.push({ kind: "formulation", target: "form.*", tab: "formulations",
+                               message: "CL-01: the study is a solid oral form but the CPF defines no formulation (form.{name}.type)" });
+  expect(buildWork(products).items.find((i) => i.id === "todo:formulation:form.*")!.detail).not.toBe(NO_PRODUCT);
 });
 
 test("a value's flags, its parameter and a formulation in a person's words, never the engine's codes or ids (OWN-5, OWN-8)", () => {
   // the template's condition list arrives split at every comma: one bracket is one condition again, never a stray bracket
-  expect(bracketed(["system (HLM", "hepatocytes", "rCYP)", "fu", "inc"])).toEqual(["system (HLM, hepatocytes, rCYP)", "fu", "inc"]);
+  // and "fu,inc" (one condition, written with a comma and no bracket) is one again; either piece alone is said whole
+  expect(bracketed(["system (HLM", "hepatocytes", "rCYP)", "fu", "inc"])).toEqual(["system (HLM, hepatocytes, rCYP)", "fu,inc"]);
+  expect(bracketed(["protein or cell concentration", "inc", "scaling factors"])).toEqual(["protein or cell concentration", "fu,inc", "scaling factors"]);
+  expect(bracketed(["fu", "scaling factors"])).toEqual(["fu,inc", "scaling factors"]);
+  expect(bracketed(["system", "inc", "fu", "probe substrate"])).toEqual(["system", "fu,inc", "probe substrate"]);
   expect(bracketed(["hepatocytes", "rCYP)"])).toEqual(["hepatocytes", "rCYP"]);
   expect(bracketed(["system (HLM"])).toEqual(["system (HLM)"]);
   const lines = flagLines(["needs_conversion: no storage unit known for elim; enter the PK-Sim value by hand", "condition_missing: system (HLM",
                            "condition_missing: hepatocytes", "condition_missing: rCYP)", "condition_missing: inc", "value_not_in_quote"]);
   expect(lines).toEqual(["Filed under no elimination pathway: choose the pathway it belongs to",
-                         "The source does not state: system (HLM, hepatocytes, rCYP); inc", "The value is not in the quoted sentence"]);
+                         "The source does not state: system (HLM, hepatocytes, rCYP); fu,inc", "The value is not in the quoted sentence"]);
+  expect(flagLines(["condition_missing: fu", "condition_missing: inc"])).toEqual(["The source does not state: fu,inc"]);
   expect(flagLines(["refiled: from elim; a new name can change what the number means, so a person confirms the converted value",
                     "needs_conversion: an absolute clearance needs the body weight to become ml/min/kg"]))
     .toEqual(["Filed under a new parameter (it was filed as an elimination pathway): check the converted value before you accept it",
@@ -681,6 +694,45 @@ test("a value's flags, its parameter and a formulation in a person's words, neve
   expect(stepWhere("formulations of solid studies")).toMatchObject({ area: "formulations", name: "Products and dissolution",
                                                                      or: { say: "ask the client", area: "todo" } });
   expect(stepWhere("Review the plan, then approve and sign the MAP")).toBeNull();
+});
+
+test("round 3: the ways forward from a tablet study's missing formulation, the gate in words, the problems one by one", () => {
+  // the step bar, Run and Review & sign name "add a product" (its form opens) and "ask the client" (its line is shown)
+  const at = stepWhere("formulations of solid studies")!;
+  expect(at.fix).toContain("“Add a product”");
+  expect(at.add).toEqual({ say: "add a product", area: "formulations", query: "add=product", name: "Products and dissolution" });
+  expect(at.or).toEqual({ say: "ask the client", area: "todo", query: `at=${ASK_FORMULATION}`, name: "To do" });
+  expect(inputsHref("p 1", at)).toBe("/projects/p%201/inputs?tab=formulations");
+  expect(inputsHref("p1", at.add!)).toBe("/projects/p1/inputs?tab=formulations&add=product");
+  expect(inputsHref("p1", at.or!)).toBe("/projects/p1/inputs?tab=todo&at=todo-ask-REQ-form.release");
+  // the plan's refusal is said in the step bar's words: no check's raw name, no reference
+  const said = readinessText("the model inputs are not ready: S0 completeness (MS-01 §2.2); formulations of solid studies; "
+                             + "demographics stated (D-29); every planned simulation builds (software)");
+  expect(said).toBe("The model inputs are not ready: compound values missing; a tablet study has no formulation; the demographics of a "
+                    + "study are missing; the model can't be built yet.");
+  for (const raw of ["MS-01", "§", "S0 completeness", "formulations of solid studies", "demographics stated", "every planned simulation builds"]) {
+    expect(said).not.toContain(raw);
+  }
+  expect(readinessText("the model inputs are not assembled yet")).not.toContain("assembled");
+  expect(readinessText("the model inputs changed since they were checked: assemble them again")).not.toContain("assemble them");
+  // a problem that holds "; " itself is one problem, said by its own rule; two problems are two
+  const typed = "OJ-101: formulation 'Test 10 mg' is of type 'Table'; the builder places Weibull, Dissolved, Particles, ParticleBins";
+  const none = "OJ-102: the study is a solid oral form but the CPF defines no formulation (form.{name}.type)";
+  expect(formulationParts({ message: typed })).toEqual([typed]);
+  expect(formulationParts({ message: `${typed}; ${none}` })).toEqual([typed, none]);
+  expect(formulationParts({ message: "ignored", details: [typed, none] })).toEqual([typed, none]);
+  expect(formulationProblem(formulationParts({ message: typed })[0]))
+    .toBe("OJ-101: formulation “Test 10 mg” is a Table release, which the model cannot build yet");
+  // a withheld file names the blinded study it waits for, and that it waits whole (a paper with one blinded figure too)
+  expect(withheldWhy(["EXA-301"])).toBe("it holds the values of study EXA-301, blinded until the plan is signed, and the whole file "
+                                        + "waits until then, its other figures and pages too");
+  expect(withheldWhy(["230-25", "231-24"])).toContain("the values of studies 230-25, 231-24");
+  expect(withheldWhy([])).toContain("the values of a blinded study");
+  // a blinded delivery study's To do row says why too, so a wrong match of names is seen
+  const listed = { row: { blinded_why: "the project's blinding list names it (study STUDY-1)" } } as unknown as Parameters<typeof blindedText>[0];
+  expect(blindedText(listed, ": it is confirmed afterwards."))
+    .toBe("Blinded until the plan is signed, because the project's blinding list names it (study STUDY-1): it is confirmed afterwards.");
+  expect(blindedText({ row: null }, ".")).toBe("Blinded until the plan is signed.");
 });
 
 // --- the final review's gate, layouts and To do fixes (plan §5 "Final review fixes: the gate, layouts and To do") --------

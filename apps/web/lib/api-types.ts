@@ -1159,7 +1159,10 @@ export interface paths {
         /**
          * Get Compound Cpf
          * @description The compound's CPF: the one Inputs assembles for the project (the system of record every simulation of a pipeline
-         *     project is regenerated from; final review OWN-13), else the one stored for the campaign path.
+         *     project is regenerated from; final review OWN-13) once it holds a value, else the one stored for the campaign path,
+         *     else 404 (the page then says the values are filled in on Inputs). An assembled CPF that holds no value yet is not
+         *     answered in place of the stored one, nor as an empty table (round 3: a project whose inputs had assembled nothing
+         *     answered 200 with no parameter where it answered 404).
          */
         get: operations["get_compound_cpf_api_v1_projects__project_id__compounds__compound__cpf_get"];
         /** Put Cpf */
@@ -6029,6 +6032,8 @@ export interface components {
         DeliverySubject: {
             /** Blinded */
             blinded: boolean;
+            /** Blinded Why */
+            blinded_why: string | null;
             /** Blockers */
             blockers: components["schemas"]["DeliveryBlocker"][];
             /** By Level */
@@ -6097,6 +6102,8 @@ export interface components {
             batches: components["schemas"]["DeliveryEntity"][];
             /** Blinded */
             blinded: boolean;
+            /** Blinded Why */
+            blinded_why: string | null;
             /** By Level */
             by_level: {
                 [key: string]: number;
@@ -6593,6 +6600,8 @@ export interface components {
         DocumentPage: {
             /** Blinded */
             blinded: boolean;
+            /** Blinded By */
+            blinded_by: string[];
             /** N Pages */
             n_pages: number;
             /** Name */
@@ -6608,6 +6617,8 @@ export interface components {
         DocumentView: {
             /** Blinded */
             blinded: boolean;
+            /** Blinded By */
+            blinded_by: string[];
             /** Id */
             id: string;
             /** Kind */
