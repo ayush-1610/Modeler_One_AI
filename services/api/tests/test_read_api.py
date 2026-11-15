@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import json
+import tempfile
 
 from fastapi.testclient import TestClient
 
 from modeler_api.auth import AuthError, get_verifier
+from modeler_api.deps import get_project_store
 from modeler_api.main import app
 from modeler_api.read_api import FileReadStore, get_read_store, project_cpf_view
+from modeler_project import FileProjectStore
 from pbpk_domain.cpf import CPF, ParameterRecord, ParameterStatus, Provenance
 from pbpk_domain.cpf.models import FitPolicy
 
@@ -76,6 +79,9 @@ class FakeStore:
 def client_with(claims_dict, store=None) -> TestClient:
     app.dependency_overrides[get_verifier] = lambda: FakeVerifier(claims_dict)
     app.dependency_overrides[get_read_store] = lambda: store or FakeStore()
+    # no project here has a workspace: the CPF and the studies are the read store's (the campaign path)
+    projects = FileProjectStore(tempfile.mkdtemp())
+    app.dependency_overrides[get_project_store] = lambda: projects
     return TestClient(app)
 
 

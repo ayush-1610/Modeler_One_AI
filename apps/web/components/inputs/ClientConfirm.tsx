@@ -239,7 +239,8 @@ export function GroupCard({ projectId, group, run, mode = "confirm", alsoOnDeliv
               </div>
               {i.kind === "draft" && !read ? <DraftItem projectId={projectId} item={i} run={run} /> : drawn ? <>
                 {i.data && <DatasetView data={i.data} label={`${group.title}: ${itemLabel(i.label, i.target)}`} />}
-                {i.release && <ReleaseView p={i.release as Profile} />}
+                {/* its name is the item's line just above: not said again over the chart */}
+                {i.release && <ReleaseView p={i.release as Profile} title="" />}
               </> : (i.data || i.release) && <p className="muted m-0 fs-12">Drawn above, on the card.</p>}
             </li>
           ))}
@@ -256,7 +257,9 @@ export function GroupCard({ projectId, group, run, mode = "confirm", alsoOnDeliv
       )}
       {confirmed && (
         <p className="m-0 fs-13" data-testid={`group-confirmed-${group.id}`}>
-          Confirmed by {group.confirmed_by ?? "a person"}{group.confirmed_at ? ` on ${whenText(group.confirmed_at)}` : ""}: in the model.
+          Confirmed by {group.confirmed_by ?? "a person"}{group.confirmed_at ? ` on ${whenText(group.confirmed_at)}` : ""}
+          {group.kind === "product" ? ": its data are in the model; its dissolution sets a formulation's release only once used as the release."
+            : ": in the model."}
         </p>
       )}
       {!confirmed && !read && group.kind !== "sheet" && (
@@ -272,7 +275,9 @@ export function GroupCard({ projectId, group, run, mode = "confirm", alsoOnDeliv
           <button type="button" className="btn primary" disabled={group.open > 0} data-testid={`confirm-${group.id}`}
                   onClick={() => void run(() => send("post", "/api/v1/projects/{project_id}/client-review:confirm",
                                                      { project_id: projectId }, { group: group.id }),
-                                          `${group.title}: confirmed, in the model.`)}>
+                                          group.kind === "product"
+                                            ? `${group.title}: confirmed. Its dissolution profile is kept; the formulation's release is set with “Use this profile as the release” on its card.`
+                                            : `${group.title}: confirmed, in the model.`)}>
             Confirm {name}
           </button>
         </footer>

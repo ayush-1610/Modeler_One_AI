@@ -25,6 +25,7 @@ from modeler_project.inputs import (
     choices,
     cpf_assembly,
     current_cpf,
+    elimination_pathways,
     evidence_view,
     placement,
     tab_of,
@@ -99,6 +100,11 @@ def compound_rows(ws: Workspace, todo: list[dict[str, Any]], *, empty: bool = Fa
         for cpf_id in sorted(MODEL_IDS - present):
             if _requirement_of(matrix, cpf_id) is not None:
                 rows[cpf_id] = _row(cpf_id, "empty", matrix)
+        # the elimination pathways the builder places with one value (OWN-5): a row to fill each, with the unit its value
+        # is stored in, so a pathway can be given on Compound as on To do (they are process parameters, not model ids)
+        for pathway in elimination_pathways():
+            if pathway["id"] not in present and _requirement_of(matrix, pathway["id"]) is not None:
+                rows[pathway["id"]] = _row(pathway["id"], "empty", matrix, unit=pathway["unit"])
     return [rows[k] for k in sorted(rows)]
 
 

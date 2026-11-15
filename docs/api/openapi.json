@@ -563,6 +563,17 @@
             "title": "Id",
             "type": "string"
           },
+          "pksim_unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pksim Unit"
+          },
           "proposed_by": {
             "title": "Proposed By",
             "type": "string"
@@ -673,6 +684,7 @@
           "extraction",
           "proposed_by",
           "decided_by",
+          "pksim_unit",
           "relation",
           "differs_pct"
         ],
@@ -13752,6 +13764,17 @@
             "title": "Id",
             "type": "string"
           },
+          "pksim_unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pksim Unit"
+          },
           "proposed_by": {
             "title": "Proposed By",
             "type": "string"
@@ -13852,7 +13875,8 @@
           "quote",
           "extraction",
           "proposed_by",
-          "decided_by"
+          "decided_by",
+          "pksim_unit"
         ],
         "title": "EvidenceView",
         "type": "object"
@@ -26774,6 +26798,15 @@
             "title": "Solver",
             "type": "object"
           },
+          "source": {
+            "default": "upload",
+            "enum": [
+              "upload",
+              "inputs"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
           "special_population": {
             "anyOf": [
               {
@@ -33057,6 +33090,7 @@
     },
     "/api/v1/projects/{project_id}/compounds/{compound}/cpf": {
       "get": {
+        "description": "The compound's CPF: the one Inputs assembles for the project (the system of record every simulation of a pipeline\nproject is regenerated from; final review OWN-13), else the one stored for the campaign path.",
         "operationId": "get_compound_cpf_api_v1_projects__project_id__compounds__compound__cpf_get",
         "parameters": [
           {
@@ -39081,7 +39115,7 @@
     },
     "/api/v1/projects/{project_id}/studies": {
       "get": {
-        "description": "The observed clinical studies uploaded for this project (what the campaign fits and validates against).",
+        "description": "The observed clinical studies of this project (what a campaign fits and validates against): those uploaded for the\ncampaign path, then the studies of the catalog Inputs assembles (what a signed plan stages; final review OWN-13: the\nRun page listed none while Inputs had a study in the model), each once, an upload first.",
         "operationId": "list_studies_api_v1_projects__project_id__studies_get",
         "parameters": [
           {

@@ -62,8 +62,9 @@ export const viaSheet = (s: Subject) => s.path === "delivery" && s.groups.some((
 /** The card's one status word: Done once confirmed; else the most pressing of its open items (Missing, then To decide),
  *  else To confirm. */
 export function cardStatus(s: Subject, work: WorkModel): Status {
-  if (s.done) return "done";
   const open = work.items.filter((i) => i.open && i.subjects.includes(s.key) && !i.id.startsWith("confirm:"));
+  // confirmed, with work of the model's still open on it (a product whose release a tablet study needs: OWN-10)
+  if (s.done) return open.some((i) => i.status === "to_decide") ? "to_decide" : "done";
   return open.some((i) => i.status === "missing") ? "missing" : open.some((i) => i.status === "to_decide") ? "to_decide" : "to_confirm";
 }
 
@@ -152,7 +153,10 @@ function InModel({ subject, onShow }: { subject: Subject; onShow?: () => void })
   const datasets = g ? g.items.filter((i) => i.data).length : 0;
   return (
     <p className="card-loaded" data-testid={`card-loaded-${subject.key}`}>
-      <StatusChip status="done" /> {who}. In the model{datasets ? `: ${plural(datasets, "dataset")}` : ""}
+      <StatusChip status="done" /> {who}.{" "}
+      {/* a product's data are its dissolution: its release is said on its own line (OWN-10) */}
+      {subject.kind === "product" ? "Its data are in the model; whether they set a formulation's release is said below"
+        : `In the model${datasets ? `: ${plural(datasets, "dataset")}` : ""}`}
       {c?.landed ? " (what was loaded and held back is under Confirm and sign)" : ""}.{" "}
       {onShow && <button type="button" className="link-btn" onClick={onShow} data-testid={`card-in-model-${subject.key}`}>Show it in the model</button>}
     </p>

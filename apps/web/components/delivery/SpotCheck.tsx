@@ -9,6 +9,7 @@
 import { Fragment, useState } from "react";
 
 import { send, type Schema } from "@/lib/api";
+import { spotGroupText } from "@/lib/words";
 
 import { Problem, TUPLE_HEADS, TupleCells, fieldText, num, plural, timeText, useDecide, valueText, type Subject } from "./shared";
 import { ValueSource } from "./ValueSource";
@@ -33,9 +34,9 @@ function reasonText(reason: string | null): string {
   if (!reason) return "";
   if (REASON[reason]) return REASON[reason];
   if (reason.startsWith("always:")) return `always checked: ${reason.slice(7).replace(/_/g, " ")}`;
-  // a sampled value names the group it was sampled from ("table_kind=excretion|unit_class=other|..."): its parts, in words
-  const group = reason.split("|").map((part) => part.split("=")).filter(([, x]) => x).map(([k, x]) => `${k.replace(/_/g, " ")} ${x}`);
-  return `sampled from its group${group.length ? ` (${group.join(", ")})` : ""}`;
+  // a sampled value names the group it was sampled from ("table_kind=excretion|unit_class=other|..."): said in words
+  // (final review OWN-8), never as the draw's own key
+  return spotGroupText(reason);
 }
 
 const STATE: Record<Subject["spot_check"]["state"], string> = {

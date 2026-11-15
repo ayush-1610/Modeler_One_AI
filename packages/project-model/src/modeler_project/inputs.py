@@ -680,6 +680,44 @@ PATHWAY_TARGETS = ("elim.fe_urine", "elim.fm.<enzyme>", "elim.renal.gfr_fraction
 _MW_IN_RECORD = re.compile(r'"MolecularWeight"\s*:\s*"?(\d+(?:\.\d+)?)"?')
 
 
+def elimination_pathways() -> list[dict[str, Any]]:
+    """The elimination pathways a person gives one value for, in place of the data plan's "elim" placeholder (final
+    review OWN-5): the concrete targets above that meet the S0 gate's elimination requirement (registry `s0`), are
+    carried by the one harvested PK-Sim process their id fixes (`binding_candidates`) and have a storage unit a stated
+    unit converts to (registry `storage`). Each with that unit (None: dimensionless) and the harvested process and
+    parameter that take it. A pathway named by an enzyme (CLspec, CLint, Km and Vmax) needs the enzyme and often a choice
+    of process type, so it is filed by correcting a value (`_suggestions`), not here; nothing is listed that the builder
+    would not place."""
+    out = []
+    for target in PATHWAY_TARGETS:
+        if "<" in target or any(r.requirement == "elim" for r in parameters.unmet_s0([target])):
+            continue
+        candidates = binding_candidates(target)
+        family = parameters.storage_family(target)
+        if len(candidates) != 1 or family is False:
+            continue
+        out.append({"id": target, "unit": family if isinstance(family, str) and family != "fraction" else None,
+                    "process": candidates[0].process, "parameter": candidates[0].parameter})
+    return out
+
+
+def pksim_unit(target: str) -> str | None:
+    """The unit a value of `target` is held in for PK-Sim, for a person who types it there by hand when the unit stated
+    cannot be converted ("an absolute clearance needs the body weight"): the registry's storage unit ("" for a
+    dimensionless value or a fraction), else the unit of the harvested PK-Sim process parameter that carries it (one
+    unit, whichever process type is chosen). None when nothing names one: a placeholder or a template (it is filed under
+    a concrete parameter first), or an id the model does not place."""
+    if target in PLACEHOLDERS or "{" in target or "<" in target or placement(target) is None:
+        return None
+    family = parameters.storage_family(target)
+    if family is None or family == "fraction":
+        return ""
+    if isinstance(family, str):
+        return family
+    units = {c.unit or "" for c in binding_candidates(target)}
+    return units.pop() if len(units) == 1 else None
+
+
 def evidence_view(item: EvidenceItem) -> dict[str, Any]:
     """An evidence item as the to-do list shows it: the value in both units, where it comes from, how it was graded,
     and who supplied and who last decided it (an agent run, a person, or the system reading a file)."""
@@ -691,7 +729,7 @@ def evidence_view(item: EvidenceItem) -> dict[str, Any]:
             "source": {"title": s.title, "authors": s.authors, "year": s.year, "doi": s.doi, "page": s.page,
                        "locator": s.locator, "doc_sha256": s.doc_sha256, "url": s.url, "pmid": s.pmid},
             "quote": item.quote[:300], "extraction": item.extraction.value, "proposed_by": item.proposed_by,
-            "decided_by": item.decided_by}
+            "decided_by": item.decided_by, "pksim_unit": pksim_unit(item.target)}
 
 
 def _suggestions(target: str) -> dict[str, Any]:
@@ -805,8 +843,13 @@ def todo(ws: Workspace) -> list[dict[str, Any]]:
     settled_by_issue: set[str] = set()
     for issue in cpf_version.content["assembly"].get("issues", []):
         entry = {**issue, "items": [evidence_view(evidence[i]) for i in issue["evidence"] if i in evidence]}
-        if issue["kind"] == "correct":
-            entry["suggestions"] = _suggestions(issue["target"])
+        # a value held under a kind of parameter (an enzyme's clearance, no enzyme named) or a name the model does not take
+        # cannot be checked as it is: like a value to correct, its item names the parameters it may be filed under (the
+        # data plan's "elim" names its pathways, below)
+        target = issue["target"]
+        unplaced = "<" in target or "{" in target or (target not in PLACEHOLDERS and placement(target) is None)
+        if issue["kind"] == "correct" or (issue["kind"] == "review" and unplaced):
+            entry["suggestions"] = _suggestions(target)
         out.append(entry)
         # an open issue on a parameter (or on any elimination pathway) is what settles its S0 gap: not listed twice
         settled_by_issue.update({issue["target"], "elim"} if issue["target"].startswith("elim") else {issue["target"]})
@@ -856,4 +899,8 @@ def todo(ws: Workspace) -> list[dict[str, Any]]:
                                f"from the client's files wait for you: settle {waiting}confirm the group"
                     if waiting else f"{group['title']}: {len(group['items'])} item{'s' if len(group['items']) != 1 else ''} "
                                     "from the client's files wait for your confirmation"})
-    return [{**entry, "tab": entry.get("tab") or _KIND_TAB.get(entry["kind"]) or tab_of(entry["target"])} for entry in out]
+    # an item about the data plan's "elim" placeholder names the pathways a value for it is filed under (OWN-5), so the
+    # page asks for the pathway first and never takes a value for the placeholder itself
+    pathways = elimination_pathways()
+    return [{**entry, "tab": entry.get("tab") or _KIND_TAB.get(entry["kind"]) or tab_of(entry["target"]),
+             **({"pathways": pathways} if entry["target"] == "elim" else {})} for entry in out]

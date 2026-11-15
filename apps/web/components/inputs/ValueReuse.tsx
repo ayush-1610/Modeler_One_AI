@@ -6,6 +6,7 @@
 
 import { send } from "@/lib/api";
 import { useResource } from "@/lib/hooks";
+import { idWords } from "@/lib/words";
 
 import type { Run } from "./InputsTodo";
 
@@ -22,7 +23,7 @@ export function ValueReuse({ projectId, run }: { projectId: string; run: Run }) 
         {list.map((o) => (
           <li key={o.project_id} data-testid={`reuse-${o.project_id}`}>
             <strong>{o.name}</strong>: {o.values} value{o.values === 1 ? "" : "s"}
-            <span className="muted"> ({o.what.slice(0, 4).join(", ")}{o.what.length > 4 ? ", …" : ""})</span>{" "}
+            <span className="muted"> ({o.what.slice(0, 4).map(idWords).join(", ")}{o.what.length > 4 ? ", …" : ""})</span>{" "}
             <button type="button" className="btn small" data-testid={`reuse-use-${o.project_id}`}
                     onClick={() => void run(() => send("post", "/api/v1/projects/{project_id}/value-reuse",
                                                        { project_id: projectId }, { project_id: o.project_id }),

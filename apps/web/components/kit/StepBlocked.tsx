@@ -2,6 +2,8 @@
 
 // A step that cannot open yet says why and where to go (the 2026-11-11 audit, item 2). It reads the project's steps and
 // lists what the earlier step still waits on, each in words, with one way forward, instead of an error on an empty page.
+// What Inputs waits on are the model's checks: each is said in the step bar's words (lib/words.ts), with what to do and a
+// link to the area of Inputs where it is done, and how they stand to the count of Inputs' To do (final review OWN-13).
 
 import Link from "next/link";
 import type { ReactNode } from "react";
@@ -9,8 +11,10 @@ import type { ReactNode } from "react";
 import { useResource } from "@/lib/hooks";
 import { STEP_ROUTES, type StepId } from "@/lib/pipeline";
 import { plain } from "@/lib/plain";
+import { stepReason, stepWhere } from "@/lib/words";
 
 const ORDER: StepId[] = ["start", "inputs", "review", "run"];
+const capital = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 export function StepBlocked({ projectId, step, title, detail, fallback, testId }: {
   projectId: string;
@@ -34,7 +38,26 @@ export function StepBlocked({ projectId, step, title, detail, fallback, testId }
           <p className="muted">{waiting.label} is not finished.{" "}
             {waiting.reasons.length ? `${waiting.reasons.length} ${waiting.reasons.length === 1 ? "thing still needs" : "things still need"} you there:`
               : "It has not been worked on yet."}</p>
-          {waiting.reasons.length > 0 && <ul>{waiting.reasons.map((r) => <li key={r}>{r}</li>)}</ul>}
+          {waiting.reasons.length > 0 && (
+            <ul data-testid="step-blocked-reasons">
+              {waiting.reasons.map((r) => {
+                const at = waiting.step === "inputs" ? stepWhere(r) : null;
+                const href = (area: string) => `${STEP_ROUTES.inputs(projectId)}?tab=${area}`;
+                return (
+                  <li key={r} data-testid={at ? `step-blocked-check-${at.area}` : undefined}>
+                    {at ? <><Link href={href(at.area)}>{capital(stepReason(r))}</Link>: {at.fix}
+                      {at.or && <> (<Link href={href(at.or.area)}>{at.or.say}</Link>, on {at.or.name})</>}</>
+                      : capital(stepReason(r))}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          {waiting.step === "inputs" && waiting.reasons.some((r) => stepWhere(r)) && (
+            <p className="muted fs-13" data-testid="step-blocked-todo">These are the model&apos;s checks. Inputs&apos; To do lists the items
+              behind them one by one (one check can stand for several items), and the client&apos;s data still to confirm, so its count is
+              of items, not of checks.</p>
+          )}
           <Link className="btn primary" href={STEP_ROUTES[waiting.step](projectId)} data-testid="step-blocked-go">
             Go to {waiting.label}
           </Link>

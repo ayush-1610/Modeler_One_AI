@@ -259,18 +259,35 @@ test("the compound values no source gives: entered together with one citation", 
   await mv.getByTestId("mv-quote-phys.mw").fill("a molecular weight of 263.4 g/mol");
   await mv.getByTestId("mv-value-phys.logp").fill("2.3");
   await mv.getByTestId("mv-quote-phys.logp").fill("log P 2.3");
+  // the minimum elimination pathway (final review OWN-5): its pathway is asked first, never a value for the placeholder
+  await expect(mv.getByTestId("missing-missing-elim")).toHaveText("An elimination pathway");
+  await mv.getByTestId("mv-value-elim").fill("3.2");
+  await mv.getByTestId("mv-quote-elim").fill("a hepatic plasma clearance of 3.2 mL/min/kg");
+  await mv.getByTestId("mv-submit").click();
+  await expect(mv.getByRole("alert")).toHaveText("Choose the elimination pathway the value is for");
+  const pathway = mv.getByTestId("mv-pathway-elim");
+  await expect(pathway.locator("option")).toHaveText(["choose the pathway…", "GFR fraction (renal filtration) (no unit)",
+                                                      "Hepatic plasma clearance (total) (ml/min/kg)"]);
+  await pathway.selectOption("elim.hepatic.total.plasma_clearance");
+  await expect(mv.getByTestId("mv-unit-elim")).toHaveValue("ml/min/kg");      // the unit the model stores it in
   await mv.getByTestId("mv-submit").click();
   await expect(mv.getByRole("alert")).toHaveText("Give the source's DOI or URL, or call it an assumption");
   await mv.getByTestId("mv-title").fill("Exampleamide physico-chemistry");
   await mv.getByTestId("mv-link").fill("10.1000/exampleamide");
-  let posts = 0;
-  page.on("request", (r) => { if (r.method() === "POST" && /\/evidence$/.test(r.url())) posts += 1; });
+  const posted: string[] = [];
+  page.on("request", (r) => { if (r.method() === "POST" && /\/evidence$/.test(r.url())) posted.push(String(r.postDataJSON()?.target)); });
   await mv.getByTestId("mv-submit").click();
-  await expect(page.getByTestId("todo-live")).toContainText("Molecular weight, Lipophilicity: 2 values added with “Exampleamide physico-chemistry”.");
+  const live = page.getByTestId("todo-live");
+  await expect(live).toContainText("3 values added with “Exampleamide physico-chemistry”.");
+  for (const name of ["Molecular weight", "Lipophilicity", "Hepatic plasma clearance (total)"]) await expect(live).toContainText(name);
   await expect(mv.getByTestId("mv-row-phys.mw")).toHaveCount(0);
-  expect(posts).toBe(2);
-  const rows = (await read<{ compound: { id: string; state: string }[] }>(request, "inputs")).compound;
-  for (const id of ["phys.mw", "phys.logp"]) expect(rows.find((r) => r.id === id)!.state).not.toBe("missing");
+  await expect(mv.getByTestId("mv-row-elim")).toHaveCount(0);
+  expect(posted.sort()).toEqual(["elim.hepatic.total.plasma_clearance", "phys.logp", "phys.mw"]);
+  const inputs = await read<{ compound: { id: string; state: string }[]; todo: { kind: string; target: string }[] }>(request, "inputs");
+  for (const id of ["phys.mw", "phys.logp"]) expect(inputs.compound.find((r) => r.id === id)!.state).not.toBe("missing");
+  // the pathway's value is in the model, and the minimum elimination pathway is no longer missing
+  expect(inputs.compound.find((r) => r.id === "elim.hepatic.total.plasma_clearance")!.state).toBe("kept");
+  expect(inputs.todo.some((t) => t.target === "elim")).toBe(false);
 });
 
 test("the layouts' queue: walked at their versions, approved and on to the next; the 'not data' readings approved together", async ({ page, request }) => {

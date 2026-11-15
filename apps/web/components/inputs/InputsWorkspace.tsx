@@ -13,9 +13,9 @@ import { TabPanel, Tabs } from "@/components/kit/Tabs";
 import { narrow, send, type Envelope, type Narrow, type Schema } from "@/lib/api";
 import { TAG_LABELS } from "@/lib/fileTags";
 import { useMutation, useRefresh, useResource } from "@/lib/hooks";
-import { areaHead, cardAnchor, nextText, type Subject, type WorkItem } from "@/lib/inputsWork";
+import { areaHead, cardAnchor, type InputsLike, nextText, releaseOf, type Subject, type WorkItem } from "@/lib/inputsWork";
 import { type ArtifactView, STEP_ROUTES } from "@/lib/pipeline";
-import { AREA_NAME, STATUS_MEANS, plural as count } from "@/lib/words";
+import { AREA_NAME, STATUS_MEANS, plural as count, valueWord } from "@/lib/words";
 
 import { AddDataMenu } from "./AddDataMenu";
 import { SheetGroups } from "./ClientConfirm";
@@ -336,7 +336,7 @@ export function InputsWorkspace({ projectId, initialTab, initialOnly, initialSta
     const group = item.issue?.group ?? (w.anchor?.startsWith("group-") ? w.anchor.slice("group-".length) : undefined);
     const card = w.tab !== "files" && w.tab !== "todo"
       ? model.subjects.find((s) => (w.subject && s.row && `${s.row.subject_type}/${s.row.subject}` === w.subject) || (group && s.groups.some((g) => g.id === group))
-                                   || (item.id.startsWith("confirm:") && item.subjects[0] === s.key))
+                                   || ((item.id.startsWith("confirm:") || item.todo?.kind === "formulation") && item.subjects[0] === s.key))
       : undefined;
     if (card) {
       setCardsOpen((was) => ({ ...was, [card.key]: true }));
@@ -519,7 +519,7 @@ export function InputsWorkspace({ projectId, initialTab, initialOnly, initialSta
                 <ProductCard key={s.key} subject={s} env={env} open={cardOpen(s, opens(products, s))}
                              onToggle={() => toggleCard(s, opens(products, s))}
                              profiles={profilesOf(s)} comparisons={dissolution?.comparisons ?? []} label={profileLabel}
-                             problems={dissolution?.problems ?? []} />
+                             problems={dissolution?.problems ?? []} release={releaseOf(s, view as unknown as InputsLike)} />
               ))}
             </section>
           )}
@@ -546,10 +546,10 @@ export function InputsWorkspace({ projectId, initialTab, initialOnly, initialSta
                 <tbody>
                   {used.filter((s) => SOLID.includes(String(s.facts.formulation)) && (!only || !s.facts.formulation_name)).map((s) => (
                     <tr key={s.study_id} data-testid={`formulation-${s.study_id}`}>
-                      <td><strong>{s.study_id}</strong> <span className="muted">{String(s.facts.formulation).replace("_", " ")}</span></td>
+                      <td><strong>{s.study_id}</strong> <span className="muted">{valueWord(String(s.facts.formulation))}</span></td>
                       <td>{s.facts.formulation_name ? String(s.facts.formulation_name)
                         : formulations.length ? <FormulationChoice study={s.study_id} options={formulations} projectId={projectId} run={run} />
-                          : <span className="muted">no formulation in the model yet</span>}</td>
+                          : <span className="muted">no formulation in the model yet: use a product&apos;s dissolution profile as its release, above</span>}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -557,9 +557,13 @@ export function InputsWorkspace({ projectId, initialTab, initialOnly, initialSta
             </section>
           )}
           <h3 className="area-section-title">Formulations in the model</h3>
+          {/* a formulation is in the model once a product's dissolution profile is used as its release (OWN-10): said here */}
           <InputRows rows={listed("formulations")} todo={panelTodo("formulations")} projectId={projectId} run={run}
+                     emptyTitle={only ? "Nothing else needs you here" : "No formulation in the model yet"}
                      empty={only ? "Nothing else on Products and dissolution needs you now."
-                       : "No formulation in the model yet. Confirm a product's dissolution above, or choose a release model; a solution needs none."} />
+                       : <>A formulation&apos;s release comes from a dissolution profile: on a product&apos;s card above, &ldquo;Use this profile
+                         as the release&rdquo;. Confirming a product keeps its dissolution, but does not set the release. A solution needs
+                         none.</>} />
         </TabPanel>
       )}
 

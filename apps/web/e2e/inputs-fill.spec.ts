@@ -323,4 +323,26 @@ test("compound inputs no source gives yet are filled from their rows, each in th
   await neutral.getByTestId("add-phys.pka.neutral").getByRole("button", { name: "Add", exact: true }).click();
   await expect.poll(async () => (await row("phys.pka.neutral"))?.state).toBe("kept");
   await expect(page.getByTestId("record-phys.pka.neutral").locator(".input-value")).toHaveText("neutral");
+
+  // --- the minimum elimination pathway (final review OWN-5): its row asks for the pathway first, with the unit the
+  // value is stored in, and files the value under that pathway, never under the placeholder; each pathway has its row ---
+  const elimination = page.getByTestId("block-Elimination, by process");
+  const elim = elimination.getByTestId("record-elim");
+  await expect(elim).toContainText("An elimination pathway");
+  await expect(elim).not.toContainText("elim.");
+  await elim.getByTestId("add-open-elim").click();
+  const add = elim.getByTestId("add-elim");
+  await expect(add.getByRole("button", { name: "Add", exact: true })).toBeDisabled();
+  await add.getByTestId("pathway-for-elim").selectOption("elim.renal.gfr_fraction");
+  await add.getByLabel("value for elim").fill("1");
+  await add.getByLabel("link for elim").fill("10.1/renal");
+  await add.getByLabel("quote for elim").fill("filtered at the glomerular filtration rate (GFR fraction 1)");
+  let target = "";
+  page.on("request", (r) => { if (r.method() === "POST" && /\/evidence$/.test(r.url())) target = String(r.postDataJSON()?.target); });
+  await add.getByRole("button", { name: "Add", exact: true }).click();
+  await expect.poll(() => target).toBe("elim.renal.gfr_fraction");
+  await expect.poll(async () => (await row("elim.renal.gfr_fraction"))?.state).toBe("kept");
+  await expect.poll(async () => (await row("elim"))?.state).toBeUndefined();          // S0's pathway is met
+  await elimination.getByTestId("fill-toggle-Elimination, by process").click();
+  await expect(elimination.getByTestId("record-elim.hepatic.total.plasma_clearance")).toContainText("Hepatic plasma clearance (total)");
 });
