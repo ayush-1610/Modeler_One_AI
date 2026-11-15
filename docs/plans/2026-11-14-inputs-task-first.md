@@ -346,6 +346,10 @@ before the next starts.
     the chips and "use last" (kept per project and kind of decision in the tab's session storage; the kind is the
     button's word unless a form names it). The button stays enabled except where a form's own fields disable it (the
     layout form); pressed with the reason missing it says "Give the reason: it is kept on the audit trail."
+    (Corrected by the final review round 3, INT-12, CODE-6, CODE-7: every form names its kind, the key holds the person
+    signed in, sign-out forgets it, and the field is emptied once a decision is made; slice 3's card forms, which still
+    disabled their buttons silently, now say what is missing too: "Final review fixes round 3: accessibility and
+    forms".)
   - **Cache writes:** the cards of subjects whose own row a decision changed are read again; the others are marked stale
     and read when next shown, so a card open in Client files keeps its delivery-wide blockers (loose numbers) as they
     were until it is shown again (slice 3's gate line reads them from the page). The step bar is redrawn only after the
@@ -817,3 +821,46 @@ before the next starts.
   ("bind.fu 0.7", "phys.logp 0.21 Log Units"; round 2's skeptic, outside OWN-8's readiness line). The diagrams beside it
   name the same ids; saying the list in words is for the Review & sign page as a whole. The purpose refusal on the card
   is checked by the API tests only: the card shows it through the form's existing problem line, not by a browser test.
+### Final review fixes round 3: accessibility and forms (2026-11-15; A11Y-1, A11Y-3 to A11Y-11, CODE-6, CODE-7, CODE-8 a–c, INT-12, OWN-16; CHANGELOG "Fixed — final review round 3, accessibility and forms")
+- **One rule for focus:** a control that removes itself hands the focus on (`kit/focus.ts` `focusSoon`): an answered
+  question to its row's own button, a cancelled form to what opened it, a cleared bulk bar to "Pick every file" (or the
+  first picked row). A dialog that closes gives the focus back only to something that can take it inside the dialog still
+  open under it, else that dialog's panel (`kit/Dialog.tsx`, extending round 2's safety net); "Sign and load" stays
+  focusable while it is sent. Not changed: after a successful decision whose row stays (Accept as is on a card's check),
+  the focus goes to the row when it has a control left, else stays where the browser puts it; the list-level rule
+  (`focusAfter`) is unchanged.
+- **Live regions:** the counts are said by a status region of the status line only when they change after the page has
+  read its work, 1.5 s after they settle, as "Now … missing, … to confirm, … to decide." (not appended to each decision's
+  words, as the reviewer suggested: a decision's answer arrives before the cards it changes are read again, so the
+  counts in its words would be the old ones). A refusal is said by its alert where it is shown, not again in To do's
+  live region; a layout decision in the dialog's own region only.
+- **Keyboard and the bulk bar:** the page keeps the bar's height clear for the focus with `scroll-padding-bottom` and, for
+  a browser that scrolls only what is outside the window, a `focusin` guard that scrolls a covered row above the bar.
+  Past two picked files, where each goes is folded under one line.
+- **Context labels:** a repeated control's name starts with the words on it and then says what it is about (WCAG 2.5.3);
+  e2e/inputs-a11y.spec.ts checks that no two visible controls of To do (two link editors open), Populations and
+  individuals, or Client files share a name on the 9-file seed. Not checked there: the template project's Clinical
+  studies (fixed in the code: "Show the points", Linear/Log, "Confirm the selection"); the compound rows' fields keep
+  their names with the parameter's id ("value for phys.mw"), which the specs read; putting them in words is left.
+- **Headings:** each area has an h2 of its own (`sr-only`; the bar names the area on screen).
+- **The page's one primary (OWN-16), a deviation in form:** forms inside an area keep the `primary` class (their main
+  action) but are drawn tinted (`[id^="inputs-panel-"] .btn.primary` in inputs.css); "Next" is the one filled button. A
+  dialog over the page keeps its filled primary.
+- **CODE-6:** every card form says what is missing when pressed instead of a silent disabled button, except the layout
+  form (slice 4's recorded exception) and two older compound forms whose disabled button now has its reason in text
+  beside it (a compound row's Add; a statement's Correct in To do's settle form). The spot check's "Record the spot
+  check" stays disabled until every value is ticked (its count says why).
+- **"Use last" (INT-12), corrected:** slice 4's note above ("kept per project and kind of decision …; the kind is the
+  button's word unless a form names it") no longer holds: every form names its kind, the key holds the person signed in
+  (the ID token's subject, hashed; "" with the DEV sign-in) and the project, and sign-out forgets them. Not covered by an
+  e2e: the sign-out (the DEV sign-in has none; oidc-signing.spec.ts runs only with a test Keycloak). The reason is
+  emptied after a decision whose answer says it was made (CODE-7); a refusal keeps it for the next press.
+- **CODE-8 c, decided:** MATRIX_MISSING is a fact (the card's facts form asks it, with "Accept as is…"), so To do counts it
+  on the study's facts row as Missing, no longer as a check to decide under "Settle disagreements".
+- **OWN-16, Link head:** a file's values are counted as its rows say them: a table's cells are values, a fact read beside
+  them a fact ("6 files · 355 values and 11 facts"); the rows' buttons and the link item's label say the same.
+- **Owner questions:** none new. The hero pill's darker ink applies on every page's head (one rule).
+- **Seen once, not this group's:** in one run inputs-task-first's "a table the newest layout cannot read" timed out
+  waiting for RLD's row to leave To do after its corrected layout was approved and read (the page still showed version
+  1's 24 numbers; the API had RLD on version 3 with none); it passed on the rerun. A timing gap in when the page reads
+  the delivery again after a re-read, for the speed group.

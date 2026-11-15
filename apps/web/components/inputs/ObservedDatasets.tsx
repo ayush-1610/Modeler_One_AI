@@ -167,6 +167,7 @@ function Overlay({ d, projectId, run, onProblem, small = false }: {
   if (!d.digitization || d.digitization.overlay_approved_by || d.state === "REJECTED") return null;
   return (
     <button className={small ? "btn small" : "btn primary"} data-testid={`overlay-${d.id}`}
+            aria-label={`The overlay matches the figure: ${String(d.study.study_id)} · ${sourceText(d)}`}
             onClick={async () => onProblem(await run(() => send("post", "/api/v1/projects/{project_id}/datasets/{dataset_id}:overlay",
                                                                 { project_id: projectId, dataset_id: d.id }),
                                                     `${String(d.study.study_id)}: the overlay is checked; the study is used.`, MODEL))}>
@@ -198,7 +199,8 @@ function DatasetLine({ d: listed, projectId, run, unpromised }: { d: Listed; pro
         {unpromised && <span className="chip neutral" data-testid={`dataset-unpromised-${d.id}`} title={unpromised}>not in the data plan</span>}
         {d.blinded && <span className="chip neutral" data-testid={`dataset-blinded-${d.id}`}>blinded until the plan is signed</span>}
         {!d.blinded && more && (
-          <button type="button" className="link-btn" aria-expanded={points} onClick={() => setPoints(!points)}>
+          <button type="button" className="link-btn" aria-expanded={points} onClick={() => setPoints(!points)}
+                  aria-label={`${points ? "Hide" : "Show"} the ${d.series.length ? "points" : "details"} of ${String(s.study_id)} · ${sourceText(d)}`}>
             {points ? "Hide" : "Show"} the {d.series.length ? "points" : "details"}</button>
         )}
         <Overlay d={d} projectId={projectId} run={run} onProblem={setProblem} small />

@@ -46,8 +46,10 @@ export function FileTagLine({ file, onRetag }: { file: ClientFile; onRetag: Reta
         <div className="tag-proposal" data-testid={`tag-proposal-${file.file}`}>
           <span>Its content reads as <strong>{TAG_LABELS[proposal.kind].toLowerCase()}</strong>: {proposal.why}.</span>
           <span className="row gap-8">
-            <button type="button" className="btn" onClick={() => void retag(proposal.kind)}>Use it</button>
-            {file.tag && <button type="button" className="linkish" onClick={() => void retag(file.tag!.kind)}>
+            <button type="button" className="btn" onClick={() => void retag(proposal.kind)}
+                    aria-label={`Use it: “${TAG_LABELS[proposal.kind].toLowerCase()}” for ${file.file}`}>Use it</button>
+            {file.tag && <button type="button" className="linkish" onClick={() => void retag(file.tag!.kind)}
+                                 aria-label={`Keep ${TAG_LABELS[file.tag.kind].toLowerCase()} for ${file.file}`}>
               Keep {TAG_LABELS[file.tag.kind].toLowerCase()}</button>}
           </span>
         </div>
@@ -79,14 +81,15 @@ function SheetLine({ t, read, proposed, byCode, reading, onRead, onClassify, bli
         <span className={`chip ${t.category === "OTHER" ? "medium" : data ? "brand" : "neutral"}`}>{CATEGORY_LABEL[t.category] ?? t.category.toLowerCase()}</span>
         {t.evidence_quote && <div className="muted fs-12">“{t.evidence_quote}” {t.evidence_cell.split("!")[1]}</div>}
         <CleaningRecord lines={reading?.cleaning} testId={`sheet-cleaning-${t.sheet}`} />
-        {!changing && <button className="linkish" onClick={() => setChanging(true)}>change</button>}
+        {!changing && <button className="linkish" onClick={() => setChanging(true)} aria-label={`Change what sheet ${t.sheet} holds`}>change</button>}
         {changing && (
           <div className="row gap-4 mt-4">
             <select value={category} onChange={(e) => setCategory(e.target.value as Category)} aria-label={`category of ${t.sheet}`}>
               {Object.keys(CATEGORY_LABEL).map((c) => <option key={c} value={c}>{CATEGORY_LABEL[c]}</option>)}
             </select>
-            <input placeholder="why" value={reason} onChange={(e) => setReason(e.target.value)} className="w-140" />
-            <button className="btn" disabled={!reason.trim() || category === t.category}
+            <input placeholder="why" value={reason} onChange={(e) => setReason(e.target.value)} className="w-140"
+                   aria-label={`Why sheet ${t.sheet} holds this`} />
+            <button className="btn" disabled={!reason.trim() || category === t.category} aria-label={`Set what sheet ${t.sheet} holds`}
                     onClick={async () => { const e = await onClassify(category, reason); setError(e); if (!e) setChanging(false); }}>Set</button>
           </div>
         )}
@@ -99,7 +102,8 @@ function SheetLine({ t, read, proposed, byCode, reading, onRead, onClassify, bli
                : data ? <span className="chip medium">not read yet</span> : <span className="muted fs-12">no data to read</span>}</td>
       <td className="num">{blinded
         ? <span className="chip neutral" data-testid={`sheet-blinded-${t.sheet}`}>blinded until the plan is signed</span>
-        : <button className={`btn${!read && data ? " primary" : ""}`} onClick={onRead}>{read ? "Read again" : "Read this sheet"}</button>}</td>
+        : <button className={`btn${!read && data ? " primary" : ""}`} onClick={onRead}
+                  aria-label={`${read ? "Read again" : "Read this sheet"}: ${t.sheet}`}>{read ? "Read again" : "Read this sheet"}</button>}</td>
     </tr>
   );
 }

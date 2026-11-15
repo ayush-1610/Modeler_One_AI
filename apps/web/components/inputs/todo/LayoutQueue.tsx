@@ -16,6 +16,7 @@ import { useMemo, useState } from "react";
 
 import { Problem, useDecide } from "@/components/delivery/shared";
 import { writeMapping } from "@/components/delivery/writes";
+import { focusSoon } from "@/components/kit/focus";
 import { announce } from "@/components/kit/LiveRegion";
 import { ReasonForm } from "@/components/kit/Reason";
 import { send } from "@/lib/api";
@@ -65,7 +66,7 @@ export function LayoutQueue({ projectId, items, heading, shared }: {
   const where = (r: LayoutRow) => r.mapping.used_in[0]?.file ?? "no file";
 
   /** Approve every layout that reads its table as not data, one by one, each note naming the others approved with it. */
-  async function approveNotData(note: string) {
+  async function approveNotData(note: string): Promise<boolean> {
     const others = notData.length - 1;
     const said = others ? `approved with ${plural(others, "other layout")} that read a table as not data` : "";
     let approved = 0;
@@ -81,6 +82,7 @@ export function LayoutQueue({ projectId, items, heading, shared }: {
       announce(`${plural(approved, "layout")} that read a table as not data approved. ${plural(rows.length - approved, "layout")} left to check.`);
       document.getElementById(heading)?.focus();
     }
+    return approved === notData.length;
   }
 
   return (
@@ -94,7 +96,8 @@ export function LayoutQueue({ projectId, items, heading, shared }: {
           ) : (
             <ReasonForm action={notData.length === 1 ? "Approve" : `Approve ${notData.length}`} optional busy={busy} onSubmit={approveNotData}
                         actionLabel={`Approve the ${plural(notData.length, "layout")} that read a table as not data`} kind="layout approved"
-                        label="A note on the approvals" testId="layout-notdata" onCancel={() => setBulk(false)}
+                        label="A note on the approvals" testId="layout-notdata" autoFocus
+                        onCancel={() => { setBulk(false); focusSoon("layout-notdata-open"); }}
                         suggestions={["README and notes sheets, not data"]}>
               <span className="muted">{notData.map((r) => `${tableKindText(r.mapping.kind)} · ${r.mapping.used_in.map((u) => u.file).join(", ")}`).join("; ")}
                 {notData.length > 1 && <>: each approval&apos;s note says it was approved with the others</>}</span>
@@ -120,7 +123,7 @@ export function LayoutQueue({ projectId, items, heading, shared }: {
                 </div>
                 <div className="batch-actions">
                   <button type="button" className="link-btn" aria-expanded={shown} data-testid={`todo-layout-show-${key(r)}`}
-                          aria-label={`${shown ? "Hide" : "Show"} the columns of the ${tableKindText(r.mapping.kind)} layout in ${where(r)}`}
+                          aria-label={`${shown ? "Hide its columns" : "Its columns"}: the ${tableKindText(r.mapping.kind)} layout in ${where(r)}, version ${r.mapping.version}`}
                           onClick={() => setOpen((was) => { const n = new Set(was); if (!n.delete(key(r))) n.add(key(r)); return n; })}>
                     {shown ? "Hide its columns" : "Its columns"}</button>
                   <button type="button" className="btn small" disabled={Boolean(r.item.blocked)}

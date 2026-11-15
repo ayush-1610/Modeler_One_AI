@@ -43,7 +43,7 @@ export function ReadTable({ projectId, file, region, onClose, onStored }: {
   const headerRows = head?.header_rows ?? 1;
   const guess = { schema: "mapping/2", kind, layout: "long", header_rows: headerRows, first_data_row: headerRows + 1 };
 
-  async function propose(spec: Record<string, unknown>, why: string) {
+  async function propose(spec: Record<string, unknown>, why: string): Promise<boolean> {
     setSent(columnsSent(spec));
     let found: Finding[] = [];
     const { data } = await decide(async () => {
@@ -53,6 +53,7 @@ export function ReadTable({ projectId, file, region, onClose, onStored }: {
     }, { write: (m, client) => writeMapping(client, projectId, m) });
     setFindings(found);
     if (data) onStored(data.mapping_id);
+    return Boolean(data);
   }
 
   return (

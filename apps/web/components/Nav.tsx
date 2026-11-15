@@ -8,6 +8,7 @@ import { useQueryClient } from "@tanstack/react-query";
 
 import { AddData, stepOf } from "@/components/library/AddData";
 import { toast } from "@/components/kit/Motion";
+import { forgetReasons } from "@/components/kit/Reason";
 import { useResource } from "@/lib/hooks";
 
 // Line icons, drawn on a 24-unit grid with the stroke of the text (plan 2026-11-06-app-design-merge §3 A).
@@ -163,8 +164,8 @@ export function Nav({ user }: { user?: string | null }) {
           {user ? (
             <span className="nav-text">
               Signed in as <strong>{user}</strong>
-              {/* a route handler, not a page: a full navigation */}
-              <a href="/auth/logout" data-testid="sign-out">Sign out</a>
+              {/* a route handler, not a page: a full navigation; the reasons this tab kept for the person are forgotten first */}
+              <a href="/auth/logout" data-testid="sign-out" onClick={forgetReasons}>Sign out</a>
             </span>
           ) : (
             <span className="nav-text"><strong>Development sign-in</strong><span className="nav-role">no named user</span></span>

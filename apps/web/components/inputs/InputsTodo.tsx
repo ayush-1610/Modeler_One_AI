@@ -71,11 +71,13 @@ export function Value({ e }: { e: Ev }) {
 
 /** The pathway a value for the data plan's "elim" is filed under (OWN-5): chosen first, each pathway by its name and the
  *  unit its value is stored in. */
-export function PathwayPick({ pathways, value, onChange, label, testId }: {
+export function PathwayPick({ pathways, value, onChange, label, testId, invalid = false }: {
   pathways: Pathway[]; value: string; onChange: (id: string) => void; label: string; testId?: string;
+  /** the pathway is what a press found missing (its message says so) */
+  invalid?: boolean;
 }) {
   return (
-    <select value={value} onChange={(x) => onChange(x.target.value)} aria-label={label} data-testid={testId}>
+    <select value={value} onChange={(x) => onChange(x.target.value)} aria-label={label} data-testid={testId} aria-invalid={invalid || undefined}>
       <option value="">choose the pathway…</option>
       {pathways.map((p) => <option key={p.id} value={p.id}>{paramLabel(p.id)}{p.unit ? ` (${p.unit})` : " (no unit)"}</option>)}
     </select>
@@ -112,6 +114,7 @@ function Conflict({ t, projectId, run }: { t: TodoItem; projectId: string; run: 
   const items = t.items as Ev[];
   return (
     <>
+      <div className="table-scroll">
       <table className="todo-table">
         <thead><tr><th /><th>Value</th><th>Source</th></tr></thead>
         <tbody>
@@ -124,6 +127,7 @@ function Conflict({ t, projectId, run }: { t: TodoItem; projectId: string; run: 
           ))}
         </tbody>
       </table>
+      </div>
       <div className="row gap-6">
         <input placeholder="why this value (kept in the audit trail)" value={reason} onChange={(e) => setReason(e.target.value)} className="flex-1 minw-220" aria-label={`reason for ${t.target}`} />
         <button className="btn primary" disabled={!keep || !reason.trim()}
@@ -172,13 +176,15 @@ function Correction({ e, t, projectId, run }: { e: Ev; t: TodoItem; projectId: s
             {statement && <>
               <input type="number" step="any" placeholder="number in the quote" value={number} onChange={(x) => setNumber(x.target.value)} className="w-150" aria-label={`number for ${e.id}`} />
               <input placeholder="unit" value={unit} onChange={(x) => setUnit(x.target.value)} className="w-80" aria-label={`unit for ${e.id}`} />
+              {/* said in text, not only in a hover (final review OWN-16) */}
+              <span className="muted fs-12" id={`statement-${e.id}`}>A sentence becomes a value only as a number its quote states: type that number.</span>
             </>}
           </>
         )}
         <input placeholder="why" value={reason} onChange={(x) => setReason(x.target.value)} className="flex-1 minw-160"
                aria-label={`reason for ${e.id}`} />
         <button className="btn primary" disabled={!reason.trim() || (pka ? !kind : !target || (needsMolecule && !molecule) || (statement && !number))}
-                title={statement ? "a sentence becomes a value only as a number its quote states" : undefined}
+                aria-describedby={statement ? `statement-${e.id}` : undefined}
                 onClick={() => void run(() => send("post", "/api/v1/projects/{project_id}/evidence/{evidence_id}:correct",
                                                       { project_id: projectId, evidence_id: e.id },
                                                       pka ? { conditions: { type: kind }, reason }

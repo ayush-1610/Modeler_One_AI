@@ -42,13 +42,13 @@ export const restorable = (r: Region) => r.decision !== null;
  *  decision is one a table that is read cites (a fact read once for the table). */
 export const restorableNote = (o: Note) => o.decision !== null;
 
-/** The reason form that restores `items` of `file` (region ids, or with scope `outside` the notes' locators). */
+/** The reason form that restores `items` of `file` (region ids, or with scope `outside` the notes' locators). `onDone`:
+ *  restored; `onCancel` (by default `onDone`): closed without restoring, so the caller can give the focus back to its
+ *  opener (final review A11Y-5). */
 export function RestoreForm({ projectId, file, items, scope, label, onDone, onCancel, testId }: {
   projectId: string; file: FileRow; items: string[]; scope: Scope;
   /** what is restored, read with the field and the button: "the table Sheet1 of 230-23.xlsx" */
-  label: string; onDone: () => void; testId: string;
-  /** the form closed with nothing restored (else `onDone`) */
-  onCancel?: () => void;
+  label: string; onDone: () => void; onCancel?: () => void; testId: string;
 }) {
   const { decide, busy, problem } = useDecide();
   const write = useWritePage(projectId);
@@ -56,11 +56,12 @@ export function RestoreForm({ projectId, file, items, scope, label, onDone, onCa
     const { data } = await decide(() => send("post", RESTORE, { project_id: projectId },
                                              { file_sha256: file.sha256, regions: items, scope, why }), {});
     if (data) { write(data); onDone(); }
+    return Boolean(data);
   }
   return (
     <>
       <Why action="Restore" actionLabel={`Restore ${label}`} label={`Why ${label} is data after all`} busy={busy} onSubmit={restore}
-           onCancel={onCancel ?? onDone} testId={testId} autoFocus
+           onCancel={onCancel ?? onDone} testId={testId} autoFocus kind="restore"
            placeholder="why it is data after all (kept on the audit trail)">
         <span className="muted">Restore {label}: what was read from it counts again.</span>
       </Why>

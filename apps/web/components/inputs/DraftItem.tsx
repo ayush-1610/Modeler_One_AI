@@ -4,9 +4,10 @@
 // card: its data drawn, what code read and left out, and only what the sheet does not say, asked here. A document's
 // value for the same study is offered with its quote, and what the study's delivery card states already (entered on it
 // or read from its files) is pre-filled, so a fact entered once is not asked again (final review OWN-14). Once nothing
-// is left, its data join the card, to confirm.
+// is left, its data join the card, to confirm. Its fields and buttons carry the sheet's name (the same form is on every
+// draft: final review A11Y-7), and "Read these data" says what it still needs when pressed (CODE-6).
 
-import { useState } from "react";
+import { useId, useState } from "react";
 
 import { CleaningRecord, type CleaningLine } from "@/components/client/CleaningRecord";
 import { PeekButton, type PeekSource } from "@/components/kit/SourcePeek";
@@ -55,6 +56,14 @@ export function DraftItem({ projectId, item, run, known = {} }: {
   }));
   const onSheet = draft.needs.filter((n) => ON_THE_SHEET.has(n));
   const ready = asked.length > 0 && onSheet.length === 0 && asked.every((n) => (values[n] ?? "").trim() !== "");
+  const [said, setSaid] = useState<{ text: string; press: number } | null>(null);
+  const message = useId();
+  const empty = asked.filter((n) => (values[n] ?? "").trim() === "").map((n) => draft.labels[n] ?? n);
+  const lacking = onSheet.length ? `Set ${onSheet.map((n) => draft.labels[n] ?? n).join(" and ")} on the sheet first ("Read this sheet")`
+    : empty.length ? `Give ${empty.length > 1 ? `${empty.slice(0, -1).join(", ")} and ${empty.at(-1)}` : empty[0]} first` : null;
+  const shown = said && said.text === lacking ? said : null;
+  // the draft, named for its fields and buttons: two files can each have a sheet "pH 6.8"
+  const named = `${draft.sheet} (${item.label})`;
   const set = (key: string, value: string) => setValues({ ...values, [key]: value });
   const id = (n: string) => `draft-${draft.sid}-${draft.sheet}-${n}`;
   // its problems are settled where the sheet is read: the cells its own words name, offered there as "no sample"
@@ -86,7 +95,7 @@ export function DraftItem({ projectId, item, run, known = {} }: {
           <legend>The sheet does not say: give it here</legend>
           {asked.map((n) => (
             <div key={n} className="draft-need">
-              <label htmlFor={id(n)}>{draft.labels[n] ?? n}</label>
+              <label htmlFor={id(n)}>{draft.labels[n] ?? n}<span className="sr-only"> of {named}</span></label>
               {CHOICES[n] ? (
                 <select id={id(n)} value={values[n] ?? ""} onChange={(e) => set(n, e.target.value)} data-testid={`need-${n}`}>
                   <option value="" disabled>choose…</option>
@@ -102,7 +111,8 @@ export function DraftItem({ projectId, item, run, known = {} }: {
                 </span>
               ) : (
                 <span className="draft-offer">
-                  <button type="button" className="btn small" onClick={() => set(n, known[n].value)} data-testid={`known-use-${n}`}>
+                  <button type="button" className="btn small" onClick={() => set(n, known[n].value)} data-testid={`known-use-${n}`}
+                          aria-label={`Use ${known[n].value} (${known[n].from}) as ${draft.labels[n] ?? n} of ${named}`}>
                     Use {known[n].value} ({known[n].from})</button>
                 </span>
               ))}
@@ -115,7 +125,8 @@ export function DraftItem({ projectId, item, run, known = {} }: {
                   </span>
                 ) : (
                   <span key={o.label} className="draft-offer">
-                    <button type="button" className="btn small" onClick={() => set(n, o.value)} data-testid={`offer-${n}`}>Use {o.label}</button>
+                    <button type="button" className="btn small" onClick={() => set(n, o.value)} data-testid={`offer-${n}`}
+                            aria-label={`Use ${o.label} as ${draft.labels[n] ?? n} of ${named}`}>Use {o.label}</button>
                     {o.source && <PeekButton projectId={projectId} source={o.source} label={o.label} />}
                   </span>
                 )
@@ -130,13 +141,19 @@ export function DraftItem({ projectId, item, run, known = {} }: {
       )}
       {asked.length > 0 && (
         <div className="row gap-8">
-          <button type="button" className="btn primary" disabled={!ready} data-testid={`finish-${draft.sheet}`}
-                  onClick={() => void run(() => send("post", "/api/v1/projects/{project_id}/client-review:finish", { project_id: projectId },
-                                                     { file: draft.sid, sheet: draft.sheet, answers: values }),
-                                          `${draft.sheet}: read. Its data are on the card, to confirm.`, sheetReadAfter(projectId))}>
+          <button type="button" className="btn primary" data-testid={`finish-${draft.sheet}`} aria-label={`Read these data: ${named}`}
+                  aria-describedby={shown ? message : undefined}
+                  onClick={() => {
+                    if (!ready && lacking) { setSaid((was) => ({ text: lacking, press: (was?.press ?? 0) + 1 })); return; }
+                    setSaid(null);
+                    void run(() => send("post", "/api/v1/projects/{project_id}/client-review:finish", { project_id: projectId },
+                                        { file: draft.sid, sheet: draft.sheet, answers: values }),
+                             `${draft.sheet}: read. Its data are on the card, to confirm.`, sheetReadAfter(projectId));
+                  }}>
             Read these data
           </button>
-          <span className="muted fs-12">Nothing loads until the {draft.kind === "dissolution" ? "product" : "study"} is confirmed.</span>
+          {shown ? <span key={shown.press} id={message} className="reason-missing" role="alert" data-testid={`finish-missing-${draft.sheet}`}>{shown.text}</span>
+            : <span className="muted fs-12">Nothing loads until the {draft.kind === "dissolution" ? "product" : "study"} is confirmed.</span>}
         </div>
       )}
     </div>

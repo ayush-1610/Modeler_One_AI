@@ -10,6 +10,9 @@
 // The data plan's "an elimination pathway" asks for the pathway first (final review OWN-5): one of the pathways the API
 // names on its item (`pathways`: each placed by the model builder, with the unit its value is stored in, which then
 // stands in the unit field); the value is filed under that pathway, never under the placeholder itself.
+// What is missing when "Add" is pressed is said beside it and marks the field it is about (aria-invalid), again on each
+// press; what was added is said once, in To do's live region (the line under the table is not a live region too: final
+// review A11Y-6, A11Y-9).
 
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -54,7 +57,8 @@ export function MissingValues({ projectId, items, onOpen, heading }: {
   const [link, setLink] = useState("");
   const [problems, setProblems] = useState<Record<string, string>>({});
   const [said, setSaid] = useState<string | null>(null);
-  const [lacking, setLacking] = useState<string | null>(null);
+  // what the last press found missing, the fields it is about, and the press (said again on each)
+  const [lacking, setLacking] = useState<{ text: string; on: "value" | "pathway" | "source"; press: number } | null>(null);
   const compound = (inputs?.compound ?? []) as Row[];
   const rows: Line[] = items.flatMap((item) => {
     const row = compound.find((r) => r.id === item.todo?.target && r.state === "missing" && r.req_id);
@@ -68,12 +72,16 @@ export function MissingValues({ projectId, items, onOpen, heading }: {
   const targetOf = (r: Line) => (pathwaysOf(r.item).length ? entry(r.row.id).pathway : r.row.id);
   const filled = rows.filter((r) => entry(r.row.id).value.trim());
   const cited = type === "ASSUMPTION" || link.trim() !== "";
+  // a message is shown while what it names is still missing; the field it is about is marked
+  const still = lacking && (lacking.on === "value" ? !filled.length : lacking.on === "pathway" ? filled.some((r) => !targetOf(r)) : !cited);
+  const shown = still ? lacking : null;
+  const wrong = (on: "value" | "pathway" | "source") => shown?.on === on;
 
   async function add() {
-    const missing = !filled.length ? "Type at least one value"
-      : filled.some((r) => !targetOf(r)) ? "Choose the elimination pathway the value is for"
-        : !cited ? "Give the source's DOI or URL, or call it an assumption" : null;
-    setLacking(missing);
+    const missing = !filled.length ? { text: "Type at least one value", on: "value" as const }
+      : filled.some((r) => !targetOf(r)) ? { text: "Choose the elimination pathway the value is for", on: "pathway" as const }
+        : !cited ? { text: "Give the source's DOI or URL, or call it an assumption", on: "source" as const } : null;
+    setLacking((was) => (missing ? { ...missing, press: (was?.press ?? 0) + 1 } : null));
     if (missing) return;
     const sent: string[] = [];
     const named: string[] = [];
@@ -121,14 +129,15 @@ export function MissingValues({ projectId, items, onOpen, heading }: {
                     {pathways.length > 0 && (
                       <div className="mt-4">
                         <PathwayPick pathways={pathways} value={e.pathway} label={`The elimination pathway of the value for ${name}`}
-                                     testId={`mv-pathway-${row.id}`}
+                                     testId={`mv-pathway-${row.id}`} invalid={wrong("pathway") && Boolean(e.value.trim()) && !e.pathway}
                                      onChange={(id) => set(row.id, { pathway: id, unit: pathways.find((p) => p.id === id)?.unit ?? "" })} />
                       </div>
                     )}
                     {problems[row.id] && <Problem text={problems[row.id]} testId={`mv-problem-${row.id}`} />}
                   </th>
                   <td><input value={e.value} onChange={(x) => set(row.id, { value: x.target.value })} className="mv-value" placeholder="value"
-                             aria-label={`Value of ${name}`} data-testid={`mv-value-${row.id}`} /></td>
+                             aria-label={`Value of ${name}`} data-testid={`mv-value-${row.id}`} aria-invalid={wrong("value") || undefined}
+                             aria-describedby={wrong("value") ? "mv-lacking" : undefined} /></td>
                   <td><input value={e.unit} placeholder={pathways.length && e.pathway ? "no unit" : "as stated"}
                              onChange={(x) => set(row.id, { unit: x.target.value })} className="mv-unit"
                              aria-label={`Unit of ${name}`} data-testid={`mv-unit-${row.id}`} /></td>
@@ -149,12 +158,14 @@ export function MissingValues({ projectId, items, onOpen, heading }: {
         <label className="add-field flex-1 minw-140">Title
           <input value={title} onChange={(e) => setTitle(e.target.value)} data-testid="mv-title" /></label>
         <label className="add-field">DOI or URL
-          <input value={link} onChange={(e) => setLink(e.target.value)} className="w-170" data-testid="mv-link" /></label>
+          <input value={link} onChange={(e) => setLink(e.target.value)} className="w-170" data-testid="mv-link"
+                 aria-invalid={wrong("source") || undefined} aria-describedby={wrong("source") ? "mv-lacking" : undefined} /></label>
         <button type="submit" className="btn small" aria-disabled={mutation.busy || undefined} data-testid="mv-submit"
-                aria-describedby={lacking ? "mv-lacking" : undefined}
-                aria-label={`Add the ${plural(filled.length, "value")} typed, with this source`}>
+                aria-describedby={shown ? "mv-lacking" : undefined}
+                aria-label={filled.length ? `Add the ${plural(filled.length, "value")} typed, with this source` : undefined}>
           {filled.length > 1 ? `Add ${filled.length} values` : "Add"}</button>
-        {lacking && <span id="mv-lacking" className="reason-missing" role="alert">{lacking}</span>}
+        {/* a new element each press, so a refusal pressed twice is said twice */}
+        {shown && <span key={shown.press} id="mv-lacking" className="reason-missing" role="alert">{shown.text}</span>}
       </form>
       {rows.some((r) => r.row.id === "phys.pka") && (
         <p className="muted fs-12 m-0">A pKa is then called acidic or basic, under &quot;Settle disagreements&quot;.</p>
@@ -166,7 +177,8 @@ export function MissingValues({ projectId, items, onOpen, heading }: {
           enzyme (CLspec, CLint, Km, Vmax) also needs its enzyme: it comes with the literature search or the client&apos;s files, and is
           filed under its enzyme under &quot;Settle disagreements&quot;.</p>
       )}
-      {said && <p className="banner ok m-0" role="status" data-testid="mv-said">{said}</p>}
+      {/* shown, not said again: To do's live region said it (final review A11Y-6) */}
+      {said && <p className="banner ok m-0" data-testid="mv-said">{said}</p>}
     </div>
   );
 }

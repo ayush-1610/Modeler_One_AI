@@ -8,12 +8,15 @@
 // delivery takes its demographics now, through `:enter`, with the individual PK-Sim simulates (its population database
 // and sex, a person's choice): said as the card says it (`DeliverySubject.individual`, the landing's own rule), and
 // simulated once it is confirmed; one to confirm with the sheet form is entered once it is confirmed, from its card.
+// Each study's buttons carry its name, the save says what it still needs when pressed, and a form closed gives the focus
+// back to the button that opened it (final review A11Y-5, A11Y-7, OWN-16).
 
-import { useState } from "react";
+import { useId, useState } from "react";
 
 import { SUBJECT } from "@/components/delivery/DeliveryReview";
 import { DemographicsForm, demographicsText, statedDemographics } from "@/components/delivery/FactsForm";
 import { EmptyState } from "@/components/kit";
+import { focusSoon } from "@/components/kit/focus";
 import { send } from "@/lib/api";
 import { useResource } from "@/lib/hooks";
 import { normLabel, type Subject, type WorkItem } from "@/lib/inputsWork";
@@ -44,7 +47,13 @@ function Individual({ s, projectId, run, options }: { s: StudyRow; projectId: st
   const [tone, label] = STATE[s.demographics];
   const path = "/api/v1/projects/{project_id}/datasets/{dataset_id}:study" as const;
   const params = { project_id: projectId, dataset_id: s.dataset_id ?? "" };
-  const complete = d.population && d.sex && Number(d.age) > 0;
+  // what the save still needs, in words, said when pressed (final review OWN-16: it was disabled with no word on why)
+  const needs = [!d.population ? "the population database" : "", !d.sex ? "the sex" : "", !(Number(d.age) > 0) ? "the mean age (y)" : ""].filter(Boolean);
+  const [said, setSaid] = useState<{ text: string; press: number } | null>(null);
+  const message = useId();
+  const lacking = !s.dataset_id ? "This study has no dataset in the model to set its individual on"
+    : needs.length ? `Give ${needs.length > 1 ? `${needs.slice(0, -1).join(", ")} and ${needs.at(-1)}` : needs[0]} first` : null;
+  const shown = said && said.text === lacking ? said : null;
   return (
     <div className="individual" data-testid={`individual-${s.study_id}`} id={`individual-${s.study_id}`}>
       <div className="spread">
@@ -71,18 +80,30 @@ function Individual({ s, projectId, run, options }: { s: StudyRow; projectId: st
             <input placeholder="height (cm)" value={d.height} onChange={set("height")} className="w-95" aria-label={`height for ${s.study_id}`} />
           </div>
           <div className="row gap-6 mt-6">
-            <button className="btn primary" disabled={!s.dataset_id || !complete}
-                    onClick={() => void run(() => send("post", path, params, { changes: { demographics: {
-                      population: d.population, sex: d.sex, age_years: Number(d.age), age_min: num(d.min), age_max: num(d.max),
-                      weight_kg: num(d.weight), height_cm: num(d.height) } } }), `${s.study_id}: its individual is entered.`, MODEL)}>
+            <button type="button" className="btn primary" data-testid={`individual-save-${s.study_id}`} aria-label={`Save the individual of ${s.study_id}`}
+                    aria-describedby={shown ? message : undefined}
+                    onClick={() => {
+                      if (lacking) { setSaid((was) => ({ text: lacking, press: (was?.press ?? 0) + 1 })); return; }
+                      setSaid(null);
+                      void run(() => send("post", path, params, { changes: { demographics: {
+                        population: d.population, sex: d.sex, age_years: Number(d.age), age_min: num(d.min), age_max: num(d.max),
+                        weight_kg: num(d.weight), height_cm: num(d.height) } } }), `${s.study_id}: its individual is entered.`, MODEL);
+                    }}>
               Save the individual
             </button>
-            <button className="btn" disabled={!s.dataset_id || s.demographics === "default"}
+            <button type="button" className="btn" disabled={!s.dataset_id || s.demographics === "default"}
+                    aria-label={`Use the healthy adult default for ${s.study_id}`}
                     onClick={() => void run(() => send("post", path, params, { demographics_choice: "healthy_adult_default" }),
                                             `${s.study_id}: the healthy adult default, listed as a limitation of the MAP.`, MODEL)}>
               Use the healthy adult default
             </button>
+            {/* a new element each press, so a refusal pressed twice is said twice */}
+            {shown && <span key={shown.press} id={message} className="reason-missing" role="alert" data-testid={`individual-missing-${s.study_id}`}>
+              {shown.text}</span>}
           </div>
+          {s.demographics === "default" && (
+            <p className="muted fs-12 m-4-0-0">The healthy adult default is in use: save an individual to replace it.</p>
+          )}
         </>
       )}
     </div>
@@ -177,6 +198,8 @@ function Pending({ s, projectId, vocabulary, options, onOpen }: {
   const individual = card.data?.individual ?? null;
   const set = individual?.demographics ?? null;
   const chip = s.path !== "delivery" ? "to confirm first" : set || !said ? "loads when the study is confirmed" : "kept, not simulated yet";
+  // closed (saved or cancelled), back on the button that opens it, as it then reads
+  const close = () => { setEntering(false); if (delivery) focusSoon(`individual-enter-open-${delivery.subject}`, `individual-pending-${s.key}`); };
   return (
     <div className="individual pending" data-testid={`individual-pending-${s.key}`}>
       <div className="spread">
@@ -186,7 +209,7 @@ function Pending({ s, projectId, vocabulary, options, onOpen }: {
       {delivery ? (
         entering ? (
           <DemographicsForm key={said} projectId={projectId} params={{ project_id: projectId, type: delivery.subject_type, subject: delivery.subject }}
-                            vocabulary={{ mapping: vocabulary }} options={options} onDone={() => setEntering(false)}
+                            vocabulary={{ mapping: vocabulary }} options={options} onDone={close} label={s.label}
                             testId={`individual-enter-${delivery.subject}`} stated={stated} spot={card.data?.spot_check ?? null} />
         ) : said ? (
           <p className="m-4-0-0 fs-13" data-testid={`individual-entered-${delivery.subject}`}>
@@ -199,14 +222,15 @@ function Pending({ s, projectId, vocabulary, options, onOpen }: {
         ) : (
           <p className="m-4-0-0 fs-13">
             <button type="button" className="btn small" onClick={() => setEntering(true)} data-testid={`individual-enter-open-${delivery.subject}`}
-                    disabled={!card.data && !card.problem}>Enter them…</button>
+                    disabled={!card.data && !card.problem} aria-label={`Enter them… the demographics of ${s.label}`}>Enter them…</button>
             <span className="muted"> the population, age, weight and share of women, from the study&apos;s report, with the PK-Sim population and the
               sex to simulate; or ask the client from its card.</span>
           </p>
         )
       ) : (
         <p className="m-4-0-0 fs-13">
-          {onOpen ? <button type="button" className="link-btn" onClick={() => onOpen(null, s)}>Enter once the study is confirmed →</button>
+          {onOpen ? <button type="button" className="link-btn" onClick={() => onOpen(null, s)}
+                            aria-label={`Enter once the study is confirmed: open the card of ${s.label}`}>Enter once the study is confirmed →</button>
             : "Enter once the study is confirmed."}
           {s.blinded && <span className="muted"> Blinded until the plan is signed.</span>}
         </p>

@@ -30,7 +30,7 @@ import { EscalationPopup } from "@/components/campaign/EscalationPopup";
 import { Motion } from "@/components/kit/Motion";
 import { Nav } from "@/components/Nav";
 import { Providers } from "@/components/Providers";
-import { signedInName } from "@/lib/session";
+import { signedInId, signedInName } from "@/lib/session";
 
 // Plex was drawn for technical work: unambiguous figures, a real voice, and a mono companion for the
 // identifiers in this product (parameter ids, engine paths, campaign ids) that are read character by character.
@@ -55,13 +55,14 @@ export const metadata = {
 
 export default async function RootLayout({ children }: { children: ReactNode }) {
   const user = await signedInName();
+  const person = await signedInId();
   return (
     <html lang="en" className={`${sans.variable} ${mono.variable}`}>
       <body>
         {/* the first Tab stop: past the sidebar to the page (every page renders its own <main>) */}
         <a className="skip-link" href="#content">Skip to the page</a>
         {/* the sidebar is inside the providers too: its "Add data" card changes the project and refreshes the page */}
-        <Providers>
+        <Providers person={person}>
           <Motion />
           {/* an open escalation asks for its signed decision on any page (the review inbox is gone, 2026-11-11) */}
           <EscalationPopup />

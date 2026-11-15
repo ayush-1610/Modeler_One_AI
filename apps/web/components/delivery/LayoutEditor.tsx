@@ -359,7 +359,7 @@ export function LayoutEditor({ vocabulary, spec, columns: count, headers, head, 
   }
   async function submit(why: string) {
     const out = asText !== null ? parsed() : build(base, table, cols, rules, facts);
-    if (out) await onSubmit(out, why);
+    return out ? onSubmit(out, why) : false;
   }
   const setRule = (i: number, key: keyof Rule) => (v: string) => setRules(rules.map((r, n) => (n === i ? { ...r, [key]: v } : r)));
 
@@ -624,7 +624,8 @@ export function LayoutEditor({ vocabulary, spec, columns: count, headers, head, 
                 onClick={() => setAsText(JSON.stringify(build(base, table, cols, rules, facts), null, 2))}>Edit as text</button>
       )}
       {needs.map((x) => <p key={x} className="muted fs-12 m-0" data-testid={`${testId}-needs`}>{x}</p>)}
-      <Why action={action} label={whyLabel} busy={busy} onSubmit={submit} onCancel={onCancel} testId={whyTestId} disabled={needs.length > 0} />
+      <Why action={action} label={whyLabel} busy={busy} onSubmit={submit} onCancel={onCancel} testId={whyTestId} disabled={needs.length > 0}
+           kind="layout corrected" />
     </div>
   );
 }

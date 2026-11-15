@@ -165,10 +165,10 @@ test("the owner's job: files uploaded, layouts checked, values linked with arms,
   await expect(dialog.getByTestId("mapping-sample").locator("tbody td").filter({ hasText: /\d/ })).toHaveCount(0);   // values masked
   await dialog.getByTestId("mapping-approve-why").fill("checked against the files: subjects and periods down, times in hours across");
   await dialog.getByTestId("mapping-approve-submit").click();
-  // said in the dialog, and in To do's live region
+  // said once, in the dialog's own live region; not a second time by To do's under it (final review A11Y-6)
   const approved = "Version 1 of the individual PK table layout is approved: 3 files of this layout are read again.";
   await expect(dialog.getByTestId("mapping-said")).toHaveText(approved);
-  await expect(page.getByTestId("todo-live")).toContainText(approved);
+  await expect(page.getByTestId("todo-live")).not.toContainText(approved);
   expect((await read<{ status: string }>(request, `delivery/mappings/${layout}?version=${waiting[0].version}`)).status).toBe("approved");
   // the three files are read again with the approved layout before anything is linked
   await expect.poll(async () => {
@@ -192,7 +192,8 @@ test("the owner's job: files uploaded, layouts checked, values linked with arms,
   const table = page.getByTestId("link-table");
   await expect(table.locator(".just-opened")).toHaveCount(1);
   await expect(table.locator("li.batch-row")).toHaveCount(3);
-  await expect(table).toContainText("3 files · 156 values");
+  // counted as the rows count them (final review OWN-16): 156 values to link, 144 in tables and 12 facts read beside them
+  await expect(table.getByTestId("link-table-count")).toHaveText("3 files · 144 values and 12 facts");
   await expect(table.getByTestId(`link-${ref}`)).toContainText("individual PK table, 48 values · analyte Exampleamide · dose 50 mg · fasted · LLOQ 0.5 ng/mL");
   await expect(table.getByTestId(`link-to-${ref}`)).toContainText("The sheet form read it as OJ-101-REF. Same study as OJ-101?");
   await expect(table.getByTestId(`link-to-${lab}`)).toContainText("not chosen yet");     // it names no study

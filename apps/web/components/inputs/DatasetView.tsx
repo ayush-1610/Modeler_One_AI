@@ -85,9 +85,9 @@ function ProfileChart({ data, label }: { data: Data; label: string }) {
     <figure className="profile-chart" data-testid="profile-chart">
       <div className="profile-chart-bar">
         <span className="muted">{label}</span>
-        <span className="seg" role="group" aria-label="y scale">
-          <button type="button" aria-pressed={!log} onClick={() => setLog(false)}>Linear</button>
-          <button type="button" aria-pressed={log} onClick={() => setLog(true)} data-testid="chart-log">Log</button>
+        <span className="seg" role="group" aria-label={`The y scale of ${label}`}>
+          <button type="button" aria-pressed={!log} onClick={() => setLog(false)} aria-label={`Linear: ${label}`}>Linear</button>
+          <button type="button" aria-pressed={log} onClick={() => setLog(true)} data-testid="chart-log" aria-label={`Log: ${label}`}>Log</button>
         </span>
       </div>
       <div className="chart-box" ref={box}>

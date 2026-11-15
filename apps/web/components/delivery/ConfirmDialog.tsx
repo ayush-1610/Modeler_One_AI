@@ -45,6 +45,7 @@ export function ConfirmDialog({ projectId, subject, onClose }: { projectId: stri
   const levels = Object.entries(subject.by_level);
 
   async function sign() {
+    if (busy) return;   // the button stays focusable while the signature is sent (final review A11Y-1)
     // a refusal names its blockers beside its message: they are listed, as the card's are. The page is read again when
     // this dialog closes, not while it says what was signed: read at once, the sheet form's group of the study (which the
     // landing marks confirmed) can answer before the delivery's page, the card then reads for a moment as one the sheet
@@ -66,7 +67,7 @@ export function ConfirmDialog({ projectId, subject, onClose }: { projectId: stri
   if (signed) {
     const landed = signed.confirmation?.landed;
     return (
-      <Dialog title={`${subject.label} is confirmed`} size="narrow" onClose={close} testId="delivery-confirm-dialog">
+      <Dialog title={`${subject.label} is confirmed`} size="narrow" onClose={close} testId="delivery-confirm-dialog" focusKey="signed">
         <p className="m-0" data-testid="delivery-signed">
           Signed: <strong>{signed.signature?.manifestation ?? signed.confirmation?.manifestation}</strong>
         </p>
@@ -86,7 +87,8 @@ export function ConfirmDialog({ projectId, subject, onClose }: { projectId: stri
   }
 
   return (
-    <Dialog title={`Confirm ${KIND_LABEL[subject.subject_type].toLowerCase()} ${subject.label}`} size="narrow" onClose={onClose} testId="delivery-confirm-dialog">
+    <Dialog title={`Confirm ${KIND_LABEL[subject.subject_type].toLowerCase()} ${subject.label}`} size="narrow" onClose={onClose} testId="delivery-confirm-dialog"
+            focusKey="confirm">
       <p className="muted">Your electronic signature (meaning: Reviewed) binds this record, and its values are then loaded into
         the project. You are asked for your password and authenticator code again.</p>
       <dl className="delivery-facts" data-testid="delivery-confirm-record">
@@ -130,8 +132,10 @@ export function ConfirmDialog({ projectId, subject, onClose }: { projectId: stri
       <Problem text={problem} testId="delivery-confirm-problem" />
       <div className="dialog-actions">
         <button type="button" className="btn" onClick={onClose} data-testid="delivery-confirm-cancel">Cancel</button>
-        <button type="button" className="btn primary" disabled={busy || blocked} onClick={() => void sign()} data-testid="delivery-confirm-sign">
-          {busy ? "Signing…" : "Sign and load"}</button>
+        {/* while it is sent, the button keeps the focus (aria-disabled, the click ignored): disabled, it would drop the focus
+            to the page when the step-up gives it back, and Tab and Escape would leave this dialog (final review A11Y-1) */}
+        <button type="button" className="btn primary" disabled={blocked} aria-disabled={busy || undefined} onClick={() => void sign()}
+                data-testid="delivery-confirm-sign">{busy ? "Signing…" : "Sign and load"}</button>
       </div>
     </Dialog>
   );

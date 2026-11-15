@@ -48,6 +48,11 @@
 .bulk-bar { position: sticky; bottom: 8px; z-index: 5; display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; min-width: 0; padding: 10px 12px; border: 1px solid var(--line);
   border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow-card-compact); }
 .bulk-bar-head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; }
+/* while a bar is shown, the page keeps its height clear at the bottom for the focus (kit BulkBar sets --bulk-h): a row
+ * tabbed to is scrolled above the bar, never left under it (final review A11Y-3, WCAG 2.4.11) */
+html:has(.bulk-bar) { scroll-padding-bottom: calc(var(--bulk-h, 0px) + 24px); }
+/* where each picked file goes: listed while it is short, folded when many files are picked, so the bar stays low */
+.bulk-targets-fold > summary { cursor: pointer; font-size: 13px; color: var(--brand-ink); min-height: 28px; display: flex; align-items: center; }
 .bulk-where { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 13.5px; }
 .bulk-targets { flex-basis: 100%; margin: 0; padding-left: 18px; font-size: 13px; color: var(--ink-dim); overflow-wrap: anywhere; }
 .bulk-problems { margin: 0; padding-left: 18px; font-size: 13px; color: var(--fail-ink); }
