@@ -212,9 +212,24 @@ before the next starts.
   - **Blinded files, a hardening beyond the brief:** the digits of a person's "not data" why are masked, on the region's
     `reason` too (its decision's id kept), as a failed run's message is, since the new fields put that why beside a note
     whose text is withheld.
-  - **PK-Sim's names** are checked on `POST /evidence` only (the person's path): the literature agents' proposals and the
-    published-model import ("unspecified") are not, nor are values stored before. `GET /inputs` gains `CompoundRow.allowed`
-    so the row's form reads the names from the API, not from a list typed in the web.
+  - **PK-Sim's names** are checked on `POST /evidence` (the person's typed value). `GET /inputs` gains
+    `CompoundRow.allowed` so the row's form reads the names from the API, not from a list typed in the web.
   - **`DeliverySection`'s region rows are not changed here** (another branch rewrites them): `Restore.tsx` keeps
     `useDecisionsWho` (now reading nothing) and `NotDataNote`'s `who` so they compile; only the note lines use the new
     fields, and a region's `restored` is shown once its row renders `NotDataNote` on every region.
+  - **After its review** (same branch, 2026-11-15), each a deviation recorded here:
+    - **PK-Sim's names on every person's route**, not only `POST /evidence`: `:correct` (in `evidence_register.correct`),
+      `:decide` ACCEPTED and `:choose` refuse a binding partner that is not one of PK-Sim's names (422 `NOT_ALLOWED`),
+      so a literature agent's proposal or a name corrected into bind.partner no longer reaches the model by a person.
+      `:decide` and `:choose` check in the route, not in `evidence_register.decide`: a signed delivery's landing and the
+      client-review card's confirmation accept through it, and a refusal there would stop a signed landing half
+      written. Those two paths and values kept before stay unchecked; such a kept value is said on its Inputs row
+      (`CompoundRow.message`, chip "not a PK-Sim name", how to replace it). A published model's "unspecified"
+      (`cpf.build.UNSPECIFIED_PARTNER`, which the builder takes as "not set") is let through when accepted or kept, never
+      when typed. Checking the landing at plan time (held, before signing) is left for later.
+    - **The region rows render `NotDataNote` after all**, on every region (the decision, or else the restore, beside why
+      it is not read); `useDecisionsWho` and the `who` prop are removed. `shared.personDecision` stays, because the
+      integration branch's `Decisions.tsx` (slice 3) reads it; it can read `DeliveryRegion.decision` after the merge.
+    - **A merged cell in a table's first rows** is said by `DeliveryRegionHead.spans` (1, n over n columns, 0 covered),
+      not by blanking the covered cells: the rows keep the merged text in each column, as a mapping's header reads it,
+      so the columns stay named by it; the grid draws it once.

@@ -7131,7 +7131,7 @@
       },
       "DeliveryRegionHead": {
         "additionalProperties": false,
-        "description": "The first rows of a table no layout reads (never read, or its layout rejected), for a person to give it a\nlayout: at most 5 rows and 30 columns, each cell as written (cut at 80 characters, \"\" for an empty one). For a file\nthat holds a blinded study's values, only the header band (its rows above the first row of values, as a mapping's\nsample shows it) with every digit masked: no row of values.",
+        "description": "The first rows of a table no layout reads (never read, or its layout rejected), for a person to give it a\nlayout: at most 5 rows and 30 columns, each cell as written (cut at 80 characters, \"\" for an empty one). For a file\nthat holds a blinded study's values, only the header band (its rows above the first row of values, as a mapping's\nsample shows it) with every digit masked: no row of values. `spans` gives, for each of `rows`, each column's width\nas the file draws it: 1; n > 1 for a merged cell's first column, over n columns; 0 for a column a merged cell to its\nleft covers (its text in `rows` is the merged cell's, copied as a mapping reads a merged header).",
         "properties": {
           "blinded": {
             "title": "Blinded",
@@ -7158,6 +7158,16 @@
             },
             "title": "Rows",
             "type": "array"
+          },
+          "spans": {
+            "items": {
+              "items": {
+                "type": "integer"
+              },
+              "type": "array"
+            },
+            "title": "Spans",
+            "type": "array"
           }
         },
         "required": [
@@ -7165,6 +7175,7 @@
           "n_cols",
           "header_rows",
           "rows",
+          "spans",
           "blinded"
         ],
         "title": "DeliveryRegionHead",

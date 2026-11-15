@@ -429,10 +429,28 @@ def _decision(decision: RegionDecision | None, blinded: bool) -> dict[str, Any] 
     return {**shown, "restores": list(decision.restores)} if decision.restores else shown
 
 
+def _spans(grid: RegionGrid, row: int, columns: range) -> list[int]:
+    """Each column's width in the row as the file draws it: 1; n > 1 for a merged cell's first column, over the n
+    columns it covers; 0 for a column a merged cell to its left covers (its text is that cell's, copied as a mapping
+    reads a merged header). A merged cell whose first column is outside `columns` starts at the first one it covers."""
+    out: list[int] = []
+    start, origin = -1, None
+    for column in columns:
+        cell = grid.cell(row, column)
+        if cell.merged_from is not None and cell.merged_from == origin:
+            out[start] += 1
+            out.append(0)
+            continue
+        start, origin = len(out), cell.merged_from or cell.locator or None
+        out.append(1)
+    return out
+
+
 def _head(doc: SourceDocument | None, region_id: str, blinded: bool) -> dict[str, Any] | None:
     """The first rows of a table no layout reads, for a person to give it its layout (`DeliveryRegionHead`): at most 5
-    rows and 30 columns as written; for a file with a blinded study's values only the header band, digits masked, as a
-    mapping's sample shows it. None when the file's source model is not cached or the region is no table of it."""
+    rows and 30 columns as written, and where a merged cell spans columns (`_spans`); for a file with a blinded study's
+    values only the header band, digits masked, as a mapping's sample shows it. None when the file's source model is not
+    cached or the region is no table of it."""
     if doc is None:
         return None
     try:
@@ -448,7 +466,8 @@ def _head(doc: SourceDocument | None, region_id: str, blinded: bool) -> dict[str
         return _mask(text) if blinded else text
 
     return {"n_rows": grid.n_rows, "n_cols": grid.n_cols, "header_rows": band,
-            "rows": [[cell(row, column) for column in columns] for row in range(1, last + 1)], "blinded": blinded}
+            "rows": [[cell(row, column) for column in columns] for row in range(1, last + 1)],
+            "spans": [_spans(grid, row, columns) for row in range(1, last + 1)], "blinded": blinded}
 
 
 def _region_state(scope: _Scope, outcome: Any) -> str:

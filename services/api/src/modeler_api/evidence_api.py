@@ -47,6 +47,7 @@ from modeler_project.evidence import EvidenceItem, EvidenceState, Extraction, So
 from modeler_project.evidence_register import (
     REGISTER_LITERATURE,
     EvidenceError,
+    NotAllowed,
     access_requests,
     blocking,
     choose,
@@ -55,6 +56,7 @@ from modeler_project.evidence_register import (
     decide,
     fulfil_access,
     items,
+    not_allowed,
     propose,
 )
 from modeler_project.inputs import refresh_inputs
@@ -69,6 +71,26 @@ router = APIRouter(prefix="/api/v1", tags=["evidence"])
 def _brief_of(ws: Workspace) -> ProjectBrief | None:
     version = ws.latest(ArtifactKind.BRIEF, "main")
     return ProjectBrief.from_content(version.content) if version else None
+
+
+def _refused(refusal: NotAllowed) -> HTTPException:
+    """A value its parameter cannot take, as every route that lets one into the model refuses it: 422 NOT_ALLOWED with
+    the names PK-Sim takes."""
+    return HTTPException(status_code=422, detail={"code": "NOT_ALLOWED", "message": str(refusal),
+                                                  "allowed": list(refusal.allowed)})
+
+
+def _unless_allowed(ws: Workspace, evidence_id: str) -> None:
+    """Refuse a value a person is about to let into the model (accepted, or kept as the one value of its parameter)
+    when the model builder cannot take it: a binding partner that is not one of PK-Sim's names, from any source (a
+    literature agent's proposal, a value corrected into bind.partner, one stored before the check). Checked here, on
+    the person's routes, and not in `evidence_register.decide`: a signed delivery's landing accepts through it too, and
+    a refusal there would stop a landing half written (its row on Inputs says the value cannot be built instead)."""
+    version = ws.latest(ArtifactKind.EVIDENCE, evidence_id)
+    if version is not None:
+        item = EvidenceItem.from_content(version.content)
+        if refused := not_allowed(item.target, item.value):
+            raise _refused(refused)
 
 
 def _openable(principal: Any, settings: Any) -> dict[str, str]:
@@ -245,8 +267,7 @@ def add_evidence(project_id: str, body: ManualEvidence, principal: Writer, store
     # a parameter PK-Sim takes only by one of its names (the binding partner): any other value, a number or a name
     # written otherwise ("albumin"), would show in the inputs and then be refused by the model builder
     if problem := value_problem(body.target, body.value):
-        raise HTTPException(status_code=422, detail={"code": "NOT_ALLOWED", "message": problem,
-                                                     "allowed": list(allowed_values(body.target))})
+        raise _refused(NotAllowed(problem, allowed_values(body.target)))
     stated = None
     if body.doc_sha256:
         library = DocumentLibrary(ws)
@@ -281,6 +302,8 @@ class Decision(BaseModel):
 @router.post("/projects/{project_id}/evidence/{evidence_id}:decide", **answers(EvidencePage))
 def decide_evidence(project_id: str, evidence_id: str, body: Decision, principal: Writer, store: StoreDep) -> dict[str, Any]:
     ws = workspace_for(project_id, principal, store)
+    if body.state == "ACCEPTED":
+        _unless_allowed(ws, evidence_id)
     try:
         decide(ws, evidence_id, state=EvidenceState(body.state), reason=body.reason, by=principal.user_id,
                value_pksim=body.value_pksim, unit_pksim=body.unit_pksim)
@@ -298,6 +321,7 @@ class ChooseRequest(BaseModel):
 def choose_evidence(project_id: str, evidence_id: str, body: ChooseRequest, principal: Writer, store: StoreDep) -> dict[str, Any]:
     """Keep this value for its parameter: the other accepted values of the same target are rejected with the reason."""
     ws = workspace_for(project_id, principal, store)
+    _unless_allowed(ws, evidence_id)
     try:
         rejected = choose(ws, evidence_id, reason=body.reason, by=principal.user_id)
     except EvidenceError as exc:
@@ -323,6 +347,8 @@ def correct_evidence(project_id: str, evidence_id: str, body: CorrectionRequest,
     try:
         corrected = correct(ws, evidence_id, reason=body.reason, by=principal.user_id, target=body.target,
                             conditions=body.conditions, value=body.value, unit=body.unit)
+    except NotAllowed as exc:
+        raise _refused(exc) from exc
     except EvidenceError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     refresh_inputs(ws, by=principal.user_id)   # the inputs follow every change (redesign §3.2)

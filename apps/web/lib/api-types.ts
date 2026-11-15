@@ -5461,7 +5461,9 @@ export interface components {
          * @description The first rows of a table no layout reads (never read, or its layout rejected), for a person to give it a
          *     layout: at most 5 rows and 30 columns, each cell as written (cut at 80 characters, "" for an empty one). For a file
          *     that holds a blinded study's values, only the header band (its rows above the first row of values, as a mapping's
-         *     sample shows it) with every digit masked: no row of values.
+         *     sample shows it) with every digit masked: no row of values. `spans` gives, for each of `rows`, each column's width
+         *     as the file draws it: 1; n > 1 for a merged cell's first column, over n columns; 0 for a column a merged cell to its
+         *     left covers (its text in `rows` is the merged cell's, copied as a mapping reads a merged header).
          */
         DeliveryRegionHead: {
             /** Blinded */
@@ -5474,6 +5476,8 @@ export interface components {
             n_rows: number;
             /** Rows */
             rows: string[][];
+            /** Spans */
+            spans: number[][];
         };
         /**
          * DeliveryRegionRestore

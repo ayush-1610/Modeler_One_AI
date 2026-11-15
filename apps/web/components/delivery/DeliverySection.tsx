@@ -19,7 +19,7 @@ import {
 
 import { MappingReview } from "./MappingReview";
 import { ReadTable, readable } from "./ReadTable";
-import { DecisionNote, NotDataNote, RestoreForm, restorable, restorableNote, useDecisionsWho } from "./Restore";
+import { DecisionNote, NotDataNote, RestoreForm, restorable, restorableNote } from "./Restore";
 import {
   ChipFor, FILE_STATE, KIND_LABEL, MAPPING_STATE, Problem, REGION_STATE, WITHHELD, Why, fieldText, levelText, plural, tableName,
   useDecide, when, type FileRow, type Page, type Region, type SubjectRow,
@@ -65,7 +65,6 @@ function FileItem({ projectId, file, first, decide, busy, onMapping, inRow = fal
   const [restoring, setRestoring] = useState<string | null>(null);   // a region's id, or a note's place
   const [reading, setReading] = useState<Region | null>(null);       // a table given its first layout
   const shown = file.repeat && first ? first : file;
-  const who = useDecisionsWho(projectId, open && shown.regions.some(restorable));
   // a note stops counting by a person's "not data" (its `decision`: who, when, why), which can be restored, or when a
   // table that is read cites it (no decision: a fact read once for the table)
   const marked = restorableNote;
@@ -105,8 +104,9 @@ function FileItem({ projectId, file, first, decide, busy, onMapping, inRow = fal
                       <td>{fieldText(r.kind)}{r.table_kind && r.table_kind !== "unknown" ? `, ${fieldText(r.table_kind)}` : ""}
                         <div className="muted fs-12">{r.caption === null ? WITHHELD : r.caption}</div></td>
                       <td><ChipFor state={r.state} table={REGION_STATE} />
-                        {restorable(r) ? <NotDataNote region={r} who={who} testId={`delivery-region-decision-${r.region_id}`} />
-                          : r.reason && <div className="muted fs-12" title={r.reason} data-testid={`delivery-region-reason-${r.region_id}`}>{reasonWords(r)}</div>}</td>
+                        {!restorable(r) && r.reason && <div className="muted fs-12" title={r.reason} data-testid={`delivery-region-reason-${r.region_id}`}>{reasonWords(r)}</div>}
+                        {/* the person's decision in force, or else the restore that gave the region back (it stays its record) */}
+                        <NotDataNote region={r} testId={`delivery-region-decision-${r.region_id}`} /></td>
                       <td>
                         {r.mapping_id ? (
                           <button type="button" className="delivery-chip-btn" onClick={() => onMapping(r.mapping_id as string)}

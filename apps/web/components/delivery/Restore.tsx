@@ -17,12 +17,6 @@ type Decision = Schema<"DeliveryRegionDecision">;
 type Restored = Schema<"DeliveryRegionRestore">;
 type Note = FileRow["outside"][number];
 
-/** Kept so a caller written against the audit-trail version still compiles: who made a decision is on the page now
- *  (`decision.by`, `decision.at`), so nothing is read. Drop it with the caller's `who`. */
-export function useDecisionsWho(_projectId: string, _wanted: boolean): Map<string, unknown> {
-  return new Map<string, unknown>();
-}
-
 /** A person's "not data" decision in force, in words: "Marked as not data by dev-user, 2026-11-14 18:15: a working
  *  note". With none, the restore that gave the thing back, if any: "Restored by …: why". Null when neither. */
 export function DecisionNote({ decision, restored, testId }: { decision: Decision | null; restored?: Restored | null; testId?: string }) {
@@ -36,8 +30,8 @@ export function DecisionNote({ decision, restored, testId }: { decision: Decisio
 }
 
 /** A region's "not data" decision (or, with none, its restore) in words; null for a region a rule set aside, or one
- *  nobody decided on. `who` is no longer read (see `useDecisionsWho`). */
-export function NotDataNote({ region, testId }: { region: Region; who?: Map<string, unknown>; testId?: string }) {
+ *  nobody decided on. */
+export function NotDataNote({ region, testId }: { region: Region; testId?: string }) {
   return <DecisionNote decision={region.decision} restored={region.restored} testId={testId} />;
 }
 

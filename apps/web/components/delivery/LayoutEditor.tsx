@@ -87,7 +87,8 @@ function headersFrom(rows: string[][], n: number): Record<number, string> {
 }
 
 /** The table's first rows above the form: its header rows (as the form says them) set apart from the rows under them,
- *  each column numbered as the form numbers it. A blinded file's: its header only, as the API gives it. */
+ *  each column numbered as the form numbers it, and a merged cell drawn once over the columns it covers
+ *  (`head.spans`), as the file draws it. A blinded file's: its header only, as the API gives it. */
 function FirstRows({ head, headerRows, start, testId }: { head: Head; headerRows: number; start?: number | null; testId: string }) {
   const width = head.rows[0]?.length ?? 0;
   const columns = Array.from({ length: width }, (_, i) => i + 1);
@@ -105,7 +106,12 @@ function FirstRows({ head, headerRows, start, testId }: { head: Head; headerRows
             {head.rows.map((row, i) => (
               <tr key={i}>
                 <th scope="row">{i + 1}{i < headerRows ? " · header" : ""}</th>
-                {row.map((text, k) => (i < headerRows ? <th key={k} title={text}>{text}</th> : <td key={k} title={text}>{text}</td>))}
+                {row.map((text, k) => {
+                  const span = head.spans[i]?.[k] ?? 1;
+                  if (span === 0) return null;                  // a merged cell to its left covers this column
+                  const wide = span > 1 ? span : undefined;
+                  return i < headerRows ? <th key={k} colSpan={wide} title={text}>{text}</th> : <td key={k} colSpan={wide} title={text}>{text}</td>;
+                })}
               </tr>
             ))}
           </tbody>

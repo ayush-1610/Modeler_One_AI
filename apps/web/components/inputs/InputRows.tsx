@@ -168,7 +168,10 @@ function ChooseProcess({ row, projectId, run }: { row: Row; projectId: string; r
 function InputRow({ row, name, items, projectId, run }: { row: Row; name: string; items: TodoItem[]; projectId: string; run: Run }) {
   const [open, setOpen] = useState(false);
   const [adding, setAdding] = useState(false);
-  const [state, label] = STATE[row.state];
+  // a kept value the model builder cannot take (the API says why: a binding partner that is not one of PK-Sim's names,
+  // kept before the check or let in by a signed delivery): never shown as "in the model"
+  const refused = row.state === "kept" && row.message !== null;
+  const [state, label] = refused ? ["high", row.allowed.length ? "not a PK-Sim name" : "check it"] : STATE[row.state];
   const entry = entryOf(row);
   const kept = row.sources.length ? ev(row.sources[0]) : undefined;
   const agree = row.sources.length - 1;
@@ -200,6 +203,14 @@ function InputRow({ row, name, items, projectId, run }: { row: Row; name: string
                                testId={`peek-${row.id}`} />}
         </div>
       </div>
+      {refused && (
+        <p className="fs-13 m-2-0" data-testid={`record-refused-${row.id}`}>
+          {row.allowed.length
+            ? <>PK-Sim takes only {row.allowed.join(", ").replace(/, ([^,]*)$/, " or $1")}, written as shown, so the model cannot be built
+              with “{String(row.value)}”. Add a value with one of these names, then open Sources and exclude this one.</>
+            : row.message}
+        </p>
+      )}
       {row.candidates.length > 0 && !items.some((t) => t.kind === "process") && <ChooseProcess row={row} projectId={projectId} run={run} />}
       {items.map((t) => (
         <div key={`${t.kind}-${t.target}`} className="input-fix" data-testid={`todo-${t.kind}-${t.target}`} id={`todo-${t.kind}-${t.target}`}>

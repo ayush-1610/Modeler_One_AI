@@ -148,6 +148,81 @@ def test_a_value_pksim_takes_only_by_name_must_be_one_of_its_names(setup):
     assert rows["bind.partner"]["allowed"] == names and rows["bind.fu"]["allowed"] == []
 
 
+@pytest.mark.req("T-44", "T-49")
+def test_a_binding_partner_that_is_not_one_of_pksims_names_enters_the_model_by_no_persons_route(setup):
+    """Review of the fill round's API follow-ups: the name check holds on every route a person lets a value into the
+    model by, not only `POST /evidence`. A name filed under another input and corrected into bind.partner is refused, so
+    is accepting or keeping one a literature agent proposed; nothing is written. A value let in without a person's route
+    (a signed delivery's landing, one stored before the check) is said on its Inputs row. A published model's
+    "unspecified", which the model builder reads as not set, is accepted."""
+    from modeler_project.evidence import EvidenceItem, EvidenceState, Extraction, SourceRef, SourceType, new_id
+    from modeler_project.evidence_register import decide, items, propose
+    from modeler_project.inputs import allowed_values, refresh_inputs
+    from modeler_project.requirements import RequirementMatrix
+    from pbpk_domain.cpf.build import UNSPECIFIED_PARTNER
+
+    c, ws = setup
+    names = list(allowed_values("bind.partner"))
+    base = "/api/v1/projects/p1/evidence"
+
+    def refused(answer) -> bool:
+        detail = answer.json()["detail"]
+        return answer.status_code == 422 and detail["code"] == "NOT_ALLOWED" and detail["allowed"] == names
+
+    def versions() -> int:
+        return sum(1 for _ in ws.list(ArtifactKind.EVIDENCE))
+
+    # filed under another input (which takes any word), then corrected into bind.partner: refused, nothing written
+    filed = c.post(base, headers=H, json={"req_id": "REQ-bind.partner", "target": "dist.partition_method", "value": "albumin",
+                                          "source_type": "ASSUMPTION"})
+    assert filed.status_code == 201, filed.text
+    before = versions()
+    corrected = c.post(f"{base}/{filed.json()['data']['id']}:correct", headers=H,
+                       json={"target": "bind.partner", "reason": "it is the binding partner"})
+    assert refused(corrected) and versions() == before
+    assert [(e.target, e.state) for e in items(ws)] == [("dist.partition_method", EvidenceState.PROPOSED)]
+
+    # a literature agent's proposal ("bound to albumin"): a person can neither accept it nor keep it
+    matrix = RequirementMatrix.from_content(ws.latest(ArtifactKind.REQUIREMENTS, "main").content)
+    requirement = matrix.get("REQ-bind.partner")
+
+    def proposal(value: str) -> EvidenceItem:
+        item = EvidenceItem(id=new_id(), req_id=requirement.req_id, target="bind.partner", value=value, unit=None,
+                            source_type=SourceType.PUBLICATION, source=SourceRef(doi="10.1/partner", title="A paper"),
+                            quote=f"the drug is bound to {value}", extraction=Extraction.MANUAL, purpose="model_building",
+                            provider="LITERATURE")
+        return propose(ws, item, actor="agent:A2", requirement=requirement)
+
+    agent = proposal("albumin")
+    before = versions()
+    assert refused(c.post(f"{base}/{agent.id}:decide", headers=H, json={"state": "ACCEPTED", "reason": "the paper says so"}))
+    assert refused(c.post(f"{base}/{agent.id}:choose", headers=H, json={"reason": "the one to keep"}))
+    assert versions() == before
+    # rejecting it is a person's route too, and is never refused
+    assert c.post(f"{base}/{agent.id}:decide", headers=H, json={"state": "REJECTED", "reason": "not PK-Sim's name"}).status_code == 200
+
+    # let in without a person's route: kept in the model, and its row says the model builder cannot take it
+    landed = proposal("human serum albumin")
+    decide(ws, landed.id, state=EvidenceState.ACCEPTED, reason="a signed delivery", by="u1")
+    refresh_inputs(ws, by="u1")
+    rows = {r["id"]: r for r in c.get("/api/v1/projects/p1/inputs", headers=H).json()["data"]["compound"]}
+    row = rows["bind.partner"]
+    assert (row["state"], row["value"], row["allowed"]) == ("kept", "human serum albumin", names)
+    assert row["message"] and all(n in row["message"] for n in names)
+    assert c.post(f"{base}/{landed.id}:decide", headers=H, json={"state": "REJECTED", "reason": "not PK-Sim's name"}).status_code == 200
+
+    # a published model that leaves the partner unset: accepted, and its row says nothing
+    unset = proposal(UNSPECIFIED_PARTNER)
+    accepted = c.post(f"{base}/{unset.id}:decide", headers=H, json={"state": "ACCEPTED", "reason": "the OSP model's"})
+    assert accepted.status_code == 200, accepted.text
+    rows = {r["id"]: r for r in c.get("/api/v1/projects/p1/inputs", headers=H).json()["data"]["compound"]}
+    assert (rows["bind.partner"]["state"], rows["bind.partner"]["value"], rows["bind.partner"]["message"]) == (
+        "kept", UNSPECIFIED_PARTNER, None)
+    # and one of PK-Sim's names is taken on every route
+    named = proposal(names[1])
+    assert c.post(f"{base}/{named.id}:choose", headers=H, json={"reason": "the paper's"}).status_code == 200
+
+
 def _wait_until_idle(jobs, store, project_id: str) -> None:
     for _ in range(200):
         if not jobs.running(store, "t1", project_id, "research"):

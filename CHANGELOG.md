@@ -35,19 +35,22 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
     or none). Each region and note also has `restored` (`{id, by, at, why, restores}`): the latest "Restore…" that gave
     it back, which stays its record when a later decision sets it aside again (`coverage.region_restore`,
     `outside_restore`). `Restore.tsx` no longer reads `GET /audit?limit=2000`: "Marked as not data by <who>, <when>:
-    <why>" comes from the region or note itself, and a restored note says "Restored by <who>, <when>: <why>".
+    <why>" comes from the region or note itself, and a restored table or note says "Restored by <who>, <when>: <why>"
+    (a table's beside why it is not read, if it is not: `delivery-region-decision-<region>`).
   - **A note beside a table that is read is told apart.** With a decision it is the person's "not data" and gets
     "Restore…" (`delivery-outside-restore-<file>-<i>`) wherever it sits; not counted with no decision, its table's layout
     reads it ("read with its table", where the page said "accounted for … beside a table that is read"). The note line
     has its state chip (`delivery-outside-state-<file>-<i>`) and the decision or restore under it
     (`delivery-outside-decision-<file>-<i>`).
   - **A table's first rows.** `DeliveryRegion.head` on a table no layout reads (never read, or its layout rejected):
-    `{n_rows, n_cols, header_rows, rows, blinded}`, at most 5 rows and 30 columns, each cell as written, cut at 80
-    characters; `header_rows` is the header band code finds (`mapping.fingerprint.header_band`). For a file that holds a
-    blinded study's values: the header band only, every digit masked, as a mapping's sample shows it, and no row of
-    values. "Read this table…" shows them above the form (`read-table-head`, `read-table-head-said`), names each column by
-    its header (the rows the form says are header rows), starts on the header rows code found, and knows how many columns
-    a PDF or Word table has.
+    `{n_rows, n_cols, header_rows, rows, spans, blinded}`, at most 5 rows and 30 columns, each cell as written, cut at
+    80 characters; `header_rows` is the header band code finds (`mapping.fingerprint.header_band`); `spans` gives each
+    column's width as the file draws it (1; n for a merged cell's first column; 0 for a column it covers, whose text is
+    the merged cell's, as a mapping reads a merged header), so a title merged over six columns is drawn once. For a file
+    that holds a blinded study's values: the header band only, every digit masked, as a mapping's sample shows it, and
+    no row of values. "Read this table…" shows them above the form (`read-table-head`, `read-table-head-said`), names
+    each column by its header (the rows the form says are header rows), starts on the header rows code found, and knows
+    how many columns a PDF or Word table has.
   - **The layout words without a mapping.** `GET /delivery/vocabulary` (`DeliveryMappingVocabulary`: the words every
     mapping answer carries, read from `modeler_intake.mapping_spec` and `fields`; 409 while the pipeline is off).
     "Read this table…" reads them there, so a project where no table has a layout yet gets the form; the layout as text
@@ -57,26 +60,39 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
     `inputs.allowed_values`, never typed) is refused unless it is one of them as written: 422
     `{code: NOT_ALLOWED, message, allowed}`, and nothing is stored. `CompoundRow.allowed` gives the same names on
     `GET /inputs`, and the row's form offers them from there instead of a list typed in the web.
+  - **…and on every route a person lets a value into the model by** (after the review): correcting a value into
+    bind.partner (`evidence_register.correct`, `:correct`), accepting it (`:decide` ACCEPTED) and keeping it (`:choose`)
+    refuse a binding partner that is not one of PK-Sim's names with the same 422 `NOT_ALLOWED`, and write nothing: a
+    literature agent's "bound to albumin" can no longer be accepted, nor "albumin" filed under another input and
+    corrected into it. A published model's "unspecified" (`cpf.build.UNSPECIFIED_PARTNER`, read from the builder, which
+    takes it as "not set") is let through on these routes (`value_problem(..., unset=True)`), not on `POST /evidence`.
+    A kept value the builder cannot take (stored before the check, or landed by a signed delivery) is said on its row:
+    `CompoundRow.message` gives why, and the row's chip says "not a PK-Sim name" instead of "in the model", with how to
+    replace it (`record-refused-<id>`).
   - **A blinded file:** the digits of the why of a person's decision are masked, on the region's `reason` too (its id
     kept: "rd-4: rows • to ••"), as a failed run's message is: a person may have quoted the file.
 - **Why:** the fill round's review left these for the API (plan §5): who and when came from the audit trail's last 2,000
   events; a note beside a table that is read could not be restored; "Read this table…" showed no cells and named no
   column; a project with no layout got the layout as text only; a binding partner typed "albumin" showed "in the model"
-  and the model builder then refused it.
+  and the model builder then refused it. The review found a table's restore not shown, a merged header repeated in each
+  column it covers (the grid six times as wide as needed), and "albumin" still reaching the model through `:correct`
+  then `:decide`.
 - **Impact:**
   - **API:** additive. One route (`GET /delivery/vocabulary`), new response fields (`DeliveryRegion.decision`,
     `restored`, `head`; `DeliveryOutside.decision`, `restored`; `CompoundRow.allowed`) and three new schemas
     (`DeliveryRegionDecision`, `DeliveryRegionRestore`, `DeliveryRegionHead`). `docs/api/openapi.json` and
-    `apps/web/lib/api-types.ts` regenerated.
-  - **Science-adjacent:** `POST /evidence` accepts less: a binding partner not written as one of PK-Sim's names is
-    refused (it used to be stored, shown "in the model" and refused by the builder). Not checked here (known gaps):
-    values stored before, the literature agents' proposals, and the published-model import's "unspecified". No rule,
-    ruleset, registry or acceptance change; what counts as excluded is unchanged.
+    `apps/web/lib/api-types.ts` regenerated (with `DeliveryRegionHead.spans`). `:correct`, `:decide` and `:choose` add a
+    422 `NOT_ALLOWED` refusal.
+  - **Science-adjacent:** `POST /evidence`, `:correct`, `:decide` (ACCEPTED) and `:choose` accept less: a binding partner
+    not written as one of PK-Sim's names is refused (it used to be stored, shown "in the model" and refused by the
+    builder). Not refused (known gaps, each now said on its Inputs row): a value accepted without a person's route (a
+    signed delivery's landing and the client-review card's confirmation accept through `evidence_register.decide`, which
+    is not checked: a refusal there would stop a signed landing half written) and values kept before this change. No
+    rule, ruleset, registry or acceptance change; what counts as excluded is unchanged.
   - **Not touched:** no locked file (the names are read from `snapshot/builder.py`, not changed), ruleset,
     `intake_rules.yaml`, requirement template or registry. No stored record changes.
-  - **Web:** `Restore.tsx` keeps `useDecisionsWho` (it now reads nothing) and `NotDataNote`'s `who` for the region rows
-    of `DeliverySection`, which another branch rewrites; a region's restore is shown once that row renders `NotDataNote`
-    on every region.
+  - **Web:** every region row renders `NotDataNote` (the decision, or else the restore); `useDecisionsWho` and
+    `NotDataNote`'s `who` are gone. `shared.personDecision` stays: the integration branch's `Decisions.tsx` reads it.
   - **Tests:** three new `test_delivery_api` tests (the decisions and restores on regions and notes; a table's first
     rows, capped, and a blinded file's masked header and whys; the layout words with no mapping) and one
     `test_evidence_api` test (PK-Sim's names, refused and offered); the route counts (20→21, 21→22) and the page's outside
@@ -85,7 +101,11 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
     the row. The spec also opens a file's tables and texts under its row in the table of files (slice 2 moved them there:
     since the merge of the fill round onto slice 2 it waited for them in the Delivery section and timed out). Run with it:
     delivery, client-confirm, model-inputs, compound-sources, inputs-workspace, inputs-frame, inputs-todo, inputs-work,
-    published-model, start-project (23 passed).
+    published-model, start-project (23 passed). After the review: `test_evidence_api` has a test of the person's
+    routes (a name corrected into bind.partner, an agent's proposal accepted or kept: refused, nothing written; one let
+    in by the register: kept and said on its row; "unspecified" accepted); the first-rows test checks `spans` (the
+    messy workbook's merged title: `[1, 6, 0, 0, 0, 0, 0]`); `inputs-fill.spec.ts` checks that a restored table says
+    "Restored by …" beside "no layout reads it yet".
 
 ### Changed — the Inputs page counts from one list of work, in one vocabulary, with one status per file (plan 2026-11-14, slice 2)
 - **What:**

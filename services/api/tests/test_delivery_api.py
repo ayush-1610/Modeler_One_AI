@@ -2454,13 +2454,13 @@ def test_a_table_no_layout_reads_shows_its_first_rows_and_a_blinded_file_only_it
 
     (region,) = regions("odd-profile.csv")
     first = {"n_rows": 4, "n_cols": 2, "header_rows": 1, "blinded": False,
-             "rows": [["Hrs (h)", "Result (ng/mL)"], ["0.5", "1.2"], ["1", "2.3"], ["2", "3.4"]]}
+             "rows": [["Hrs (h)", "Result (ng/mL)"], ["0.5", "1.2"], ["1", "2.3"], ["2", "3.4"]], "spans": [[1, 1]] * 4}
     assert region["state"] == "unread" and region["head"] == first
     # at most 5 rows and 30 columns of a wide table, each cell cut at 80 characters
     (wide,) = regions("wide-troughs.csv")
     head = wide["head"]
     assert wide["state"] == "unread" and (head["n_rows"], head["n_cols"], head["header_rows"]) == (8, 36, 1)
-    assert len(head["rows"]) == 5 and {len(row) for row in head["rows"]} == {30}
+    assert len(head["rows"]) == 5 and {len(row) for row in head["rows"]} == {30} and head["spans"] == [[1] * 30] * 5
     assert head["rows"][0][:2] == ["Item", "Q1 result"] and head["rows"][4][:2] == ["row 4", "4.1"]
     # read with a person's layout: no rows (it has a layout to review); its layout rejected, its rows again
     proposed = p.post("delivery/mappings:propose", {"file_sha256": _sha(ODD), "region_id": region["region_id"],
@@ -2500,6 +2500,10 @@ def test_a_table_no_layout_reads_shows_its_first_rows_and_a_blinded_file_only_it
         assert rows == [[re.sub(r"\d", "•", grid.cell(row, c).text.strip()) for c in range(1, min(grid.n_cols, 30) + 1)]
                         for row in range(1, len(rows) + 1)]
         assert not any(ch.isdigit() for row in rows for ch in "".join(row))
+        # the title merged over the six time columns is drawn once: its first column spans them, the others are covered
+        # (their text is the merged cell's, as a mapping reads a merged header)
+        assert r["head"]["spans"][0] == [1, 6, 0, 0, 0, 0, 0] and len(set(rows[0][1:])) == 1
+        assert grid.cell(1, 3).merged_from == grid.cell(1, 2).locator
     assert _leaks(secrets, answer.text) == []
     # what a person wrote about a blinded file has its digits masked too, its decision's id kept
     other = next(r for r in book["regions"] if r["state"] == "mapped")

@@ -2,12 +2,12 @@
 // file links to a study are linked to a new study with a new arm and a new analyte, and later ones to that study with
 // another arm (a name that exists is refused in the server's words); a table marked as not data is restored with a
 // reason, its answer written into the page with no new read of it, and a note outside the tables is marked and restored,
-// each decision said with who, when and why; a table no layout reads gets its first layout in the layout form, its first
-// rows shown and its columns named by their headers, where code's finding on a bad choice is shown beside the column or
-// the setting it names (and, edited as text, above it); and compound inputs no source gives yet are filled from their
-// rows, each in the form its value takes (a number with its unit, a binding partner by PK-Sim's name as the API gives
-// them, a neutral compound as a statement). Software test data (made-up numbers of the made-up Exampleamide), never a
-// model.
+// each decision and restore said with who, when and why; a table no layout reads gets its first layout in the layout
+// form, its first rows shown and its columns named by their headers, where code's finding on a bad choice is shown
+// beside the column or the setting it names (and, edited as text, above it); and compound inputs no source gives yet
+// are filled from their rows, each in the form its value takes (a number with its unit, a binding partner by PK-Sim's
+// name as the API gives them, a neutral compound as a statement). Software test data (made-up numbers of the made-up
+// Exampleamide), never a model.
 import { expect, type APIRequestContext, type Page, test } from "@playwright/test";
 
 import { AUTH, finishStart } from "./fixtures/inputs";
@@ -110,7 +110,11 @@ test("loose values are linked with new arms and an analyte, a table set aside is
   page.on("request", counting);
   await oddItem.getByTestId("delivery-region-restore-why").fill("it is the client's profile after all");
   await oddItem.getByTestId("delivery-region-restore-submit").click();
-  await expect(oddItem.getByTestId(`delivery-region-decision-${table.region_id}`)).toHaveCount(0);
+  // the restore stays the table's record, said as a note's is, beside why it is not read
+  await expect(oddItem.getByTestId(`delivery-region-decision-${table.region_id}`))
+    .toHaveText(/^Restored by .+, \d{4}-\d\d-\d\d \d\d:\d\d: it is the client's profile after all$/);
+  await expect(oddItem.getByTestId(`delivery-region-reason-${table.region_id}`)).toHaveText("no layout reads it yet");
+  await expect(oddItem.getByTestId(`delivery-region-restore-${table.region_id}`)).toHaveCount(0);
   await expect(oddItem.getByTestId(`delivery-region-aside-${table.region_id}`)).toBeVisible();     // not read, as before
   page.off("request", counting);
   expect(pageReads).toBe(0);                                  // the answer was written into the page

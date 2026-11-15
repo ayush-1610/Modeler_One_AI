@@ -45,6 +45,7 @@ from modeler_project.profile_landing import (
 from modeler_project.sources import held, included, rule, select
 from modeler_project.workspace import Workspace
 from pbpk_domain import parameters
+from pbpk_domain.cpf.build import UNSPECIFIED_PARTNER
 from pbpk_domain.cpf.models import CPF, EngineBinding, ParameterRecord, ParameterStatus, Provenance
 from pbpk_domain.cpf.process_bindings import binding_candidates, is_process_id
 from pbpk_domain.data_origin import REAL_ORIGINS
@@ -102,10 +103,11 @@ def _literal_words(annotation: Any) -> tuple[str, ...]:
 # The values PK-Sim takes for a model input that is one of a set of names, read from the model builder's own types
 # (never typed here): the plasma protein binding partner, by the names `CompoundSpec.binding_partner` allows. The CPF's
 # "unspecified" (`cpf.build.UNSPECIFIED_PARTNER`, a published model that leaves it unset) is the OSP import's, not a
-# person's value.
+# person's value: the model builder takes it as "not set" (`_UNSET`), so a value accepted or kept may be it.
 _ALLOWED: dict[str, tuple[str, ...]] = {
     "bind.partner": _literal_words(CompoundSpec.model_fields["binding_partner"].annotation),
 }
+_UNSET: dict[str, tuple[str, ...]] = {"bind.partner": (UNSPECIFIED_PARTNER,)}
 
 
 def allowed_values(target: str) -> tuple[str, ...]:
@@ -114,11 +116,13 @@ def allowed_values(target: str) -> tuple[str, ...]:
     return _ALLOWED.get(target, ())
 
 
-def value_problem(target: str, value: float | str) -> str | None:
+def value_problem(target: str, value: float | str, *, unset: bool = False) -> str | None:
     """Why `value` cannot be a value of `target` (None: it can): a parameter PK-Sim takes only by one of its names
-    (`allowed_values`) refuses any other value, a number or a name written otherwise ("albumin")."""
+    (`allowed_values`) refuses any other value, a number or a name written otherwise ("albumin"). `unset`: a value that
+    enters the model by a person's acceptance, or one the model holds, may also be the one the model builder reads as
+    "not set" (a published model's "unspecified"); a value a person types is one of PK-Sim's names."""
     allowed = allowed_values(target)
-    if allowed and value not in allowed:
+    if allowed and value not in allowed and not (unset and value in _UNSET.get(target, ())):
         return f"{target} takes one of PK-Sim's names, as written: {', '.join(allowed)} (not {value!r})"
     return None
 
