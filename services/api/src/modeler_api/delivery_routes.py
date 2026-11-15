@@ -65,7 +65,7 @@ from modeler_intake.mapping.validate import validate_spec
 from modeler_intake.mapping_spec import CellForm, Cite, Layout, MappingSpec, Role, RowRule
 from modeler_intake.source import region_grid
 from modeler_intake.source_model import RegionGrid, SourceDocument
-from modeler_project import ArtifactKind, Workspace, intake_files, intake_landing, intake_pipeline
+from modeler_project import ArtifactKind, Workspace, intake_decisions, intake_files, intake_landing, intake_pipeline
 from modeler_project import intake_review as review
 from modeler_project.brief import ProjectBrief
 from modeler_project.client_data import ClientDataError
@@ -103,7 +103,6 @@ PREFIX = "/projects/{project_id}/delivery"
 OFF = ("the intake pipeline is off for this deployment (MODELER_INTAKE_PIPELINE=legacy): the Delivery section shows "
        "nothing and does nothing")
 _WAITING = ("queued", "running")
-_DIGIT = re.compile(r"\d")
 _PERSON = re.compile(r"^(rd-\d+): ")             # a region a person's decision sets aside: its reason names the decision
 _HEAD_ROWS, _HEAD_COLS, _HEAD_CHARS = 5, 30, 80     # what a table no layout reads shows of itself (`DeliveryRegionHead`)
 _STATUS = {"UNKNOWN": 404, "INVALID": 422, "CONFLICT": 409, "BLINDED": 409, "STALE": 409}
@@ -121,6 +120,14 @@ SubjectType = Annotated[SubjectKind, Path(alias="type")]
 def _refused(status: int, code: str, message: str, **more: Any) -> HTTPException:
     """A refusal with a code the web app reads (`detail.code`), as the step-up's 403 has one."""
     return HTTPException(status_code=status, detail={"code": code, "message": message, **more})
+
+
+def _already(exc: review.AlreadyDecided, blinded: bool) -> HTTPException:
+    """409 CONFLICT for a decision someone made already, with who made it, when and why (`detail.decided`), so the page
+    says it in a person's words. `blinded`: the decision is about a blinded study or a file that holds one's values,
+    and the why is masked as a region decision's is (D-15)."""
+    said = [{**d, "why": _mask(d.get("why", ""))} if blinded else d for d in exc.decided]
+    return _refused(409, "CONFLICT", _mask(str(exc)) if blinded else str(exc), decided=said)
 
 
 def _blocked(exc: review.ConfirmationRefused) -> HTTPException:
@@ -238,10 +245,9 @@ class _Scope:
 
     def blinded_files(self) -> set[str]:
         """The files that hold a value of a blinded study (active or not): their captions, outside text and table
-        bodies are not shown."""
+        bodies are not shown (`intake_decisions.blinded_files`, the one rule)."""
         if self._blinded_files is None:
-            self._blinded_files = {v.file_sha256 for v in self.reader.values(active=False)
-                                   if v.file_sha256 and v.entity.study in self.hidden} if self.hidden else set()
+            self._blinded_files = intake_decisions.blinded_files(self.reader, self.hidden)
         return self._blinded_files
 
     def card(self, subject_type: str, subject: str) -> Any:
@@ -405,7 +411,7 @@ def _summary(summary: Any) -> dict[str, Any]:
 
 
 def _mask(text: str) -> str:
-    return _DIGIT.sub("•", text)
+    return intake_decisions.mask(text)
 
 
 def _run(run: RunRecord, blinded: bool) -> dict[str, Any]:
@@ -780,6 +786,93 @@ def _confirmation(scope: _Scope, subject_type: str, subject: str, blinded: bool)
             "rejected_legacy": list(done.rejected_legacy), "pending": None if blinded else list(done.pending), "at": done.at}}
 
 
+_OWN_DECISIONS = ("override", "disposition", "entry", "choice", "link")      # listed only when about the subject
+
+
+def _all_values(reader: Any, subject_type: str, subject: str) -> list[ValueState]:
+    """The subject's values, active or not (an excluded table's values say whose file it was)."""
+    if subject_type == "study":
+        return reader.values(study=subject, active=False)
+    if subject_type == "product":
+        return reader.values(product=subject, active=False)
+    return [v for v in reader.values(compound=True, active=False) if in_subject(v.entity, v.field, "compound", subject)]
+
+
+def _decisions(scope: _Scope, subject_type: str, subject: str, values: Sequence[ValueState], blinded: bool) -> list[dict[str, Any]]:
+    """What the subject's signature binds besides its files (`DeliveryDecision`; `intake_decisions.decisions`), newest
+    first: the decisions about the subject, the layouts of its own tables and the "not data" decisions in the files its
+    values were read from ("subject"), and the clean-up of the delivery's other files and tables ("delivery": layouts,
+    links and "not data" decisions there; contracts §11.10). The why of a blinded subject's decision, and of one about a file or a study that is blinded, has its
+    digits masked (D-15, as a region decision's why); an entry of a blinded subject gives no value."""
+    reader = scope.reader
+    everything = _all_values(reader, subject_type, subject)
+    own = {v.file_sha256 for v in everything if v.file_sha256}
+    layouts = {v.mapping.mapping_id for v in everything if v.mapping is not None}      # the layouts of its own tables
+    cover = set(review.delivery_files(scope.ws, values))
+    hidden_files = scope.blinded_files()
+    entries = scope.mapping_entries()
+    wheres: dict[str, dict[str, str]] = {}
+
+    def place(sha: str, text: str) -> str:
+        if sha not in wheres:
+            coverage = scope.coverage(sha)
+            wheres[sha] = {r.region.id: r.region.where for r in coverage.regions} if coverage is not None else {}
+        return wheres[sha].get(text, text)
+
+    def names(shas: Iterable[str]) -> list[str]:
+        return sorted({scope.file_name(sha) or sha[:12] for sha in shas})
+
+    out = []
+    for d in intake_decisions.decisions(scope.ws, reader=reader):
+        about = subject in d.subjects
+        if d.kind in _OWN_DECISIONS or d.kind == "assign":
+            where = "subject" if about else "delivery" if d.kind == "assign" and d.files & cover else None
+        elif d.kind == "layout":
+            where = "subject" if d.record.get("mapping_id") in layouts else "delivery" if d.files & cover else None
+        else:
+            where = "subject" if d.files & own else "delivery" if d.files & cover else None
+        if where is None:
+            continue
+        masked = blinded or bool(d.files & hidden_files) or bool(d.subjects & scope.hidden)
+        body = d.record
+        row: dict[str, Any] = {
+            "id": d.id, "kind": d.kind, "scope": where, "by": d.by, "at": d.at, "why": _mask(d.why) if masked else d.why,
+            "files": names(d.files), "check_id": None, "req_id": None, "disposition": None, "value_id": None,
+            "field": None, "value": None, "unit": None, "time": None, "time_unit": None, "supersedes": None,
+            "confirmed": None, "linked_to": {}, "values": None, "current": None, "places": [], "region_scope": None,
+            "restores": [], "mapping_id": None, "version": None, "status": None, "table_kind": None}
+        if d.kind == "override":
+            row["check_id"] = body.get("check_id")
+        elif d.kind == "disposition":
+            row.update(req_id=body.get("req_id"), disposition=body.get("disposition"))
+        elif d.kind == "entry":
+            row.update(value_id=body.get("id"), field=body.get("field"), value=None if masked else body.get("value"),
+                       unit=body.get("unit"), time=body.get("time"), time_unit=body.get("time_unit"),
+                       supersedes=body.get("supersedes"))
+        elif d.kind == "choice":
+            kept = reader.value(str(body.get("keep")))
+            row.update(value_id=body.get("keep"), field=kept.field if kept is not None else None,
+                       time=kept.time if kept is not None else None, time_unit=kept.time_unit if kept is not None else None)
+        elif d.kind == "link":
+            row["confirmed"] = body.get("confirmed")
+        elif d.kind == "assign":
+            linked = [v for t in body.get("targets", ()) for v in intake_decisions.target_values(reader, str(t))]
+            row.update(values=len(linked), linked_to={role: scope.label(body[role]) or body[role]
+                                                      for role in _ENTITY_ROLES if body.get(role)})
+            if about:
+                row["current"] = sum(1 for v in linked if in_subject(v.entity, v.field, subject_type, subject))
+        elif d.kind in ("not_data", "restore"):
+            sha = str(body.get("file_sha256"))
+            row.update(places=[place(sha, str(text)) for text in body.get("regions", ())], region_scope=body.get("scope"),
+                       restores=list(body.get("restores", ())))
+        elif d.kind == "layout":
+            entry = entries.get((str(body.get("mapping_id")), int(body.get("version", 0))))
+            row.update(mapping_id=body.get("mapping_id"), version=body.get("version"), status=body.get("status"),
+                       table_kind=entry.spec.kind if entry is not None else None)
+        out.append(row)
+    return sorted(out, key=lambda r: r["at"], reverse=True)
+
+
 def _wanted(draw: Any, record: Any) -> list[str]:
     """The values the one submit of ticks must name: always and sampled, minus carried, minus the values whose tick
     failed in an earlier draw; none once the ticks are recorded."""
@@ -816,7 +909,8 @@ def _subject_view(scope: _Scope, subject_type: str, subject: str, *, signature: 
         "by_level": dict(card.by_level), "by_method": dict(card.by_method), "silent_loss": card.silent_loss,
         "coverage": [_summary(c) for c in card.coverage],
         "blockers": [_blocker(b) for b in scope.blockers(subject_type, subject, card=card)],
-        "gaps": [{"study": g.study, "tag": g.tag, "value": g.value, "reason": g.reason} for g in card.gaps],
+        # a gap's value is the fact as its file wrote it ("as written in its file"): not shown for a blinded subject
+        "gaps": [{"study": g.study, "tag": g.tag, "value": "" if blinded else g.value, "reason": g.reason} for g in card.gaps],
         # a check's message may quote a value or count the values below the LLOQ: not shown for a blinded subject
         "checks": [{"id": c.id, "code": c.code, "severity": c.severity, "message": None if blinded else c.message,
                     "values": list(c.values), "rule": c.rule, "overridden": c.id in card.overridden} for c in checks],
@@ -835,7 +929,8 @@ def _subject_view(scope: _Scope, subject_type: str, subject: str, *, signature: 
         "landing_problem": problem,
         "spot_check": {"state": state, "draw_id": draw.id if draw is not None else None,
                        "drawn": len({*draw.always, *draw.sampled}) if draw is not None else 0, "wanted": len(wanted)},
-        "confirmation": _confirmation(scope, subject_type, subject, blinded), "rules": _rules()}
+        "confirmation": _confirmation(scope, subject_type, subject, blinded), "rules": _rules(),
+        "decisions": _decisions(scope, subject_type, subject, values, blinded)}
     if signature is not None:
         view["signature"] = signature
     return view
@@ -923,7 +1018,10 @@ def override_check(project_id: str, subject_type: SubjectType, subject: str, bod
         if check.code in SETTLED_BY_RECORD:
             raise _refused(409, "CONFLICT", f"{check.code} is settled by a disposition of the item or a choice between "
                                             "the values, not by an override")
-        review.override(scope.ws, subject=subject, check_id=body.check_id, why=body.why, by=principal.user_id)
+        try:   # 409 naming who accepted it as is already, when and why: the page reads the card again
+            review.override(scope.ws, subject=subject, check_id=body.check_id, why=body.why, by=principal.user_id)
+        except review.AlreadyDecided as exc:
+            raise _already(exc, scope.blinded(subject_type, subject)) from exc
         return _decided(scope, subject_type, subject)
 
 
@@ -1085,8 +1183,9 @@ def assign_values(project_id: str, body: DeliveryAssignment, principal: Writer, 
 def exclude_regions(project_id: str, body: DeliveryExclusion, principal: Writer, store: StoreDep) -> dict[str, Any]:
     """A person's decision that regions of a file are not data (scope `regions`: any region, and what was read from
     it is set aside; `unread_prose`; `figures`), or that items outside every region are not (`outside`: their
-    locators). The file's coverage is recomputed. 409 `CONFLICT`, naming the decision, for one a person's decision sets
-    aside already (restore it to decide again); nothing is written then."""
+    locators). The file's coverage is recomputed. 409 `CONFLICT` for one a person's decision sets aside already
+    (restore it to decide again), with who decided, when and why (`detail.decided`: where, by, at, why, the why masked
+    for a file that holds a blinded study's values); nothing is written then."""
     scope = _scope(project_id, principal, store)
     with _refusals():
         check_id("sha256", body.file_sha256)
@@ -1095,8 +1194,11 @@ def exclude_regions(project_id: str, body: DeliveryExclusion, principal: Writer,
                 parse_locator(text)
             else:
                 check_id("region", text)
-        review.exclude_regions(scope.ws, file_sha256=body.file_sha256, regions=body.regions, scope=body.scope, why=body.why,
-                               by=principal.user_id)
+        try:
+            review.exclude_regions(scope.ws, file_sha256=body.file_sha256, regions=body.regions, scope=body.scope,
+                                   why=body.why, by=principal.user_id)
+        except review.AlreadyDecided as exc:
+            raise _already(exc, body.file_sha256 in scope.blinded_files()) from exc
         scope.refresh()
         return envelope(_page(scope))
 

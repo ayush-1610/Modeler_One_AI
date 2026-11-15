@@ -22,13 +22,17 @@ export type ClientFile = {
                               problems?: string[]; cleaning?: CleaningLine[]; agent_tried?: string }>;
   // a PDF or Word file (I4): what code found on its pages, and each reading of it by the agent
   inventory?: InventoryItem[];
+  /** the file holds a value of a study the delivery blinds (D-15): no page's line, the digits of what it quotes masked */
+  blinded?: boolean;
+  /** its sheets a blinded study's values were read from: not read or shown until the plan is signed */
+  blinded_sheets?: string[];
   document_reads?: DocumentRead[];
   // what the person said the file is, which places it in an area of Inputs, and another tag code read from its content
   tag?: Schema<"FileTagView"> | null;
   tag_proposal?: Schema<"TagProposalView"> | null;
   needs_ocr?: boolean;
 };
-export type InventoryItem = { page: number; holds: string; label: string; line: string };
+export type InventoryItem = { page: number; holds: string; label: string; line: string | null };
 export type DocumentRead = { run_id: string | null; by: string; datasets: string[]; facts: number; dissolution_rows: number;
                              links: number; compositions?: number; refused: string[]; digitization: string[]; summary: string };
 /** The file kinds the reading agent reads for data (modeler_project.client_data.READABLE_DOCUMENTS). */

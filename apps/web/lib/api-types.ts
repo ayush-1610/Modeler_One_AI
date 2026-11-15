@@ -1428,8 +1428,9 @@ export interface paths {
          * Exclude Regions
          * @description A person's decision that regions of a file are not data (scope `regions`: any region, and what was read from
          *     it is set aside; `unread_prose`; `figures`), or that items outside every region are not (`outside`: their
-         *     locators). The file's coverage is recomputed. 409 `CONFLICT`, naming the decision, for one a person's decision sets
-         *     aside already (restore it to decide again); nothing is written then.
+         *     locators). The file's coverage is recomputed. 409 `CONFLICT` for one a person's decision sets aside already
+         *     (restore it to decide again), with who decided, when and why (`detail.decided`: where, by, at, why, the why masked
+         *     for a file that holds a blinded study's values); nothing is written then.
          */
         post: operations["exclude_regions_api_v1_projects__project_id__delivery_regions_exclude_post"];
         delete?: never;
@@ -4794,6 +4795,80 @@ export interface components {
             /** Values Unassigned */
             values_unassigned: number;
         };
+        /**
+         * DeliveryDecision
+         * @description A person's decision the subject's signature binds (plan 2026-11-14 §2.2.4), read from the intake's logs: who
+         *     made it, when and why, and what it is about. `scope` "subject": about the subject, or the clean-up of the files its
+         *     values were read from; "delivery": the clean-up of the delivery's other files, which the signature binds too
+         *     (contracts §11.10). For a blinded subject, or a decision about a file that holds a blinded study's values, the
+         *     digits of `why` are masked (as a region decision's are) and an entry gives no `value` (D-15).
+         */
+        DeliveryDecision: {
+            /** At */
+            at: string;
+            /** By */
+            by: string;
+            /** Check Id */
+            check_id: string | null;
+            /** Confirmed */
+            confirmed: boolean | null;
+            /** Current */
+            current: number | null;
+            /** Disposition */
+            disposition: string | null;
+            /** Field */
+            field: string | null;
+            /** Files */
+            files: string[];
+            /** Id */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "override" | "disposition" | "entry" | "choice" | "link" | "assign" | "not_data" | "restore" | "layout";
+            /** Linked To */
+            linked_to: {
+                [key: string]: string;
+            };
+            /** Mapping Id */
+            mapping_id: string | null;
+            /** Places */
+            places: string[];
+            /** Region Scope */
+            region_scope: string | null;
+            /** Req Id */
+            req_id: string | null;
+            /** Restores */
+            restores: string[];
+            /**
+             * Scope
+             * @enum {string}
+             */
+            scope: "subject" | "delivery";
+            /** Status */
+            status: string | null;
+            /** Supersedes */
+            supersedes: string | null;
+            /** Table Kind */
+            table_kind: string | null;
+            /** Time */
+            time: number | null;
+            /** Time Unit */
+            time_unit: string | null;
+            /** Unit */
+            unit: string | null;
+            /** Value */
+            value: number | string | boolean | null;
+            /** Value Id */
+            value_id: string | null;
+            /** Values */
+            values: number | null;
+            /** Version */
+            version: number | null;
+            /** Why */
+            why: string;
+        };
         /** DeliveryDisposition */
         DeliveryDisposition: {
             /**
@@ -5788,6 +5863,8 @@ export interface components {
             conflicts: components["schemas"]["DeliveryConflict"][];
             /** Coverage */
             coverage: components["schemas"]["DeliveryCoverage"][];
+            /** Decisions */
+            decisions: components["schemas"]["DeliveryDecision"][];
             /** Gaps */
             gaps: components["schemas"]["DeliveryGap"][];
             /** Held */
@@ -6303,6 +6380,8 @@ export interface components {
         };
         /** DocumentPage */
         DocumentPage: {
+            /** Blinded */
+            blinded: boolean;
             /** N Pages */
             n_pages: number;
             /** Name */
@@ -10855,6 +10934,8 @@ export interface components {
          * @description A study, a product or a file's compound values, to confirm or confirmed.
          */
         ReviewGroup: {
+            /** Blinded */
+            blinded: boolean;
             /** Confirmed At */
             confirmed_at: string | null;
             /** Confirmed By */

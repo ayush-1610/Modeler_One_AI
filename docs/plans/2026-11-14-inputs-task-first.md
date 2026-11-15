@@ -360,3 +360,36 @@ before the next starts.
     merge the card is a third place to mark a loose number as not data, beside To do and the file's view in Client files.
   - Not in this slice: the review bar (‹ Previous · Next › over the cards, with slice 3's cards), paging of a file's
     values (the first six, then all), per-cell "not data" (API 3).
+
+### Final review fixes: blinding, Part 11 records and the decisions list (2026-11-15; API and frontend)
+- **Where the decisions come from (INT-1).** The card's API gives a subject's decisions (`DeliverySubject.decisions`,
+  read from the intake's own logs by `modeler_project/intake_decisions.py`), the API follow-up slice 3 named; the
+  decision list no longer reads `GET /audit`. This replaces slice 3's note that who, when and why come from the audit
+  trail's last 2,000 events and that links are not listed. Masking reuses the delivery's rule: digits masked (`_mask`),
+  for a blinded subject and for a decision about a file that holds a blinded study's values (`blinded_files`). `GET
+  /audit` masks the reason of such intake events too while the study is blinded; the stored chain is unchanged.
+- **What a signature binds, listed (gaps 6, 9; INT-8).** "Subject": its own decisions, the layouts of its own tables
+  (naming every file each reads now), the values linked to it, and the "not data" decisions and restores in the files
+  its values were read from. "Delivery": the layouts, links and "not data" decisions of the delivery's other files and
+  tables, folded under one line. A link the subject lost to a later relink stays listed with "since linked elsewhere".
+  A stale confirmation lists the decisions made after it was signed; a file read again with no person's decision is
+  said as such, not named (runs carry no reason).
+- **Blinding by the delivery on the sheet form (INT-2).** A client-review group is the delivery's blinded subject's when
+  `legacy_groups` names it or its name is the subject's label (the join's two rules, §2.1). Its facts, options, draft
+  answers and points are withheld in `GET /client-review`; `:finish`, `:confirm`, reading one of its sheets and
+  `:map` on such a sheet answer 409 `BLINDED`. Sheets are found by the anchors of the blinded study's values (a sheet of
+  the same workbook with another study's values stays open); a page of a PDF or Word file is masked file by file, as
+  the delivery's file-level rule and the source view's rule for a text of such a file do. Not done: checking the sheet
+  form's purpose against the delivery's `intended_use` (moot while it refuses), and the `:select`, `:reopen` and
+  `:edit` routes of such a group (they load nothing; the page offers none of them for it).
+- **Not changed, for the owner:** the raw file route (`/documents/{sha}/raw`) still serves a file that holds a blinded
+  study's values to whoever opens it: the peek stops offering "Open the original", but refusing the route would stop
+  D-15's reveal for a check (digitization). A study the project's blinding list holds and the delivery does not keeps
+  its sheet-form path (the API redacts its points, as before).
+- **Two confirm paths, two Part 11 controls (INT-7) — open decision for the owner (contracts §11.10).** "Confirm and
+  sign" records an electronic signature (step-up, meaning Reviewed, the record's sha256); "Confirm now with the sheet
+  form" records who confirmed and when, with no reason, step-up or signature. The path stays (§2.2.1); its note now says
+  it is not signed. Whether a study that is also a delivery subject must be signed on either path is the owner's call.
+- **A second accept-as-is is refused (INT-6):** `:override` answers 409 `CONFLICT` with who, when and why when the
+  check is overridden already. `values:assign` keeps no precondition: relinking is how a link is changed (§2.2.4); a
+  page that did not see another person's link still links again, and both links are listed.

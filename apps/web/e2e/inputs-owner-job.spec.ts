@@ -296,12 +296,27 @@ test("the owner's job: files uploaded, layouts checked, values linked with arms,
 
   // --- before the signature: each decision made on the study, with who made it, when and why ---
   const decisions = card.getByTestId(`delivery-decisions-${study}`);
-  const listed = decisions.locator('[data-testid^="decision-"]');
-  await expect(listed).toHaveCount(10);
+  // every decision the signature binds: the 4 facts, the 4 demographics, the 2 layouts of its tables, the 2 links of its
+  // arms' values and the note marked as not data in its own file (final review gaps 6 and 9)
+  const listed = card.getByTestId(`delivery-decisions-own-${study}`).locator('[data-testid^="decision-"]');
+  await expect(listed).toHaveCount(13);
   for (const text of await listed.allInnerTexts()) expect(text).toMatch(/(dev-user|e2e-fixture), \d{1,2} \w{3} \d{4}, \d\d:\d\d · “.+”/);
   const decision = (what: string | RegExp) => listed.filter({ hasText: what });
-  await expect(decision(/Table layout approved: the individual PK table of OJ-101 (Reference|Test)\.xlsx/))
+  // a layout names every file it reads
+  await expect(decision("Table layout approved: the individual PK table of OJ-101 Reference.xlsx, OJ-101 Test.xlsx and lab-export-0412.xlsx"))
     .toContainText("dev-user");
+  for (const arm of ["Reference", "Test"]) {
+    await expect(decision(new RegExp(`Linked \\d+ values of OJ-101 ${arm}\\.xlsx to study OJ-101, arm ${arm}`)))
+      .toContainText("“the two arms of study OJ-101, as their titles say”");
+  }
+  await expect(decision("Marked as not data: sheet Means, cell A19 of OJ-101 plasma means.xlsx"))
+    .toContainText("“a working note of the lab, not a value of the study”");
+  // the delivery's other file, linked to a new study: bound by the signature too, listed in the fold
+  const others = card.getByTestId(`delivery-decisions-others-${study}`);
+  await expect(others).toContainText("Your signature also binds the clean-up of the delivery's other files: 1 decision");
+  await others.locator("summary").click();
+  await expect(others.locator('[data-testid^="decision-"]')).toHaveCount(1);
+  await expect(others).toContainText(/Linked \d+ values of lab-export-0412\.xlsx to study OJ-102/);
   await expect(decision(/Table layout approved: the individual PK table/)).toContainText("checked against the files: subjects and periods down");
   await expect(decision("Table layout approved: the PK summary table of OJ-101 plasma means.xlsx")).toContainText("e2e-fixture");
   await expect(decision("Table layout approved: the PK summary table of OJ-101 plasma means.xlsx")).toContainText("signed off earlier");
@@ -327,6 +342,9 @@ test("the owner's job: files uploaded, layouts checked, values linked with arms,
   await expect(confirm.getByTestId("delivery-confirm-coverage")).toContainText(
     "4 files: 0 numbers not read in their tables, 0 tables or texts not read, 0 loose numbers, 0 values not linked to a study");
   await expect(confirm.getByTestId("delivery-confirm-rules")).toContainText("v0.1, UNVERIFIED");
+  // what the signature binds of the delivery beyond the study's own files is said in one line
+  await expect(confirm.getByTestId("delivery-confirm-decisions")).toContainText(
+    "13 decisions made on it, and 1 decision on the clean-up of the delivery's other files");
   await expect(confirm.getByTestId("delivery-confirm-blockers")).toHaveCount(0);
   await confirm.getByTestId("delivery-confirm-sign").click();
   await expect(confirm.getByTestId("delivery-signed")).toContainText(/Dev User \| Reviewed \| \d{4}-\d\d-\d\d/, { timeout: 60_000 });
@@ -375,4 +393,21 @@ test("the owner's job: files uploaded, layouts checked, values linked with arms,
     expect(d.state).toBe("ACCEPTED");
     expect(d.decision_reason).toMatch(/^confirmed on Delivery \(cf-\d+, signature /);
   }
+
+  // --- a change after the signature (final review INT-8): the note is given back through the API; the card says it changed
+  // since it was signed, and names what changed, who, when, why and in which file ---
+  const page2 = await read<{ deliveries: { files: (File & { sha256: string })[] }[] }>(request, "delivery");
+  const meansSha = page2.deliveries.flatMap((d) => d.files).find((f) => f.file_id === means)!.sha256;
+  const back = await request.post(`${api}/delivery/regions:restore`, { headers: AUTH, data: {
+    file_sha256: meansSha, regions: ["s:'Means'!A19"], scope: "outside", why: "the re-assay count is asked of the lab" } });
+  expect(back.ok(), await back.text()).toBeTruthy();
+  await page.reload();
+  await page.getByTestId("tab-studies").click();
+  const reopened = page.getByTestId(`delivery-subject-open-${study}`);
+  if ((await reopened.getAttribute("aria-expanded")) !== "true") await reopened.click();
+  await expect(page.getByTestId(`card-changed-study:${seed.study}`)).toContainText(/Changed since signed by Dev User on .*: confirm again/);
+  const changed = page.getByTestId(`card-changed-since-${study}`);
+  await expect(changed).toContainText("Given back (counted again): sheet Means, cell A19 of OJ-101 plasma means.xlsx");
+  await expect(changed).toContainText(/dev-user, \d{1,2} \w{3} \d{4}, \d\d:\d\d · “the re-assay count is asked of the lab”/);
+  await shot(page, "7-changed-since-signed");
 });

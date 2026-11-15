@@ -154,6 +154,7 @@ class DocumentPage(View):
     page: int
     n_pages: int
     text: str
+    blinded: bool                       # the file holds a blinded study's values: every digit of `text` is masked (D-15)
 
 
 class BriefIssue(View):

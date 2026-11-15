@@ -172,6 +172,20 @@ export function GroupCard({ projectId, group, run, mode = "confirm", alsoOnDeliv
   const facts = group.items.filter((i) => i.kind === "draft").length;
   const data = group.items.filter((i) => i.kind !== "draft");
   const drafts = group.items.filter((i) => i.kind === "draft");
+  if (group.blinded) {
+    // a study or product the delivery blinds (D-15): the API withholds what the sheet form read of it and refuses to
+    // read or confirm it (409 BLINDED) until the plan is signed, so nothing of it is drawn or offered here
+    return (
+      <article className="confirm-group to-confirm reading" data-testid={`group-${group.id}`} id={`group-${group.id}`} aria-label={group.title}>
+        <header className="confirm-head">
+          <div className="confirm-title"><span className="muted fs-13">Read with the sheet form</span>
+            <span className="chip neutral">blinded until the plan is signed</span></div>
+        </header>
+        <p className="delivery-withheld m-0" data-testid={`group-withheld-${group.id}`}>Withheld: {name} is blinded until the plan is signed.
+          What the sheet form read of it is not shown, and it is read and confirmed once the plan is signed.</p>
+      </article>
+    );
+  }
   return (
     <article className={`confirm-group ${confirmed ? "confirmed" : "to-confirm"}${read ? " reading" : ""}`}
              data-testid={`group-${group.id}`} id={`group-${group.id}`} aria-label={group.title}>

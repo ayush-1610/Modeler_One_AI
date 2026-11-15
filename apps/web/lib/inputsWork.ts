@@ -206,7 +206,8 @@ export function unifySubjects(delivery: DeliveryPage | null, review: ReviewPage 
       key: joined[0]?.id ?? `${row.subject_type}:${row.label}`, kind: row.subject_type, label: row.label, path, row, groups: joined,
       aliases: joined.map(groupLabel).filter((l) => normLabel(l) !== normLabel(row.label)),
       area: joined[0] ? (joined[0].tab as Tab) : KIND_AREA[row.subject_type], files,
-      blinded: row.blinded || (row.subject_type === "study" && blindedStudies.has(normLabel(row.label))), done,
+      // blinded by the delivery (its row, or the client review's group of it), or by the project's blinding list
+      blinded: row.blinded || joined.some((g) => g.blinded) || (row.subject_type === "study" && blindedStudies.has(normLabel(row.label))), done,
     });
   }
   for (const g of groups.filter((x) => !taken.has(x.id))) {
@@ -214,7 +215,7 @@ export function unifySubjects(delivery: DeliveryPage | null, review: ReviewPage 
     out.push({
       key: g.id, kind, label: groupLabel(g), path: "sheet-form", row: null, groups: [g], aliases: [],
       area: (g.tab as Tab) ?? KIND_AREA[kind], files: groupShas(g).map(fileOf),
-      blinded: kind === "study" && blindedStudies.has(normLabel(groupLabel(g))), done: g.state === "confirmed",
+      blinded: Boolean(g.blinded) || (kind === "study" && blindedStudies.has(normLabel(groupLabel(g)))), done: g.state === "confirmed",
     });
   }
   return out;

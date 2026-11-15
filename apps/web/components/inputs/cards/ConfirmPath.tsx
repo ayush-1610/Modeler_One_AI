@@ -6,8 +6,11 @@
 // facts, its observed data, its files and tables, its checks, what is not loaded with it, the one confirmation, and how
 // the files were read by the other reader (folded, read-only). A card confirmed on the delivery whose study the sheet
 // form also read offers both paths in the card itself: while the delivery's clean-up holds "Confirm and sign", "Confirm
-// now with the sheet form" is beside it, and whichever is confirmed first is what loads. The clean-up itself (the
-// per-delivery gate, contracts §11.10) is not changed here.
+// now with the sheet form" is beside it, and whichever is confirmed first is what loads; it says that it is not signed
+// (it records who confirmed and when), where "Confirm and sign" is (final review INT-7: the two paths have different Part
+// 11 controls, an open decision for the owner, plan §5). A study the delivery blinds (D-15) offers no sheet-form path,
+// and the sheet form's reading of it is withheld (final review INT-2). The clean-up itself (the per-delivery gate,
+// contracts §11.10) is not changed here.
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
@@ -112,7 +115,7 @@ export function suggestionsOf(groups: Group[]): Suggestions {
     const v = String(value);
     if (!(out[f] ??= []).some((x) => x.value === v)) out[f].push({ value: v, from });
   };
-  for (const g of groups) {
+  for (const g of groups.filter((x) => !x.blinded)) {      // a group the delivery blinds offers nothing (D-15)
     for (const f of g.facts) add(f.field, typeof f.stored === "string" || typeof f.stored === "number" ? f.stored : f.value, `${g.title}: ${f.label}`);
     for (const i of g.items.filter((x) => x.kind === "draft")) {
       const d = i.draft as { answers?: Record<string, string>; prefill?: Record<string, string>; sheet?: string } | null | undefined;
@@ -129,7 +132,7 @@ function InModel({ subject, onShow }: { subject: Subject; onShow?: () => void })
   const g = subject.groups.find((x) => x.state === "confirmed");
   if (c && !c.current) {
     return <p className="card-loaded changed" data-testid={`card-changed-${subject.key}`}>Changed since signed by {c.printed_name || c.by} on
-      {" "}{whenText(c.at)}: confirm again.</p>;
+      {" "}{whenText(c.at)}: confirm again. What changed since, with who, when and why, is under Confirm and sign.</p>;
   }
   if (!subject.done) return null;
   const who = c?.current && c.landed ? `Signed by ${c.printed_name || c.by} on ${whenText(c.at)}`
@@ -159,7 +162,10 @@ export function ConfirmPath({ subject: s, env, observed, files, onShow }: {
   const { projectId, run, work, focus } = env;
   // the path the card is read on: a card the sheet form confirmed first is a sheet-form card from then on
   const path = viaSheet(s) ? "sheet-form" : s.path;
-  const toConfirm = s.groups.filter((g) => g.state === "to_confirm" && g.kind !== "sheet");
+  // a study the delivery blinds (D-15): nothing of it is read or confirmed with the sheet form until the plan is signed
+  // (the API refuses it, 409 BLINDED), and the sheet form's reading of it is not shown
+  const blinded = Boolean(s.row?.blinded || s.groups.some((g) => g.blinded));
+  const toConfirm = blinded ? [] : s.groups.filter((g) => g.state === "to_confirm" && g.kind !== "sheet");
   // a To do row that opens a sheet-form item (a sheet to read, a disagreement) of a card confirmed on the delivery opens
   // the sheet form's path there, where it is settled
   useEffect(() => {
@@ -176,7 +182,8 @@ export function ConfirmPath({ subject: s, env, observed, files, onShow }: {
               onClick={() => { setReading(true); setSheet(true);
                                window.setTimeout(() => body.current?.querySelector(".how-read")?.scrollIntoView({ block: "start", behavior: "smooth" }), 60); }}>
         {gated ? "Confirm now with the sheet form" : "Confirm with the sheet form instead"}</button>
-      <span className="muted fs-13">Whichever is confirmed first is what loads; nothing is loaded twice.
+      <span className="muted fs-13" data-testid={`confirm-sheet-note-${s.key}`}>Not signed: the sheet form records who confirmed and when,
+        where Confirm and sign records your signature. Whichever is confirmed first is what loads; nothing is loaded twice.
         {toConfirm.some((g) => g.open) ? ` The sheet form has ${openText(toConfirm[0]) || "items"} first.` : ""}</span>
     </span>
   ) : undefined;
@@ -186,12 +193,15 @@ export function ConfirmPath({ subject: s, env, observed, files, onShow }: {
       <InModel subject={s} onShow={onShow} />
       {path === "delivery" && s.row && (
         <DeliveryReview projectId={projectId} row={s.row} mode="confirm" gate={gate} onMapping={setMapping} todo={todo}
-                        suggestions={suggestionsOf(s.groups)} observed={observed} sheetPath={sheetPath}
+                        suggestions={blinded ? {} : suggestionsOf(s.groups)} observed={observed} sheetPath={sheetPath}
                         howRead={s.groups.length > 0 ? (
                           <HowRead subject={s} title={sheet ? "the sheet form, to confirm it this way" : "the sheet form (for reference)"}
                                    open={reading} onOpen={setReading}>
-                            {() => s.groups.map((g) => <GroupCard key={g.id} projectId={projectId} group={g} run={run} drawn={false}
-                                                                  mode={sheet && g.state === "to_confirm" ? "confirm" : "read"} alsoOnDelivery />)}
+                            {() => (blinded
+                              ? <p className="delivery-withheld m-0" data-testid={`how-read-withheld-${s.key}`}>Withheld: the study is blinded until
+                                  the plan is signed, and the sheet form&apos;s reading shows its values. It is read and confirmed once the plan is signed.</p>
+                              : s.groups.map((g) => <GroupCard key={g.id} projectId={projectId} group={g} run={run} drawn={false}
+                                                               mode={sheet && g.state === "to_confirm" ? "confirm" : "read"} alsoOnDelivery />))}
                           </HowRead>
                         ) : undefined} />
       )}

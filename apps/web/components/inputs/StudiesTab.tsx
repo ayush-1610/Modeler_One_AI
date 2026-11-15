@@ -254,7 +254,10 @@ function factsOf(s: Subject, inModel: StudyRow | undefined, card: Card | null | 
   const out: Record<string, string> = {};
   const put = (k: string, v: unknown) => { if (v !== null && v !== undefined && v !== "" && !(k in out)) out[k] = String(v); };
   if (inModel) for (const k of ["route", "food_state", "design", "dose_mg"]) put(k, inModel.facts[k]);
-  for (const g of s.groups) for (const f of g.facts) put(f.field, typeof f.stored === "string" || typeof f.stored === "number" ? f.stored : f.value);
+  // a group the delivery blinds withholds its facts (D-15): nothing of it is said on the row
+  for (const g of s.groups.filter((x) => !x.blinded)) {
+    for (const f of g.facts) put(f.field, typeof f.stored === "string" || typeof f.stored === "number" ? f.stored : f.value);
+  }
   for (const v of (card?.tables ?? []).filter((t) => t.kind === "facts").flatMap((t) => t.values)) {
     if (v.blinded || v.status === "superseded" || v.status === "excluded") continue;
     put(v.field === "dose" ? (v.unit === "mg" ? "dose_mg" : "dose") : v.field, v.field === "dose" && v.unit !== "mg" ? `${v.value} ${v.unit ?? ""}`.trim() : v.value);

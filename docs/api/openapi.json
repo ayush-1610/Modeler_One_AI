@@ -4977,6 +4977,318 @@
         "title": "DeliveryCoverage",
         "type": "object"
       },
+      "DeliveryDecision": {
+        "additionalProperties": false,
+        "description": "A person's decision the subject's signature binds (plan 2026-11-14 §2.2.4), read from the intake's logs: who\nmade it, when and why, and what it is about. `scope` \"subject\": about the subject, or the clean-up of the files its\nvalues were read from; \"delivery\": the clean-up of the delivery's other files, which the signature binds too\n(contracts §11.10). For a blinded subject, or a decision about a file that holds a blinded study's values, the\ndigits of `why` are masked (as a region decision's are) and an entry gives no `value` (D-15).",
+        "properties": {
+          "at": {
+            "title": "At",
+            "type": "string"
+          },
+          "by": {
+            "title": "By",
+            "type": "string"
+          },
+          "check_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Check Id"
+          },
+          "confirmed": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confirmed"
+          },
+          "current": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current"
+          },
+          "disposition": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Disposition"
+          },
+          "field": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Field"
+          },
+          "files": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Files",
+            "type": "array"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "override",
+              "disposition",
+              "entry",
+              "choice",
+              "link",
+              "assign",
+              "not_data",
+              "restore",
+              "layout"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "linked_to": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Linked To",
+            "type": "object"
+          },
+          "mapping_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mapping Id"
+          },
+          "places": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Places",
+            "type": "array"
+          },
+          "region_scope": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Region Scope"
+          },
+          "req_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Req Id"
+          },
+          "restores": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Restores",
+            "type": "array"
+          },
+          "scope": {
+            "enum": [
+              "subject",
+              "delivery"
+            ],
+            "title": "Scope",
+            "type": "string"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "supersedes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Supersedes"
+          },
+          "table_kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Table Kind"
+          },
+          "time": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Time"
+          },
+          "time_unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Time Unit"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          },
+          "value_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value Id"
+          },
+          "values": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Values"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
+          },
+          "why": {
+            "title": "Why",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "scope",
+          "by",
+          "at",
+          "why",
+          "files",
+          "check_id",
+          "req_id",
+          "disposition",
+          "value_id",
+          "field",
+          "value",
+          "unit",
+          "time",
+          "time_unit",
+          "supersedes",
+          "confirmed",
+          "linked_to",
+          "values",
+          "current",
+          "places",
+          "region_scope",
+          "restores",
+          "mapping_id",
+          "version",
+          "status",
+          "table_kind"
+        ],
+        "title": "DeliveryDecision",
+        "type": "object"
+      },
       "DeliveryDisposition": {
         "properties": {
           "disposition": {
@@ -8091,6 +8403,13 @@
             "title": "Coverage",
             "type": "array"
           },
+          "decisions": {
+            "items": {
+              "$ref": "#/components/schemas/DeliveryDecision"
+            },
+            "title": "Decisions",
+            "type": "array"
+          },
           "gaps": {
             "items": {
               "$ref": "#/components/schemas/DeliveryGap"
@@ -8224,7 +8543,8 @@
           "landing_problem",
           "spot_check",
           "confirmation",
-          "rules"
+          "rules",
+          "decisions"
         ],
         "title": "DeliverySubject",
         "type": "object"
@@ -9736,6 +10056,10 @@
       "DocumentPage": {
         "additionalProperties": false,
         "properties": {
+          "blinded": {
+            "title": "Blinded",
+            "type": "boolean"
+          },
           "n_pages": {
             "title": "N Pages",
             "type": "integer"
@@ -9762,7 +10086,8 @@
           "name",
           "page",
           "n_pages",
-          "text"
+          "text",
+          "blinded"
         ],
         "title": "DocumentPage",
         "type": "object"
@@ -22335,6 +22660,10 @@
         "additionalProperties": false,
         "description": "A study, a product or a file's compound values, to confirm or confirmed.",
         "properties": {
+          "blinded": {
+            "title": "Blinded",
+            "type": "boolean"
+          },
           "confirmed_at": {
             "anyOf": [
               {
@@ -22431,7 +22760,8 @@
           "state",
           "open",
           "confirmed_by",
-          "confirmed_at"
+          "confirmed_at",
+          "blinded"
         ],
         "title": "ReviewGroup",
         "type": "object"
@@ -33477,7 +33807,7 @@
     },
     "/api/v1/projects/{project_id}/delivery/regions:exclude": {
       "post": {
-        "description": "A person's decision that regions of a file are not data (scope `regions`: any region, and what was read from\nit is set aside; `unread_prose`; `figures`), or that items outside every region are not (`outside`: their\nlocators). The file's coverage is recomputed. 409 `CONFLICT`, naming the decision, for one a person's decision sets\naside already (restore it to decide again); nothing is written then.",
+        "description": "A person's decision that regions of a file are not data (scope `regions`: any region, and what was read from\nit is set aside; `unread_prose`; `figures`), or that items outside every region are not (`outside`: their\nlocators). The file's coverage is recomputed. 409 `CONFLICT` for one a person's decision sets aside already\n(restore it to decide again), with who decided, when and why (`detail.decided`: where, by, at, why, the why masked\nfor a file that holds a blinded study's values); nothing is written then.",
         "operationId": "exclude_regions_api_v1_projects__project_id__delivery_regions_exclude_post",
         "parameters": [
           {

@@ -16,6 +16,77 @@ Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: compl
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
 
+### Fixed — final review, blinding, Part 11 records and the decisions list (INT-1, INT-2, INT-3, INT-6, INT-7, INT-8, INT-11, CODE-8 d, owner-e2e gaps 6 and 9) — science-adjacent
+- **INT-1 (blocker): a blinded study's reasons no longer show its values.** The decision list read who, when and why
+  from `GET /audit` and printed a blinded study's reasons word for word ("… Cmax 41.2 ng/mL …"). The card's API now
+  gives the decisions itself: `DeliverySubject.decisions` (`DeliveryDecision`: kind, scope, by, at, why and what it is
+  about), read from the intake's own logs (`modeler_project/intake_decisions.py`), where every line already holds who,
+  when and why. For a blinded subject, or a decision about a file that holds a blinded study's values, the why has its
+  digits masked with the delivery's existing rule (`_mask`, as `DeliveryRegion.decision.why` and a failed run's message
+  are) and an entry gives no value; the page says "Entered for Dose (value withheld)". `GET /audit` masks the reason of
+  the intake events about a blinded study or such a file the same way while it is blinded (`intake_decisions.
+  blinded_audit`; the chain is untouched and still verifies). **Chosen: serve the decisions on the card**, not the page
+  reading `GET /audit`: one rule (the delivery's masking) applied where the data is built, no 2,000-event read on every
+  card, and every decision of the record, which the trail could not name (links, notes, layouts' files). The audit view
+  is masked too, so no other page shows the digits.
+- **INT-2 (blocker): a study the delivery blinds is not read or confirmed through the sheet form.** The client-review
+  API treats the studies and products the delivery blinds (`intake_review.blinded_subjects`) as blinded: their groups
+  (by `legacy_groups` or the same name) say `blinded`, their facts' values are withheld, the digits of their items,
+  options and notes masked, a draft's answers, offers and points left out, a dataset's points redacted; `:finish` and
+  `:confirm` answer 409 `BLINDED` (the code the delivery card's confirmation answers with) until the MAP is signed, and
+  so do reading a sheet a blinded study's values were read from (`GET …/sheets/{sheet}`) and previewing or saving its
+  reading (`:map`), whose sample would draw them. On the card, a blinded study offers no "Confirm now with the sheet
+  form", the sheet form's reading is "Withheld" under "How the files were read", its facts are not offered as the
+  sheet form's suggestions, and a sheet-form card of such a group says it is withheld with no Confirm. The Clinical
+  studies row no longer takes a blinded group's facts ("Oral · 100 mg · fed" was shown for blinded 231-24).
+- **INT-3 (blocker): Client files withholds a blinded file's lines and pages.** `GET /client-data` gives a file that
+  holds a blinded study's values (`intake_decisions.blinded_files`, the delivery's own rule) `blinded: true`, no page's
+  `inventory[].line` (as the delivery gives no caption or outside text of it), the digits of its agent reading's summary
+  and refusals, of its sheets' quotes and cleaning records masked, and no points or form for a blinded sheet's reading;
+  `blinded_sheets` names the sheets. `GET /documents/{sha}/pages/{n}` masks every digit of such a file's page and says
+  `blinded` (the rule the card's "Show the source" applies to a text of such a file). `DocumentReading` writes
+  "withheld (blinded)" with no peek, a blinded sheet's line says "blinded until the plan is signed" in place of "Read
+  this sheet", and the peek of such a page says it is withheld and offers no "Open the original".
+- **Also withheld (the other views of Inputs, checked):** a schema gap's "as written in its file" of a blinded subject
+  (`DeliveryGap.value`); the points of a blinded sheet's reading in `GET /client-data`; the facts of a blinded group as
+  the sheet form's suggestion chips and on its Clinical studies row. Checked and already withheld: a table's first
+  rows, a link row's suggestions, the numbers not read, the missing values, the "not data" notes.
+- **The decision list (Decisions.tsx), rewritten (gaps 6 and 9, INT-6, CODE-8 d).** It lists every decision the
+  signature binds, newest first, each with who, when and why: facts entered or corrected, every accept-as-is of a check
+  (not only the newest), dispositions, disagreements kept, links between files, the values linked to the subject (with
+  how many are still its own after a relink), the layouts of its own tables naming every file each one reads, and the
+  tables and notes of its files marked as not data or given back. The clean-up decided in the delivery's other files,
+  which the signature binds too (the gate is per delivery, contracts §11.10), is said in one line and listed in a fold;
+  the signing dialog says how many decisions of each it binds. The header comment says this.
+- **INT-6: a second accept-as-is of a check is refused.** `:override` of a check already overridden answers 409
+  `CONFLICT` with `detail.decided` (who, when, why), decided under the review log's lock; nothing is written, and the
+  page says "reviewer-b accepted it as is on …: “…”" and reads the card again. `values:assign` is not changed (relinking
+  is how a link is changed, plan §2.2.4).
+- **INT-8: a stale confirmation names what changed.** Under "Confirm and sign", a confirmation "Changed since signed"
+  lists the decisions made since it was signed, with who, when, why and which file, "(in the delivery's files)" when
+  the change is outside the subject's own; the card's head line points there. The API's blocker details and the page's
+  gate words say "in the delivery's files" (they said "the subject's files" of the whole delivery's coverage).
+- **INT-11: "already marked as not data" in a person's words.** The 409 carries `detail.decided` (where, by, at, why;
+  the why masked for a blinded file) and the page says "dev-user marked sheet Summary, cell A10 as not data on 15 Nov
+  2026, 10:21: “a note about re-assays”. Restore it to decide again." (`alreadyDecidedText`, `lib/words.ts`).
+- **INT-7: the sheet-form path says it is not signed.** Beside "Confirm now with the sheet form": "Not signed: the
+  sheet form records who confirmed and when, where Confirm and sign records your signature." The two paths keep their
+  different Part 11 controls; that is recorded in plan §5 as an open decision for the owner (§11.10). The path stays.
+- **Why:** the final review (integrity lens, each finding confirmed by a skeptic) found three views revealing a blinded
+  study's values, a blinded study loaded as model building through the sheet form before the MAP was signed, and a
+  decision list that did not show what the signature binds.
+- **Impact:** API contract: `DeliveryDecision` and `DeliverySubject.decisions`, `ReviewGroup.blinded`,
+  `DocumentPage.blinded` (OpenAPI snapshot and web types updated); `GET /client-data`'s files gain `blinded` and
+  `blinded_sheets`; new 409s (`BLINDED` on the sheet form for a study the delivery blinds; `CONFLICT` on a second
+  override). The intake's records and the audit chain are unchanged (views only). No ruleset, no locked file. Tests:
+  `test_delivery_api.py` (four new, one updated for the 409's words), `inputs-work.spec.ts` (two unit checks),
+  `inputs-owner-job.spec.ts` (13 decisions, the links, the note, the layout's three files, the delivery's fold, the
+  dialog's line, and a note given back after the signature named under "Changed since signed"), and a new
+  `inputs-blinded.spec.ts` (the card, its decisions, its sheet-form path and Client files of two blinded studies).
+  **Not changed (plan §5):** the raw file route (`/documents/{sha}/raw`) still serves a blinded file to whoever opens
+  it (only the peek stops offering it): refusing it would stop the D-15 reveal-for-a-check path; a dataset the project
+  (not the delivery) blinds keeps its sheet-form path.
+
 ### Added — an end-to-end test of the owner's whole job on Inputs, on its own seed (plan 2026-11-14 §2.2.7)
 - **What:** `apps/web/e2e/inputs-owner-job.spec.ts` with its seed `apps/web/e2e/fixtures/owner_job.py`: four workbooks
   of the made-up study OJ-101 (its means, named by study and read with a layout signed off earlier; its Reference and
@@ -42,7 +113,8 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
   after their values are linked to OJ-101 and until it is signed, then read "Confirmed by a person"; the file naming no
   study leaves a sheet-form card "Study lab" to confirm beside the new study OJ-102; after the last loose number is
   marked as not data, To do no longer offers "Restore…" (the group leaves with its marked list); the decision list does
-  not name the links nor the note marked as not data; the facts form asks the dosage form only after the route is saved.
+  not name the links nor the note marked as not data (fixed since: "final review, blinding, Part 11 records and the
+  decisions list" above); the facts form asks the dosage form only after the route is saved.
 
 ### Fixed — the link table's arm guard compares analytes by name (plan 2026-11-14 §2.2.2)
 - **What:** `collisions` (`apps/web/lib/inputsWork.ts`) keys a file's analyte, a chosen one and a new one by its

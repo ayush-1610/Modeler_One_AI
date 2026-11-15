@@ -22,7 +22,7 @@ import {
   DISPOSITION_WORD, engineWords, fieldLabel, heldText, landingText, placeText, rulesText, tableKindText, valueWord, whenText,
 } from "@/lib/words";
 
-import { Decisions } from "./Decisions";
+import { ChangedSince, Decisions } from "./Decisions";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { FactsForm, DemographicsForm, enteredDemographics, type Suggestions } from "./FactsForm";
 import {
@@ -57,9 +57,10 @@ const BLOCKER_WORD: Record<string, string> = {
   SCHEMA_GAP: "facts not stated", CHECK_FAILED: "checks to decide", LINK_UNCONFIRMED: "a link between files",
   SPOT_CHECK: "the spot check", LOADED_ON_CLIENT_REVIEW: "confirmed with the sheet form already", BLINDED: "blinded until the plan is signed",
 };
+// the clean-up is the delivery's, not only the subject's own files (§11.10): its words say so (final review INT-8)
 const GATE_WORD: Record<string, string> = {
-  SILENT_LOSS: "numbers not read in its files' tables", OUTSIDE_NUMBERS: "loose numbers in its files",
-  UNASSIGNED_VALUES: "values in its files not linked to a study or product",
+  SILENT_LOSS: "numbers not read in the delivery's tables", OUTSIDE_NUMBERS: "loose numbers in the delivery's files",
+  UNASSIGNED_VALUES: "values in the delivery's files not linked to a study or product",
 };
 // a check settled by its own form on the card, not by "Accept as is": a fact entered (the facts above), the item given
 // its disposition (required items), a disagreement kept (the files disagree), a table layout checked (its table's head)
@@ -583,7 +584,7 @@ export function DeliveryReview({ projectId, row, mode, gate, onMapping, todo, su
     <div className={`delivery-card${looking ? " reading" : ""}`} data-testid={`delivery-card-${s.subject}`} data-mode={mode}>
       <p className="muted m-0 fs-13" data-testid={`delivery-card-counts-${s.subject}`}>
         {KIND_LABEL[s.subject_type]} {s.label}: {plural(s.values, "value")} read from the files{levels ? ` (${levels})` : ""}
-        {s.silent_loss ? ` · ${plural(s.silent_loss, "number")} in its files not read` : ""} · {rulesText(s.rules)}
+        {s.silent_loss ? ` · ${plural(s.silent_loss, "number")} in the delivery's files not read` : ""} · {rulesText(s.rules)}
       </p>
       {s.blinded && <p className="delivery-withheld" data-testid={`delivery-blinded-${s.subject}`}>{WITHHELD}: this study is blinded until
         the plan is signed. Its values, their spread and what is below the LLOQ are not shown, and it waits to be confirmed until then.</p>}
@@ -697,7 +698,7 @@ export function DeliveryReview({ projectId, row, mode, gate, onMapping, todo, su
             : <ul className="flags">{s.held.map((h) => <li key={h}>{heldText(h, s.label)}</li>)}</ul>}
       </Section>
 
-      {!looking && <Decisions projectId={projectId} subject={s} files={row.files} />}
+      {!looking && <Decisions subject={s} />}
 
       {!looking && <SpotCheck projectId={projectId} subject={s} />}
 
@@ -717,6 +718,7 @@ export function DeliveryReview({ projectId, row, mode, gate, onMapping, todo, su
                 {" "}· record {c.record_sha256.slice(0, 12)}{c.rules ? ` · ${rulesText(c.rules)}` : ""}
               </p>
               {c.held && c.held.length > 0 && <ul className="flags">{c.held.map((h) => <li key={h}>{heldText(h, s.label)}</li>)}</ul>}
+              <ChangedSince subject={s} />
             </>
           ) : <p className="muted m-0">Not confirmed yet. Your signature binds what this card shows, and its values are then loaded into the model.</p>}
           {s.confirm_on === "delivery" && !done && (

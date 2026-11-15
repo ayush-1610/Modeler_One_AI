@@ -9,7 +9,7 @@ import { useCallback, useState } from "react";
 
 import { ReasonForm } from "@/components/kit/Reason";
 import type { Envelope, Schema } from "@/lib/api";
-import { whereIs } from "@/lib/words";
+import { alreadyDecidedText, whereIs } from "@/lib/words";
 import { useMutation, type Outcome } from "@/lib/hooks";
 
 import { writePage } from "./writes";
@@ -150,14 +150,18 @@ export function useDecide() {
   const [problem, setProblem] = useState<string | null>(null);
   const decide = useCallback(async <T,>(call: () => Promise<Envelope<T>>, options?: { refresh?: boolean }): Promise<Decided<T>> => {
     let code: string | null = null;
+    let decided: unknown = null;
     const out = await mutation.run(async () => {
       const env = await call();
       code = (env.errors?.[0]?.detail?.code as string | undefined) ?? null;
+      decided = env.errors?.[0]?.detail?.decided ?? null;
       return env;
     }, options);
-    setProblem(out.problem);
+    // a decision someone made already: who made it, when and why, never the line's id or a raw place (INT-11)
+    const problem = code === "CONFLICT" ? alreadyDecidedText(decided) ?? out.problem : out.problem;
+    setProblem(problem);
     if (code === "CONFLICT") void readAgain(client);
-    return { ...out, code };
+    return { ...out, problem, code };
   }, [mutation, client]);
   return { decide, busy: mutation.busy, problem, clear: () => setProblem(null) };
 }

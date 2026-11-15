@@ -111,9 +111,15 @@ function StoredPage({ projectId, source }: { projectId: string; source: PeekSour
             <button type="button" className="btn small" aria-label="Next page" disabled={pageNo >= doc.n_pages} onClick={() => setPageNo(pageNo + 1)}>›</button>
           </span>
         )}
-        <a className="btn small" href={`/api/v1/projects/${projectId}/documents/${source.doc_sha256}/raw`} target="_blank" rel="noreferrer">
-          Open the original</a>
+        {/* a file that holds a blinded study's values (D-15): its pages come with their digits masked, and the original is
+            not offered (it would show them) */}
+        {!page?.blinded && (
+          <a className="btn small" href={`/api/v1/projects/${projectId}/documents/${source.doc_sha256}/raw`} target="_blank" rel="noreferrer">
+            Open the original</a>
+        )}
       </div>
+      {page?.blinded && <p className="delivery-withheld m-0" data-testid="peek-withheld">Withheld (blinded): this file holds a study blinded until
+        the plan is signed, so its numbers are masked here.</p>}
       {doc?.warnings.map((w) => <div key={w} className="banner warn">{w}</div>)}
       {problem && <div className="banner err">{problem}</div>}
       {!page ? <p className="muted">Loading the source…</p>

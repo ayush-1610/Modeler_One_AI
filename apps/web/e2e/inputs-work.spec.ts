@@ -13,7 +13,7 @@ import {
   NEW, NO_TARGET, areaHead, assignBody, buildWork, collisions, columnSummary, destinationKey, heldBy, layoutRows, linkRows, looseGroups, nextText,
   normLabel, notReadRows, onDelivery, prefixAlias, targetProblem, type WorkSources,
 } from "../lib/inputsWork";
-import { checkLabel, placeText, stepReason } from "../lib/words";
+import { alreadyDecidedText, checkLabel, placeText, stepReason } from "../lib/words";
 
 const load = (name: string): WorkSources => JSON.parse(readFileSync(join(__dirname, "fixtures", "inputs-work", `${name}.json`), "utf8"));
 const copy = <T,>(x: T): T => JSON.parse(JSON.stringify(x));
@@ -114,6 +114,29 @@ test("a blinded study is left out of Next and of the counts, and its row says wh
   expect(own.map((i) => i.id).sort()).toEqual(["confirm:study:230-25", "fact:study:230-25", "need:study:230-25:REQ-sys.demographics"]);
   expect(model.byArea.studies).toBe(before.byArea.studies - own.length);
   expect(model.items.filter((i) => i.open).includes(row)).toBe(false);
+});
+
+test("a study the client review's group says the delivery blinds is blinded on its card and left out of Next", () => {
+  // the sheet form's group of a study the delivery blinds (final review INT-2): the card is blinded through it
+  const sources = copy(load("exampleamide"));
+  const before = buildWork(sources);
+  const card = before.subjects.find((s) => s.row?.label === "231-24" && s.groups.length)
+    ?? before.subjects.find((s) => s.groups.length && s.kind === "study")!;
+  for (const g of sources.review!.groups.filter((x) => card.groups.some((y) => y.id === x.id))) g.blinded = true;
+  const model = buildWork(sources);
+  const after = model.subjects.find((s) => s.key === card.key)!;
+  expect(after.blinded).toBe(true);
+  expect(model.items.filter((i) => i.open && i.subjects.includes(card.key))).toEqual([]);
+});
+
+test("a decision someone made already is said with who, when and why, never the line's id or a raw place", () => {
+  expect(alreadyDecidedText([{ id: "rd-9", by: "dev-user", at: "2026-11-15T10:21:06.462Z", why: "a note about re-assays",
+                               where: "s:'Summary'!A10" }]))
+    .toBe("dev-user marked sheet Summary, cell A10 as not data on 15 Nov 2026, 10:21: “a note about re-assays”. Restore it to decide again.");
+  expect(alreadyDecidedText([{ id: "ov-12", by: "reviewer-b", at: "2026-11-15T10:30:00Z", why: "as written", check_id: "ck-1" }]))
+    .toBe("reviewer-b accepted it as is on 15 Nov 2026, 10:30: “as written”. The card is read again to show it.");
+  expect(alreadyDecidedText(undefined)).toBeNull();
+  expect(alreadyDecidedText([])).toBeNull();
 });
 
 test("the API's legacy_groups join wins over the label, and a confirmed card is done with who and when", () => {

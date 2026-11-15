@@ -1,93 +1,140 @@
 "use client";
 
-// The decisions made on a subject, listed before "Confirm and sign" (plan 2026-11-14 §2.2.4): the signer sees what was
-// accepted as is, entered or corrected, settled as a required item, not used, refused as a link, which of its tables'
-// layouts were approved or rejected and which of its files' tables were marked as not data, each with who decided it,
-// when and why. What each decision is comes from the card and the delivery page; who, when and why from the project's
-// audit trail (a table marked as not data says it itself) (its last 2,000 events, read only while the list is on screen). A decision the trail does not name a
-// person for (a value not used after a choice, a refused link) is listed with its reason only. Values linked to the
-// study from a file that did not name it are decided per file, in Client files: the trail does not say which study a
-// link went to, so they are not listed here (an API follow-up: a subject's decisions on its card).
+// The decisions a subject's signature binds, listed before "Confirm and sign" (plan 2026-11-14 §2.2.4; final review
+// INT-1, INT-6, INT-8, gaps 6 and 9): each with who decided it, when and why. The card's API gives them
+// (`DeliverySubject.decisions`, read from the intake's own logs, where each line holds who, when and why): the checks
+// accepted as is (every one, not only the newest), the required items settled, the facts entered or corrected, the
+// disagreements kept, the links between files, the values linked to the subject, the layouts of its tables (naming every
+// file each one reads) and its files' tables and notes marked as not data or given back. The clean-up of the delivery's
+// other files is bound by the signature too (the gate is per delivery, contracts §11.10): it is said in one line and
+// listed in a fold. A blinded study's decisions come with the digits of their reasons masked and no value entered
+// (D-15, the delivery's own rule): a withheld entry reads "Entered for Dose (value withheld)". `ChangedSince` names
+// what changed after a confirmation was signed, from the same list.
 
-import { useResource } from "@/lib/hooks";
+import type { ReactNode } from "react";
+
+import type { Schema } from "@/lib/api";
 import { engineWords, fieldLabel, placeText, tableKindText, valueWord, whenText, DISPOSITION_WORD } from "@/lib/words";
 
-import { plural, valueText, type Subject, type Value } from "./shared";
+import { num, plural, type Subject } from "./shared";
 
-type Event = { action: string; actor: string; occurred_at: string; reason: string | null; resource_id: string; after: unknown };
-type Line = { id: string; what: string; by?: string; at?: string; why?: string };
+export type Decision = Schema<"DeliveryDecision">;
 
-const AUDIT_EVENTS = "2000";
-const last = (resource: string) => resource.slice(resource.lastIndexOf("/") + 1);
-const after = (e: Event) => (e.after && typeof e.after === "object" ? e.after as Record<string, unknown> : {});
+/** "A", "A and B", "A, B and C". */
+const listed = (names: string[]) => (names.length < 2 ? names[0] ?? "" : `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`);
+const ROLE_WORD: Record<string, string> = { study: "study", arm: "arm", product: "product", batch: "batch", analyte: "analyte" };
 
-/** Who decided what on `subject`, newest first. `files` are the subject's files (their tables marked as not data). */
-export function Decisions({ projectId, subject, files: shas }: { projectId: string; subject: Subject; files: string[] }) {
-  const delivery = useResource("/api/v1/projects/{project_id}/delivery", { project_id: projectId });
-  const values = subject.tables.flatMap((t) => t.values);
-  const overridden = subject.checks.filter((c) => c.overridden);
-  const disposed = subject.requirements.filter((r) => DISPOSITION_WORD[r.status] && r.disposition);
-  const entered = values.filter((v) => v.method === "person");
-  const unused = values.filter((v) => v.status === "excluded" && v.status_reason);
-  const refused = subject.links.filter((l) => l.state === "refused");
-  const layouts = new Map<string, { id: string; version: number; kind: string | null; file: string | null; status: string }>();
-  for (const t of subject.tables) {
-    if (t.mapping_id && t.mapping_version !== null && (t.mapping_status === "approved" || t.mapping_status === "rejected")) {
-      layouts.set(`${t.mapping_id}/${t.mapping_version}`, { id: t.mapping_id, version: t.mapping_version, kind: t.table_kind, file: t.file,
-                                                            status: t.mapping_status });
+function timeOf(d: Decision): string {
+  return d.time !== null ? ` at ${num(d.time)}${d.time_unit ? ` ${d.time_unit}` : ""}` : "";
+}
+
+/** What a decision decided, in a person's words, on the card of `subject`. */
+export function decisionText(d: Decision, subject: Subject): string {
+  const kind = subject.subject_type === "compound" ? "compound" : subject.subject_type;
+  const file = listed(d.files);
+  switch (d.kind) {
+    case "override": {
+      const check = subject.checks.find((c) => c.id === d.check_id);
+      return `Accepted as is: ${check?.message ? engineWords(check.message) : subject.blinded ? "a check (withheld, blinded)" : "a check"}`;
     }
+    case "disposition": {
+      const item = subject.requirements.find((r) => r.req_id === d.req_id);
+      return `${item?.label ?? "A required item"}: ${DISPOSITION_WORD[d.disposition ?? ""] ?? valueWord(d.disposition ?? "settled")}`;
+    }
+    case "entry": {
+      const verb = d.supersedes ? "Corrected" : "Entered";
+      const field = `${fieldLabel(d.field ?? "a fact")}${timeOf(d)}`;
+      if (d.value === null) return `${verb} for ${field} (value withheld)`;
+      const value = typeof d.value === "string" ? valueWord(d.value) : typeof d.value === "number" ? num(d.value) : String(d.value);
+      return `${verb} ${value}${d.unit ? ` ${d.unit}` : ""} for ${field}`;
+    }
+    case "choice":
+      return `Kept the ${fieldLabel(d.field ?? "value").toLowerCase()}${timeOf(d)}${file ? ` of ${file}` : ""}; the files' other readings are not used`;
+    case "link":
+      return `${file || "A file"} is ${d.confirmed ? "" : "not "}about this ${kind}`;
+    case "assign": {
+      const to = Object.entries(d.linked_to).map(([role, label]) => `${ROLE_WORD[role] ?? role} ${label}`).join(", ");
+      const still = d.current === null || d.values === null || d.current === d.values ? ""
+        : d.current === 0 ? " (since linked elsewhere)" : ` (${d.current} of them still here)`;
+      return `Linked ${plural(d.values ?? 0, "value")} of ${file || "a file"} to ${to || `this ${kind}`}${still}`;
+    }
+    case "not_data":
+      return `Marked as not data: ${listed(d.places.map(placeText))} of ${file}`;
+    case "restore":
+      return `Given back (counted again): ${listed(d.places.map(placeText))} of ${file}`;
+    case "layout":
+      return `Table layout ${d.status ?? "decided"}: the ${tableKindText(d.table_kind)} of ${file || "no file now"}, version ${d.version ?? ""}`;
+    default:
+      return "A decision";
   }
-  const files = (delivery.data?.enabled ? delivery.data.deliveries.flatMap((d) => d.files) : [])
-    .filter((f) => shas.includes(f.sha256) && !f.repeat);
-  // a table marked as not data says who decided it, when and why itself (`DeliveryRegion.decision`)
-  const notData = files.flatMap((f) => f.regions.map((r) => ({ f, r, d: r.decision }))).filter((x) => x.d);
-  const count = overridden.length + disposed.length + entered.length + unused.length + refused.length + layouts.size + notData.length;
-  const trail = useResource("/api/v1/projects/{project_id}/audit", { project_id: projectId },
-                            { query: { limit: AUDIT_EVENTS }, enabled: count > 0 });
-  const events = (trail.data?.events ?? []) as Event[];
-  const find = (action: string, match: (e: Event) => boolean) => events.find((e) => e.action === action && match(e));
-  const said = (e: Event | undefined) => (e ? { by: e.actor, at: e.occurred_at, why: e.reason ?? undefined } : {});
-  const name = (v: Value) => `${fieldLabel(v.field)}${v.time !== null ? ` at ${v.time}${v.time_unit ? ` ${v.time_unit}` : ""}` : ""}`;
+}
 
-  const decided: Line[] = [
-    ...overridden.map((c) => ({ id: `ov-${c.id}`, what: `Accepted as is: ${engineWords(c.message ?? "a check")}`,
-                                ...said(find("intake.override", (e) => after(e).check_id === c.id)) })),
-    ...disposed.map((r) => ({ id: `dp-${r.req_id}`, what: `${r.label}: ${DISPOSITION_WORD[r.status]}`,
-                              ...said(find("intake.disposition", (e) => after(e).disposition === r.disposition)) })),
-    ...entered.map((v) => ({ id: `en-${v.id}`, what: `${v.blinded ? "Entered" : `Entered ${typeof v.value === "string" ? valueWord(v.value) : valueText(v)}${v.unit ? ` ${v.unit}` : ""}`} for ${name(v)}`,
-                             ...said(find("intake.entry", (e) => last(e.resource_id) === v.id)) })),
-    ...unused.map((v) => ({ id: `ex-${v.id}`, what: `Not used: ${name(v)} from ${v.file ?? "a person's entry"}`, why: v.status_reason })),
-    ...refused.map((l) => ({ id: `lk-${l.id}`, what: `${l.file} is not about this study` })),
-    ...[...layouts.values()].map((m) => ({
-      id: `mp-${m.id}-${m.version}`, what: `Table layout ${m.status}: the ${tableKindText(m.kind)} of ${m.file ?? "a file"}, version ${m.version}`,
-      ...said(find(`intake.mapping.${m.status === "approved" ? "approve" : "reject"}`,
-                   (e) => after(e).mapping_id === m.id && after(e).version === m.version)),
-    })),
-    ...notData.map(({ f, r, d }) => ({ id: `rd-${d!.id}-${r.region_id}`, what: `Marked as not data: ${placeText(r.where)} of ${f.name}`,
-                                       by: d!.by, at: d!.at, why: d!.why })),
-  ];
-  const lines = [...decided].sort((a, b) => (b.at ?? "").localeCompare(a.at ?? ""));
+/** Who decided it, when, and why: "dev-user, 15 Nov 2026, 10:21 · “a note about re-assays”". */
+export const saidText = (d: Decision) => [`${d.by}, ${whenText(d.at)}`, d.why ? `“${d.why}”` : ""].filter(Boolean).join(" · ");
 
+function Lines({ decisions, subject, testId }: { decisions: Decision[]; subject: Subject; testId?: string }) {
+  return (
+    <ul className="decision-list" data-testid={testId}>
+      {decisions.map((d) => (
+        <li key={`${d.kind}-${d.id}`} data-testid={`decision-${d.kind}-${d.id}`}>
+          <span className="decision-what">{decisionText(d, subject)}</span>
+          <span className="muted fs-12">{saidText(d)}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** Every decision `subject`'s signature binds, newest first: its own, then the delivery's other files in a fold. */
+export function Decisions({ subject }: { subject: Subject }) {
+  const own = subject.decisions.filter((d) => d.scope === "subject");
+  const delivery = subject.decisions.filter((d) => d.scope === "delivery");
+  const noun = subject.subject_type === "compound" ? "compound" : subject.subject_type;
   return (
     <section className="delivery-block card-section" data-testid={`delivery-decisions-${subject.subject}`}>
       <div className="delivery-block-head">
-        <h3>Decisions made on this {subject.subject_type === "compound" ? "compound" : subject.subject_type}</h3>
-        <span className="muted fs-13">{count ? plural(count, "decision") : "none yet"}</span>
+        <h3>Decisions made on this {noun}</h3>
+        <span className="muted fs-13">{own.length ? plural(own.length, "decision") : "none yet"}</span>
       </div>
-      {count === 0 ? <p className="muted m-0">No one has decided anything on it yet: what your signature binds is what its files say.</p> : (
+      {own.length === 0 ? <p className="muted m-0">No one has decided anything on it yet: what your signature binds is what its files say.</p> : (
         <>
           <p className="muted m-0 fs-13">Your signature binds these too. Each was made with its reason, kept on the audit trail.</p>
+          <Lines decisions={own} subject={subject} testId={`delivery-decisions-own-${subject.subject}`} />
+        </>
+      )}
+      {delivery.length > 0 && (
+        <details className="decisions-delivery" data-testid={`delivery-decisions-others-${subject.subject}`}>
+          <summary><span className="todo-caret" aria-hidden="true" />Your signature also binds the clean-up of the delivery&apos;s other
+            files: {plural(delivery.length, "decision")}</summary>
+          <Lines decisions={delivery} subject={subject} />
+        </details>
+      )}
+    </section>
+  );
+}
+
+/** What changed after the subject's confirmation was signed (final review INT-8): the decisions made since, each with
+ *  who, when, why and in which file; "in the delivery's files" when the change is outside the subject's own. */
+export function ChangedSince({ subject, children }: { subject: Subject; children?: ReactNode }) {
+  const c = subject.confirmation;
+  if (!c || c.current) return null;
+  const since = subject.decisions.filter((d) => d.at > c.at);
+  return (
+    <div className="card-changed-since" data-testid={`card-changed-since-${subject.subject}`}>
+      {children}
+      {since.length ? (
+        <>
+          <p className="m-0">What changed since it was signed:</p>
           <ul className="decision-list">
-            {lines.map((l) => (
-              <li key={l.id} data-testid={`decision-${l.id}`}>
-                <span className="decision-what">{l.what}</span>
-                <span className="muted fs-12">{[l.by ? `${l.by}${l.at ? `, ${whenText(l.at)}` : ""}` : "", l.why ? `“${l.why}”` : ""].filter(Boolean).join(" · ")}</span>
+            {since.map((d) => (
+              <li key={`${d.kind}-${d.id}`} data-testid={`changed-${d.kind}-${d.id}`}>
+                <span className="decision-what">{decisionText(d, subject)}{d.scope === "delivery" ? " (in the delivery's files)" : ""}</span>
+                <span className="muted fs-12">{saidText(d)}</span>
               </li>
             ))}
           </ul>
-          {trail.problem && <p className="muted fs-12 m-0">Who made each decision could not be read from the audit trail: {trail.problem}</p>}
         </>
-      )}
-    </section>
+      ) : <p className="muted m-0">No person&apos;s decision was made since it was signed: one of the delivery&apos;s files was read again.</p>}
+    </div>
   );
 }

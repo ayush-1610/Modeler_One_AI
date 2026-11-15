@@ -2250,11 +2250,14 @@ def test_a_region_set_aside_already_is_refused_and_a_restore_undoes_every_decisi
 
     assert p.post("delivery/regions:exclude", {**body, "why": "a duplicate of the Fed sheet"}).status_code == 200
     (decision,) = IntakeStore(p.ws).review.entries("region")
-    # a second reviewer marks it again: refused (409), naming the decision in force, and nothing is written; so is an
-    # outside item accepted already
+    # a second reviewer marks it again: refused (409), naming the decision in force with who made it, when and why (the
+    # page words it: "u1 marked … as not data on …: “…”"), and nothing is written; so is an outside item accepted already
     again = p.post("delivery/regions:exclude", {**body, "why": "not data"})
     assert again.status_code == 409 and again.json()["detail"]["code"] == "CONFLICT"
-    assert f"already marked as not data: {region['region_id']} by {decision.body['id']}" in again.json()["detail"]["message"]
+    assert again.json()["detail"]["decided"] == [{"id": decision.body["id"], "by": "u1", "at": decision.body["at"],
+                                                  "why": "a duplicate of the Fed sheet", "where": region["where"]}]
+    assert (f"already marked as not data: {region['where']} by u1 at {decision.body['at']} ({decision.body['id']}: a duplicate "
+            "of the Fed sheet)") in again.json()["detail"]["message"]
     assert len(IntakeStore(p.ws).review.entries("region")) == 1 and len(p.events("intake.region")) == 1
     restored_as_before(p.post("delivery/regions:restore", {**body, "why": "data after all"}))
 
@@ -2536,3 +2539,177 @@ def test_the_layout_words_are_given_to_a_project_where_no_table_has_a_layout_yet
     proposed = p.post("delivery/mappings:propose", {"file_sha256": _sha(ODD), "region_id": region["region_id"],
                                                     "spec": ODD_SPEC, "why": "hours, and the mean level"})
     assert proposed.status_code == 200 and proposed.json()["data"]["vocabulary"] == vocabulary
+
+
+# --- the final review: the decisions a signature binds, blinding on every view Inputs reads (INT-1..3, 6, 8, 11) -----------
+
+
+
+
+def _decided(card: dict[str, Any], kind: str, scope: str = "subject") -> list[dict[str, Any]]:
+    return [d for d in card["decisions"] if d["kind"] == kind and d["scope"] == scope]
+
+
+@pytest.mark.req("T-47", "F-404", "T-05", "T-06")
+def test_a_card_lists_every_decision_its_signature_binds_with_who_when_and_why(project):
+    p = project()
+    workbook = synthetic.messy_workbook()
+    p.deliver(workbook, ("loose-profile.csv", LOOSE))
+    path = p.subject("230-23")
+    # the clean-up's blockers say whose files they count: the delivery's, not only the subject's own (INT-8)
+    gate = {b["code"]: b["detail"] for b in p.card(path)["blockers"]}
+    assert "in the delivery's files" in gate["OUTSIDE_NUMBERS"] and "in the delivery's files" in gate["UNASSIGNED_VALUES"]
+    assert _accept_note(p, workbook).status_code == 200
+    card = _decide(p, path, FACTS_230_23)
+    # the values of a file of the same delivery linked to another study, and a table of that file set aside and given
+    # back: the delivery's clean-up, which the signature binds too
+    loose = [v["id"] for v in p.page()["unassigned"] if v["file"] == "loose-profile.csv"]
+    linked = p.post("delivery/values:assign", {"targets": loose, "new_study": "XYZ-9", "why": "the fed means of XYZ-9"})
+    assert linked.status_code == 200, linked.text
+    (region,) = next(f for d in linked.json()["data"]["deliveries"] for f in d["files"] if f["name"] == "loose-profile.csv")["regions"]
+    body = {"file_sha256": _sha(LOOSE), "regions": [region["region_id"]], "scope": "regions"}
+    assert p.post("delivery/regions:exclude", {**body, "why": "a duplicate of the Fed sheet"}).status_code == 200
+    assert p.post("delivery/regions:restore", {**body, "why": "the fed means after all"}).status_code == 200
+    card = p.card(path)
+    decisions = card["decisions"]
+    assert [d["at"] for d in decisions] == sorted((d["at"] for d in decisions), reverse=True)        # newest first
+    # each with who made it, when and why, read from its own line (no audit trail is read)
+    assert all(d["by"] == "u1" and d["at"] and d["why"] for d in decisions)
+    entered = {d["field"]: d for d in _decided(card, "entry")}
+    assert {f: entered[f]["value"] for f in FACTS_230_23} == FACTS_230_23
+    assert all(d["why"] == "from the protocol" and d["value_id"].startswith("f-") for d in entered.values())
+    (accepted,) = _decided(card, "override")
+    assert accepted["check_id"] in {c["id"] for c in card["checks"] if c["overridden"]}
+    (asked,) = _decided(card, "disposition")
+    assert (asked["req_id"], asked["disposition"], asked["why"]) == ("REQ-sys.demographics", "ask_client", "asked")
+    (note,) = _decided(card, "not_data")                                  # the stray note of its own file
+    assert (note["places"], note["files"], note["region_scope"]) == ([OUTSIDE_NOTE], [workbook.name], "outside")
+    # the layouts of its own tables only, each naming every file it reads; the other tables' layouts are the delivery's
+    own = {t["mapping_id"] for t in card["tables"] if t["mapping_id"]}
+    assert {d["mapping_id"] for d in _decided(card, "layout")} == own
+    assert all(d["status"] == "approved" and d["why"] == "the truth" and d["files"] == [workbook.name]
+               for d in _decided(card, "layout"))
+    assert _decided(card, "layout", "delivery")                         # e.g. the dissolution table's layout
+    # the delivery's clean-up in its other file: the link to another study, the "not data" decision and its restore
+    (link,) = _decided(card, "assign", "delivery")
+    assert (link["files"], link["values"], link["linked_to"]) == (["loose-profile.csv"], len(loose), {"study": "XYZ-9"})
+    (aside,) = _decided(card, "not_data", "delivery")
+    (back,) = _decided(card, "restore", "delivery")
+    assert aside["places"] == back["places"] == [region["where"]] and back["restores"] == [aside["id"]]
+    # another study's card does not list 230-23's own decisions
+    other = p.card(p.subject("231-24"))
+    assert not {d["id"] for d in other["decisions"] if d["kind"] in ("entry", "override", "disposition")} & {d["id"] for d in decisions}
+
+    # every override is listed, and a second one of a check accepted as is already is refused, naming who and when
+    failed = next(c for c in card["checks"] if c["overridden"])
+    again = p.post(f"{path}:override", {"check_id": failed["id"], "why": "a second reviewer's reading"})
+    assert again.status_code == 409 and again.json()["detail"]["code"] == "CONFLICT", again.text
+    (said,) = again.json()["detail"]["decided"]
+    assert (said["id"], said["by"], said["at"], said["why"]) == (accepted["id"], "u1", accepted["at"], accepted["why"])
+    assert len(IntakeStore(p.ws).review.entries("override")) == 1 and len(p.events("intake.override")) == 1
+
+
+@pytest.mark.req("T-47", "F-404", "T-05", "T-06")
+def test_values_linked_to_a_study_are_its_decisions_and_say_how_many_are_still_its(project):
+    p = project()
+    p.deliver(("loose-profile.csv", LOOSE))
+    loose = [v["id"] for v in p.page()["unassigned"]]
+    assert p.post("delivery/values:assign", {"targets": loose, "new_study": "ABC-1", "new_arm": "Test",
+                                              "why": "the protocol's Test arm"}).status_code == 200
+    path = p.subject("ABC-1")
+    (link,) = _decided(p.card(path), "assign")
+    assert (link["values"], link["current"], link["linked_to"], link["files"]) == (
+        len(loose), len(loose), {"study": "ABC-1", "arm": "Test"}, ["loose-profile.csv"])
+    # linked again elsewhere: the first link stays on ABC-1's list, saying none of its values are its own now
+    moved = p.post("delivery/values:assign", {"targets": loose, "new_study": "ABC-2", "why": "another study after all"})
+    assert moved.status_code == 200, moved.text
+    (first,) = _decided(p.card(path), "assign")
+    assert (first["id"], first["current"]) == (link["id"], 0)
+
+
+@pytest.mark.req("T-47", "F-402", "F-404")
+def test_a_blinded_studys_decisions_and_audit_trail_withhold_its_values_and_reason_digits(project):
+    p = project(blinding=True)
+    workbook = synthetic.messy_workbook()
+    p.deliver(workbook)
+    path = p.subject("230-23")
+    why = "CSR 230-23 table 14.2.1: 50 mg oral, 24 subjects, Cmax 41.2 ng/mL kept for external validation"
+    for field, value in (("route", "oral"), ("n", 24), ("intended_use", "external_validation")):
+        answer = p.post(f"{path}:enter", {"field": field, "value": value, "why": why})
+        assert answer.status_code == 200, answer.text
+    assert _accept_note(p, workbook).status_code == 200          # a decision about a file that holds its values
+    card = p.card(path)
+    assert card["blinded"] is True
+    entered = _decided(card, "entry")
+    assert len(entered) == 3 and all(d["value"] is None for d in entered)
+    assert all(not any(ch.isdigit() for ch in d["why"]) and "Cmax ••.• ng/mL" in d["why"] for d in entered)
+    (note,) = _decided(card, "not_data")
+    assert note["why"] == "a working note, not data"                       # no digit to mask
+    # the audit trail's view: the reasons of the decisions about it are masked while it is blinded; the chain verifies
+    trail = p.get("audit", limit=2000).json()["data"]
+    entries = [e for e in trail["events"] if e["action"] == "intake.entry"]
+    assert len(entries) == 3 and all("41.2" not in e["reason"] and "••.•" in e["reason"] for e in entries)
+    assert trail["chain_verifies"] is True
+    assert all("41.2" not in (e["reason"] or "") for e in trail["events"])
+    # another study's decisions are not masked
+    other = p.subject("231-24")
+    assert p.post(f"{other}:enter", {"field": "n", "value": 12, "why": "protocol 231-24, 12 subjects"}).status_code == 200
+    (said,) = [e for e in p.get("audit").json()["data"]["events"] if e["reason"] == "protocol 231-24, 12 subjects"]
+    assert said["action"] == "intake.entry"
+    # a decision about a file that holds a blinded study's values: the refusal of a second one names where, who, when
+    again = _accept_note(p, workbook)
+    assert again.status_code == 409 and again.json()["detail"]["code"] == "CONFLICT"
+    assert again.json()["detail"]["decided"][0]["where"] == OUTSIDE_NOTE
+
+
+@pytest.mark.req("T-47", "F-402")
+def test_a_study_the_delivery_blinds_is_withheld_and_refused_on_the_sheet_form_and_in_the_client_files(project):
+    p = project(blinding=True)
+    workbook, pdf = synthetic.messy_workbook(), synthetic.pdf_report(unruled_table=False)
+    p.deliver(workbook, pdf)
+    sid, report = client_data.submission_id(_sha(workbook.data)), _sha(pdf.data)
+    group = "study:231-24"                         # the sheet form read the Fed sheet as study 231-24, still to confirm
+    before = next(g for g in p.get("client-review").json()["data"]["groups"] if g["id"] == group)
+    assert before["blinded"] is False and before["state"] == "to_confirm"
+    files = {f["file"]: f for f in p.get("client-data").json()["data"]["files"]}
+    assert files[pdf.name]["blinded"] is False and any(i["line"] for i in files[pdf.name]["inventory"])
+    assert p.get(f"client-data/{sid}/sheets/Fed").status_code == 200
+    page = p.get(f"documents/{report}/pages/2").json()["data"]
+    assert page["blinded"] is False and any(ch.isdigit() for ch in page["text"])
+
+    # entered for external validation on its delivery card: the delivery blinds 231-24 and 230-25 (the report's)
+    shown = {s.pattern for s in _secrets(p.ws, "230-23")}       # 230-23 stays open: a number it shares too is no leak
+    secrets = [s for s in (*_secrets(p.ws, "231-24"), *_secrets(p.ws, "230-25")) if s.pattern not in shown]
+    for label in ("231-24", "230-25"):
+        entered = p.post(f"{p.subject(label)}:enter", {"field": "intended_use", "value": "external_validation",
+                                                         "why": "the plan keeps it for external validation"})
+        assert entered.status_code == 200 and entered.json()["data"]["blinded"] is True
+    # the client review: its group says blinded and withholds what the sheet form read of it
+    answer = p.get("client-review")
+    blinded = next(g for g in answer.json()["data"]["groups"] if g["id"] == group)
+    assert blinded["blinded"] is True
+    assert all(f["value"] == "withheld (blinded)" and f["stored"] is None for f in blinded["facts"])
+    (draft,) = [i for i in blinded["items"] if i["kind"] == "draft"]
+    assert (draft["draft"]["answers"], draft["draft"]["offers"], draft["draft"]["prefill"], draft["draft"]["points"]) == ({}, {}, {}, None)
+    assert _leaks(secrets, answer.text) == []
+    assert next(g for g in answer.json()["data"]["groups"] if g["id"] == "study:230-23")["blinded"] is False
+    # the sheet form refuses to read, finish or confirm it until the MAP is signed (409 BLINDED, as the delivery's card)
+    for refused in (p.get(f"client-data/{sid}/sheets/Fed"),
+                    p.post("client-review:finish", {"file": sid, "sheet": "Fed", "answers": {"purpose": "model_building"}}),
+                    p.post("client-review:confirm", {"group": group})):
+        assert refused.status_code == 409 and refused.json()["detail"]["code"] == "BLINDED", refused.text
+        assert _leaks(secrets, refused.text) == []
+    assert p.get(f"client-data/{sid}/sheets/Fasting").status_code == 200        # another study's sheet stays open
+    assert not any(d.study.get("study_id") == "231-24" for d in all_datasets(p.ws))
+    # the client files: a file that holds a blinded study's values gives no page's line, and its pages' digits are masked
+    answer = p.get("client-data")
+    files = {f["file"]: f for f in answer.json()["data"]["files"]}
+    assert files[pdf.name]["blinded"] is True and files[workbook.name]["blinded"] is True
+    assert files[pdf.name]["inventory"] and all(i["line"] is None for i in files[pdf.name]["inventory"])
+    assert files[workbook.name]["readings"]["Fed"]["points"] is None and files[workbook.name]["readings"]["Fed"]["form"] is None
+    assert "Fed" in files[workbook.name]["blinded_sheets"] and "Fasting" not in files[workbook.name]["blinded_sheets"]
+    assert _leaks(secrets, answer.text) == []
+    for number in (2, 3):
+        page = p.get(f"documents/{report}/pages/{number}")
+        assert page.status_code == 200 and page.json()["data"]["blinded"] is True
+        assert not any(ch.isdigit() for ch in page.json()["data"]["text"]) and _leaks(secrets, page.text) == []

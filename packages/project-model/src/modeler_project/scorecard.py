@@ -74,13 +74,14 @@ def scorecard(reader: LedgerReader, *, subject_type: Literal["study", "product",
     unassigned = sum(c.values_unassigned for c in coverage)
     blockers: list[Blocker] = []
     if lost:
-        blockers.append(Blocker(code="SILENT_LOSS", detail=f"{lost} cells with a number in the subject's files are "
+        # the coverage is the delivery's files (§11.10), not only the files the subject's values were read from
+        blockers.append(Blocker(code="SILENT_LOSS", detail=f"{lost} cells with a number in the delivery's files are "
                                 "neither used nor excluded by a stated rule"))
     if outside:
-        blockers.append(Blocker(code="OUTSIDE_NUMBERS", detail=f"{outside} items with a number outside every table "
-                                "are not accepted as not data"))
+        blockers.append(Blocker(code="OUTSIDE_NUMBERS", detail=f"{outside} items with a number outside every table in "
+                                "the delivery's files are not accepted as not data"))
     if unassigned:
-        blockers.append(Blocker(code="UNASSIGNED_VALUES", detail=f"{unassigned} values of the subject's deliveries "
+        blockers.append(Blocker(code="UNASSIGNED_VALUES", detail=f"{unassigned} values in the delivery's files "
                                 "name no study: assign or exclude them"))
     if gaps:
         blockers.append(Blocker(code="SCHEMA_GAP", detail="; ".join(_gap(g) for g in gaps)))

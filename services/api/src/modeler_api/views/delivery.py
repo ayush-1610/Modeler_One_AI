@@ -435,6 +435,43 @@ class DeliveryConfirmation(View):
     landed: DeliveryLanded | None             # null: the landing did not complete (confirm again: no new signature)
 
 
+class DeliveryDecision(View):
+    """A person's decision the subject's signature binds (plan 2026-11-14 §2.2.4), read from the intake's logs: who
+    made it, when and why, and what it is about. `scope` "subject": about the subject, or the clean-up of the files its
+    values were read from; "delivery": the clean-up of the delivery's other files, which the signature binds too
+    (contracts §11.10). For a blinded subject, or a decision about a file that holds a blinded study's values, the
+    digits of `why` are masked (as a region decision's are) and an entry gives no `value` (D-15)."""
+
+    id: str                                   # ov-n, dp-n, f-n, ch-n, lk-n, as-n, rd-n; a layout's "<mapping>/<version>/<n>"
+    kind: Literal["override", "disposition", "entry", "choice", "link", "assign", "not_data", "restore", "layout"]
+    scope: Literal["subject", "delivery"]
+    by: str
+    at: str
+    why: str
+    files: list[str]                          # the names of the files it is about; a layout's: every file it reads now
+    check_id: str | None               # override: the check accepted as is
+    req_id: str | None                 # disposition: the required item
+    disposition: str | None
+    value_id: str | None               # entry: the value entered (or the correction); choice: the value kept
+    field: str | None                  # entry, choice
+    value: float | int | str | bool | None   # entry: the value entered; null for a blinded subject
+    unit: str | None
+    time: float | None
+    time_unit: str | None
+    supersedes: str | None             # entry: the value it corrected
+    confirmed: bool | None             # link: the file's values are the study's (or not)
+    linked_to: dict[str, str]  # assign: role (study, arm, product, batch, analyte) -> label
+    values: int | None                 # assign: the values it linked
+    current: int | None                # assign of the subject: those of them that are still the subject's
+    places: list[str]          # not_data, restore: where in the file (a region, a note)
+    region_scope: str | None           # not_data, restore: regions | unread_prose | figures | outside
+    restores: list[str]        # restore: the decisions it undid (rd-n)
+    mapping_id: str | None             # layout
+    version: int | None
+    status: str | None                 # layout: approved | rejected
+    table_kind: str | None
+
+
 class DeliverySubject(View):
     subject_type: SubjectKind
     subject: str
@@ -461,6 +498,7 @@ class DeliverySubject(View):
     spot_check: DeliverySpotState
     confirmation: DeliveryConfirmation | None
     rules: DeliveryRules
+    decisions: list[DeliveryDecision]         # what its signature binds, newest first
     signature: DeliverySignature | None = None    # set by `:confirm` when it signed
 
 
