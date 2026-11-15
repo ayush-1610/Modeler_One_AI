@@ -266,6 +266,16 @@ test("the link table: one row per file, suggested from its own labels, the alias
   // and against what the study already holds in that arm (its card, when read)
   expect(collisions([{ row: reference, target: same }], studies, { "st-8": [{ arm: "", analyte: "", pair: "001 · I" }] })[0].files)
     .toEqual(["230-23 Fasting Reference.xlsx"]);
+  // each file naming its analyte, read as an entity of its own (an-1, an-2: one per file, both "Exampleamide"): the same
+  // analyte by name, so the two still collide; and against what the study holds of that analyte, by name too
+  const named = (r: typeof reference, id: string) => ({ ...r, own: { ...r.own, analyte: { id, label: "Exampleamide" } } });
+  const analytes = [{ id: "an-1", label: "Exampleamide" }, { id: "an-2", label: "Exampleamide" }];
+  expect(collisions([{ row: named(reference, "an-1"), target: same }, { row: named(test230, "an-2"), target: same }], studies, {}, analytes))
+    .toHaveLength(1);
+  expect(collisions([{ row: named(reference, "an-1"), target: { ...same, analyte: "an-2" } }, { row: named(test230, "an-2"), target: same }],
+                    studies, {}, analytes)).toHaveLength(1);
+  expect(collisions([{ row: named(reference, "an-1"), target: same }], studies, { "st-8": [{ arm: "", analyte: "exampleamide", pair: "001 · I" }] }))
+    .toHaveLength(1);
   // a dissolution file's values go to a product, with the batch the file names
   const rld = row("Dissolution RLD pH 6.8.xlsx");
   expect(rld.goesTo).toBe("product");

@@ -144,7 +144,7 @@ export function LinkTable({ projectId, items, subjects, heading }: {
     setPartTargets((was) => ({ ...was, [p.key]: t }));
     setProblems((was) => Object.fromEntries(Object.entries(was).filter(([sha]) => sha !== r.sha)));
   };
-  const guard = (sends: Send[]): Collision[] => collisions(sends, studies, held);
+  const guard = (sends: Send[]): Collision[] => collisions(sends, studies, held, page?.analytes);
 
   /** Link the rows, one `values:assign` per destination; a name made by an earlier call of the batch is used by its id.
    *  First what each study holds is read (its card, unless the page read it a moment ago) and the guard is run on it. */
@@ -167,7 +167,7 @@ export function LinkTable({ projectId, items, subjects, heading }: {
         setChecking(false);
       }
     }
-    const clash = collisions(sends, studies, now);
+    const clash = collisions(sends, studies, now, page?.analytes);
     if (clash.length) {
       const said = Object.fromEntries(list.flatMap((r) => {
         const c = clash.find((x) => x.keys.some((k) => rowOf(k) === r.sha));

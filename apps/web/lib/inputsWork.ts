@@ -969,22 +969,29 @@ export type Collision = { files: string[]; study: string; example: string; keys:
 /** What a study already holds, by its id: each individual value's arm ("" for none), analyte, pair and file. */
 export type Held = Record<string, { arm: string; analyte: string; pair: string; sha?: string | null }[]>;
 
-/** The individual values of a study's card (`/delivery/subjects/study/{id}`), as `collisions` compares them. */
+/** The individual values of a study's card (`/delivery/subjects/study/{id}`), as `collisions` compares them (the analyte
+ *  by its name, as `collisions` does). */
 export function heldBy(card: { tables: { file_sha256: string | null; values: Value[] }[] } | null | undefined): Held[string] {
   return (card?.tables ?? []).flatMap((t) => t.values.filter((v) => v.labels.subject).map((v) => ({
-    arm: v.entity.arm ?? "", analyte: v.entity.analyte ?? "", pair: `${v.labels.subject} · ${v.labels.period ?? ""}`, sha: v.file_sha256 ?? t.file_sha256,
+    arm: v.entity.arm ?? "", analyte: v.labels.analyte ? normLabel(v.labels.analyte) : v.entity.analyte ?? "",
+    pair: `${v.labels.subject} · ${v.labels.period ?? ""}`, sha: v.file_sha256 ?? t.file_sha256,
   })));
 }
 
 /** Two files (or two files' tables) linked to one study in the same arm (no arm counts as one), with the same analyte,
  *  that hold the same subject in the same period: refused before anything is sent, each needs its own arm (plan
  *  §2.2.2). Tables of one file are not compared with each other (the file reads them together), nor with what the study
- *  holds of that file. `existing`: what each study already holds (`heldBy` its card). */
-export function collisions(picked: { row: LinkPiece; target: LinkTarget }[], studies: SubjectRow[], existing: Held = {}): Collision[] {
+ *  holds of that file. `existing`: what each study already holds (`heldBy` its card). An analyte is compared by its
+ *  name (`analytes`: the delivery's, to name a chosen one): the delivery gives each file's analyte an entity of its own,
+ *  so the two arms' files of one study that both name Exampleamide carry two ids of one analyte. */
+export function collisions(picked: { row: LinkPiece; target: LinkTarget }[], studies: SubjectRow[], existing: Held = {},
+                           analytes: Entity[] = []): Collision[] {
+  const named = (id: string) => normLabel(analytes.find((a) => a.id === id)?.label ?? id);
   const groups = new Map<string, { row: LinkPiece; target: LinkTarget; arm: string; analyte: string }[]>();
   for (const p of picked.filter((x) => x.target.study && x.row.pairs.length)) {
     const arm = choiceKey(p.target.arm, p.target.newArm);
-    const analyte = choiceKey(p.target.analyte, p.target.newAnalyte) || p.row.own.analyte?.id || "";
+    const analyte = p.target.analyte === NEW ? normLabel(p.target.newAnalyte) : p.target.analyte ? named(p.target.analyte)
+      : p.row.own.analyte ? normLabel(p.row.own.analyte.label) : "";
     const key = `${choiceKey(p.target.study, p.target.newStudy)}|${arm}|${analyte}`;
     groups.set(key, [...(groups.get(key) ?? []), { ...p, arm, analyte }]);
   }
@@ -1000,7 +1007,7 @@ export function collisions(picked: { row: LinkPiece; target: LinkTarget }[], stu
         if (shared) out.push({ files: [list[i].row.name, list[j].row.name], study, example: say(shared), keys: [list[i].row.key, list[j].row.key] });
       }
       const held = t.study === NEW ? [] : (existing[t.study] ?? [])
-        .filter((v) => v.arm === list[i].arm && (!v.analyte || !list[i].analyte || v.analyte === list[i].analyte) && v.sha !== list[i].row.sha);
+        .filter((v) => v.arm === list[i].arm && (!v.analyte || !list[i].analyte || named(v.analyte) === list[i].analyte) && v.sha !== list[i].row.sha);
       const shared = list[i].row.pairs.find((p) => held.some((v) => v.pair === p));
       if (shared) out.push({ files: [list[i].row.name], study, example: say(shared), keys: [list[i].row.key] });
     }

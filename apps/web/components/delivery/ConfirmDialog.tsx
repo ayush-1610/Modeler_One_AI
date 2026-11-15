@@ -7,6 +7,8 @@
 // The signature needs the person's identity again (password and authenticator code): the API asks for it and the API
 // client opens the step-up, then sends the confirmation once more. No password is typed on this page.
 
+import { useQueryClient } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { Dialog } from "@/components/kit/Dialog";
@@ -33,6 +35,8 @@ function coverageCounts(subject: Subject) {
 
 export function ConfirmDialog({ projectId, subject, onClose }: { projectId: string; subject: Subject; onClose: () => void }) {
   const { decide, busy, problem } = useDecide();
+  const client = useQueryClient();
+  const router = useRouter();
   const [signed, setSigned] = useState<Subject | null>(null);
   const [refusedFor, setRefusedFor] = useState<Blocker[]>([]);
   const counts = coverageCounts(subject);
@@ -42,21 +46,28 @@ export function ConfirmDialog({ projectId, subject, onClose }: { projectId: stri
   const levels = Object.entries(subject.by_level);
 
   async function sign() {
-    // a refusal names its blockers beside its message: they are listed, as the card's are
+    // a refusal names its blockers beside its message: they are listed, as the card's are. The page is read again when
+    // this dialog closes, not while it says what was signed: read at once, the sheet form's group of the study (which the
+    // landing marks confirmed) can answer before the delivery's page, the card then reads for a moment as one the sheet
+    // form confirmed, and its delivery view, this dialog with it, leaves the page before the person has read it
     let named: Blocker[] = [];
     const { data } = await decide(async () => {
       const env = await send("post", CONFIRM, { project_id: projectId, type: subject.subject_type, subject: subject.subject });
       named = (env.errors[0]?.detail?.blockers as Blocker[] | undefined) ?? [];
       return env;
-    });
+    }, { refresh: false });
     setRefusedFor(named);
     if (data) setSigned(data);
   }
+  const close = () => {
+    if (signed) { router.refresh(); void client.invalidateQueries(); }
+    onClose();
+  };
 
   if (signed) {
     const landed = signed.confirmation?.landed;
     return (
-      <Dialog title={`${subject.label} is confirmed`} size="narrow" onClose={onClose} testId="delivery-confirm-dialog">
+      <Dialog title={`${subject.label} is confirmed`} size="narrow" onClose={close} testId="delivery-confirm-dialog">
         <p className="m-0" data-testid="delivery-signed">
           Signed: <strong>{signed.signature?.manifestation ?? signed.confirmation?.manifestation}</strong>
         </p>
@@ -70,7 +81,7 @@ export function ConfirmDialog({ projectId, subject, onClose }: { projectId: stri
           <p className="delivery-problem" role="alert">The signature is recorded but the loading did not finish: confirm again to
             finish it (no new signature is made).</p>
         )}
-        <div className="dialog-actions"><button type="button" className="btn primary" onClick={onClose} data-testid="delivery-confirm-done">Done</button></div>
+        <div className="dialog-actions"><button type="button" className="btn primary" onClick={close} data-testid="delivery-confirm-done">Done</button></div>
       </Dialog>
     );
   }

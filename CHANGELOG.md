@@ -16,6 +16,62 @@ Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: compl
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
 
+### Added — an end-to-end test of the owner's whole job on Inputs, on its own seed (plan 2026-11-14 §2.2.7)
+- **What:** `apps/web/e2e/inputs-owner-job.spec.ts` with its seed `apps/web/e2e/fixtures/owner_job.py`: four workbooks
+  of the made-up study OJ-101 (its means, named by study and read with a layout signed off earlier; its Reference and
+  Test arms, the same subjects and periods, naming no study the delivery reads; a file naming no study at all, under one
+  layout no person approved; a working note with a number far below the means table; no file stating the route, the
+  number of subjects, the dosage form or the purpose). Driven only through the page, from To do and "Next": the files
+  added through the head's Add data; the layout approved in To do's queue with a reason; the two arms refused one arm of
+  OJ-101, given one each and linked, the file naming no study linked to a new study; the note marked as not data; the
+  card opened from its To do row, its facts filled in its one form with one reason (then the dosage form the oral route
+  asks for) and its demographics entered; the spot check; the decision list checked for who, when and why; confirmed
+  and signed (the DEV step-up); then the card's "Signed by … In the model", the status line's "In the model" rising, To
+  do falling to what remains, and GET /inputs holding the study and each arm with the facts filled. At every step the
+  status line, the area badges, To do's "All" and its groups (and the Clinical studies head) must count the same.
+- **Why:** the owner must be able to use the page end to end before approving it; no spec walked the whole job on one
+  seed (the plan's decision 7).
+- **Impact:** e2e only. Software test data on the stub engine: it proves the review path, never a model. Three defects
+  it found are fixed below. **Known gaps it found, not fixed here** (each is the test's reading, for the owner): the
+  demographics entered on the card clear its requirement but are held back at loading ("the study record has no place
+  for them"), so after the signature To do asks for the demographics of OJ-101, OJ-101-Reference and OJ-101-Test again;
+  the dialog of the queue's last layout closes by itself once its files are read again (the queue that holds it leaves
+  To do), at times before "approved" can be read, and the focus falls to the page; the card says "In the model: 1
+  dataset" where 3 were loaded, and the status line counts the one signed study as 3 studies (the study and each arm);
+  the sheet form's own cards of the arms' files (OJ-101-REF, OJ-101-TEST) are counted to confirm, with their facts,
+  after their values are linked to OJ-101 and until it is signed, then read "Confirmed by a person"; the file naming no
+  study leaves a sheet-form card "Study lab" to confirm beside the new study OJ-102; after the last loose number is
+  marked as not data, To do no longer offers "Restore…" (the group leaves with its marked list); the decision list does
+  not name the links nor the note marked as not data; the facts form asks the dosage form only after the route is saved.
+
+### Fixed — the link table's arm guard compares analytes by name (plan 2026-11-14 §2.2.2)
+- **What:** `collisions` (`apps/web/lib/inputsWork.ts`) keys a file's analyte, a chosen one and a new one by its
+  normalised name, not by the entity id; `heldBy` reads what a study holds the same way; the link table passes the
+  delivery's analytes. A unit check in `inputs-work.spec.ts`.
+- **Why:** found by the owner's-job test: the delivery gives each file's analyte an entity of its own, so the Reference
+  and Test files of one study that both name Exampleamide (an-1, an-2) were never compared, and two arms that hold the
+  same subjects and periods were linked into one arm of the study without a word. On the 9-file seed the guard worked
+  only because the 230-23 files' titles name no analyte the rules read ("desvenlafaxine" in lower case).
+- **Impact:** frontend only; the guard now refuses such a link before anything is sent, as §2.2.2 says. The analyte
+  list of the link form still shows one "Exampleamide" per file (the delivery's entities, not changed here).
+
+### Fixed — the signed confirmation's dialog stays until the person has read what was signed and loaded (plan 2026-11-14 §2.1)
+- **What:** `ConfirmDialog` reads the page again when it closes ("Done", Escape), not at once after the signature.
+- **Why:** found by the owner's-job test (1 run in 6 that reached it): the signature's answer refreshed every query at
+  once, the sheet form's group of the study (which the landing marks confirmed) could answer before the delivery's page,
+  and for that moment the card read as one the sheet form confirmed (`viaSheet`): its delivery view, the dialog with
+  it, left the page, so "Signed: … · Loaded into the project: n datasets" was never shown, though the signature was
+  made. `delivery.spec.ts` signs the same way and could lose its dialog the same way.
+- **Impact:** frontend only; the card, the status line and To do show the signature once the dialog is closed.
+
+### Fixed — a project's first visit to Inputs opens on To do while anything is open (plan 2026-11-14 §2)
+- **What:** `InputsWorkspace` chooses the area it opens on once the inputs are assembled (their readiness is no longer
+  missing or STALE), not on the first answer of GET /inputs.
+- **Why:** found by the owner's-job test: on a project's first visit after Start, GET /inputs answers before the page
+  assembles the inputs, with no to-do yet, so the page chose Compound and kept it, though the compound values (7 open
+  items) were still to fill: the plan says the page opens on To do while anything is open.
+- **Impact:** frontend only; a page whose inputs were assembled before (every other spec's seed) opens as before.
+
 ### Docs — the Inputs page audited, and the task-first redesign planned (2026-11-14)
 - **What:** `docs/plans/2026-11-14-inputs-ux-audit.md` (97 findings from five lenses on two seeded projects, each with
   what the user sees and its cause); `docs/plans/2026-11-14-inputs-task-first.md` (the plan: one list of work, one card

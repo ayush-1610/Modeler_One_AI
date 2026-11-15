@@ -164,11 +164,15 @@ export function InputsWorkspace({ projectId, initialTab, initialOnly, initialSta
   const assembled = useRef(false);
   const searching = useRef(false);
   const view = page.data;
+  // the inputs follow every change on the server; a page opened after a change upstream (the brief) assembles them once
+  const stale = view && (!view.readiness || view.readiness.status === "STALE");
 
-  // the area the page opened on is kept once the work is read, so a list that empties does not move the page
+  // the area the page opened on is kept once the work is read, so a list that empties does not move the page; chosen
+  // once the inputs are assembled: on a project's first visit they are read before that, with no to-do yet, and the page
+  // opened on Compound with every compound value still to fill
   useEffect(() => {
-    if (chosen === null && view && work.loaded) setChosen(model.counts.open ? "todo" : "compound");
-  }, [chosen, view, work.loaded, model.counts.open]);
+    if (chosen === null && view && !stale && work.loaded) setChosen(model.counts.open ? "todo" : "compound");
+  }, [chosen, view, stale, work.loaded, model.counts.open]);
   // a link to another area of this page (Add data's "See each file on Inputs") changes the area and the filters without a
   // new page; the URL this page writes itself says what the page already shows
   const urlTab = url.get("tab") ?? undefined, urlOnly = url.get("only") === "1", urlStatus = url.get("status") ?? undefined;
@@ -208,8 +212,6 @@ export function InputsWorkspace({ projectId, initialTab, initialOnly, initialSta
     }
   }
 
-  // the inputs follow every change on the server; a page opened after a change upstream (the brief) assembles them once
-  const stale = view && (!view.readiness || view.readiness.status === "STALE");
   useEffect(() => {
     if (!stale || assembled.current) return;
     assembled.current = true;
