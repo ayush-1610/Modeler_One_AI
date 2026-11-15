@@ -30,6 +30,7 @@ import { AccessRequests } from "./ObservedDatasets";
 import { useReadingRefresh } from "./ReadingTray";
 import { type Intent, type Options, StudiesTab } from "./StudiesTab";
 import { downloadTemplate, fileArea, whereShown } from "./TabFiles";
+import { OpenSheetContext, type SheetAsk } from "./openSheet";
 import { type Readiness, type StatusFilter, TodoTab } from "./TodoTab";
 import { useInputsWork } from "./useInputsWork";
 import { ValueReuse } from "./ValueReuse";
@@ -146,8 +147,10 @@ export function InputsWorkspace({ projectId, initialTab, initialOnly, initialSta
   // the client files opened on their sheets, and the last sheet form saved, held while another area is shown
   const [filesOpen, setFilesOpen] = useState<ReadonlySet<string>>(new Set());
   const [lastSheet, rememberSheet] = useState<FilesShown["memory"]["last"]>(null);
+  // a sheet a card asked to open in the reader, with the cells its own words name as no sample (final review OWN-2 c)
+  const [sheetAsk, setSheetAsk] = useState<SheetAsk | null>(null);
   const shown: FilesShown = {
-    open: filesOpen, memory: { last: lastSheet, remember: rememberSheet },
+    open: filesOpen, memory: { last: lastSheet, remember: rememberSheet }, ask: sheetAsk,
     toggle: (id) => setFilesOpen((was) => {
       const next = new Set(was);
       if (!next.delete(id)) next.add(id);
@@ -398,6 +401,13 @@ export function InputsWorkspace({ projectId, initialTab, initialOnly, initialSta
     fileName: (id) => fileNames.get(id) ?? null,
     onFile: (id) => { setTab("files"); if (!filesOpen.has(id)) setFilesOpen((was) => new Set([...was, id])); bringIntoView(`inputs-file-${fileNames.get(id) ?? ""}`); },
   };
+  // "Read this sheet" from a card: its file's row in Client files, opened on the sheet in the reader
+  const openSheet = (ask: Omit<SheetAsk, "at">) => {
+    setTab("files");
+    if (!filesOpen.has(ask.file)) setFilesOpen((was) => new Set([...was, ask.file]));
+    setSheetAsk({ ...ask, at: Date.now() });
+    bringIntoView(`sheet-${ask.sheet}`, `inputs-file-${fileNames.get(ask.file) ?? ""}`);
+  };
   const cardOpen = (s: Subject, first: boolean) => cardsOpen[s.key] ?? (focused(s, cardFocus) || first);
   const toggleCard = (s: Subject, first: boolean) => setCardsOpen((was) => ({ ...was, [s.key]: !(was[s.key] ?? (focused(s, cardFocus) || first)) }));
   // the dissolution profiles, each on its product's card; those of no product's card after them
@@ -415,6 +425,7 @@ export function InputsWorkspace({ projectId, initialTab, initialOnly, initialSta
     || panelTodo("settings").length > 0;
 
   return (
+    <OpenSheetContext.Provider value={openSheet}>
     <PageShell {...head}
       actions={(
         <AddDataMenu projectId={projectId} run={run}
@@ -644,5 +655,6 @@ export function InputsWorkspace({ projectId, initialTab, initialOnly, initialSta
         </TabPanel>
       )}
     </PageShell>
+    </OpenSheetContext.Provider>
   );
 }

@@ -16,7 +16,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { DeliveryReview } from "@/components/delivery/DeliveryReview";
 import type { Suggestions } from "@/components/delivery/FactsForm";
-import { MappingReview } from "@/components/delivery/MappingReview";
+import { MappingReview, type MappingOpen } from "@/components/delivery/MappingReview";
 import type { Schema } from "@/lib/api";
 import { cardAnchor, type Subject, type WorkItem, type WorkModel } from "@/lib/inputsWork";
 import { AREA_NAME, STATUS_TONE, STATUS_WORD, type Status, type Tab, plural, whenText } from "@/lib/words";
@@ -171,7 +171,7 @@ export function ConfirmPath({ subject: s, env, observed, files, onShow }: {
   /** bring what the card put in the model into view */
   onShow?: () => void;
 }) {
-  const [mapping, setMapping] = useState<string | null>(null);
+  const [mapping, setMapping] = useState<MappingOpen | null>(null);
   const [reading, setReading] = useState(false);       // the other reader's view, opened
   const [sheet, setSheet] = useState(false);           // the sheet form's path, chosen on a card confirmed on the delivery
   const body = useRef<HTMLDivElement>(null);
@@ -190,7 +190,7 @@ export function ConfirmPath({ subject: s, env, observed, files, onShow }: {
     if (inside || focus.group) { setReading(true); setSheet(true); }
   }, [focus]); // eslint-disable-line react-hooks/exhaustive-deps
   const confirmItem = work.items.find((i) => i.id === `confirm:${s.key}`);
-  const gate = { text: confirmItem?.gate ?? null, onOpen: env.onTodo };
+  const gate = { text: confirmItem?.gate ?? null, owner: confirmItem?.owner ?? null, onOpen: env.onTodo };
   const todo = <CardTodo subject={s} env={env} />;
   const sheetPath = toConfirm.length ? (gated: boolean) => (
     <span className="sheet-path">
@@ -252,7 +252,8 @@ export function ConfirmPath({ subject: s, env, observed, files, onShow }: {
             : <DeliveryReview projectId={projectId} row={s.row} mode="read" onMapping={setMapping} />}
         </>
       )}
-      {mapping && <MappingReview projectId={projectId} mappingId={mapping} onClose={() => setMapping(null)} />}
+      {mapping && <MappingReview projectId={projectId} mappingId={mapping.id} version={mapping.version} at={mapping.at} onClose={() => setMapping(null)}
+                                 onStored={(version) => setMapping((was) => (was ? { ...was, version } : was))} />}
     </div>
   );
 }

@@ -1319,8 +1319,10 @@ export interface paths {
         /**
          * Get Mapping
          * @description A mapping as a person reviews it: each column's header with its role, field and unit, the tokens and row rules,
-         *     the table as the table mapper is shown it (no digit of its body), every version with its decisions, and where it
-         *     is in use. `version`: one version (default: the latest).
+         *     a table of its layout (no digit of its body), every version with its decisions, where it is in use, and how the
+         *     version shown reads each table in use (`tables`). `version`: one version (default: the latest). `file_sha256` and
+         *     `region_id` (both or neither): the table to show it on, the one a person opened it from (409 when that region is
+         *     no table of this layout).
          */
         get: operations["get_mapping_api_v1_projects__project_id__delivery_mappings__mapping_id__get"];
         put?: never;
@@ -5161,6 +5163,8 @@ export interface components {
              * @enum {string}
              */
             status: "approved" | "proposed" | "rejected";
+            /** Tables */
+            tables: components["schemas"]["DeliveryMappingTable"][];
             /** Time Reference */
             time_reference: string | null;
             /** Time Row */
@@ -5180,13 +5184,20 @@ export interface components {
             /** Waiting */
             waiting: boolean;
         };
-        /** DeliveryMappingApproval */
+        /**
+         * DeliveryMappingApproval
+         * @description `file_sha256` and `region_id` (both or neither): the table the answer shows the mapping on (as `GET` takes them).
+         */
         DeliveryMappingApproval: {
+            /** File Sha256 */
+            file_sha256?: string | null;
             /**
              * Note
              * @default
              */
             note?: string;
+            /** Region Id */
+            region_id?: string | null;
             /** Version */
             version: number;
         };
@@ -5325,8 +5336,15 @@ export interface components {
             /** Why */
             why: string;
         };
-        /** DeliveryMappingRejection */
+        /**
+         * DeliveryMappingRejection
+         * @description `file_sha256` and `region_id` (both or neither): the table the answer shows the mapping on (as `GET` takes them).
+         */
         DeliveryMappingRejection: {
+            /** File Sha256 */
+            file_sha256?: string | null;
+            /** Region Id */
+            region_id?: string | null;
             /** Version */
             version: number;
             /** Why */
@@ -5376,8 +5394,11 @@ export interface components {
         };
         /**
          * DeliveryMappingSample
-         * @description The table as the table mapper is shown it (`mapping.redact`): no digit of its body. For a file with a blinded
-         *     study's values the body and the context lines are withheld.
+         * @description The table a mapping is shown on: its context lines, its header rows as the layout counts them (`header_rows`,
+         *     the layout's own: their cells as written, as each column's header is), and its first 5 and last 3 body rows with
+         *     every digit masked (`mapping.redact.redact_cell`): `body_rows` numbers them, so the rows left out are those of
+         *     `header_rows + 1 .. n_rows` not listed. For a file with a blinded study's values the body is withheld and the
+         *     digits of the header and the context lines are masked.
          */
         DeliveryMappingSample: {
             /** Blinded */
@@ -5402,6 +5423,33 @@ export interface components {
             n_rows: number;
             /** Region Id */
             region_id: string;
+            /** Where */
+            where: string;
+        };
+        /**
+         * DeliveryMappingTable
+         * @description A table of the mapping's layout that one of its versions reads now (one row per table of `used_in`), and how the
+         *     version shown reads it: `reads` false when that version has an error on the table (`findings`: its errors and
+         *     notes there, their digits masked for a file that holds a blinded study's values), null when the table's source
+         *     model is not cached. `newer`: the table stays with an older version because the newest approved one does not read
+         *     it (as on the page's region).
+         */
+        DeliveryMappingTable: {
+            /** File */
+            file: string;
+            /** File Sha256 */
+            file_sha256: string;
+            /** Findings */
+            findings: components["schemas"]["DeliveryMappingFinding"][];
+            newer: components["schemas"]["DeliveryNewerLayout"] | null;
+            /** Reads */
+            reads: boolean | null;
+            /** Region Id */
+            region_id: string;
+            /** State */
+            state: string;
+            /** Version */
+            version: number;
             /** Where */
             where: string;
         };
@@ -5479,6 +5527,22 @@ export interface components {
             time_references: string[];
         };
         /**
+         * DeliveryNewerLayout
+         * @description The newest approved version of a table's layout, newer than the version the table is read with, that does not
+         *     read it: the pipeline reads a table only with an approved version that has no error on the table's own grid
+         *     (`intake_pipeline._choose`), so the table stays with the older one. `findings`: that version's errors on this table
+         *     (their digits masked for a file that holds a blinded study's values); `constants`: that version's facts read once
+         *     for the table, which a finding's location names by number.
+         */
+        DeliveryNewerLayout: {
+            /** Constants */
+            constants: components["schemas"]["DeliveryMappingConstant"][];
+            /** Findings */
+            findings: components["schemas"]["DeliveryMappingFinding"][];
+            /** Version */
+            version: number;
+        };
+        /**
          * DeliveryOutside
          * @description An item with a number outside every region that is not page furniture. `counted`: it is in the summary's
          *     `outside_numeric` (no mapped table cites it and no person accepted it as not data), so it blocks a confirmation.
@@ -5547,6 +5611,7 @@ export interface components {
             mapping_status: string | null;
             /** Mapping Version */
             mapping_version: number | null;
+            newer: components["schemas"]["DeliveryNewerLayout"] | null;
             /** Numeric Cells */
             numeric_cells: number;
             /** Origin */
@@ -5558,6 +5623,8 @@ export interface components {
             restored: components["schemas"]["DeliveryRegionRestore"] | null;
             /** Silent */
             silent: number;
+            /** Silent Cells */
+            silent_cells: components["schemas"]["DeliveryUnreadCell"][];
             /**
              * State
              * @enum {string}
@@ -6112,6 +6179,24 @@ export interface components {
             values: number;
             /** Values Unassigned */
             values_unassigned: number;
+        };
+        /**
+         * DeliveryUnreadCell
+         * @description A cell with a number in a read table that no part of its layout reads (silent: it holds up the delivery's
+         *     signatures), and why, as code's reading of the table records it (`CellUse.rule`): "" (no column or row rule of the
+         *     layout reads it), "unparseable" (a column reads it, but it is not a plain number), "time_unparseable" (its time is
+         *     not a plain number), "qualifier_twice" (a second spread, n or interval for one value), "lloq_differs" (its LLOQ is
+         *     not the table's), "time_unit_conflict" (the cell writes another time unit than its column). `text` is null for a
+         *     file that holds a blinded study's values. Read-only: a single cell is not set aside here (plan 2026-11-14 §3 API 3,
+         *     the owner's review).
+         */
+        DeliveryUnreadCell: {
+            /** Text */
+            text: string | null;
+            /** Where */
+            where: string;
+            /** Why */
+            why: string;
         };
         /**
          * DeliveryValue
@@ -15802,6 +15887,8 @@ export interface operations {
         parameters: {
             query?: {
                 version?: number | null;
+                file_sha256?: string | null;
+                region_id?: string | null;
             };
             header?: {
                 authorization?: string | null;

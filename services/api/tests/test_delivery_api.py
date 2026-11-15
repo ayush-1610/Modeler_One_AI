@@ -1001,6 +1001,87 @@ def test_a_mapping_is_shown_approved_rejected_and_edited_and_each_decision_reads
     assert all(r.state == "done" for r in intake_pipeline.runs(p.ws))
 
 
+SHORT = b"Time (h),Mean concentration (ng/mL),SD\n0.5,11.5,2.1\n1,24.25,4.4\n"
+
+
+@pytest.mark.req("T-47", "F-404", "T-05")
+def test_a_layout_is_shown_on_the_table_it_was_opened_from_and_says_how_each_version_reads_each_table(project):
+    """Final review OWN-2, OWN-15: a layout opened from a table's row is shown on that table at the version named; every
+    table of the layout says the version it is read with and whether the version shown reads it; a table the newest
+    approved version cannot read stays with an older one, and its region says which and why."""
+    p = project()
+    p.deliver(("loose-profile.csv", LOOSE), ("short-profile.csv", SHORT))
+    loose, short = _sha(LOOSE), _sha(SHORT)
+    (row,) = p.page()["mappings"]
+    path = f"delivery/mappings/{row['mapping_id']}"
+    regions = {u["file_sha256"]: u["region_id"] for u in row["used_in"]}
+    assert set(regions) == {loose, short}
+    assert p.post(f"{path}:approve", {"version": 1, "note": "checked"}).status_code == 200
+    p.settle()
+    spec = p.get(path).json()["data"]["spec"]
+    # a version that reads the long table to its last row: the short table has fewer rows
+    edited = p.post(f"{path}:edit", {"spec": {**spec, "last_data_row": 5}, "why": "the table ends at row 5",
+                                     "file_sha256": loose, "region_id": regions[loose]})
+    assert edited.status_code == 200, edited.text
+    assert (edited.json()["data"]["version"], edited.json()["data"]["sample"]["file_sha256"]) == (2, loose)
+    p.settle()
+    approved = p.post(f"{path}:approve", {"version": 2, "note": "checked", "file_sha256": short, "region_id": regions[short]})
+    assert approved.status_code == 200, approved.text
+    assert approved.json()["data"]["sample"]["file_sha256"] == short                       # shown on the table named
+    p.settle()
+    by_file = {f["sha256"]: f["regions"][0] for d in p.page()["deliveries"] for f in d["files"]}
+    assert (by_file[loose]["mapping_version"], by_file[loose]["newer"]) == (2, None)
+    held = by_file[short]
+    assert (held["mapping_version"], held["newer"]["version"]) == (1, 2)
+    assert [f["code"] for f in held["newer"]["findings"]] == ["CELL_OUTSIDE_REGION"]
+    # the newest version shown on the short table: it does not read it; each table says how it is read
+    shown = p.get(path, version=2, file_sha256=short, region_id=regions[short]).json()["data"]
+    sample = shown["sample"]
+    assert (sample["file"], sample["header_rows"], sample["header"], sample["body_rows"]) == (
+        "short-profile.csv", 1, [["Time (h)", "Mean concentration (ng/mL)", "SD"]], [2, 3])
+    tables = {t["file_sha256"]: t for t in shown["tables"]}
+    assert (tables[loose]["version"], tables[loose]["reads"], tables[loose]["findings"], tables[loose]["newer"]) == (2, True, [], None)
+    assert (tables[short]["version"], tables[short]["reads"], tables[short]["newer"]["version"]) == (1, False, 2)
+    assert [f["code"] for f in tables[short]["findings"]] == ["CELL_OUTSIDE_REGION"]
+    # version 1 on the same table reads both tables; the newer one that does not is still named beside the short one
+    first = p.get(path, version=1, file_sha256=short, region_id=regions[short]).json()["data"]
+    assert {t["file_sha256"]: (t["version"], t["reads"]) for t in first["tables"]} == {loose: (2, True), short: (1, True)}
+    assert next(t for t in first["tables"] if t["file_sha256"] == short)["newer"]["version"] == 2
+    # refusals: the table named by both or neither, a file that never arrived, a region of no table of this layout
+    assert p.get(path, file_sha256=short).status_code == 422
+    assert p.get(path, file_sha256=_sha(b"never sent"), region_id=regions[short]).status_code == 404
+    assert p.get(path, file_sha256=short, region_id="rg-0123456789").status_code == 409
+    assert p.post(f"{path}:approve", {"version": 2, "file_sha256": short}).status_code == 422
+
+
+@pytest.mark.req("T-47", "F-404", "T-05")
+def test_a_read_tables_numbers_no_part_of_its_layout_reads_are_listed_with_why(project):
+    """Final review OWN-2 (b): a read table's numbers its layout leaves unread are listed on its region, read-only, with
+    the reason code's reading records: a value that is not a plain number, a column the layout does not read."""
+    p = project()
+    odd = b'Time (h),Mean concentration (ng/mL),SD\n0.5,11.5,2.1\n1,"1,2",4.4\n2,18.75,3.9\n'
+    p.deliver(("odd-profile.csv", odd))
+    page = p.page()
+    (region,) = page["deliveries"][0]["files"][0]["regions"]
+    # the value that is not a plain number, and its SD, which then qualifies no value
+    assert (region["state"], region["silent"]) == ("mapped", 2)
+    assert [(c["where"], c["text"], c["why"]) for c in region["silent_cells"]] == [
+        ("s:'odd-profile'!B3", "1,2", "unparseable"), ("s:'odd-profile'!C3", "4.4", "")]
+    # a version that does not read the SD column: its numbers are listed too, as read by no part of the layout
+    (row,) = page["mappings"]
+    path = f"delivery/mappings/{row['mapping_id']}"
+    spec = p.get(path).json()["data"]["spec"]
+    columns = [c for c in spec["columns"] if c["role"] != "spread"]
+    edited = p.post(f"{path}:edit", {"spec": {**spec, "columns": columns}, "why": "the SD column is read later"})
+    assert edited.status_code == 200, edited.text
+    p.settle()
+    assert p.post(f"{path}:approve", {"version": edited.json()["data"]["version"], "note": "checked"}).status_code == 200
+    p.settle()
+    (region,) = p.page()["deliveries"][0]["files"][0]["regions"]
+    said = {c["text"]: c["why"] for c in region["silent_cells"]}
+    assert said == {"1,2": "unparseable", "2.1": "", "4.4": "", "3.9": ""} and region["silent"] == 4
+
+
 # --- a value's source, and what a request may name ---------------------------------------------------------------------------
 
 

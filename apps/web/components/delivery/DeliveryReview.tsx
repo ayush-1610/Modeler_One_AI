@@ -25,6 +25,7 @@ import {
 
 import { ChangedSince, Decisions } from "./Decisions";
 import { ConfirmDialog } from "./ConfirmDialog";
+import type { MappingOpen } from "./MappingReview";
 import { FactsForm, DemographicsForm, enteredDemographics, type Suggestions } from "./FactsForm";
 import {
   BLOCKER_LABEL, ChipFor, KIND_LABEL, MAPPING_STATE, Problem, TupleCells, WITHHELD, Why, fieldText, labelsText, levelText, plural,
@@ -130,7 +131,7 @@ const valueWords = (v: Value) => [v.field, labelsText(v), statisticText(v), v.un
  *  from there: its rows are not marked one by one). */
 function ValueTable({ projectId, params, table, flagged, decide, busy, onMapping, read }: {
   projectId: string; params: CardParams; table: Table; flagged: Map<string, string>; decide: Decide; busy: boolean;
-  onMapping: (mappingId: string) => void; read: boolean;
+  onMapping: (open: MappingOpen) => void; read: boolean;
 }) {
   const [source, setSource] = useState<string | null>(null);
   const [correcting, setCorrecting] = useState<string | null>(null);
@@ -155,7 +156,9 @@ function ValueTable({ projectId, params, table, flagged, decide, busy, onMapping
         <span className="muted">{plural(table.values.length, "value")}</span>
         {marked > 0 && <span className="chip medium">{marked} to decide</span>}
         {table.mapping_id && table.mapping_status && (
-          <button type="button" className="delivery-chip-btn" onClick={() => onMapping(table.mapping_id as string)}
+          <button type="button" className="delivery-chip-btn"
+                  onClick={() => onMapping({ id: table.mapping_id as string, version: table.mapping_version ?? undefined,
+                                             at: table.file_sha256 && table.region_id ? { file_sha256: table.file_sha256, region_id: table.region_id } : undefined })}
                   data-testid={`delivery-table-mapping-${table.id}`}
                   aria-label={`Check the layout of the ${tableKindText(table.table_kind)} in ${table.file ?? "a file"}`}>
             <ChipFor state={table.mapping_status} table={MAPPING_STATE} /> table layout, version {table.mapping_version}
@@ -286,7 +289,7 @@ function StateAnalyte({ projectId, check, values, onDone }: {
 }
 
 function CheckRow({ check, subject, decide, busy, onMapping, params, read, values }: {
-  check: Check; subject: Subject; decide: Decide; busy: boolean; onMapping: (id: string) => void; params: CardParams; read: boolean;
+  check: Check; subject: Subject; decide: Decide; busy: boolean; onMapping: (open: MappingOpen) => void; params: CardParams; read: boolean;
   values: Map<string, Value>;
 }) {
   const [acting, setActing] = useState(false);
@@ -304,7 +307,10 @@ function CheckRow({ check, subject, decide, busy, onMapping, params, read, value
         {check.values.length > 0 && <span className="muted fs-12">{plural(check.values.length, "value")}, marked in the tables</span>}
         {!read && open && !acting && !stating && (
           check.code === MAPPED ? (mapping
-            ? <button type="button" className="btn small" onClick={() => onMapping(mapping.mapping_id)} data-testid={`delivery-check-mapping-${check.id}`}>Check layout…</button>
+            ? <button type="button" className="btn small" data-testid={`delivery-check-mapping-${check.id}`}
+                      onClick={() => onMapping({ id: mapping.mapping_id, version: mapping.version,
+                                                 at: mapping.used_in[0] ? { file_sha256: mapping.used_in[0].file_sha256, region_id: mapping.used_in[0].region_id } : undefined })}>
+                Check layout…</button>
             : <span className="muted fs-12">checked with its table&apos;s layout</span>)
             : <>
               {analyte && <button type="button" className="btn small" onClick={() => setStating(true)} data-testid={`delivery-analyte-open-${check.id}`}
@@ -516,6 +522,8 @@ export type Gate = {
   /** what of the delivery's clean-up holds the signature, counted from the one list of work ("10 table layouts to
    *  check · 6 files to link"), or null when the list has not counted it */
   text: string | null;
+  /** what of it still needs the owner's decision, in one sentence (final review OWN-2 d; `inputsWork.ownerText`) */
+  owner?: string | null;
   /** open To do on the clean-up */
   onOpen: () => void;
 };
@@ -525,7 +533,7 @@ export type Gate = {
  *  answers as suggestions, the observed data, the other confirm path and the other reader's view. */
 export function DeliveryReview({ projectId, row, mode, gate, onMapping, todo, suggestions, observed, sheetPath, howRead }: {
   projectId: string; row: SubjectRow; mode: "confirm" | "read"; gate?: Gate | null;
-  onMapping: (mappingId: string) => void;
+  onMapping: (open: MappingOpen) => void;
   /** the open items of the card in the one list of work, as links into the card */
   todo?: ReactNode;
   suggestions?: Suggestions;
@@ -586,6 +594,7 @@ export function DeliveryReview({ projectId, row, mode, gate, onMapping, todo, su
       <strong>Waits for the delivery clean-up:</strong>{" "}
       {gate?.text || gated.map((b) => GATE_WORD[b.code]).join(" · ")}.{" "}
       {gate && <button type="button" className="link-btn" onClick={gate.onOpen} data-testid={`delivery-gate-open-${s.subject}`}>Open in To do</button>}
+      {gate?.owner && <span className="muted" data-testid={`delivery-gate-owner-${s.subject}`}> {gate.owner}</span>}
     </p>
   );
 
@@ -651,7 +660,9 @@ export function DeliveryReview({ projectId, row, mode, gate, onMapping, todo, su
                   <ChipFor state={m.status} table={MAPPING_STATE} />
                   <span className="delivery-check-text">{capitalized(tableKindText(m.kind))}, version {m.version}: {m.used_in.map((u) => `${u.file} (${placeText(u.where)})`).join("; ")}</span>
                   {m.waiting && <span className="chip neutral">Reading…</span>}
-                  <button type="button" className="btn small" onClick={() => onMapping(m.mapping_id)} data-testid={`delivery-card-mapping-${m.mapping_id}`}
+                  <button type="button" className="btn small" data-testid={`delivery-card-mapping-${m.mapping_id}`}
+                          onClick={() => onMapping({ id: m.mapping_id, version: m.version,
+                                                     at: m.used_in[0] ? { file_sha256: m.used_in[0].file_sha256, region_id: m.used_in[0].region_id } : undefined })}
                           aria-label={`Check the layout of the ${tableKindText(m.kind)} in ${m.used_in[0]?.file ?? "no file"}`}>Check layout…</button>
                 </div>
               </li>

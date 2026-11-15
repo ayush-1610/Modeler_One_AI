@@ -129,7 +129,8 @@ test("the link table: asked first, two files refused one arm, given an arm each 
   await expect(table.getByTestId(`link-${ref}`)).toHaveCount(0);
   await expect(table.getByTestId(`link-${tst}`)).toHaveCount(0);
   expect(assigns).toBe(2);
-  await expect(page.getByTestId("todo-live")).toContainText("linked to study 230-23 · arm Reference (new); study 230-23 · arm Test (new). 4 files left to link.");
+  // the arms the batch made are named as they now are (review CODE-10)
+  await expect(page.getByTestId("todo-live")).toContainText("linked to study 230-23 · arm Reference; study 230-23 · arm Test. 4 files left to link.");
   await expect(page.locator(":focus")).toHaveAttribute("data-testid", /^link-pick-/);
   const after = await read<Delivery>(request, "delivery");
   expect(after.subjects.find((s) => s.label === "230-23")!.arms.map((a) => a.label).sort()).toEqual(["Reference", "Test"]);
@@ -226,8 +227,12 @@ test("numbers not read: a file's loose numbers marked as not data in one go, res
   await table.getByTestId(`notread-mark-${messy}-submit`).click();
   await expect(table.getByTestId(`notread-${messy}`)).toHaveCount(0);            // its one loose number was all it had
   expect(excludes).toBe(1);
-  await expect(page.getByTestId("todo-live")).toContainText(`“Note: 3 samples were re-assayed on day 14” marked as not data. ${before - 1} loose numbers left.`);
+  await expect(page.getByTestId("todo-live")).toContainText(
+    `messy-delivery.xlsx: “Note: 3 samples were re-assayed on day 14” marked as not data. ${before - 1} loose numbers left.`);
   await expect(page.locator(":focus")).toHaveAttribute("data-testid", /^notread-/);
+  // what was done is said where the marked notes are listed, not only to a screen reader (review CODE-3)
+  await expect(page.getByTestId("notread-marked-said")).toHaveText(
+    `messy-delivery.xlsx: “Note: 3 samples were re-assayed on day 14” marked as not data. ${before - 1} loose numbers left.`);
   await shot(page, "3-marked");
   // restored where it was marked, with the reason
   const marked = page.getByTestId("notread-marked");
@@ -236,7 +241,15 @@ test("numbers not read: a file's loose numbers marked as not data in one go, res
   await marked.getByTestId(`notread-undo-${messy}-0-submit`).click();
   await expect(table.getByTestId(`notread-${messy}`)).toBeVisible();
   await expect.poll(async () => (await read<Delivery>(request, "delivery")).totals.outside_numeric).toBe(before);
-  // two files' loose numbers in one batch, the last reason offered again: one decision per file
+  // two files' loose numbers in one batch, the last reason offered again: one decision per file. The template's is refused
+  // (a second reviewer marked a cell of it first, a 409 the page is served here): said on its row and in the bar, in a
+  // person's words, never hidden by the other file's success (review CODE-2)
+  const tplSha = files.find((f) => f.name === "client-template-filled.xlsx")!.sha256;
+  await page.route(/\/regions:exclude$/, async (route) => {
+    if ((route.request().postDataJSON() as { file_sha256: string }).file_sha256 !== tplSha) return route.continue();
+    await route.fulfill({ status: 409, json: { detail: { code: "CONFLICT", message: "already marked as not data: s:'Product'!F1 by rd-9",
+      decided: [{ id: "rd-9", where: "s:'Product'!F1", by: "reviewer-b", at: "2026-11-15T10:21:00Z", why: "a header of the template" }] } } });
+  });
   await table.getByTestId(`notread-pick-${tpl}`).check();
   await table.getByTestId(`notread-pick-${raw}`).check();
   const bar = page.getByTestId("bulk-notread-bar");
@@ -245,8 +258,18 @@ test("numbers not read: a file's loose numbers marked as not data in one go, res
   await bar.getByTestId("bulk-notread-last").click();
   await bar.getByTestId("bulk-notread-submit").click();
   await expect(table.getByTestId(`notread-${raw}`)).not.toContainText("loose number");
+  const refused = "reviewer-b marked sheet Product, cell F1 as not data on 15 Nov 2026, 10:21: “a header of the template”. Restore it to decide again.";
+  await expect(table.getByTestId(`notread-row-problem-${tpl}`)).toHaveText(refused);
+  await expect(bar.getByTestId("bulk-notread-problems")).toHaveText(`client-template-filled.xlsx: ${refused}`);
+  await expect(page.getByTestId("todo-live")).toContainText("client-raw.xlsx: ");
+  await expect(page.getByTestId("todo-live")).toContainText("1 file not marked: see its row.");
+  await page.unrouteAll({ behavior: "ignoreErrors" });
+  // sent again, it is marked, and its refusal goes
+  await expect(bar.getByTestId("bulk-notread-bar-count")).toHaveText("1 file picked");
+  await bar.getByTestId("bulk-notread-submit").click();
   await expect(table.getByTestId(`notread-${tpl}`)).not.toContainText("loose number");
-  expect(excludes).toBe(3);
+  await expect(table.getByTestId(`notread-row-problem-${tpl}`)).toHaveCount(0);
+  expect(excludes).toBe(4);
   expect((await read<Delivery>(request, "delivery")).totals.outside_numeric).toBe(before - 4);
 });
 
@@ -394,6 +417,31 @@ test("Next opens its row whatever To do is narrowed to", async ({ page }) => {
   await page.unrouteAll({ behavior: "ignoreErrors" });
 });
 
+test("a sheet-form draft's problems lead to its sheet, with the cells its own words name read as no sample (OWN-2 c)", async ({ page, request }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  // 230-23's sheet-form path: the Fasting sheet of the messy workbook says "Cells say '12.3*', '>1000': mark them as 'no
+  // sample' or correct the file"; its "Read these data" is refused until they are. The draft leads to the sheet itself.
+  const study = (await read<Delivery>(request, "delivery")).subjects.find((s) => s.label === "230-23")!;
+  await page.goto(`/projects/${projectId}/inputs?tab=studies`);
+  const toggle = page.getByTestId(`delivery-subject-open-${study.subject}`);
+  await expect(toggle).toBeVisible();
+  if ((await toggle.getAttribute("aria-expanded")) !== "true") await toggle.click();
+  await page.getByTestId("confirm-sheet-study:230-23").click();
+  const open = page.getByTestId("draft-read-sheet-Fasting");
+  await expect(open).toHaveText("Read this sheet: mark “12.3*” and “>1000” as no sample…");
+  let sent = 0;
+  page.on("request", (r) => { if (r.method() === "POST") sent += 1; });
+  await open.click();
+  // Client files, the workbook's row open on its Fasting sheet in the reader, the two texts among the cells that mean no
+  // sample; nothing is read or kept until the person checks the sheet and saves it
+  await expect(page).toHaveURL(/[?&]tab=files/);
+  const noSample = page.getByLabel("no sample texts");
+  await expect(noSample).toHaveValue(/12\.3\*/);
+  await expect(noSample).toHaveValue(/>1000/);
+  expect(sent).toBe(0);
+  await shot(page, "6b-sheet-from-draft");
+});
+
 test("on a phone the rows stack, nothing scrolls sideways, and the bulk bar stays in reach", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`/projects/${projectId}/inputs?tab=todo`);
@@ -496,4 +544,91 @@ test("a workbook with one sheet per study: in view though it holds up nothing, e
   expect(after.unassigned.filter((v) => v.file === name)).toHaveLength(0);
   expect(after.subjects.find((s) => s.subject === study.subject)!.arms.map((a) => a.label)).toContain("Reference repeat");
   expect(after.subjects.map((s) => s.label)).toContain("777-01");
+});
+
+test("a table the newest layout cannot read: its row says why and lists its numbers; its layout opens on it, at its version, and is corrected there", async ({ page, request }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  // the two dissolution tables share one layout: version 1 was made for RLD's table, version 2 for Test's, which reads the
+  // product's role from its caption ("(Test)"); RLD's caption names "Reference" and "RLD" both, so version 2 cannot read
+  // it. Both versions approved (as a person would in the queue), each table is read with the newest that reads it.
+  const before = await read<{ mappings: { mapping_id: string; version: number; kind: string; used_in: { file: string }[] }[] }>(request, "delivery");
+  const diss = before.mappings.filter((m) => m.kind === "dissolution" && m.used_in.some((u) => u.file.startsWith("Dissolution ")));
+  const id = diss[0].mapping_id;
+  for (const version of [1, 2]) {
+    const ok = await request.post(api(`delivery/mappings/${id}:approve`), { headers: AUTH, data: { version, note: "checked against the files" } });
+    expect(ok.status(), await ok.text()).toBe(200);
+    await expect.poll(async () => !(await read<Delivery>(request, "delivery")).running, { timeout: 120_000, intervals: [1000] }).toBe(true);
+  }
+  type Region = { region_id: string; mapping_version: number; silent: number; newer: { version: number } | null };
+  const regionOf = async (name: string) => (await read<{ deliveries: { files: (File & { regions: Region[] })[] }[] }>(request, "delivery"))
+    .deliveries.flatMap((d) => d.files).find((f) => f.name === name)!.regions[0];
+  const rld = await regionOf("Dissolution RLD pH 6.8.xlsx");
+  const tst = await regionOf("Dissolution Test pH 6.8.xlsx");
+  expect([rld.mapping_version, rld.newer?.version, tst.mapping_version]).toEqual([1, 2, 2]);
+
+  // To do: RLD's row lists its numbers not read, why, and why the newest layout does not read its table
+  await page.goto(`/projects/${projectId}/inputs?tab=todo`);
+  const file = fid("Dissolution RLD pH 6.8.xlsx");
+  const row = page.getByTestId(`notread-${file}`);
+  await row.getByTestId(`notread-open-${file}`).click();
+  await expect(row.getByTestId(`notread-silent-${rld.region_id}`)).toContainText("24 numbers in the table pH 6.8 of Dissolution RLD pH 6.8.xlsx");
+  await expect(row.getByTestId(`notread-cells-${rld.region_id}`)).toContainText("No column or row of the layout reads it (24): sheet pH 6.8, cell");
+  await expect(row.getByTestId(`notread-newer-${rld.region_id}`)).toContainText(
+    "Version 2 of its layout, the newest approved, does not read this table: the product's role is not stated in its caption.");
+  await shot(page, "7-not-read-why");
+  // its layout opens at the version and on the table the row names (review OWN-2 a, OWN-15)
+  await row.getByTestId(`notread-layout-${rld.region_id}`).click();
+  const dialog = page.getByTestId("delivery-mapping-dialog");
+  await expect(dialog.getByTestId("mapping-version")).toHaveText("version 1");
+  await expect(dialog.getByTestId("mapping-sample")).toContainText("of Dissolution RLD pH 6.8.xlsx");
+  await expect(dialog.getByTestId("mapping-sample-said")).toContainText("as the layout says");
+  await expect(dialog.getByTestId(`mapping-table-${rld.region_id}`)).toContainText(
+    "Read with this version. Version 2, the newest approved, does not read it (the product's role is not stated in its caption), so it is still read with version 1.");
+  await expect(dialog.getByTestId(`mapping-table-${tst.region_id}`)).toContainText("Read with version 2.");
+  // no engine words: the facts read once in a sentence, a rule's id and its patterns in the technical detail
+  await expect(dialog.getByTestId("mapping-constants")).toContainText("The batch is read from its caption.");
+  await expect(dialog.locator(".delivery-mapping")).not.toContainText(/proposed by|sheet_form\/rules|as the mapper|\(\?i\)/, { useInnerText: true });
+  await expect(dialog.getByTestId("mapping-technical")).toContainText("sheet_form/rules");
+  // the focus follows each form, and comes back to the button that opened it (review A11Y-2)
+  await dialog.getByTestId("mapping-reject-open").click();
+  await expect(dialog.getByTestId("mapping-reject-why")).toBeFocused();
+  await dialog.getByTestId("mapping-reject").getByRole("button", { name: "Cancel" }).click();
+  await expect(dialog.getByTestId("mapping-reject-open")).toBeFocused();
+  await page.keyboard.press("Enter");                                  // the keyboard alone: Reject… opens its form again
+  await expect(dialog.getByTestId("mapping-reject-why")).toBeFocused();
+  await dialog.getByTestId("mapping-reject").getByRole("button", { name: "Cancel" }).click();
+  await dialog.getByTestId(`mapping-table-fix-${rld.region_id}`).click();
+  await expect(dialog.getByTestId("mapping-edit-title")).toBeFocused();
+  await expect(dialog.getByTestId("mapping-edit-title")).toContainText("checked on sheet pH 6.8");
+  // the form: fields by their labels, the rows told apart by a cell and the facts read once, no JSON to type (OWN-8)
+  await expect(dialog.getByTestId("mapping-layout-rule-add")).toBeVisible();
+  await expect(dialog.getByTestId("mapping-layout-fact-batch")).toContainText("Batch, read from");
+  await expect(dialog.getByTestId("mapping-layout-kind").locator("option:checked")).toHaveText("dissolution table");
+  // the three columns that are not values (Mean, SD, %CV) are not data, said with a reason; stored for RLD's table
+  for (const column of [14, 15, 16]) {
+    await dialog.getByTestId(`mapping-layout-role-${column}`).selectOption("ignore");
+    await dialog.getByTestId(`mapping-layout-reason-${column}`).fill("a summary of the vessels, not data");
+  }
+  await dialog.getByTestId("mapping-edit-why").fill("RLD's Mean, SD and %CV columns summarise the vessels");
+  await dialog.getByTestId("mapping-edit-submit").click();
+  await expect(dialog.getByTestId("mapping-said")).toContainText("Version 3 is stored and waits for approval");
+  await expect(dialog.getByTestId("mapping-version")).toHaveText("version 3");
+  await expect(dialog.getByTestId("mapping-sample")).toContainText("of Dissolution RLD pH 6.8.xlsx");
+  await expect(dialog.getByTestId("mapping-status")).toHaveText("waits for approval");
+  await expect.poll(async () => !(await read<Delivery>(request, "delivery")).running, { timeout: 120_000, intervals: [1000] }).toBe(true);
+  await dialog.getByTestId("mapping-approve-why").fill("checked against RLD's file");
+  await dialog.getByTestId("mapping-approve-submit").click();
+  await expect(dialog.getByTestId("mapping-said")).toContainText("Version 3 of the dissolution table layout is approved");
+  await expect.poll(async () => {
+    const r = await regionOf("Dissolution RLD pH 6.8.xlsx");
+    return [r.mapping_version, r.silent];
+  }, { timeout: 120_000, intervals: [1000] }).toEqual([3, 0]);
+  // RLD's row leaves To do; the dialog stays, still saying what was done, until it is closed
+  await expect(page.getByTestId(`notread-${file}`)).toHaveCount(0);
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByTestId("mapping-said")).toContainText("is approved");
+  await shot(page, "8-layout-corrected");
+  await dialog.getByTestId("mapping-close").click();
+  await expect(dialog).toHaveCount(0);
+  await expect.poll(() => page.evaluate(() => document.activeElement !== document.body)).toBe(true);
 });

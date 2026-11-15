@@ -6256,6 +6256,13 @@
             "title": "Status",
             "type": "string"
           },
+          "tables": {
+            "items": {
+              "$ref": "#/components/schemas/DeliveryMappingTable"
+            },
+            "title": "Tables",
+            "type": "array"
+          },
           "time_reference": {
             "anyOf": [
               {
@@ -6361,6 +6368,7 @@
           "findings",
           "versions",
           "used_in",
+          "tables",
           "waiting",
           "queued",
           "vocabulary"
@@ -6369,11 +6377,34 @@
         "type": "object"
       },
       "DeliveryMappingApproval": {
+        "description": "`file_sha256` and `region_id` (both or neither): the table the answer shows the mapping on (as `GET` takes them).",
         "properties": {
+          "file_sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Sha256"
+          },
           "note": {
             "default": "",
             "title": "Note",
             "type": "string"
+          },
+          "region_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Region Id"
           },
           "version": {
             "minimum": 1.0,
@@ -6793,7 +6824,30 @@
         "type": "object"
       },
       "DeliveryMappingRejection": {
+        "description": "`file_sha256` and `region_id` (both or neither): the table the answer shows the mapping on (as `GET` takes them).",
         "properties": {
+          "file_sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Sha256"
+          },
+          "region_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Region Id"
+          },
           "version": {
             "minimum": 1.0,
             "title": "Version",
@@ -6923,7 +6977,7 @@
       },
       "DeliveryMappingSample": {
         "additionalProperties": false,
-        "description": "The table as the table mapper is shown it (`mapping.redact`): no digit of its body. For a file with a blinded\nstudy's values the body and the context lines are withheld.",
+        "description": "The table a mapping is shown on: its context lines, its header rows as the layout counts them (`header_rows`,\nthe layout's own: their cells as written, as each column's header is), and its first 5 and last 3 body rows with\nevery digit masked (`mapping.redact.redact_cell`): `body_rows` numbers them, so the rows left out are those of\n`header_rows + 1 .. n_rows` not listed. For a file with a blinded study's values the body is withheld and the\ndigits of the header and the context lines are masked.",
         "properties": {
           "blinded": {
             "title": "Blinded",
@@ -7007,6 +7061,77 @@
           "blinded"
         ],
         "title": "DeliveryMappingSample",
+        "type": "object"
+      },
+      "DeliveryMappingTable": {
+        "additionalProperties": false,
+        "description": "A table of the mapping's layout that one of its versions reads now (one row per table of `used_in`), and how the\nversion shown reads it: `reads` false when that version has an error on the table (`findings`: its errors and\nnotes there, their digits masked for a file that holds a blinded study's values), null when the table's source\nmodel is not cached. `newer`: the table stays with an older version because the newest approved one does not read\nit (as on the page's region).",
+        "properties": {
+          "file": {
+            "title": "File",
+            "type": "string"
+          },
+          "file_sha256": {
+            "title": "File Sha256",
+            "type": "string"
+          },
+          "findings": {
+            "items": {
+              "$ref": "#/components/schemas/DeliveryMappingFinding"
+            },
+            "title": "Findings",
+            "type": "array"
+          },
+          "newer": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeliveryNewerLayout"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reads": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reads"
+          },
+          "region_id": {
+            "title": "Region Id",
+            "type": "string"
+          },
+          "state": {
+            "title": "State",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          },
+          "where": {
+            "title": "Where",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file_sha256",
+          "file",
+          "region_id",
+          "where",
+          "version",
+          "state",
+          "reads",
+          "findings",
+          "newer"
+        ],
+        "title": "DeliveryMappingTable",
         "type": "object"
       },
       "DeliveryMappingTokens": {
@@ -7229,6 +7354,37 @@
           "labels"
         ],
         "title": "DeliveryMappingVocabulary",
+        "type": "object"
+      },
+      "DeliveryNewerLayout": {
+        "additionalProperties": false,
+        "description": "The newest approved version of a table's layout, newer than the version the table is read with, that does not\nread it: the pipeline reads a table only with an approved version that has no error on the table's own grid\n(`intake_pipeline._choose`), so the table stays with the older one. `findings`: that version's errors on this table\n(their digits masked for a file that holds a blinded study's values); `constants`: that version's facts read once\nfor the table, which a finding's location names by number.",
+        "properties": {
+          "constants": {
+            "items": {
+              "$ref": "#/components/schemas/DeliveryMappingConstant"
+            },
+            "title": "Constants",
+            "type": "array"
+          },
+          "findings": {
+            "items": {
+              "$ref": "#/components/schemas/DeliveryMappingFinding"
+            },
+            "title": "Findings",
+            "type": "array"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version",
+          "findings",
+          "constants"
+        ],
+        "title": "DeliveryNewerLayout",
         "type": "object"
       },
       "DeliveryOutside": {
@@ -7479,6 +7635,16 @@
             ],
             "title": "Mapping Version"
           },
+          "newer": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeliveryNewerLayout"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "numeric_cells": {
             "title": "Numeric Cells",
             "type": "integer"
@@ -7515,6 +7681,13 @@
           "silent": {
             "title": "Silent",
             "type": "integer"
+          },
+          "silent_cells": {
+            "items": {
+              "$ref": "#/components/schemas/DeliveryUnreadCell"
+            },
+            "title": "Silent Cells",
+            "type": "array"
           },
           "state": {
             "enum": [
@@ -7557,7 +7730,9 @@
           "silent",
           "decision",
           "restored",
-          "head"
+          "head",
+          "silent_cells",
+          "newer"
         ],
         "title": "DeliveryRegion",
         "type": "object"
@@ -9185,6 +9360,38 @@
           "values"
         ],
         "title": "DeliveryTotals",
+        "type": "object"
+      },
+      "DeliveryUnreadCell": {
+        "additionalProperties": false,
+        "description": "A cell with a number in a read table that no part of its layout reads (silent: it holds up the delivery's\nsignatures), and why, as code's reading of the table records it (`CellUse.rule`): \"\" (no column or row rule of the\nlayout reads it), \"unparseable\" (a column reads it, but it is not a plain number), \"time_unparseable\" (its time is\nnot a plain number), \"qualifier_twice\" (a second spread, n or interval for one value), \"lloq_differs\" (its LLOQ is\nnot the table's), \"time_unit_conflict\" (the cell writes another time unit than its column). `text` is null for a\nfile that holds a blinded study's values. Read-only: a single cell is not set aside here (plan 2026-11-14 §3 API 3,\nthe owner's review).",
+        "properties": {
+          "text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text"
+          },
+          "where": {
+            "title": "Where",
+            "type": "string"
+          },
+          "why": {
+            "title": "Why",
+            "type": "string"
+          }
+        },
+        "required": [
+          "where",
+          "text",
+          "why"
+        ],
+        "title": "DeliveryUnreadCell",
         "type": "object"
       },
       "DeliveryValue": {
@@ -33730,7 +33937,7 @@
     },
     "/api/v1/projects/{project_id}/delivery/mappings/{mapping_id}": {
       "get": {
-        "description": "A mapping as a person reviews it: each column's header with its role, field and unit, the tokens and row rules,\nthe table as the table mapper is shown it (no digit of its body), every version with its decisions, and where it\nis in use. `version`: one version (default: the latest).",
+        "description": "A mapping as a person reviews it: each column's header with its role, field and unit, the tokens and row rules,\na table of its layout (no digit of its body), every version with its decisions, where it is in use, and how the\nversion shown reads each table in use (`tables`). `version`: one version (default: the latest). `file_sha256` and\n`region_id` (both or neither): the table to show it on, the one a person opened it from (409 when that region is\nno table of this layout).",
         "operationId": "get_mapping_api_v1_projects__project_id__delivery_mappings__mapping_id__get",
         "parameters": [
           {
@@ -33765,6 +33972,38 @@
                 }
               ],
               "title": "Version"
+            }
+          },
+          {
+            "in": "query",
+            "name": "file_sha256",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "File Sha256"
+            }
+          },
+          {
+            "in": "query",
+            "name": "region_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Region Id"
             }
           },
           {

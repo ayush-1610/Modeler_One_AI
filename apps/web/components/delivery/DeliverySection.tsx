@@ -18,11 +18,11 @@ import { send } from "@/lib/api";
 import { useResource } from "@/lib/hooks";
 import type { WorkItem, WorkModel } from "@/lib/inputsWork";
 import {
-  AREA_NAME, type Tab, engineWords, whereIs, layoutOrigin, plural as count, rulesText, stageText, whenText,
+  AREA_NAME, type Tab, engineWords, whereIs, findingsInline, layoutOrigin, plural as count, rulesText, stageText, whenText,
 } from "@/lib/words";
 
 import { FileLinks } from "./LinkElsewhere";
-import { MappingReview } from "./MappingReview";
+import { MappingReview, type MappingOpen } from "./MappingReview";
 import { ReadTable, readable } from "./ReadTable";
 import { DecisionNote, NotDataNote, RestoreForm, restorable, restorableNote } from "./Restore";
 import {
@@ -60,7 +60,7 @@ function coverageLine(f: FileRow): string {
 function FileItem({ projectId, file, first, decide, busy, onMapping, inRow = false }: {
   projectId: string; file: FileRow;
   /** a repeat's regions are listed on the first arrival of the same bytes */
-  first: FileRow | undefined; decide: Decide; busy: boolean; onMapping: (id: string) => void;
+  first: FileRow | undefined; decide: Decide; busy: boolean; onMapping: (open: MappingOpen) => void;
   /** under the file's row in the table of files, which says its name and its one status (plan 2026-11-14 §2 rule 4) */
   inRow?: boolean;
 }) {
@@ -122,11 +122,18 @@ function FileItem({ projectId, file, first, decide, busy, onMapping, inRow = fal
                         <NotDataNote region={r} testId={`delivery-region-decision-${r.region_id}`} /></td>
                       <td>
                         {r.mapping_id ? (
-                          <button type="button" className="delivery-chip-btn" onClick={() => onMapping(r.mapping_id as string)}
+                          <button type="button" className="delivery-chip-btn"
+                                  onClick={() => onMapping({ id: r.mapping_id as string, version: r.mapping_version ?? undefined,
+                                                             at: { file_sha256: shown.sha256, region_id: r.region_id } })}
                                   data-testid={`delivery-region-mapping-${r.region_id}`} title="Review how this table is read">
                             <ChipFor state={r.mapping_status} table={MAPPING_STATE} /> version {r.mapping_version}{r.origin ? ` · ${layoutOrigin(r.origin)}` : ""}
                           </button>
                         ) : null}
+                        {/* the newest approved version cannot read this table, so it stays with this one (review OWN-2 a) */}
+                        {r.newer && (
+                          <div className="muted fs-12" data-testid={`delivery-region-newer-${r.region_id}`}>Version {r.newer.version} does not read it:{" "}
+                            {findingsInline(r.newer.findings, r.newer.constants)}.</div>
+                        )}
                       </td>
                       <td className="num">{r.numeric_cells ? `${r.used} read · ${r.excluded} not data · ${r.silent} not read` : ""}</td>
                       <td>
@@ -208,7 +215,7 @@ function FileItem({ projectId, file, first, decide, busy, onMapping, inRow = fal
         </div>
       )}
       {reading && <ReadTable projectId={projectId} file={shown} region={reading} onClose={() => setReading(null)}
-                             onStored={(id) => { setReading(null); onMapping(id); }} />}
+                             onStored={(id) => { setReading(null); onMapping({ id, at: { file_sha256: shown.sha256, region_id: reading.region_id } }); }} />}
     </li>
   );
 }
@@ -280,7 +287,7 @@ export function DeliverySection({ projectId, work, focus, onOpenGroup, onItem }:
   const client = useQueryClient();
   const { decide, busy, problem } = useDecide();
   const [folded, setFolded] = useState(false);
-  const [mapping, setMapping] = useState<string | null>(null);
+  const [mapping, setMapping] = useState<MappingOpen | null>(null);
   const page = read.data;
   const running = page?.running ?? false;
   useEffect(() => {
@@ -366,7 +373,8 @@ export function DeliverySection({ projectId, work, focus, onOpenGroup, onItem }:
         </div>
       )}
       {/* the dialog gives the focus back to the button that opened it (a table's "Check layout" in its file's row) */}
-      {mapping && <MappingReview projectId={projectId} mappingId={mapping} onClose={() => setMapping(null)} />}
+      {mapping && <MappingReview projectId={projectId} mappingId={mapping.id} version={mapping.version} at={mapping.at} onClose={() => setMapping(null)}
+                                 onStored={(version) => setMapping((was) => (was ? { ...was, version } : was))} />}
     </section>
   );
 }

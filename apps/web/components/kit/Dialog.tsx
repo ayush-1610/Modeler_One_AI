@@ -13,6 +13,8 @@ const FOCUSABLE = [
   "a[href]", "button:not([disabled])", "input:not([disabled]):not([type=hidden])", "select:not([disabled])",
   "textarea:not([disabled])", "[tabindex]:not([tabindex='-1'])",
 ].join(",");
+/** The panels of the dialogs open now, the topmost last: only the topmost takes the focus back. */
+const OPEN: HTMLElement[] = [];
 
 export function Dialog({ title, onClose, size, above, dismiss, testId, returnFocus, focusKey, children }: {
   title: ReactNode;
@@ -55,6 +57,28 @@ export function Dialog({ title, onClose, size, above, dismiss, testId, returnFoc
     shown.current = focusKey;
     if (panel.current && !panel.current.contains(document.activeElement)) panel.current.focus();
   }, [focusKey]);
+
+  // the safety net (final review A11Y-2): when the focus falls out of the topmost dialog to the page (the focused button
+  // went with what it settled, a form closed), the panel takes it back, so Tab and Escape keep working. A focused element
+  // that is removed fires no event in every browser, so a change inside the panel is watched as well as a focus leaving.
+  useEffect(() => {
+    const el = panel.current;
+    if (!el) return;
+    OPEN.push(el);
+    const lost = () => {
+      const at = document.activeElement;
+      if (OPEN[OPEN.length - 1] === el && el.isConnected && (!at || at === document.body)) el.focus({ preventScroll: true });
+    };
+    const left = (e: FocusEvent) => { if (!e.relatedTarget) window.setTimeout(lost, 0); };
+    const changed = new MutationObserver(() => window.setTimeout(lost, 0));
+    el.addEventListener("focusout", left);
+    changed.observe(el, { childList: true, subtree: true });
+    return () => {
+      el.removeEventListener("focusout", left);
+      changed.disconnect();
+      OPEN.splice(OPEN.indexOf(el), 1);
+    };
+  }, []);
 
   // the page behind is held still while any dialog is open, counted so nested dialogs release it only when the last
   // one closes (kit.css: html[data-dialogs]); set and removed here, so it never outlives the dialog

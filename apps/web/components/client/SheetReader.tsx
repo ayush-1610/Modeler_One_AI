@@ -132,9 +132,12 @@ function Problems({ issues }: { issues: ReadPreview["issues"] }) {
  * Read one sheet: the sheet on the left, a form on the right filled in from what the sheet states (units, dose, LLOQ
  * quoted from their cells). "Check" shows exactly what would be read and every problem; nothing is kept until "Save".
  */
-export function SheetReader({ projectId, file, sheet, last, onSaved, onClose, remember }: {
+export function SheetReader({ projectId, file, sheet, last, onSaved, onClose, remember, noSample = [] }: {
   projectId: string; file: ClientFile; sheet: string; last: { form: SheetForm; study: Study } | null;
   onSaved: (message: string) => Promise<void>; onClose: () => void; remember: (s: { form: SheetForm; study: Study }) => void;
+  /** cell texts a card asked to read as "no sample" (its own words named them, final review OWN-2 c): added to the form's
+   *  "cells that mean no sample", said above it; the person still checks and saves */
+  noSample?: string[];
 }) {
   const sheetView = useResource("/api/v1/projects/{project_id}/client-data/{sid}/sheets/{sheet}",
     { project_id: projectId, sid: file.id, sheet }, { select: (d) => narrow<SheetView>(d) });
@@ -156,7 +159,7 @@ export function SheetReader({ projectId, file, sheet, last, onSaved, onClose, re
     if (!view || form) return;
     setForm(view.form);
     setBlq(view.form.below_lloq_tokens.join(", "));
-    setMissing(view.form.missing_tokens.join(", "));
+    setMissing([...new Set([...view.form.missing_tokens, ...noSample])].join(", "));
     if (view.form.study?.infusion_time_min) setStudy((st) => ({ ...st, infusion_time_min: view.form.study.infusion_time_min }));
   }, [view, form]);
 

@@ -153,6 +153,80 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
 - **Impact:** what a person sees and can do on Inputs, Run and Review & sign; two additive API changes; no ruleset,
   template, registry or acceptance change. Software test data on the stub engine only: nothing here is PBPK evidence.
 
+### Fixed — final review, the gate, layouts and To do (OWN-2, OWN-15, A11Y-2, CODE-2, CODE-3, CODE-5, CODE-9, CODE-10, OWN-8's layout part, owner-job gaps 2 and 5)
+- **OWN-2 a (blocker): a table the newest layout cannot read is no longer a dead end.** The layout dialog opens at the
+  version and on the table of the row it was opened from (To do's numbers not read, its queue, a card's table, a check,
+  Client files: `GET /delivery/mappings/{id}` takes `file_sha256` and `region_id`, so do `:approve`, `:reject` and, as
+  before, `:edit`, whose answer is shown on that table). `DeliveryMapping.tables` says, for each table the layout reads,
+  the version it is read with, whether the version shown reads it and, in a person's words, why not ("RLD: the
+  product's role is not stated in its caption"), with "Correct the layout for this table…" (the layout form, checked on
+  that table) and "Show it here". `DeliveryRegion.newer` names the newest approved version that does not read a table
+  and why (the pipeline reads a table only with a version that has no error on it, `intake_pipeline._choose`), said on
+  its row in To do and in Client files ("Version 2 of its layout, the newest approved, does not read this table: …").
+  An approval says which tables stay with an older version. On the 9-file seed, RLD's Mean, SD and %CV columns are now
+  set aside in the form, stored for RLD's table and approved; RLD's 24 numbers are read, as the e2e checks.
+- **OWN-2 b: "Show them" lists the numbers not read, and why.** `DeliveryRegion.silent_cells` (read-only, the first 50;
+  the coverage's own locators, each with its text, null for a blinded study's file, and the reason code's reading
+  records, `CellUse.rule`, the table's layout executed again, memoised) is listed by reason ("Not a plain number (1):
+  sheet PK_Summary, cell F7 “1,2”"; "No column or row of the layout reads it (24): …"). No single cell is set aside (plan
+  §3 API 3 stays the owner's). Where every study and product read from the file is confirmed with the sheet form, the
+  read table's whole "Not data…" is offered there (it loses nothing loaded or signed).
+- **OWN-2 c: a sheet-form draft's problems lead to the sheet.** Its own words "Cells say '12.3*', '>1000': mark them as
+  'no sample' …" give "Read this sheet: mark “12.3*” and “>1000” as no sample…", which opens the sheet in Client files
+  in the reader with those texts added to "Cells that mean no sample"; the person checks and saves (nothing is read
+  before).
+- **OWN-2 d: Next and the counts skip what cannot be settled here; the gate line names the owner's decisions.** A file
+  whose only numbers not read are in read tables and are not plain numbers (and the cells beside them in their sheet
+  row: their SD or n then qualifies no value) is not counted, not Next, and its row says why ("“1,2” is not a plain
+  number, so no table layout reads it. Setting a single cell aside as not data waits for the owner's decision; …"). The
+  gate line, in To do and on the card, adds one sentence: "It is the owner's decision whether a signature waits for the
+  whole delivery's clean-up or only for its own files'", or "Two decisions here are the owner's: whether a single cell
+  can be set aside as not data (n files wait for it), and …".
+- **OWN-15:** the dialog's table takes its header rows from the layout (their cells as written, as each column's
+  header is given; a time row across the top is no longer masked as "#.#"), says the rows it leaves out ("Row 6 not
+  shown: the sample shows the first 5 and the last 3 rows of the body") and is the table of the row it was opened from.
+- **A11Y-2, gap 2:** "Reject…" moves the focus into its reason, "Correct the layout…" to the form's heading, and
+  Cancel back to the button that opened the form. `Dialog` takes the focus back to its panel whenever it falls out of
+  the topmost dialog to the page (a focus that leaves, or a change inside that removed the focused element). The
+  layout dialog is To do's, not the queue's: it stays, with what the decision did, when the decision settles the last
+  layout and its group leaves To do; the owner-job e2e reads the approval in the dialog, closes it, and checks the
+  focus lands on To do's title.
+- **CODE-2:** a batch of "Mark as not data" keeps each file's refusal on that file's row (`notread-row-problem-<file>`)
+  and in the bulk bar, and the announcement says "1 file not marked: see its row"; a later file's success no longer
+  hides it.
+- **CODE-3, gap 5:** what was marked as not data in the visit stays listed with "Restore…" and a line saying what was
+  done ("OJ-101 plasma means.xlsx: “Note: …” marked as not data. No loose number is left."), after the last row and
+  its group are gone (To do keeps the list); the focus goes to it.
+- **CODE-5:** a note marked as not data in To do says who marked it, when and why, above its "Restore…" form, as Client
+  files does.
+- **CODE-9:** no "blocks nothing" chip on the rows of "Blocks nothing", and no "holds up nothing yet" chip where the
+  group already says why; a row's chip says only how it differs from its group.
+- **CODE-10:** a batch marked as not data is said by file ("16 loose numbers in 2 files marked as not data: a.xlsx (15),
+  b.xlsx (1)."); a link names an arm or study the batch made as it now is ("arm Reference", not "arm Reference (new)").
+- **OWN-8, the layout part:** the dialog says the layout in words: who made it ("suggested by the template rules",
+  "entered by dev-user"), the facts read once ("The batch is read from its caption."), the row rules ("Rows whose column
+  1 reads “Mean” are arithmetic means."), fields by their labels ("AUC last (PK parameter)", never `pk.AUC_last`) and
+  findings in words; a rule's id, the patterns and the codes are in a "Technical detail" fold. The layout form names
+  fields, roles, statistics and table kinds by their labels, and gains controls for the rows told apart by a cell (Mean,
+  SD, N rows: the cell's words, matched whole; what the rows are; their spread; why rows left out are not data) and for
+  each fact read once (kept, read from another place, or no longer read), so no one types JSON for them.
+- **Why:** the final review (owner, a11y and code lenses, each finding confirmed by a skeptic) found that nothing on the
+  delivery could be signed: RLD stayed on layout version 1 with no remedy the person could find, "Show them" showed no
+  numbers, the sheet form's path was refused with no control for its problems, and Next stayed on one row; and that the
+  layout dialog lost the focus, closed by itself, and spoke the engine's words.
+- **Impact:** API contract (additive): `DeliveryRegion.silent_cells` and `.newer` (`DeliveryUnreadCell`,
+  `DeliveryNewerLayout`), `DeliveryMapping.tables` (`DeliveryMappingTable`), the table on `GET` and on the
+  approval and rejection bodies; `DeliveryMappingSample.header_rows` is now the layout's (the redacted payload the table
+  mapper is shown is unchanged). OpenAPI snapshot and web types regenerated. No ruleset, no locked file, no change to how
+  a table is read or which version reads it. Tests: `test_delivery_api.py` (two new: a layout shown on its table, how
+  each version reads each table, `newer`; a read table's unread cells with why), `inputs-work.spec.ts` (three unit
+  checks: what cannot be settled here, the owner's sentence, `elsewhere`; the layout's words; the batch announcement and
+  the draft's cells), `inputs-task-first.spec.ts` (a refusal kept on its row; the marked line; two new tests: RLD's
+  row, its layout opened on RLD at version 1, the focus of each form, corrected and approved, the dialog staying; 230-23's
+  draft leading to its Fasting sheet with "12.3*" and ">1000" read as no sample, nothing sent),
+  `inputs-owner-job.spec.ts` (gaps 2 and 5). Known gaps and deviations: plan §5 "Final review fixes: the gate, layouts
+  and To do". Software test data on the stub engine: none of it is PBPK evidence.
+
 ### Fixed — final review, blinding, Part 11 records and the decisions list (INT-1, INT-2, INT-3, INT-6, INT-7, INT-8, INT-11, CODE-8 d, owner-e2e gaps 6 and 9) — science-adjacent
 - **INT-1 (blocker): a blinded study's reasons no longer show its values.** The decision list read who, when and why
   from `GET /audit` and printed a blinded study's reasons word for word ("… Cmax 41.2 ng/mL …"). The card's API now
@@ -314,12 +388,13 @@ Findings OWN-1, INT-4, OWN-11, INT-5, OWN-4, INT-9, OWN-3, INT-10 and the owner-
   demographics entered on the card clear its requirement but are held back at loading ("the study record has no place
   for them"), so after the signature To do asks for the demographics of OJ-101, OJ-101-Reference and OJ-101-Test again;
   the dialog of the queue's last layout closes by itself once its files are read again (the queue that holds it leaves
-  To do), at times before "approved" can be read, and the focus falls to the page; the card says "In the model: 1
+  To do), at times before "approved" can be read, and the focus falls to the page (fixed since: "final review, the gate,
+  layouts and To do" above); the card says "In the model: 1
   dataset" where 3 were loaded, and the status line counts the one signed study as 3 studies (the study and each arm);
   the sheet form's own cards of the arms' files (OJ-101-REF, OJ-101-TEST) are counted to confirm, with their facts,
   after their values are linked to OJ-101 and until it is signed, then read "Confirmed by a person"; the file naming no
   study leaves a sheet-form card "Study lab" to confirm beside the new study OJ-102; after the last loose number is
-  marked as not data, To do no longer offers "Restore…" (the group leaves with its marked list); the decision list does
+  marked as not data, To do no longer offers "Restore…" (the group leaves with its marked list; fixed since, as above); the decision list does
   not name the links nor the note marked as not data (fixed since: "final review, blinding, Part 11 records and the
   decisions list" above); the facts form asks the dosage form only after the route is saved.
 

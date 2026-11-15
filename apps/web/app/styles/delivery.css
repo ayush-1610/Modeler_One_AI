@@ -179,6 +179,9 @@
 .layout-col-name { font-size: 13px; overflow-wrap: anywhere; }
 .layout-said { font-size: 13px; }
 .layout-said li.error { color: var(--fail-ink); }
+/* the layout dialog's rule ids, patterns and codes, folded away (final review OWN-8) */
+.mapping-technical { margin-top: 8px; font-size: 12.5px; }
+.mapping-technical code { overflow-wrap: anywhere; white-space: normal; }
 .delivery-unassigned-table { display: grid; gap: 6px; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); min-width: 0; }
 
 /* ---- the administrator's pipeline health (app/admin/pipeline) ---- */
