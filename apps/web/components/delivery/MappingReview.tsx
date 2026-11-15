@@ -19,7 +19,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 
 import { Dialog } from "@/components/kit/Dialog";
-import { announce } from "@/components/kit/LiveRegion";
 import { send, type Schema } from "@/lib/api";
 import { useResource } from "@/lib/hooks";
 import {
@@ -123,10 +122,10 @@ export function MappingReview({ projectId, mappingId, version, at, onClose, queu
   const move = (delta: number) => { setSaid(null); queue?.go(delta); };
   // what a decision did, said in the dialog (a live region that stays while the queue moves on); once the queue has moved
   // on, as the one before ("Approved: …"), so it never reads as said of the layout now shown. The next move clears it.
+  // Said there only: the page's live region under the dialog would say it a second time (final review A11Y-6)
   function decided(text: string, next: boolean, past: string) {
     const on = next && queue && queue.at < queue.total - 1;
     setSaid(on ? `${past}. Now ${queue!.at + 2} of ${queue!.total}.` : text);
-    announce(text);
     if (on) queue!.go(1);
   }
   const shown = `${here}@${table ? `${table.file_sha256}/${table.region_id}` : "any"}`;
@@ -205,10 +204,10 @@ function MappingBody({ projectId, mappingId, version, at, onSaid, queue, startEd
     // (on a change of form or when the layout first arrives, never on each poll of it: the focus stays where the person types)
   }, [mode, m !== null]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function approve(note: string) {
-    if (!m) return;
+  async function approve(note: string): Promise<boolean> {
+    if (!m) return false;
     const { data } = await decide(() => send("post", APPROVE, params, { version: m.version, note, ...(shownAt ?? {}) }), { refresh: false });
-    if (!data) return;
+    if (!data) return false;
     writeMapping(client, projectId, data);
     const again = data.queued.length ? `${plural(data.queued.length, "file")} of this layout ${data.queued.length === 1 ? "is" : "are"} read again` : "";
     // a table this version does not read stays with the version it is read with: said, not left to be found later
@@ -216,18 +215,20 @@ function MappingBody({ projectId, mappingId, version, at, onSaid, queue, startEd
     const more = stays.length ? ` ${stays.join("; ")}.` : "";
     onSaid(`Version ${data.version} of the ${tableKindText(data.kind)} layout is approved${again ? `: ${again}` : ""}.${more}`, !last,
            `Approved: the ${tableKindText(data.kind)} layout, version ${data.version}${again ? ` (${again.replace("this layout", "it")})` : ""}${more ? `.${more.replace(/\.$/, "")}` : ""}`);
+    return true;
   }
 
-  async function reject(why: string) {
-    if (!m) return;
+  async function reject(why: string): Promise<boolean> {
+    if (!m) return false;
     const { data } = await decide(() => send("post", REJECT, params, { version: m.version, why, ...(shownAt ?? {}) }), { refresh: false });
-    if (!data) return;
+    if (!data) return false;
     writeMapping(client, projectId, data);
     setMode("none");
     onSaid(`Version ${data.version} of the ${tableKindText(data.kind)} layout is rejected: its table is read again without it.`, false, "");
+    return true;
   }
 
-  async function edit(spec: Record<string, unknown>, why: string) {
+  async function edit(spec: Record<string, unknown>, why: string): Promise<boolean> {
     setSent(columnsSent(spec));
     // the refusal's findings come beside its message: what code found wrong on the table, each beside its column
     let found: Finding[] = [];
@@ -237,13 +238,14 @@ function MappingBody({ projectId, mappingId, version, at, onSaid, queue, startEd
       return env;
     }, { refresh: false });
     setRefused(found);
-    if (!data) return;
+    if (!data) return false;
     writeMapping(client, projectId, data);
     setMode("none");
     const others = data.tables.filter((t) => !sameTable(t, shownAt) && t.reads === false).length;
     onSaid(`Version ${data.version} is stored and waits for approval; its table is read again with it.`
       + `${others ? ` It does not read ${plural(others, "other table")} of this layout: ${others === 1 ? "that one keeps" : "those keep"} the version ${others === 1 ? "it is" : "they are"} read with.` : ""}`, false, "");
     onStored?.(data.version);
+    return true;
   }
 
   return (

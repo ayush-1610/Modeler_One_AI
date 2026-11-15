@@ -15,9 +15,9 @@
 import { useState } from "react";
 
 import { type Schema } from "@/lib/api";
-import { NEW, analyteChoice, analyteChoices, normLabel, type LinkPart, type LinkRow, type LinkTarget } from "@/lib/inputsWork";
+import { NEW, analyteChoice, analyteChoices, linkCount, normLabel, type LinkPart, type LinkRow, type LinkTarget } from "@/lib/inputsWork";
 
-import { Problem, TUPLE_HEADS, TupleCells, Why, fieldText, plural, type SubjectRow } from "./shared";
+import { Problem, TUPLE_HEADS, TupleCells, Why, fieldText, labelsText, plural, type SubjectRow } from "./shared";
 import { ValueSource } from "./ValueSource";
 
 const SHOWN = 6;            // values of a file listed before "Show all"
@@ -126,11 +126,11 @@ export function LinkEditor({ projectId, row, target, onTarget, subjects, analyte
 }) {
   const [all, setAll] = useState(false);
   const [source, setSource] = useState<string | null>(null);
-  const context = `for the ${plural(row.values.length, "value")} of ${row.file}`;
+  const context = `for the ${linkCount(row.values)} of ${row.file}`;
   const shown = all ? row.values : row.values.slice(0, SHOWN);
   return (
     <div className="link-editor" data-testid={`link-editor-${row.fileId}`}>
-      <Why action={action} actionLabel={`${action} the ${plural(row.values.length, "value")} of ${row.file}`}
+      <Why action={action} actionLabel={`${action} the ${linkCount(row.values)} of ${row.file}`}
            label={`Why the values of ${row.file} belong there`}
            busy={busy} onSubmit={onLink} missing={missing} suggestions={suggestions} kind="link" testId={`link-edit-${row.fileId}`}
            placeholder="reason, e.g. the file name says 230-23 (kept on the audit trail)">
@@ -147,7 +147,7 @@ export function LinkEditor({ projectId, row, target, onTarget, subjects, analyte
           <fieldset key={p.key} className="link-part" data-testid={`link-part-${row.fileId}-${n}`}>
             <legend>{p.label}</legend>
             <TargetFields row={p} target={split.target(p)} onTarget={(t) => split.onTarget(p, t)} subjects={subjects} analytes={analytes}
-                          keyId={`${row.fileId}-${n}`} context={`for the ${plural(p.values.length, "value")} of ${p.name}`}
+                          keyId={`${row.fileId}-${n}`} context={`for the ${linkCount(p.values)} of ${p.name}`}
                           used={used(split.target(p).study)} />
           </fieldset>
         )) : <TargetFields row={row} target={target} onTarget={onTarget} subjects={subjects} analytes={analytes} keyId={row.fileId} context={context}
@@ -155,7 +155,7 @@ export function LinkEditor({ projectId, row, target, onTarget, subjects, analyte
       </Why>
       <Problem text={problem} testId={`link-problem-${row.fileId}`} />
       <details className="link-values" onToggle={(e) => { if (!(e.currentTarget as HTMLDetailsElement).open) setSource(null); }}>
-        <summary data-testid={`link-values-${row.fileId}`}>Show its {plural(row.values.length, "value")}</summary>
+        <summary data-testid={`link-values-${row.fileId}`}>Show its {linkCount(row.values)}</summary>
         <div className="table-scroll">
           <table className="delivery-values">
             <caption className="sr-only">The values of {row.file}{action === "Link" ? " with no study or product" : ""}</caption>
@@ -165,6 +165,7 @@ export function LinkEditor({ projectId, row, target, onTarget, subjects, analyte
                 <tr key={v.id} data-testid={`delivery-value-${v.id}`}>
                   <td>{fieldText(v.field)}</td><TupleCells v={v} />
                   <td>{v.anchor && <button type="button" className="link-btn" aria-expanded={source === v.id} data-testid={`delivery-source-open-${v.id}`}
+                                           aria-label={`${source === v.id ? "Hide" : "Show"} the source of ${[`${fieldText(v.field)}${v.time !== null ? ` at ${v.time}` : ""}`, labelsText(v)].filter(Boolean).join(", ")} in ${row.file}`}
                                            onClick={() => setSource(source === v.id ? null : v.id)}>{source === v.id ? "Hide" : "Show"}</button>}</td>
                 </tr>
               ))}
@@ -172,7 +173,8 @@ export function LinkEditor({ projectId, row, target, onTarget, subjects, analyte
           </table>
         </div>
         {row.values.length > SHOWN && (
-          <button type="button" className="link-btn" onClick={() => setAll(!all)}>{all ? "Show fewer" : `Show all ${row.values.length}`}</button>
+          <button type="button" className="link-btn" onClick={() => setAll(!all)}
+                  aria-label={`${all ? "Show fewer" : `Show all ${row.values.length}`}: the values of ${row.file}`}>{all ? "Show fewer" : `Show all ${row.values.length}`}</button>
         )}
         {source && <ValueSource projectId={projectId} valueId={source} onClose={() => setSource(null)} />}
       </details>

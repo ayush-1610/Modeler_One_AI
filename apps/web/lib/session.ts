@@ -13,3 +13,12 @@ export async function signedInName(): Promise<string | null> {
   const name = id?.name ?? id?.preferred_username;
   return typeof name === "string" ? name : null;
 }
+
+/** Who is signed in, as the ID token names them for good (its subject), for what the browser keeps per person (the last
+ *  reason a person gave, components/kit/Reason.tsx); "" with the DEV sign-in. */
+export async function signedInId(): Promise<string> {
+  const jar = await cookies();
+  if (!oidcConfig()) return "";
+  const sub = claims(jar.get(COOKIE.id)?.value)?.sub;
+  return typeof sub === "string" ? sub : "";
+}

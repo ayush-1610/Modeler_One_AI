@@ -99,6 +99,22 @@ function SourcesRead({ run }: { run: NonNullable<LiteratureRun["sources"]> }) {
 }
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
+/** The status counts, said to a screen reader only when they change once the page has read its work (final review
+ *  A11Y-6): never while it loads (the cards are read one by one and the counts climb), and once they settle after a
+ *  decision (whose own words the decision's live region says), so each change is said once. */
+function CountsSaid({ ready, text }: { ready: boolean; text: string }) {
+  const [said, setSaid] = useState("");
+  const heard = useRef<string | null>(null);
+  useEffect(() => {
+    if (!ready) return;
+    if (heard.current === null) { heard.current = text; return; }
+    if (text === heard.current) return;
+    const settle = window.setTimeout(() => { heard.current = text; setSaid(`Now ${text}.`); }, 1500);
+    return () => window.clearTimeout(settle);
+  }, [ready, text]);
+  return <span className="sr-only" role="status" data-testid="status-said">{said}</span>;
+}
+
 /** The literature agent at work (plan 2026-11-05 §3.3): how long, how far into its budget, and what it found so far;
  *  in place of a red "already running". */
 function LiteratureProgress({ r }: { r: LiteratureRun }) {
@@ -277,7 +293,11 @@ export function InputsWorkspace({ projectId, initialTab, initialOnly, initialSta
     if (s && t === "todo") q.set("status", s);
     window.history.replaceState(null, "", `${pathname}?${q.toString()}`);
   };
-  const setTab = (t: Tab) => { setChosen(t); sync(t, only, t === "todo" ? status : null); if (t !== "todo") setStatusState(null); };
+  // what a message said is about the area it was said in: another area starts without it (final review OWN-16)
+  const setTab = (t: Tab) => {
+    if (t !== tab) setNotice(null);
+    setChosen(t); sync(t, only, t === "todo" ? status : null); if (t !== "todo") setStatusState(null);
+  };
   const setOnly = (o: boolean) => { setOnlyState(o); sync(tab, o, status); };
   const setStatus = (s: StatusFilter) => { setStatusState(s); setChosen("todo"); sync("todo", only, s); };
   // a status-line count opens To do narrowed to its word; pressed again, To do shows every item
@@ -330,6 +350,7 @@ export function InputsWorkspace({ projectId, initialTab, initialOnly, initialSta
     const w = item.where;
     const keepStatus = w.tab === "todo" && status === item.status ? status : null;
     const keepOnly = only && item.open;
+    if (w.tab !== tab) setNotice(null);
     setChosen(w.tab);
     setStatusState(keepStatus);
     if (keepOnly !== only) setOnlyState(keepOnly);
@@ -387,6 +408,8 @@ export function InputsWorkspace({ projectId, initialTab, initialOnly, initialSta
   // proposal's lists, the sources read, the studies in the model, the other observed data)
   const areaLine = (t: Exclude<Tab, "todo" | "files">) => (
     <div className="area-head-row">
+      {/* the area's heading, under the page's (h1) and over its sections (h3): read, not drawn (the bar names it) */}
+      <h2 className="sr-only" id={`area-title-${t}`}>{AREA_NAME[t]}</h2>
       <p className="area-head" data-testid={`area-head-${t}`}>{areaHead(model, t)}</p>
       <label className="only-mine">
         <input type="checkbox" checked={only} onChange={(e) => setOnly(e.target.checked)} data-testid={`only-${t}`} />
@@ -424,9 +447,20 @@ export function InputsWorkspace({ projectId, initialTab, initialOnly, initialSta
   const settingsNeed = rows("settings").some((r) => r.state === "missing" || r.state === "conflict" || r.state === "held")
     || panelTodo("settings").length > 0;
 
+  // the plan's skip link to the areas (§2.1): past the head's menu, the step bar and the status line, to the area shown
+  const toAreas = (
+    <a className="skip-link" href={`#inputs-tab-${tab}`} data-testid="skip-to-areas"
+       onClick={(e) => {
+         const at = document.getElementById(`inputs-tab-${tab}`);
+         if (!at) return;
+         e.preventDefault();
+         at.focus();
+       }}>Skip to the input areas</a>
+  );
+
   return (
     <OpenSheetContext.Provider value={openSheet}>
-    <PageShell {...head}
+    <PageShell {...head} before={toAreas}
       actions={(
         <AddDataMenu projectId={projectId} run={run}
                      onTemplate={() => void downloadTemplate(client.data?.template).then((p) => { if (p) setNotice({ ok: false, text: p }); })}
@@ -481,7 +515,8 @@ export function InputsWorkspace({ projectId, initialTab, initialOnly, initialSta
             In the model: {count(inModel.studies, "study", "studies")}{inModel.datasets !== inModel.studies ? ` (${plural(inModel.datasets, "dataset")})` : ""}
             {" "}· {plural(inModel.formulations, "formulation")} · {plural(inModel.values, "compound value")}
           </span>
-          <span className="sr-only" aria-live="polite">{`${counts.missing} missing, ${counts.to_confirm} to confirm, ${counts.to_decide} to decide`}</span>
+          <CountsSaid ready={work.loaded && model.checking === 0 && !stale}
+                      text={`${counts.missing} missing, ${counts.to_confirm} to confirm, ${counts.to_decide} to decide`} />
         </div>
         {next && ("href" in next
           ? <Link className="btn primary status-next" href={next.href} data-testid="inputs-next">{next.text}</Link>

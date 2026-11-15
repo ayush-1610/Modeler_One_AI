@@ -80,7 +80,7 @@ export function IssueCard({ projectId, group, issue, run, read = false }: {
           </ul>
         )}
         {!confirmed && !read && (
-          <button type="button" className="link-btn" data-testid={`issue-change-${issue.id}`}
+          <button type="button" className="link-btn" data-testid={`issue-change-${issue.id}`} aria-label={`Change: ${issue.text}`}
                   onClick={() => void run(() => send("post", "/api/v1/projects/{project_id}/client-review:reopen", params,
                                                      { group: group.id, issue: issue.id }), "")}>
             Change
@@ -121,6 +121,7 @@ export function IssueCard({ projectId, group, issue, run, read = false }: {
       )}
       {!read && (
         <button type="button" className="btn small" disabled={!ready} data-testid={`issue-confirm-${issue.id}`}
+                aria-label={`Confirm the selection: ${issue.text}`}
                 onClick={() => void run(() => send("post", "/api/v1/projects/{project_id}/client-review:select", params,
                   issue.answer ? { group: group.id, issue: issue.id, answer: Number(answer) }
                     : { group: group.id, issue: issue.id, option }), "")}>
@@ -239,7 +240,9 @@ export function GroupCard({ projectId, group, run, mode = "confirm", alsoOnDeliv
               <div className="confirm-row">
                 <span className="confirm-item-label">{itemLabel(i.label, i.target)}</span>
                 <span className="confirm-item-value">{i.value}{i.note && <span className="muted"> · {i.note}</span>}</span>
-                <PeekButton projectId={projectId} source={src(i.source)} label={itemLabel(i.label, i.target)} testId={`peek-item-${i.id}`} />
+                {/* named apart from the group's own peek above when they read the same (a sheet with one draft) */}
+                <PeekButton projectId={projectId} source={src(i.source)} testId={`peek-item-${i.id}`}
+                            label={itemLabel(i.label, i.target) === group.title ? `${group.title}, its data` : itemLabel(i.label, i.target)} />
               </div>
               {i.kind === "draft" && !read ? <DraftItem projectId={projectId} item={i} run={run} known={known} /> : drawn ? <>
                 {i.data && <DatasetView data={i.data} label={`${group.title}: ${itemLabel(i.label, i.target)}`} />}

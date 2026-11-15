@@ -22,7 +22,7 @@ import {
 } from "@/lib/words";
 
 import { FileLinks } from "./LinkElsewhere";
-import { MappingReview, type MappingOpen } from "./MappingReview";
+import type { MappingOpen } from "./MappingReview";
 import { ReadTable, readable } from "./ReadTable";
 import { DecisionNote, NotDataNote, RestoreForm, restorable, restorableNote } from "./Restore";
 import {
@@ -79,6 +79,7 @@ function FileItem({ projectId, file, first, decide, busy, onMapping, inRow = fal
     const { data } = await decide(() => send("post", EXCLUDE, { project_id: projectId }, { file_sha256: file.sha256, regions, scope, why }),
                                   { refresh: false });
     if (data) { writePage(client, projectId, data); setAside(null); }
+    return Boolean(data);
   };
   const readAgain = async () => {
     const { data } = await decide(() => send("post", RUN, { project_id: projectId }, { files: [file.sha256] }), { refresh: false });
@@ -287,7 +288,6 @@ export function DeliverySection({ projectId, work, focus, onOpenGroup, onItem }:
   const client = useQueryClient();
   const { decide, busy, problem } = useDecide();
   const [folded, setFolded] = useState(false);
-  const [mapping, setMapping] = useState<MappingOpen | null>(null);
   const page = read.data;
   const running = page?.running ?? false;
   useEffect(() => {
@@ -372,9 +372,6 @@ export function DeliverySection({ projectId, work, focus, onOpenGroup, onItem }:
           )}
         </div>
       )}
-      {/* the dialog gives the focus back to the button that opened it (a table's "Check layout" in its file's row) */}
-      {mapping && <MappingReview projectId={projectId} mappingId={mapping.id} version={mapping.version} at={mapping.at} onClose={() => setMapping(null)}
-                                 onStored={(version) => setMapping((was) => (was ? { ...was, version } : was))} />}
     </section>
   );
 }

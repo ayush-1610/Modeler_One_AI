@@ -170,10 +170,20 @@ test("a delivery is reviewed by exception, spot-checked, signed and loaded once"
   // --- the study's facts no file states, in one typed form with one reason: the route first (an oral study then also
   // needs its dosage form), then what the study record needs before it can be loaded ---
   const facts = card.getByTestId(`delivery-facts-form-${study.subject}`);
+  // pressed with no fact given, the button says what it needs, beside it (final review CODE-6: it was disabled, silent);
+  // the label names the control it is for (A11Y-10)
+  await facts.getByTestId(`delivery-facts-form-${study.subject}-submit`).click();
+  await expect(facts.getByTestId(`delivery-facts-form-${study.subject}-missing`)).toHaveText(/^Choose or type (at least one of the facts|the fact)$/);
+  await expect(facts.getByLabel("Route", { exact: true })).toHaveAttribute("data-testid", "delivery-enter-gap-route-value");
   await card.getByTestId("delivery-enter-gap-route-value").selectOption("oral");
+  await expect(facts.getByTestId(`delivery-facts-form-${study.subject}-missing`)).toHaveCount(0);
   await facts.getByTestId(`delivery-facts-form-${study.subject}-why`).fill("from the protocol");
   await facts.getByTestId(`delivery-facts-form-${study.subject}-submit`).click();
   await expect(card.getByTestId("delivery-gap-route")).toHaveCount(0);
+  // saved, the reason is not carried over unseen to the next facts (final review CODE-7): the field is empty, and "use
+  // last" offers it for this kind of decision
+  await expect(facts.getByTestId(`delivery-facts-form-${study.subject}-why`)).toHaveValue("");
+  await expect(facts.getByTestId(`delivery-facts-form-${study.subject}-last`)).toHaveAccessibleName("Use the last reason: from the protocol");
   await expect(card.getByTestId("delivery-blocker-SCHEMA_GAP")).toHaveCount(0);
   for (const [label, entered] of [["Number of subjects", "24"], ["Purpose of the study", "model_building"], ["Dosage form", "ir_tablet"]]) {
     const control = facts.locator(".facts-row", { hasText: label }).locator('[data-testid$="-value"]');
@@ -245,15 +255,28 @@ test("a delivery is reviewed by exception, spot-checked, signed and loaded once"
     status: 403, contentType: "application/json",
     body: JSON.stringify({ detail: { code: "STEP_UP_REQUIRED", message: "Confirm your identity to sign." } }),
   }));
-  await dialog.getByTestId("delivery-confirm-sign").click();
-  await expect(page.getByRole("dialog", { name: "Confirm your identity to sign" })).toBeVisible();
+  // pressed from the keyboard: the step-up takes the focus, and gives it back to the signing dialog's button when it
+  // closes (final review A11Y-1: the button was disabled while sent, so the focus fell to the page and Tab and Escape
+  // left the dialog open behind)
+  await dialog.getByTestId("delivery-confirm-sign").focus();
+  await page.keyboard.press("Enter");
+  const stepUp = page.getByRole("dialog", { name: "Confirm your identity to sign" });
+  await expect(stepUp).toBeVisible();
+  await expect(stepUp).toBeFocused();
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("step-up-dialog")).toHaveCount(0);
   await expect(dialog.getByTestId("delivery-confirm-problem")).toContainText("Confirm your identity to sign.");
+  await expect(dialog.getByTestId("delivery-confirm-sign")).toBeFocused();
+  for (let i = 0; i < 4; i += 1) {
+    await page.keyboard.press("Tab");
+    expect(await dialog.evaluate((d) => d.contains(document.activeElement)), "Tab stays in the signing dialog").toBe(true);
+  }
   await page.unroute("**/subjects/**:confirm");
   // with the step-up (the DEV sign-in carries a fresh one), the record is signed and its values are loaded
   await dialog.getByTestId("delivery-confirm-sign").click();
   await expect(dialog.getByTestId("delivery-signed")).toContainText(/Dev User \| Reviewed \| \d{4}-\d\d-\d\d/);
+  // the signed view keeps the focus in the dialog (its panel), so its Done is one Tab away, never the page's top
+  await expect.poll(() => dialog.evaluate((d) => d.contains(document.activeElement))).toBe(true);
   await expect(dialog.getByTestId("delivery-landed")).toContainText("Loaded into the project: 2 datasets");
   await dialog.getByTestId("delivery-confirm-done").click();
   await expect(card.getByTestId(`delivery-manifestation-${study.subject}`)).toContainText("Dev User | Reviewed |");

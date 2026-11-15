@@ -40,13 +40,15 @@ export function Hero({ eyebrow, title, lede, actions, tone = "projects", size = 
 /** A step's page: its head, the project's steps under it (the Stepper, passed in), and its content beside an optional
  *  side panel. `noReveal`: the page's sections are shown at once, never faded in as they scroll into view (a page of
  *  forms, where a faded section reads as disabled: plan 2026-11-14 slice 1). `slim` (opt-in): a shorter head and less
- *  space under it, so a page's own bar sits high (Inputs, plan 2026-11-14 slice 2); other pages keep theirs. */
-export function PageShell({ eyebrow, title, lede, actions, side, steps, tone, noReveal, slim, children }: {
+ *  space under it, so a page's own bar sits high (Inputs, plan 2026-11-14 slice 2); other pages keep theirs. `before`:
+ *  what comes first in the page's Tab order, before its head (a page's own skip link). */
+export function PageShell({ eyebrow, title, lede, actions, side, steps, tone, noReveal, slim, before, children }: {
   eyebrow?: string; title: ReactNode; lede?: ReactNode; actions?: ReactNode; side?: ReactNode; steps?: ReactNode;
-  tone?: HeroTone; noReveal?: boolean; slim?: boolean; children: ReactNode;
+  tone?: HeroTone; noReveal?: boolean; slim?: boolean; before?: ReactNode; children: ReactNode;
 }) {
   return (
     <div className={slim ? "shell slim" : "shell"} data-no-reveal={noReveal ? "" : undefined}>
+      {before}
       <Hero eyebrow={eyebrow} title={title} lede={lede} actions={actions} tone={tone} size={slim ? "slim" : "compact"} />
       {steps}
       <div className={side ? "shell-body with-side" : "shell-body"}>

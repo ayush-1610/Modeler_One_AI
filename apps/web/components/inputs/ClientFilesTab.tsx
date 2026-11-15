@@ -130,22 +130,23 @@ function FilesTable({ projectId, client, rows, work, ai, aiOn, act, onRetag, onS
                       </button>
                       {gives && <div className="muted fs-12">{gives}</div>}
                     </td>
-                    <td>{f ? <FileTagLine file={f} onRetag={onRetag} /> : <span className="muted">in the delivery only</span>}</td>
-                    <td>{area ? (
+                    <td data-label="What it is">{f ? <FileTagLine file={f} onRetag={onRetag} /> : <span className="muted">in the delivery only</span>}</td>
+                    <td data-label="Its data land on">{area ? (
                       <button type="button" className="link-btn" data-testid={`open-file-${r.name}`} onClick={() => onOpen(area)}
-                              title={`Open ${AREA_LABEL[area]}, where the data of ${r.name} land`}>{AREA_LABEL[area]}</button>
+                              aria-label={`${AREA_LABEL[area]}: where the data of ${r.name} land`}>{AREA_LABEL[area]}</button>
                     ) : f ? <span className="chip medium">not placed: say what it is</span> : <span className="muted">—</span>}</td>
                     {/* the file's one status; the delivery's reading of it, under the row, says no second one */}
-                    <td><span data-testid={r.delivery[0] ? `delivery-file-state-${r.delivery[0].file_id}` : undefined}>
+                    <td data-label="Read"><span data-testid={r.delivery[0] ? `delivery-file-state-${r.delivery[0].file_id}` : undefined}>
                       <span className={`chip ${state.tone}`} data-testid={`file-state-${r.name}`}>{state.text}</span></span></td>
-                    <td data-testid={`file-needs-${r.name}`}>
+                    <td data-testid={`file-needs-${r.name}`} data-label="Still needs you">
                       {todo.length ? (
                         <ul className="file-needs">
                           {todo.map((n) => (
                             <li key={n.item.id}>
                               <button type="button" className="link-btn" onClick={() => onItem(n.item)}
-                                      aria-label={`${n.text}: ${n.item.label}${n.item.open ? "" : ` (not counted now: ${n.item.why ?? ""})`}`}>{n.text}</button>
-                              {!n.item.open && <span className="muted fs-12" title={n.item.why}> · not counted now</span>}
+                                      aria-label={`${n.text}: ${n.item.label}, for ${r.name}${n.item.open ? "" : ` (not counted now: ${n.item.why ?? ""})`}`}>{n.text}</button>
+                              {/* why, in text, not only in a hover (final review OWN-16); the button's name says it too */}
+                              {!n.item.open && <span className="muted fs-12" aria-hidden="true"> · not counted now{n.item.why ? `: ${n.item.why}` : ""}</span>}
                             </li>
                           ))}
                         </ul>

@@ -8,13 +8,17 @@
 // as suggestion chips the person still saves. One reason for all of them; each is entered through `:enter`, kept on the
 // audit trail with that reason. A check that may stand as written (no dose stated, no matrix stated) keeps "Accept as
 // is…" beside its fact, with its own reason (`:override`), as the card's other checks do. The demographics a person has
-// are entered the same way ("Enter them…").
+// are entered the same way ("Enter them…"). Each label names its control; a chosen suggestion is pressed (aria-pressed);
+// the button stays enabled and says what is missing when pressed (final review A11Y-10, CODE-6).
 
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
+import { focusSoon } from "@/components/kit/focus";
+
 import { send, type Schema } from "@/lib/api";
 import { useResource } from "@/lib/hooks";
+import { checkField } from "@/lib/inputsWork";
 import { engineWords, fieldLabel, valueWord } from "@/lib/words";
 
 import { Problem, Why, useDecide, type Value } from "./shared";
@@ -84,9 +88,14 @@ function AcceptAsIs({ params, check }: { params: Params; check: Check }) {
   }
   return (
     <div className="facts-accept">
-      <Why action="Accept as is" label={`Why "${message}" holds as it is`} busy={busy} onCancel={() => setActing(false)} autoFocus
+      <Why action="Accept as is" label={`Why "${message}" holds as it is`} busy={busy} autoFocus kind="accepted as is"
+           onCancel={() => { setActing(false); focusSoon(`delivery-override-open-${check.id}`); }}
            testId={`delivery-override-${check.id}`} placeholder="why it holds as it is (kept on the audit trail)"
-           onSubmit={async (why) => { const { data } = await decide(() => send("post", OVERRIDE, params, { check_id: check.id, why })); if (data) setActing(false); }} />
+           onSubmit={async (why) => {
+             const { data } = await decide(() => send("post", OVERRIDE, params, { check_id: check.id, why }));
+             if (data) setActing(false);
+             return Boolean(data);
+           }} />
       <Problem text={problem} testId={`delivery-override-problem-${check.id}`} />
     </div>
   );
@@ -100,7 +109,7 @@ function Control({ row, value, unit, options, onValue, onUnit }: {
   const label = fieldLabel(row.field || "fact");
   if (choices.length) {
     return (
-      <select value={value} onChange={(e) => onValue(e.target.value)} aria-label={label} data-testid={`${row.testId}-value`}>
+      <select id={`${row.testId}-value`} value={value} onChange={(e) => onValue(e.target.value)} aria-label={label} data-testid={`${row.testId}-value`}>
         <option value="">choose…</option>
         {choices.map((c) => <option key={c} value={c}>{valueWord(c)}</option>)}
       </select>
@@ -109,7 +118,7 @@ function Control({ row, value, unit, options, onValue, onUnit }: {
   const numeric = INTEGER.has(row.field) || NUMBER.has(row.field);
   return (
     <span className="facts-control">
-      <input type={numeric ? "number" : "text"} inputMode={numeric ? "decimal" : undefined} min={numeric ? 0 : undefined}
+      <input id={`${row.testId}-value`} type={numeric ? "number" : "text"} inputMode={numeric ? "decimal" : undefined} min={numeric ? 0 : undefined}
              step={INTEGER.has(row.field) ? 1 : "any"} value={value} onChange={(e) => onValue(e.target.value)} aria-label={label}
              data-testid={`${row.testId}-value`} />
       {row.field in UNIT_OF && (
@@ -147,8 +156,6 @@ export function FactsForm({ params, gaps, checks, options, suggestions = {}, rea
   params: Params; gaps: Gap[]; checks: Check[]; options: Options | null; suggestions?: Suggestions;
   read?: boolean; testId: string; stated?: Set<string>;
 }) {
-  const fieldOf = (c: Check) => (c.code === "LANDING_FIELD_MISSING" ? /needs (\w+)/.exec(c.message ?? "")?.[1] ?? null
-    : c.code === "DOSE_MISSING" ? "dose" : c.code === "MATRIX_MISSING" ? "matrix" : null);
   const [values, setValues] = useState<Record<string, string>>({});
   const [units, setUnits] = useState<Record<string, string>>({});
   const [fields, setFields] = useState<Record<string, string>>({});
@@ -156,7 +163,7 @@ export function FactsForm({ params, gaps, checks, options, suggestions = {}, rea
   // a row is keyed by its fact, so what is typed in it stays when the card is read again and the row comes back from
   // another gap or check (the dosage form offered with the route, then asked by the landing's check)
   const key = (r: Row) => (r.field ? `field:${r.field}` : r.anchor);
-  const rows = rowsOf(gaps, checks, fieldOf);
+  const rows = rowsOf(gaps, checks, checkField);
   const route = rows.find((r) => r.field === "route");
   for (const f of route && !read ? AFTER_ROUTE[values[key(route)] ?? ""] ?? [] : []) {
     if (!rows.some((r) => r.field === f) && !stated.has(f)) {
@@ -182,17 +189,20 @@ export function FactsForm({ params, gaps, checks, options, suggestions = {}, rea
           const offered = suggestions[r.field] ?? [];
           return (
             <li key={k} className="facts-row" data-testid={r.anchor} data-code={r.code}>
-              <label className="facts-label" htmlFor={`${r.testId}-control`}>{r.field ? fieldLabel(r.field) : "A fact the study needs"}</label>
-              <span id={`${r.testId}-control`} className="facts-input">
+              {/* the label names the control it is for (the fact's name, where a person names it) */}
+              <label className="facts-label" htmlFor={r.field ? `${r.testId}-value` : `${r.testId}-field`}>{r.field ? fieldLabel(r.field) : "A fact the study needs"}</label>
+              <span className="facts-input">
                 {!r.field && (
-                  <input type="text" value={fields[k] ?? ""} onChange={(e) => { const t = e.target.value; setFields((p) => ({ ...p, [k]: t })); }} placeholder="the fact"
-                         aria-label="the fact" data-testid={`${r.testId}-field`} />
+                  <input id={`${r.testId}-field`} type="text" value={fields[k] ?? ""} onChange={(e) => { const t = e.target.value; setFields((p) => ({ ...p, [k]: t })); }}
+                         placeholder="the fact" aria-label="the fact" data-testid={`${r.testId}-field`} />
                 )}
                 <Control row={r} value={values[k] ?? ""} unit={units[k] ?? UNIT_OF[r.field] ?? ""} options={options}
                          onValue={(v) => setValues((p) => ({ ...p, [k]: v }))} onUnit={(u) => setUnits((p) => ({ ...p, [k]: u }))} />
                 {offered.map((o, i) => (
                   <button key={`${o.value}-${i}`} type="button" className={`chip-btn${values[k] === o.value ? " on" : ""}`}
                           onClick={() => setValues((p) => ({ ...p, [k]: o.value }))} data-testid={`${r.testId}-suggest-${i}`}
+                          aria-pressed={values[k] === o.value}
+                          aria-label={`${valueWord(o.value)} · the sheet form's answer for ${fieldLabel(r.field || "fact").toLowerCase()} (${o.from})`}
                           title={`What the sheet form read: ${o.from}`}>
                     {valueWord(o.value)} <span className="muted">· the sheet form&apos;s answer</span>
                   </button>
@@ -213,7 +223,8 @@ export function FactsForm({ params, gaps, checks, options, suggestions = {}, rea
         })}
       </ul>
       <Why action={filled.length > 1 ? `Save these ${filled.length} facts` : "Save this fact"} label="Where the facts come from" busy={busy}
-           disabled={!filled.length} testId={testId} formTestId={`${testId}-reason`} placeholder="where they come from, e.g. the protocol (kept on the audit trail)"
+           kind="fact entered" missing={filled.length ? null : rows.length > 1 ? "Choose or type at least one of the facts" : "Choose or type the fact"}
+           testId={testId} formTestId={`${testId}-reason`} placeholder="where they come from, e.g. the protocol (kept on the audit trail)"
            onSubmit={async (why) => {
              const sent = Object.fromEntries(filled.map((r) => [key(r), values[key(r)] ?? ""]));
              const ok = await enter(filled.map((r) => {
@@ -224,6 +235,7 @@ export function FactsForm({ params, gaps, checks, options, suggestions = {}, rea
              // only what was saved is cleared: a fact typed while the card was read again (the rows a saved route
              // asks for next) is kept
              if (ok) setValues((p) => Object.fromEntries(Object.entries(p).filter(([k, v]) => sent[k] !== v)));
+             return ok;
            }} />
       <Problem text={problem} testId={`${testId}-problem`} />
     </div>
@@ -262,12 +274,14 @@ type IndividualOptions = { population: string[]; sex: string[] } | null;
  *  entered through `:enter` with one reason, and with the mean age they become the study's individual when it is
  *  confirmed. `stated`: what is stated already; a person's entry is shown and corrected (`supersedes`) where changed,
  *  never entered twice; a file's is shown as read. */
-export function DemographicsForm({ projectId, params, vocabulary, options, onDone, testId, stated = {} }: {
+export function DemographicsForm({ projectId, params, vocabulary, options, onDone, testId, stated = {}, label }: {
   projectId: string; params: Params;
   /** a table layout to read the intake vocabulary from (the population's words), if any */
   vocabulary: { mapping: string | null };
   options: IndividualOptions; onDone: () => void; testId: string;
   stated?: Record<string, Value>;
+  /** the study's label, on the form's button (the same form is on every study's card) */
+  label?: string;
 }) {
   const layout = useResource("/api/v1/projects/{project_id}/delivery/mappings/{mapping_id}",
                              { project_id: projectId, mapping_id: vocabulary.mapping ?? "" }, { enabled: Boolean(vocabulary.mapping) });
@@ -284,6 +298,13 @@ export function DemographicsForm({ projectId, params, vocabulary, options, onDon
   const changed = DEMOGRAPHICS.filter((f) => !fromFile(f) && (d[f] ?? "").trim() && (d[f] ?? "").trim() !== String(entered[f]?.value ?? ""));
   const correcting = Object.keys(entered).length > 0;
   const individual = has("individual_population") && has("individual_sex") && has("age_mean");
+  // what the save still needs, said when pressed (final review CODE-6: the button was disabled with no word on why)
+  const lacking = !has("population") && !FOUND_BY.some(has)
+    ? "Choose the population and give at least one of the mean age, the age range, the mean weight or the share of women"
+    : !has("population") ? "Choose the population" : !FOUND_BY.some(has) ? "Give at least one of the mean age, the age range, the mean weight or the share of women"
+      : !changed.length ? (correcting ? "Change a value to save a correction" : "Give a value to save") : null;
+  // the form opens on its first field a person fills (it is opened by a button that then goes away)
+  const first = fromFile("population") ? NUMBERS.find((f) => !fromFile(f)) ?? "individual_population" : "population";
   const read = (f: string) => (
     <span className="facts-read" data-testid={`${testId}-${f}`}>{valueWord(String(stated[f].value))}
       <span className="muted"> · from its file</span></span>
@@ -296,16 +317,17 @@ export function DemographicsForm({ projectId, params, vocabulary, options, onDon
           {fromFile("population") ? read("population")
             : loading ? <select disabled data-testid={`${testId}-population`} aria-busy="true"><option>loading the words…</option></select>
             : populations.length ? (
-              <select value={d.population ?? ""} onChange={set("population")} data-testid={`${testId}-population`}>
+              <select value={d.population ?? ""} onChange={set("population")} data-testid={`${testId}-population`} autoFocus={first === "population"}>
                 <option value="">choose…</option>
                 {populations.map((p) => <option key={p} value={p}>{valueWord(p)}</option>)}
               </select>
-            ) : <input type="text" value={d.population ?? ""} onChange={set("population")} data-testid={`${testId}-population`} />}
+            ) : <input type="text" value={d.population ?? ""} onChange={set("population")} data-testid={`${testId}-population`} autoFocus={first === "population"} />}
         </label>
         {NUMBERS.map((f) => (
           <label key={f} className="facts-field">{fieldLabel(f)}
             {fromFile(f) ? read(f)
-              : <input type="number" inputMode="decimal" min={0} step="any" value={d[f] ?? ""} onChange={set(f)} data-testid={`${testId}-${f}`} />}
+              : <input type="number" inputMode="decimal" min={0} step="any" value={d[f] ?? ""} onChange={set(f)} data-testid={`${testId}-${f}`}
+                       autoFocus={first === f} />}
           </label>
         ))}
       </div>
@@ -313,7 +335,8 @@ export function DemographicsForm({ projectId, params, vocabulary, options, onDon
         <legend>The study&apos;s individual, as PK-Sim simulates it</legend>
         <div className="facts-grid">
           <label className="facts-field">{fieldLabel("individual_population")}
-            <select value={d.individual_population ?? ""} onChange={set("individual_population")} data-testid={`${testId}-individual_population`}>
+            <select value={d.individual_population ?? ""} onChange={set("individual_population")} data-testid={`${testId}-individual_population`}
+                    autoFocus={first === "individual_population"}>
               <option value="">choose…</option>
               {(options?.population ?? []).map((p) => <option key={p} value={p}>{valueWord(p)}</option>)}
             </select>
@@ -330,13 +353,17 @@ export function DemographicsForm({ projectId, params, vocabulary, options, onDon
             : "One PK-Sim population and one sex, with the mean age: without them the demographics are kept with the study, not simulated."}
         </p>
       </fieldset>
-      <Why action={correcting ? "Save the corrections" : "Save the demographics"} label="Where the demographics come from" busy={busy}
-           disabled={!has("population") || !FOUND_BY.some(has) || !changed.length}
+      <Why action={correcting ? "Save the corrections" : "Save the demographics"}
+           actionLabel={label ? `${correcting ? "Save the corrections of" : "Save the demographics of"} ${label}` : undefined}
+           label={label ? `Where the demographics of ${label} come from` : "Where the demographics come from"} busy={busy}
+           kind="demographics entered" missing={lacking}
            testId={testId} formTestId={`${testId}-reason`} onCancel={onDone} placeholder="where they come from, e.g. the clinical study report (kept on the audit trail)"
            onSubmit={async (why) => {
              const body = (field: string) => ({ value: typedValue(field, d[field]), why,
                                                ...(entered[field] ? { supersedes: entered[field].id } : { field }) });
-             if (await enter(changed.map(body))) onDone();
+             const ok = await enter(changed.map(body));
+             if (ok) onDone();
+             return ok;
            }} />
       <Problem text={problem} testId={`${testId}-problem`} />
     </div>

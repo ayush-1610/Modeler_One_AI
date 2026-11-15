@@ -92,13 +92,14 @@ test("the link table: asked first, two files refused one arm, given an arm each 
   await page.goto(`/projects/${projectId}/inputs?tab=todo`);
   const table = page.getByTestId("link-table");
   const ref = fid("230-23 Fasting Reference.xlsx"), tst = fid("230-23 Fasting Test.xlsx");
-  // one row per file: 366 values of 6 files
+  // one row per file: 366 values of 6 files, counted as the rows count them (final review OWN-16): a table's cells are
+  // values, a fact read beside it is a fact
   await expect(table.locator("li.batch-row")).toHaveCount(6);
-  await expect(table).toContainText("6 files · 366 values");
+  await expect(table.getByTestId("link-table-count")).toHaveText("6 files · 355 values and 11 facts");
   await expect(table.getByTestId(`link-${ref}`)).toContainText("individual PK table, 76 values · dose 50 mg · fasted · LLOQ 0.5 ng/mL");
   // the sheet form read it as 230-23-REF: asked before anything is filled; Yes fills the study and an arm of its own
   await expect(table.getByTestId(`link-to-${ref}`)).toContainText("The sheet form read it as 230-23-REF. Same study as 230-23?");
-  await expect(table.getByTestId(`link-alias-yes-${ref}`)).toHaveAccessibleName("Yes: the 79 values of 230-23 Fasting Reference.xlsx are study 230-23");
+  await expect(table.getByTestId(`link-alias-yes-${ref}`)).toHaveAccessibleName("Yes: the 76 values and 3 facts of 230-23 Fasting Reference.xlsx are study 230-23");
   await table.getByTestId(`link-alias-yes-${ref}`).click();
   await expect(table.getByTestId(`link-to-${ref}`)).toContainText("→ study 230-23 · arm Reference (new)");
   await expect(table.getByTestId(`link-to-${ref}`)).toContainText("suggested");

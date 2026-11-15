@@ -25,7 +25,7 @@ import { DecisionNote, RestoreForm, type Scope } from "@/components/delivery/Res
 import { Problem, WITHHELD, tableName, useDecide, type FileRow, type Region } from "@/components/delivery/shared";
 import { readPage, writePage } from "@/components/delivery/writes";
 import { BulkBar } from "@/components/kit/BulkBar";
-import { focusAfter, nextRow } from "@/components/kit/focus";
+import { focusAfter, focusSoon, nextRow } from "@/components/kit/focus";
 import { announce } from "@/components/kit/LiveRegion";
 import { ReasonForm } from "@/components/kit/Reason";
 import { send } from "@/lib/api";
@@ -94,7 +94,8 @@ export function MarkedNow({ projectId, entries, said, alone = false, titleId }: 
                       data-testid={`notread-undo-${m.id}`}>Restore…</button>
             ) : (
               <RestoreForm projectId={projectId} file={m.file} items={m.items} scope="outside" label={m.label} testId={`notread-undo-${m.id}`}
-                           onDone={() => { setRestoring(null); unmark(m.id); }} />
+                           onCancel={() => { setRestoring(null); focusSoon(`notread-undo-${m.id}`); }}
+                           onDone={() => { setRestoring(null); unmark(m.id); focusSoon(titleId); }} />
             )}
           </li>
         ))}
@@ -137,7 +138,7 @@ export function NotReadTable({ projectId, items, heading, group, shared }: {
 
   /** Mark loose numbers as not data: one `regions:exclude` per file, every picked note of the file in it. Each file's
    *  refusal is kept for its own row; one file's success never hides another's refusal (review CODE-2). */
-  async function mark(list: { row: NotReadRow; groups: LooseGroup[] }[], why: string) {
+  async function mark(list: { row: NotReadRow; groups: LooseGroup[] }[], why: string): Promise<boolean> {
     const done: { row: NotReadRow; groups: LooseGroup[] }[] = [];
     const refused: Record<string, string> = {};
     let left: number | null = null;
@@ -160,19 +161,23 @@ export function NotReadTable({ projectId, items, heading, group, shared }: {
                                     label: `${d.groups.map((g) => g.label).join(", ")} in ${d.row.file.name}` })), text);
     }
     announce(text);
-    if (!done.length) return;
+    if (!done.length) return false;
     const decided = done.filter((d) => d.row.loose.length === d.groups.length && !d.row.unread.length && !d.row.silent.length && !d.row.failed)
       .map((d) => `notread-${d.row.file.file_id}`);
     focusAfter(decided, decided.length ? nextRow(order, decided) : `notread-${done[0].row.file.file_id}`, [heading, `notread-marked-${group}-title`, "notread-marked-title", "todo-title"]);
+    return done.length === list.length;
   }
 
-  async function setAsideRegion(file: FileRow, r: Region, why: string) {
+  async function setAsideRegion(file: FileRow, r: Region, why: string): Promise<boolean> {
     const { data } = await decide(() => send("post", EXCLUDE, { project_id: projectId },
       { file_sha256: file.sha256, regions: [r.region_id], scope: scopeOf(r), why }), { refresh: false });
-    if (!data) return;
+    if (!data) return false;
     writePage(client, projectId, data);
     setAside(null);
     announce(`${tableName(r.where, file.name, r.kind)} marked as not data.`);
+    // the table leaves the row's list: the focus goes on to the row (its first control), else the group's heading
+    focusSoon(`notread-${file.file_id}`, heading, "todo-title");
+    return true;
   }
 
   async function readAgain(file: FileRow) {
@@ -219,7 +224,7 @@ export function NotReadTable({ projectId, items, heading, group, shared }: {
                             aria-label={`Mark the ${plural(looseCount, "loose number")} of ${r.file.name} as not data`}>Mark as not data…</button>
                   )}
                   <button type="button" className="link-btn" aria-expanded={shown} aria-controls={`notread-detail-${fid}`}
-                          data-testid={`notread-open-${fid}`} aria-label={`${shown ? "Hide" : "Show"} the numbers not read in ${r.file.name}`}
+                          data-testid={`notread-open-${fid}`} aria-label={`${shown ? "Hide" : "Show them"}: the numbers not read in ${r.file.name}`}
                           onClick={() => toggle(setOpen, fid)}>{shown ? "Hide" : "Show them"}</button>
                 </div>
               </div>
@@ -228,7 +233,8 @@ export function NotReadTable({ projectId, items, heading, group, shared }: {
               {marking === fid && (
                 <ReasonForm action="Mark as not data" actionLabel={`Mark ${some ? "the picked" : "every"} loose number of ${r.file.name} as not data`}
                             label={`Why the loose numbers of ${r.file.name} are not data`} busy={busy} kind="not data" autoFocus
-                            suggestions={LOOSE_REASONS} testId={`notread-mark-${fid}`} onCancel={() => setMarking(null)}
+                            suggestions={LOOSE_REASONS} testId={`notread-mark-${fid}`}
+                            onCancel={() => { setMarking(null); focusSoon(`notread-mark-open-${fid}`); }}
                             onSubmit={(why) => mark([{ row: r, groups: some ? groupsOf(r) : r.loose }], why)}>
                   <span className="muted">{some ? `The ${plural(groupsOf(r).reduce((n, g) => n + g.items.length, 0), "picked loose number")}`
                     : `All ${plural(looseCount, "loose number")}`} of {r.file.name}: &quot;Restore…&quot; gives them back.</span>
@@ -279,7 +285,8 @@ export function NotReadTable({ projectId, items, heading, group, shared }: {
                               <ReasonForm action="Mark as not data" actionLabel={`Mark ${tableName(g.where, r.file.name, g.kind)} as not data`}
                                           label={`Why ${tableName(g.where, r.file.name, g.kind)} is not data`} busy={busy} autoFocus kind="not data"
                                           suggestions={["a scratch table, not data", "a note, not data"]} testId={`notread-aside-${g.region_id}`}
-                                          onCancel={() => setAside(null)} onSubmit={(why) => setAsideRegion(r.file, g, why)} />
+                                          onCancel={() => { setAside(null); focusSoon(`notread-aside-${g.region_id}`); }}
+                                          onSubmit={(why) => setAsideRegion(r.file, g, why)} />
                             )}
                           </li>
                         ))}
@@ -321,7 +328,8 @@ export function NotReadTable({ projectId, items, heading, group, shared }: {
                                 <ReasonForm action="Mark as not data" actionLabel={`Mark ${tableName(g.where, r.file.name)} as not data`}
                                             label={`Why ${tableName(g.where, r.file.name)} is not data`} busy={busy} autoFocus kind="not data"
                                             suggestions={["its study is confirmed with the sheet form"]} testId={`notread-aside-${g.region_id}`}
-                                            onCancel={() => setAside(null)} onSubmit={(why) => setAsideRegion(r.file, g, why)}>
+                                            onCancel={() => { setAside(null); focusSoon(`notread-aside-${g.region_id}`); }}
+                                            onSubmit={(why) => setAsideRegion(r.file, g, why)}>
                                   <span className="muted">Every study and product read from {r.file.name} is confirmed with the sheet form: setting the
                                     whole table aside loses nothing that is loaded. &quot;Restore…&quot; in Client files gives it back.</span>
                                 </ReasonForm>
@@ -348,7 +356,9 @@ export function NotReadTable({ projectId, items, heading, group, shared }: {
                             <DecisionNote decision={o.decision} restored={o.restored} testId={`notread-decision-${fid}-${i}`} />
                             {restoring === `${fid}|${o.where}` && (
                               <RestoreForm projectId={projectId} file={r.file} items={[o.where]} scope="outside" testId={`notread-restore-${fid}-${i}`}
-                                           label={`the note at ${whereIs(o.where).place} of ${r.file.name}`} onDone={() => setRestoring(null)} />
+                                           label={`the note at ${whereIs(o.where).place} of ${r.file.name}`}
+                                           onCancel={() => { setRestoring(null); focusSoon(`notread-restore-${fid}-${i}`); }}
+                                           onDone={() => { setRestoring(null); focusSoon(`notread-open-${fid}`, `notread-${fid}`, heading); }} />
                             )}
                           </li>
                         ))}
@@ -365,7 +375,8 @@ export function NotReadTable({ projectId, items, heading, group, shared }: {
       {!refusedRows.length && <Problem text={problem} testId="notread-problem" />}
       <MarkedNow projectId={projectId} entries={mine} said={visit.said} titleId={`notread-marked-${group}-title`} />
       <BulkBar count={pickedRows.length} noun="file" label="Mark the picked loose numbers as not data" onClear={() => setPicked(new Set())}
-               testId="bulk-notread-bar">
+               testId="bulk-notread-bar" clearLabel="Clear the loose numbers picked to mark as not data"
+               after={[pickedRows[0] ? `notread-pick-${pickedRows[0].row.file.file_id}` : null, heading].filter((x): x is string => Boolean(x))}>
         <ReasonForm action="Mark as not data" actionLabel={`Mark the ${plural(pickedCount, "picked loose number")} as not data`}
                     label="Why the picked loose numbers are not data" busy={busy} kind="not data" suggestions={LOOSE_REASONS} testId="bulk-notread"
                     onSubmit={(why) => mark(pickedRows, why)}>

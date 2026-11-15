@@ -64,6 +64,8 @@ function AddValue({ row, name, projectId, run, pathways = [] }: {
   const typed = entry.kind === "typed";
   const numeric = typed && value.trim() !== "" && !Number.isNaN(Number(value));
   const cited = type === "ASSUMPTION" || link.trim() !== "";
+  const lacking = !target ? "Choose the elimination pathway first" : !value.trim() ? (typed ? "Type the value first" : "Choose the value first")
+    : !cited ? "Give the source's DOI or URL, or call it an assumption" : null;
   if (!row.req_id) return <p className="muted fs-13 m-0">This input has no item on the data checklist to file a value under.</p>;
   if (entry.kind === "elsewhere") return null;
   const done = entry.kind === "neutral" ? `${name}: stated with its source.`
@@ -113,8 +115,7 @@ function AddValue({ row, name, projectId, run, pathways = [] }: {
       <div className="row gap-6 mt-4">
         <label className="add-field flex-1 minw-220">The sentence that states it
           <input value={quote} onChange={(e) => setQuote(e.target.value)} aria-label={`quote for ${row.id}`} /></label>
-        <button className="btn primary" disabled={!value.trim() || !cited || !target}
-                title={!target ? "Choose the elimination pathway first" : undefined}
+        <button className="btn primary" disabled={Boolean(lacking)} aria-describedby={lacking ? `add-lacking-${row.id}` : undefined}
                 onClick={() => void run(() => send("post", "/api/v1/projects/{project_id}/evidence", { project_id: projectId }, {
                   req_id: row.req_id as string, target, value: numeric || entry.kind === "neutral" ? Number(value) : value,
                   unit: typed ? unit || null : null, source_type: type, title, quote,
@@ -122,6 +123,8 @@ function AddValue({ row, name, projectId, run, pathways = [] }: {
                 }), done)}>
           Add
         </button>
+        {/* why it cannot be added yet, in text, not only in a hover (final review OWN-16) */}
+        {lacking && <span className="muted fs-12" id={`add-lacking-${row.id}`} data-testid={`add-lacking-${row.id}`}>{lacking}</span>}
       </div>
     </div>
   );

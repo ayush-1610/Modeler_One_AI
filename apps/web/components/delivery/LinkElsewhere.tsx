@@ -108,7 +108,7 @@ function LinkElsewhere({ projectId, file, place, others, onDone }: {
   const same = destinationKey(target) === destinationKey(was);
   const missing = targetProblem(target, analytes) ?? (same ? "It is linked there now: choose another place" : null);
 
-  async function relink(why: string) {
+  async function relink(why: string): Promise<boolean> {
     setProblem(null);
     let held: Held = {};
     let uses: string[] = [];
@@ -125,16 +125,15 @@ function LinkElsewhere({ projectId, file, place, others, onDone }: {
       }
     } catch (e) {
       setProblem(`Where its values are now, or what that study holds, could not be read, so its arms are not checked: nothing was linked. (${e instanceof Error ? e.message : String(e)})`);
-      return;
+      return false;
     } finally {
       setChecking(false);
     }
     const clash = collisions([{ row: mine, target }], page!.subjects, held, analytes)[0];
     if (clash) {
       const text = `${file.name} holds ${clash.example}, which study ${clash.study} has in that arm already: in study ${clash.study} each file needs its own arm. Nothing was linked.`;
-      setProblem(text);
-      announce(text);
-      return;
+      setProblem(text);   // said by its alert, not again in the live region (final review A11Y-6)
+      return false;
     }
     const sent = { ...target, analyte: analyteChoice(target.analyte, analyteChoices(analytes, mine.own.analyte, uses), analytes, mine.own.analyte) };
     // one call for every value the file has in that place, its facts and its tables together
@@ -144,7 +143,10 @@ function LinkElsewhere({ projectId, file, place, others, onDone }: {
       writePage(client, projectId, data);
       announce(`The ${plural(place.values, "value")} of ${file.name} are linked again: the earlier ${place.links.length > 1 ? "links" : "link"} to ${place.words} ${place.links.length > 1 ? "are" : "is"} replaced.`);
       onDone();
-    } else setProblem(refused ?? "It was not linked.");
+      return true;
+    }
+    setProblem(refused ?? "It was not linked.");
+    return false;
   }
 
   return (

@@ -63,8 +63,10 @@
 .facts-control input[type="number"] { width: 9em; }
 .facts-unit { width: 7em; }
 .facts-why { grid-column: 2; }
-.facts-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 8px 12px; }
-.facts-field { display: grid; gap: 4px; font-size: 12.5px; font-weight: 600; color: var(--ink-dim); }
+.facts-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(170px, 100%), 1fr)); gap: 8px 12px; min-width: 0; }
+/* a field fills its column and no more: the last one no longer runs past the form's edge (final review CODE-6) */
+.facts-field { display: grid; gap: 4px; min-width: 0; font-size: 12.5px; font-weight: 600; color: var(--ink-dim); }
+.facts-field > input, .facts-field > select { width: 100%; min-width: 0; box-sizing: border-box; }
 .facts-read { font-weight: 400; color: var(--ink); font-size: 13.5px; min-height: 30px; display: flex; align-items: center; }
 .facts-individual { margin: 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); min-width: 0; }
 .facts-individual legend { padding: 0 4px; font-size: 13px; font-weight: 600; }

@@ -10,8 +10,8 @@ import { join } from "node:path";
 import { expect, test } from "@playwright/test";
 
 import {
-  NEW, NO_TARGET, aboutText, analyteChoice, analyteChoices, areaHead, assignBody, buildWork, collisions, columnSummary, destinationKey,
-  formulationsHeld, heldBy, inModel, layoutRows, linkPlaces, linkRows, linkTarget, linkWords, linkedPiece, looseGroups, markedText, nextText,
+  NEW, NO_TARGET, aboutText, analyteChoice, analyteChoices, areaHead, assignBody, buildWork, checkField, collisions, columnSummary, destinationKey,
+  formulationsHeld, heldBy, inModel, layoutRows, linkCount, linkPlaces, linkRows, linkTarget, linkWords, linkedPiece, looseGroups, markedText, nextText,
   noLayoutReads, noSampleCells, normLabel, notReadRows, onDelivery, oneCheck, pairsMeet, prefixAlias, releaseAnchor, releaseOf, seriesKey,
   targetProblem, type WorkSources,
 } from "../lib/inputsWork";
@@ -234,6 +234,22 @@ test("what holds up a card signed on the delivery is counted: its facts, require
     .toBe("from messy-delivery.xlsx · first the delivery clean-up; then the signature");
 });
 
+test("a fact a failed check asks for is asked, and counted, as a fact: on the card's facts form and on To do's facts row (final review CODE-8 c)", () => {
+  expect(checkField({ code: "LANDING_FIELD_MISSING", message: "the study record needs n, which no active value states" })).toBe("n");
+  expect(checkField({ code: "DOSE_MISSING", message: null })).toBe("dose");
+  expect(checkField({ code: "MATRIX_MISSING", message: "no matrix is stated for the concentrations" })).toBe("matrix");
+  expect(checkField({ code: "ABOVE_RANGE", message: "a value above the range" })).toBeNull();
+  // a matrix not stated on 230-23: one more fact on its facts row (as its card asks it), not a check to decide
+  const sources = load("exampleamide");
+  sources.cards!["study/st-8"]!.checks.push({ id: "ck-matrix", code: "MATRIX_MISSING", message: "no matrix is stated for the concentrations",
+                                             severity: "fail", overridden: false } as never);
+  const model = buildWork(sources);
+  expect(model.items.some((i) => i.id === "check:study:230-23:ck-matrix")).toBe(false);
+  expect(model.items.find((i) => i.id === "fact:study:230-23")!.label)
+    .toBe("Study 230-23 · not stated: the route, the number of subjects, what the study is for, the matrix");
+  expect(model.counts.missing + model.counts.to_confirm + model.counts.to_decide).toBe(model.counts.open);
+});
+
 test("two versions of one layout are two rows; the clean-up says why it is not counted when nothing it holds can be signed", () => {
   const model = buildWork(load("exampleamide"));
   const versions = model.items.filter((i) => i.id.startsWith("layout:mp-caadd2de9d39@"));
@@ -278,6 +294,13 @@ test("the link table: one row per file, suggested from its own labels, the alias
   const row = (name: string) => rows.find((r) => r.file === name)!;
   const reference = row("230-23 Fasting Reference.xlsx"), test230 = row("230-23 Fasting Test.xlsx");
   expect(reference.holds).toBe("individual PK table, 76 values · dose 50 mg · fasted · LLOQ 0.5 ng/mL");
+  // the table's head, its rows and their buttons count alike: a table's cells are values, a fact read beside it a fact
+  // (final review OWN-16: the head said 366 values where the rows said 355 and their facts)
+  expect(linkCount(rows.flatMap((r) => r.values))).toBe("355 values and 11 facts");
+  expect(linkCount(reference.values)).toBe("76 values and 3 facts");
+  expect(linkCount(reference.values.filter((v) => !v.id.includes("#")))).toBe("3 facts");
+  expect(linkCount([])).toBe("no value");
+  expect(rows.find((r) => r.item.id.startsWith("link:"))!.item.label).toMatch(/^Link the \d+ values( and \d+ facts?)? of .+ to a study or product$/);
   expect(reference.item.where).toEqual({ tab: "todo", anchor: `link-${reference.fileId}` });
   // "Same study as 230-23?": nothing filled until answered; Yes fills 230-23 and an arm that keeps the two files apart
   expect(reference.suggested).toBeNull();

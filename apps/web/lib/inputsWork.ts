@@ -266,10 +266,6 @@ export function layoutAnchor(m: { mapping_id: string; version: number }, all: { 
  *  `compound-card-<key>`. Every item of a card opens there, whichever reader found the subject. */
 export const cardAnchor = (s: Pick<Subject, "kind" | "key">) => `${s.kind}-card-${s.key}`;
 
-/** A file's id in the Unassigned list of the delivery review (its table, or its facts): the anchor of its link form. */
-export const unassignedAnchor = (valueId: string, sha: string | null) =>
-  `delivery-unassigned-${(valueId.includes("#") ? valueId.split("#")[0] : `facts:${sha ?? "entered"}`).replace(/[^A-Za-z0-9-]/g, "-")}`;
-
 /** A table layout's row in To do's queue: `todo-layout-<id>`, `-v<version>` for a later version beside the first. */
 export const layoutRowId = (m: { mapping_id: string; version: number }, all: { mapping_id: string; version: number }[]) =>
   layoutAnchor(m, all).replace(/^delivery-mapping-/, "todo-layout-");
@@ -285,7 +281,16 @@ const DECIDE = new Set(["conflict", "correct", "pka", "review", "formulation", "
 /** A delivery subject's own items, from its card. */
 const CARD_ITEM = /^(fact|need|check|differ|same|hold):/;
 /** A card's failed checks counted as another of its rows (a fact not stated, a required item, a disagreement). */
-const SETTLED_ELSEWHERE = new Set(["LANDING_FIELD_MISSING", "DOSE_MISSING", "REQUIRED_ITEM_UNDISPOSED", "CONFLICT_OPEN"]);
+const SETTLED_ELSEWHERE = new Set(["LANDING_FIELD_MISSING", "DOSE_MISSING", "MATRIX_MISSING", "REQUIRED_ITEM_UNDISPOSED", "CONFLICT_OPEN"]);
+
+/** The fact a failed check says the study record needs: LANDING_FIELD_MISSING's "needs n, …", DOSE_MISSING's dose,
+ *  MATRIX_MISSING's matrix; null for any other check. One rule for the card's facts form (`FactsForm`) and To do's facts
+ *  row, so a fact is asked, and counted, as a fact in both (final review CODE-8 c: To do counted a matrix not stated as a
+ *  check to decide while the card asked it as a fact). */
+export function checkField(c: { code: string; message?: string | null }): string | null {
+  if (c.code === "LANDING_FIELD_MISSING") return /needs (\w+)/.exec(c.message ?? "")?.[1] ?? null;
+  return c.code === "DOSE_MISSING" ? "dose" : c.code === "MATRIX_MISSING" ? "matrix" : null;
+}
 /** A card's blockers counted elsewhere: the delivery-wide clean-up (once, by file), the card's own rows, the spot check
  *  (the signature's first step) and blinding (the row is not counted and says why). */
 const CARD_COUNTED = new Set(["SILENT_LOSS", "OUTSIDE_NUMBERS", "UNASSIGNED_VALUES", "SCHEMA_GAP", "CHECK_FAILED", "LINK_UNCONFIRMED",
@@ -380,10 +385,10 @@ export function buildWork(sources: WorkSources): WorkModel {
     if (alias && read) {
       add({ ...base, id: `alias:${read.key}`, subjects: [read.key, ...held.subjects],
             label: `Same study as ${alias.label}? ${read.label} · ${name}`,
-            detail: `The sheet form read this file as ${read.label}; its ${plural(values.length, "value")} are not linked to a study in the delivery. If it is ${alias.label}, link them to it with their arm.` });
+            detail: `The sheet form read this file as ${read.label}; its ${linkCount(values)} are not linked to a study in the delivery. If it is ${alias.label}, link them to it with their arm.` });
     } else {
       add({ ...base, id: `link:${sha}`, subjects: held.subjects,
-            label: `Link the ${plural(values.length, "value")} of ${name} to a study or product`,
+            label: `Link the ${linkCount(values)} of ${name} to a study or product`,
             detail: read ? `The sheet form read it as ${KIND_WORD[read.kind]} ${read.label}.` : undefined });
     }
   }
@@ -503,7 +508,7 @@ export function buildWork(sources: WorkSources): WorkModel {
     const facts = new Map<string, string>();
     for (const g of card.gaps) if (!facts.has(g.tag)) facts.set(g.tag, `delivery-gap-${g.tag}`);
     for (const c of failing) {
-      const field = c.code === "LANDING_FIELD_MISSING" ? /needs (\w+)/.exec(c.message ?? "")?.[1] : c.code === "DOSE_MISSING" ? "dose" : undefined;
+      const field = checkField(c);
       if (field && !facts.has(field)) facts.set(field, `delivery-check-${c.id}`);
     }
     // the facts on one row, as a sheet's facts are ("not stated: the route, the number of subjects"): each is entered on the card
@@ -1019,6 +1024,15 @@ function inRange(range: string, cell: string): boolean {
 
 /** A study's arm its title names ("…, Reference, 50 mg" names the arm Reference), as the target's arm. */
 const armIn = (title: string, study: SubjectRow) => study.arms.find((a) => namesLabel(title, a.label));
+
+/** How many values to link, in the units a file's row says them in: a table's cells are values, a fact read beside a
+ *  table (its id has no `#`: a dose, the LLOQ) a fact. "76 values and 3 facts". The Link table's head, its rows and their
+ *  buttons count alike (final review OWN-16: the head said 365 values where its rows said 355 and 10 facts). */
+export function linkCount(values: { id: string }[]): string {
+  const facts = values.filter((v) => !v.id.includes("#")).length;
+  const cells = values.length - facts;
+  return [cells ? plural(cells, "value") : "", facts ? plural(facts, "fact") : ""].filter(Boolean).join(" and ") || "no value";
+}
 
 /** One row per file whose values have no study or product, in the order of `items` (the work model's link and alias
  *  items), with what its own labels suggest. A file the sheet form read as "230-23-REF" asks "Same study as 230-23?"

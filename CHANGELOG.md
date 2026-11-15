@@ -16,6 +16,76 @@ Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: compl
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
 
+### Fixed — final review round 3, accessibility and forms (A11Y-1, A11Y-3 to A11Y-11, CODE-6, CODE-7, CODE-8 a–c, INT-12, OWN-16; plan 2026-11-14 §5)
+- **A11Y-1: the signing dialog keeps the focus through the step-up.** "Sign and load" was disabled while the signature
+  was sent, so when the step-up closed (cancelled or confirmed) it gave the focus back to a disabled button: the focus
+  fell to the page, Escape no longer closed the signing dialog and Tab left it. The button now stays focusable while it
+  is sent (`aria-disabled`, the click ignored), and `kit/Dialog.tsx` gives the focus back only to something that can take
+  it and lies in the dialog still open under it, else that dialog's panel, never the page's body. The signed view moves
+  the focus back to the panel (`focusKey`), so its Done is one Tab away. delivery.spec.ts checks it from the keyboard.
+- **A11Y-3: the bulk bar never covers the row the focus is on.** While a bar is shown the page keeps its height clear at
+  the bottom (`--bulk-h`, measured by `kit/BulkBar.tsx`; `html:has(.bulk-bar) { scroll-padding-bottom }`), and a focus
+  that lands under the bar is scrolled above it. Where each picked file goes is folded under one line past two files, so
+  the bar stays low (it was 256 px with every file picked).
+- **A11Y-4: on a phone the bulk bar sticks.** The ≤900 px rule that made every card with a table a horizontal scroll box
+  made To do's card the bar's sticky container, off the screen; To do's card is excluded (its tables scroll in their own
+  box; the compound conflict table now has one).
+- **A11Y-5: a control that removes itself hands the focus on** (`kit/focus.ts` `focusSoon`): "Same study as …?" Yes/No to
+  the row's own button; the bulk bars' Clear to "Pick every file" or the first picked row; Cancel of every inline form
+  (the not-data approvals, a file's loose numbers, a table set aside, a restore, Accept as is, State it, Correct, Enter
+  another fact, Not the same study, the demographics) back to what opened it; a form opened in place takes the focus
+  (the not-data approvals, the demographics form's first field, Enter's fact field, the analyte).
+- **A11Y-6: each change is said once.** The status counts were an `aria-live` span that spoke 8 times while the cards
+  were read; now a status region says them only when they change after the page has read its work, once they settle
+  ("Now 24 missing, 12 to confirm, 27 to decide."). A layout decision is said in the dialog's own live region only, no
+  longer also in To do's under the modal; the compound values' line under the table is shown, not a second live region;
+  a link refused (the arm guard, a study that could not be read) is said by its row's alert only.
+- **A11Y-7: repeated buttons and fields carry what they are about** (plan §2.1 "Context labels"), the words on the button
+  first (WCAG 2.5.3): Populations' "Enter them…", "Enter once the study is confirmed →", "Save the individual", "Use the
+  healthy adult default"; a card's "Enter them…", "Choose the individual…", "Correct…", "Enter another fact…", "Confirm
+  and sign…", "Record it", a link's Yes/No, "Keep this value", a value's or fact's "Correct" and "Show the source" (with
+  whom and when it is about); a draft's "Read these data", its fields and its "Use …" offers; Client files' "Use it",
+  "Keep …", "change", "Set", "Read this sheet"; a dataset's "Show the points", "The overlay matches the figure" and its
+  chart's Linear/Log; "Confirm the selection"; the bulk bars' Clear; a layout's "Its columns" with its version.
+- **A11Y-8: the plan's skip link to the areas is built.** "Skip to the input areas" is the page's first stop after the
+  app's own skip link (`PageShell` `before`), and puts the focus on the area shown.
+- **A11Y-9: a refusal points at what is wrong and is said again.** The reason field is marked invalid only when the reason
+  is what is missing (a missing study or product describes the button, not the field); each press inserts the message
+  anew, so pressing twice says it twice. The compound values mark the value fields, the pathway or the DOI field their
+  message is about, and "Add" is named "Add" while nothing is typed.
+- **A11Y-10:** the facts form's labels point at their control (they named a span); the sheet form's suggested answer is
+  a pressed button (`aria-pressed`) named with its fact; each area has a heading of its own (h2, read, not drawn where
+  the bar names it), so Compound and Populations no longer go from h1 to h3 and Simulation settings has one.
+- **A11Y-11:** the page head's pill ("Step 2 of 4") is drawn darker (4.1:1 → over 4.5:1 on Inputs; the same rule on
+  every page's head; there is one theme).
+- **CODE-6: no silent disabled button on the cards.** The facts form, the demographics form (Populations and the card),
+  Enter, State the analyte, Keep this value, Yes the same study and Populations' "Save the individual" and a draft's
+  "Read these data" stay enabled and say, when pressed, what they still need ("Choose or type at least one of the
+  facts", "Choose the population and give at least one of the mean age …", "Give the sex and the mean age (y) first");
+  the compound row's Add and a statement's Correct keep their disabled state with the reason in text beside them. The
+  layout form keeps its own disabled button, its fields saying why (as recorded in slice 4). The demographics grid no
+  longer runs past the form's edge.
+- **CODE-7 and INT-12: the reason is not carried over unseen, and "use last" is the person's.** Once a decision is made
+  (its answer says so), the reason field is emptied; the next decision's reason is typed or taken from "use last". The
+  last reason is kept per person signed in (the ID token's subject, from the root layout; hashed in the key), per
+  project and per kind of decision, which every form now names (`kind`, required: "link", "not data", "fact entered",
+  "accepted as is" …), no longer the button's word; it is read again when the field takes the focus, and forgotten at
+  sign-out.
+- **CODE-8 a–c:** removed the Delivery section's dead layout dialog and its state, `unassignedAnchor`, and
+  `DeliveryReview.checkField`; one `checkField` (lib/inputsWork.ts) serves the card's facts form and To do's facts row.
+  Decided: a matrix not stated (MATRIX_MISSING) is a fact, as the card asks it, so To do now counts it on the study's
+  facts row (Missing), no longer as a check to decide.
+- **OWN-16:** Populations' "Save the individual" says what it needs; a message of one area no longer stays on the next
+  (leaving an area clears it); the Link table's head counts as its rows do ("6 files · 355 values and 11 facts"; the rows'
+  buttons "the 76 values and 3 facts of …"; it said 366 values); the page's one filled primary button is "Next" (a form's
+  own main button inside an area is drawn tinted); on a phone Client files is one block per file, its parts under their
+  column's name, so a name breaks between words and no column is cut; why a file's work is not counted is said in text,
+  not in a hover. The facts form asking the dosage form only after the route was fixed in round 2 (gap 7).
+- Impact: keyboard and screen-reader use of Inputs (WCAG 2.2 AA: 2.4.1, 2.4.11, 2.5.3, 1.3.1, 3.3.1, 4.1.3, 1.4.3). No
+  API, rule or ruleset change; nothing a person decides changes. Tests: e2e/inputs-a11y.spec.ts (new), delivery.spec.ts
+  (the step-up's focus; the facts form's message and its reason emptied), unit checks in inputs-work.spec.ts (`linkCount`,
+  `checkField`); inputs-task-first.spec.ts and inputs-owner-job.spec.ts assert the new words.
+
 ### Fixed — final review, round-1 remainders: blinding, the arm guard, link elsewhere (INT-3, INT-2 a and b, INT-4, INT-5, INT-1's over-masking, OWN-1; plan 2026-11-14 §5) — science-adjacent
 - **INT-3 (blocker): a blinded study's file is not drawn, served or suggested.** Round 1 withheld a blinded file's lines
   and masked its pages, but the Digitizer on the Studies area still listed the report and drew 230-25's whole

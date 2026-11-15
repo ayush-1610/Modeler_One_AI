@@ -44,10 +44,19 @@ export function Dialog({ title, onClose, size, above, dismiss, testId, returnFoc
 
   useEffect(() => {
     const before = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    panel.current?.focus();   // the panel itself: the title is read first, and no button is one key press from firing
+    const me = panel.current;
+    me?.focus();   // the panel itself: the title is read first, and no button is one key press from firing
     return () => {
-      if (before?.isConnected) before.focus();
-      else fallback.current?.()?.focus();
+      // back to where it was, if that can still take the focus and lies in the dialog still open under this one (the
+      // signing step-up closes over the signature's dialog, final review A11Y-1); else the caller's place; else that
+      // dialog's panel. Never the page's body: Tab and Escape would leave the dialog still open
+      const under = OPEN.filter((p) => p !== me && p.isConnected).at(-1);
+      for (const to of [before, fallback.current?.()]) {
+        if (!to?.isConnected || to.matches(":disabled") || (under && !under.contains(to))) continue;
+        to.focus();
+        if (document.activeElement === to) return;
+      }
+      under?.focus();
     };
   }, []);
 

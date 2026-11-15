@@ -14,6 +14,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { InlineIssue } from "@/components/kit";
+import { focusSoon } from "@/components/kit/focus";
 import { SortHeader, TableFilter, TableMore } from "@/components/kit/SortableTable";
 import { send, type Schema } from "@/lib/api";
 import { useResource } from "@/lib/hooks";
@@ -83,12 +84,6 @@ type Entry = { field: string; supersedes?: string; value?: string; unit?: string
 const capitalized = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
 const active = (v: Value) => v.status !== "superseded" && v.status !== "excluded";
 
-/** The fact a check says the study record needs (LANDING_FIELD_MISSING "needs n, …", DOSE_MISSING, MATRIX_MISSING). */
-export function checkField(c: { code: string; message: string | null }): string | null {
-  if (c.code === "LANDING_FIELD_MISSING") return /needs (\w+)/.exec(c.message ?? "")?.[1] ?? null;
-  return c.code === "DOSE_MISSING" ? "dose" : c.code === "MATRIX_MISSING" ? "matrix" : null;
-}
-
 /** A value a person corrects, or enters with no form (a fact no other row names), with the reason. A correction keeps
  *  the old value's time, labels and statistic. */
 function Enter({ entry, busy, onSubmit, onCancel, testId }: {
@@ -100,13 +95,14 @@ function Enter({ entry, busy, onSubmit, onCancel, testId }: {
   const [unit, setUnit] = useState(entry.unit ?? "");
   return (
     <Why action={entry.supersedes ? "Correct the value" : "Enter the value"} label="Where the value comes from" busy={busy}
-         placeholder="where it comes from (kept on the audit trail)" onCancel={onCancel} testId={testId}
-         disabled={!value.trim() || (!entry.supersedes && !field.trim())}
+         placeholder="where it comes from (kept on the audit trail)" onCancel={onCancel} testId={testId} autoFocus={!entry.supersedes}
+         kind={entry.supersedes ? "value corrected" : "value entered"}
+         missing={!entry.supersedes && !field.trim() ? "Name the fact" : !value.trim() ? "Type the value" : null}
          onSubmit={(why) => onSubmit({ ...(entry.supersedes ? { supersedes: entry.supersedes } : { field: field.trim() }),
                                        value: typed(value), ...(unit.trim() ? { unit: unit.trim() } : {}), why })}>
       {!entry.supersedes && (
         <label className="delivery-pick">Fact
-          <input type="text" value={field} onChange={(e) => setField(e.target.value)} data-testid={`${testId}-field`} />
+          <input type="text" value={field} onChange={(e) => setField(e.target.value)} data-testid={`${testId}-field`} autoFocus />
         </label>
       )}
       <label className="delivery-pick">Value
@@ -127,6 +123,9 @@ const VALUE_KEYS = {
   level: (v: Value) => v.level,
 };
 const valueWords = (v: Value) => [v.field, labelsText(v), statisticText(v), v.unit ?? "", v.level, v.blinded ? "" : v.verbatim ?? ""].join(" ");
+/** A value of a table, named for a button repeated on each row: its field, its time and whom it is about (final review
+ *  A11Y-7: "Correct concentration at 1" was the same on every subject's row). */
+const valueName = (v: Value) => [`${fieldText(v.field)}${v.time !== null ? ` at ${v.time}` : ""}`, labelsText(v), statisticText(v)].filter(Boolean).join(", ");
 
 /** The subject's values of one table, with the table's layout said on its head (a layout no person approved is checked
  *  from there: its rows are not marked one by one). `oneCheck`: the one check every row needing the person comes from,
@@ -210,12 +209,12 @@ function ValueTable({ projectId, params, table, flagged, decide, busy, onMapping
                   <td>
                     {v.anchor ? (
                       <button type="button" className="link-btn" aria-expanded={source === v.id} data-testid={`delivery-source-open-${v.id}`}
-                              aria-label={`${source === v.id ? "Hide" : "Show"} the source of ${fieldText(v.field)}${v.time !== null ? ` at ${v.time}` : ""}`}
+                              aria-label={`${source === v.id ? "Hide" : "Show"} the source of ${valueName(v)}`}
                               onClick={() => setSource(source === v.id ? null : v.id)}>{source === v.id ? "Hide" : "Show"}</button>
                     ) : <span className="muted fs-12">{v.method === "person" ? "entered" : "computed"}</span>}
                     {!read && !v.blinded && active(v) && (
                       <button type="button" className="link-btn" data-testid={`delivery-correct-${v.id}`}
-                              aria-label={`Correct ${fieldText(v.field)}${v.time !== null ? ` at ${v.time}` : ""}`}
+                              aria-label={`Correct ${valueName(v)}`}
                               onClick={() => setCorrecting(correcting === v.id ? null : v.id)}>Correct</button>
                     )}
                   </td>
@@ -223,8 +222,12 @@ function ValueTable({ projectId, params, table, flagged, decide, busy, onMapping
                 {correcting === v.id && (
                   <tr className="delivery-source-row"><td colSpan={columns}>
                     <Enter entry={{ field: v.field, supersedes: v.id, value: v.value === null ? "" : String(v.value), unit: v.unit ?? "" }}
-                           busy={busy} onCancel={() => setCorrecting(null)} testId={`correct-${v.id}`}
-                           onSubmit={async (body) => { const { data } = await decide(() => send("post", ENTER, params, body)); if (data) setCorrecting(null); }} />
+                           busy={busy} onCancel={() => { setCorrecting(null); focusSoon(`delivery-correct-${v.id}`); }} testId={`correct-${v.id}`}
+                           onSubmit={async (body) => {
+                             const { data } = await decide(() => send("post", ENTER, params, body));
+                             if (data) setCorrecting(null);
+                             return Boolean(data);
+                           }} />
                   </td></tr>
                 )}
                 {source === v.id && (
@@ -245,8 +248,8 @@ function ValueTable({ projectId, params, table, flagged, decide, busy, onMapping
  *  analytes, or a new one the person names, given to the check's values by linking them again (`values:assign`) with
  *  what they are linked to now (their study and arm, their product and batch), so that only the analyte changes and
  *  the values keep their file as their source. One link per set of values that share those; one reason for all. */
-function StateAnalyte({ projectId, check, values, onDone }: {
-  projectId: string; check: Check; values: Map<string, Value>; onDone: () => void;
+function StateAnalyte({ projectId, check, values, onDone, onCancel }: {
+  projectId: string; check: Check; values: Map<string, Value>; onDone: () => void; onCancel: () => void;
 }) {
   const page = useResource("/api/v1/projects/{project_id}/delivery", { project_id: projectId });
   const all = page.data?.enabled ? page.data.analytes : [];
@@ -264,8 +267,7 @@ function StateAnalyte({ projectId, check, values, onDone }: {
   for (const v of mine) { const k = LINKED.map((r) => v.entity[r] ?? "").join("|"); sets.set(k, [...(sets.get(k) ?? []), v]); }
   // a new analyte is never one of a name that exists (the ledger refuses it too): pick that one
   const exists = analyte === NEW ? all.find((a) => normLabel(a.label) === normLabel(named)) : undefined;
-  const ready = mine.length > 0 && Boolean(analyte) && (analyte !== NEW || Boolean(named.trim()));
-  async function state(why: string) {
+  async function state(why: string): Promise<boolean> {
     let chosen = analyte === NEW ? null : analyte;
     const list = [...sets.values()];
     for (const [i, group] of list.entries()) {
@@ -273,20 +275,23 @@ function StateAnalyte({ projectId, check, values, onDone }: {
       const { data } = await decide(() => send("post", ASSIGN, { project_id: projectId }, {
         targets: group.map((v) => v.id), why, ...linked, ...(chosen ? { analyte: chosen } : { new_analyte: named.trim() }),
       }), { refresh: i === list.length - 1 });
-      if (!data) return;
+      if (!data) return false;
       // a new analyte is named once: the next links name it by the id the delivery gave it
       chosen ??= (data as { analytes: { id: string; label: string }[] }).analytes.find((a) => a.label.trim().toLowerCase() === named.trim().toLowerCase())?.id ?? null;
-      if (!chosen && i < list.length - 1) return;
+      if (!chosen && i < list.length - 1) return false;
     }
     onDone();
+    return true;
   }
   return (
     <>
-      <Why action="State the analyte" label={`Why the ${plural(mine.length, "value")} are of this analyte`} busy={busy} disabled={!ready}
-           missing={exists ? `An analyte named ${exists.label} exists already: pick it` : null} testId={`delivery-analyte-${check.id}`} onCancel={onDone} placeholder="where it comes from, e.g. the bioanalytical report (kept on the audit trail)"
+      <Why action="State the analyte" label={`Why the ${plural(mine.length, "value")} are of this analyte`} busy={busy} kind="analyte stated"
+           missing={!mine.length ? "Its values are not shown here: open its table" : !analyte ? "Choose the analyte"
+             : analyte === NEW && !named.trim() ? "Name the new analyte" : exists ? `An analyte named ${exists.label} exists already: pick it` : null}
+           testId={`delivery-analyte-${check.id}`} onCancel={onCancel} placeholder="where it comes from, e.g. the bioanalytical report (kept on the audit trail)"
            onSubmit={state}>
         <label className="delivery-pick">Analyte
-          <select value={analyte} onChange={(e) => setAnalyte(e.target.value)} data-testid={`delivery-analyte-${check.id}-choice`}>
+          <select value={analyte} onChange={(e) => setAnalyte(e.target.value)} data-testid={`delivery-analyte-${check.id}-choice`} autoFocus>
             <option value="">choose…</option>
             {analytes.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}
             <option value={NEW}>A new analyte…</option>
@@ -343,11 +348,17 @@ function CheckRow({ check, subject, decide, busy, onMapping, params, read, value
             </>
         )}
       </div>
-      {!read && open && stating && <StateAnalyte projectId={params.project_id} check={check} values={values} onDone={() => setStating(false)} />}
+      {!read && open && stating && <StateAnalyte projectId={params.project_id} check={check} values={values} onDone={() => setStating(false)}
+                                                 onCancel={() => { setStating(false); focusSoon(`delivery-analyte-open-${check.id}`); }} />}
       {!read && open && acting && (
-        <Why action="Accept as is" label={`Why "${message}" holds as it is`} busy={busy} onCancel={() => setActing(false)}
+        <Why action="Accept as is" label={`Why "${message}" holds as it is`} busy={busy} kind="accepted as is"
+             onCancel={() => { setActing(false); focusSoon(`delivery-override-open-${check.id}`); }}
              testId={`delivery-override-${check.id}`} placeholder="why it holds as it is (kept on the audit trail)" autoFocus
-             onSubmit={async (why) => { const { data } = await decide(() => send("post", OVERRIDE, params, { check_id: check.id, why })); if (data) setActing(false); }} />
+             onSubmit={async (why) => {
+               const { data } = await decide(() => send("post", OVERRIDE, params, { check_id: check.id, why }));
+               if (data) setActing(false);
+               return Boolean(data);
+             }} />
       )}
     </li>
   );
@@ -377,7 +388,8 @@ function ConflictRow({ conflict, values, decide, busy, params, read }: {
         })}
       </fieldset>
       {!read && (
-        <Why action="Keep this value" label="Why this value is kept" busy={busy} disabled={!keep} testId={`delivery-choose-${conflict.id}`}
+        <Why action="Keep this value" actionLabel={`Keep this value of ${where}`} label={`Why this value of ${where} is kept`} busy={busy}
+             kind="value kept" missing={keep ? null : "Choose the value to keep"} testId={`delivery-choose-${conflict.id}`}
              onSubmit={(why) => decide(() => send("post", CHOOSE, params, { conflict_id: conflict.id, keep, why }))} />
       )}
     </li>
@@ -404,11 +416,14 @@ function LinkRow({ link, subject, decide, busy, params, read }: {
       </div>
       {!read && link.state !== "refused" && (
         refusing ? (
-          <Why action="Not the same study" label="Why the file is not about this study" busy={busy} onCancel={() => setRefusing(false)}
+          <Why action="Not the same study" actionLabel={`Not the same study: ${link.file} is not about study ${subject.label}`}
+               label={`Why ${link.file} is not about study ${subject.label}`} busy={busy} kind="link refused" autoFocus
+               onCancel={() => { setRefusing(false); focusSoon(`delivery-link-refuse-open-${key}`); }}
                testId={`delivery-link-refuse-${key}`} onSubmit={(why) => decide(() => send("post", LINK, params, body(false, why)))} />
         ) : (
-          <Why action="Yes, the same study" label="A note on the link" busy={busy} optional testId={`delivery-link-confirm-${key}`}
-               disabled={link.state === "ambiguous" && !study}
+          <Why action="Yes, the same study" actionLabel={`Yes, the same study: ${link.file} is about study ${subject.label}`}
+               label={`A note on the link of ${link.file}`} busy={busy} optional testId={`delivery-link-confirm-${key}`} kind="link confirmed"
+               missing={link.state === "ambiguous" && !study ? "Choose the study" : null}
                onSubmit={(why) => decide(() => send("post", LINK, params, body(true, why)))}>
             {link.state === "ambiguous" && (
               <label className="delivery-pick">Study
@@ -418,7 +433,8 @@ function LinkRow({ link, subject, decide, busy, params, read }: {
                 </select>
               </label>
             )}
-            <button type="button" className="btn small" disabled={busy} onClick={() => setRefusing(true)} data-testid={`delivery-link-refuse-open-${key}`}>No…</button>
+            <button type="button" className="btn small" aria-disabled={busy || undefined} onClick={() => { if (!busy) setRefusing(true); }}
+                    data-testid={`delivery-link-refuse-open-${key}`} aria-label={`No, ${link.file} is not about study ${subject.label}…`}>No…</button>
           </Why>
         )
       )}
@@ -430,8 +446,10 @@ function LinkRow({ link, subject, decide, busy, params, read }: {
  *  demographics a person has can be entered instead ("Enter them…", through `:enter`). Found demographics say the
  *  study's individual they make (D-29), or what it still needs, with "Choose the individual…": one truth with what
  *  loads and with Populations and individuals (`DeliverySubject.individual`). */
-function RequirementRow({ item, decide, busy, params, read, projectId, vocabulary, stated, individual, options }: {
+function RequirementRow({ item, decide, busy, params, read, projectId, vocabulary, stated, individual, options, subjectLabel }: {
   item: Requirement; decide: Decide; busy: boolean; params: CardParams; read: boolean; projectId: string;
+  /** the study's label, on the row's buttons (repeated on every card: final review A11Y-7) */
+  subjectLabel: string;
   vocabulary: { mapping: string | null };
   /** the demographics stated already (a person's corrected, never entered twice; a file's shown as read) */
   stated: Record<string, Value>;
@@ -445,6 +463,8 @@ function RequirementRow({ item, decide, busy, params, read, projectId, vocabular
   const open = item.status === "missing" && !item.disposition;
   const demographics = item.req_id === DEMOGRAPHICS;
   const unset = demographics && !open && individual !== null && !individual.demographics && individual.stated.length > 0;
+  // closed (saved or cancelled), the form gives the focus back to the button that opens it, as it then reads
+  const close = () => { setEntering(false); focusSoon(`delivery-demographics-open-${params.subject}`, `delivery-requirement-${item.req_id}`); };
   return (
     <li className={open ? "delivery-check open" : "delivery-check"} data-testid={`delivery-requirement-${item.req_id}`}>
       <div className="delivery-check-line">
@@ -453,7 +473,8 @@ function RequirementRow({ item, decide, busy, params, read, projectId, vocabular
         <span className="delivery-check-text">{item.label}</span>
         <span className="muted fs-12">{item.criticality.toLowerCase()}{said ? ` · ${said}` : ""}</span>
         {!read && open && item.req_id === DEMOGRAPHICS && !entering && (
-          <button type="button" className="btn small" onClick={() => setEntering(true)} data-testid={`delivery-demographics-open-${params.subject}`}>Enter them…</button>
+          <button type="button" className="btn small" onClick={() => setEntering(true)} data-testid={`delivery-demographics-open-${params.subject}`}
+                  aria-label={`Enter them… the demographics of ${subjectLabel}`}>Enter them…</button>
         )}
       </div>
       {demographics && individual?.demographics && (
@@ -462,25 +483,28 @@ function RequirementRow({ item, decide, busy, params, read, projectId, vocabular
           {individual.kept.length > 0 && <span className="muted"> · {individual.kept.map(fieldInText).join(", ")} kept, not simulated</span>}
           {!read && !open && !entering && <> <button type="button" className="link-btn" onClick={() => setEntering(true)}
                                                      data-testid={`delivery-demographics-open-${params.subject}`}
-                                                     aria-label="Correct the demographics or the individual">Correct…</button></>}
+                                                     aria-label={`Correct the demographics or the individual of ${subjectLabel}…`}>Correct…</button></>}
         </p>
       )}
       {unset && individual && (
         <p className="m-4-0-0 fs-13" data-testid={`delivery-individual-${params.subject}`}>
           <span className="chip high">Not simulated yet</span> {capitalized(individualNeeds(individual.needs, individual.why))}.
           {!read && !entering && <> <button type="button" className="btn small" onClick={() => setEntering(true)}
-                                            data-testid={`delivery-demographics-open-${params.subject}`}>Choose the individual…</button></>}
+                                            data-testid={`delivery-demographics-open-${params.subject}`}
+                                            aria-label={`Choose the individual of ${subjectLabel}…`}>Choose the individual…</button></>}
         </p>
       )}
       {!read && (open || (demographics && individual !== null)) && entering && (
-        <DemographicsForm projectId={projectId} params={params} vocabulary={vocabulary} options={options} onDone={() => setEntering(false)}
-                          testId={`delivery-demographics-${params.subject}`} stated={stated} />
+        <DemographicsForm projectId={projectId} params={params} vocabulary={vocabulary} options={options} onDone={close}
+                          testId={`delivery-demographics-${params.subject}`} stated={stated} label={subjectLabel} />
       )}
       {!read && open && !entering && (
-        <Why action="Record it" label={`Why ${item.label} is settled this way`} busy={busy} testId={`delivery-dispose-${item.req_id}`}
+        <Why action="Record it" actionLabel={`Record it: how ${item.label} is settled`} label={`Why ${item.label} is settled this way`} busy={busy}
+             testId={`delivery-dispose-${item.req_id}`} kind="item settled"
              onSubmit={(why) => decide(() => send("post", DISPOSE, params, { req_id: item.req_id, disposition, why }))}>
           <label className="delivery-pick">It is
-            <select value={disposition} onChange={(e) => setDisposition(e.target.value as typeof disposition)} data-testid={`delivery-dispose-${item.req_id}-choice`}>
+            <select value={disposition} onChange={(e) => setDisposition(e.target.value as typeof disposition)} data-testid={`delivery-dispose-${item.req_id}-choice`}
+                    aria-label={`How ${item.label} is settled`}>
               {DISPOSITIONS.map(([id, label]) => <option key={id} value={id}>{label}</option>)}
             </select>
           </label>
@@ -516,6 +540,8 @@ function StatedFacts({ projectId, params, values: all, flagged, decide, busy, re
     seen.add(key);
     return true;
   });
+  // a fact named for its buttons with what it is stated for ("the LLOQ, Exampleamide-M1, plasma"): two LLOQs are two names
+  const factName = (v: Value) => [fieldLabel(v.field), factLabels(v, params.type)].filter(Boolean).join(", ");
   // the facts of one field together (two analytes, then their two LLOQs), in the order the fields first appear
   const order = [...new Set(values.map((v) => v.field))];
   values.sort((a, b) => order.indexOf(a.field) - order.indexOf(b.field));
@@ -533,17 +559,21 @@ function StatedFacts({ projectId, params, values: all, flagged, decide, busy, re
             {flagged.has(v.id) && <> <span className="chip neutral">{flagged.get(v.id)}</span></>}
             {v.anchor && (
               <button type="button" className="link-btn" aria-expanded={source === v.id} onClick={() => setSource(source === v.id ? null : v.id)}
-                      data-testid={`delivery-source-open-${v.id}`} aria-label={`${source === v.id ? "Hide" : "Show"} the source of ${fieldLabel(v.field)}`}>
+                      data-testid={`delivery-source-open-${v.id}`} aria-label={`${source === v.id ? "Hide" : "Show"} the source of ${factName(v)}`}>
                 {source === v.id ? "Hide the source" : "Source"}</button>
             )}
             {!read && !v.blinded && (
               <button type="button" className="link-btn" onClick={() => setCorrecting(correcting === v.id ? null : v.id)}
-                      data-testid={`delivery-correct-${v.id}`} aria-label={`Correct ${fieldLabel(v.field)}`}>Correct</button>
+                      data-testid={`delivery-correct-${v.id}`} aria-label={`Correct ${factName(v)}`}>Correct</button>
             )}
             {correcting === v.id && (
               <Enter entry={{ field: v.field, supersedes: v.id, value: v.value === null ? "" : String(v.value), unit: v.unit ?? "" }}
-                     busy={busy} onCancel={() => setCorrecting(null)} testId={`correct-${v.id}`}
-                     onSubmit={async (body) => { const { data } = await decide(() => send("post", ENTER, params, body)); if (data) setCorrecting(null); }} />
+                     busy={busy} onCancel={() => { setCorrecting(null); focusSoon(`delivery-correct-${v.id}`); }} testId={`correct-${v.id}`}
+                     onSubmit={async (body) => {
+                       const { data } = await decide(() => send("post", ENTER, params, body));
+                       if (data) setCorrecting(null);
+                       return Boolean(data);
+                     }} />
             )}
             {source === v.id && <ValueSource projectId={projectId} valueId={v.id} onClose={() => setSource(null)} />}
           </dd>
@@ -686,7 +716,9 @@ export function DeliveryReview({ projectId, row, mode, gate, onMapping, todo, su
 
       <Section title="Facts" testId={`delivery-facts-${s.subject}`}
                aside={!looking && !entering && !s.blinded ? <button type="button" className="link-btn" onClick={() => setEntering(true)}
-                                                                    data-testid={`delivery-enter-open-${s.subject}`}>Enter another fact…</button> : null}>
+                                                                    data-testid={`delivery-enter-open-${s.subject}`}
+                                                                    aria-label={`Enter another fact of ${KIND_LABEL[s.subject_type].toLowerCase()} ${s.label}…`}>
+                 Enter another fact…</button> : null}>
         <StatedFacts projectId={projectId} params={params} values={facts} flagged={flagged} decide={decide} busy={busy} read={looking} />
         {facts.length === 0 && !s.gaps.length && !factChecks.length && <p className="muted m-0">No fact of the {KIND_LABEL[s.subject_type].toLowerCase()} is stated in its files.</p>}
         {(s.gaps.length > 0 || factChecks.length > 0) && (
@@ -695,8 +727,13 @@ export function DeliveryReview({ projectId, row, mode, gate, onMapping, todo, su
                      stated={new Set([...values.values()].filter((v) => active(v) && v.value !== null).map((v) => v.field))} />
         )}
         {entering && (
-          <Enter entry={{ field: "" }} busy={busy} onCancel={() => setEntering(false)} testId={`delivery-enter-${s.subject}`}
-                 onSubmit={async (body) => { const { data } = await decide(() => send("post", ENTER, params, body)); if (data) setEntering(false); }} />
+          <Enter entry={{ field: "" }} busy={busy} onCancel={() => { setEntering(false); focusSoon(`delivery-enter-open-${s.subject}`); }}
+                 testId={`delivery-enter-${s.subject}`}
+                 onSubmit={async (body) => {
+                   const { data } = await decide(() => send("post", ENTER, params, body));
+                   if (data) { setEntering(false); focusSoon(`delivery-enter-open-${s.subject}`); }
+                   return Boolean(data);
+                 }} />
         )}
       </Section>
 
@@ -751,6 +788,7 @@ export function DeliveryReview({ projectId, row, mode, gate, onMapping, todo, su
             <div data-testid={`delivery-requirements-${s.subject}`}>
               <h4 className="delivery-sub">What the data plan needs from this {KIND_LABEL[s.subject_type].toLowerCase()}</h4>
               <ul className="delivery-plain">{s.requirements.map((x) => <RequirementRow key={x.req_id} item={x} decide={decide} busy={busy} params={params}
+                                                                                     subjectLabel={s.label}
                                                                                      read={looking} projectId={projectId} vocabulary={vocabulary}
                                                                                      stated={statedDemographics([...values.values()])}
                                                                                      individual={s.individual ?? null}
@@ -803,6 +841,7 @@ export function DeliveryReview({ projectId, row, mode, gate, onMapping, todo, su
             <div className="confirm-paths">
               <button type="button" className="btn primary" onClick={() => setConfirming(true)} data-testid={`delivery-confirm-${s.subject}`}
                       disabled={gated.length > 0 && !(c && c.current && !c.landed)}
+                      aria-label={`${c && !c.landed && c.current ? "Finish the loading of" : c ? "Confirm again and sign" : "Confirm and sign"} ${KIND_LABEL[s.subject_type].toLowerCase()} ${s.label}…`}
                       aria-describedby={gated.length ? `delivery-gate-why-${s.subject}` : undefined}>
                 {c && !c.landed && c.current ? "Finish the loading…" : c ? "Confirm again and sign…" : "Confirm and sign…"}</button>
               {gated.length > 0 && <span className="muted fs-13" id={`delivery-gate-why-${s.subject}`}>Waits for the delivery clean-up (above).</span>}

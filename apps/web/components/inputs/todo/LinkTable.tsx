@@ -23,13 +23,14 @@ import { Problem, useDecide, type Page } from "@/components/delivery/shared";
 import { LinkEditor, TargetFields } from "@/components/delivery/Unassigned";
 import { writePage } from "@/components/delivery/writes";
 import { BulkBar } from "@/components/kit/BulkBar";
-import { focusAfter, nextRow } from "@/components/kit/focus";
+import { focusAfter, focusSoon, nextRow } from "@/components/kit/focus";
 import { announce } from "@/components/kit/LiveRegion";
 import { ReasonForm } from "@/components/kit/Reason";
 import { send } from "@/lib/api";
 import { fetchResource, useResource, useResources } from "@/lib/hooks";
 import {
-  NEW, NO_TARGET, analyteChoice, analyteChoices, assignBody, collisions, destinationKey, distinctWords, heldBy, linkRows, normLabel, targetProblem,
+  NEW, NO_TARGET, analyteChoice, analyteChoices, assignBody, collisions, destinationKey, distinctWords, heldBy, linkCount, linkRows, normLabel,
+  targetProblem,
   type Collision, type Held, type LinkPart, type LinkPiece, type LinkRow, type LinkTarget, type Subject, type WorkItem,
 } from "@/lib/inputsWork";
 import { plural } from "@/lib/words";
@@ -93,6 +94,8 @@ function asTheFilesSay(rows: LinkRow[]): string {
 /** The studies a link would add individual values to (those it could mix with what they hold). */
 const studiesOf = (sends: Send[]) => [...new Set(sends.filter((s) => s.row.pairs.length && s.target.study && s.target.study !== NEW).map((s) => s.target.study))].sort();
 const rowOf = (key: string) => key.split("#")[0];
+/** Past this many picked files, the bar folds where each goes under one line (the bar stays low over the rows). */
+const LISTED = 2;
 
 export function LinkTable({ projectId, items, subjects, heading, shared }: {
   projectId: string;
@@ -169,7 +172,7 @@ export function LinkTable({ projectId, items, subjects, heading, shared }: {
 
   /** Link the rows, one `values:assign` per destination; a name made by an earlier call of the batch is used by its id.
    *  First what each study holds is read (its card, unless the page read it a moment ago) and the guard is run on it. */
-  async function link(list: LinkRow[], why: string, plan: (r: LinkRow) => Send[]) {
+  async function link(list: LinkRow[], why: string, plan: (r: LinkRow) => Send[]): Promise<boolean> {
     const sends = list.flatMap((r) => plan(r).map((s) => ({ ...s, of: r })));
     const check = studiesOf(sends);
     let now: Held = {};
@@ -183,9 +186,9 @@ export function LinkTable({ projectId, items, subjects, heading, shared }: {
       } catch (e) {
         const text = `What study ${check.map(label).join(", ")} holds could not be read, so its arms are not checked: nothing was linked. Try again.`
           + ` (${e instanceof Error ? e.message : String(e)})`;
+        // said by each row's alert, not a second time in the live region (final review A11Y-6)
         setProblems((was) => ({ ...was, ...Object.fromEntries(list.map((r) => [r.sha, text])) }));
-        announce(text);
-        return;
+        return false;
       } finally {
         setChecking(false);
       }
@@ -197,8 +200,7 @@ export function LinkTable({ projectId, items, subjects, heading, shared }: {
         return c ? [[r.sha, `${clashText(c)}. Nothing was linked.`]] : [];
       }));
       setProblems((was) => ({ ...was, ...said }));
-      announce(`Nothing was linked: ${clashText(clash[0])}.`);
-      return;
+      return false;
     }
     const groups = new Map<string, { target: LinkTarget; sends: typeof sends }>();
     for (const s of sends) {
@@ -232,6 +234,7 @@ export function LinkTable({ projectId, items, subjects, heading, shared }: {
       setOnePlace(false);
       if (done.some((r) => r.sha === open)) setOpen(null);
     }
+    return done.length === list.length;
   }
 
   // what the picked rows still need, and the arms that would mix two files' subjects
@@ -256,6 +259,15 @@ export function LinkTable({ projectId, items, subjects, heading, shared }: {
     setOnePlace(false);
   };
   const allPicked = rows.every((r) => picked.has(r.sha));
+  const targetList = (
+    <ul className="bulk-targets">
+      {chosen.map((r) => (
+        <li key={r.sha}>{r.file} → {isSplit(r)
+          ? r.parts.map((p) => `${p.place || p.label}: ${targetProblem(partTarget(r, p)) === "Pick a study or a product" ? "not chosen yet" : whereText(partTarget(r, p), view, p)}`).join("; ")
+          : own(r) || targets[r.sha] ? whereText(targetOf(r), view, r) : <em>not chosen yet</em>}</li>
+      ))}
+    </ul>
+  );
   const holdsText = (sends: Send[]) => {
     const c = guard(sends)[0];
     return c ? `${c.example} is in study ${c.study} in that arm already` : null;
@@ -273,13 +285,13 @@ export function LinkTable({ projectId, items, subjects, heading, shared }: {
                  onChange={() => setPicked(allPicked ? new Set() : new Set(rows.map((r) => r.sha)))} data-testid="link-pick-all" />
           Pick every file
         </label>
-        <span className="muted">{plural(rows.length, "file")} · {plural(rows.reduce((n, r) => n + r.values.length, 0), "value")}</span>
+        <span className="muted" data-testid="link-table-count">{plural(rows.length, "file")} · {linkCount(rows.flatMap((r) => r.values))}</span>
       </div>
       <ul className="batch-rows">
         {rows.map((r) => {
           const t = targetOf(r);
           const split = isSplit(r);
-          const context = `${plural(r.values.length, "value")} of ${r.file}`;
+          const context = `${linkCount(r.values)} of ${r.file}`;
           const sends = sendsOf(r);
           const rowClash = holdsText(sends);
           const wait = readingText(sends);
@@ -302,10 +314,10 @@ export function LinkTable({ projectId, items, subjects, heading, shared }: {
                         <strong>Same study as {r.alias!.study.label}?</strong>
                         <button type="button" className="btn small" data-testid={`link-alias-yes-${r.fileId}`}
                                 aria-label={`Yes: the ${context} are study ${r.alias!.study.label}`}
-                                onClick={() => setAnswers((was) => ({ ...was, [r.sha]: "yes" }))}>Yes</button>
+                                onClick={() => { setAnswers((was) => ({ ...was, [r.sha]: "yes" })); focusSoon(`link-open-${r.fileId}`); }}>Yes</button>
                         <button type="button" className="btn small" data-testid={`link-alias-no-${r.fileId}`}
                                 aria-label={`No: the ${context} are not study ${r.alias!.study.label}`}
-                                onClick={() => setAnswers((was) => ({ ...was, [r.sha]: "no" }))}>No</button>
+                                onClick={() => { setAnswers((was) => ({ ...was, [r.sha]: "no" })); focusSoon(`link-open-${r.fileId}`); }}>No</button>
                       </span>
                     </span>
                   ) : split ? (
@@ -356,7 +368,8 @@ export function LinkTable({ projectId, items, subjects, heading, shared }: {
           );
         })}
       </ul>
-      <BulkBar count={chosen.length} noun="file" label="Link the picked files" onClear={() => setPicked(new Set())} testId="bulk-link-bar">
+      <BulkBar count={chosen.length} noun="file" label="Link the picked files" onClear={() => setPicked(new Set())} testId="bulk-link-bar"
+               clearLabel="Clear the files picked to link" after={["link-pick-all"]}>
         <div className="bulk-where">
           <label className="only-mine">
             <input type="checkbox" checked={onePlace} onChange={(e) => setOnePlace(e.target.checked)} data-testid="bulk-link-one" />
@@ -366,14 +379,11 @@ export function LinkTable({ projectId, items, subjects, heading, shared }: {
             <TargetFields row={{ own: { arm: null, batch: null, analyte: null } }} target={bulk} onTarget={setBulk} subjects={studies}
                           analytes={page.analytes} keyId="bulk" context={`for the ${plural(chosen.length, "picked file")}`}
                           used={used(bulk.study)} noneAnalyte={asTheFilesSay(chosen)} />
-          ) : (
-            <ul className="bulk-targets">
-              {chosen.map((r) => (
-                <li key={r.sha}>{r.file} → {isSplit(r)
-                  ? r.parts.map((p) => `${p.place || p.label}: ${targetProblem(partTarget(r, p)) === "Pick a study or a product" ? "not chosen yet" : whereText(partTarget(r, p), view, p)}`).join("; ")
-                  : own(r) || targets[r.sha] ? whereText(targetOf(r), view, r) : <em>not chosen yet</em>}</li>
-              ))}
-            </ul>
+          ) : chosen.length <= LISTED ? targetList : (
+            <details className="bulk-targets-fold" data-testid="bulk-link-where">
+              <summary>Where each of the {chosen.length} files goes</summary>
+              {targetList}
+            </details>
           )}
         </div>
         {onePlace && readingText(picks) && <p className="muted m-0 link-checking">{readingText(picks)}</p>}
