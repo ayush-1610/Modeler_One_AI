@@ -489,7 +489,7 @@ test("a sheet-form group of a file linked to a study or product joins its card: 
   const after = buildWork(sources);
   const study = after.subjects.find((s) => s.row?.subject === "st-8")!;
   expect(study.key).toBe("study:230-23");                                // known by its own name still
-  expect(study.groups.map((g) => g.id)).toEqual(["study:230-23-REF", "study:230-23-TEST", "study:230-23"]);
+  expect(study.groups.map((g) => g.id)).toEqual(["study:230-23", "study:230-23-REF", "study:230-23-TEST"]);   // its own first
   expect(study.aliases).toEqual(["230-23-REF", "230-23-TEST"]);
   expect(after.subjects.some((s) => s.key === "study:230-23-REF" || s.key === "study:230-23-TEST")).toBe(false);
   // no separate confirm, no facts asked again, no alias question for those groups; the sheet joins its product's card

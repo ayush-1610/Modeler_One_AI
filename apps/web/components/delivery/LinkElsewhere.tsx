@@ -27,6 +27,8 @@ import { writePage } from "./writes";
 const DELIVERY = "/api/v1/projects/{project_id}/delivery" as const;
 const ASSIGN = "/api/v1/projects/{project_id}/delivery/values:assign" as const;
 const CARD = "/api/v1/projects/{project_id}/delivery/subjects/{type}/{subject}" as const;
+/** How long a card the page has just read stands for what a study holds when a link is sent (else it is read again). */
+const FRESH = 10_000;
 type Link = Schema<"DeliveryFileLink">;
 type Value = Schema<"DeliveryValue">;
 
@@ -61,11 +63,9 @@ function LinkElsewhere({ projectId, file, link, onDone }: { projectId: string; f
   const page = useResource(DELIVERY, { project_id: projectId }).data;
   const type = link.study ? "study" : "product";
   const subject = link.study ?? link.product ?? "";
-  // the values the link covers, as the card of where they are now shows them (their subjects, periods and analyte)
+  // the values the link covers, as the card of where they are now shows them (their subjects, periods and analyte): read
+  // while the form is open, and before the link is sent if it has not come yet
   const now = useResource(CARD, { project_id: projectId, type, subject });
-  const values = (now.data?.tables ?? []).flatMap((t) => t.values)
-    .filter((v) => v.file_sha256 === file.sha256 && link.targets.some((t) => v.id === t || v.id.startsWith(`${t}#`)));
-  const piece = { ...linkedPiece(file.sha256, file.name, values), fileId: `elsewhere-${file.file_id}`, file: file.name, parts: [] };
   const was = linkTarget(link);
   const [target, setTarget] = useState<LinkTarget>(was);
   const { decide, busy } = useDecide();
@@ -73,36 +73,49 @@ function LinkElsewhere({ projectId, file, link, onDone }: { projectId: string; f
   const [problem, setProblem] = useState<string | null>(null);
   if (!page?.enabled) return null;
   const analytes = page.analytes;
+  /** The link's values as one piece: the arm and batch they have now are the study's (or product's) own choices, named
+   *  there; their analyte is named as the delivery names it (an id is never shown). */
+  const pieceOf = (card: { tables: { values: Value[] }[] } | null | undefined) => {
+    const values = (card?.tables ?? []).flatMap((t) => t.values)
+      .filter((v) => v.file_sha256 === file.sha256 && link.targets.some((t) => v.id === t || v.id.startsWith(`${t}#`)));
+    const base = linkedPiece(file.sha256, file.name, values);
+    const analyte = base.own.analyte
+      ? { id: base.own.analyte.id, label: analytes.find((a) => a.id === base.own.analyte!.id)?.label ?? base.own.analyte.label } : null;
+    return { ...base, own: { arm: null, batch: null, analyte }, fileId: `elsewhere-${file.file_id}`, file: file.name, parts: [] };
+  };
+  const piece = pieceOf(now.data);
   const same = destinationKey(target) === destinationKey(was);
-  const missing = targetProblem(target, analytes) ?? (same ? "It is linked there now: choose another place" : null)
-    ?? (now.data ? null : now.problem ? `Where its values are now could not be read: ${now.problem}` : "Reading where its values are now…");
+  const missing = targetProblem(target, analytes) ?? (same ? "It is linked there now: choose another place" : null);
 
   async function relink(why: string) {
     setProblem(null);
     let held: Held = {};
     let uses: string[] = [];
-    // what the new study holds in that arm, read now (never taken as empty): the guard of To do's link table
-    if (target.study && target.study !== NEW && piece.pairs.length) {
-      setChecking(true);
-      try {
-        const card = await fetchResource(client, CARD, { project_id: projectId, type: "study", subject: target.study }, 10_000);
+    let mine = piece;
+    setChecking(true);
+    try {
+      // where its values are now (their subjects and periods), and what the new study holds in that arm, read now (never
+      // taken as empty): the guard of To do's link table
+      mine = pieceOf(now.data ?? await fetchResource(client, CARD, { project_id: projectId, type, subject }, FRESH));
+      if (target.study && target.study !== NEW && mine.pairs.length) {
+        const card = await fetchResource(client, CARD, { project_id: projectId, type: "study", subject: target.study }, FRESH);
         held = { [target.study]: heldBy(card) };
         uses = analytesOf(card);
-      } catch (e) {
-        setProblem(`What that study holds could not be read, so its arms are not checked: nothing was linked. (${e instanceof Error ? e.message : String(e)})`);
-        return;
-      } finally {
-        setChecking(false);
       }
+    } catch (e) {
+      setProblem(`Where its values are now, or what that study holds, could not be read, so its arms are not checked: nothing was linked. (${e instanceof Error ? e.message : String(e)})`);
+      return;
+    } finally {
+      setChecking(false);
     }
-    const clash = collisions([{ row: piece, target }], page!.subjects, held, analytes)[0];
+    const clash = collisions([{ row: mine, target }], page!.subjects, held, analytes)[0];
     if (clash) {
       const text = `${file.name} holds ${clash.example}, which study ${clash.study} has in that arm already: in study ${clash.study} each file needs its own arm. Nothing was linked.`;
       setProblem(text);
       announce(text);
       return;
     }
-    const sent = { ...target, analyte: analyteChoice(target.analyte, analyteChoices(analytes, piece.own.analyte, uses), analytes, piece.own.analyte) };
+    const sent = { ...target, analyte: analyteChoice(target.analyte, analyteChoices(analytes, mine.own.analyte, uses), analytes, mine.own.analyte) };
     const { data, problem: refused } = await decide(() => send("post", ASSIGN, { project_id: projectId }, assignBody(sent, link.targets, why)),
                                                     { refresh: false });
     if (data) {

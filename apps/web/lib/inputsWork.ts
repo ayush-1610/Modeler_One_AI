@@ -207,10 +207,11 @@ export function unifySubjects(delivery: DeliveryPage | null, review: ReviewPage 
     const named = all.filter((g) => row.legacy_groups.includes(g.id) && !taken.has(g.id));
     const same = groups.filter((g) => !taken.has(g.id) && !named.includes(g) && g.kind === row.subject_type
                                     && normLabel(groupLabel(g)) === normLabel(row.label));
-    const joined = [...named, ...same];
+    // the card is known by the group of its own name, else by its own (a joined group of another name never renames it);
+    // that group comes first, so its answers are the first suggestions (an arm's sheet says the arm's number of subjects)
+    const exact = [...named, ...same].find((g) => g.kind === row.subject_type && normLabel(groupLabel(g)) === normLabel(row.label));
+    const joined = exact ? [exact, ...[...named, ...same].filter((g) => g !== exact)] : [...named, ...same];
     joined.forEach((g) => taken.add(g.id));
-    // the card is known by the group of its own name, else by its own (a joined group of another name never renames it)
-    const exact = joined.find((g) => g.kind === row.subject_type && normLabel(groupLabel(g)) === normLabel(row.label));
     const path: Subject["path"] = row.confirm_on === "delivery" ? "delivery" : joined.length ? "sheet-form" : "read-only";
     const c = row.confirmation;
     // signed and loaded on the delivery, or confirmed with the sheet form (whichever is confirmed first is what loads)

@@ -53,7 +53,10 @@ Findings OWN-1, INT-4, OWN-11, INT-5, OWN-4, INT-9, OWN-3, INT-10 and the owner-
   of each (230-23-REF and 230-23-TEST on 230-23; the owner job's OJ-101-REF, OJ-101-TEST on OJ-101 and its "Study lab"
   on OJ-102; a dissolution sheet on the product its file was linked to). The card joins them: no separate study row,
   Missing row, individual row or Confirm, and no "Sheets not linked to a product yet" entry; their reading stays under
-  "How the files were read". A card keeps the key of its own name (no longer the first joined group's).
+  "How the files were read". A card keeps the key of its own name (no longer the first joined group's), and that
+  group comes first, so the sheet reader's first suggestion is the study's own (an arm's sheet says the arm's number of
+  subjects). The delivery page reads the client review's groups for this without the documents' offers
+  (`client_review.groups(ws, offers=False)`), so it does not read every document on each poll.
 - **OWN-3: "in the model, confirmed" only when it is.** `loaded_elsewhere` now lists the same source's datasets a person
   accepted; `proposed_elsewhere` (new, on the page's rows and on the card) those only read with the sheet form. The card
   says "read with the sheet form, not confirmed yet: whichever is confirmed first is what loads" for those.
@@ -67,7 +70,10 @@ Findings OWN-1, INT-4, OWN-11, INT-5, OWN-4, INT-9, OWN-3, INT-10 and the owner-
   listed and replaced; a linked file's sheet-form group named on its study; loaded vs proposed. Web units
   (`inputs-work.spec.ts`): the guard's rule, one analyte per name, the relink row, conflict labels, the join. e2e:
   "Link elsewhere…" on the 9-file seed (`inputs-task-first.spec.ts`); the owner's job checks that no sheet-form card is
-  left beside OJ-101 and OJ-102 (`inputs-owner-job.spec.ts`).
+  left beside OJ-101 and OJ-102 (`inputs-owner-job.spec.ts`). Its check that To do "falls" after the signature is now
+  exact: OJ-101's confirm row goes, and what the loading adds is the /inputs to-do of the studies now in the model (the
+  demographics of the study and each arm, the tablet studies' formulation: its gaps 1 and 11). The fall it saw before
+  came from the signature settling the arms' double-counted sheet-form rows, which no longer exist.
 - **Why:** the final review found a person's links silently dropped, the arm guard bypassed, two analytes of one name,
   no way to correct a link, and the same file asked and counted twice; each makes the page unusable for the owner's job.
 - **Impact:** the links a person makes now hold through layout corrections and can be changed; the same data is asked

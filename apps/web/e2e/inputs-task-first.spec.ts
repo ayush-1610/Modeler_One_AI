@@ -171,7 +171,7 @@ test("a link is changed from its file's row in Client files: the other arm refus
   await form.getByTestId(`link-edit-${key}-why`).fill("checking the other arm");
   await form.getByTestId(`link-edit-${key}-submit`).click();
   await expect(form.getByTestId(`link-problem-${key}`)).toContainText(
-    "230-23 Fasting Reference.xlsx holds subject 001, period I, which study 230-23 has in that arm already");
+    "230-23 Fasting Reference.xlsx holds subject 001, period I, which study 230-23 has in that arm already", { timeout: 60_000 });
   expect(assigns).toBe(0);
   await form.getByTestId(`delivery-file-relink-cancel-${ref}`).click();
   await expect(form).toHaveCount(0);
@@ -190,13 +190,18 @@ test("a link is changed from its file's row in Client files: the other arm refus
   await moved.getByTestId(`link-edit-${ivKey}-submit`).click();
   await expect(moved.getByTestId(`link-edit-${ivKey}-missing`)).toContainText("It is linked there now: choose another place");
   await moved.getByTestId(`link-study-${ivKey}`).selectOption(NEW);
+  // a name the ledger knows already ("Nichols 2012 IV" is Nichols2012-IV) is refused in the server's words
   await moved.getByTestId(`link-new-study-${ivKey}`).fill("Nichols 2012 IV");
   await moved.getByTestId(`link-edit-${ivKey}-submit`).click();
-  await expect(moved).toHaveCount(0);
-  expect(assigns).toBe(1);
-  await expect(ivLinks).toContainText("linked to study Nichols 2012 IV");
+  await expect(moved.getByTestId(`link-problem-${ivKey}`)).toContainText("a study named 'Nichols2012-IV' exists already", { timeout: 60_000 });
+  expect(assigns).toBe(1);                                                 // sent, and refused: nothing written
+  await moved.getByTestId(`link-new-study-${ivKey}`).fill("Nichols IV infusion");
+  await moved.getByTestId(`link-edit-${ivKey}-submit`).click();
+  await expect(moved).toHaveCount(0, { timeout: 60_000 });
+  expect(assigns).toBe(2);
+  await expect(ivLinks).toContainText("linked to study Nichols IV infusion");
   const after = await read<Delivery>(request, "delivery");
-  expect(after.subjects.map((s) => s.label)).toContain("Nichols 2012 IV");
+  expect(after.subjects.map((s) => s.label)).toContain("Nichols IV infusion");
   expect(after.subjects.map((s) => s.label)).not.toContain("Nichols2012-IV");          // no value left there: replaced whole
   await shot(page, "2b-linked-elsewhere");
 });

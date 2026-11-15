@@ -331,6 +331,10 @@ test("the owner's job: files uploaded, layouts checked, values linked with arms,
   // --- confirmed and signed: Next says so; the dialog names what is signed; the DEV sign-in carries the step-up ---
   const before = await agreed(page);
   expect(studiesInModel(before)).toBe(0);
+  // the /inputs to-do as it stands before the signature (what it lists of the studies once they are in the model, below)
+  const inputsTodo = async () => (await read<{ todo: { kind: string; target: string }[] }>(request, "inputs")).todo
+    .filter((t) => !["confirm", "check", "datasets"].includes(t.kind)).map((t) => `${t.kind}:${t.target}`);
+  const todoBefore = await inputsTodo();
   await expect(next).toHaveText(`Next: Confirm study ${seed.study}`);
   await next.click();
   await card.getByTestId(`delivery-confirm-${study}`).click();
@@ -357,10 +361,18 @@ test("the owner's job: files uploaded, layouts checked, values linked with arms,
   await expect(page.getByTestId("status-in-model")).toContainText("In the model: 3 studies");
   const after = await agreed(page);
   expect(studiesInModel(after)).toBe(3);                                     // the status line's "In the model" rose
-  // To do: fallen to what remains, and nothing of OJ-101's signature is open there
+  // To do: what remains, and nothing of OJ-101's signature is open there. OJ-101's confirm row is gone; what the loading
+  // adds is the /inputs to-do of the studies now in the model, two known gaps of their own (CHANGELOG, this job's gaps
+  // 1 and 11): the demographics of the study and each arm (held back at loading) and the tablet studies' formulation (no
+  // product came in this delivery). Until the linked files' sheet-form groups joined OJ-101 (review OWN-4), the signature
+  // also settled their double-counted rows, so the total happened to fall
   await page.getByTestId("tab-todo").click();
   const left = await agreed(page);
-  expect(open(left)).toBeLessThan(open(before));
+  const added = (await inputsTodo()).filter((t) => !todoBefore.includes(t));
+  expect(added.filter((t) => !/^(demographics|formulation):/.test(t))).toEqual([]);
+  expect(added.filter((t) => t.startsWith("demographics:")).sort())
+    .toEqual([`demographics:${seed.study}`, `demographics:${seed.study}-Reference`, `demographics:${seed.study}-Test`]);
+  expect(open(left)).toBe(open(before) - 1 + added.length);
   for (const id of [`todo-row-fact:study:${seed.study}`, `todo-row-need:study:${seed.study}:REQ-sys.demographics`]) {
     await expect(page.getByTestId(id)).toHaveCount(0);
   }

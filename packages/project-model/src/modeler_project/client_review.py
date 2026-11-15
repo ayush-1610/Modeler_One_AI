@@ -265,7 +265,7 @@ def _demographics(gid: str, members: list[ObservedDataset], study_facts: list[di
     return issues
 
 
-def _study_groups(ws: Workspace, selections: dict[str, Any]) -> list[dict[str, Any]]:
+def _study_groups(ws: Workspace, selections: dict[str, Any], *, offers: bool = True) -> list[dict[str, Any]]:
     from modeler_project.client_data import document_facts, document_links
     from modeler_project.dataset_register import datasets
 
@@ -281,7 +281,7 @@ def _study_groups(ws: Workspace, selections: dict[str, Any]) -> list[dict[str, A
     # what a waiting sheet lacks, offered from the project's documents, Start and the data plan (build L)
     from modeler_project.study_offers import context as offer_context
 
-    offer_ctx = offer_context(ws) if waiting else None
+    offer_ctx = offer_context(ws) if waiting and offers else None
     canon = _canonical([*(str(d.study.get("study_id", d.id)) for d in client), *(str(f["study_id"]) for f in doc_facts),
                         *(d["study_id"] for d in waiting)], aliases)
     by_study: dict[str, list[ObservedDataset]] = defaultdict(list)
@@ -662,10 +662,12 @@ def _group(gid: str, kind: GroupKind, title: str, items: list[dict[str, Any]], f
             "confirmed_at": confirmation.get("at") if confirmation and confirmed else None}
 
 
-def groups(ws: Workspace) -> list[dict[str, Any]]:
-    """Every group of client data, with its items, its facts, and its conflicts and questions (settled or open)."""
+def groups(ws: Workspace, *, offers: bool = True) -> list[dict[str, Any]]:
+    """Every group of client data, with its items, its facts, and its conflicts and questions (settled or open).
+    `offers` False: a waiting sheet's needs are not offered from the project's documents (a caller that reads only the
+    groups' ids and items, as the delivery's subjects do, skips reading the documents)."""
     selections = record(ws)["selections"]
-    return (_study_groups(ws, selections) + _product_groups(ws, selections) + _sheet_groups(ws)
+    return (_study_groups(ws, selections, offers=offers) + _product_groups(ws, selections) + _sheet_groups(ws)
             + _compound_groups(ws, selections))
 
 

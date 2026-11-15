@@ -35,7 +35,7 @@ from dataclasses import dataclass
 from modeler_project.intake_records import Assignment
 from modeler_project.intake_store import ChainEntry, IntakeStore
 from modeler_project.ledger_entities import now
-from modeler_project.ledger_models import ExtractRef, Fact, StatusChange, ValueState
+from modeler_project.ledger_models import ExtractRef, ValueState
 
 CARRIED = "carried over from {} after a re-read"
 
@@ -55,18 +55,19 @@ class _Logs:
 
     def __init__(self, store: IntakeStore, facts: list[ChainEntry] | None = None):
         self.extracts: dict[str, ExtractRef] = {}
-        self.facts: dict[str, Fact] = {}
-        self.status: dict[str, StatusChange] = {}               # target -> its last status line
+        # a fact's id -> (what it supersedes, whether it names a study or a product): read from its line as written
+        self.facts: dict[str, tuple[str | None, bool]] = {}
+        self.status: dict[str, tuple[str, str]] = {}            # target -> its last status line's (status, by)
         for line in store.facts.entries() if facts is None else facts:
+            body = line.body
             if line.kind == "extract":
-                ref = ExtractRef.model_validate(line.body)
+                ref = ExtractRef.model_validate(body)
                 self.extracts[ref.id] = ref
             elif line.kind == "fact":
-                fact = Fact.model_validate(line.body)
-                self.facts[fact.id] = fact
+                entity = body.get("entity") or {}
+                self.facts[str(body["id"])] = (body.get("supersedes"), bool(entity.get("study") or entity.get("product")))
             elif line.kind == "status":
-                change = StatusChange.model_validate(line.body)
-                self.status[change.target] = change
+                self.status[str(body["target"])] = (str(body.get("status")), str(body.get("by")))
         self.assignments = [Assignment.model_validate(e.body) for e in store.review.entries("assignment")]
         # value id -> (the index of the last assignment naming it or its extract, that assignment)
         self.in_force: dict[str, tuple[int, Assignment]] = {}
@@ -82,7 +83,7 @@ class _Logs:
 
     def excluded_by_person(self, item: str) -> bool:
         change = self.status.get(item)
-        return change is not None and change.status == "excluded" and change.by != "code"
+        return change is not None and change[0] == "excluded" and change[1] != "code"
 
     def names_subject(self, item: str) -> bool:
         """Whether the item's own reading names a study or a product (before any assignment)."""
@@ -90,7 +91,7 @@ class _Logs:
         if ref is not None:
             return bool(ref.studies or ref.products)
         fact = self.facts.get(item)
-        return fact is None or bool(fact.entity.study or fact.entity.product)
+        return fact is None or fact[1]
 
     def own(self, item: str) -> int:
         """The index of the latest assignment in force on one of the item's values (-1: none)."""
@@ -102,11 +103,11 @@ class _Logs:
         ref = self.extracts.get(item)
         if ref is None:
             out, seen = [], {item}
-            fact = self.facts.get(item)
-            while fact is not None and fact.supersedes and fact.supersedes not in seen and fact.supersedes in self.facts:
-                seen.add(fact.supersedes)
-                out.append(fact.supersedes)
-                fact = self.facts[fact.supersedes]
+            older = self.facts[item][0] if item in self.facts else None
+            while older and older not in seen and older in self.facts:
+                seen.add(older)
+                out.append(older)
+                older = self.facts[older][0]
             return out
         of_file = {r.id: r for r in self.extracts.values() if r.file_sha256 == ref.file_sha256}
         joined: dict[str, set[str]] = {i: set() for i in of_file}

@@ -402,7 +402,7 @@ def subjects(ws: Workspace, *, reader: LedgerReader) -> list[dict[str, Any]]:
     if any(row["loaded_elsewhere"] or row["proposed_elsewhere"] for row in rows) or owned:
         from modeler_project.client_review import groups as review_groups  # read once, and only then
 
-        found = review_groups(ws)
+        found = review_groups(ws, offers=False)
         group_of: dict[str, list[str]] = {}
         for group in found:
             for item in group["items"]:
