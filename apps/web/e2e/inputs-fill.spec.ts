@@ -89,7 +89,10 @@ test("loose values are linked with new arms and an analyte, a table set aside is
   expect(study.arms.map((a) => a.label)).toEqual(["Reference"]);
   const m1 = delivery.analytes.find((a) => a.label === "M1")!;
   expect(m1).toBeTruthy();
-  await expect(section.getByTestId(`delivery-subject-${study.subject}`)).toContainText("ABC-9");
+  // the study the person named has its card on Clinical studies (plan 2026-11-14 slice 3)
+  await page.getByTestId("tab-studies").click();
+  await expect(page.getByTestId("study-row-study:ABC-9")).toContainText("ABC-9");
+  await page.getByTestId("tab-files").click();
 
   // --- the unread table, marked as not data, then restored with the reason: the page is not read again for it. A
   // file's tables and texts open under its row in the table of files (plan 2026-11-14 slice 2) ---

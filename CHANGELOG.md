@@ -141,6 +141,10 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
       table's head and listed apart only when no table on the card shows it; a profile already drawn on the card is not
       drawn again in "How the files were read"; an empty "Observed data" heading is gone; the delivery's reading of a study
       the project blinds and the delivery does not is withheld in "How the files were read".
+- **Fixed on merge with the API follow-ups:** the facts form cleared every field once the card was read again after a
+  save, so a fact typed into the rows a saved route asks for next (number of subjects, purpose, dosage form) was lost
+  if typed while the card reloaded (seen as an intermittent delivery.spec failure). Only the values that were saved
+  are cleared now, and every field of the facts and demographics forms updates from its latest state.
 - **Why:** the owner, 2026-11-14: the page is repetitive and uncategorized and a person cannot fill what is missing. The
   same study was two cards in two places with contradictory states; the delivery's cards sat in Client files; facts were
   entered as free text one by one; the signer could not see the decisions made on a study. After the review: three

@@ -171,14 +171,14 @@ export function FactsForm({ params, gaps, checks, options, suggestions = {}, rea
               <label className="facts-label" htmlFor={`${r.testId}-control`}>{r.field ? fieldLabel(r.field) : "A fact the study needs"}</label>
               <span id={`${r.testId}-control`} className="facts-input">
                 {!r.field && (
-                  <input type="text" value={fields[k] ?? ""} onChange={(e) => setFields({ ...fields, [k]: e.target.value })} placeholder="the fact"
+                  <input type="text" value={fields[k] ?? ""} onChange={(e) => { const t = e.target.value; setFields((p) => ({ ...p, [k]: t })); }} placeholder="the fact"
                          aria-label="the fact" data-testid={`${r.testId}-field`} />
                 )}
                 <Control row={r} value={values[k] ?? ""} unit={units[k] ?? UNIT_OF[r.field] ?? ""} options={options}
-                         onValue={(v) => setValues({ ...values, [k]: v })} onUnit={(u) => setUnits({ ...units, [k]: u })} />
+                         onValue={(v) => setValues((p) => ({ ...p, [k]: v }))} onUnit={(u) => setUnits((p) => ({ ...p, [k]: u }))} />
                 {offered.map((o, i) => (
                   <button key={`${o.value}-${i}`} type="button" className={`chip-btn${values[k] === o.value ? " on" : ""}`}
-                          onClick={() => setValues({ ...values, [k]: o.value })} data-testid={`${r.testId}-suggest-${i}`}
+                          onClick={() => setValues((p) => ({ ...p, [k]: o.value }))} data-testid={`${r.testId}-suggest-${i}`}
                           title={`What the sheet form read: ${o.from}`}>
                     {valueWord(o.value)} <span className="muted">· the sheet form&apos;s answer</span>
                   </button>
@@ -201,12 +201,15 @@ export function FactsForm({ params, gaps, checks, options, suggestions = {}, rea
       <Why action={filled.length > 1 ? `Save these ${filled.length} facts` : "Save this fact"} label="Where the facts come from" busy={busy}
            disabled={!filled.length} testId={testId} formTestId={`${testId}-reason`} placeholder="where they come from, e.g. the protocol (kept on the audit trail)"
            onSubmit={async (why) => {
+             const sent = Object.fromEntries(filled.map((r) => [key(r), values[key(r)] ?? ""]));
              const ok = await enter(filled.map((r) => {
                const field = r.field || (fields[key(r)] ?? "").trim();
                const unit = (units[key(r)] ?? UNIT_OF[r.field] ?? "").trim();
                return { field, value: typedValue(field, values[key(r)] ?? ""), ...(unit ? { unit } : {}), why };
              }));
-             if (ok) setValues({});
+             // only what was saved is cleared: a fact typed while the card was read again (the rows a saved route
+             // asks for next) is kept
+             if (ok) setValues((p) => Object.fromEntries(Object.entries(p).filter(([k, v]) => sent[k] !== v)));
            }} />
       <Problem text={problem} testId={`${testId}-problem`} />
     </div>
@@ -247,7 +250,7 @@ export function DemographicsForm({ projectId, params, vocabulary, onDone, testId
   const [d, setD] = useState<Record<string, string>>(() => Object.fromEntries(Object.entries(entered)
     .map(([f, v]) => [f, v.value === null ? "" : String(v.value)])));
   const { enter, busy, problem } = useEnterAll(params);
-  const set = (k: string) => (e: { target: { value: string } }) => setD({ ...d, [k]: e.target.value });
+  const set = (k: string) => (e: { target: { value: string } }) => { const t = e.target.value; setD((p) => ({ ...p, [k]: t })); };
   const any = DEMOGRAPHIC_FIELDS.some((f) => (d[f] ?? "").trim());
   const changed = DEMOGRAPHICS.filter((f) => (d[f] ?? "").trim() && (d[f] ?? "").trim() !== String(entered[f]?.value ?? ""));
   const correcting = Object.keys(entered).length > 0;
