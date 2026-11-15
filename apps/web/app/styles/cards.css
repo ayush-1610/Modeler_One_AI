@@ -83,6 +83,14 @@
 .decision-list { list-style: none; margin: 0; padding: 0; display: grid; font-size: 13.5px; }
 .decision-list li { display: grid; gap: 2px; padding: 6px 0; border-top: 1px solid var(--line-soft, var(--line)); }
 .decision-list li:first-child { border-top: 0; }
+/* the clean-up of the delivery's other files, which the signature binds too: folded */
+.decisions-delivery { border-top: 1px solid var(--hairline); padding-top: 6px; margin-top: 4px; }
+.decisions-delivery > summary { cursor: pointer; list-style: none; min-height: 36px; display: flex; align-items: center; gap: 6px;
+  font-size: 13.5px; color: var(--ink-dim); }
+.decisions-delivery > summary::-webkit-details-marker { display: none; }
+.decisions-delivery[open] > summary .todo-caret::before { content: "▾"; }
+/* what changed after a confirmation was signed */
+.card-changed-since { display: grid; gap: 4px; margin-top: 8px; font-size: 13.5px; }
 
 /* Clinical studies: the client's studies by design, a row opening on its card */
 .studies-list { display: grid; gap: 10px; margin: 0 0 20px; min-width: 0; }

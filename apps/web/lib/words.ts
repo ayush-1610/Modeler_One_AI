@@ -305,3 +305,22 @@ export function whenText(iso: string | null | undefined): string {
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getUTCDate()} ${month} ${d.getUTCFullYear()}, ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
 }
+
+/** A decision someone made already, as a 409 `CONFLICT` names it (`detail.decided`): who, when, why, and where (a
+ *  "not data" decision) or the check (an accept as is). */
+type Earlier = { id?: string; by?: string; at?: string; why?: string; where?: string; check_id?: string };
+
+/** The 409 of a decision someone made already, in a person's words (final review INT-11): "dev-user marked sheet
+ *  Summary, cell A10 as not data on 15 Nov 2026, 10:21: “a note about re-assays”. Restore it to decide again." Null
+ *  when the refusal names no earlier decision (its own words are shown then). */
+export function alreadyDecidedText(decided: unknown): string | null {
+  if (!Array.isArray(decided) || !decided.length) return null;
+  const said = (decided as Earlier[]).map((d) => {
+    const why = d.why ? `: “${d.why}”` : "";
+    const when = d.at ? ` on ${whenText(d.at)}` : "";
+    return d.where !== undefined ? `${d.by ?? "Someone"} marked ${placeText(d.where)} as not data${when}${why}.`
+      : `${d.by ?? "Someone"} accepted it as is${when}${why}.`;
+  });
+  const marked = (decided as Earlier[]).some((d) => d.where !== undefined);
+  return `${said.join(" ")} ${marked ? "Restore it to decide again." : "The card is read again to show it."}`;
+}

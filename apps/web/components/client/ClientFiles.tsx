@@ -57,9 +57,10 @@ export function FileTagLine({ file, onRetag }: { file: ClientFile; onRetag: Reta
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 type Category = Schema<"Classification">["category"];
 
-/** A sheet's line: what it holds, whether it was read, and the button that reads it. */
-function SheetLine({ t, read, proposed, byCode, reading, onRead, onClassify }: {
-  t: Triage; read: number | undefined; proposed: boolean; byCode: string[] | null; onRead: () => void;
+/** A sheet's line: what it holds, whether it was read, and the button that reads it; a sheet a blinded study's values
+ *  were read from (D-15) is not read or shown until the plan is signed (the API refuses it, 409 BLINDED). */
+function SheetLine({ t, read, proposed, byCode, reading, onRead, onClassify, blinded = false }: {
+  t: Triage; read: number | undefined; proposed: boolean; byCode: string[] | null; onRead: () => void; blinded?: boolean;
   reading: NonNullable<ClientFile["readings"]>[string] | undefined;
   onClassify: (category: Category, reason: string) => Promise<string | null>;
 }) {
@@ -93,14 +94,18 @@ function SheetLine({ t, read, proposed, byCode, reading, onRead, onClassify }: {
                    read by {reading?.by === "code" ? "code" : "the reading agent"} · {byCode.length} to give on its card</span>
                : proposed ? <span className="chip brand" title="checked by code; open it, check it and save">reading proposed</span>
                : data ? <span className="chip medium">not read yet</span> : <span className="muted fs-12">no data to read</span>}</td>
-      <td className="num"><button className={`btn${!read && data ? " primary" : ""}`} onClick={onRead}>{read ? "Read again" : "Read this sheet"}</button></td>
+      <td className="num">{blinded
+        ? <span className="chip neutral" data-testid={`sheet-blinded-${t.sheet}`}>blinded until the plan is signed</span>
+        : <button className={`btn${!read && data ? " primary" : ""}`} onClick={onRead}>{read ? "Read again" : "Read this sheet"}</button>}</td>
     </tr>
   );
 }
 
 /** A client PDF or Word file (I4): the pages code found holding project data, each opening in the centre peek with its
  * line highlighted; the reading agent's button; and what its last reading proposed and what code refused. What it
- * proposed waits on Inputs, in its study or product, until a person confirms it. */
+ * proposed waits on Inputs, in its study or product, until a person confirms it. A file that holds a value of a study
+ * the delivery blinds (D-15) shows no page's line and no peek: the API withholds the line and masks the page's digits,
+ * as the delivery withholds the file's captions (final review INT-3). */
 function DocumentReading({ projectId, file, agents, running, agentReading, act }: {
   projectId: string; file: ClientFile; agents: boolean; running: boolean; agentReading: boolean; act: Act;
 }) {
@@ -127,9 +132,14 @@ function DocumentReading({ projectId, file, agents, running, agentReading, act }
         <ul className="doc-inventory">
           {items.map((i) => (
             <li key={`${i.page}-${i.holds}`} data-testid={`inventory-${i.page}-${i.holds}`}>
-              <span className="chip neutral">p. {i.page}</span> {i.label} <span className="muted">“{i.line}”</span>
-              <PeekButton projectId={projectId} label={`${file.file}, p. ${i.page}`}
-                          source={{ doc_sha256: file.sha256, page: i.page, quote: i.line, title: file.file, locator: `p. ${i.page}` }} />
+              <span className="chip neutral">p. {i.page}</span> {i.label}{" "}
+              {file.blinded || i.line === null
+                ? <span className="delivery-withheld-cell" data-testid={`inventory-withheld-${i.page}-${i.holds}`}>withheld (blinded)</span>
+                : <>
+                    <span className="muted">“{i.line}”</span>
+                    <PeekButton projectId={projectId} label={`${file.file}, p. ${i.page}`}
+                                source={{ doc_sha256: file.sha256, page: i.page, quote: i.line, title: file.file, locator: `p. ${i.page}` }} />
+                  </>}
             </li>
           ))}
         </ul>
@@ -210,7 +220,7 @@ function FileCard({ projectId, file, agents, running, agentReading, act, onRetag
             {file.triage.map((t) => (
               <SheetLine key={t.sheet} t={t} read={read.get(t.sheet)} proposed={Boolean(file.readings?.[t.sheet])}
                          byCode={file.readings?.[t.sheet]?.needs?.length ? file.readings[t.sheet].needs ?? null : null}
-                         reading={file.readings?.[t.sheet]}
+                         reading={file.readings?.[t.sheet]} blinded={(file.blinded_sheets ?? []).includes(t.sheet)}
                          onRead={() => setReading(reading === t.sheet ? null : t.sheet)}
                          onClassify={(category, reason) => act(() => send(
                            "post", "/api/v1/projects/{project_id}/client-data/{sid}/sheets/{sheet}:classify",

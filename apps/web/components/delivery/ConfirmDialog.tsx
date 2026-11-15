@@ -19,8 +19,8 @@ import { BLOCKER_LABEL, KIND_LABEL, Problem, WITHHELD, levelText, plural, useDec
 
 // what holds a signature, in the card's words (the delivery's clean-up is one of them)
 const BLOCKER_WORD: Record<string, string> = {
-  SILENT_LOSS: "Numbers not read in its files' tables", OUTSIDE_NUMBERS: "Loose numbers in its files",
-  UNASSIGNED_VALUES: "Values in its files not linked to a study", SCHEMA_GAP: "Facts not stated", CHECK_FAILED: "Checks to decide",
+  SILENT_LOSS: "Numbers not read in the delivery's tables", OUTSIDE_NUMBERS: "Loose numbers in the delivery's files",
+  UNASSIGNED_VALUES: "Values in the delivery's files not linked to a study", SCHEMA_GAP: "Facts not stated", CHECK_FAILED: "Checks to decide",
   LINK_UNCONFIRMED: "A link between files to decide", SPOT_CHECK: "The spot check",
 };
 
@@ -109,6 +109,12 @@ export function ConfirmDialog({ projectId, subject, onClose }: { projectId: stri
             <dd data-testid="delivery-confirm-mappings">{waiting.map((m) => `${tableKindText(m.kind)}, version ${m.version} (${m.status === "rejected" ? "rejected" : "to approve"})`).join("; ")}</dd>
           </>
         )}
+        <dt>Decisions</dt>
+        <dd data-testid="delivery-confirm-decisions">
+          {plural(subject.decisions.filter((d) => d.scope === "subject").length, "decision")} made on it
+          {subject.decisions.some((d) => d.scope === "delivery")
+            ? `, and ${plural(subject.decisions.filter((d) => d.scope === "delivery").length, "decision")} on the clean-up of the delivery's other files`
+            : ""}{" "}(each listed on the card, with who, when and why)</dd>
         <dt>Intake rules</dt>
         <dd data-testid="delivery-confirm-rules">v{subject.rules.version}, {subject.rules.status}
           {subject.rules.status === "UNVERIFIED" && <span className="muted"> (SME sign-off pending)</span>}</dd>

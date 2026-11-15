@@ -37,6 +37,8 @@ from modeler_api.deps import (
     Writer,
     file_tag_view,
     impact_view,
+    model_risk,
+    project_record,
     relates_to_form,
     tags_form,
     version_view,
@@ -60,7 +62,7 @@ from modeler_api.views.brief import (
 )
 from modeler_intake.documents import DocumentError
 from modeler_intake.file_tags import TagKind
-from modeler_project import ArtifactKind, ProjectStore, Workspace
+from modeler_project import ArtifactKind, ProjectStore, Workspace, intake_decisions, intake_review
 from modeler_project.brief import (
     APPLICATIONS,
     DEFAULT_INTERNAL_TARGET_PE,
@@ -82,6 +84,7 @@ from modeler_project.documents import DocumentLibrary, LibraryEntry, LibraryErro
 from modeler_project.evidence import SourceType
 from modeler_project.evidence_register import items as evidence_items
 from modeler_project.feasibility import pathway_suggestions, pathways_not_named, scope_gates
+from modeler_project.ledger_view import LedgerView
 from modeler_project.library import library_rows
 from modeler_project.requirements import RequirementMatrix, application_additions, client_request
 from modeler_project.risk_draft import draft_risk
@@ -422,7 +425,19 @@ def document_page(project_id: str, sha256: str, page: int, principal: Reader, st
     if version is None or text is None:
         raise HTTPException(status_code=404, detail="no such document page")
     record = document_record(version)
-    return envelope({"sha256": sha256, "name": record.name, "page": page, "n_pages": record.n_pages, "text": text})
+    # a file that holds a blinded study's values: every digit of its pages is masked, as the delivery's source view masks
+    # a text of such a file (D-15; final review INT-3)
+    blinded = sha256 in _delivery_blinded_files(ws)
+    return envelope({"sha256": sha256, "name": record.name, "page": page, "n_pages": record.n_pages,
+                     "text": intake_decisions.mask(text) if blinded else text, "blinded": blinded})
+
+
+def _delivery_blinded_files(ws: Any) -> set[str]:
+    """The files that hold a value of a study the delivery blinds now (`intake_decisions.blinded_files`)."""
+    if not intake_pipeline_jobs.enabled():
+        return set()
+    hidden = intake_review.blinded_subjects(ws, project_record(ws), model_risk(ws))
+    return intake_decisions.blinded_files(LedgerView(ws), hidden) if hidden else set()
 
 
 @router.get("/projects/{project_id}/documents/{sha256}/figures", **answers(DocumentFigures))

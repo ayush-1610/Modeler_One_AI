@@ -36,9 +36,11 @@ from modeler_api.deps import (  # noqa: F401 - re-exported: tests override proje
 from modeler_api.responses import answers, envelope
 from modeler_api.views.common import ImpactView, VersionView
 from modeler_api.views.project import Artifacts, AuditTrail, BlindingView, History, StaleArtifacts, Steps
-from modeler_project import ArtifactKind, ArtifactRef
+from modeler_project import ArtifactKind, ArtifactRef, intake_decisions, intake_review
 from modeler_project import blinding as blind
 from modeler_project.datasets import ObservedDataset
+from modeler_project.intake_store import IntakeStore
+from modeler_project.ledger_view import LedgerView
 from modeler_project.steps import project_steps
 from modeler_storage.records import BlindingChoice, ProjectRecord
 
@@ -124,13 +126,31 @@ def get_audit(project_id: str, principal: Reader, store: StoreDep, limit: int = 
     prefix = f"{project_id}/"
     events = [r for r in log.records() if r.event.resource_id.startswith(prefix) or r.event.resource_id == project_id]
     broken = log.verify()
+    masked = _blinded_intake(ws)
+
+    def reason(event: Any) -> str | None:
+        """The event's reason as the viewer may read it: an intake decision about a blinded study or a file that
+        holds one's values has its digits masked while the study is blinded (D-15; the delivery's own rule). The
+        chain keeps the reason as written: `chain_verifies` is computed on it."""
+        hidden = event.resource_type == "intake" and event.reason and event.resource_id.removeprefix(prefix) in masked
+        return intake_decisions.mask(event.reason) if hidden else event.reason
+
     return envelope({
         "chain_verifies": broken is None, "first_broken_index": broken,
         "events": [{"seq": r.event.seq, "occurred_at": r.event.occurred_at, "actor": r.event.actor,
                     "action": r.event.action, "resource_type": r.event.resource_type, "resource_id": r.event.resource_id,
-                    "before": r.event.before, "after": r.event.after, "reason": r.event.reason, "row_hash": r.row_hash}
+                    "before": r.event.before, "after": r.event.after, "reason": reason(r.event), "row_hash": r.row_hash}
                    for r in reversed(events[-max(1, min(limit, 2000)):])],
     })
+
+
+def _blinded_intake(ws: Any) -> set[str]:
+    """The intake events whose reason is masked now (`intake_decisions.blinded_audit`): none while nothing is blinded,
+    and none asked for in a project the intake pipeline never wrote to."""
+    if IntakeStore(ws).base is None or not IntakeStore(ws).base.exists():  # type: ignore[union-attr]
+        return set()
+    hidden = intake_review.blinded_subjects(ws, project_record(ws), model_risk(ws))
+    return intake_decisions.blinded_audit(ws, reader=LedgerView(ws), hidden=hidden) if hidden else set()
 
 
 # --- blinding (D-15): the views live in modeler_api.deps ------------------------------------------------------------

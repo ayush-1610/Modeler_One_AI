@@ -304,6 +304,9 @@ class ReviewGroup(View):
     open: int
     confirmed_by: str | None
     confirmed_at: str | None
+    # a study or product the delivery blinds (D-15): its facts' values withheld, the digits of its items, options and
+    # notes masked, a draft's answers and offers left out; it is not finished or confirmed until the MAP is signed
+    blinded: bool
 
 
 class ClientReviewPage(View):

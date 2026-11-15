@@ -141,6 +141,16 @@ class ReviewError(ValueError):
         self.code = code
 
 
+class AlreadyDecided(ReviewError):
+    """CONFLICT: someone decided this already (two reviewers at once, or a page that was not read again). `decided`
+    names each decision in force: `id`, `by`, `at`, `why`, and `where` (the place a "not data" decision covers) or
+    `check_id` (an override), so the page says who decided, when and why instead of the line's id."""
+
+    def __init__(self, message: str, decided: Sequence[dict[str, str]]):
+        super().__init__("CONFLICT", message)
+        self.decided = [dict(d) for d in decided]
+
+
 class ConfirmationRefused(ReviewError):
     """The subject cannot be confirmed yet: `blockers` says why (each with its code and detail)."""
 
@@ -230,6 +240,11 @@ def _delivery_files(store: IntakeStore, values: Iterable[ValueState]) -> list[st
     shas = {v.file_sha256 for v in values if v.file_sha256}
     shas |= {f.sha256 for f in _file_lines(store) if f.delivery in deliveries}
     return sorted(shas)
+
+
+def delivery_files(ws: Workspace, values: Iterable[ValueState]) -> list[str]:
+    """The files of a subject's deliveries (`_delivery_files`): what its card's coverage and its signature bind."""
+    return _delivery_files(IntakeStore(ws), values)
 
 
 def _coverages(store: IntakeStore, shas: Iterable[str]) -> list[FileCoverage]:
@@ -471,13 +486,26 @@ def card(ws: Workspace, subject_type: SubjectType, subject: str, *, reader: Ledg
 
 def override(ws: Workspace, *, subject: str, check_id: str, why: str, by: str) -> Override:
     """Clear a failed check of a subject with a reason (never a schema gap, a conflict or a missing required item:
-    `scorecard` ignores an override of those). One `override` line, one `intake.override` event."""
+    `scorecard` ignores an override of those). One `override` line, one `intake.override` event. Decided under the
+    review log's lock: a check of the subject someone accepted as is already is refused (`AlreadyDecided`, naming who,
+    when and why), and nothing is written: two reviewers at once, or a page not read again, get one override and a 409."""
     why = _why(why, "an override")
     _id("check", check_id, "the check")
-    _kind, subject = _any_subject(LedgerView(ws), subject)
+    reader = LedgerView(ws)
+    _kind, subject = _any_subject(reader, subject)
     store = IntakeStore(ws)
-    entry = store.review.append("override", lambda seq: Override(
-        id=f"ov-{seq}", subject=subject, check_id=check_id, why=why, by=by, at=now()).model_dump(mode="json"))
+
+    def decide(entries: list[ChainEntry]) -> list[tuple[str, Any]]:
+        earlier = [Override.model_validate(e.body) for e in entries if e.kind == "override"
+                   and e.body.get("check_id") == check_id and _same_subject(reader, _kind, subject, str(e.body.get("subject")))]
+        if earlier:
+            first = earlier[0]
+            raise AlreadyDecided(f"already accepted as is by {first.by} at {first.at} ({first.id}): {first.why}",
+                                 [{"id": o.id, "by": o.by, "at": o.at, "why": o.why, "check_id": o.check_id} for o in earlier])
+        return [("override", lambda seq: Override(
+            id=f"ov-{seq}", subject=subject, check_id=check_id, why=why, by=by, at=now()).model_dump(mode="json"))]
+
+    (entry,) = store.review.append_if(decide)
     record = Override.model_validate(entry.body)
     store.audit(actor=by, action="intake.override", resource_id=record.id,
                 after={"override": record.id, "check_id": check_id, "row_hash": entry.hash}, reason=why)
@@ -841,13 +869,18 @@ def exclude_regions(ws: Workspace, *, file_sha256: str, regions: Sequence[str], 
         raise ReviewError("CONFLICT", "the file's source model is not cached: run the file first, then decide")
     listed = tuple(dict.fromkeys(regions))
     in_force = _decided(doc, listed, scope, "excludes", note="(a table's numbers leave silent loss only through scope regions)")
+    wheres = {r.id: r.where for r in doc.regions}
+
+    def place_of(text: str) -> str:
+        """Where a listed region or outside item is in the file (a region's `where`, an item's locator)."""
+        return text if scope == "outside" else wheres.get(text, text)
 
     def decide(entries: list[ChainEntry]) -> list[tuple[str, Any]]:
-        already = [(text, found[-1].id) for text, found in in_force(_decisions_of(entries, file_sha256)).items() if found]
+        already = [(text, found[-1]) for text, found in in_force(_decisions_of(entries, file_sha256)).items() if found]
         if already:
-            raise ReviewError("CONFLICT", "already marked as not data: " + ", ".join(f"{text} by {decision}"
-                                                                                     for text, decision in already)
-                              + " (restore it to decide again)")
+            raise AlreadyDecided("already marked as not data: " + "; ".join(
+                f"{place_of(text)} by {d.by} at {d.at} ({d.id}: {d.why})" for text, d in already) + " (restore it to decide again)",
+                [{"id": d.id, "by": d.by, "at": d.at, "why": d.why, "where": place_of(text)} for text, d in already])
         return [("region", lambda seq: RegionDecision(
             id=f"rd-{seq}", file_sha256=file_sha256, parser_version=doc.parser_version, regions=listed, scope=scope,  # type: ignore[arg-type]
             why=why, by=by, at=now()).model_dump(mode="json", exclude={"restores"}))]
