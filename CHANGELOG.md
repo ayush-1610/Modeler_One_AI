@@ -70,7 +70,8 @@ Findings OWN-1, INT-4, OWN-11, INT-5, OWN-4, INT-9, OWN-3, INT-10 and the owner-
   listed and replaced; a linked file's sheet-form group named on its study; loaded vs proposed. Web units
   (`inputs-work.spec.ts`): the guard's rule, one analyte per name, the relink row, conflict labels, the join. e2e:
   "Link elsewhere…" on the 9-file seed (`inputs-task-first.spec.ts`); the owner's job checks that no sheet-form card is
-  left beside OJ-101 and OJ-102 (`inputs-owner-job.spec.ts`). Its check that To do "falls" after the signature is now
+  left beside OJ-101 and OJ-102, and that the bulk bar offers Exampleamide once and says "as each file says
+  (Exampleamide)" (`inputs-owner-job.spec.ts`). Its check that To do "falls" after the signature is now
   exact: OJ-101's confirm row goes, and what the loading adds is the /inputs to-do of the studies now in the model (the
   demographics of the study and each arm, the tablet studies' formulation: its gaps 1 and 11). The fall it saw before
   came from the signature settling the arms' double-counted sheet-form rows, which no longer exist.

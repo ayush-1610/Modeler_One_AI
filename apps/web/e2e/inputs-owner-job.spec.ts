@@ -184,6 +184,11 @@ test("the owner's job: files uploaded, layouts checked, values linked with arms,
   await expect(bar.getByTestId("bulk-link-bar-count")).toHaveText("2 files picked");
   await bar.getByTestId("bulk-link-one").check();
   await bar.getByTestId("link-study-bulk").selectOption({ label: seed.study });
+  // each file's analyte is an entity of its own, both called Exampleamide: offered once, and "as the file says" names
+  // what the picked files state (review OWN-11, this job's gap 8)
+  const analyte = bar.getByTestId("link-analyte-bulk");
+  await expect(analyte.locator("option").first()).toHaveText("as each file says (Exampleamide)");
+  await expect(analyte.locator("option", { hasText: /^Exampleamide$/ })).toHaveCount(1);
   // each file names Exampleamide, read as an analyte of its own: still one analyte, so the two collide
   await expect(bar.getByTestId("link-collision")).toContainText(
     "OJ-101 Reference.xlsx and OJ-101 Test.xlsx both hold subject 001, period I: in study OJ-101 each file needs its own arm.");

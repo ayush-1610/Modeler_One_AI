@@ -371,7 +371,9 @@ before the next starts.
     comes back filled with its destination and says why (`DeliveryPage.relink`), and the person links it again. Nothing
     is carried into a reading that names a study or product itself, nor from a reading a person marked as not data. A
     link carried is the person's: the arm check is not run on it again. Links lost before this change come back the
-    same way (pre-filled, "read again before links were carried over").
+    same way (pre-filled, "read again before links were carried over"). Checked by the API (a link survives a corrected
+    and approved layout; a partial one comes back) and by the work model's unit checks (the row filled and its words);
+    no browser flow corrects a layout after linking (the owner job approves its layout first, as To do orders it).
   - **The arm guard** is the API's too (409 on values:assign). For "as the file says" the API compares the analyte the
     values carry now (after any earlier link), the web the file's own; both match any analyte when none is stated.
   - **Analytes stay one entity per file** (the ledger resolves an analyte inside its file and compares a study's by
