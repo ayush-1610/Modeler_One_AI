@@ -689,6 +689,7 @@ def _review(ws: Workspace) -> dict[str, Any]:
     withhold = bool(blinding["on"] and not blinding["map_signed"])
     for group in found:   # each dataset and profile as data on its card (build C), as the viewer may see it (D-15)
         group["blinded"] = delivery.group(group)
+        group["blinded_why"] = delivery.reason(group)     # why, in words: its card says it, so a wrong match is seen
         for item in group["items"]:
             if item["kind"] == "dataset" and (d := dataset(ws, item["id"])) is not None:
                 item["data"] = card_points(redact(ws, ArtifactKind.DATASET, d.to_content(), hidden))

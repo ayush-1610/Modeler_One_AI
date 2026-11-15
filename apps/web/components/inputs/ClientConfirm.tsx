@@ -158,8 +158,11 @@ const NOUN: Record<Group["kind"], string> = { study: "study", product: "product"
  *  does not say a fact with the form that asks it), what is to decide, then its one Confirm. `mode` "read": shown for
  *  reference on a card confirmed on the delivery, with no form. `files` sits after the data (the card's "Files and
  *  tables"). */
-export function GroupCard({ projectId, group, run, mode = "confirm", alsoOnDelivery, files, drawn = true, confirmedSaid = false, known }: {
+export function GroupCard({ projectId, group, run, mode = "confirm", alsoOnDelivery, files, drawn = true, confirmedSaid = false, known, why }: {
   projectId: string; group: Group; run: Run; mode?: "confirm" | "read";
+  /** why the card it is on is blinded (`blindedWhy`: the delivery's reason, else the group's own); the group's own when
+   *  it is alone */
+  why?: string | null;
   /** the study or product is also confirmed and signed on the delivery: whichever is confirmed first is what loads */
   alsoOnDelivery?: boolean;
   files?: ReactNode;
@@ -181,7 +184,9 @@ export function GroupCard({ projectId, group, run, mode = "confirm", alsoOnDeliv
   if (group.blinded) {
     // a study or product blinded until the plan is signed (D-15: the delivery's rule or the project's list, one rule):
     // the API withholds what the sheet form read of it and refuses to read or confirm it (409 BLINDED) until then, so
-    // nothing of it is drawn or offered here; one confirmed already stays in the model
+    // nothing of it is drawn or offered here; one confirmed already stays in the model. Why is said (round 4: the card's
+    // reason, else the group's `blinded_why`), so a wrong name match is seen where it is withheld
+    const reason = why ?? group.blinded_why;
     return (
       <article className={`confirm-group ${confirmed ? "confirmed" : "to-confirm"} reading`} data-testid={`group-${group.id}`}
                id={`group-${group.id}`} aria-label={group.title}>
@@ -190,7 +195,8 @@ export function GroupCard({ projectId, group, run, mode = "confirm", alsoOnDeliv
             {confirmed && <span className="chip low">Done</span>}
             <span className="chip neutral">blinded until the plan is signed</span></div>
         </header>
-        <p className="delivery-withheld m-0" data-testid={`group-withheld-${group.id}`}>Withheld: {name} is blinded until the plan is signed.
+        <p className="delivery-withheld m-0" data-testid={`group-withheld-${group.id}`}>Withheld: {name} is blinded until the plan is
+          signed{reason ? `, because ${reason}` : ""}.
           {confirmed ? " It is in the model; what the sheet form read of it is shown once the plan is signed."
             : " What the sheet form read of it is not shown, and it is read and confirmed once the plan is signed."}</p>
       </article>

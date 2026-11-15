@@ -749,7 +749,10 @@ before the next starts.
   those messages go through `readinessText` too, which leaves any other refusal as it came. The Run page passes no
   detail. No other page prints the readiness text: the step bar and To do already say each check in words; the plan's
   stale banner names artifact versions, not checks (left). A check's other ways read as the step bar's ("(add a
-  product on Products and dissolution, or ask the client on To do)"), not two bracketed links.
+  product on Products and dissolution, or ask the client on To do)"), not two bracketed links. *(Round 4: the skeptic
+  found the lever said twice there, in the sentence and in brackets; Review & sign now says the situation and each way
+  once, "no product is here; add a product on Products and dissolution, or ask the client on To do", and only where it
+  fits.)*
 - **Gap 11, the ask that was missing.** A per-product item (`per: solid_product`, today REQ-form.release) is judged per
   product (`study_requirements.product_requirements`), so a tablet study whose delivery names no product had its
   release model asked nowhere. `study_requirements.unnamed_product_items` (unlocked code; the locked templates are read,
@@ -761,8 +764,10 @@ before the next starts.
   is offered for it (the card's route answers only the card's items): the line goes once a product of the delivery has
   values (its own card then asks for its release), a dissolution profile is here or the model holds a formulation.
   **Deviation:** derived from the delivery's studies (the ledger). A study confirmed only with the sheet form, with no
-  product, gets no ask line: its readiness item says to add a product or ask the client, and the client request
-  download (the data plan's `client_request`) asks for a product's release once a product is added. **Not built:** a
+  product, gets no ask line: its readiness item says to add a product or ask the client. *(Corrected in round 4: the
+  client request download (the data plan's `client_request`) already asks for the release model of the product
+  (dissolution) with no product named, as the skeptic found on clientamide-pbpk; and the ask line is derived from the
+  inputs too now, see round 4 below.)* **Not built:** a
   form to give a release by hand (as round 2 recorded). On a copy of the review data the four Clientamide projects
   now ask it for their five solid oral studies (one line, EX-101 and CL-1 to CL-4); the Exampleamide projects, whose
   delivery names products, ask it per product as before.
@@ -773,9 +778,11 @@ before the next starts.
   To do on the line that asks (`at=todo-ask-REQ-form.release`, focused; the group when there is none). The solid study's
   row on Products says "no product here: add the product it used (“Add a product”, above) …, or ask the client" when
   no product (the client's or the proposal's) is here, "no dissolution data for a product here" when products are here
-  without a profile, and "use a product's dissolution profile as its release, above" only when a profile is. The step
-  bar cannot tell these cases apart (it reads the steps only), so it names "add a product" whatever the case; where a
-  product with a profile is here, the area it opens says to use the profile.
+  without a profile, and "use a product's dissolution profile as its release, above" only when a profile is. *(Wrong,
+  corrected in round 4: this note said the step bar cannot tell these cases apart and so names "add a product" whatever
+  the case. It could: the step bar and Review & sign read the steps, and the steps can carry what the project holds. On
+  the owner's review project, whose products have dissolution profiles, "add a product" opened an empty form instead of
+  "Use this profile as the release". Since round 4 the Inputs step carries the lever that fits (see round 4 below).)*
 - **The words:** a product card's done line says the release is said "above" (it is); "fu,inc" is one condition again
   (`bracketed`: a known pair the template writes with a comma and no bracket, `COMMA_CONDITIONS`; either piece alone
   is said whole, since "fu" alone would read as the plasma's fraction unbound and no template has a lone "fu"). The
@@ -816,7 +823,10 @@ before the next starts.
   blinding list names it (study STUDY-1)", "it is entered for external validation on its card", "the project's
   blinding list holds a dataset loaded from it (study …)"), so a wrong match is seen; the To do rows of a blinded
   delivery study say it too ("Blinded until the plan is signed, because …"). Left as it is: the key ignores
-  punctuation, so "230-23" and "23-023" are one study for blinding, as for the join (§2.1).
+  punctuation, so "230-23" and "23-023" are one study for blinding, as for the join (§2.1). *(Round 4: the why was said
+  on delivery-path cards and To do rows only, not on a card confirmed with the sheet form (its visible withheld line),
+  the Clinical studies list's chip or the readings' withheld lines; and a reason that is the list's now ends with why
+  the list holds the study, "…(study STUDY-1): a dataset of it is entered for external validation".)*
 - **Left, not in this group's list:** Review & sign's "Overall Data" still lists the CPF by its ids and PK-Sim's units
   ("bind.fu 0.7", "phys.logp 0.21 Log Units"; round 2's skeptic, outside OWN-8's readiness line). The diagrams beside it
   name the same ids; saying the list in words is for the Review & sign page as a whole. The purpose refusal on the card
@@ -864,3 +874,68 @@ before the next starts.
   waiting for RLD's row to leave To do after its corrected layout was approved and read (the page still showed version
   1's 24 numbers; the API had RLD on version 3 with none); it passed on the rerun. A timing gap in when the page reads
   the delivery again after a re-read, for the speed group.
+
+### Final review fixes round 4: downstream and blinding (2026-11-15; round 3's regression "add a product" named whatever the project holds, blinding scope b, the gap 11 deviation; CHANGELOG "Fixed — final review round 4, downstream and blinding")
+- **The lever follows what the project holds (round 3's regression).** One reading, on the server
+  (`modeler_project.formulation_way`), from the readiness check's problems and what is here: `use_profile` (a
+  dissolution profile read as a curve with a Weibull fit, the rule of the card's "Use this profile as the release";
+  `products`: their products, a product the study names first), `add_dissolution` (products here, from the delivery
+  with values, the dissolution register, the sheet form's compositions and the proposal, none with such a profile),
+  `add_product` (no product at all), `choose` (several formulations, a study naming none); none for the other problems
+  (a formulation not complete, a type the builder does not place, a study record not complete), where only the area is
+  named and To do's item says each problem. It is carried by the Inputs step (`StepRow.formulation`, additive: the step
+  bar and Review & sign read `/steps` already, so no request is added) and by To do's formulation item (`way`, in the
+  untyped `todo`), and said by one pure function (`lib/words.ts` `formulationWays`: what is open, the situation, a
+  sentence, the ways as links) for the step bar, Review & sign, To do's row and item, the Model checks line and
+  Products and dissolution's line per tablet study. `?tab=formulations&release=<product>` opens that product's card at
+  its release, the first control focused ("Use this profile as the release" where one profile can; what to add where
+  none can); a product with no card (the proposal's, a profile of no product) opens Products and dissolution at the
+  profiles of no product, else the proposal's list. The step bar is drawn again when the lever changes (a profile or a
+  product added), not only when the checks do. Inputs no longer reads `/brief` for the lever (round 3 added that read).
+  **Found on the way:** a profile's fit is used as a release only once a person confirmed its product's dissolution
+  data (`client_review.product_confirmed`; the API's 409 otherwise), and on 7bb1 both products with profiles are still
+  to confirm, so "use a product's dissolution profile as its release" would have landed on a button the API refuses.
+  The way carries `ready` (the first product's data confirmed; a confirmed product is offered first): while not, the
+  words say the order ("confirm a product's dissolution data, then use its profile as its release") and the card's
+  release line offers "Confirm its data first", which takes the focus to the product's Confirm. **Left:** a product
+  signed on the delivery whose sheet-form group was never confirmed still has its profile refused (the rule reads the
+  sheet form's confirmation only); the card then sends the person to "Confirm with the sheet form instead". Whether a
+  delivery signature should count for it is for the owner.
+  **Deviation:** the item opens the first product's card and is that card's own work only when one product is named; with
+  several (7bb1: Test 10 mg and Brand 10 mg) the person chooses which product the study used, so no card counts it.
+- **Checked on a copy of the review data:** exampleamide-pbpk-7bb1 (four products, two with profiles still to confirm,
+  two tablet studies with no formulation) gives `use_profile` with Test 10 mg and Brand 10 mg, `ready` false, on
+  `/steps` and on the item, so the step bar reads "a tablet study has no formulation (confirm a product's dissolution
+  data, then use its profile as its release on Products and dissolution)", and in a browser on that copy the link lands
+  on Test 10 mg's card with "Confirm its data first" focused, To do's row and Review & sign say the same, and 231-24's
+  card and list chip say why it is withheld; the other projects (no failing formulation check) give none; the reading
+  costs about 0.1 s on `/steps` and `/inputs`, only while that check fails; the owner-job seed (no product) keeps "(add a product on Products and dissolution, or ask the
+  client)" (e2e). The same in a browser on a seed with products and profiles (e2e `inputs-owner-job`, second test: the
+  link lands on Test 10 mg's card, "Confirm its data first" focused; no empty form opens; confirmed, the card offers
+  "Use this profile as the release" and the step bar says to use it; used, the formulation check is met).
+- **Blinding scope (b), the why wherever a study is withheld.** A client-review group gains `blinded_why` (additive): the
+  delivery's reason for the study it is joined to (by `legacy_groups` or its name), else why the project's blinding list
+  holds the study of its name (`blinding.external_why`: "the plan places it in S5 (external validation)", "the study
+  split proposes it for S5 (external validation), before a plan", "a dataset of it is entered for external
+  validation"). A delivery reason that is the list's ends with the list's own ("the project's blinding list names it
+  (study STUDY-1): a dataset of it is entered for external validation"), so the card says why the list holds the study,
+  not only that it does. The page says it (`blindedWhy`: the card's delivery reason first, else its group's) on a sheet-form
+  card's visible withheld line, under the Clinical studies chip, in the readings' withheld lines and on the sheet-form
+  rows of To do. On 7bb1 the card of 231-24 now says "Withheld: study 231-24 is blinded until the plan is signed,
+  because it is entered for external validation on its card. It is in the model; …", which also makes visible the
+  state round 3's skeptic found there (loaded for building by the sheet form, entered for external validation on the
+  card): **not changed**, an existing state INT-2 the other way round now refuses to create; whether to flag it on the
+  card is for the owner.
+- **Gap 11's deviation closed: the ask on both paths.** With no product here at all (`add_product`), To do's formulation
+  item carries the client request's line for each tablet study it names (`ask`; `study_requirements.unnamed_product_request`,
+  the same item, label and wording as the delivery's `unnamed_product_items`), so a study confirmed with the sheet form
+  only is asked too; the page joins the two (`askLines(delivery, inputs)`: one line per requirement and wording, each
+  study once, by its name as the join compares it). **Left:** the delivery's line still follows its own condition (no
+  product of the delivery with values; a product only the proposal names does not stop it), while the inputs' follows
+  "no product here at all"; where a product is only proposed, the delivery asks for a delivery study and the inputs do
+  not ask for a sheet-form-only one (the step bar then names "add a product's dissolution data, or ask the client",
+  whose line is the group "Ask the client" when none asks).
+- **Owner questions:** the 7bb1 state above (a study loaded for building, entered for external validation later): flag
+  it on the card, or leave it to the plan's split? No other new question.
+- **Not built:** a form to give a release by hand (as rounds 2 and 3 recorded). The Every dataset list's "blinded until
+  the MAP is signed" line (a dataset, not a study card) does not say why; the dataset's purpose is shown beside it.

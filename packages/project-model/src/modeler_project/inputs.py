@@ -885,11 +885,27 @@ def todo(ws: Workspace) -> list[dict[str, Any]]:
             out.append({"kind": kind, "target": sid, "message": detail, "items": [], "dataset_id": dataset_of.get(sid)})
     formulations = checks.get("formulations of solid studies")
     if formulations and not formulations["ok"]:
+        from modeler_project.formulation_way import formulation_way
+        from modeler_project.requirements import RequirementMatrix
+        from modeler_project.study_requirements import unnamed_product_request
+
         proposed = [evidence_view(e) for e in evidence.values() if e.target.startswith("form.") and included(e)]
+        # what gives a tablet study its formulation as the project stands (`way`, the step bar's too: round 4), and, with
+        # no product here at all, what the client is asked for each such study (`ask`: the inputs' side of the delivery's
+        # line, so a study the sheet form loaded is asked too)
+        way = formulation_way(ws, formulations["detail"])
+        ask = []
+        if way is not None and way.way == "add_product":
+            matrix = ws.latest(ArtifactKind.REQUIREMENTS, MAIN)
+            ask = unnamed_product_request(
+                way.studies, brief=ProjectBrief.from_content(brief_version.content) if brief_version is not None else None,
+                matrix=RequirementMatrix.from_content(matrix.content) if matrix is not None else None)
         # its problems one by one as well (`details`): a problem may itself hold "; " (a formulation of a type the builder
         # does not place says which it places), so the page never splits the message
         out.append({"kind": "formulation", "target": "form.*", "message": "; ".join(formulations["detail"]),
-                    "details": list(formulations["detail"]), "items": proposed})
+                    "details": list(formulations["detail"]), "items": proposed,
+                    "way": way.model_dump(mode="json") if way is not None else None,
+                    "ask": [line.model_dump(mode="json") for line in ask]})
     build = checks.get("every planned simulation builds (software)")
     if build and not build["ok"] and not out:
         out.append({"kind": "check", "target": "build", "message": "; ".join(build["detail"]), "items": []})

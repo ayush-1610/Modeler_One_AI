@@ -3228,6 +3228,9 @@ def test_a_study_blinded_only_by_the_projects_list_is_withheld_on_the_sheet_form
     # on the project's list now: withheld as a study the delivery blinds is
     blinded = next(g for g in p.get("client-review").json()["data"]["groups"] if g["id"] == group)
     assert blinded["blinded"] is True and all(f["value"] == "withheld (blinded)" for f in blinded["facts"])
+    # round 4: its card says why, from the list's own reason (no delivery study is there to give one)
+    assert blinded["blinded_why"] == "the project's blinding list names it (study abc-REF): a dataset of it is entered for external validation"
+    assert all(g["blinded_why"] is None for g in p.get("client-review").json()["data"]["groups"] if not g["blinded"])
     for refused in (p.get(f"client-data/{sid}/sheets/Sheet1"), p.post("client-review:confirm", {"group": group}),
                     p.get(f"documents/{_sha(ref)}/raw")):
         assert refused.status_code == 409 and refused.json()["detail"]["code"] == "BLINDED", refused.text
@@ -3393,10 +3396,12 @@ def test_the_projects_list_blinds_a_delivery_study_of_its_name_only_whole_and_th
     propose_dataset(p.ws, listed, actor="u1")
     rows = {s["label"]: s for s in p.page()["subjects"]}
     assert rows["Study 1"]["blinded"] is True
-    assert rows["Study 1"]["blinded_why"] == "the project's blinding list names it (study STUDY-1)"
+    # the reason names the list's own (round 4): why the list holds the study
+    listed_why = "the project's blinding list names it (study STUDY-1): a dataset of it is entered for external validation"
+    assert rows["Study 1"]["blinded_why"] == listed_why
     assert (rows["Study 10"]["blinded"], rows["Study 10"]["blinded_why"]) == (False, None)
     card = p.card(f"delivery/subjects/study/{ids['Study 1']}")
-    assert card["blinded"] is True and card["blinded_why"] == "the project's blinding list names it (study STUDY-1)"
+    assert card["blinded"] is True and card["blinded_why"] == listed_why
     assert p.card(f"delivery/subjects/study/{ids['Study 10']}")["blinded_why"] is None
     # the rule itself: the whole key, never a prefix or a part
     why = review.blinded_why(p.ws, {"blinding": {"on": True}}, None)

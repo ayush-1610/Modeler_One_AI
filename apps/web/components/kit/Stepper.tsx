@@ -68,7 +68,7 @@ async function StepperBody({ projectId, current, waiting = true, sticky = true }
                 </span>
               ) : (
                 <Link href={STEP_ROUTES[s.step](projectId)} aria-current={current === s.step ? "step" : undefined}
-                      title={s.reasons.length ? s.reasons.map(stepReason).join("\n") : `${s.label}: ${STATE_LABEL[s.state]}`}>
+                      title={s.reasons.length ? s.reasons.map((r) => stepReason(r, s.formulation)).join("\n") : `${s.label}: ${STATE_LABEL[s.state]}`}>
                   <span className="step-n" aria-hidden>{s.state === "done" ? "✓" : i + 1}</span>
                   <span className="step-text">
                     <span className="step-label">{s.label}</span>
@@ -84,14 +84,17 @@ async function StepperBody({ projectId, current, waiting = true, sticky = true }
         <p className="step-waiting" data-testid="step-waiting">
           <strong>Waiting on you:</strong>{" "}
           {here.reasons.map((r, i) => {
-            // a model check opens the area of Inputs where it is settled, the form that adds what is missing and its second
-            // way where it has them (OWN-13, gap 11; round 3: "add a product" opens its form, "ask the client" its line)
-            const at = stepWhere(r);
+            // a model check opens the area of Inputs where it is settled, and its other ways where it has them (OWN-13, gap
+            // 11): a tablet study's formulation names the lever that fits what the project holds (round 4: the API's
+            // `formulation`, lib/words.ts `formulationWays`), "ask the client" opening its line of To do
+            const at = stepWhere(r, here.formulation);
             return (
               <span key={r}>{i > 0 && " · "}
-                {at ? <Link href={inputsHref(projectId, at)} title={at.fix} data-testid={`step-waiting-go-${at.area}`}>{stepReason(r)}</Link> : stepReason(r)}
-                {at?.or && <> ({at.add ? <><Link href={inputsHref(projectId, at.add)} data-testid="step-waiting-add">{at.add.say}</Link> on {at.add.name}</>
-                  : <>on {at.name}</>}, or <Link href={inputsHref(projectId, at.or)} data-testid={`step-waiting-or-${at.or.area}`}>{at.or.say}</Link>)</>}
+                {at ? <Link href={inputsHref(projectId, at)} title={at.fix} data-testid={`step-waiting-go-${at.area}`}>{at.waiting}</Link> : stepReason(r)}
+                {at && at.ways.length > 0 && <> ({at.ways.map((w, j) => (
+                  <span key={w.id}>{j > 0 && ", or "}<Link href={inputsHref(projectId, w)} data-testid={`step-waiting-${w.id === "ask" ? "or-todo" : w.id}`}>{w.say}</Link>
+                    {w.area !== "todo" && <> on {w.name}</>}</span>
+                ))})</>}
               </span>
             );
           })}

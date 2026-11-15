@@ -6,6 +6,7 @@ from typing import Any
 
 from modeler_api.views.common import ApprovalView, ChangeView, PhaseId, Ref, VersionView, View
 from modeler_project.artifacts import ArtifactStatus
+from modeler_project.formulation_way import FormulationLever
 from modeler_project.steps import StepId, StepState
 
 
@@ -20,13 +21,28 @@ class StaleArtifacts(View):
     stale: list[StaleArtifact]
 
 
+class FormulationWayView(View):
+    """What gives a tablet study its formulation as the project stands (`modeler_project.formulation_way`): use a
+    product's dissolution profile as its release (`products`: those whose profile can), add a product's dissolution data
+    (`products`: those here), add a product (none is here), or choose the formulation a study used (several are in the
+    model). `studies`: the tablet studies it is for; `ready`: the first product's profile can be used now (its product's
+    dissolution data confirmed), else they are confirmed first."""
+
+    way: FormulationLever
+    products: list[str]
+    studies: list[str]
+    ready: bool
+
+
 class StepRow(View):
-    """One step of the redesigned flow (Start, Inputs, Review & sign, Run) and what it waits on."""
+    """One step of the redesigned flow (Start, Inputs, Review & sign, Run) and what it waits on; Inputs, while a tablet
+    study has no formulation, with the lever that gives it one (the step bar and Review & sign name it: round 4)."""
 
     step: StepId
     label: str
     state: StepState
     reasons: list[str]
+    formulation: FormulationWayView | None = None
 
 
 class Steps(View):

@@ -915,5 +915,10 @@ def _set_demographics(ws: Workspace, group: dict[str, Any], chosen: dict[str, An
 
 def product_confirmed(ws: Workspace, profile_id: str) -> bool:
     """Whether the product a dissolution profile belongs to is confirmed (its release model is proposed only then)."""
-    return any(g["kind"] == "product" and g["state"] == "confirmed" and any(i["id"] == profile_id for i in g["items"])
-               for g in _product_groups(ws, record(ws)["selections"]))
+    return profile_id in confirmed_profiles(ws)
+
+
+def confirmed_profiles(ws: Workspace) -> set[str]:
+    """The dissolution profiles whose product a person confirmed (`product_confirmed`, read once for all of them)."""
+    return {str(i["id"]) for g in _product_groups(ws, record(ws)["selections"])
+            if g["kind"] == "product" and g["state"] == "confirmed" for i in g["items"]}

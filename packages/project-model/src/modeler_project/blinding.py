@@ -42,22 +42,44 @@ def map_signed(ws: Workspace) -> bool:
 def external_studies(ws: Workspace) -> set[str]:
     """Study ids judged externally: the plan's S5 / S6 placements or, before a plan exists, the roles the MS-01 split
     proposes (D-33: blinding follows the S5 role from the moment a study is read), and datasets entered for external
-    validation."""
+    validation (`external_why`, which says why each is)."""
+    return set(external_why(ws))
+
+
+ROLE_WORDS = {"S5": "external validation", "S6": "the application"}
+
+
+def external_why(ws: Workspace) -> dict[str, str]:
+    """`external_studies`, each with why it is on the list, in words (final review round 4: a study the sheet form read
+    is withheld by the list, and its card says why, so a wrong name match is seen): "the plan places it in S5 (external
+    validation)", "the study split proposes it for S5 (external validation), before a plan", "a dataset of it is entered
+    for external validation". A study on the list for several reasons is said by the first."""
     from modeler_project.dataset_register import datasets
+    from modeler_project.plan import current
     from modeler_project.roles import proposed_roles
 
-    out = {sid for sid, role in proposed_roles(ws).items() if role in EXTERNAL_ROLES}
+    planned = current(ws)[1] is not None
+    out: dict[str, str] = {}
+    for sid, role in proposed_roles(ws).items():
+        if role in EXTERNAL_ROLES:
+            words = f"{role} ({ROLE_WORDS.get(role, role)})"
+            out[sid] = f"the plan places it in {words}" if planned else f"the study split proposes it for {words}, before a plan"
     for dataset in datasets(ws):
         if dataset.purpose in EXTERNAL_PURPOSES:
-            out.add(str(dataset.study.get("study_id")))
+            out.setdefault(str(dataset.study.get("study_id")), f"a dataset of it is entered for {dataset.purpose.replace('_', ' ')}")
     return out
 
 
 def blinded_studies(ws: Workspace, project: dict[str, Any] | None, model_risk: str | None) -> set[str]:
     """The studies whose values are withheld now (empty when blinding is off or a MAP is signed)."""
+    return set(listed_why(ws, project, model_risk))
+
+
+def listed_why(ws: Workspace, project: dict[str, Any] | None, model_risk: str | None) -> dict[str, str]:
+    """`blinded_studies`, each with why it is on the project's blinding list (`external_why`)."""
     if not setting(project, model_risk)["on"] or map_signed(ws):
-        return set()
-    return external_studies(ws)
+        return {}
+    return external_why(ws)
 
 
 def study_key(study_id: Any) -> str:

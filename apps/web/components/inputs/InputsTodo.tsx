@@ -1,10 +1,15 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 
 import { send, type Envelope } from "@/lib/api";
 import type { After } from "@/lib/hooks";
-import { ASK_FORMULATION, flagLines, formulationParts, formulationProblem, PARAM_LABEL, paramLabel, todoLabel, todoMessage, unitText } from "@/lib/words";
+import type { RequestLike } from "@/lib/inputsWork";
+import {
+  type FormulationWay, flagLines, formulationParts, formulationProblem, formulationWays, inputsHref, PARAM_LABEL, paramLabel, todoLabel, todoMessage,
+  unitText,
+} from "@/lib/words";
 
 import { MODEL, evidenceAfter, inputsAfter } from "./after";
 
@@ -35,6 +40,10 @@ export type TodoItem = {
   pathways?: Pathway[];
   /** the formulation item's problems one by one (the readiness check's own list; its message joins them with "; ") */
   details?: string[];
+  /** the formulation item: what gives a tablet study its formulation as the project stands (round 4) */
+  way?: FormulationWay | null;
+  /** the formulation item, no product being here at all: what the client is asked for each tablet study (round 4) */
+  ask?: RequestLike[];
 };
 /** A change made on the page: its call, what is said when it succeeds, and what it made stale (`components/inputs/after.ts`). */
 export type Run = <T>(fn: () => Promise<Envelope<T>>, ok: string, after: After<T>) => Promise<string | null>;
@@ -329,6 +338,26 @@ function Datasets({ t }: { t: TodoItem }) {
   );
 }
 
+/** The test id of a way of the formulation item (the earlier links' ids kept). */
+const HOW_ID: Record<string, string> = { add: "formulation-add-product", ask: "formulation-ask" };
+const capital = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+/** How a tablet study gets its formulation, as the project stands: the situation and each way as a link where it is done
+ *  ("No product is here: add a product on Products and dissolution, or ask the client on To do"), the step bar's lever
+ *  (round 4). */
+function FormulationHow({ way, projectId }: { way: FormulationWay | null | undefined; projectId: string }) {
+  const how = formulationWays(way);
+  return (
+    <p className="muted m-2-0 fs-13" data-testid="formulation-how">A formulation&apos;s release comes from a product&apos;s dissolution
+      profile (&ldquo;Use this profile as the release&rdquo; on the product&apos;s card).{" "}
+      {how.ways.length ? <>{capital(how.situation)}: {how.ways.map((w, j) => (
+        <span key={w.id}>{j > 0 && ", or "}<Link href={inputsHref(projectId, w)} data-testid={HOW_ID[w.id] ?? `formulation-${w.id}`}>{w.say}</Link> on {w.name}</span>
+      ))}.</> : how.fix}{" "}
+      A study wrongly read as a tablet or capsule is corrected on its card on <Link href={inputsHref(projectId, { area: "studies" })}>Clinical
+      studies</Link>.</p>
+  );
+}
+
 /** What settles one open item, shown where the item is (its row or its tab): keep one of values in conflict, correct a
  *  misfiled value, call a pKa acidic or basic, check a held value, set a study's facts. Every change is recorded. */
 export function TodoAction({ t, projectId, run }: { t: TodoItem; projectId: string; run: Run }) {
@@ -367,13 +396,9 @@ export function TodoAction({ t, projectId, run }: { t: TodoItem; projectId: stri
           <ul className="m-2-0 fs-13" data-testid="formulation-problems">
             {formulationParts(t).map((m) => <li key={m}>{formulationProblem(m)}</li>)}
           </ul>
-          {/* the ways forward, each a link (round 3, owner-job gap 11): with no product here, adding one is the lever */}
-          <p className="muted m-2-0 fs-13" data-testid="formulation-how">A formulation&apos;s release comes from a product&apos;s dissolution
-            profile: &ldquo;Use this profile as the release&rdquo; on the product&apos;s card, on <a href="?tab=formulations">Products and
-            dissolution</a>. With no product there, <a href={"?tab=formulations&add=product"} data-testid="formulation-add-product">add
-            the product the study used</a> (&ldquo;Add a product&rdquo;) and its dissolution file (Add data), or <a href={`?tab=todo&at=${ASK_FORMULATION}`}
-            data-testid="formulation-ask">ask the client for it</a> (To do, &ldquo;Ask the client&rdquo;). A study wrongly read as a tablet or
-            capsule is corrected on its card on <a href="?tab=studies">Clinical studies</a>.</p>
+          {/* the ways forward, each a link, as the project stands (round 4: the step bar's, lib/words.ts `formulationWays`):
+              a product's dissolution profile here, products without one, or no product at all */}
+          <FormulationHow way={t.way} projectId={projectId} />
           {(t.items as Ev[]).map((e) => <Decide key={e.id} e={e} projectId={projectId} run={run} />)}
         </>
       )}

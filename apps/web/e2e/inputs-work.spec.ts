@@ -10,17 +10,17 @@ import { join } from "node:path";
 import { expect, test } from "@playwright/test";
 
 import {
-  NEW, NO_PRODUCT, NO_TARGET, aboutText, blindedText, analyteChoice, analyteChoices, areaHead, assignBody, buildWork, checkField, collisions,
+  NEW, NO_TARGET, aboutText, askLines, blindedText, blindedWhy, analyteChoice, analyteChoices, areaHead, assignBody, buildWork, checkField, collisions,
   columnSummary, destinationKey, formulationsHeld, heldBy, inModel, layoutRows, linkCount, linkPlaces, linkRows, linkTarget, linkWords, linkedPiece,
   looseGroups, markedText, nextText, foldChecks, noLayoutReads, noSampleCells, normLabel, notReadRows, onDelivery, pairsMeet, prefixAlias,
-  releaseAnchor, releaseOf, restoredText, seriesKey,
+  productFor, releaseAnchor, releaseOf, restoredText, seriesKey,
   targetProblem, type WorkSources,
 } from "../lib/inputsWork";
 import {
-  ASK_FORMULATION, alreadyDecidedText, bracketed, checkGist, checkLabel, constantText, drawText, escapePattern, flagLines, formulationLine,
-  formulationParts, formulationProblem, heldText, individualNeeds, individualText, inputsHref, layoutFieldText, layoutFindingText, moveText,
-  paramLabel, patternWords, placeText, readinessText, redrawText, rowRuleText, rowsLeftOut, spotGroupText, stepReason, stepWhere, todoMessage,
-  unitText, unreadWhy, withheldWhy,
+  ASK_FORMULATION, NO_PRODUCT, alreadyDecidedText, bracketed, checkFix, checkGist, checkLabel, constantText, drawText, escapePattern, flagLines,
+  formulationLine, formulationParts, formulationProblem, formulationWays, heldText, individualNeeds, individualText, inputsHref, layoutFieldText,
+  layoutFindingText, moveText, paramLabel, patternWords, placeText, readinessText, redrawText, rowRuleText, rowsLeftOut, spotGroupText, stepReason,
+  stepWhere, todoMessage, unitText, unreadWhy, withheldWhy,
 } from "../lib/words";
 
 const load = (name: string): WorkSources => JSON.parse(readFileSync(join(__dirname, "fixtures", "inputs-work", `${name}.json`), "utf8"));
@@ -669,8 +669,10 @@ test("a confirmed product says whether its release is set; a tablet study's miss
   const sources = copy(load("exampleamide"));
   const test10 = sources.review!.groups.find((g) => g.id === "product:Test 10 mg")!;
   Object.assign(test10, { state: "confirmed", confirmed_by: "dev-user", confirmed_at: "2026-11-15T09:19:00Z" });
+  // the API's way (round 4): Test 10 mg's dissolution profile can give the release the study names
   sources.inputs!.todo.push({ kind: "formulation", target: "form.*", tab: "formulations",
-                              message: "CL-01: the CPF defines no formulation 'Test 10 mg' (form.Test 10 mg.type)" });
+                              message: "CL-01: the CPF defines no formulation 'Test 10 mg' (form.Test 10 mg.type)",
+                              way: { way: "use_profile", products: ["Test 10 mg"], studies: ["CL-01"] } });
   const model = buildWork(sources);
   const card = model.subjects.find((s) => s.label === "Test 10 mg")!;
   expect(releaseOf(card, sources.inputs)).toEqual({ name: null, needed: true });
@@ -683,25 +685,96 @@ test("a confirmed product says whether its release is set; a tablet study's miss
   expect(item.open).toBe(true);
   expect(item.subjects).toEqual([card.key]);
   expect(item.where).toMatchObject({ tab: "formulations", anchor: releaseAnchor(card) });
-  expect(item.detail).toBe("Use the dissolution profile of Test 10 mg as its release, on its card.");
+  expect(item.detail).toBe("Use the dissolution profile of Test 10 mg as its release: “Use this profile as the release” on its card, on "
+                           + "Products and dissolution.");
   // once the model holds the formulation under the product's name, its release is set
   sources.inputs!.compound.push({ id: "form.Test 10 mg.type", state: "kept", tab: "formulations" });
   expect(formulationsHeld(sources.inputs)).toEqual(["Test 10 mg"]);
   expect(releaseOf(card, sources.inputs).name).toBe("Test 10 mg");
   sources.inputs!.todo = sources.inputs!.todo.filter((t) => t.kind !== "formulation");
   expect(buildWork(sources).items.find((i) => i.id === `confirm:${card.key}`)!.inModel).toContain("Its release is the formulation “Test 10 mg”.");
-  // no product names the formulation a study needs: the item stays on Products and dissolution, opening its own row
+  // no product is here at all (the API's way "add_product"): the item stays on Products and dissolution, opening its own
+  // row, and names the lever: add the product, or ask the client (round 3, gap 11)
   const none = copy(load("clientamide"));
   none.inputs!.todo.push({ kind: "formulation", target: "form.*", tab: "formulations",
-                           message: "CL-1: the study is a solid oral form but the CPF defines no formulation (form.{name}.type)" });
+                           message: "CL-1: the study is a solid oral form but the CPF defines no formulation (form.{name}.type)",
+                           way: { way: "add_product", products: [], studies: ["CL-1"] } });
   expect(buildWork(none).items.find((i) => i.id === "todo:formulation:form.*")!.where).toEqual({ tab: "formulations", anchor: "todo-formulation-form.*" });
-  // and, no product of the client's being here, it names the lever: add the product, or ask the client (round 3, gap 11)
   expect(buildWork(none).items.find((i) => i.id === "todo:formulation:form.*")!.detail).toBe(NO_PRODUCT);
   expect(NO_PRODUCT).toContain("“Add a product”");
-  const products = copy(load("exampleamide"));                         // products here: the lever is theirs, not "add one"
+  // products with dissolution profiles here (the owner's review project, round 4): the item opens the first one's card at
+  // its release, says the products, and is no one card's work while two can give it
+  const products = copy(load("exampleamide"));
   products.inputs!.todo.push({ kind: "formulation", target: "form.*", tab: "formulations",
-                               message: "CL-01: the study is a solid oral form but the CPF defines no formulation (form.{name}.type)" });
-  expect(buildWork(products).items.find((i) => i.id === "todo:formulation:form.*")!.detail).not.toBe(NO_PRODUCT);
+                               message: "CL-01: the study is a solid oral form but the CPF defines no formulation (form.{name}.type)",
+                               way: { way: "use_profile", products: ["Test 10 mg", "Brand 10 mg"], studies: ["CL-01"] } });
+  const both = buildWork(products);
+  const test10card = both.subjects.find((s) => s.label === "Test 10 mg")!;
+  const usable = both.items.find((i) => i.id === "todo:formulation:form.*")!;
+  expect(usable.detail).not.toBe(NO_PRODUCT);
+  expect(usable.detail).toBe("Use a product's dissolution profile as its release: “Use this profile as the release” on its card, on Products and "
+                             + "dissolution (Test 10 mg or Brand 10 mg).");
+  expect(usable.where).toMatchObject({ tab: "formulations", anchor: releaseAnchor(test10card) });
+  expect(usable.subjects).toEqual([]);
+  // products here with no profile that can give it: the first product's card, at what to add
+  products.inputs!.todo.at(-1)!.way = { way: "add_dissolution", products: ["Exampleamide IR tablet"], studies: ["CL-01"] };
+  const noProfile = buildWork(products).items.find((i) => i.id === "todo:formulation:form.*")!;
+  expect(noProfile.detail).toContain("add the dissolution file of Exampleamide IR tablet");
+  expect(noProfile.where.anchor).toBe(releaseAnchor(productFor(both.subjects, "Exampleamide IR tablet")!));
+  // the product is found by any of its names, case and spacing aside
+  expect(productFor(both.subjects, "test 10  MG")?.key).toBe(test10card.key);
+  expect(productFor(both.subjects, "Comparamide 5 mg")).toBeNull();
+  expect(productFor(both.subjects, null)).toBeNull();
+});
+
+test("round 4: the lever for a tablet study's formulation follows what the project holds, one source for every page", () => {
+  // no product here: add one (its form opens) or ask the client (its line of To do) — the owner job's seed
+  const none = formulationWays({ way: "add_product", products: [], studies: ["OJ-101"] });
+  expect(none.waiting).toBe("a tablet study has no formulation");
+  expect(none.situation).toBe("no product is here");
+  expect(none.ways.map((w) => [w.id, w.say, inputsHref("p1", w)])).toEqual([
+    ["add", "add a product", "/projects/p1/inputs?tab=formulations&add=product"],
+    ["ask", "ask the client", `/projects/p1/inputs?tab=todo&at=${ASK_FORMULATION}`],
+  ]);
+  expect(none.fix).toBe(NO_PRODUCT);
+  // products with a profile (the owner's review project 7bb1): the profile is the lever, opening the first product's card
+  // at "Use this profile as the release"; nothing to ask the client, never "add a product"
+  const profile = formulationWays({ way: "use_profile", products: ["Test 10 mg", "Brand 10 mg"], studies: ["231-24", "230-23"] });
+  expect(profile.ways.map((w) => [w.id, w.say, inputsHref("p1", w)])).toEqual([
+    ["release", "use a product's dissolution profile as its release", "/projects/p1/inputs?tab=formulations&release=Test%2010%20mg"],
+  ]);
+  expect(profile.situation).toBe("the dissolution profiles of Test 10 mg and Brand 10 mg are here");
+  for (const said of [profile.fix, profile.situation, ...profile.ways.map((w) => w.say)]) expect(said).not.toMatch(/add a product|Add a product/);
+  expect(formulationWays({ way: "use_profile", products: ["A", "B", "C"], studies: [] }).situation)
+    .toBe("the dissolution profiles of A, B and C are here");
+  // its product's dissolution data not confirmed yet (7bb1's Test 10 mg): the order it is done in, confirm then use
+  const unconfirmed = formulationWays({ way: "use_profile", products: ["Test 10 mg", "Brand 10 mg"], studies: [], ready: false });
+  expect(unconfirmed.situation).toBe("the dissolution profiles of Test 10 mg and Brand 10 mg are here, their data to confirm first");
+  expect(unconfirmed.ways.map((w) => [w.id, w.say, w.query])).toEqual([
+    ["release", "confirm a product's dissolution data, then use its profile as its release", "release=Test%2010%20mg"]]);
+  expect(unconfirmed.fix).toBe("Confirm the dissolution data of Test 10 mg on its card (“Confirm”), then use its profile as its release (“Use "
+                               + "this profile as the release”), on Products and dissolution (or the profile of Brand 10 mg).");
+  expect(formulationWays({ way: "use_profile", products: [], studies: [] }).ways[0].query).toBe("release=");
+  // products without a profile: their dissolution data, or the client
+  const data = formulationWays({ way: "add_dissolution", products: ["Exampleamide IR tablet", "Comparamide tablet"], studies: [] });
+  expect(data.ways.map((w) => [w.id, w.say])).toEqual([["dissolution", "add a product's dissolution data"], ["ask", "ask the client"]]);
+  expect(data.ways[0].query).toBe("release=Exampleamide%20IR%20tablet");
+  expect(data.fix).toContain("add the dissolution file of Exampleamide IR tablet or Comparamide tablet (Add data)");
+  // several formulations, a study naming none: choose, at the study's row
+  const choose = formulationWays({ way: "choose", products: [], studies: ["230-23"] });
+  expect(choose.waiting).toBe("a tablet study does not say which formulation it used");
+  expect(inputsHref("p1", choose.ways[0])).toBe("/projects/p1/inputs?tab=formulations&at=formulation-230-23");
+  // no lever fits (a formulation not complete): the area only, and To do's item says each problem
+  expect(formulationWays(null).ways).toEqual([]);
+  expect(formulationWays(undefined).fix).toContain("To do's formulation item says what each tablet study lacks");
+  // the step bar, Review & sign and the model checks say the same, from the step's `formulation`
+  const at = stepWhere("formulations of solid studies", { way: "use_profile", products: ["Test 10 mg"], studies: [] })!;
+  expect(at).toMatchObject({ area: "formulations", name: "Products and dissolution", waiting: "a tablet study has no formulation",
+                             situation: "the dissolution profile of Test 10 mg is here" });
+  expect(at.ways.map((w) => w.id)).toEqual(["release"]);
+  expect(stepReason("formulations of solid studies", { way: "choose", products: [], studies: ["X"] })).toBe("a tablet study does not say which formulation it used");
+  expect(checkFix("formulations of solid studies", { way: "add_product", products: [], studies: [] })).toBe(NO_PRODUCT);
+  expect(stepWhere("S0 completeness (MS-01 §2.2)")!.ways).toEqual([]);
 });
 
 test("a value's flags, its parameter and a formulation in a person's words, never the engine's codes or ids (OWN-5, OWN-8)", () => {
@@ -751,22 +824,26 @@ test("a value's flags, its parameter and a formulation in a person's words, neve
   expect(spotGroupText("table_kind=pk_individual|unit_class=concentration|blq_form=BLQ|cross_file=yes"))
     .toBe("picked at random among the concentrations of individual PK tables, those written “BLQ”, read from another file than the study's own");
   expect(spotGroupText("table_kind=fact|unit_class=other|blq_form=|cross_file=no")).toBe("picked at random among the values of the facts read from the files");
-  // a model check opens the area of Inputs where it is done, and a tablet study's formulation has a second way (gap 11)
+  // a model check opens the area of Inputs where it is done, and a tablet study's formulation has a second way (gap 11):
+  // with no product here, "ask the client" (round 4: the ways follow what the project holds)
   expect(stepWhere("S0 completeness (MS-01 §2.2)")).toMatchObject({ area: "todo", name: "To do" });
-  expect(stepWhere("formulations of solid studies")).toMatchObject({ area: "formulations", name: "Products and dissolution",
-                                                                     or: { say: "ask the client", area: "todo" } });
+  expect(stepWhere("formulations of solid studies", { way: "add_product", products: [], studies: [] })!.ways.at(-1))
+    .toMatchObject({ say: "ask the client", area: "todo" });
+  expect(stepWhere("formulations of solid studies")).toMatchObject({ area: "formulations", name: "Products and dissolution", ways: [] });
   expect(stepWhere("Review the plan, then approve and sign the MAP")).toBeNull();
 });
 
 test("round 3: the ways forward from a tablet study's missing formulation, the gate in words, the problems one by one", () => {
-  // the step bar, Run and Review & sign name "add a product" (its form opens) and "ask the client" (its line is shown)
-  const at = stepWhere("formulations of solid studies")!;
+  // with no product here, the step bar, Run and Review & sign name "add a product" (its form opens) and "ask the client" (its
+  // line is shown); round 4: only then (`formulationWays`, checked above)
+  const at = stepWhere("formulations of solid studies", { way: "add_product", products: [], studies: ["OJ-101"] })!;
   expect(at.fix).toContain("“Add a product”");
-  expect(at.add).toEqual({ say: "add a product", area: "formulations", query: "add=product", name: "Products and dissolution" });
-  expect(at.or).toEqual({ say: "ask the client", area: "todo", query: `at=${ASK_FORMULATION}`, name: "To do" });
+  const [add, or] = at.ways;
+  expect(add).toEqual({ id: "add", say: "add a product", area: "formulations", query: "add=product", name: "Products and dissolution" });
+  expect(or).toEqual({ id: "ask", say: "ask the client", area: "todo", query: `at=${ASK_FORMULATION}`, name: "To do" });
   expect(inputsHref("p 1", at)).toBe("/projects/p%201/inputs?tab=formulations");
-  expect(inputsHref("p1", at.add!)).toBe("/projects/p1/inputs?tab=formulations&add=product");
-  expect(inputsHref("p1", at.or!)).toBe("/projects/p1/inputs?tab=todo&at=todo-ask-REQ-form.release");
+  expect(inputsHref("p1", add)).toBe("/projects/p1/inputs?tab=formulations&add=product");
+  expect(inputsHref("p1", or)).toBe("/projects/p1/inputs?tab=todo&at=todo-ask-REQ-form.release");
   // the plan's refusal is said in the step bar's words: no check's raw name, no reference
   const said = readinessText("the model inputs are not ready: S0 completeness (MS-01 §2.2); formulations of solid studies; "
                              + "demographics stated (D-29); every planned simulation builds (software)");
@@ -791,10 +868,40 @@ test("round 3: the ways forward from a tablet study's missing formulation, the g
   expect(withheldWhy(["230-25", "231-24"])).toContain("the values of studies 230-25, 231-24");
   expect(withheldWhy([])).toContain("the values of a blinded study");
   // a blinded delivery study's To do row says why too, so a wrong match of names is seen
-  const listed = { row: { blinded_why: "the project's blinding list names it (study STUDY-1)" } } as unknown as Parameters<typeof blindedText>[0];
+  const listed = { row: { blinded_why: "the project's blinding list names it (study STUDY-1)" }, groups: [] } as unknown as Parameters<typeof blindedText>[0];
   expect(blindedText(listed, ": it is confirmed afterwards."))
     .toBe("Blinded until the plan is signed, because the project's blinding list names it (study STUDY-1): it is confirmed afterwards.");
-  expect(blindedText({ row: null }, ".")).toBe("Blinded until the plan is signed.");
+  expect(blindedText({ row: null, groups: [] }, ".")).toBe("Blinded until the plan is signed.");
+  // a study read with the sheet form only (round 4): its group says why it is withheld, as the delivery's card does; the
+  // card's own reason comes first where both say one
+  const group = { blinded: true, blinded_why: "the project's blinding list names it (study 230-25): the plan places it in S5 (external validation)" };
+  const sheetOnly = { row: null, groups: [{ blinded: false, blinded_why: null }, group] } as unknown as Parameters<typeof blindedText>[0];
+  expect(blindedWhy(sheetOnly)).toBe(group.blinded_why);
+  expect(blindedText(sheetOnly, ".")).toBe(`Blinded until the plan is signed, because ${group.blinded_why}.`);
+  const both = { row: { blinded_why: "it is entered for external validation on its card" }, groups: [group] } as unknown as Parameters<typeof blindedText>[0];
+  expect(blindedWhy(both)).toBe("it is entered for external validation on its card");
+  expect(blindedWhy({ row: null, groups: [{ blinded: false, blinded_why: null }] } as unknown as Parameters<typeof blindedWhy>[0])).toBeNull();
+});
+
+test("round 4: a tablet study confirmed with the sheet form only, with no product here, is asked of the client once (gap 11)", () => {
+  // the delivery asks it for its own studies; the inputs' formulation item asks it for the study the sheet form loaded; a
+  // study on both paths is named once, on one line
+  const line = (study: string) => ({ req_id: "REQ-form.release", what: `The formulation or dissolution data of the product the study used (no file names the product) — study ${study}`,
+                                     why: "the model itself", required: true, product: null, sheet: "" });
+  const sources = copy(load("clientamide"));
+  sources.inputs!.todo.push({ kind: "formulation", target: "form.*", tab: "formulations",
+                              message: "OJ-9: the study is a solid oral form but the CPF defines no formulation (form.{name}.type)",
+                              way: { way: "add_product", products: [], studies: ["OJ-9", "CL-1"] }, ask: [line("OJ-9"), line("cl-1")] });
+  sources.delivery!.request = [line("CL-1")];
+  const asked = askLines(sources.delivery, sources.inputs).filter((a) => a.req === "REQ-form.release");
+  expect(asked).toEqual([{ req: "REQ-form.release", what: "The formulation or dissolution data of the product the study used (no file names the product)",
+                           subjects: ["CL-1", "OJ-9"], required: true, why: "the model itself" }]);
+  // with no delivery (the sheet form only), the inputs alone ask it, and the work model's "Ask the client" lists it
+  sources.delivery = null;
+  expect(askLines(null, sources.inputs).find((a) => a.req === "REQ-form.release")!.subjects).toEqual(["OJ-9", "cl-1"]);
+  expect(buildWork(sources).ask.find((a) => a.req === "REQ-form.release")!.subjects).toEqual(["OJ-9", "cl-1"]);
+  // without the item's ask (a product is here), only the delivery's lines
+  expect(askLines(null, null)).toEqual([]);
 });
 
 // --- the final review's gate, layouts and To do fixes (plan §5 "Final review fixes: the gate, layouts and To do") --------

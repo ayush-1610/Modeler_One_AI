@@ -16,6 +16,60 @@ Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: compl
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
 
+### Fixed — final review round 4, downstream and blinding (round 3's "add a product" regression, blinding scope b, the gap 11 deviation; plan 2026-11-14 §5) — science-adjacent
+- **Round 3's regression: the step bar and Review & sign named "add a product" whatever the project held.** On the
+  owner's review project (exampleamide-pbpk-7bb1: four products, two with dissolution profiles, "release not set") the
+  step bar said "(add a product on Products and dissolution, or ask the client)" and its link opened an empty "A new
+  product" form instead of "Use this profile as the release". What gives a tablet study its formulation is now read once,
+  on the server, from the readiness check's problems and what the project holds (`modeler_project.formulation_way`):
+  use a product's dissolution profile as its release (a profile with a Weibull fit is here), add a product's
+  dissolution data (products here, none with such a profile), add a product (none here), or choose the formulation a
+  study used (several in the model). The Inputs step carries it (`StepRow.formulation`) and so does To do's formulation
+  item (`way`); one pure function (`lib/words.ts` `formulationWays`) says it, with its links, on the step bar, Review &
+  sign, To do's row and item, the Model checks line and each tablet study's line on Products and dissolution. A profile
+  is used only once a person confirmed its product's dissolution data (the API refuses it before), so the lever says
+  that order while they wait (`ready`: "confirm a product's dissolution data, then use its profile as its release"), a
+  product already confirmed is offered first, and the product card's release line offers "Confirm its data first",
+  which takes the focus to the product's Confirm, instead of a "Use this profile as the release" that would be refused.
+  On 7bb1 (both products still to confirm) the step bar now reads "a tablet study has no formulation (confirm a
+  product's dissolution data, then use its profile as its release on Products and dissolution)", and the link
+  (`?tab=formulations&release=<product>`) opens Test 10 mg's card at its release, the first control focused; with no
+  product (the owner-job seed) it still names "add a product" and "ask the client". Review & sign says the situation and each way once ("no product is here; add a product on Products and
+  dissolution, or ask the client on To do"; round 3 said the lever twice). The step bar is drawn again when the lever
+  changes (a profile or a product added). Inputs no longer reads `/brief` on every view for this (round 3's added read).
+- **Blinding scope (b): why a study is withheld is said wherever it is.** A sheet-form card's visible withheld line
+  ("Withheld: study 231-24 is blinded until the plan is signed, because it is entered for external validation on its
+  card. …"), the Clinical studies list's chip, the readings' withheld lines on a card and the sheet-form rows of To do
+  now say why, from one field: the client-review group's new `blinded_why` (the delivery's reason for the study it is
+  joined to, else why the project's blinding list holds the study of its name, `blinding.external_why`: the plan's S5 or
+  S6, the study split's before a plan, a dataset entered for external validation), the delivery card's reason first
+  (`blindedWhy`). A reason that is the list's now ends with why the list holds the study ("the project's blinding list
+  names it (study STUDY-1): a dataset of it is entered for external validation"), on the delivery's rows and cards too.
+- **Gap 11's deviation: a tablet study confirmed only with the sheet form, with no product, is asked of the client.**
+  To do's formulation item carries the client request's line for each such study when no product is here at all
+  (`ask`, `study_requirements.unnamed_product_request`: the same item, label and wording as the delivery's), and "Ask the
+  client" joins it with the delivery's (`askLines(delivery, inputs)`), each study once.
+- **Corrected notes:** round 3's entry and plan §5 said "the step bar cannot tell the cases apart" (it could: the steps
+  carry what the project holds now) and that the client request download asks for a product's release only once a
+  product is added (it already asks); both are corrected in place.
+- **Why:** round 3's skeptic found the regression on the owner's own project, the reason missing where a study confirmed
+  with the sheet form is withheld, and the ask missing on the sheet-form path; the owner is about to use the page.
+- **Impact:** API contract (additive): `StepRow.formulation` (`FormulationWayView`: `way`, `products`, `studies`,
+  `ready`), `ReviewGroup.blinded_why`; on
+  `GET /inputs`'s untyped `todo`, the formulation item's `way` and `ask`; `docs/api/openapi.json` and
+  `apps/web/lib/api-types.ts` regenerated. The blinding rule (which studies are withheld) is unchanged: only its words.
+  No ruleset, template, registry, acceptance or locked file changed; `blinding.external_studies` is now the keys of
+  `external_why` (the same studies).
+- **Tests:** `test_client_api.py` (the lever on `/steps` and on the item through no product, a proposed product, its
+  profile and the release set; each readiness problem's lever), `test_delivery_api.py` (a sheet-form-only study's group
+  says the list's why; the list's reason on a delivery row and card), `test_blinding.py` (`external_why`),
+  `inputs-work.spec.ts` (`formulationWays` for each lever, the item's place and words, `productFor`, `blindedWhy`,
+  `askLines` joining both paths), e2e `inputs-owner-job` (the owner-job seed's words; a second test on a project whose
+  products have profiles: step bar, To do, Products and Review & sign name the profile and land on its card's release,
+  focused, never an empty form; its data confirmed, then the profile used, the formulation check is met), `inputs-blinded` (the reading's withheld line and the list say why; a
+  template study blinded on its delivery card says why on its sheet-form card and in the list). Software test data on
+  the stub engine and a copy of the review data: none of it is PBPK evidence.
+
 ### Fixed — final review round 3, speed and cache writes (round 2's layout-dialog regression, OWN-7, CODE-4; plan 2026-11-14 §5)
 - **Round 2's regression (the gate-todo skeptic): an approval or a rejection made in the layout dialog that "Read this
   table…" opens is shown.** The dialog opened on the stored layout's table with no version, a cache key
@@ -196,7 +250,10 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
   (`?tab=formulations&add=product`), by the step bar, Review & sign's line, To do's formulation row and the formulation
   item; "ask the client" opens To do on the line that asks (`?tab=todo&at=…`, focused). Products no longer says "use a
   product's dissolution profile as its release, above" under "Products named in the proposal · 0": it says what is
-  missing (no product, or no dissolution data) and offers to add the product.
+  missing (no product, or no dissolution data) and offers to add the product. *(Corrected in round 4: "add a product"
+  was named by the step bar and Review & sign whatever the project held, a regression on the owner's review project,
+  whose products have dissolution profiles; it was recorded as "the step bar cannot tell the cases apart", which was
+  wrong. Round 4 names the lever that fits what the project holds.)*
 - **The words:** a product card's done line says the release is said "above"; "fu,inc" is one condition, not two, and
   either piece alone is said whole (`bracketed`).
 - **Round 2's risks:** `GET /compounds/{c}/cpf` prefers the CPF Inputs assembled only once it holds a value (an empty one
@@ -214,7 +271,9 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
   conservative choice; the alternative, only that figure's pages, is an owner's decision in plan §5). A delivery
   study blinded by the project's list is matched on its whole name key, never a prefix ("Study 1" listed leaves
   "Study 10" open), and its row, card and To do rows say why (`DeliverySubjectRow.blinded_why`,
-  `DeliverySubject.blinded_why`).
+  `DeliverySubject.blinded_why`). *(Round 4: the why was not said on a card confirmed with the sheet form, in the
+  Clinical studies list nor in the reading's withheld lines; it is now, and a reason that is the list's says why the list
+  holds the study.)*
 - **Corrected notes:** round 2's entries below said Run and Review & sign "use the step bar's words" (Review & sign still
   printed the raw text), that the page joins "fu", "inc" when it shows them (it did not), that the compound route
   answers the assembled CPF "when it has one" (now: when it holds a value) and that "ask the client" was a second way

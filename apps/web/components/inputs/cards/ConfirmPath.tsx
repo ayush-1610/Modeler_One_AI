@@ -19,7 +19,7 @@ import type { Suggestions } from "@/components/delivery/FactsForm";
 import { MappingReview, type MappingOpen } from "@/components/delivery/MappingReview";
 import type { Schema } from "@/lib/api";
 import { useResource } from "@/lib/hooks";
-import { cardAnchor, type Subject, type WorkItem, type WorkModel } from "@/lib/inputsWork";
+import { blindedWhy, cardAnchor, type Subject, type WorkItem, type WorkModel } from "@/lib/inputsWork";
 import { AREA_NAME, STATUS_TONE, STATUS_WORD, type Status, type Tab, plural, whenText } from "@/lib/words";
 
 import { GroupCard, openText } from "../ClientConfirm";
@@ -208,6 +208,8 @@ export function ConfirmPath({ subject: s, env, observed, files, onShow }: {
   // a study the delivery blinds (D-15): nothing of it is read or confirmed with the sheet form until the plan is signed
   // (the API refuses it, 409 BLINDED), and the sheet form's reading of it is not shown
   const blinded = Boolean(s.row?.blinded || s.groups.some((g) => g.blinded));
+  // why it is blinded, said wherever it is withheld (round 4): the delivery's reason, else the sheet form's group's
+  const why = blindedWhy(s);
   // the delivery card's facts (the card reads the same, under the same key), offered to the sheets' drafts
   const card = useResource(SUBJECT, { project_id: projectId, type: s.row?.subject_type ?? "study", subject: s.row?.subject ?? "" },
                            { enabled: Boolean(s.row) && !blinded && s.groups.some((g) => g.items.some((i) => i.kind === "draft")) });
@@ -246,7 +248,8 @@ export function ConfirmPath({ subject: s, env, observed, files, onShow }: {
                                    open={reading} onOpen={setReading}>
                             {() => (blinded
                               ? <p className="delivery-withheld m-0" data-testid={`how-read-withheld-${s.key}`}>Withheld: the study is blinded until
-                                  the plan is signed, and the sheet form&apos;s reading shows its values. It is read and confirmed once the plan is signed.</p>
+                                  the plan is signed{why ? `, because ${why}` : ""}, and the sheet form&apos;s reading shows its values. It is read and
+                                  confirmed once the plan is signed.</p>
                               : s.groups.map((g) => <GroupCard key={g.id} projectId={projectId} group={g} run={run} drawn={false}
                                                                mode={sheet && g.state === "to_confirm" ? "confirm" : "read"} alsoOnDelivery
                                                                known={known} />))}
@@ -263,13 +266,13 @@ export function ConfirmPath({ subject: s, env, observed, files, onShow }: {
           )}
           {observed}
           {s.groups.map((g) => <GroupCard key={g.id} projectId={projectId} group={g} run={run} files={files} confirmedSaid={s.done}
-                                          known={known} />)}
+                                          known={known} why={why} />)}
           {s.row && (
             <HowRead subject={s} title="the delivery (for reference)" open={reading} onOpen={setReading}>
               {/* a study the project blinds (D-15) that the delivery does not: its reading is not shown until the plan is signed */}
               {() => (s.blinded && !s.row!.blinded
                 ? <p className="delivery-withheld m-0" data-testid={`how-read-withheld-${s.key}`}>Withheld: the study is blinded until the plan is
-                    signed, and the delivery&apos;s reading shows its values.</p>
+                    signed{why ? `, because ${why}` : ""}, and the delivery&apos;s reading shows its values.</p>
                 : <DeliveryReview projectId={projectId} row={s.row!} mode="read" onMapping={setMapping} />)}
             </HowRead>
           )}
@@ -281,7 +284,8 @@ export function ConfirmPath({ subject: s, env, observed, files, onShow }: {
             sheet form on this card, which is not available yet. Read the file again from Client files. The delivery&apos;s reading is shown
             for reference.</p>
           {s.blinded && !s.row.blinded
-            ? <p className="delivery-withheld m-0" data-testid={`how-read-withheld-${s.key}`}>Withheld: the study is blinded until the plan is signed.</p>
+            ? <p className="delivery-withheld m-0" data-testid={`how-read-withheld-${s.key}`}>Withheld: the study is blinded until the plan is
+                signed{why ? `, because ${why}` : ""}.</p>
             : <DeliveryReview projectId={projectId} row={s.row} mode="read" onMapping={setMapping} />}
         </>
       )}

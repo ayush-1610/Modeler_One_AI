@@ -15,7 +15,7 @@
 // Clinical studies head) count the same open work; the sheet form's own reading of a file linked on the delivery joins the
 // card it was linked to (no second card). Software test data on the stub engine: it proves the review path, never a model.
 import { execFileSync } from "node:child_process";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -508,8 +508,10 @@ test("the owner's job: files uploaded, layouts checked, values linked with arms,
   await stepBar.getByTestId("step-waiting-go-formulations").click();
   await expect(page.getByTestId("tab-formulations")).toHaveAttribute("aria-selected", "true");
   await expect(page.getByTestId("todo-formulation-form.*")).toContainText("a tablet or capsule study, and the model holds no formulation yet");
-  await expect(page.getByTestId("todo-formulation-form.*").getByTestId("formulation-how")).toContainText("ask the client for it");
-  await expect(page.getByTestId("todo-formulation-form.*").getByTestId("formulation-how")).toContainText("“Add a product”");
+  // the item's ways are the step bar's, as the project stands (round 4): no product is here
+  await expect(page.getByTestId("todo-formulation-form.*").getByTestId("formulation-how"))
+    .toContainText("No product is here: add a product on Products and dissolution, or ask the client on To do.");
+  await expect(page.getByTestId("todo-formulation-form.*").getByTestId("formulation-add-product")).toHaveAttribute("href", /\?tab=formulations&add=product$/);
   await expect(page.getByTestId("todo-formulation-form.*")).not.toContainText("form.");
   // no product is here: the solid study's row says so and offers to add it, never "use a product's profile, above"
   await expect(page.getByTestId("inputs-products")).toContainText("Products named in the proposal · 0");
@@ -550,7 +552,9 @@ test("the owner's job: files uploaded, layouts checked, values linked with arms,
   await expect(blocked.getByTestId("step-blocked-check-formulations")).toContainText("A tablet study has no formulation");
   await expect(blocked.getByTestId("step-blocked-check-formulations").getByRole("link", { name: "ask the client" })).toBeVisible();
   await expect(blocked.getByTestId("step-blocked-check-formulations").getByTestId("step-blocked-add")).toHaveText("add a product");
-  await expect(blocked.getByTestId("step-blocked-check-formulations")).toContainText("“Add a product”");
+  // the situation, then each way once (round 4; round 3 said the lever twice, in the sentence and in brackets)
+  await expect(blocked.getByTestId("step-blocked-check-formulations"))
+    .toHaveText("A tablet study has no formulation: no product is here; add a product on Products and dissolution, or ask the client on To do.");
   // the whole blocked panel, not only its list, is in words: no reference, no raw check name (round 3, OWN-8: the API's
   // "the model inputs are not ready: S0 completeness (MS-01 §2.2); …" was printed under the list)
   const panel = page.getByTestId("plan-blocked");
@@ -564,4 +568,98 @@ test("the owner's job: files uploaded, layouts checked, values linked with arms,
   await blocked.getByTestId("step-blocked-check-formulations").getByRole("link").first().click();
   await expect(page).toHaveURL(new RegExp(`/projects/${projectId}/inputs\\?tab=formulations`));
   await expect(page.getByTestId("tab-formulations")).toHaveAttribute("aria-selected", "true");
+});
+
+// Round 4 (the regression round 3's skeptic found on the owner's review project): where products with dissolution
+// profiles are here, the step bar, To do, Products and dissolution and Review & sign name that lever ("use a product's
+// dissolution profile as its release"), opening the first such product's card at "Use this profile as the release",
+// never an empty "add a product" form. The filled client-data template of e2e/fixtures/client_workbooks.py: a tablet
+// study CL-01 and the dissolution of Test 10 mg and Brand 10 mg. Software test data on the stub engine, never a model.
+test("products with dissolution profiles here: every page names the profile as the lever, not 'add a product'", async ({ page, request }) => {
+  test.setTimeout(6 * 60_000);
+  const dir = mkdtempSync(join(tmpdir(), "owner-release-"));
+  execFileSync("uv", ["run", "python", join(__dirname, "fixtures", "client_workbooks.py"), dir], { cwd: REPO });
+  const started = await request.post("/api/v1/projects:initiate", { headers: AUTH, multipart: {
+    drug_name: "Releaseamide", extract: "false",
+    files: { name: "proposal.md", mimeType: "text/markdown", buffer: Buffer.from("# Proposal\nOral 10 mg tablet.") } } });
+  const projectId = (await started.json()).data.project_id as string;
+  await finishStart(request, projectId);
+  const api = `/api/v1/projects/${projectId}`;
+  expect((await request.post(`${api}/requirements:derive`, { headers: AUTH })).ok()).toBeTruthy();
+  const up = await request.post(`${api}/client-data`, { headers: AUTH, multipart: {
+    files: { name: "client-template-filled.xlsx", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+             buffer: readFileSync(join(dir, "client-template-filled.xlsx")) } } });
+  expect(up.status(), await up.text()).toBe(201);
+  // the tablet study confirmed with the sheet form: the model now needs its formulation
+  const confirmed = await request.post(`${api}/client-review:confirm`, { headers: AUTH, data: { group: "study:CL-01" } });
+  expect(confirmed.ok(), await confirmed.text()).toBeTruthy();
+  expect((await request.post(`${api}/inputs:assemble`, { headers: AUTH })).ok()).toBeTruthy();
+  const steps = (await (await request.get(`${api}/steps`, { headers: AUTH })).json()).data.steps as { step: string; formulation: unknown }[];
+  // the products' dissolution data are still to confirm: the profile is used once they are (`ready` false)
+  expect(steps.find((s) => s.step === "inputs")!.formulation)
+    .toEqual({ way: "use_profile", products: ["Test 10 mg", "Brand 10 mg"], studies: ["CL-01"], ready: false });
+
+  // Review & sign: the situation and the lever, in the order they are done; no "add a product"
+  await page.goto(`/projects/${projectId}/plan`);
+  const check = page.getByTestId("step-blocked-reasons").getByTestId("step-blocked-check-formulations");
+  await expect(check).toHaveText("A tablet study has no formulation: the dissolution profiles of Test 10 mg and Brand 10 mg are here, their "
+                                 + "data to confirm first; confirm a product's dissolution data, then use its profile as its release on Products "
+                                 + "and dissolution.");
+  await expect(check.getByTestId("step-blocked-add")).toHaveCount(0);
+  await check.getByTestId("step-blocked-release").click();
+  await expect(page).toHaveURL(new RegExp(`/projects/${projectId}/inputs\\?tab=formulations`));
+  const testCard = page.locator("[data-testid^='product-card-']", { has: page.locator(".card-title", { hasText: /^Test 10 mg$/ }) });
+  const toConfirm = testCard.locator("[data-testid^='card-release-'][data-testid$='-to-confirm']");
+  await expect(toConfirm).toBeFocused();
+
+  // the step bar says the same; no "add a product", nothing to ask the client
+  await page.goto(`/projects/${projectId}/inputs?tab=todo`);
+  const stepBar = page.getByTestId("step-waiting");
+  await expect(stepBar).toContainText("a tablet study has no formulation (confirm a product's dissolution data, then use its profile as its "
+                                      + "release on Products and dissolution)");
+  await expect(stepBar.getByTestId("step-waiting-add")).toHaveCount(0);
+  await expect(stepBar.getByTestId("step-waiting-or-todo")).toHaveCount(0);
+  // To do's row says it in a sentence, naming the products
+  const todoRow = page.locator("li.todo-line", { has: page.getByTestId("missing-formulation-form.*") });
+  await expect(todoRow).toContainText("Confirm the dissolution data of Test 10 mg on its card (“Confirm”), then use its profile as its release "
+                                      + "(“Use this profile as the release”), on Products and dissolution (or the profile of Brand 10 mg).");
+  await expect(todoRow).not.toContainText("Add a product");
+  await shot(page, "r4-1-todo-profile-lever");
+
+  // the link lands on Test 10 mg's card, at its release: "Confirm its data first", focused; no empty form opened
+  await stepBar.getByTestId("step-waiting-release").click();
+  await expect(page.getByTestId("tab-formulations")).toHaveAttribute("aria-selected", "true");
+  await expect(toConfirm).toBeFocused();
+  await expect(testCard.locator("[data-testid$='-confirm-first']")).toContainText("once you have confirmed the product's data on this card");
+  await expect(page.getByTestId("inputs-products-new")).toHaveCount(0);
+  // the solid study's row on Products and the formulation item there name the same lever, never "no product here"
+  const row = page.getByTestId("formulation-none-CL-01");
+  await expect(row).toContainText("no formulation in the model yet: confirm a product's dissolution data, then use its profile as its release, "
+                                  + "above (Test 10 mg's card)");
+  await expect(row).not.toContainText("no product here");
+  const item = page.getByTestId("todo-formulation-form.*");
+  await expect(item.getByTestId("formulation-how")).toContainText("The dissolution profiles of Test 10 mg and Brand 10 mg are here, their data to "
+                                                                  + "confirm first: confirm a product's dissolution data, then use its profile as its release on Products and dissolution.");
+  await expect(item).not.toContainText("add a product");
+  await shot(page, "r4-2-confirm-first-focused");
+  // the To do row opens the same card at the same place
+  await page.getByTestId("tab-todo").click();
+  await page.getByTestId("missing-formulation-form.*").click();
+  await expect(page.getByTestId("tab-formulations")).toHaveAttribute("aria-selected", "true");
+  await expect(toConfirm).toBeFocused();
+
+  // the owner's job, done: "Confirm its data first" takes the focus to the product's Confirm; confirmed, the card offers
+  // "Use this profile as the release" and the step bar says to use it; used, the tablet study has its formulation
+  await toConfirm.click();
+  const confirmProduct = testCard.getByTestId("confirm-product:Test 10 mg");
+  await expect(confirmProduct).toBeFocused();
+  await confirmProduct.click();
+  const use = testCard.locator("[data-testid^='card-release-'][data-testid$='-use']");
+  await expect(use).toHaveText("Use this profile as the release");
+  await expect(page.getByTestId("step-waiting")).toContainText("a tablet study has no formulation (use a product's dissolution profile as its "
+                                                               + "release on Products and dissolution)");
+  await use.click();
+  await expect(testCard.locator("[data-testid^='card-release-']").first()).toContainText("In the model as the formulation “Test 10 mg”");
+  await expect(page.getByTestId("step-waiting")).not.toContainText("a tablet study has no formulation");
+  await shot(page, "r4-3-release-set");
 });
