@@ -427,10 +427,10 @@ before the next starts.
 - **The join by linked file:** `legacy_groups` names a client-review group when every one of its items was read from
   files a person linked on the delivery whose values all belong to that one subject (no value left with no subject);
   a file that names its study itself joins by the exact label as before. A joined card keeps the key of its own name.
-  **Not built:** the sheet form's path on a joined card ("Confirm now with the sheet form") is not pre-filled from the
-  facts entered on the delivery card: the sheet form's offers (`study_offers`) do not read the delivery's person
-  entries, and the sheet form names the study otherwise (230-23-REF). API follow-up: offer a linked study's entered
-  facts to its joined sheets.
+  **Not built here:** the sheet form's path on a joined card ("Confirm now with the sheet form") pre-filled from the
+  facts entered on the delivery card (the sheet form's offers, `study_offers`, do not read the delivery's person
+  entries, and the sheet form names the study otherwise, 230-23-REF). Built since in the page, with no API change
+  (below, "Final review fixes: cards, counts, demographics and repetition").
 - **`loaded_elsewhere`** now means accepted (in the model); `proposed_elsewhere` lists the datasets of the same source
   only read with the sheet form. The join reads both.
 - **A disagreement's subject:** the card's To do lists a subject's disagreements under one line ("Subject 001, period
@@ -568,3 +568,57 @@ before the next starts.
 - The slice-4 note "What is marked in To do is listed under the table with 'Restore…' for the visit" holds now after the
   last row too; the owner-job e2e's gaps 2 and 5 (CHANGELOG "Added — an end-to-end test of the owner's whole job") are
   fixed here.
+
+### Final review fixes: cards, counts, demographics and repetition (2026-11-15; OWN-6, OWN-9, OWN-14, owner-job gaps 1, 3 and 7; CHANGELOG "Fixed — final review, cards, counts, demographics and repetition")
+- **The study's individual on the delivery path (OWN-6, gap 1): one truth, chosen as the template's path does it.** The
+  delivery's demographics form now also asks the PK-Sim population database and the sex of the individual PK-Sim
+  simulates, the person's choice (D-29; as I4c asks it on the sheet form's card), and the landing sets the study
+  record's `demographics` from them with the mean age, its range, the mean weight and height. How it is recorded, a
+  deviation: two intake fields only a person enters (`individual_population`, `individual_sex`, `FieldDef.person_only`)
+  entered through `:enter`, so the choice is a fact of the ledger with its reason, in the subject's digest and bound by
+  the signature like every other, not a selection beside the record. Their values are checked where PK-Sim's names are
+  known (the route against the harvested `HUMAN_POPULATIONS` and the study record's `Sex`; the landing again), not
+  listed in `fields.py` (which holds no PK-Sim name). Not chosen, the demographics are held back and said ("Kept, not
+  used by the model yet: … the study's individual needs …"), on the card, on Populations and in the signed record; the
+  signature does not wait for them (no blocker added: the data plan's REQ-sys.demographics is about the data, unchanged),
+  and once loaded Populations and individuals asks for the individual on the landed dataset, as for any study. Nothing
+  is converted at the landing: an age in another unit than years (y, yr, yrs, year, years, or none), a weight not in
+  kg or a height not in cm leaves the individual unset with the reason. The share of women and the ethnicity as written
+  are kept (an individual is one sex and one population). The individual is read from the study's own facts (an arm's
+  own over the study's, as every study-record field); a study whose arms state different demographics lands each arm
+  with its own.
+- **What the card says and what loads come from one function** (`intake_landing.study_individual`): the card's
+  `DeliverySubject.individual`, the held lines and the landing; Populations and individuals reads the card.
+- **The counts of what loaded (gap 3):** a study signed on the delivery is one study in the status line and the Clinical
+  studies list however many datasets its landing loaded, its datasets said beside it ("1 study (3 datasets)"), all from
+  the landing's own list (`landed_datasets`). A sheet-form study's arms keep being counted as the study records they
+  were confirmed as (230-23-REF and 230-23-TEST are two), as before. The status line's datasets are the rows the model's
+  study list is built from (one per study or arm); a metabolite's dataset of the same study is loaded and counted on the
+  card and in the dialog, but is not a row of its own (GET /inputs keeps the parent's), so 230-23 with its parent and
+  metabolite profiles reads "In the model: 2 datasets" on its card and "1 study" on the status line.
+- **The facts after the route (gap 7):** the facts form mirrors what the landing asks once a route is known
+  (`intake_landing._Record.read`: an oral study's dosage form and food state, an infusion's time) to offer them before
+  the route is saved; the landing still checks them. API follow-up: a gap per route-dependent fact from the API, so the
+  page reads it instead of mirroring the rule.
+- **A values table folded to one check (OWN-9):** only when every row that needs the person comes from one check that
+  has its own row in Checks (not a disagreement, which is settled value by value); the line opens that check's form.
+  Its rows are still listed, and still "always shown" once the table is opened.
+- **The spot check's size, a question for the SME and the owner (not changed here):** on the owner's seed 111 values, on
+  230-23 117, are drawn: a random sample of up to 100 (`intake_rules.yaml` `spot_check.size: 100`, the owner's decision
+  6, at least 2 from each stratum) on top of every value always checked (`intake_review._always`: the study's key
+  facts, derived and digitized values, values with a check accepted as is, cross-file facts and links). The old copy
+  promised "a few values"; the page now says from the draw's own reasons why these are drawn, and a person still ticks
+  each one. Whether the sample should be smaller (or scale with the study's values) is the SME's and the owner's
+  (`intake_rules.yaml`, UNVERIFIED).
+- **A recorded spot check is read, never drawn again:** the new `GET …/spot-check` returns the latest draw and its
+  record; before, "Show the values to check" posted a draw, which wrote a new draw once the ticks were recorded.
+- **Repetition (OWN-14):** a model check is not repeated when a To do group lists its gap (by the /inputs to-do's kind:
+  `missing`, `process`, `formulation`, `regimen`, `demographics`, and the observed data while studies wait to be
+  confirmed); the step bar's own line ("Waiting on you: …") stays, as it is the whole page's. Ask the client keeps the
+  "needed for …" line and drops the chip. A card confirmed with the sheet form says who confirmed it in its head line
+  only. The sheet form's path on a card signed on the delivery is pre-filled in the page from the delivery card's facts
+  (entered or read: the number of subjects, a dose in mg, the dosage form, the purpose, fasted or fed, the route, an
+  infusion's time; the sheet form's need names mapped from the intake's), each saying where it came from; this replaces
+  round 1's API follow-up. Not reproduced, so not changed: "How the files were read" twice on one card (the skeptic
+  found it once). Not in this group's list and left: a client file's name repeated on the first To do view (3 to 8
+  times for a file with several kinds of work).

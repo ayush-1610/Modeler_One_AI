@@ -1393,14 +1393,16 @@ def test_land_refuses_a_plan_that_is_not_the_confirmations_subject(ws):
 
 def test_study_facts_with_no_place_in_the_study_record_are_listed(ws):
     """What the landing does not write is listed with its reason: a study's facts that a dataset's study record has no
-    field for (the salt form, the mean age) are named in `held`, on the card before signing and in `Landed.pending`."""
+    field for (the salt form) are named in `held`, on the card before signing and in `Landed.pending`; the mean age,
+    with no individual chosen, is listed as the demographics the individual still needs (D-29)."""
     book = Book(ws)
     ids = clean_study(book)                         # states salt_or_base and age_mean beside what the record takes
     covered(book)
     reader = Ledger(ws)
     plan = plan_of(ws, ids["study"], reader)
-    listed = "EXA-401: study facts with no place in the study record (age_mean, salt_or_base): kept in the ledger"
-    assert plan.held == (listed,)
+    assert plan.held == (("EXA-401: demographics not yet the study's individual (age_mean): kept in the ledger; the "
+                          "individual needs individual_population, individual_sex"),
+                         "EXA-401: study facts with no place in the study record (salt_or_base): kept in the ledger")
     (found,) = plan.datasets
     assert "age_mean" not in found.study and "salt_or_base" not in found.study and found.study["population_type"] == "healthy"
     _plan, confirmation, done = land(ws, ids["study"], reader)
@@ -1410,6 +1412,53 @@ def test_study_facts_with_no_place_in_the_study_record_are_listed(ws):
     _points(book, other["profile"], (10.0, 20.0))
     reader.refresh()
     assert plan_of(ws, other["study"], reader).held == ()
+
+
+def test_the_subjects_demographics_land_as_the_studys_individual_once_a_person_chose_it(ws):
+    """OWN-6 (owner-job gap 1): the demographics a person enters on the delivery card become the study's individual at
+    confirmation, as the template's path sets it (D-29): the PK-Sim population database and the sex are a person's
+    choice, the mean age is needed, the range, weight and height go with it. Until then they are kept and the landing
+    says what the individual needs; once chosen, only the share of women is kept (an individual is one sex). The study
+    then has its demographics downstream (`inputs_view`: "entered", nothing asked again)."""
+    from modeler_project.brief import empty_brief
+    from modeler_project.inputs import assemble, todo
+    from modeler_project.inputs_view import study_rows
+
+    book = Book(ws)
+    ids = clean_study(book)                         # the mean age, from its file
+    covered(book)
+    reader = Ledger(ws)
+    study = ids["study"]
+    enter(reader, study, age_min=21, age_max=45, weight_mean_kg=74, percent_female=50)
+    individual = landing.study_individual(landing.study_own(reader.values(study=study)))
+    assert individual.demographics is None and individual.needs == ("individual_population", "individual_sex")
+    assert individual.stated == ("age_mean", "age_min", "age_max", "weight_mean_kg", "percent_female")
+    assert all("demographics" not in d.study and d.demographics_choice is None for d in plan_of(ws, study, reader).datasets)
+    # no default is ever assumed: a population that is not one of PK-Sim's leaves it unset, with the reason
+    enter(reader, study, individual_population="Caucasian", individual_sex="female")
+    refused = landing.study_individual(landing.study_own(reader.values(study=study)))
+    assert refused.demographics is None and refused.why.endswith("is not one of PK-Sim's") and refused.needs == ("individual_population",)
+    (wrong,) = reader.values(study=study, field="individual_population")
+    reader.enter(field="individual_population", value="European_ICRP_2002", why="the protocol's population", by=BY,
+                 supersedes=wrong.id)
+    plan = plan_of(ws, study, reader)
+    (found,) = plan.datasets
+    demographics = {"population": "European_ICRP_2002", "sex": "FEMALE", "age_years": 33.0, "age_min": 21.0, "age_max": 45.0,
+                    "weight_kg": 74.0}
+    assert found.study["demographics"] == demographics and found.demographics_choice == "entered"
+    assert plan.held == (
+        ("EXA-401: demographics the individual does not carry (percent_female): kept in the ledger; the study's individual "
+         "is one sex and one PK-Sim population, chosen by a person"),
+        "EXA-401: study facts with no place in the study record (salt_or_base): kept in the ledger")
+    _plan, confirmation, done = land(ws, study, reader)
+    (landed,) = datasets(ws)
+    assert landed.state is EvidenceState.ACCEPTED and landed.study["demographics"] == demographics
+    assert landed.demographics_choice == "entered" and list(done.pending) == confirmation.record["held"] == list(plan.held)
+    ws.commit(ArtifactKind.BRIEF, "main", empty_brief(synthetic.DRUG, by=BY).to_content(), actor=BY, reason="start")
+    assemble(ws, by=BY)
+    (row,) = study_rows(ws, set())
+    assert row["study_id"] == "EXA-401" and row["demographics"] == "entered"
+    assert not [t for t in todo(ws) if t["kind"] == "demographics"]
 
 
 def test_an_individual_pk_parameter_keeps_its_subject(ws):
@@ -1445,8 +1494,12 @@ def test_a_study_a_person_named_when_assigning_is_confirmed_and_landed_like_any_
           salt_or_base="base", population="healthy", age_mean=33.0)
     assert reader.pending_links(study=made.study) == []
     plan, confirmation, done = land(ws, made.study, reader)
-    # what it holds back is what any study with these facts holds back (two facts the study record has no place for)
-    assert done.pending == plan.held and all(text.startswith("ABC-1: study facts with no place") for text in plan.held)
+    # what it holds back is what any study with these facts holds back (a fact the study record has no place for, and
+    # a mean age with no individual chosen)
+    assert done.pending == plan.held and plan.held == (
+        ("ABC-1: demographics not yet the study's individual (age_mean): kept in the ledger; the individual needs "
+         "individual_population, individual_sex"),
+        "ABC-1: study facts with no place in the study record (salt_or_base): kept in the ledger")
     assert (confirmation.subject, confirmation.record["label"], confirmation.record["links"]) == (made.study, "ABC-1", [])
     assert any(ref.startswith(f"{made.id}:") for ref in confirmation.record["assignments"])      # the record binds the assignment
     (found,) = [dataset(ws, i) for i in done.datasets]

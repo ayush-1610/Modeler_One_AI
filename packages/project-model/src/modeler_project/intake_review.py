@@ -391,7 +391,7 @@ def subjects(ws: Workspace, *, reader: LedgerReader) -> list[dict[str, Any]]:
         return []
     found = confirmations(ws)
     replaced = {c.supersedes for c in found if c.supersedes}
-    done = {e.body.get("confirmation") for e in _lines(store, "landed")}
+    done = {e.body.get("confirmation"): list(e.body.get("datasets") or ()) for e in _lines(store, "landed")}
     restores = _restores(store)
     legacy = [d for d in all_datasets(ws) if d.origin is Origin.CLIENT and not intake_landing.is_delivery_dataset(d)
               and d.state is not EvidenceState.REJECTED]
@@ -412,6 +412,7 @@ def subjects(ws: Workspace, *, reader: LedgerReader) -> list[dict[str, Any]]:
             confirmation = {"id": last.id, "at": last.at, "by": last.by, "printed_name": last.printed_name,
                             "signature_id": last.signature_id, "manifestation": last.manifestation,
                             "record_sha256": last.record_sha256, "landed": last.id in done,
+                            "landed_datasets": done.get(last.id, []),
                             "current": confirmation_current(ws, last, reader=reader, subject_type=subject_type,
                                                             subject=subject, restores=restores)}
         elsewhere = intake_landing.legacy_overlap(ws, subject_type, subject, reader=reader, candidates=legacy)
@@ -1789,7 +1790,7 @@ def landing_incomplete(ws: Workspace, subject_type: SubjectType, subject: str, r
     reader = LedgerView(ws)
     subject = _subject(reader, subject_type, subject)
     store = IntakeStore(ws)
-    done = {e.body.get("confirmation") for e in _lines(store, "landed")}
+    done = {e.body.get("confirmation"): list(e.body.get("datasets") or ()) for e in _lines(store, "landed")}
     for confirmation in confirmations(ws):
         if confirmation.subject_type == subject_type and confirmation.record_sha256 == record_sha256 \
                 and confirmation.id not in done and _same_subject(reader, subject_type, subject, confirmation.subject):

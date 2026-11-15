@@ -156,13 +156,17 @@ const NOUN: Record<Group["kind"], string> = { study: "study", product: "product"
  *  does not say a fact with the form that asks it), what is to decide, then its one Confirm. `mode` "read": shown for
  *  reference on a card confirmed on the delivery, with no form. `files` sits after the data (the card's "Files and
  *  tables"). */
-export function GroupCard({ projectId, group, run, mode = "confirm", alsoOnDelivery, files, drawn = true }: {
+export function GroupCard({ projectId, group, run, mode = "confirm", alsoOnDelivery, files, drawn = true, confirmedSaid = false, known }: {
   projectId: string; group: Group; run: Run; mode?: "confirm" | "read";
   /** the study or product is also confirmed and signed on the delivery: whichever is confirmed first is what loads */
   alsoOnDelivery?: boolean;
   files?: ReactNode;
   /** false where the card draws the group's data already (its Observed data, its dissolution): each item is one line */
   drawn?: boolean;
+  /** the card it is on says already who confirmed it and when (one confirmation line per card; final review OWN-14) */
+  confirmedSaid?: boolean;
+  /** what the study's delivery card states already, by need: pre-filled in its sheets' drafts */
+  known?: Record<string, { value: string; from: string }>;
 }) {
   const confirmed = group.state === "confirmed";
   const read = mode === "read";
@@ -237,7 +241,7 @@ export function GroupCard({ projectId, group, run, mode = "confirm", alsoOnDeliv
                 <span className="confirm-item-value">{i.value}{i.note && <span className="muted"> · {i.note}</span>}</span>
                 <PeekButton projectId={projectId} source={src(i.source)} label={itemLabel(i.label, i.target)} testId={`peek-item-${i.id}`} />
               </div>
-              {i.kind === "draft" && !read ? <DraftItem projectId={projectId} item={i} run={run} /> : drawn ? <>
+              {i.kind === "draft" && !read ? <DraftItem projectId={projectId} item={i} run={run} known={known} /> : drawn ? <>
                 {i.data && <DatasetView data={i.data} label={`${group.title}: ${itemLabel(i.label, i.target)}`} />}
                 {/* its name is the item's line just above: not said again over the chart */}
                 {i.release && <ReleaseView p={i.release as Profile} title="" />}
@@ -255,7 +259,7 @@ export function GroupCard({ projectId, group, run, mode = "confirm", alsoOnDeliv
           <span className="muted">Once read, its data join their {group.tab === "formulations" ? "product" : "study"}, to confirm there.</span>
         </footer>
       )}
-      {confirmed && (
+      {confirmed && !confirmedSaid && (
         <p className="m-0 fs-13" data-testid={`group-confirmed-${group.id}`}>
           Confirmed by {group.confirmed_by ?? "a person"}{group.confirmed_at ? ` on ${whenText(group.confirmed_at)}` : ""}
           {group.kind === "product" ? ": its data are in the model; its dissolution sets a formulation's release only once used as the release."

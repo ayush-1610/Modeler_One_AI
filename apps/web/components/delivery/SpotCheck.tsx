@@ -4,12 +4,16 @@
 // for (value, unit, time, labels, statistic) and opening its source beside it. The ticks are kept on this page until
 // every value drawn has one, then sent in ONE request: a tick is accepted once. A value held as failed (its tick in an
 // earlier draw said it does not match) is shown as failed and cannot be ticked: it clears when the value is corrected.
-// A draw made before the values changed is stale and is drawn again; its ticks that still hold carry over.
+// A draw made before the values changed is stale and is drawn again; its ticks that still hold carry over. Once its
+// ticks are recorded it folds to its one-line result (who, when; final review OWN-9), and showing its values again reads
+// them (GET), never draws again. How many values are drawn is the intake rules' (SME-governed): the lede says why.
 
 import { Fragment, useState } from "react";
 
 import { send, type Schema } from "@/lib/api";
-import { spotGroupText } from "@/lib/words";
+import { useResource } from "@/lib/hooks";
+
+import { drawText, spotGroupText, whenText } from "@/lib/words";
 
 import { Problem, TUPLE_HEADS, TupleCells, fieldText, num, plural, timeText, useDecide, valueText, type Subject } from "./shared";
 import { ValueSource } from "./ValueSource";
@@ -19,6 +23,7 @@ type SpotValue = Schema<"DeliverySpotValue">;
 type Tick = { ok: boolean | null; note: string };
 
 const DRAW = "/api/v1/projects/{project_id}/delivery/subjects/{type}/{subject}/spot-check:draw" as const;
+const SHOW = "/api/v1/projects/{project_id}/delivery/subjects/{type}/{subject}/spot-check" as const;
 const TICKS = "/api/v1/projects/{project_id}/delivery/subjects/{type}/{subject}/spot-check" as const;
 const FAILED = "always:failed";      // the draw's reason for a value whose tick failed in an earlier draw
 
@@ -60,23 +65,36 @@ export function SpotCheck({ projectId, subject }: { projectId: string; subject: 
   const params = { project_id: projectId, type: subject.subject_type, subject: subject.subject };
   const { decide, busy, problem } = useDecide();
   const [drawn, setDrawn] = useState<Spot | null>(null);
+  // the latest draw as it stands, read (never drawn again) when a person asks to see it
+  const [showing, setShowing] = useState(false);
+  const shown = useResource(SHOW, params, { enabled: showing });
   const [ticks, setTicks] = useState<Record<string, Tick>>({});
   const [source, setSource] = useState<string | null>(null);
+  // a recorded spot check is one line until its values are asked for
+  const [unfolded, setUnfolded] = useState(false);
   const card = subject.spot_check;
   // the rows are those of the subject's latest draw: an older draw kept here is not shown once the card names another
-  const spot = drawn && drawn.draw?.id === card.draw_id && card.state !== "stale" ? drawn : null;
+  const latest = drawn ?? (showing ? shown.data ?? null : null);
+  const spot = latest && latest.draw?.id === card.draw_id && card.state !== "stale" ? latest : null;
   const id = `${subject.subject_type}-${subject.subject}`;
+  const recorded = card.state === "complete" && card.recorded_by !== null;
+  const folded = recorded && !unfolded;
 
+  // a draw is made only when there is none or the values changed; otherwise the latest is read as it stands
   async function draw() {
+    if (card.state !== "none" && card.state !== "stale") {
+      setDrawn(null); setShowing(true); setTicks({}); setSource(null); setUnfolded(true);
+      return;
+    }
     const { data } = await decide(() => send("post", DRAW, params));
-    if (data) { setDrawn(data); setTicks({}); setSource(null); }
+    if (data) { setDrawn(data); setTicks({}); setSource(null); setUnfolded(true); }
   }
 
   async function submit() {
     if (!spot?.draw) return;
     const body = { draw_id: spot.draw.id, ticks: spot.wanted.map((value_id) => ({ value_id, ok: ticks[value_id]?.ok === true, note: ticks[value_id]?.note ?? "" })) };
     const { data } = await decide(() => send("post", TICKS, params, body));
-    if (data) { setDrawn(data); setTicks({}); }
+    if (data) { setDrawn(data); setTicks({}); setUnfolded(false); }
   }
 
   const set = (valueId: string, change: Partial<Tick>) =>
@@ -98,9 +116,20 @@ export function SpotCheck({ projectId, subject }: { projectId: string; subject: 
           is signed, so they cannot be checked against their source: its spot check is drawn after that.</p>
       ) : (
         <>
-          <p className="muted m-0">Compare a few values with the file: the key study facts plus a random sample. Tick each one that
-            matches: its value, unit, time, labels and statistic as the file writes them.</p>
-          {!spot && (
+          {folded ? (
+            <p className="m-0" data-testid={`spot-done-${subject.subject}`}>
+              Every value drawn matches its source · recorded by {card.recorded_by}, {whenText(card.recorded_at)} ·{" "}
+              <button type="button" className="link-btn" disabled={busy || (showing && !shown.data && !shown.problem)}
+                      onClick={() => (spot ? setUnfolded(true) : void draw())}
+                      data-testid={`spot-show-${subject.subject}`}>Show the {plural(card.drawn, "value")}</button>
+            </p>
+          ) : (
+            <p className="muted m-0" data-testid={`spot-lede-${subject.subject}`}>
+              {spot ? `${drawText(spot.values.map((v) => v.reason))}. ` : "Compare values with their file: some are always checked (the study's key "
+                + "facts, values computed from others or read from another file, values with a check accepted as is), the rest is a random sample. "}
+              Tick each one that matches: its value, unit, time, labels and statistic as the file writes them.</p>
+          )}
+          {!spot && !folded && (
             <div className="row gap-8">
               <button type="button" className="btn small" disabled={busy} onClick={() => void draw()} data-testid={`spot-draw-${subject.subject}`}>
                 {card.state === "none" ? "Start the spot check" : card.state === "stale" ? "Start again" : "Show the values to check"}
@@ -109,9 +138,11 @@ export function SpotCheck({ projectId, subject }: { projectId: string; subject: 
                 changed since it started: start again. Ticks of values that did not change carry over.</span>}
             </div>
           )}
-          <Problem text={problem} testId="spot-problem" />
-          {spot && (
+          <Problem text={problem ?? (showing ? shown.problem : null)} testId="spot-problem" />
+          {spot && !folded && (
             <>
+              {recorded && <button type="button" className="link-btn" onClick={() => setUnfolded(false)}
+                                   data-testid={`spot-hide-${subject.subject}`}>Hide the values</button>}
               <div className="table-scroll">
                 <table className="delivery-values" data-testid={`spot-values-${subject.subject}`}>
                   <caption className="sr-only">The values drawn for the spot check</caption>
@@ -175,11 +206,11 @@ export function SpotCheck({ projectId, subject }: { projectId: string; subject: 
                     {ticked} of {wanted.length} ticked{wrong ? `, ${wrong} not matching` : ""}. They are recorded together, once.</span>
                 </div>
               ) : (
-                <p className="muted m-0" data-testid={`spot-done-${subject.subject}`}>
+                <p className="muted m-0" data-testid={`spot-result-${subject.subject}`}>
                   {spot.state === "complete" ? "Every value drawn matches its source."
                     : spot.state === "failed" ? "A value does not match its source: correct it in the values below (Correct), then draw again."
                       : "Nothing is left to tick in this draw."}
-                  {spot.record ? ` Recorded by ${spot.record.by}, ${spot.record.at.slice(0, 16).replace("T", " ")}.` : ""}
+                  {spot.record ? ` Recorded by ${spot.record.by}, ${whenText(spot.record.at)}.` : ""}
                 </p>
               )}
             </>

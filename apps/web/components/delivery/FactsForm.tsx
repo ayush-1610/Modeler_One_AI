@@ -42,6 +42,11 @@ const NUMBER = new Set(["dose", "lloq", "infusion_time_min", "dosing_interval_h"
 // the unit a number is entered with, when the field has one the person states (a dose in mg or mg/kg, an LLOQ in its
 // concentration unit); the others carry their unit in their name
 const UNIT_OF: Record<string, string> = { dose: "mg", lloq: "" };
+// what the study record asks once the route is known (the landing's `intake_landing._Record.read`): an oral study's
+// dosage form and its fasted or fed state, an infusion's time. Offered as soon as the route is chosen, so the facts go
+// in one submission with one reason (final review, owner-job gap 7); a fact a file states already is not asked, and
+// the landing still checks them all
+const AFTER_ROUTE: Record<string, string[]> = { oral: ["formulation", "food_state"], iv_infusion: ["infusion_time_min"] };
 
 type Row = {
   field: string; anchor: string; testId: string;
@@ -136,19 +141,28 @@ function useEnterAll(params: Params) {
   return { enter, busy, problem };
 }
 
-/** The facts no file states, filled in with one reason (`read`: listed, with no form). */
-export function FactsForm({ params, gaps, checks, options, suggestions = {}, read = false, testId }: {
+/** The facts no file states, filled in with one reason (`read`: listed, with no form). `stated`: the fields the card
+ *  has an active value of (not asked again when the route makes them needed). */
+export function FactsForm({ params, gaps, checks, options, suggestions = {}, read = false, testId, stated = new Set<string>() }: {
   params: Params; gaps: Gap[]; checks: Check[]; options: Options | null; suggestions?: Suggestions;
-  read?: boolean; testId: string;
+  read?: boolean; testId: string; stated?: Set<string>;
 }) {
   const fieldOf = (c: Check) => (c.code === "LANDING_FIELD_MISSING" ? /needs (\w+)/.exec(c.message ?? "")?.[1] ?? null
     : c.code === "DOSE_MISSING" ? "dose" : c.code === "MATRIX_MISSING" ? "matrix" : null);
-  const rows = rowsOf(gaps, checks, fieldOf);
   const [values, setValues] = useState<Record<string, string>>({});
   const [units, setUnits] = useState<Record<string, string>>({});
   const [fields, setFields] = useState<Record<string, string>>({});
   const { enter, busy, problem } = useEnterAll(params);
-  const key = (r: Row) => r.anchor;
+  // a row is keyed by its fact, so what is typed in it stays when the card is read again and the row comes back from
+  // another gap or check (the dosage form offered with the route, then asked by the landing's check)
+  const key = (r: Row) => (r.field ? `field:${r.field}` : r.anchor);
+  const rows = rowsOf(gaps, checks, fieldOf);
+  const route = rows.find((r) => r.field === "route");
+  for (const f of route && !read ? AFTER_ROUTE[values[key(route)] ?? ""] ?? [] : []) {
+    if (!rows.some((r) => r.field === f) && !stated.has(f)) {
+      rows.push({ field: f, anchor: `delivery-after-route-${f}`, testId: `delivery-enter-after-route-${f}`, written: "", checks: [] });
+    }
+  }
   const filled = rows.filter((r) => (values[key(r)] ?? "").trim() && (r.field || (fields[key(r)] ?? "").trim()));
 
   if (read) {
@@ -217,48 +231,70 @@ export function FactsForm({ params, gaps, checks, options, suggestions = {}, rea
 }
 
 // the facts that make a study's demographics found (the intake rules' REQ-sys.demographics: the population, and one of
-// the age, the weight or the share of women), entered under the intake vocabulary's names
-const DEMOGRAPHIC_FIELDS = ["age_mean", "age_min", "age_max", "weight_mean_kg", "percent_female"] as const;
-export const DEMOGRAPHICS = ["population", ...DEMOGRAPHIC_FIELDS] as const;
+// the age, the weight or the share of women), entered under the intake vocabulary's names; with them, the study's
+// simulated individual (D-29): the PK-Sim population database and the sex, a person's choice, which with the mean age,
+// its range, the mean weight and height become the study's individual when it is confirmed
+// (`intake_landing.study_individual`, the template's path's rule)
+const FOUND_BY = ["age_mean", "age_min", "age_max", "weight_mean_kg", "percent_female"] as const;
+const NUMBERS = ["age_mean", "age_min", "age_max", "weight_mean_kg", "height_mean_cm", "percent_female"] as const;
+const INDIVIDUAL = ["individual_population", "individual_sex"] as const;
+export const DEMOGRAPHICS = ["population", ...NUMBERS, ...INDIVIDUAL] as const;
 
-/** The demographics a person entered on a study's card (active, newest kept per fact). */
-export function enteredDemographics(values: Value[]): Record<string, Value> {
+/** The demographics stated on a study's card (active, newest kept per fact), a file's or a person's: a person's are
+ *  corrected in the form (`supersedes`), a file's are shown as read. */
+export function statedDemographics(values: Value[]): Record<string, Value> {
   const out: Record<string, Value> = {};
   for (const v of values) {
-    if (v.method !== "person" || v.status === "superseded" || v.status === "excluded" || !(DEMOGRAPHICS as readonly string[]).includes(v.field)) continue;
+    if (v.status === "superseded" || v.status === "excluded" || v.value === null || !(DEMOGRAPHICS as readonly string[]).includes(v.field)) continue;
+    if (out[v.field]?.method === "person" && v.method !== "person") continue;      // a person's entry is the one corrected
     out[v.field] = v;
   }
   return out;
 }
 
+/** The PK-Sim population databases and the sexes a study's individual may have (the API's `study_options`). */
+type IndividualOptions = { population: string[]; sex: string[] } | null;
+
 /** The demographics of a study, entered by a person who has them (instead of asking the client): its population (the
  *  intake vocabulary's words, read from a table layout's vocabulary; typed when no layout is there to read it from), the
- *  mean age or its range, the mean weight and the share of women. Each is entered through `:enter` with one reason; the
- *  study is simulated with them once it is confirmed. `entered`: what a person entered before, shown in the form and
- *  corrected (`supersedes`) where changed, never entered twice. */
-export function DemographicsForm({ projectId, params, vocabulary, onDone, testId, entered = {} }: {
+ *  mean age or its range, the mean weight and height and the share of women; and the study's individual, which PK-Sim
+ *  simulates: one PK-Sim population database and one sex, chosen by the person (as on the sheet form's path). Each is
+ *  entered through `:enter` with one reason, and with the mean age they become the study's individual when it is
+ *  confirmed. `stated`: what is stated already; a person's entry is shown and corrected (`supersedes`) where changed,
+ *  never entered twice; a file's is shown as read. */
+export function DemographicsForm({ projectId, params, vocabulary, options, onDone, testId, stated = {} }: {
   projectId: string; params: Params;
   /** a table layout to read the intake vocabulary from (the population's words), if any */
-  vocabulary: { mapping: string | null }; onDone: () => void; testId: string;
-  entered?: Record<string, Value>;
+  vocabulary: { mapping: string | null };
+  options: IndividualOptions; onDone: () => void; testId: string;
+  stated?: Record<string, Value>;
 }) {
   const layout = useResource("/api/v1/projects/{project_id}/delivery/mappings/{mapping_id}",
                              { project_id: projectId, mapping_id: vocabulary.mapping ?? "" }, { enabled: Boolean(vocabulary.mapping) });
   // the population's words are read before the field is offered, so what is typed is never lost to the list arriving
   const loading = Boolean(vocabulary.mapping) && !layout.data && !layout.problem;
   const populations = layout.data?.vocabulary.fields.find((f) => f.name === "population")?.choices ?? [];
+  const fromFile = (f: string) => Boolean(stated[f]) && stated[f].method !== "person";
+  const entered = Object.fromEntries(Object.entries(stated).filter(([f]) => !fromFile(f)));
   const [d, setD] = useState<Record<string, string>>(() => Object.fromEntries(Object.entries(entered)
     .map(([f, v]) => [f, v.value === null ? "" : String(v.value)])));
   const { enter, busy, problem } = useEnterAll(params);
   const set = (k: string) => (e: { target: { value: string } }) => { const t = e.target.value; setD((p) => ({ ...p, [k]: t })); };
-  const any = DEMOGRAPHIC_FIELDS.some((f) => (d[f] ?? "").trim());
-  const changed = DEMOGRAPHICS.filter((f) => (d[f] ?? "").trim() && (d[f] ?? "").trim() !== String(entered[f]?.value ?? ""));
+  const has = (f: string) => fromFile(f) || Boolean((d[f] ?? "").trim());
+  const changed = DEMOGRAPHICS.filter((f) => !fromFile(f) && (d[f] ?? "").trim() && (d[f] ?? "").trim() !== String(entered[f]?.value ?? ""));
   const correcting = Object.keys(entered).length > 0;
+  const individual = has("individual_population") && has("individual_sex") && has("age_mean");
+  const read = (f: string) => (
+    <span className="facts-read" data-testid={`${testId}-${f}`}>{valueWord(String(stated[f].value))}
+      <span className="muted"> · from its file</span></span>
+  );
+  const women = has("percent_female") ? `${fromFile("percent_female") ? String(stated.percent_female.value) : d.percent_female} % women` : "";
   return (
     <div className="facts-form" data-testid={testId}>
       <div className="facts-grid">
         <label className="facts-field">{fieldLabel("population")}
-          {loading ? <select disabled data-testid={`${testId}-population`} aria-busy="true"><option>loading the words…</option></select>
+          {fromFile("population") ? read("population")
+            : loading ? <select disabled data-testid={`${testId}-population`} aria-busy="true"><option>loading the words…</option></select>
             : populations.length ? (
               <select value={d.population ?? ""} onChange={set("population")} data-testid={`${testId}-population`}>
                 <option value="">choose…</option>
@@ -266,14 +302,36 @@ export function DemographicsForm({ projectId, params, vocabulary, onDone, testId
               </select>
             ) : <input type="text" value={d.population ?? ""} onChange={set("population")} data-testid={`${testId}-population`} />}
         </label>
-        {DEMOGRAPHIC_FIELDS.map((f) => (
+        {NUMBERS.map((f) => (
           <label key={f} className="facts-field">{fieldLabel(f)}
-            <input type="number" inputMode="decimal" min={0} step="any" value={d[f] ?? ""} onChange={set(f)} data-testid={`${testId}-${f}`} />
+            {fromFile(f) ? read(f)
+              : <input type="number" inputMode="decimal" min={0} step="any" value={d[f] ?? ""} onChange={set(f)} data-testid={`${testId}-${f}`} />}
           </label>
         ))}
       </div>
+      <fieldset className="facts-individual" data-testid={`${testId}-individual`}>
+        <legend>The study&apos;s individual, as PK-Sim simulates it</legend>
+        <div className="facts-grid">
+          <label className="facts-field">{fieldLabel("individual_population")}
+            <select value={d.individual_population ?? ""} onChange={set("individual_population")} data-testid={`${testId}-individual_population`}>
+              <option value="">choose…</option>
+              {(options?.population ?? []).map((p) => <option key={p} value={p}>{valueWord(p)}</option>)}
+            </select>
+          </label>
+          <label className="facts-field">{fieldLabel("individual_sex")}{women && <span className="muted fs-12"> ({women})</span>}
+            <select value={d.individual_sex ?? ""} onChange={set("individual_sex")} data-testid={`${testId}-individual_sex`}>
+              <option value="">choose…</option>
+              {(options?.sex ?? []).map((v) => <option key={v} value={v}>{valueWord(v)}</option>)}
+            </select>
+          </label>
+        </div>
+        <p className="muted fs-12 m-4-0-0" data-testid={`${testId}-individual-note`}>
+          {individual ? "With the mean age, its range and the mean weight, this is the individual the study is simulated with once it is confirmed."
+            : "One PK-Sim population and one sex, with the mean age: without them the demographics are kept with the study, not simulated."}
+        </p>
+      </fieldset>
       <Why action={correcting ? "Save the corrections" : "Save the demographics"} label="Where the demographics come from" busy={busy}
-           disabled={!(d.population ?? "").trim() || !any || !changed.length}
+           disabled={!has("population") || !FOUND_BY.some(has) || !changed.length}
            testId={testId} formTestId={`${testId}-reason`} onCancel={onDone} placeholder="where they come from, e.g. the clinical study report (kept on the audit trail)"
            onSubmit={async (why) => {
              const body = (field: string) => ({ value: typedValue(field, d[field]), why,
@@ -285,10 +343,10 @@ export function DemographicsForm({ projectId, params, vocabulary, onDone, testId
   );
 }
 
-/** The demographics a person entered, in a line: "Healthy · mean age 34 · women 50 %". */
-export function demographicsText(entered: Record<string, Value>): string {
-  return DEMOGRAPHICS.filter((f) => entered[f]).map((f) => {
-    const v = entered[f].value;
+/** The demographics stated, in a line: "Healthy · mean age (years) 34 · women (%) 50". */
+export function demographicsText(stated: Record<string, Value>): string {
+  return DEMOGRAPHICS.filter((f) => stated[f] && !(INDIVIDUAL as readonly string[]).includes(f)).map((f) => {
+    const v = stated[f].value;
     return f === "population" ? valueWord(String(v)) : `${fieldLabel(f).toLowerCase()} ${String(v)}`;
   }).join(" · ");
 }

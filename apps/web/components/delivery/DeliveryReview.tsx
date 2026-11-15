@@ -11,22 +11,23 @@
 // every table are settled with their file, in Client files, never here. A blinded study's values are withheld by the API
 // (D-15).
 
-import { Fragment, useMemo, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { InlineIssue } from "@/components/kit";
 import { SortHeader, TableFilter, TableMore } from "@/components/kit/SortableTable";
 import { send, type Schema } from "@/lib/api";
 import { useResource } from "@/lib/hooks";
-import { analyteChoices, normLabel } from "@/lib/inputsWork";
+import { analyteChoices, normLabel, oneCheck } from "@/lib/inputsWork";
 import { numericKey, useTableView } from "@/lib/tableView";
 import {
-  DISPOSITION_WORD, engineWords, fieldLabel, heldText, landingText, placeText, rulesText, tableKindText, valueWord, whenText,
+  DISPOSITION_WORD, engineWords, fieldInText, fieldLabel, heldText, individualNeeds, individualText, landingText, placeText, rulesText, tableKindText,
+  valueWord, whenText,
 } from "@/lib/words";
 
 import { ChangedSince, Decisions } from "./Decisions";
 import { ConfirmDialog } from "./ConfirmDialog";
 import type { MappingOpen } from "./MappingReview";
-import { FactsForm, DemographicsForm, enteredDemographics, type Suggestions } from "./FactsForm";
+import { FactsForm, DemographicsForm, statedDemographics, type Suggestions } from "./FactsForm";
 import {
   BLOCKER_LABEL, ChipFor, KIND_LABEL, MAPPING_STATE, Problem, TupleCells, WITHHELD, Why, fieldText, labelsText, levelText, plural,
   statisticText, typed, useDecide, valueText, when, type Subject, type SubjectRow, type Value,
@@ -128,16 +129,21 @@ const VALUE_KEYS = {
 const valueWords = (v: Value) => [v.field, labelsText(v), statisticText(v), v.unit ?? "", v.level, v.blinded ? "" : v.verbatim ?? ""].join(" ");
 
 /** The subject's values of one table, with the table's layout said on its head (a layout no person approved is checked
- *  from there: its rows are not marked one by one). */
-function ValueTable({ projectId, params, table, flagged, decide, busy, onMapping, read }: {
+ *  from there: its rows are not marked one by one). `oneCheck`: the one check every row needing the person comes from,
+ *  when that check has its own row in Checks: the table stays folded to a line naming it (final review OWN-9). */
+function ValueTable({ projectId, params, table, flagged, decide, busy, onMapping, read, oneCheck, onCheck }: {
   projectId: string; params: CardParams; table: Table; flagged: Map<string, string>; decide: Decide; busy: boolean;
   onMapping: (open: MappingOpen) => void; read: boolean;
+  oneCheck: Check | null;
+  /** go to the check's row in Checks (and open its "State it…" when it has one) */
+  onCheck: (checkId: string) => void;
 }) {
   const [source, setSource] = useState<string | null>(null);
   const [correcting, setCorrecting] = useState<string | null>(null);
   const marked = table.values.filter((v) => flagged.has(v.id)).length;
-  // a table is folded to its one line unless one of its rows needs the person
-  const [open, setOpen] = useState(marked > 0);
+  // a table is folded to its one line unless one of its rows needs the person, and that need is not one check's that
+  // is decided in Checks (one decision for all its rows)
+  const [open, setOpen] = useState(marked > 0 && !oneCheck);
   // the subject's own label ("study 230-23") is the card's name: not said again on each of its rows
   const rows = useMemo(() => table.values.map((v) => {
     const labels = Object.fromEntries(Object.entries(v.labels).filter(([role]) => role !== params.type));
@@ -169,6 +175,14 @@ function ValueTable({ projectId, params, table, flagged, decide, busy, onMapping
       {table.mapping_status === "rejected" && (
         <InlineIssue severity="warn">Its layout was rejected: these are the values read before. They stay until the table is
           marked as not data or read with another layout.</InlineIssue>
+      )}
+      {oneCheck && !open && (
+        <p className="table-marked-by m-0 fs-13" data-testid={`delivery-table-marked-${table.id}`}>
+          {marked === table.values.length ? `All ${plural(marked, "value")}` : plural(marked, "value")} marked by one check:{" "}
+          {engineWords(oneCheck.message ?? WITHHELD)}.{" "}
+          {!read && <button type="button" className="link-btn" onClick={() => onCheck(oneCheck.id)} data-testid={`delivery-table-check-${table.id}`}>
+            {oneCheck.code === "ANALYTE_MISSING" ? "State it…" : "Decide it in Checks"}</button>}
+        </p>
       )}
       {open && <>
       {table.values.length > 8 && <TableFilter view={view} placeholder="Filter: field, label, statistic…" label="Filter these values" />}
@@ -288,19 +302,28 @@ function StateAnalyte({ projectId, check, values, onDone }: {
   );
 }
 
-function CheckRow({ check, subject, decide, busy, onMapping, params, read, values }: {
+function CheckRow({ check, subject, decide, busy, onMapping, params, read, values, start }: {
   check: Check; subject: Subject; decide: Decide; busy: boolean; onMapping: (open: MappingOpen) => void; params: CardParams; read: boolean;
   values: Map<string, Value>;
+  /** asked from a folded table's line ("State it…"): a new number each time it is asked */
+  start?: number;
 }) {
   const [acting, setActing] = useState(false);
   const [stating, setStating] = useState(false);
+  const row = useRef<HTMLLIElement>(null);
   // the analyte is stated by linking the values again; not while the study is blinded (its values are withheld)
   const analyte = check.code === "ANALYTE_MISSING" && !subject.blinded && check.values.some((id) => values.has(id));
+  useEffect(() => {
+    if (!start) return;
+    if (analyte) setStating(true);
+    row.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+    window.setTimeout(() => row.current?.querySelector<HTMLElement>("select, input, button")?.focus(), 80);
+  }, [start]); // eslint-disable-line react-hooks/exhaustive-deps
   const open = check.severity === "fail" && !check.overridden;
   const message = check.message ?? WITHHELD;
   const mapping = check.code === MAPPED ? subject.mappings.find((m) => check.message?.includes(m.mapping_id)) : undefined;
   return (
-    <li className={open ? "delivery-check open" : "delivery-check"} data-testid={`delivery-check-${check.id}`} data-code={check.code}>
+    <li ref={row} className={open ? "delivery-check open" : "delivery-check"} data-testid={`delivery-check-${check.id}`} data-code={check.code}>
       <div className="delivery-check-line">
         <span className={`chip ${check.overridden ? "neutral" : SEVERITY[check.severity].tone}`}>{check.overridden ? "accepted as is" : SEVERITY[check.severity].label}</span>
         <span className="delivery-check-text">{engineWords(message)}</span>
@@ -404,18 +427,24 @@ function LinkRow({ link, subject, decide, busy, params, read }: {
 }
 
 /** A required item no file gives: recorded as asked of the client, taken from the literature or not needed; the
- *  demographics a person has can be entered instead ("Enter them…", through `:enter`). */
-function RequirementRow({ item, decide, busy, params, read, projectId, vocabulary, entered }: {
+ *  demographics a person has can be entered instead ("Enter them…", through `:enter`). Found demographics say the
+ *  study's individual they make (D-29), or what it still needs, with "Choose the individual…": one truth with what
+ *  loads and with Populations and individuals (`DeliverySubject.individual`). */
+function RequirementRow({ item, decide, busy, params, read, projectId, vocabulary, stated, individual, options }: {
   item: Requirement; decide: Decide; busy: boolean; params: CardParams; read: boolean; projectId: string;
   vocabulary: { mapping: string | null };
-  /** the demographics a person entered already (corrected, never entered twice) */
-  entered: Record<string, Value>;
+  /** the demographics stated already (a person's corrected, never entered twice; a file's shown as read) */
+  stated: Record<string, Value>;
+  individual: Schema<"DeliveryIndividual"> | null;
+  options: { population: string[]; sex: string[] } | null;
 }) {
   const [disposition, setDisposition] = useState<Schema<"DeliveryDisposition">["disposition"]>("ask_client");
   const [entering, setEntering] = useState(false);
   // a disposition is the item's status ("ask_client"); `disposition` is the decision's id
   const said = DISPOSITION_WORD[item.status];
   const open = item.status === "missing" && !item.disposition;
+  const demographics = item.req_id === DEMOGRAPHICS;
+  const unset = demographics && !open && individual !== null && !individual.demographics && individual.stated.length > 0;
   return (
     <li className={open ? "delivery-check open" : "delivery-check"} data-testid={`delivery-requirement-${item.req_id}`}>
       <div className="delivery-check-line">
@@ -427,9 +456,25 @@ function RequirementRow({ item, decide, busy, params, read, projectId, vocabular
           <button type="button" className="btn small" onClick={() => setEntering(true)} data-testid={`delivery-demographics-open-${params.subject}`}>Enter them…</button>
         )}
       </div>
-      {!read && open && entering && (
-        <DemographicsForm projectId={projectId} params={params} vocabulary={vocabulary} onDone={() => setEntering(false)}
-                          testId={`delivery-demographics-${params.subject}`} entered={entered} />
+      {demographics && individual?.demographics && (
+        <p className="m-4-0-0 fs-13" data-testid={`delivery-individual-${params.subject}`}>
+          <span className="muted">The study&apos;s individual, which loads with it:</span> {individualText(individual.demographics)}
+          {individual.kept.length > 0 && <span className="muted"> · {individual.kept.map(fieldInText).join(", ")} kept, not simulated</span>}
+          {!read && !open && !entering && <> <button type="button" className="link-btn" onClick={() => setEntering(true)}
+                                                     data-testid={`delivery-demographics-open-${params.subject}`}
+                                                     aria-label="Correct the demographics or the individual">Correct…</button></>}
+        </p>
+      )}
+      {unset && individual && (
+        <p className="m-4-0-0 fs-13" data-testid={`delivery-individual-${params.subject}`}>
+          <span className="chip high">Not simulated yet</span> {capitalized(individualNeeds(individual.needs, individual.why))}.
+          {!read && !entering && <> <button type="button" className="btn small" onClick={() => setEntering(true)}
+                                            data-testid={`delivery-demographics-open-${params.subject}`}>Choose the individual…</button></>}
+        </p>
+      )}
+      {!read && (open || (demographics && individual !== null)) && entering && (
+        <DemographicsForm projectId={projectId} params={params} vocabulary={vocabulary} options={options} onDone={() => setEntering(false)}
+                          testId={`delivery-demographics-${params.subject}`} stated={stated} />
       )}
       {!read && open && !entering && (
         <Why action="Record it" label={`Why ${item.label} is settled this way`} busy={busy} testId={`delivery-dispose-${item.req_id}`}
@@ -551,6 +596,8 @@ export function DeliveryReview({ projectId, row, mode, gate, onMapping, todo, su
   const [confirming, setConfirming] = useState(false);
   const [entering, setEntering] = useState(false);
   const [notes, setNotes] = useState(false);
+  // a check asked from a folded table's line, and when (each ask opens it again)
+  const [asked, setAsked] = useState<{ id: string; at: number } | null>(null);
   const s = read.data;
   const looking = mode === "read";
 
@@ -586,6 +633,9 @@ export function DeliveryReview({ projectId, row, mode, gate, onMapping, todo, su
   const blockers = s.blockers.filter((b) => !GATE_CODES.has(b.code));
   const facts = s.tables.filter((t) => t.kind === "facts").flatMap((t) => t.values).filter(active);
   const tables = s.tables.filter((t) => t.kind === "table");
+  // the one check every row of a table that needs the person comes from, when it has its own row in Checks: the table
+  // stays one line naming it (OWN-9)
+  const oneCheckOf = (t: Table): Check | null => oneCheck(t.values, (id) => flagged.has(id), checks, s.conflicts);
   // a table layout is checked from its table's head; listed apart only when no table on the card shows it
   const unheaded = s.mappings.filter((m) => !tables.some((t) => t.mapping_id === m.mapping_id && t.mapping_version === m.version && t.mapping_status));
   const vocabulary = { mapping: s.tables.find((t) => t.mapping_id)?.mapping_id ?? s.mappings[0]?.mapping_id ?? null };
@@ -641,7 +691,8 @@ export function DeliveryReview({ projectId, row, mode, gate, onMapping, todo, su
         {facts.length === 0 && !s.gaps.length && !factChecks.length && <p className="muted m-0">No fact of the {KIND_LABEL[s.subject_type].toLowerCase()} is stated in its files.</p>}
         {(s.gaps.length > 0 || factChecks.length > 0) && (
           <FactsForm params={params} gaps={s.gaps} checks={factChecks} options={options} suggestions={suggestions}
-                     read={looking} testId={`delivery-facts-form-${s.subject}`} />
+                     read={looking} testId={`delivery-facts-form-${s.subject}`}
+                     stated={new Set([...values.values()].filter((v) => active(v) && v.value !== null).map((v) => v.field))} />
         )}
         {entering && (
           <Enter entry={{ field: "" }} busy={busy} onCancel={() => setEntering(false)} testId={`delivery-enter-${s.subject}`}
@@ -671,7 +722,8 @@ export function DeliveryReview({ projectId, row, mode, gate, onMapping, todo, su
         )}
         {tables.length === 0 && <p className="muted m-0">No table of its files gave a value yet.</p>}
         {tables.map((t) => <ValueTable key={t.id} projectId={projectId} params={params} table={t} flagged={flagged} decide={decide} busy={busy}
-                                       onMapping={onMapping} read={looking} />)}
+                                       onMapping={onMapping} read={looking} oneCheck={oneCheckOf(t)}
+                                       onCheck={(id) => setAsked({ id, at: Date.now() })} />)}
       </Section>
 
       {(s.checks.length > 0 || s.conflicts.length > 0 || s.links.length > 0 || s.requirements.length > 0) && (
@@ -680,7 +732,7 @@ export function DeliveryReview({ projectId, row, mode, gate, onMapping, todo, su
           {checks.length > 0 && (
             <ul className="delivery-plain">
               {checks.map((check) => <CheckRow key={check.id} check={check} subject={s} decide={decide} busy={busy} onMapping={onMapping} params={params}
-                                               read={looking} values={values} />)}
+                                               read={looking} values={values} start={asked?.id === check.id ? asked.at : undefined} />)}
             </ul>
           )}
           {s.conflicts.length > 0 && (
@@ -700,7 +752,9 @@ export function DeliveryReview({ projectId, row, mode, gate, onMapping, todo, su
               <h4 className="delivery-sub">What the data plan needs from this {KIND_LABEL[s.subject_type].toLowerCase()}</h4>
               <ul className="delivery-plain">{s.requirements.map((x) => <RequirementRow key={x.req_id} item={x} decide={decide} busy={busy} params={params}
                                                                                      read={looking} projectId={projectId} vocabulary={vocabulary}
-                                                                                     entered={enteredDemographics([...values.values()])} />)}</ul>
+                                                                                     stated={statedDemographics([...values.values()])}
+                                                                                     individual={s.individual ?? null}
+                                                                                     options={options ? { population: options.population ?? [], sex: options.sex ?? [] } : null} />)}</ul>
             </div>
           )}
           {others.length > 0 && (

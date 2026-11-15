@@ -30,6 +30,13 @@ model's code accepts and holds the rest back, listed with its reason, while the 
 - **compound and product evidence** (a CPF id field): `evidence_register.propose(value_in_quote=True)`, then
   `decide(ACCEPTED)`; an item `evidence.assess` flags with a hold flag of `source_selection.yaml` stays PROPOSED for a
   person and is listed;
+- **the study's individual** (D-29) as the template's path sets it (`client_review._set_demographics`): a person's
+  choice of the PK-Sim population database (`individual_population`, one of `datasets.HUMAN_POPULATIONS`) and of the
+  sex (`individual_sex`), with the subjects' mean age in years, and their age range, mean weight (kg) and height (cm)
+  when stated, become the study record's `demographics`, the dataset's `demographics_choice` "entered". Until a
+  person gives the population, the sex and the mean age, the stated demographics are kept and listed with what the
+  individual still needs; the share of women and the ethnicity as written inform the choice and are listed as kept
+  (an individual is one sex and one population);
 - excretion, product attributes other than dissolution, relations, and a study's facts that the study record has
   no field for land nothing (§11.8, §11.28, §11.33): listed.
 
@@ -75,7 +82,7 @@ from modeler_intake.fields import known_unit, read_choice
 from modeler_intake.validate import TIME_UNITS, canonical_unit
 from modeler_project import client_data
 from modeler_project.dataset_register import dataset, datasets, decide_dataset, propose_dataset, revise_dataset
-from modeler_project.datasets import DatasetError, ObservedDataset, Origin, ReportedPK, Series, check_dataset
+from modeler_project.datasets import HUMAN_POPULATIONS, DatasetError, ObservedDataset, Origin, ReportedPK, Series, check_dataset
 from modeler_project.documents import DocumentLibrary
 from modeler_project.evidence import EvidenceItem, EvidenceState, Extraction, SourceRef, SourceType, assess
 from modeler_project.intake_records import Confirmation, FileRecord, Landed
@@ -90,7 +97,7 @@ from modeler_project.sources import rule as selection_rule
 from modeler_project.store import ImmutableVersionError
 from modeler_project.study_routing import matrix_choice, study_matrix, subject_values
 from modeler_project.workspace import Workspace
-from pbpk_domain.campaign.split import StudyRecord
+from pbpk_domain.campaign.split import Demographics, StudyRecord
 from pbpk_domain.dissolution import ProfileKey, profiles_from_records, profiles_from_rows
 from pbpk_domain.units import UnitError, minutes_per, umol_per_l_per
 
@@ -108,6 +115,17 @@ _VESSELS = 12                                                             # the 
 # the dataset's labels), and the fields `_Record` reads the study record from. Any other study fact has no place in a
 # dataset's study record: `not_landed` lists it
 _NAMING = ("study_id", "treatment", "analyte", "product", "batch")
+# The study's individual (D-29): the field each `Demographics` field is read from. The population database and the sex
+# are a person's choice (`fields.FieldDef.person_only`); the mean age is needed too, as the template's path asks for it.
+# What the choice is made from (the share of women, the ethnicity as written) is not simulated: an individual is one sex
+_INDIVIDUAL = {"individual_population": "population", "individual_sex": "sex", "age_mean": "age_years",
+               "age_min": "age_min", "age_max": "age_max", "weight_mean_kg": "weight_kg", "height_mean_cm": "height_cm"}
+_INDIVIDUAL_NEEDS = ("individual_population", "individual_sex", "age_mean")
+_INDIVIDUAL_HINTS = ("percent_female", "n_female", "ethnicity")
+# the units a number of the individual may state (or none): nothing is converted at the landing
+_YEARS = ("y", "yr", "yrs", "year", "years")
+_INDIVIDUAL_UNIT = {"age_mean": _YEARS, "age_min": _YEARS, "age_max": _YEARS, "weight_mean_kg": ("kg",),
+                    "height_mean_cm": ("cm",)}
 _USED_FOR_RECORD = ("n", "dose", "route", "formulation", "food_state", "intended_use", "design", "crossover",
                     "population", "special_population", "infusion_time_min", "dosing_interval_h", "n_doses", "meal_type",
                     "co_medication", "genotype", "reference", "species", "lloq", "matrix")
@@ -553,7 +571,8 @@ class _Planner:
             time_unit=profile.time_unit if profile is not None else "h", unit=unit, series=series, reported=tuple(reported),
             origin=Origin.CLIENT, extraction=extraction,  # type: ignore[arg-type]
             source=SourceRef(doc_sha256=main, page=page, locator=LOCATOR, title=self.file_name(main)), quote=quote,
-            purpose=record.purpose, provider="CLIENT", flags=tuple(flags), note="; ".join(dict.fromkeys(notes)))
+            purpose=record.purpose, provider="CLIENT", flags=tuple(flags), note="; ".join(dict.fromkeys(notes)),
+            demographics_choice="entered" if "demographics" in study_record else None)
         try:
             return check_dataset(found, mol_weight=self.mol_weight)
         except DatasetError as exc:
@@ -677,6 +696,20 @@ class _Planner:
 
     # --- what never lands ----------------------------------------------------------------------------------------------
 
+    def individual_held(self, label: str, values: Sequence[ValueState]) -> None:
+        """What of the subjects' demographics is not the study's individual: every one stated, with what the
+        individual still needs, until a person chose it; once chosen, the share of women and the ethnicity as written."""
+        individual = study_individual(study_own(values))
+        if individual.demographics is not None:
+            if individual.hints:
+                self.held.append(f"{label}: demographics the individual does not carry ({', '.join(individual.hints)}): kept "
+                                 "in the ledger; the study's individual is one sex and one PK-Sim population, chosen by a "
+                                 "person")
+        elif individual.stated:
+            needs = f"needs {', '.join(individual.needs)}" if individual.needs else "cannot be set"
+            self.held.append(f"{label}: demographics not yet the study's individual ({', '.join(individual.stated)}): kept in "
+                             f"the ledger; the individual {needs}{f' ({individual.why})' if individual.why else ''}")
+
     def not_landed(self, subject_type: str, label: str, values: Sequence[ValueState], *, used_rows: bool) -> None:
         excretion = sorted({v.field for v in values if v.field.startswith("excretion.")})
         if excretion:
@@ -687,7 +720,8 @@ class _Planner:
             self.held.append(f"{label}: relations ({', '.join(relations)}): kept in the ledger; the model inputs have "
                              "no place for them yet")
         if subject_type == "study":
-            placed = {*_NAMING, *_USED_FOR_RECORD, "concentration", "percent_dissolved"}
+            self.individual_held(label, values)
+            placed = {*_NAMING, *_USED_FOR_RECORD, *_INDIVIDUAL, *_INDIVIDUAL_HINTS, "concentration", "percent_dissolved"}
             facts = sorted({v.field for v in values if v.field not in placed and v.relation is None
                             and not v.field.startswith(("pk.", "excretion.", "relation.", "link."))
                             and not is_compound_field(v.field)
@@ -818,6 +852,71 @@ def _rows(planner: _Planner, key: tuple[Any, ...], run: Sequence[ValueState]) ->
 # --- a study record ----------------------------------------------------------------------------------------------------
 
 
+@dataclass(frozen=True)
+class Individual:
+    """A study's individual (D-29) as its active values give it: `demographics`, the study record's (None until a
+    person chose the population database and the sex and the mean age is stated); `needs`, the fields a person still
+    gives for it; `why`, why a stated value cannot make it (another unit, two values, a number out of range); `stated`,
+    the demographic fields that have an active value; `hints`, those of them the individual does not carry."""
+
+    demographics: dict[str, Any] | None
+    needs: tuple[str, ...]
+    why: str
+    stated: tuple[str, ...]
+    hints: tuple[str, ...]
+    used: tuple[ValueState, ...] = ()
+
+
+def study_individual(own: Callable[[str], Sequence[ValueState]]) -> Individual:
+    """The individual `own` (a field's active values: an arm's own over the study's) gives. Nothing is assumed: no
+    default population, sex or age (D-29); a value in another unit, two values of one field, or a population that is
+    not one of PK-Sim's leaves it unset, with the reason (the values are named by their ids, never by their numbers)."""
+    stated = tuple(f for f in (*_INDIVIDUAL, *_INDIVIDUAL_HINTS) if any(v.value is not None for v in own(f)))
+    hints = tuple(f for f in _INDIVIDUAL_HINTS if f in stated)
+    found: dict[str, Any] = {}
+    used: list[ValueState] = []
+    why: list[str] = []
+    for name, key in _INDIVIDUAL.items():
+        values = [v for v in own(name) if v.value is not None]
+        if not values:
+            continue
+        if name in _INDIVIDUAL_UNIT:
+            other = next((v for v in values if (v.unit or "").strip() and (v.unit or "").strip().lower() not in _INDIVIDUAL_UNIT[name]),
+                         None)
+            if other is not None:
+                why.append(f"{name} ({other.id}) is written in {(other.unit or '').strip()!r}, not {_INDIVIDUAL_UNIT[name][-1]}")
+                continue
+            read = {_number(v.value) for v in values}
+        elif name == "individual_sex":
+            read = {read_choice(name, str(v.value)) for v in values}
+        else:
+            read = {str(v.value).strip() if str(v.value).strip() in HUMAN_POPULATIONS else None for v in values}
+        if None in read:
+            why.append(f"{name} ({values[0].id}) is not " + ("a number" if name in _INDIVIDUAL_UNIT else "one of PK-Sim's"))
+            continue
+        if len(read) > 1:
+            why.append(f"two values of {name} are active: choose one")
+            continue
+        found[key] = read.pop()
+        used += values
+    needs = tuple(f for f in _INDIVIDUAL_NEEDS if _INDIVIDUAL[f] not in found)
+    if needs or why:
+        return Individual(None, needs, "; ".join(why), stated, hints)
+    try:
+        demographics = Demographics.model_validate(found).model_dump(mode="json", exclude_none=True)
+    except ValueError as exc:
+        return Individual(None, (), f"the individual is refused: {exc}".splitlines()[0], stated, hints)
+    return Individual(demographics, (), "", stated, hints, tuple(used))
+
+
+def study_own(values: Sequence[ValueState]) -> Callable[[str], list[ValueState]]:
+    """A field's active stated values of the study as a whole (no arm), else of its arms."""
+    def own(name: str) -> list[ValueState]:
+        mine = [v for v in values if v.field == name and v.value is not None]
+        return [v for v in mine if v.entity.arm is None] or mine
+    return own
+
+
 class _Record:
     """The `StudyRecord` fields one arm's values give, facts and rows of an extract alike (an arm's own value over the
     study's): `missing` names each field
@@ -911,6 +1010,10 @@ class _Record:
         crossover = self.one("crossover", lambda v: read_choice("crossover", str(v)))
         if crossover is not None:
             f["crossover"] = crossover == "yes"
+        individual = study_individual(self.own)
+        if individual.demographics is not None:
+            f["demographics"] = individual.demographics
+            self.used += individual.used
 
     def dose(self) -> None:
         """dose_mg: a dose in mg as written; in g or µg the ledger's derived mg fact; mg/kg with dose_per_kg."""
@@ -1166,9 +1269,12 @@ def land(ws: Workspace, library: DocumentLibrary | None, confirmation: Confirmat
             # content than the register holds (the study's label after a merge, a spread the rules no longer land),
             # the register writes the new content as a new version; what a person chose on the dataset itself (the
             # demographics, D-29), which the ledger never states, stays
-            study = {**found.study, **({"demographics": current.study["demographics"]} if "demographics" in current.study
-                                       else {})}
-            found = check_dataset(found.model_copy(update={"study": study, "demographics_choice": current.demographics_choice}))
+            # (unless the ledger states the individual now: a person's choice on the card, which the signature binds)
+            if "demographics" not in found.study:
+                study = {**found.study, **({"demographics": current.study["demographics"]} if "demographics" in current.study
+                                           else {})}
+                found = check_dataset(found.model_copy(update={"study": study,
+                                                               "demographics_choice": current.demographics_choice}))
             if _content(found) != _content(current):
                 why = f"{name} gives this dataset other content than it held"
                 _unless_written(lambda found=found, why=why: revise_dataset(ws, found, by=by, reason=why))

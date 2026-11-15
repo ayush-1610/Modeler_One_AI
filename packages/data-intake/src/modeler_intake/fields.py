@@ -3,6 +3,11 @@
 Names are the client-data template's column names (`client_template.SHEETS`) wherever one exists, so the ledger and
 the no-AI path say the same thing. Nothing here is a PK-Sim name.
 
+Two fields are a person's only (`person_only`): the PK-Sim population database and the sex of a study's simulated
+individual (D-29), a modelling choice never read from a file. A person enters them on the study's card with the
+subjects' demographics; the prose reader is not asked for them and a table layout cannot read a column as one. Their
+values are checked where the names are known (the API's study options, the landing), not listed here.
+
 A value's unit class is its FIELD's, never guessed from the unit text (the concentration table reads "µm" and "mm" as
 molar concentrations). A unit is checked against the existing table of its class only: concentration
 `validate.CONCENTRATION_UNITS`, time `validate.TIME_UNITS`, percentage `validate.FRACTION_UNITS`, mass the dose units
@@ -29,7 +34,7 @@ from modeler_intake.client_template import FORMULATIONS, PK_PARAMETERS, ROLES, R
 from modeler_intake.document_reading import _CONC_UNIT, _DOSE_UNIT, _MG_PER, _dose_unit, name_key, supports_choice
 from modeler_intake.validate import CONCENTRATION_UNITS, FRACTION_UNITS, TIME_UNITS, canonical_unit
 from pbpk_domain import parameters
-from pbpk_domain.campaign.split import SpecialPopulation
+from pbpk_domain.campaign.split import Sex, SpecialPopulation
 
 Statistic = recipe.Statistic                      # individual | arithmetic_mean | geometric_mean | median
 SpreadKind = Literal["SD", "SE", "CV%", "geoSD", "geoCV%"]     # a CI or a min-max pair is an interval, not a spread
@@ -60,14 +65,15 @@ class FieldDef(BaseModel):
     choices: tuple[str, ...] = ()
     cue: str = ""                                               # regex of the label a sentence must carry
     choice_cues: dict[str, str] = Field(default_factory=dict)  # choice -> regex stating it, for the choices supports_choice lacks
+    person_only: bool = False                                   # a person's choice, never read from a file (D-29)
 
 
 def _f(name: str, value: Literal["number", "integer", "choice", "name", "text"],
        level: Literal["study", "arm", "product", "batch", "analyte", "observation", "compound", "condition", "label"],
        unit_class: UnitClass = "none", choices: tuple[str, ...] = (), cue: str = "",
-       choice_cues: dict[str, str] | None = None) -> tuple[str, FieldDef]:
+       choice_cues: dict[str, str] | None = None, person_only: bool = False) -> tuple[str, FieldDef]:
     return name, FieldDef(name=name, value=value, level=level, unit_class=unit_class, choices=choices, cue=cue,
-                          choice_cues=dict(choice_cues or ()))
+                          choice_cues=dict(choice_cues or ()), person_only=person_only)
 
 
 _AGE = r"\bage[ds]?\b|\byears?\b|\byrs?\b"
@@ -105,6 +111,10 @@ FIELDS: Mapping[str, FieldDef] = MappingProxyType(dict((
     _f("egfr", "number", "study", "other", cue=r"\begfr\b|glomerular"),
     _f("gestational_week", "number", "study", cue=r"gestation"),
     _f("ethnicity", "text", "study", cue=r"ethnic|\brace\b"),
+    # the study's simulated individual (D-29): a person's choice, with the share of women and the ethnicity as written
+    # beside it (`person_only`); a PK-Sim population database's name, and the sex as the study record writes it
+    _f("individual_population", "name", "study", person_only=True),
+    _f("individual_sex", "choice", "study", choices=tuple(s.value for s in Sex), person_only=True),
     _f("genotype", "text", "study", cue=r"genotype|\bpoor metaboli[sz]ers?\b|\bextensive metaboli[sz]ers?\b|\*\d"),
     _f("co_medication", "text", "study", cue=r"co-?medicat|co-?administ|concomitant|\bwith\b"),
     _f("route", "choice", "arm", choices=(*ROUTES, "other")),

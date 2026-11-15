@@ -14,10 +14,11 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
-import { DeliveryReview } from "@/components/delivery/DeliveryReview";
+import { DeliveryReview, SUBJECT } from "@/components/delivery/DeliveryReview";
 import type { Suggestions } from "@/components/delivery/FactsForm";
 import { MappingReview, type MappingOpen } from "@/components/delivery/MappingReview";
 import type { Schema } from "@/lib/api";
+import { useResource } from "@/lib/hooks";
 import { cardAnchor, type Subject, type WorkItem, type WorkModel } from "@/lib/inputsWork";
 import { AREA_NAME, STATUS_TONE, STATUS_WORD, type Status, type Tab, plural, whenText } from "@/lib/words";
 
@@ -25,6 +26,30 @@ import { GroupCard, openText } from "../ClientConfirm";
 import type { Run } from "../InputsTodo";
 
 type Group = Schema<"ReviewGroup">;
+type Card = Schema<"DeliverySubject">;
+
+/** A sheet's need (the sheet form's names) and the intake field the delivery card states it under. */
+const NEED_OF: Record<string, string> = {
+  n: "n", dose: "dose", formulation: "formulation", intended_use: "purpose", food_state: "food_state", route: "route",
+  infusion_time_min: "infusion_time_min",
+};
+
+/** The facts a delivery card states already (entered by a person or read from its files), by the sheet form's need
+ *  names: offered to the sheets of the same study when the person takes the sheet form's path, so nothing entered on
+ *  the card is asked again (final review OWN-14). A dose only in mg, as the sheet form takes it. */
+export function knownFacts(card: Card | null | undefined): Record<string, { value: string; from: string }> {
+  const out: Record<string, { value: string; from: string }> = {};
+  for (const t of card?.tables ?? []) {
+    for (const v of t.values) {
+      const need = NEED_OF[v.field];
+      if (!need || v.value === null || v.blinded || v.status === "superseded" || v.status === "excluded") continue;
+      if (v.field === "dose" && (v.unit ?? "mg").trim().toLowerCase() !== "mg") continue;
+      if (out[need] && v.method !== "person") continue;               // a person's entry is the one offered
+      out[need] = { value: String(v.value), from: v.method === "person" ? "entered on the study's card" : `stated in ${t.file ?? "its file"}` };
+    }
+  }
+  return out;
+}
 
 /** Where a card was asked to open from (a To do row, "Next", a link): by its key, its delivery subject
  *  (`${type}/${subject}`) or its sheet-form group, and the element to bring into view in it. */
@@ -150,7 +175,9 @@ function InModel({ subject, onShow }: { subject: Subject; onShow?: () => void })
   if (!subject.done) return null;
   const who = c?.current && c.landed ? `Signed by ${c.printed_name || c.by} on ${whenText(c.at)}`
     : g ? `Confirmed with the sheet form by ${g.confirmed_by ?? "a person"}${g.confirmed_at ? ` on ${whenText(g.confirmed_at)}` : ""}` : "Confirmed";
-  const datasets = g ? g.items.filter((i) => i.data).length : 0;
+  // what the signature's landing loaded (the signing dialog's and the status line's count), else what the sheet form
+  // confirmed (final review, owner-job gap 3: one source for each count)
+  const datasets = c?.current && c.landed ? c.landed_datasets.length : g ? g.items.filter((i) => i.data).length : 0;
   return (
     <p className="card-loaded" data-testid={`card-loaded-${subject.key}`}>
       <StatusChip status="done" /> {who}.{" "}
@@ -181,6 +208,10 @@ export function ConfirmPath({ subject: s, env, observed, files, onShow }: {
   // a study the delivery blinds (D-15): nothing of it is read or confirmed with the sheet form until the plan is signed
   // (the API refuses it, 409 BLINDED), and the sheet form's reading of it is not shown
   const blinded = Boolean(s.row?.blinded || s.groups.some((g) => g.blinded));
+  // the delivery card's facts (the card reads the same, under the same key), offered to the sheets' drafts
+  const card = useResource(SUBJECT, { project_id: projectId, type: s.row?.subject_type ?? "study", subject: s.row?.subject ?? "" },
+                           { enabled: Boolean(s.row) && !blinded && s.groups.some((g) => g.items.some((i) => i.kind === "draft")) });
+  const known = blinded ? {} : knownFacts(card.data);
   const toConfirm = blinded ? [] : s.groups.filter((g) => g.state === "to_confirm" && g.kind !== "sheet");
   // a To do row that opens a sheet-form item (a sheet to read, a disagreement) of a card confirmed on the delivery opens
   // the sheet form's path there, where it is settled
@@ -217,7 +248,8 @@ export function ConfirmPath({ subject: s, env, observed, files, onShow }: {
                               ? <p className="delivery-withheld m-0" data-testid={`how-read-withheld-${s.key}`}>Withheld: the study is blinded until
                                   the plan is signed, and the sheet form&apos;s reading shows its values. It is read and confirmed once the plan is signed.</p>
                               : s.groups.map((g) => <GroupCard key={g.id} projectId={projectId} group={g} run={run} drawn={false}
-                                                               mode={sheet && g.state === "to_confirm" ? "confirm" : "read"} alsoOnDelivery />))}
+                                                               mode={sheet && g.state === "to_confirm" ? "confirm" : "read"} alsoOnDelivery
+                                                               known={known} />))}
                           </HowRead>
                         ) : undefined} />
       )}
@@ -230,7 +262,8 @@ export function ConfirmPath({ subject: s, env, observed, files, onShow }: {
             </section>
           )}
           {observed}
-          {s.groups.map((g) => <GroupCard key={g.id} projectId={projectId} group={g} run={run} files={files} />)}
+          {s.groups.map((g) => <GroupCard key={g.id} projectId={projectId} group={g} run={run} files={files} confirmedSaid={s.done}
+                                          known={known} />)}
           {s.row && (
             <HowRead subject={s} title="the delivery (for reference)" open={reading} onOpen={setReading}>
               {/* a study the project blinds (D-15) that the delivery does not: its reading is not shown until the plan is signed */}

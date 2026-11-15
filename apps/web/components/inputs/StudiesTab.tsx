@@ -421,7 +421,10 @@ export function StudiesTab({ studies, todo, projectId, run, options, onIndividua
       {notes.map((t, i) => <TodoCard key={`${t.kind}-${t.target}-${i}`} t={t} projectId={projectId} run={run} />)}
       {!only && (
         <section className="studies-in-model" data-testid="studies-in-model">
-          <h2 className="area-section-title">In the model <span className="muted">({studies.filter((s) => !s.excluded).length})</span></h2>
+          {/* counted as the status line counts them (lib/inputsWork.ts `inModel`): a study signed on the delivery once,
+              its arms' datasets beside it */}
+          <h2 className="area-section-title">In the model <span className="muted" data-testid="studies-in-model-count">({plural(env.work.inModel.studies, "study", "studies")}
+            {env.work.inModel.datasets !== env.work.inModel.studies ? `, ${plural(env.work.inModel.datasets, "dataset")}` : ""})</span></h2>
           {/* what the client delivered that the data plan did not ask for, besides a dataset (each says so on its line) */}
           {unpromised.some((u) => !u.startsWith("dataset ")) && (
             <p className="muted fs-13 m-0-0-8" data-testid="unpromised-other">Delivered, not in the data plan:{" "}

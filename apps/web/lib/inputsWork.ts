@@ -29,7 +29,7 @@ export type TodoLike = { kind: string; target: string; message: string; tab?: st
 export type InputsLike = {
   todo: TodoLike[];
   compound: { id: string; state: string; tab: string }[];
-  studies: { study_id: string; excluded: string | null; blinded: boolean }[];
+  studies: { study_id: string; excluded: string | null; blinded: boolean; dataset_id?: string | null }[];
   readiness: { content: { ready: boolean; checks: { check: string; ok: boolean; detail: string[] }[] } | null } | null;
 };
 /** A client file (GET /client-data), as far as the work model reads it. */
@@ -148,9 +148,13 @@ export type Subject = {
 };
 
 export type AskLine = { req: string; what: string; subjects: string[]; required: boolean; why: string };
-export type CheckLine = { raw: string; label: string; ok: boolean; detail: string[]; fix: string };
+/** A model check (the readiness report) in words; `said`: an open check whose gap a To do group already lists (its
+ *  rows, or the cards to confirm), so the Model checks group does not say it again (final review OWN-14). */
+export type CheckLine = { raw: string; label: string; ok: boolean; detail: string[]; fix: string; said: boolean };
 export type Counts = Record<Status, number> & { open: number };
-export type InModel = { studies: number; formulations: number; values: number };
+/** What the model holds: `studies` counts a study signed on the delivery once, its arms and its means together;
+ *  `datasets`, the study rows the model is built from (one per arm; what the signature's landing says it loaded). */
+export type InModel = { studies: number; datasets: number; formulations: number; values: number };
 
 export type WorkModel = {
   items: WorkItem[];
@@ -615,12 +619,18 @@ export function buildWork(sources: WorkSources): WorkModel {
     for (const f of i.files) (fileWork[f] ??= []).push(i);
   }
 
+  // an open check whose gap the /inputs to-do lists as rows of To do (by the to-do's kind), or, for the observed data,
+  // the studies still to confirm: said there, not again among the model checks
+  const listed = new Set(items.filter((i) => i.status !== "done" && i.id.startsWith("todo:")).map((i) => i.id.split(":")[1]));
+  const said = (raw: string) => (CHECK_TODO[checkKeyOf(raw)] ?? []).some((k) => listed.has(k))
+    || (checkKeyOf(raw) === "observed data to judge on" && toConfirmStudies);
   const checks = (inputs?.readiness?.content?.checks ?? []).map((c) => ({
     raw: c.check, label: checkLabel(c.check, c.detail, c.ok), ok: c.ok, detail: c.detail, fix: checkFix(c.check),
+    said: !c.ok && said(c.check),
   }));
   return {
     items, subjects, counts, byArea, byFile, fileWork, next: open[0] ?? null, ask: askLines(delivery), checks,
-    inModel: inModel(inputs), ready: !open.length && !checking && Boolean(inputs?.readiness?.content?.ready), checking,
+    inModel: inModel(inputs, delivery), ready: !open.length && !checking && Boolean(inputs?.readiness?.content?.ready), checking,
   };
 }
 
@@ -634,6 +644,26 @@ function draftItem(add: (i: Omit<WorkItem, "open">) => void, g: ReviewGroup, i: 
           : `${name} · ${i.label}: ${needs.length ? `not stated: ${needs.join(", ")}` : "to read"}`,
         where: { tab: g.tab as Tab, anchor: `group-${g.id}` }, blocked: blinded ? "Blinded until the plan is signed." : undefined, detail,
         files: draft?.sid ? [draft.sid] : sha ? [fileOf(sha)] : [], subjects, weight: 1 });
+}
+
+/** The /inputs to-do kinds that list a model check's gap as rows of To do (`modeler_project.inputs.todo`, by the check's
+ *  name without its reference): the compound values missing, a pathway's process, the tablet studies' formulation, a
+ *  multiple-dose study's dosing, a study's demographics. */
+const CHECK_TODO: Record<string, string[]> = {
+  "S0 completeness": ["missing"], "every pathway placeable": ["process"], "formulations of solid studies": ["formulation"],
+  "multiple-dose regimens": ["regimen"], "demographics stated": ["demographics"],
+};
+const checkKeyOf = (raw: string) => raw.replace(/\s*\([^)]*\)\s*$/, "");
+
+/** The one check every row of a table that needs the person comes from, when that check is decided in Checks (`checks`:
+ *  the card's failed checks listed there) and no row is in a disagreement (settled value by value): the table then stays
+ *  folded to one line naming it, one decision for all its rows (final review OWN-9). Null otherwise. */
+export function oneCheck<C extends { values: string[] }>(rows: { id: string }[], marked: (id: string) => boolean, checks: C[],
+                                                         conflicts: { values: string[] }[]): C | null {
+  const mine = rows.filter((v) => marked(v.id));
+  if (!mine.length || conflicts.some((x) => mine.some((v) => x.values.includes(v.id)))) return null;
+  const from = checks.filter((c) => mine.some((v) => c.values.includes(v.id)));
+  return from.length === 1 && mine.every((v) => from[0].values.includes(v.id)) ? from[0] : null;
 }
 
 /** The status line's one primary button: what comes next, in words ("Next: Check 10 table layouts"). */
@@ -702,11 +732,19 @@ function inModelText(s: Subject): string {
 
 /** What the model holds now: the studies its study list is built from (the client's only once confirmed: a client
  *  dataset waiting for confirmation is not in it), the formulations and the compound's values the inputs keep. Nothing
- *  proposed and not yet confirmed is counted. */
-export function inModel(inputs: InputsLike | null): InModel {
+ *  proposed and not yet confirmed is counted. A study signed on the delivery is one study however many datasets its
+ *  landing loaded (its arms land as `<study>-<arm>`): the datasets are counted beside it, from the same rows, so the
+ *  status line, the card ("In the model: 3 datasets") and the signing dialog ("3 datasets") say the same (final review,
+ *  owner-job gap 3). */
+export function inModel(inputs: InputsLike | null,
+                        delivery: { subjects: { label: string; confirmation?: { landed_datasets: string[] } | null }[] } | null = null): InModel {
   const kept = (inputs?.compound ?? []).filter((r) => r.state === "kept");
+  const signed = new Map<string, string>();
+  for (const s of delivery?.subjects ?? []) for (const id of s.confirmation?.landed_datasets ?? []) signed.set(id, normLabel(s.label));
+  const rows = (inputs?.studies ?? []).filter((s) => !s.excluded);
   return {
-    studies: (inputs?.studies ?? []).filter((s) => !s.excluded).length,
+    studies: new Set(rows.map((s) => (s.dataset_id && signed.get(s.dataset_id)) || `row:${s.study_id}`)).size,
+    datasets: rows.length,
     formulations: new Set(kept.filter((r) => /^form\.[^.]+\.type$/.test(r.id)).map((r) => r.id.split(".")[1])).size,
     values: kept.filter((r) => r.tab === "compound").length,
   };

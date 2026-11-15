@@ -73,7 +73,8 @@ test("sheets are read on arrival: a complete one waits on its product, a BE arm 
   await expect(card).toContainText("Subjects (n)");
   await expect(card.getByTestId("confirm-study:230-23-REF")).toBeEnabled();
   await card.getByTestId("confirm-study:230-23-REF").click();
-  await expect(card).toContainText("Confirmed by");
+  // one confirmation line per card (final review OWN-14): the card's head line says who confirmed it and when
+  await expect(page.getByTestId("card-loaded-study:230-23-REF")).toContainText("Confirmed with the sheet form by");
 
   // the test product's dissolution: nothing to give (its product named as in the brief): saved on arrival, on its card
   await page.getByTestId("tab-formulations").click();

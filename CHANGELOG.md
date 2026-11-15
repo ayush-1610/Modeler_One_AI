@@ -227,6 +227,90 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
   `inputs-owner-job.spec.ts` (gaps 2 and 5). Known gaps and deviations: plan §5 "Final review fixes: the gate, layouts
   and To do". Software test data on the stub engine: none of it is PBPK evidence.
 
+### Fixed — final review, cards, counts, demographics and repetition (OWN-6, OWN-9, OWN-14, owner-e2e gaps 1, 3 and 7) — science change
+- **OWN-6 and owner-job gap 1 (one truth for a study's demographics).** The demographics a person entered on a study's
+  delivery card showed "Done", the card said they were "kept, not used by the model", Populations said they load, and
+  after the signature GET /inputs had the study's demographics "missing" and To do asked for them again. They now land
+  as the study's individual at confirmation, as the template's path sets it (I4c, `client_review._set_demographics`):
+  - the demographics form (on the card and on Populations and individuals) also asks for the individual PK-Sim
+    simulates: the PK-Sim population database (the harvested `datasets.HUMAN_POPULATIONS`, offered from GET /inputs'
+    `study_options`) and the sex (the study record's `Sex`), the share of women shown beside it. Mapping the subjects to
+    one population and one sex is a modelling choice, never assumed (D-29);
+  - they are two intake fields only a person enters (`individual_population`, `individual_sex`;
+    `modeler_intake.fields.FieldDef.person_only`): never asked of the prose reader, not in the layout vocabulary
+    (`GET /delivery/vocabulary`), refused in a mapping spec (UNKNOWN_FIELD). They are entered through `:enter` with the
+    reason, listed among the card's decisions and bound by the signature like every fact. `:enter` refuses a name that
+    is not one of PK-Sim's (422 `NOT_ALLOWED`, naming them) and an individual on a product (422);
+  - the landing (`intake_landing.study_individual`, read by `_Record`) sets the study record's `demographics`
+    (`pbpk_domain` `Demographics`: the population, the sex, `age_years` from the mean age, `age_min`, `age_max`,
+    `weight_kg` from the mean weight, `height_cm` from the mean height) and the dataset's `demographics_choice`
+    "entered", once the population, the sex and the mean age are given. Nothing is defaulted or converted: with one of
+    them missing, two values of one field, an age not in years, a weight not in kg, a height not in cm, or a population
+    that is not PK-Sim's, the demographics are held back and the held line says what the individual still needs. The
+    share of women, the number of women and the ethnicity as written stay kept, said so ("the study's individual is one
+    sex and one PK-Sim population, chosen by a person");
+  - one source for the three places: the card's `DeliverySubject.individual` (`DeliveryIndividual`, from the same
+    function) says the individual that loads ("European ICRP 2002 · male · 31 y · 72 kg · women (%) kept, not
+    simulated") or what it needs, with "Choose the individual…"; Populations and individuals says the same on the
+    study's pending line; GET /inputs then reports the landed study's (and each arm's) demographics "entered", and To
+    do does not ask for them again. A dataset landed again keeps a person's earlier choice on the dataset itself only
+    where the ledger states no individual.
+- **Owner-job gap 3 (the counts of what loaded agree).** One source for each count, the landing's own list of the
+  datasets it loaded, now also on the page's subject rows (`DeliveryConfirmationState.landed_datasets`): the card's "In
+  the model: 3 datasets" (it counted the sheet-form group's items: "1 dataset"), the signing dialog's "Loaded into the
+  project: 3 datasets", and the status line, which counts a study signed on the delivery once however many datasets its
+  landing loaded ("In the model: 1 study (3 datasets)", where it said "3 studies" for the study and its two arms). The
+  Clinical studies list's "In the model" heading says the same ("1 study, 3 datasets").
+- **Owner-job gap 7 (facts in one submission).** The facts form offers what the study record needs once the route is
+  known (`intake_landing._Record.read`: an oral study's dosage form and fasted or fed, an infusion's time) as soon as the
+  route is chosen, unless a file states it, so the facts go with one reason in one submission ("Save these 4 facts").
+  Its rows are keyed by their fact, so what is typed in one survives the card being read again (commit 1824e6a's rule).
+- **OWN-9 (a long card folds).** A table of values whose every row needing the person comes from one check that has its
+  own row in Checks stays folded, with one line: "All 76 values marked by one check: concentrations name no analyte.
+  State it…" (opening that check's form in Checks; "Decide it in Checks" for any other check). A recorded spot check
+  folds to its one-line result: "Every value drawn matches its source · recorded by dev-user, 15 Nov 2026, 09:42 · Show
+  the 117 values". Showing them reads the spot check through a new read-only route, `GET
+  /delivery/subjects/{type}/{subject}/spot-check`: the page used to POST a draw for it, which writes a new draw once the
+  ticks of the last one are recorded. The card's `spot_check` gains `recorded_by` and `recorded_at`. Once drawn, the
+  lede says why so many values are drawn, from the draw's own reasons ("117 values drawn: 4 key facts of the study, 13
+  computed from other values are always checked; 100 are a random sample"). How many values are drawn is the intake
+  rules' (`spot_check.size` 100, the owner's decision 6, and the always-checked list; SME-governed) and is not changed:
+  the question is recorded for the SME in plan §5.
+- **OWN-14 (repetition).**
+  - A model check whose gap a To do group already lists is not said again among the Model checks (`CheckLine.said`):
+    the compound values missing, an elimination pathway's process, the tablet studies' formulation, a multiple-dose
+    study's dosing, a study's demographics (the /inputs to-do's rows), and the observed data while studies wait to be
+    confirmed. Checks no group lists stay.
+  - Ask the client says what each item is "needed (or useful) for" once, without the chip that said "needed" again.
+  - A card confirmed with the sheet form says who confirmed it once, in its head line (the group's own "Confirmed by …:
+    in the model." is not repeated inside it).
+  - The sheet form's path on a card signed on the delivery ("Confirm now with the sheet form") is pre-filled from what
+    the delivery card states, entered on it or read from its files (the number of subjects, a dose in mg, the dosage
+    form, the purpose, fasted or fed, the route, an infusion's time), each saying "pre-filled · entered on the study's
+    card", so a fact entered once is not asked again. This was round 1's API follow-up; it is built in the page, from
+    the card the page reads anyway.
+  - The missing compound values table's hidden caption no longer repeats its lede.
+- **Why:** final review, owner lens (OWN-6, OWN-9, OWN-14, each confirmed or partly confirmed by the skeptic) and the
+  owner-job e2e's gaps 1, 3 and 7: what a person entered did not reach the model while the page said it did, the
+  counts of what loaded disagreed, the facts took two saves, one card grew to 15,000 px, and the same gap was said three
+  or four times on one screen.
+- **Impact (science):** a study confirmed on the delivery with its demographics and its individual chosen is simulated
+  with that individual (D-29), where it was asked for again after loading; nothing is defaulted, and what is not chosen
+  is held back and said. API (contract and web types updated): `DeliverySubject.individual` (`DeliveryIndividual`),
+  `DeliverySpotState.recorded_by` and `recorded_at`, `DeliveryConfirmationState.landed_datasets`, `GET
+  …/spot-check`, the intake vocabulary's two person-only fields. No locked file, ruleset, requirement level or spot
+  check size changed. Tests: `test_intake_landing.py` (the individual lands once chosen, its held lines, GET /inputs
+  "entered" and no to-do row; two tests' held lines updated), `test_delivery_api.py` (the card's `individual`, the
+  refusals, the vocabulary without the person-only fields, the landed datasets, the spot check's read route and
+  `recorded_by`; route counts and the legacy refusal list updated for the new route), `inputs-work.spec.ts` (the
+  in-model counts, the checks said once, the individual's and the held lines' words, the draw's words, the one check a
+  folded table names: `inputsWork.oneCheck`),
+  `inputs-owner-job.spec.ts` (one submission for the facts; the individual chosen and shown; the folded spot check
+  shown again without a new draw; 15 decisions; one study, 3 datasets everywhere; To do no longer asks for the
+  demographics after the signature and GET /inputs has them "entered"); `client-confirm.spec.ts` and
+  `inputs-sheets-on-arrival.spec.ts` read who confirmed a sheet-form card from its one head line. Software test data on
+  the stub engine: none of it is PBPK evidence.
+
 ### Fixed — final review, blinding, Part 11 records and the decisions list (INT-1, INT-2, INT-3, INT-6, INT-7, INT-8, INT-11, CODE-8 d, owner-e2e gaps 6 and 9) — science-adjacent
 - **INT-1 (blocker): a blinded study's reasons no longer show its values.** The decision list read who, when and why
   from `GET /audit` and printed a blinded study's reasons word for word ("… Cmax 41.2 ng/mL …"). The card's API now
@@ -359,13 +443,15 @@ Findings OWN-1, INT-4, OWN-11, INT-5, OWN-4, INT-9, OWN-3, INT-10 and the owner-
   left beside OJ-101 and OJ-102, and that the bulk bar offers Exampleamide once and says "as each file says
   (Exampleamide)" (`inputs-owner-job.spec.ts`). Its check that To do "falls" after the signature is now
   exact: OJ-101's confirm row goes, and what the loading adds is the /inputs to-do of the studies now in the model (the
-  demographics of the study and each arm, the tablet studies' formulation: its gaps 1 and 11). The fall it saw before
-  came from the signature settling the arms' double-counted sheet-form rows, which no longer exist.
+  demographics of the study and each arm, the tablet studies' formulation: its gaps 1 and 11; gap 1 fixed since, "final
+  review, cards, counts, demographics and repetition" above: the demographics are no longer asked again). The fall it
+  saw before came from the signature settling the arms' double-counted sheet-form rows, which no longer exist.
 - **Why:** the final review found a person's links silently dropped, the arm guard bypassed, two analytes of one name,
   no way to correct a link, and the same file asked and counted twice; each makes the page unusable for the owner's job.
 - **Impact:** the links a person makes now hold through layout corrections and can be changed; the same data is asked
   and counted once. Known gaps, recorded in plan §5: the sheet form's path on a joined card is not pre-filled from the
-  delivery card's facts; "Link elsewhere…" is on Client files only (not on a card's Files and tables). Software test
+  delivery card's facts (built since, in the page: "final review, cards, counts, demographics and repetition" above);
+  "Link elsewhere…" is on Client files only (not on a card's Files and tables). Software test
   data on the stub engine: none of it is PBPK evidence.
 
 ### Added — an end-to-end test of the owner's whole job on Inputs, on its own seed (plan 2026-11-14 §2.2.7)
@@ -386,7 +472,8 @@ Findings OWN-1, INT-4, OWN-11, INT-5, OWN-4, INT-9, OWN-3, INT-10 and the owner-
 - **Impact:** e2e only. Software test data on the stub engine: it proves the review path, never a model. Three defects
   it found are fixed below. **Known gaps it found, not fixed here** (each is the test's reading, for the owner): the
   demographics entered on the card clear its requirement but are held back at loading ("the study record has no place
-  for them"), so after the signature To do asks for the demographics of OJ-101, OJ-101-Reference and OJ-101-Test again;
+  for them"), so after the signature To do asks for the demographics of OJ-101, OJ-101-Reference and OJ-101-Test again
+  (fixed since, with the counts and the facts form below: "final review, cards, counts, demographics and repetition");
   the dialog of the queue's last layout closes by itself once its files are read again (the queue that holds it leaves
   To do), at times before "approved" can be read, and the focus falls to the page (fixed since: "final review, the gate,
   layouts and To do" above); the card says "In the model: 1

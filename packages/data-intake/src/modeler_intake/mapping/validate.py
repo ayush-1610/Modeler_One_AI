@@ -9,7 +9,7 @@ the rules. Findings are errors unless marked:
 - LAYOUT: no time source where the kind needs one, two nominal time sources, no value column, `of` not a value
   column, `time_row` not above the data, a `cell_form` on a non-value column, a `condition` not in
   `fields.CONDITION_FIELDS`, a value column with no field ...;
-- UNKNOWN_FIELD: a field `fields.field` does not know;
+- UNKNOWN_FIELD: a field `fields.field` does not know, or one only a person enters (`FieldDef.person_only`);
 - NUMBER_TYPED: a `Constant.text` or `pattern` on a number field (code reads numbers, the model never types one);
 - CONSTANT_NOT_STATED: a number `read_constant` does not find exactly once; a name or text the pattern does not match
   exactly once, or whose reading differs from `Constant.text` (by `name_key`); a choice `fields.read_choice` does not
@@ -230,8 +230,10 @@ def _fields_and_patterns(spec: MappingSpec, add) -> None:
     named += [(f"keys[{i}].field", k.field) for i, k in enumerate(spec.keys)]
     named += [(f"constants[{i}].field", c.field) for i, c in enumerate(spec.constants)]
     for where, name in named:
-        if name is not None and fields.field(name) is None:
+        if name is not None and (definition := fields.field(name)) is None:
             add("UNKNOWN_FIELD", where, f"{name!r} is not a field of the ledger's vocabulary")
+        elif name is not None and definition.person_only:
+            add("UNKNOWN_FIELD", where, f"{name!r} is a person's choice, never read from a file")
     for i, rule in enumerate(spec.row_rules):
         if (problem := pattern_problem(rule.pattern)) is not None:
             add("BAD_PATTERN", f"row_rules[{i}]", problem)

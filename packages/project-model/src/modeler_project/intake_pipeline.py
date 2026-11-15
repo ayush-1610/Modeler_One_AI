@@ -123,10 +123,12 @@ _DETAIL_CHARS = 500
 _SIGNATURE_BYTES = 64                # more than any signature `source.parse.file_format` looks at
 # The fields the prose extractor is asked for: what a synopsis or design section states in sentences about a study, an
 # arm, an analyte, a product or a batch (the dose, the subjects, the route, the fasting state, the regimen, the batch),
-# with the matrix and the explicit links to another file's study. Never a table's observation: tables are mapped.
+# with the matrix and the explicit links to another file's study. Never a table's observation: tables are mapped. Never
+# a person's own choice (`FieldDef.person_only`: the study's simulated individual).
 _PROSE_LEVELS = ("study", "arm", "analyte", "product", "batch")
 PROSE_FIELDS: tuple[str, ...] = (
-    *(name for name, d in FIELDS.items() if d.level in _PROSE_LEVELS and not name.startswith("link.") and name != "dose_unit"),
+    *(name for name, d in FIELDS.items() if d.level in _PROSE_LEVELS and not name.startswith("link.") and name != "dose_unit"
+      and not d.person_only),
     "matrix", "link.protocol", "link.cross_reference")
 
 
