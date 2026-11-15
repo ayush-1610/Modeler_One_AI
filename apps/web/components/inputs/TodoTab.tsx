@@ -1,22 +1,30 @@
 "use client";
 
-// The To do area (plan 2026-11-14 slice 2; the design text's "Tab To do"): the one list of work (lib/inputsWork.ts), by
-// group in the order a person works through it, each row one line that opens where the item is settled (its area, its
-// card, its file). Inline, with the same form its home uses, only what is settled in batches or per value: the
-// compound's values (the S0 batch) and the sheet form's disagreements; a study's facts and its confirmation are made on
-// its card only (one home per decision, plan §2.1). Then what to ask the client (with the request to download), the model
-// checks in words, the clean-up that blocks nothing, and what is done and in the model.
+// The To do area (plan 2026-11-14 slices 2 and 4; the design text's "Tab To do"): the one list of work
+// (lib/inputsWork.ts), by group in the order a person works through it. The file-level and batch work is settled here,
+// in its batch tables (slice 4): the table layouts as a queue, the values to link one row per file, the numbers not read
+// by file, the compound values no source gives with one citation; each table's rows are the work model's items, so the
+// counts are the same everywhere. Every other row is one line that opens where the item is settled (its area, its card);
+// inline, with the same form its home uses, only the compound's values to accept and the sheet form's disagreements; a
+// study's facts and its confirmation are made on its card only (one home per decision, plan §2.1). Then what to ask the
+// client (with the request to download), the model checks in words, the clean-up that blocks nothing (with its batch
+// tables), and what is done and in the model. After a decision the focus moves on and the live region says what it did.
 
 import Link from "next/link";
 import { useState } from "react";
 
+import { LiveRegion } from "@/components/kit/LiveRegion";
 import { STEP_ROUTES } from "@/lib/pipeline";
-import { GROUPS, GROUP_LEDE, GROUP_TITLE, INLINE_TODO, type Group, type WorkItem, type WorkModel } from "@/lib/inputsWork";
+import { GROUPS, GROUP_LEDE, GROUP_TITLE, INLINE_TODO, type Group, type Subject, type WorkItem, type WorkModel } from "@/lib/inputsWork";
 import { STATUS_TONE, STATUS_WORD, type Status, plural } from "@/lib/words";
 
 import { IssueCard } from "./ClientConfirm";
 import { ClientRequest } from "./ClientRequest";
 import { TodoAction, type Run, type TodoItem } from "./InputsTodo";
+import { LayoutQueue } from "./todo/LayoutQueue";
+import { LinkTable } from "./todo/LinkTable";
+import { MissingValues } from "./todo/MissingValues";
+import { NotReadTable } from "./todo/NotReadTable";
 
 export type Readiness = { ready: boolean; checks: { check: string; ok: boolean; detail: string[] }[]; engine_dry_run: string };
 /** The status a person narrows To do to from the status line (`?status=`), or every item. */
@@ -76,35 +84,69 @@ function Row({ item, projectId, run, review, onOpen, shared }: {
   );
 }
 
-function GroupList({ group, items, projectId, run, review, onOpen, first }: {
-  group: Group; items: WorkItem[]; projectId: string; run: Run; review: WorkModel["subjects"][number]["groups"];
+/** A missing compound value no source gives yet (nothing proposed to accept): entered in To do's batch with one citation. */
+const batchMissing = (i: WorkItem) => i.todo?.kind === "missing" && i.where.tab === "compound" && !(i.todo as TodoItem).items?.length
+  && !(i.todo as TodoItem).identity && !i.blocked;
+
+/** The file-level and batch work of a group, settled in To do with its batch table (plan 2026-11-14 §2.1, slice 4): the
+ *  table layouts (a queue), the values to link (a table of files), the numbers not read (by file) and the compound values
+ *  no source gives (one citation); the group's other items stay rows that open where they are settled. */
+function Batches({ items, projectId, subjects, heading, onOpen }: {
+  items: WorkItem[]; projectId: string; subjects: Subject[]; heading: string; onOpen: (item: WorkItem) => void;
+}) {
+  const layouts = items.filter((i) => i.id.startsWith("layout:"));
+  const links = items.filter((i) => /^(link|alias):/.test(i.id));
+  const notRead = items.filter((i) => i.id.startsWith("notread:"));
+  const missing = items.filter(batchMissing);
+  return (
+    <>
+      {layouts.length > 0 && <LayoutQueue projectId={projectId} items={layouts} heading={heading} />}
+      {links.length > 0 && <LinkTable projectId={projectId} items={links} subjects={subjects} heading={heading} />}
+      {notRead.length > 0 && <NotReadTable projectId={projectId} items={notRead} heading={heading} />}
+      {missing.length > 0 && <MissingValues projectId={projectId} items={missing} onOpen={onOpen} heading={heading} />}
+    </>
+  );
+}
+const inBatch = (i: WorkItem) => /^(layout|link|alias|notread):/.test(i.id) || batchMissing(i);
+
+function GroupList({ group, items, projectId, run, review, subjects, onOpen, first }: {
+  group: Group; items: WorkItem[]; projectId: string; run: Run; review: WorkModel["subjects"][number]["groups"]; subjects: Subject[];
   onOpen: (item: WorkItem) => void; first: boolean;
 }) {
   const [all, setAll] = useState(false);
-  const shown = all || first ? items : items.slice(0, SHOWN);
+  const rows = items.filter((i) => !inBatch(i));
+  const shown = all || first ? rows : rows.slice(0, SHOWN);
   const open = items.filter((i) => i.open);
   const held = items.length - open.length;
   // the status word, once for the group (every row of a group has the same); amber only where a person decides or signs
   const status = (open[0] ?? items[0]).status;
-  // what holds up the signatures on the delivery, said once; so is a reason every row not counted shares
+  // what holds up the signatures on the delivery, said once; so is a reason every row not counted shares, and, when the
+  // rows are counted and not counted, each reason with how many it keeps out of the count (a delivery whose files name
+  // no study yet is shown with the rest of its kind of work, not under "Blocks nothing")
   const gates = [...new Set(items.map((i) => i.gate).filter(Boolean))];
   const whys = [...new Set(items.map((i) => i.why))];
   const shared = whys.length === 1 && whys[0] ? whys[0] : undefined;
+  const apart = shared ? [] : whys.filter((w): w is string => Boolean(w)).map((w) => [w, items.filter((i) => i.why === w).length] as const);
+  const heading = `todo-group-${group}-title`;
   return (
-    <section className="todo-group" data-testid={`todo-group-${group}`} aria-labelledby={`todo-group-${group}-title`}>
-      <h3 id={`todo-group-${group}-title`} tabIndex={-1}>
+    <section className="todo-group" data-testid={`todo-group-${group}`} aria-labelledby={heading}>
+      <h3 id={heading} tabIndex={-1}>
         <span className={`chip ${STATUS_TONE[status]}`}>{STATUS_WORD[status]}</span> {GROUP_TITLE[group]}{" "}
         <span className="muted">({open.length}{held ? ` · ${held} not counted now` : ""})</span>
       </h3>
       <p className="muted todo-group-lede">{GROUP_LEDE[group]}</p>
       {gates.map((g) => <p key={g} className="todo-gate" data-testid="todo-gate">Signing on the delivery waits for its clean-up: {g}.</p>)}
-      {shared && <p className="todo-gate">{shared}</p>}
-      <ul className="todo-lines">
-        {shown.map((i) => <Row key={i.id} item={i} projectId={projectId} run={run} review={review} onOpen={onOpen} shared={shared} />)}
-      </ul>
-      {items.length > shown.length && (
+      {shared && <p className="todo-gate" data-testid={`todo-why-${group}`}>{shared}</p>}
+      {apart.map(([why, n]) => <p key={why} className="todo-gate" data-testid={`todo-why-${group}`}>{n} not counted now: {why}</p>)}
+      <Batches items={items} projectId={projectId} subjects={subjects} heading={heading} onOpen={onOpen} />
+      {rows.length > 0 && (
+        <ul className="todo-lines">
+          {shown.map((i) => <Row key={i.id} item={i} projectId={projectId} run={run} review={review} onOpen={onOpen} shared={shared} />)}
+        </ul>
+      )}
+      {rows.length > shown.length && (
         <button type="button" className="link-btn" onClick={() => setAll(true)} data-testid={`todo-more-${group}`}>
-          Show {items.length - shown.length} more</button>
+          Show {rows.length - shown.length} more</button>
       )}
     </section>
   );
@@ -134,9 +176,10 @@ export function TodoTab({ projectId, work, run, status, only, onStatus, onOnly, 
   ];
   return (
     <section className="card todo-work" data-testid="still-missing">
+      <LiveRegion testId="todo-live" />
       <div className="todo-head">
         <div>
-          <h2 className="m-0">What needs you</h2>
+          <h2 className="m-0" id="todo-title" tabIndex={-1}>What needs you</h2>
           <p className="muted m-0">Start at the top: each group unblocks the ones below.</p>
         </div>
         <div className="todo-filters">
@@ -165,7 +208,8 @@ export function TodoTab({ projectId, work, run, status, only, onStatus, onOnly, 
       ))}
 
       {groups.map(([group, items], n) => (
-        <GroupList key={group} group={group} items={items} projectId={projectId} run={run} review={review} onOpen={onOpen} first={n === 0} />
+        <GroupList key={group} group={group} items={items} projectId={projectId} run={run} review={review} subjects={work.subjects}
+                   onOpen={onOpen} first={n === 0} />
       ))}
 
       {!status && (
@@ -217,11 +261,15 @@ export function TodoTab({ projectId, work, run, status, only, onStatus, onOnly, 
 
       {!only && !status && tidy.length > 0 && (
         <details className="todo-group todo-fold" data-testid="todo-group-tidy">
-          <summary><span className="todo-caret" aria-hidden="true" /><strong>{GROUP_TITLE.tidy}</strong> <span className="muted">({tidy.length})</span></summary>
+          <summary id="todo-group-tidy-title"><span className="todo-caret" aria-hidden="true" /><strong>{GROUP_TITLE.tidy}</strong>{" "}
+            <span className="muted">({tidy.length})</span></summary>
           <p className="muted todo-group-lede">{tidyWhy ? `${tidyWhy} Tidy it for the delivery record.` : GROUP_LEDE.tidy}</p>
-          <ul className="todo-lines">
-            {tidy.map((i) => <Row key={i.id} item={i} projectId={projectId} run={run} review={review} onOpen={onOpen} shared={tidyWhy} />)}
-          </ul>
+          <Batches items={tidy} projectId={projectId} subjects={work.subjects} heading="todo-group-tidy-title" onOpen={onOpen} />
+          {tidy.some((i) => !inBatch(i)) && (
+            <ul className="todo-lines">
+              {tidy.filter((i) => !inBatch(i)).map((i) => <Row key={i.id} item={i} projectId={projectId} run={run} review={review} onOpen={onOpen} shared={tidyWhy} />)}
+            </ul>
+          )}
         </details>
       )}
       {!only && !status && done.length > 0 && (

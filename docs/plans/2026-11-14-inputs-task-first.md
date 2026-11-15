@@ -298,3 +298,65 @@ before the next starts.
     - **A merged cell in a table's first rows** is said by `DeliveryRegionHead.spans` (1, n over n columns, 0 covered),
       not by blanking the covered cells: the rows keep the merged text in each column, as a mapping's header reads it,
       so the columns stay named by it; the grid draws it once.
+
+- Within this plan, slice 4 as built (batch work, focus and speed; frontend only, 2026-11-14):
+  - **Homes.** A table layout, a file's values to link and its numbers not read are settled in To do's batch tables:
+    their work items open To do's row (`where` is To do; they still count in Client files, so no count changed). The
+    Delivery section's own "Table layouts to check" and "Values not linked" lists are gone (one home per decision,
+    §2.1); Client files keeps the per-file view (each table's "Not data…", "Restore…", "Read this table…", the layout
+    chip, the per-note forms) and says that the rest is in To do. Its list of studies and products stays for slice 3.
+  - **One destination in the bulk bar** is "All to one place" (study and arm, or product and batch, and the analyte, for
+    every picked file); by default each picked file goes where its row says (its suggestion, its alias answer or its
+    editor), so two files of one study can be given two arms in one batch. Either way one `values:assign` per
+    destination; a study, arm, product, batch or analyte named new by an earlier call of the batch is then used by its id.
+  - **Suggestions** fill only existing studies and products (named whole in a table's own title and the lines read with
+    it, else, when no table's title names one, the file's name) and arms (an arm of the study the title names; else the
+    words that set the file's name apart from the other files of the same study, those to link and those already linked
+    that share a word of its name; else the sheet form's name past the study's), never a new study, except that "No" to
+    "Same study as 230-23?" fills a new study under the sheet form's own name. A blinded file's titles are withheld by
+    the API, so only its name is read.
+  - **One row per file, split by table when its tables differ** (after the review, 2026-11-15; plan §2 rule 6: each
+    table had its own link form before this slice): each table is a part of its row with the facts read on its sheet or
+    page (when it is the only table there; the others' facts form a part of their own). A file whose tables' titles
+    point to different places (one names a study, another another or none) starts with each table in its own place;
+    "Each table to its own place" splits any file in its editor, or puts it back together. One `values:assign` per
+    destination either way.
+  - **The collision guard** compares the subject and period labels of individual values going to one study in one arm
+    (no arm counts as one) with one analyte, a file's (or a table's) against the others' and against what the study
+    already holds in that arm, never one file's tables with each other or with what the study holds of that file. What
+    the study holds is its card (after the review: read by the rows while they say where they go, and read again before
+    a link unless the page read it in the last 10 s; a card not read is never taken as empty, and one that cannot be read
+    refuses the link). It refuses before anything is sent, offering an arm each.
+  - **Numbers not read:** per-cell "not data" (API 3) waits for the owner; tables with numbers no column picks up offer
+    "Check its layout" (marking a whole read table as not data stays in the file's own view). What is marked in To do is
+    listed under the table with "Restore…" for the visit, since a file's row leaves the list once nothing is left.
+  - **Missing compound values:** a missing row of /inputs carries no unit, so the unit is typed as the source states
+    it, as in the row's own form (pre-filled only where the API gives one); the web supplies no unit. The names are the
+    rows' ids in words (`lib/words.ts`). A pKa and an elimination value are then settled under "Settle disagreements".
+  - **Not-data layouts approved together:** offered whenever one or more layouts read a table as not data; each
+    approval's note is the person's note followed by "approved with N other layouts that read a table as not data"
+    (nothing added when there is only one, as on both seed projects). "Kept, not used by the model" is said only of
+    excretion layouts (the intake check EXCRETION_NOT_LANDED says so); product attributes and occasions are not tagged.
+  - **Reason:** the kit's `ReasonForm` is `Why` (components/delivery/shared.tsx), so every decision form on Inputs has
+    the chips and "use last" (kept per project and kind of decision in the tab's session storage; the kind is the
+    button's word unless a form names it). The button stays enabled except where a form's own fields disable it (the
+    layout form); pressed with the reason missing it says "Give the reason: it is kept on the audit trail."
+  - **Cache writes:** the cards of subjects whose own row a decision changed are read again; the others are marked stale
+    and read when next shown, so a card open in Client files keeps its delivery-wide blockers (loose numbers) as they
+    were until it is shown again (slice 3's gate line reads them from the page). The step bar is redrawn only after the
+    compound values are entered (it follows the readiness), not after a delivery decision.
+  - **A delivery whose files name no study yet** (after the review, 2026-11-15): not counted, as slice 2 counts it (it
+    holds up no signature), but its layouts, values to link and numbers not read stay in their own groups in view, the
+    group saying once how many are not counted and why ("Its files name no study or product yet …"), not under "Blocks
+    nothing": linking those values is what brings them into the model. A file's "Still needs you" lists that work too,
+    marked "not counted now". "Blocks nothing" keeps the clean-up of deliveries whose studies are all confirmed (on the
+    delivery or with the sheet form).
+  - **Going to an item** (Next, "Still needs you", the Delivery section's "To do") drops what would hide it: a status
+    filter that is not the item's own, "Only what needs me" for an item not counted; a folded group it sits in is
+    unfolded.
+  - **The study card's own form for a loose number** (`SubjectCard.tsx`, `delivery-outside-accept-<n>`) is kept here:
+    slice 3 replaces that card (its `DeliveryReview` settles the numbers outside the tables with their file, never on the
+    card) and deletes the file, so removing the form in this slice would only make the two branches conflict. Until the
+    merge the card is a third place to mark a loose number as not data, beside To do and the file's view in Client files.
+  - Not in this slice: the review bar (‹ Previous · Next › over the cards, with slice 3's cards), paging of a file's
+    values (the first six, then all), per-cell "not data" (API 3).

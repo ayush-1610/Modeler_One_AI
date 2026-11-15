@@ -316,10 +316,17 @@ export function InputsWorkspace({ projectId, initialTab, initialOnly, initialSta
     bringIntoView(anchor ?? cardAnchor(s), cardAnchor(s));
   }
   /** Open where a work item is settled: its area, its card (the study, product or compound it concerns, in its area) or
-   *  its file's row. An item of the /inputs to-do on a study opens that study's row (its regimen) or its individual. */
+   *  its file's row. An item of the /inputs to-do on a study opens that study's row (its regimen) or its individual.
+   *  The filters that would hide it there are dropped: To do narrowed to another status word, and "Only what needs me"
+   *  for an item that is not counted (a delivery whose files name no study yet, "Blocks nothing"). */
   function go(item: WorkItem) {
     const w = item.where;
-    setTab(w.tab);
+    const keepStatus = w.tab === "todo" && status === item.status ? status : null;
+    const keepOnly = only && item.open;
+    setChosen(w.tab);
+    setStatusState(keepStatus);
+    if (keepOnly !== only) setOnlyState(keepOnly);
+    sync(w.tab, keepOnly, keepStatus);
     const at = Date.now();
     if (w.file && !filesOpen.has(w.file)) setFilesOpen((was) => new Set([...was, w.file!]));
     const group = item.issue?.group ?? (w.anchor?.startsWith("group-") ? w.anchor.slice("group-".length) : undefined);

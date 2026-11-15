@@ -18,6 +18,8 @@ import "./styles/dashboard.css";
 import "./styles/admin.css";
 import "./styles/delivery.css";
 import "./styles/cards.css";
+// To do's batch tables, the bulk bar and the reason chips (plan 2026-11-14 slice 4)
+import "./styles/batch.css";
 // the "Modeler One App" look over the shared pieces; last, so it wins (plan 2026-11-06-app-design-merge)
 import "./styles/design.css";
 // target sizes (WCAG 2.2 2.5.8): after the look, so its hit areas and sizes hold

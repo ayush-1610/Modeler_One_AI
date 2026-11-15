@@ -3,29 +3,32 @@
 // The Delivery section on Inputs (contracts 2026-11-12 §8.10): what arrived from the client, read by code and reviewed
 // by exception. On Inputs it sits in the Client files area (plan 2026-11-14 slice 1), under the one table of files
 // (slice 2: each file's own reading, `FileItem`, opens under that file's row there, so no second list of files is kept
-// here): when the files arrived and what of them was read (the totals behind "Details"), the table layouts that wait for
-// a person and the values no file links to a study. Each study, product and the compound is confirmed on its card in its
-// area (plan 2026-11-14 slice 3, components/inputs/cards): one line here says where. What to ask
-// the client is in To do. The section is not shown while the pipeline is off (`enabled` false); it reads again every
-// few seconds while a file is being read.
+// here): when the files arrived and what of them was read (the totals behind "Details"), and one line saying where each
+// study, product and the compound is confirmed: on its card in its area (plan 2026-11-14 slice 3, components/inputs/cards).
+// The table layouts to check, the values to link and the numbers not read are settled in To do, in its batch tables
+// (slice 4: one home per decision); what to ask the client is in To do too. The section is not shown while the pipeline
+// is off (`enabled` false); the page is read again every few seconds while a file is being read (`useDeliveryRefresh`,
+// once for the page), and not while nothing is.
 
+import { useQueryClient } from "@tanstack/react-query";
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
 import { send } from "@/lib/api";
-import { useRefresh, useResource } from "@/lib/hooks";
-import { layoutAnchor, type WorkItem, type WorkModel } from "@/lib/inputsWork";
+import { useResource } from "@/lib/hooks";
+import type { WorkItem, WorkModel } from "@/lib/inputsWork";
 import {
-  AREA_NAME, type Tab, engineWords, whereIs, layoutOrigin, placeText, plural as count, rulesText, stageText, tableKindText, whenText,
+  AREA_NAME, type Tab, engineWords, whereIs, layoutOrigin, plural as count, rulesText, stageText, whenText,
 } from "@/lib/words";
 
 import { MappingReview } from "./MappingReview";
 import { ReadTable, readable } from "./ReadTable";
 import { DecisionNote, NotDataNote, RestoreForm, restorable, restorableNote } from "./Restore";
 import {
-  ChipFor, FILE_STATE, KIND_LABEL, MAPPING_STATE, Problem, REGION_STATE, WITHHELD, Why, fieldText, levelText, plural, tableName,
-  useDecide, when, type FileRow, type Page, type Region, type SubjectRow,
+  ChipFor, FILE_STATE, MAPPING_STATE, Problem, REGION_STATE, WITHHELD, Why, fieldText, plural, tableName,
+  useDecide, when, type FileRow, type Page, type Region,
 } from "./shared";
-import { Unassigned } from "./Unassigned";
+import { readPage, writePage } from "./writes";
 
 const RUN = "/api/v1/projects/{project_id}/delivery:run" as const;
 const EXCLUDE = "/api/v1/projects/{project_id}/delivery/regions:exclude" as const;
@@ -64,14 +67,21 @@ function FileItem({ projectId, file, first, decide, busy, onMapping, inRow = fal
   const [aside, setAside] = useState<string | null>(null);
   const [restoring, setRestoring] = useState<string | null>(null);   // a region's id, or a note's place
   const [reading, setReading] = useState<Region | null>(null);       // a table given its first layout
+  const client = useQueryClient();
   const shown = file.repeat && first ? first : file;
   // a note stops counting by a person's "not data" (its `decision`: who, when, why), which can be restored, or when a
   // table that is read cites it (no decision: a fact read once for the table)
   const marked = restorableNote;
   const noteName = (o: FileRow["outside"][number]) => (o.text ? `the note “${o.text}” of ${file.name}` : `the note at ${whereIs(o.where).place} of ${file.name}`);
+  // the answer is the page, written into the cache: only the cards it changed are read again (writes.ts)
   const exclude = (regions: string[], scope: "regions" | "unread_prose" | "figures" | "outside") => async (why: string) => {
-    const { data } = await decide(() => send("post", EXCLUDE, { project_id: projectId }, { file_sha256: file.sha256, regions, scope, why }));
-    if (data) setAside(null);
+    const { data } = await decide(() => send("post", EXCLUDE, { project_id: projectId }, { file_sha256: file.sha256, regions, scope, why }),
+                                  { refresh: false });
+    if (data) { writePage(client, projectId, data); setAside(null); }
+  };
+  const readAgain = async () => {
+    const { data } = await decide(() => send("post", RUN, { project_id: projectId }, { files: [file.sha256] }), { refresh: false });
+    if (data !== null) readPage(client, projectId);
   };
   return (
     <li className="delivery-file" data-testid={`delivery-file-${file.file_id}`} data-state={file.state}>
@@ -84,7 +94,7 @@ function FileItem({ projectId, file, first, decide, busy, onMapping, inRow = fal
         <button type="button" className="link-btn" aria-expanded={open} onClick={() => setOpen(!open)} data-testid={`delivery-file-toggle-${file.file_id}`}>
           {open ? "Hide its tables and texts" : "Show its tables and texts"}</button>
         <button type="button" className="btn tiny" disabled={busy} aria-label={`Read ${file.name} again`} data-testid={`delivery-file-run-${file.file_id}`}
-                onClick={() => void decide(() => send("post", RUN, { project_id: projectId }, { files: [file.sha256] }))}>Read again</button>
+                onClick={() => void readAgain()}>Read again</button>
       </div>
       {file.reason && <p className="delivery-file-why" data-testid={`delivery-file-reason-${file.file_id}`}>{file.reason}</p>}
       {file.coverage && <p className="muted fs-13 m-0" data-testid={`delivery-file-coverage-${file.file_id}`}>{coverageLine(file)}</p>}
@@ -141,7 +151,8 @@ function FileItem({ projectId, file, first, decide, busy, onMapping, inRow = fal
           {shown.regions.filter((r) => r.region_id === aside).map((r) => (
             <Why key={r.region_id} action="Mark as not data" actionLabel={`Mark ${tableName(r.where, file.name, r.kind)} as not data`}
                  label={`Why ${tableName(r.where, file.name, r.kind)} is not data`} busy={busy} onCancel={() => setAside(null)}
-                 testId="delivery-region-aside" onSubmit={exclude([r.region_id], scopeOf(r))} autoFocus>
+                 testId="delivery-region-aside" onSubmit={exclude([r.region_id], scopeOf(r))} autoFocus kind="not data"
+                 suggestions={["a scratch table, not data", "a note, not data"]}>
               <span className="muted">{whereIs(r.where).place}: what was read from it is set aside too; &quot;Restore…&quot; gives it back.</span>
             </Why>
           ))}
@@ -167,7 +178,8 @@ function FileItem({ projectId, file, first, decide, busy, onMapping, inRow = fal
                     </div>
                     <DecisionNote decision={o.decision} restored={o.restored} testId={`delivery-outside-decision-${file.file_id}-${i}`} />
                     {o.counted && <Why action="It is not data" actionLabel={`Mark ${noteName(o)} as not data`} label={`Why ${noteName(o)} is not data`}
-                                       busy={busy} testId="delivery-file-outside-accept" onSubmit={exclude([o.where], "outside")} />}
+                                       busy={busy} testId="delivery-file-outside-accept" onSubmit={exclude([o.where], "outside")} kind="not data"
+                                       suggestions={["a column header, not a value", "a note, not data"]} />}
                     {marked(o) && restoring === o.where && (
                       <RestoreForm projectId={projectId} file={shown} items={[o.where]} scope="outside" label={noteName(o)}
                                    onDone={() => setRestoring(null)} testId="delivery-outside-restore-form" />
@@ -224,33 +236,45 @@ function Coverage({ page }: { page: Page }) {
   );
 }
 
-/** A file read while Inputs is open brings values onto the cards: every resource is read again when the reading ends.
- *  Used by the Inputs workspace, so it holds on every area, not only while the Client files area shows this section
- *  (plan 2026-11-14 slice 1). Answers the delivery as read (the status line counts its open work), null until read. */
+// what a reading's end changes: the delivery and its cards, the sheet form's reading, the client's files, the inputs
+const AFTER_READING = ["/api/v1/projects/{project_id}/delivery", "/api/v1/projects/{project_id}/client-review",
+                       "/api/v1/projects/{project_id}/client-data", "/api/v1/projects/{project_id}/inputs",
+                       "/api/v1/projects/{project_id}/reading-queue"];
+
+/** A file read while Inputs is open brings values onto the cards: what the reading changes is read again when it ends
+ *  (the delivery and its cards, the sheet form, the client's files, the inputs; plan 2026-11-14 slice 4: not every
+ *  read of the page). The page is read every 3 s while a file is being read, and not otherwise. Used by the Inputs
+ *  workspace, so it holds on every area. Answers the delivery as read, null until read. */
 export function useDeliveryRefresh(projectId: string): Page | null {
   const read = useResource("/api/v1/projects/{project_id}/delivery", { project_id: projectId }, { poll: (d) => d.running, interval: 3000 });
-  const refresh = useRefresh();
+  const client = useQueryClient();
   const was = useRef(false);
   const running = read.data?.running ?? false;
   useEffect(() => {
     if (running) was.current = true;
-    else if (was.current) { was.current = false; void refresh(); }
+    else if (was.current) {
+      was.current = false;
+      void client.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && AFTER_READING.some((r) => (q.queryKey[0] as string).startsWith(r)) });
+    }
   }, [running]); // eslint-disable-line react-hooks/exhaustive-deps
   return read.data;
 }
 
-export function DeliverySection({ projectId, work, focus, onOpenGroup }: {
+export function DeliverySection({ projectId, work, focus, onOpenGroup, onItem }: {
   projectId: string;
-  /** the one list of work (lib/inputsWork.ts): each subject's one card, for its standing, and whether each table layout
-   *  holds up a signature now (amber only then, plan 2026-11-14 §2 rule 5) */
+  /** the one list of work (lib/inputsWork.ts): each subject's one card, for its standing */
   work?: WorkModel;
   /** a subject's card a To do row or "Next" opened: the section unfolds (the cards themselves are in their areas since
    *  plan 2026-11-14 slice 3) */
   focus?: { subject: string; at: number } | null;
   /** open an area where the delivery's studies, products and compound are confirmed on their cards (`group` "": the area) */
   onOpenGroup?: (group: string, tab: Tab) => void;
+  /** open where a work item is settled (the workspace's own, which drops the filters that would hide it) */
+  onItem?: (item: WorkItem) => void;
 }) {
-  const read = useResource("/api/v1/projects/{project_id}/delivery", { project_id: projectId }, { poll: (d) => d.running, interval: 3000 });
+  // the page as the workspace reads it (`useDeliveryRefresh` polls it while a file is read): no second poll here
+  const read = useResource("/api/v1/projects/{project_id}/delivery", { project_id: projectId });
+  const client = useQueryClient();
   const { decide, busy, problem } = useDecide();
   const [folded, setFolded] = useState(false);
   const [mapping, setMapping] = useState<string | null>(null);
@@ -275,15 +299,17 @@ export function DeliverySection({ projectId, work, focus, onOpenGroup }: {
     : "no client file has arrived yet";
   // where the delivery's studies, products and compound are confirmed: on their cards, by area
   const areas = [...new Set((work?.subjects ?? []).filter((u) => u.row).map((u) => u.area))];
-  // each layout's item in the one list: open (amber, To decide), or not counted now and why (neutral)
-  const layoutItem = (m: Page["mappings"][number]): WorkItem | undefined =>
-    work?.items.find((i) => i.id === `layout:${m.mapping_id}@${m.version}`);
-  const layoutsOpen = page.mappings.filter((m) => layoutItem(m)?.open).length;
-  // the one reason every layout not counted gives, said once in the list's lede instead of on each
-  const reasons = [...new Set(page.mappings.map((m) => layoutItem(m)).filter((i) => i && !i.open && i.why).map((i) => i!.why!))];
-  const oneReason = !layoutsOpen && reasons.length === 1 ? reasons[0] : null;
   const waits = work ? work.items.some((i) => i.open && i.pipeline === "delivery" && i.area === "files")
     : page.mappings.length > 0 || page.unassigned.length > 0;
+  // the first of that work in To do's order (unfolding "Blocks nothing" when it is there)
+  const first = work?.items.find((i) => i.pipeline === "delivery" && /^(layout|link|alias|notread):/.test(i.id) && i.status !== "done" && !i.blocked);
+  const cleanUp = [page.mappings.length ? count(page.mappings.length, "table layout") + " to check" : "",
+                   page.unassigned.length ? count(page.unassigned.length, "value") + " to link" : "",
+                   t.silent_loss || t.outside_numeric ? "numbers not read" : ""].filter(Boolean);
+  async function readAll() {
+    const { data } = await decide(() => send("post", RUN, { project_id: projectId }, { files: [] }), { refresh: false });
+    if (data !== null) readPage(client, projectId);
+  }
 
   return (
     <section className={`delivery${waits ? " waits" : ""}`} data-testid="delivery-section">
@@ -295,8 +321,7 @@ export function DeliverySection({ projectId, work, focus, onOpenGroup }: {
               title={`The intake rules the files were read with (sha256 ${page.rules.sha256}); UNVERIFIED until an expert signs them`}>{rulesText(page.rules)}</span>
         {files.length > 0 && (
           <span className="delivery-head-actions">
-            <button type="button" className="btn tiny" disabled={busy || running} data-testid="delivery-run"
-                    onClick={() => void decide(() => send("post", RUN, { project_id: projectId }, { files: [] }))}>Read again</button>
+            <button type="button" className="btn tiny" disabled={busy || running} data-testid="delivery-run" onClick={() => void readAll()}>Read again</button>
             <button type="button" className="link-btn" aria-expanded={!folded} onClick={() => setFolded(!folded)} data-testid="delivery-toggle">
               {folded ? "Show the review" : "Hide the review"}</button>
           </span>
@@ -309,40 +334,13 @@ export function DeliverySection({ projectId, work, focus, onOpenGroup }: {
             <summary>Details: what was read from the files</summary>
             <Coverage page={page} />
           </details>
-
-          {page.mappings.length > 0 && (
-            <section className="delivery-block" data-testid="delivery-mappings">
-              <div className="delivery-block-head"><h3>Table layouts to check <span className="muted">({page.mappings.length})</span></h3></div>
-              <p className="muted fs-13 m-0">A table&apos;s layout decides which of its numbers become values.{" "}
-                {!work || layoutsOpen ? "Until a person approves it, they can't be confirmed with a signature."
-                  : oneReason ? `None of these holds up a signature now. ${oneReason} Check them for the delivery record.`
-                    : "None of these holds up a signature now (each says why): check them for the delivery record."}</p>
-              <ul className="delivery-plain">
-                {page.mappings.map((m) => {
-                  const item = layoutItem(m);
-                  const quiet = item && !item.open && !m.waiting;
-                  return (
-                  <li key={`${m.mapping_id}-${m.version}`} className={quiet ? "delivery-check" : "delivery-check open"} data-testid={layoutAnchor(m, page.mappings)}>
-                    <div className="delivery-check-line">
-                      {item?.open ? <span className="chip medium">To decide</span>
-                        : quiet ? <span className="chip neutral">{item.group === "tidy" ? "blocks nothing" : "holds up nothing yet"}</span>
-                          : <ChipFor state={m.status} table={MAPPING_STATE} />}
-                      <span className="delivery-check-text">{tableKindText(m.kind)} · {m.used_in.map((u) => `${u.file}, ${placeText(u.where)}`).join("; ") || "no file uses it now"}
-                        <span className="muted"> · {layoutOrigin(m.origin)} · version {m.version}</span></span>
-                      {m.waiting && <span className="chip neutral">Reading…</span>}
-                      <button type="button" className="btn tiny" onClick={() => setMapping(m.mapping_id)}
-                              data-testid={layoutAnchor(m, page.mappings).replace("delivery-mapping-", "delivery-mapping-open-")}
-                              aria-label={`Check the layout of the ${tableKindText(m.kind)} in ${m.used_in[0]?.file ?? "no file"}, version ${m.version}`}>Check layout</button>
-                    </div>
-                    {quiet && item.why && !oneReason && <p className="muted fs-12 m-0">{item.why}</p>}
-                  </li>
-                  );
-                })}
-              </ul>
-            </section>
+          {cleanUp.length > 0 && (
+            <p className="muted fs-13 m-0" data-testid="delivery-in-todo">
+              {cleanUp.join(" · ")}: settled in {first && onItem ? (
+                <button type="button" className="link-btn" onClick={() => onItem(first)} data-testid="delivery-in-todo-open"
+                        aria-label={`Open To do on the first of them: ${first.label}`}>To do</button>
+              ) : <Link href="?tab=todo">To do</Link>}, together, a file or a layout at a time.</p>
           )}
-
-          <Unassigned projectId={projectId} page={page} />
 
           {/* each study, product and the compound is confirmed on its card in its area (plan 2026-11-14 slice 3): no
               second list of them here */}
@@ -364,6 +362,7 @@ export function DeliverySection({ projectId, work, focus, onOpenGroup }: {
           )}
         </div>
       )}
+      {/* the dialog gives the focus back to the button that opened it (a table's "Check layout" in its file's row) */}
       {mapping && <MappingReview projectId={projectId} mappingId={mapping} onClose={() => setMapping(null)} />}
     </section>
   );

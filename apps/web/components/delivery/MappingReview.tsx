@@ -7,15 +7,18 @@
 // the mapping's own `vocabulary`; the layout as text for experts) and checked by code on its table: what code finds
 // wrong is shown beside the column it names, and nothing is stored. Each decision reads the files of that layout again.
 
+import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { Dialog } from "@/components/kit/Dialog";
+import { announce } from "@/components/kit/LiveRegion";
 import { send, type Schema } from "@/lib/api";
 import { useResource } from "@/lib/hooks";
+import { tableKindText, whereIs } from "@/lib/words";
 
 import { LayoutEditor, columnsSent } from "./LayoutEditor";
-import { whereIs } from "@/lib/words";
 import { ChipFor, MAPPING_STATE, Problem, WITHHELD, Why, fieldText, plural, useDecide, when } from "./shared";
+import { writeMapping } from "./writes";
 
 type Mapping = Schema<"DeliveryMapping">;
 type Finding = Schema<"DeliveryMappingFinding">;
@@ -74,27 +77,83 @@ function Sample({ sample }: { sample: NonNullable<Mapping["sample"]> }) {
   );
 }
 
-/** The mapping `mappingId`, in a dialog over the section. */
-export function MappingReview({ projectId, mappingId, onClose }: { projectId: string; mappingId: string; onClose: () => void }) {
+/** Walking through the layouts to check, one after the other (To do's queue, plan 2026-11-14 slice 4): where this one
+ *  is in the queue, and moving on. `stored`: a corrected version was stored for this one (the queue shows it next). */
+export type Queue = { at: number; total: number; go: (delta: number) => void; stored: (version: number) => void };
+
+/** The mapping `mappingId` (at `version`, else its latest), in a dialog over the page. In a queue the dialog walks the
+ *  layouts to check: "Approve and next", Previous and Next, and where it is ("3 of 10"). Each decision's answer is the
+ *  layout, written into the cache; the page is read again (its files are read again with the decision). */
+export function MappingReview({ projectId, mappingId, version, onClose, queue, returnFocus }: {
+  projectId: string; mappingId: string; version?: number; onClose: () => void; queue?: Queue;
+  /** where the focus goes when the dialog closes and its opener is gone (a row the decision settled) */
+  returnFocus?: () => HTMLElement | null;
+}) {
+  const [said, setSaid] = useState<string | null>(null);
+  const move = (delta: number) => { setSaid(null); queue?.go(delta); };
+  // what a decision did, said in the dialog (a live region that stays while the queue moves on); once the queue has moved
+  // on, as the one before ("Approved: …"), so it never reads as said of the layout now shown. The next move clears it.
+  function decided(text: string, next: boolean, past: string) {
+    const on = next && queue && queue.at < queue.total - 1;
+    setSaid(on ? `${past}. Now ${queue!.at + 2} of ${queue!.total}.` : text);
+    announce(text);
+    if (on) queue!.go(1);
+  }
+  const shown = `${mappingId}@${version ?? "latest"}`;
+  return (
+    <Dialog title={queue ? `Check how tables are read · ${queue.at + 1} of ${queue.total}` : "Review how this table is read"} size="wide"
+            onClose={onClose} testId="delivery-mapping-dialog" returnFocus={returnFocus} focusKey={shown}>
+      <div role="status" className="mapping-said-region">
+        {said && <p className="banner ok" data-testid="mapping-said">{said}</p>}
+      </div>
+      <MappingBody key={shown} projectId={projectId} mappingId={mappingId} version={version} onSaid={decided} queue={queue} />
+      <div className="dialog-actions mapping-queue-bar">
+        {queue && (
+          <>
+            <span className="muted" data-testid="mapping-position">{queue.at + 1} of {queue.total}</span>
+            <button type="button" className="btn small" disabled={queue.at === 0} onClick={() => move(-1)} data-testid="mapping-prev">‹ Previous</button>
+            <button type="button" className="btn small" disabled={queue.at >= queue.total - 1} onClick={() => move(1)} data-testid="mapping-next">Next ›</button>
+          </>
+        )}
+        <button type="button" className="btn" onClick={onClose} data-testid="mapping-close">Close</button>
+      </div>
+    </Dialog>
+  );
+}
+
+function MappingBody({ projectId, mappingId, version, onSaid, queue }: {
+  projectId: string; mappingId: string; version?: number;
+  /** a decision was made: what it did, whether the queue moves on, and what it did said of the layout before */
+  onSaid: (text: string, next: boolean, past: string) => void;
+  queue?: Queue;
+}) {
   const params = { project_id: projectId, mapping_id: mappingId };
-  const read = useResource(ROUTE, params, { poll: (d) => d.waiting });
+  const read = useResource(ROUTE, params, { poll: (d) => d.waiting, query: version !== undefined ? { version: String(version) } : undefined });
+  const client = useQueryClient();
   const { decide, busy, problem } = useDecide();
   const [mode, setMode] = useState<"none" | "reject" | "edit">("none");
   const [refused, setRefused] = useState<Finding[]>([]);
   const [sent, setSent] = useState<number[]>([]);
-  const [said, setSaid] = useState<string | null>(null);
   const m = read.data;
+  const last = !queue || queue.at >= queue.total - 1;
 
   async function approve(note: string) {
     if (!m) return;
-    const { data } = await decide(() => send("post", APPROVE, params, { version: m.version, note }));
-    if (data) setSaid(`Version ${data.version} is approved${data.queued.length ? `: ${plural(data.queued.length, "file")} of this layout ${data.queued.length === 1 ? "is" : "are"} read again` : ""}.`);
+    const { data } = await decide(() => send("post", APPROVE, params, { version: m.version, note }), { refresh: false });
+    if (!data) return;
+    writeMapping(client, projectId, data);
+    const again = data.queued.length ? `${plural(data.queued.length, "file")} of this layout ${data.queued.length === 1 ? "is" : "are"} read again` : "";
+    onSaid(`Version ${data.version} of the ${tableKindText(data.kind)} layout is approved${again ? `: ${again}` : ""}.`, !last,
+           `Approved: the ${tableKindText(data.kind)} layout, version ${data.version}${again ? ` (${again.replace("this layout", "it")})` : ""}`);
   }
 
   async function reject(why: string) {
     if (!m) return;
-    const { data } = await decide(() => send("post", REJECT, params, { version: m.version, why }));
-    if (data) { setMode("none"); setSaid(`Version ${data.version} is rejected: its table is read again without it.`); }
+    const { data } = await decide(() => send("post", REJECT, params, { version: m.version, why }), { refresh: false });
+    if (!data) return;
+    writeMapping(client, projectId, data);
+    setMode("none");
+    onSaid(`Version ${data.version} of the ${tableKindText(data.kind)} layout is rejected: its table is read again without it.`, false, "");
   }
 
   async function edit(spec: Record<string, unknown>, why: string) {
@@ -105,13 +164,17 @@ export function MappingReview({ projectId, mappingId, onClose }: { projectId: st
       const env = await send("post", EDIT, params, { spec, why });
       found = (env.errors[0]?.detail?.findings as Finding[] | undefined) ?? [];
       return env;
-    });
+    }, { refresh: false });
     setRefused(found);
-    if (data) { setMode("none"); setSaid(`Version ${data.version} is stored and waits for approval; its table is read again with it.`); }
+    if (!data) return;
+    writeMapping(client, projectId, data);
+    setMode("none");
+    onSaid(`Version ${data.version} is stored and waits for approval; its table is read again with it.`, false, "");
+    queue?.stored(data.version);
   }
 
   return (
-    <Dialog title="Review how this table is read" size="wide" onClose={onClose} testId="delivery-mapping-dialog">
+    <>
       {read.problem && <Problem text={read.problem} />}
       {!m && !read.problem && <p className="muted">Reading the mapping…</p>}
       {m && (
@@ -122,7 +185,6 @@ export function MappingReview({ projectId, mappingId, onClose }: { projectId: st
             {m.origin_detail ? ` (${m.origin_detail})` : ""} · {when(m.at)}
             {m.waiting && <> · <span className="chip medium" data-testid="mapping-waiting">its files are being read again</span></>}
           </p>
-          {said && <p className="banner ok" role="status" data-testid="mapping-said">{said}</p>}
           {m.not_data_reason && <p className="m-0">Read as not data: {m.not_data_reason}</p>}
           {m.questions.length > 0 && <ul className="flags">{m.questions.map((q) => <li key={q}>{q}</li>)}</ul>}
 
@@ -216,13 +278,15 @@ export function MappingReview({ projectId, mappingId, onClose }: { projectId: st
           )}
           {mode === "reject" && (
             <Why action={`Reject version ${m.version}`} label="Why the mapping is rejected" busy={busy} onSubmit={reject}
-                 onCancel={() => setMode("none")} testId="mapping-reject" />
+                 onCancel={() => setMode("none")} testId="mapping-reject" kind="layout rejected"
+                 suggestions={["the columns are read as the wrong fields", "the table is not data"]} />
           )}
           {mode === "none" && (
             <div className="delivery-mapping-actions">
               {m.status !== "approved" && (
-                <Why action={`Approve version ${m.version}`} label="A note on the approval" busy={busy} onSubmit={approve} optional
-                     testId="mapping-approve" />
+                <Why action={last ? `Approve version ${m.version}` : "Approve and next"} actionLabel={`Approve version ${m.version} of this layout${last ? "" : " and check the next"}`}
+                     label="A note on the approval" busy={busy} onSubmit={approve} optional testId="mapping-approve" kind="layout approved"
+                     suggestions={["checked against the file"]} />
               )}
               <div className="row gap-8">
                 {m.status !== "rejected" && (
@@ -235,7 +299,6 @@ export function MappingReview({ projectId, mappingId, onClose }: { projectId: st
           )}
         </div>
       )}
-      <div className="dialog-actions"><button type="button" className="btn" onClick={onClose} data-testid="mapping-close">Close</button></div>
-    </Dialog>
+    </>
   );
 }

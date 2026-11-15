@@ -243,6 +243,132 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
     messy workbook's merged title: `[1, 6, 0, 0, 0, 0, 0]`); `inputs-fill.spec.ts` checks that a restored table says
     "Restored by …" beside "no layout reads it yet".
 
+### Changed — To do settles the file-level work in batches: one row per file to link, numbers not read by file, the layouts as a queue, the missing compound values with one citation (plan 2026-11-14, slice 4)
+- **What:**
+  - **Link values to a study or product** (`components/inputs/todo/LinkTable.tsx`, `link-table`): one row per file whose
+    values say no study or product (`link-<file id>`), with what it holds ("individual PK table, 76 values · dose 50 mg ·
+    fasted · LLOQ 0.5 ng/mL") and where its values go, suggested from the file's own labels (a study or product its
+    tables' titles, the lines read with them or its name name; marked "suggested"). A file the sheet form read as
+    230-23-REF asks "Same study as 230-23?" on its row (`link-alias-yes|no-<id>`); Yes fills study 230-23 and the arm that
+    keeps the file apart ("Reference", from the words that set its name apart from the other file of the study, else the
+    sheet form's name past the study's), No a new study under the sheet form's name. "Edit…" (`link-open-<id>`) opens
+    the fill round's link form as the row's editor (`link-editor-<id>`: study and arm, product and batch, analyte, each
+    an existing one or a new one; its values; "Link" for this file, `link-edit-<id>-why|submit`). Rows are picked
+    (`link-pick-<id>`, `link-pick-all`) and linked together from the bulk bar (`bulk-link-bar`, the form `bulk-link`):
+    each where its row says, or "All to one place" (`bulk-link-one`), with one reason; one `values:assign` per
+    destination, every value of the files in it, a study or arm named new by an earlier call of the batch then used by
+    its id. Before anything is sent, two files that hold the same subject in the same period are refused one arm of one
+    study (also against what the study already holds in that arm, when its card is read): "230-23 Fasting
+    Reference.xlsx and 230-23 Fasting Test.xlsx both hold subject 001, period I: in study 230-23 each file needs its own
+    arm", with "A new arm" for each, pre-filled, right there (`link-collision`, `link-collision-arm-<id>`,
+    `link-collision-apply`). A refusal of the server is said on its row in its words (`link-row-problem-<id>`). The
+    Delivery section's own list of values not linked (`delivery-unassigned*`, `assign-*`) is gone: the form is the row's
+    editor.
+  - **Numbers not read** (`NotReadTable.tsx`, `notread-table`): one row per file (`notread-<file id>`). Loose numbers
+    alike are said once ("3 like “particle_size_d10_um” … “particle_size_d90_um” · sheet Product, cells F1 to H1") and
+    marked as not data a file at a time ("Mark as not data…", `notread-mark-<id>`) or picked across files from the bulk
+    bar (`bulk-notread-bar`, `bulk-notread`), one `regions:exclude` per file (scope `outside`). What was marked is listed
+    with "Restore…" (the fill round's `RestoreForm`; `notread-marked`, `notread-undo-*`), as are the notes a person
+    marked before. Under a row: the tables and texts not read ("Read this table…", "Not data…"), the tables with numbers
+    no column picks up ("Check its layout"; a single cell is not set aside here: per-cell "not data" waits for the
+    owner's review of API 3), and why a file could not be read ("Read it again").
+  - **Check how tables are read** (`LayoutQueue.tsx`, `layout-queue`): one row per layout version (`todo-layout-<id>`,
+    with `delivery-mapping-<id>` on its line and `delivery-mapping-open-<id>` on "Check layout"), opening on its columns
+    in one line ("subject ← 'Subject' · period ← 'Period' · concentration ← 11 columns '0.5' … '24'", read at the row's
+    version, only when opened); an excretion layout is tagged "kept, not used by the model" (intake check
+    EXCRETION_NOT_LANDED). "Check layout" opens the layout at the row's version in queue mode (`MappingReview`: "Check how
+    tables are read · 3 of 10", `mapping-position`, `mapping-prev`, `mapping-next`, "Approve and next"; reject and
+    correct as before). Checking each layout stays the default; only the layouts that read a table as not data are
+    approved together (`layout-notdata-open`, `layout-notdata`), each approval's note saying "approved with N other
+    layouts that read a table as not data". The Delivery section's own list of layouts (`delivery-mappings`) is gone.
+  - **The compound values no source gives** (`MissingValues.tsx`, `missing-values`): entered together, each with its
+    value, its unit as the source states it and the sentence that states it (`mv-value|unit|quote-<id>`), with one
+    citation (`mv-source`, `mv-title`, `mv-link`, `mv-submit`): the same `POST /evidence` the row on Compound uses, one per
+    value; a refusal is said on its row. The name keeps `missing-missing-<id>` and opens the row on Compound.
+  - **Reason, focus and what is said** (kit): `Reason.tsx` (`ReasonForm`, `ReasonField`): suggestion chips and a "use
+    last" chip (the last reason of the same kind of decision in this project and tab) that only fill the field; the
+    button stays enabled and, pressed with the reason or a choice missing, says what is missing beside the field
+    (aria-describedby; `<form>-missing`). `components/delivery/shared.tsx` `Why` is this form, so every decision form on
+    Inputs has it. `LiveRegion.tsx` (`todo-live`) says what a decision did ("“Note: …” marked as not data. 4 loose
+    numbers left."); `focus.ts` moves the focus to the next row's first control after a decision, or to the group's
+    heading (`todo-group-<group>-title`, `todo-title`) when the group is done; `Dialog` gains `returnFocus`, the fallback
+    when the element that opened it is gone. `BulkBar.tsx`: the picked count, "Clear", the batch's choices and reason,
+    kept in view at the bottom of its table. Repeated buttons say their file or layout ("Mark the 3 loose numbers of
+    client-template-filled.xlsx as not data").
+  - **Speed** (`components/delivery/writes.ts`): the answer of `values:assign`, `regions:exclude` and `regions:restore`
+    (the page) is written into the cache; only the cards of the subjects whose own row it changed are read again, the
+    others marked stale. A layout's decision writes the layout and reads the page once. A decision costs at most two
+    requests (it was every read of the page, about 850 KB, and a server render). The end of a file's reading reads again
+    the delivery, the sheet form, the client files, the inputs and the reading queue, not everything; the Delivery section
+    no longer polls on its own (one poll, while a file is read).
+  - **Homes:** a layout, a file's values to link and its numbers not read open To do's row (`where` → To do) from the
+    status line's "Next" and from the file's "Still needs you" in Client files; Client files keeps the
+    per-file view (its tables one by one, "Not data…", "Restore…", "Read this table…", the layout chip), and the Delivery
+    section points to To do (`delivery-in-todo`). A delivery whose files name no study yet says so on its rows (it said its
+    studies were confirmed with the sheet form).
+  - **Phone:** at 390 px a row's parts stack under its name, nothing scrolls sideways, and the bulk bar stays at the
+    bottom of the window while its table is in view (`app/styles/batch.css`).
+  - Tests: `e2e/inputs-task-first.spec.ts` (new, on the nine seed files: the link table with the alias asked, the
+    collision refused and arms given, two files linked in one go with one call per destination, a link costing at most
+    two requests; loose numbers marked a file at a time, restored, and two files' in one batch with "use last"; the
+    missing compound values with one citation; the layouts' queue at its versions with "Approve and next", the approval
+    and one page read, the not-data readings approved together with their notes; focus and the live region; the phone
+    layout). `inputs-work.spec.ts` gains the batch rows on the seed's delivery (`fixtures/inputs-work/exampleamide-batch.json`);
+    `delivery.spec.ts` checks the waiting layout in To do and marks the loose note there (`notread-mark-<id>`);
+    `inputs-fill.spec.ts` links from the link table's rows and works on the file's own view in Client files.
+- **Merged with slice 3 and the API follow-ups:** the Delivery section in Client files keeps slice 3's one line saying
+  where each study, product and the compound is confirmed (their cards, by area), with slice 4's line pointing to the
+  clean-up in To do; the section's own list of subjects and `SubjectCard` (with its loose-number form, slice 4's
+  minor 1) are gone, so a loose number is marked as not data in To do's table of numbers not read or in its file's
+  row. The kit's `ReasonForm`, which every decision's `Why` renders, takes slice 3's `formTestId`. A layout's dialog
+  opened from a file's row gives the focus back to the button that opened it.
+- **Why:** the owner, 2026-11-14: a person cannot work through what the files left open. 366 values in 6 files needed
+  10 separate forms with a reason each, the Test and Reference files of 230-23 could not be told apart before linking,
+  45 template header cells needed 45 forms, every layout had to be found in a list, and each decision read the whole page
+  again. Plan §2.1 (one home per decision, fewer refetches, layout rows, bulk approval only for not-data readings, context
+  labels), §2.2.2 (arms before bulk linking), §4 slice 4; deviations in the plan's §5 ("slice 4 as built").
+- **Impact:** frontend only; no API, ruleset, intake rule or acceptance change. Every count on the page is unchanged
+  (the batch tables' rows are the work model's items). Each link and each "not data" is still one reasoned decision on
+  the audit trail per file (a batch sends one request per file or destination, the reason the person gave); nothing is
+  sent by a suggestion. Blinded values, captions and texts stay withheld in the rows ("withheld (blinded)").
+- **After its review (2026-11-15):**
+  - **The arm guard no longer depends on what the page happened to read.** A link first reads the card of each study it
+    adds individual values to (`fetchResource` in `lib/hooks.ts`, under the key the open card uses: no request when the
+    page read it in the last 10 s and nothing changed it since) and runs the guard on what the study holds; a card not
+    read is never taken as empty, and one that cannot be read refuses the link ("… could not be read, so its arms are not
+    checked: nothing was linked"). The rows read those cards while they say where they go (`useResources`), so the refusal
+    is said on the row as soon as it is known ("checking what study 230-23 holds…" meanwhile, `link-checking-<id>`).
+    Values of the same file are never compared with each other. Before, the Test file could be linked into the arm that
+    held the Reference file's subjects on a fresh page, mixing both files' subjects in one arm (72 disagreements).
+  - **A file's tables can go to different places again** (they could before slice 4, one form per table). Each table is
+    a part of its row, with the facts read on its sheet or page (`LinkPart`, `linkRows`); its suggestion comes from its
+    own caption and the lines read with it, not from all the file's titles joined. A file whose tables point to different
+    places (a workbook with one sheet per study) starts split, each table's place on its row ("sheet Sheet1: → study
+    230-23 · arm Reference · suggested", "sheet Sheet2: not chosen yet", `link-to-<id>-<n>`); its editor has "Each table
+    to its own place" (`link-split-<id>`) and one set of choices per table (`link-part-<id>-<n>`, `link-study-<id>-<n>`
+    …). One `values:assign` per destination; the guard compares each table.
+  - **Work that holds up nothing is no longer folded away when it is all that brings the values into the model.** A
+    delivery whose files name no study yet keeps its layouts, values to link and numbers not read in their own groups,
+    shown and not counted, the group saying why once ("1 not counted now: Its files name no study or product yet …",
+    `todo-why-<group>`); "Blocks nothing" keeps only the clean-up of deliveries whose studies are confirmed. A file's
+    "Still needs you" in Client files lists that work too ("158 values to link · not counted now"; `WorkModel.fileWork`),
+    and the Delivery section's "To do" opens the first of its clean-up (`delivery-in-todo-open`).
+  - **"Next" and every pointer open their row whatever To do is narrowed to:** going to an item drops a status filter
+    that is not its own and "Only what needs me" for an item not counted, and unfolds a folded group the row sits in.
+  - **The layouts' queue keeps the keyboard:** after "Approve and next" (and a move to a new layout once the button
+    pressed is gone) the focus is on the dialog again (`Dialog` `focusKey`), so Tab stays inside and Escape closes it. What
+    the decision did is said in the dialog's own live region, as the one before once the queue moved on ("Approved: the
+    individual PK table layout, version 1. Now 2 of 10."), and cleared by the next move.
+  - **Phone:** the compound values to fill are one card each below 600 px (name; value and unit side by side; the
+    sentence), sized by `mv-*` classes instead of the `!important` width utilities: nothing scrolls sideways.
+  - **Arms of one pair keep their names:** the second file of a pair is told apart from the files already linked to the
+    study as well ("Test" beside the linked "230-23 Fasting Reference.xlsx", not the sheet form's "TEST").
+  - Tests: `inputs-task-first.spec.ts` gains a two-sheet workbook delivered later (`fixtures/two_studies_workbook.py`): in
+    view though it holds up nothing, each table to its own place, Sheet1's table refused the Reference arm on a fresh page
+    while the study's card is still being read, then linked with two calls; "Next" from To do narrowed to Missing; the
+    focus and the banner in the queue; the phone layout of the compound values. `inputs-work.spec.ts` gains the parts, the
+    split, per-table guard and the linked sibling's arm; `inputs-fill.spec.ts` finds the link table in its group.
+
 ### Changed — the Inputs page counts from one list of work, in one vocabulary, with one status per file (plan 2026-11-14, slice 2)
 - **What:**
   - **One list of work** (`apps/web/lib/inputsWork.ts`, pure functions, no React). From the /inputs page, the client

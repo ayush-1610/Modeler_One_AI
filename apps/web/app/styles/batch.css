@@ -1,0 +1,106 @@
+/* To do's batch work (plan 2026-11-14 slice 4): the link table, the numbers not read, the layouts' queue and the compound
+ * values to fill, one row per file or layout; the bulk bar kept in view at the bottom of its table; the reason with its
+ * chips. On a phone (below 600 px) a row's parts stack under its name and nothing scrolls sideways. Built only from the
+ * theme tokens in globals.css. */
+
+.batch { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; min-width: 0; }
+.batch-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; font-size: 13.5px; }
+.batch-all { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; cursor: pointer; }
+.batch-rows { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); border-top: 1px solid var(--line-soft, var(--line)); }
+.batch-row { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; min-width: 0; padding: 8px 0; border-bottom: 1px solid var(--line-soft, var(--line)); }
+.batch-row.quiet .batch-what strong { color: var(--ink-dim); font-weight: 500; }
+.batch-line { display: grid; grid-template-columns: 24px minmax(0, 1.2fr) minmax(0, 1fr) auto; align-items: center; gap: 6px 12px; }
+.notread-table .batch-line { grid-template-columns: 24px minmax(0, 1fr) auto; }
+.layout-queue .batch-line { grid-template-columns: minmax(0, 1fr) auto; }
+.batch-line input[type="checkbox"], .batch-all input[type="checkbox"], .notread-group input[type="checkbox"] { width: 18px; height: 18px; margin: 0; }
+.batch-nopick { width: 18px; }
+.batch-what { display: grid; gap: 2px; min-width: 0; font-size: 14px; overflow-wrap: anywhere; }
+.batch-what .muted { font-size: 12.5px; }
+.batch-what .chip { justify-self: start; }
+.batch-where { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; font-size: 13.5px; overflow-wrap: anywhere; }
+.batch-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px 10px; }
+.batch-detail { display: grid; gap: 6px; padding: 2px 0 4px 36px; font-size: 13.5px; min-width: 0; }
+.batch-detail .delivery-sub { margin: 4px 0 0; }
+.batch-detail .plain-list { margin: 0; display: grid; gap: 4px; }
+
+/* the link table; a file whose tables go to different places says where each goes, and its editor has a set of choices
+ * per table */
+.link-parts-where { margin: 0; padding: 0; list-style: none; display: grid; gap: 2px; flex-basis: 100%; }
+.link-parts-where .chip { margin-left: 6px; }
+.link-checking { flex-basis: 100%; font-size: 12.5px; }
+.link-split { flex-basis: 100%; flex-wrap: wrap; }
+.link-split > .muted { flex-basis: 100%; padding-left: 26px; }
+.link-part { flex-basis: 100%; display: flex; flex-wrap: wrap; align-items: flex-end; gap: 6px 10px; min-width: 0; margin: 0; padding: 6px 0 2px;
+  border: 0; border-top: 1px solid var(--line-soft, var(--line)); }
+.link-part > legend { float: left; width: 100%; padding: 0; font-size: 13px; font-weight: 600; }
+.link-ask { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
+.link-ask-q { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.link-clash { flex-basis: 100%; font-size: 12.5px; color: var(--warn-ink); }
+.link-editor { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; padding: 2px 0 4px 36px; min-width: 0; }
+.link-fields { display: contents; }
+.link-values > summary { cursor: pointer; font-size: 13px; color: var(--brand-ink); min-height: 32px; display: flex; align-items: center; }
+.link-collision { display: grid; gap: 6px; padding: 8px 10px; font-size: 13.5px; border-left: 3px solid var(--warn); border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--warn) 7%, var(--surface)); }
+.link-collision .delivery-pick, .link-editor .delivery-pick, .bulk-bar .delivery-pick { flex-wrap: wrap; min-width: 0; max-width: 100%; }
+.link-editor select, .bulk-bar select, .link-editor input[type="text"], .bulk-bar input[type="text"] { max-width: 100%; min-width: 0; }
+
+/* the bar of a batch: in view at the bottom while its table scrolls */
+.bulk-bar { position: sticky; bottom: 8px; z-index: 5; display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; min-width: 0; padding: 10px 12px; border: 1px solid var(--line);
+  border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow-card-compact); }
+.bulk-bar-head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; }
+.bulk-where { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 13.5px; }
+.bulk-targets { flex-basis: 100%; margin: 0; padding-left: 18px; font-size: 13px; color: var(--ink-dim); overflow-wrap: anywhere; }
+.bulk-problems { margin: 0; padding-left: 18px; font-size: 13px; color: var(--fail-ink); }
+
+/* the reason, with its chips (kit Reason) */
+.reason { display: inline-grid; grid-template-columns: minmax(0, 1fr); gap: 4px; flex: 1 1 240px; min-width: 0; }
+.reason > input { width: 100%; min-width: 0; }
+.delivery-why > .reason { flex: 1 1 240px; }
+.reason-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.reason-chip { font: inherit; font-size: 12px; min-height: 28px; max-width: 100%; padding: 2px 10px; border-radius: 999px; border: 1px solid var(--line);
+  background: var(--raised); color: var(--ink); cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.reason-chip:hover { border-color: color-mix(in srgb, var(--sim) 45%, var(--line)); }
+.reason-chip[aria-pressed="true"] { border-color: var(--sim); }
+.reason-chip.last { border-style: dashed; }
+.reason-missing { flex-basis: 100%; font-size: 12.5px; color: var(--warn-ink); }
+
+/* the layouts' queue */
+.layout-columns { font-size: 13px; color: var(--ink); overflow-wrap: anywhere; }
+.layout-notdata { display: flex; flex-wrap: wrap; gap: 8px; }
+.mapping-queue-bar { position: sticky; bottom: -28px; display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px;
+  padding: 10px 0 2px; background: var(--surface-modal); border-top: 1px solid var(--hairline); }
+
+/* numbers not read */
+.notread-group { display: grid; grid-template-columns: 18px minmax(0, 1fr); align-items: start; gap: 2px 8px; min-height: 32px; padding-top: 4px; cursor: pointer; }
+.notread-group > input { margin-top: 1px; }
+.batch .delivery-why > .muted { flex-basis: 100%; font-size: 13px; }
+.notread-marked { display: grid; gap: 4px; padding: 8px 10px; font-size: 13.5px; border-radius: var(--radius-sm); background: var(--raised); }
+
+/* the compound values to fill: sized here, not with the !important width utilities, so a phone can stack them */
+.mv-table { width: 100%; }
+.mv-table .mv-value { width: 110px; }
+.mv-table .mv-unit { width: 90px; }
+.mv-table .mv-quote { width: 100%; min-width: 0; }
+.mv-table th, .mv-table td { padding: 4px 6px; vertical-align: top; text-align: left; }
+.mv-table th[scope="row"] { font-weight: 500; }
+.mv-source { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 6px 8px; }
+
+@media (max-width: 600px) {
+  .batch-line, .notread-table .batch-line { grid-template-columns: 24px minmax(0, 1fr); }
+  .batch-line > .batch-where, .batch-line > .batch-actions, .batch-line > .btn { grid-column: 2; justify-self: start; justify-content: flex-start; }
+  .layout-queue .batch-line { grid-template-columns: minmax(0, 1fr); }
+  .layout-queue .batch-line > .batch-actions { grid-column: 1; }
+  .batch-detail, .link-editor { padding-left: 0; }
+  .bulk-bar { bottom: 0; }
+  .delivery-why > .reason { flex-basis: 100%; }
+  /* each value a card: its name, then value and unit side by side, then the sentence; the table is no wider than the box */
+  .mv-scroll { overflow-x: visible; border: 0; background: none; }
+  .mv-scroll .mv-table, .mv-table tbody { display: block; min-width: 0; width: 100%; }
+  .mv-table thead { display: none; }
+  .mv-table tr { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 4px 8px; min-width: 0; padding: 8px 0;
+    border-bottom: 1px solid var(--line-soft, var(--line)); }
+  .mv-table th[scope="row"], .mv-table td:last-child { grid-column: 1 / -1; }
+  .mv-table th, .mv-table td { display: block; min-width: 0; padding: 0; }
+  .mv-table .mv-value, .mv-table .mv-unit, .mv-table .mv-quote { width: 100%; min-width: 0; }
+  .link-part > legend { font-size: 12.5px; }
+}

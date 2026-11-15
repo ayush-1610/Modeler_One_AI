@@ -5,11 +5,14 @@
 // value is never written: the API withholds it (D-15), and the page says so in its place.
 
 import { useQueryClient, type QueryClient } from "@tanstack/react-query";
-import { useCallback, useState, type ReactNode } from "react";
+import { useCallback, useState } from "react";
 
+import { ReasonForm } from "@/components/kit/Reason";
 import type { Envelope, Schema } from "@/lib/api";
 import { whereIs } from "@/lib/words";
 import { useMutation, type Outcome } from "@/lib/hooks";
+
+import { writePage } from "./writes";
 
 export type Page = Schema<"DeliveryPage">;
 export type FileRow = Schema<"DeliveryFile">;
@@ -128,7 +131,6 @@ export function typed(text: string): string | number {
 // --- decisions ------------------------------------------------------------------------------------------------------------
 
 const DELIVERY = "/api/v1/projects/{project_id}/delivery" as const;
-const CARD = "/api/v1/projects/{project_id}/delivery/subjects/{type}/{subject}" as const;
 
 /** The section's resources (the page, the cards, the mappings) read again. */
 const readAgain = (client: QueryClient) => client.invalidateQueries({
@@ -161,56 +163,17 @@ export function useDecide() {
 }
 
 /** Write a decision's answer (the page, which `values:assign`, `regions:exclude` and `regions:restore` return) into
- *  the page's cache instead of reading everything again (plan 2026-11-14 §2.1): only the cards open on the page are
- *  read again, since what they show follows the decision. */
+ *  the page's cache instead of reading everything again (plan 2026-11-14 §2.1): only the cards of the subjects the
+ *  decision changed are read again (`writes.ts`, slice 4). */
 export function useWritePage(projectId: string) {
   const client = useQueryClient();
-  return useCallback((page: Page) => {
-    client.setQueryData([DELIVERY, { project_id: projectId }, {}], page);
-    void client.invalidateQueries({ predicate: (q) => q.queryKey[0] === CARD });
-  }, [client, projectId]);
+  return useCallback((page: Page) => writePage(client, projectId, page), [client, projectId]);
 }
 
-/** A decision with its reason: what the API asks `why` for. The reason is kept on the audit trail. */
-export function Why({ action, actionLabel, label, busy, onSubmit, onCancel, testId, formTestId, optional = false, placeholder, children,
-                     disabled = false, autoFocus = false }: {
-  action: string;
-  /** the button's name with its context, where the same button is repeated ("Link the 4 values of 230-23.xlsx") */
-  actionLabel?: string;
-  /** what the reason is for, read aloud with the field */
-  label: string;
-  busy: boolean;
-  onSubmit: (why: string) => void | Promise<unknown>;
-  onCancel?: () => void;
-  testId?: string;
-  /** the form's own testid, where `testId` names a wrapper around it (its field and button keep `testId`'s prefix) */
-  formTestId?: string;
-  /** the API takes this decision without a reason */
-  optional?: boolean;
-  placeholder?: string;
-  /** more fields of the decision, before its reason */
-  children?: ReactNode;
-  disabled?: boolean;
-  /** the reason field takes the focus when the form opens (a form opened by a button that then goes away) */
-  autoFocus?: boolean;
-}) {
-  const [why, setWhy] = useState("");
-  const ready = (optional || Boolean(why.trim())) && !disabled;
-  return (
-    <form className="delivery-why" data-testid={formTestId ?? testId}
-          onSubmit={(e) => { e.preventDefault(); if (ready && !busy) void onSubmit(why.trim()); }}>
-      {children}
-      <input type="text" aria-label={label} value={why} onChange={(e) => setWhy(e.target.value)} autoFocus={autoFocus}
-             placeholder={placeholder ?? (optional ? "a note (optional)" : "why (kept on the audit trail)")}
-             data-testid={testId && `${testId}-why`} />
-      {/* while the decision is sent the button stays focusable (aria-disabled, the submit ignored): a disabled button
-          would drop the focus to the page, out of a dialog */}
-      <button type="submit" className="btn small primary" disabled={!ready} aria-disabled={busy || undefined} aria-label={actionLabel}
-              data-testid={testId && `${testId}-submit`}>{action}</button>
-      {onCancel && <button type="button" className="btn small" onClick={onCancel}>Cancel</button>}
-    </form>
-  );
-}
+/** A decision with its reason: what the API asks `why` for. The reason is kept on the audit trail. The kit's
+ *  `ReasonForm` (plan 2026-11-14 slice 4): suggestion chips and "use last" fill the field, never send it; pressed with
+ *  the reason or another choice missing, it says what is missing. */
+export const Why = ReasonForm;
 
 /** A refusal shown where the decision was made. */
 export function Problem({ text, testId }: { text: string | null; testId?: string }) {

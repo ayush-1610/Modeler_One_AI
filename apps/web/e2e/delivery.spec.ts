@@ -72,7 +72,12 @@ test("a delivery is reviewed by exception, spot-checked, signed and loaded once"
   await page.getByTestId(`file-toggle-${pdf.name}`).click();
   await expect(page.getByTestId(`delivery-regions-${pdf.file_id}`)).toHaveCount(0);
   await expect(section.getByTestId("delivery-files")).toHaveCount(0);                        // no second list of the files
-  await expect(section.getByTestId(`delivery-mapping-${waiting}`)).toContainText("To decide");   // it holds up the study's signature
+  // the layout that waits is checked in To do's queue (plan 2026-11-14 slice 4), where it holds up the study's signature
+  await expect(section.getByTestId("delivery-in-todo")).toContainText("1 table layout to check");
+  await page.getByTestId("tab-todo").click();
+  await expect(page.getByTestId("todo-group-layouts").getByTestId(`delivery-mapping-${waiting}`)).toBeVisible();
+  await expect(page.getByTestId("todo-group-layouts")).toContainText("To decide");
+  await page.getByTestId("tab-files").click();
   await shot(page, "1-coverage");
 
   // --- the study's card is on Clinical studies, its row in the list of the client's studies; the delivery's clean-up
@@ -145,15 +150,18 @@ test("a delivery is reviewed by exception, spot-checked, signed and loaded once"
   await expect(card.getByTestId(`delivery-card-mappings-${study.subject}`)).toHaveCount(0);
   await page.getByTestId("tab-files").click();
   await expect(section.getByTestId("delivery-running")).toHaveCount(0, { timeout: 120_000 });
-  await expect(section.getByTestId("delivery-mappings")).toHaveCount(0);
+  await expect(section.getByTestId("delivery-in-todo")).not.toContainText("table layout");
   await expect(section.getByTestId("delivery-total-silent-loss")).toHaveText("0");
 
-  // --- the delivery's clean-up, with its file in Client files: the stray note with a number is not data ---
+  // --- the delivery's clean-up: the stray note with a number is marked as not data with its file's other loose
+  // numbers, in To do's table of numbers not read (plan 2026-11-14 slice 4) ---
   const workbook = files.find((f) => !f.name.endsWith(".pdf"))!;
-  await page.getByTestId(`file-toggle-${workbook.name}`).click();
-  await page.getByTestId(`delivery-file-toggle-${workbook.file_id}`).click();
-  await page.getByTestId("delivery-file-outside-accept-why").fill("a working note, not data");
-  await page.getByTestId("delivery-file-outside-accept-submit").click();
+  await page.getByTestId("tab-todo").click();
+  await page.getByTestId(`notread-mark-open-${workbook.file_id}`).click();
+  await page.getByTestId(`notread-mark-${workbook.file_id}-why`).fill("a working note, not data");
+  await page.getByTestId(`notread-mark-${workbook.file_id}-submit`).click();
+  await expect(page.getByTestId(`notread-${workbook.file_id}`)).toHaveCount(0);
+  await page.getByTestId("tab-files").click();
   await expect(section.getByTestId("delivery-total-outside")).toHaveText("0");
   await page.getByTestId("tab-studies").click();
   await open(study.subject);
