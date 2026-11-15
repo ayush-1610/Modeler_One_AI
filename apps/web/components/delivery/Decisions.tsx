@@ -4,7 +4,7 @@
 // accepted as is, entered or corrected, settled as a required item, not used, refused as a link, which of its tables'
 // layouts were approved or rejected and which of its files' tables were marked as not data, each with who decided it,
 // when and why. What each decision is comes from the card and the delivery page; who, when and why from the project's
-// audit trail (its last 2,000 events, read only while the list is on screen). A decision the trail does not name a
+// audit trail (a table marked as not data says it itself) (its last 2,000 events, read only while the list is on screen). A decision the trail does not name a
 // person for (a value not used after a choice, a refused link) is listed with its reason only. Values linked to the
 // study from a file that did not name it are decided per file, in Client files: the trail does not say which study a
 // link went to, so they are not listed here (an API follow-up: a subject's decisions on its card).
@@ -12,7 +12,7 @@
 import { useResource } from "@/lib/hooks";
 import { engineWords, fieldLabel, placeText, tableKindText, valueWord, whenText, DISPOSITION_WORD } from "@/lib/words";
 
-import { personDecision, plural, valueText, type Subject, type Value } from "./shared";
+import { plural, valueText, type Subject, type Value } from "./shared";
 
 type Event = { action: string; actor: string; occurred_at: string; reason: string | null; resource_id: string; after: unknown };
 type Line = { id: string; what: string; by?: string; at?: string; why?: string };
@@ -39,8 +39,8 @@ export function Decisions({ projectId, subject, files: shas }: { projectId: stri
   }
   const files = (delivery.data?.enabled ? delivery.data.deliveries.flatMap((d) => d.files) : [])
     .filter((f) => shas.includes(f.sha256) && !f.repeat);
-  const notData = files.flatMap((f) => f.regions.map((r) => ({ f, r, d: r.state === "excluded" ? personDecision(r.reason) : null })))
-    .filter((x) => x.d);
+  // a table marked as not data says who decided it, when and why itself (`DeliveryRegion.decision`)
+  const notData = files.flatMap((f) => f.regions.map((r) => ({ f, r, d: r.decision }))).filter((x) => x.d);
   const count = overridden.length + disposed.length + entered.length + unused.length + refused.length + layouts.size + notData.length;
   const trail = useResource("/api/v1/projects/{project_id}/audit", { project_id: projectId },
                             { query: { limit: AUDIT_EVENTS }, enabled: count > 0 });
@@ -63,8 +63,8 @@ export function Decisions({ projectId, subject, files: shas }: { projectId: stri
       ...said(find(`intake.mapping.${m.status === "approved" ? "approve" : "reject"}`,
                    (e) => after(e).mapping_id === m.id && after(e).version === m.version)),
     })),
-    ...notData.map(({ f, r, d }) => ({ id: `rd-${d!.id}-${r.region_id}`, what: `Marked as not data: ${placeText(r.where)} of ${f.name}`, why: d!.why,
-                                       ...(() => { const e = find("intake.region", (x) => last(x.resource_id) === d!.id); return e ? { by: e.actor, at: e.occurred_at } : {}; })() })),
+    ...notData.map(({ f, r, d }) => ({ id: `rd-${d!.id}-${r.region_id}`, what: `Marked as not data: ${placeText(r.where)} of ${f.name}`,
+                                       by: d!.by, at: d!.at, why: d!.why })),
   ];
   const lines = [...decided].sort((a, b) => (b.at ?? "").localeCompare(a.at ?? ""));
 

@@ -1697,6 +1697,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project_id}/delivery/vocabulary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Vocabulary
+         * @description The words a table's layout (`mapping/2`) is written with, as every mapping answer gives them (`vocabulary`,
+         *     read from `modeler_intake.mapping_spec` and `fields`), for a project where no table has a layout yet: the form
+         *     that gives a table its first layout offers these and never makes one up. 409 while the pipeline is off.
+         */
+        get: operations["get_vocabulary_api_v1_projects__project_id__delivery_vocabulary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project_id}/delivery:run": {
         parameters: {
             query?: never;
@@ -4159,6 +4181,8 @@ export interface components {
          *     empty (a model input the data plan owns with no value yet: a row to fill, not counted as missing).
          */
         CompoundRow: {
+            /** Allowed */
+            allowed: string[];
             /** Alternatives */
             alternatives: components["schemas"]["AlternativeView"][];
             /** Binding */
@@ -5330,12 +5354,15 @@ export interface components {
          * DeliveryOutside
          * @description An item with a number outside every region that is not page furniture. `counted`: it is in the summary's
          *     `outside_numeric` (no mapped table cites it and no person accepted it as not data), so it blocks a confirmation.
+         *     Not counted with no `decision`: a table that is read cites it (a fact read once for the table).
          */
         DeliveryOutside: {
             /** Counted */
             counted: boolean;
+            decision: components["schemas"]["DeliveryRegionDecision"] | null;
             /** Region */
             region: string | null;
+            restored: components["schemas"]["DeliveryRegionRestore"] | null;
             /** Text */
             text: string | null;
             /** Where */
@@ -5378,8 +5405,10 @@ export interface components {
         DeliveryRegion: {
             /** Caption */
             caption: string | null;
+            decision: components["schemas"]["DeliveryRegionDecision"] | null;
             /** Excluded */
             excluded: number;
+            head: components["schemas"]["DeliveryRegionHead"] | null;
             /** Kind */
             kind: string;
             /** Mapping Id */
@@ -5396,6 +5425,7 @@ export interface components {
             reason: string;
             /** Region Id */
             region_id: string;
+            restored: components["schemas"]["DeliveryRegionRestore"] | null;
             /** Silent */
             silent: number;
             /**
@@ -5409,6 +5439,63 @@ export interface components {
             used: number;
             /** Where */
             where: string;
+        };
+        /**
+         * DeliveryRegionDecision
+         * @description A person's "not data" decision in force on a region or an outside item (a `RegionDecision`, rd-n): who made it,
+         *     when and why. For a file that holds a blinded study's values, the digits of `why` are masked (a person may have
+         *     quoted what the file holds).
+         */
+        DeliveryRegionDecision: {
+            /** At */
+            at: string;
+            /** By */
+            by: string;
+            /** Id */
+            id: string;
+            /** Why */
+            why: string;
+        };
+        /**
+         * DeliveryRegionHead
+         * @description The first rows of a table no layout reads (never read, or its layout rejected), for a person to give it a
+         *     layout: at most 5 rows and 30 columns, each cell as written (cut at 80 characters, "" for an empty one). For a file
+         *     that holds a blinded study's values, only the header band (its rows above the first row of values, as a mapping's
+         *     sample shows it) with every digit masked: no row of values. `spans` gives, for each of `rows`, each column's width
+         *     as the file draws it: 1; n > 1 for a merged cell's first column, over n columns; 0 for a column a merged cell to its
+         *     left covers (its text in `rows` is the merged cell's, copied as a mapping reads a merged header).
+         */
+        DeliveryRegionHead: {
+            /** Blinded */
+            blinded: boolean;
+            /** Header Rows */
+            header_rows: number;
+            /** N Cols */
+            n_cols: number;
+            /** N Rows */
+            n_rows: number;
+            /** Rows */
+            rows: string[][];
+            /** Spans */
+            spans: number[][];
+        };
+        /**
+         * DeliveryRegionRestore
+         * @description The latest "Restore…" that gave a region or an outside item back (a `RegionDecision` with `restores`): who, when,
+         *     why (masked as a decision's is) and the decisions it undid. It stays the item's record when a later decision sets
+         *     the item aside again.
+         */
+        DeliveryRegionRestore: {
+            /** At */
+            at: string;
+            /** By */
+            by: string;
+            /** Id */
+            id: string;
+            /** Restores */
+            restores: string[];
+            /** Why */
+            why: string;
         };
         /** DeliveryRequirement */
         DeliveryRequirement: {
@@ -6466,6 +6553,13 @@ export interface components {
         /** Envelope[CpfView] */
         Envelope_CpfView_: {
             data: components["schemas"]["CpfView"];
+            /** Errors */
+            errors: components["schemas"]["ErrorItem"][];
+            meta: components["schemas"]["Meta"];
+        };
+        /** Envelope[DeliveryMappingVocabulary] */
+        Envelope_DeliveryMappingVocabulary_: {
+            data: components["schemas"]["DeliveryMappingVocabulary"];
             /** Errors */
             errors: components["schemas"]["ErrorItem"][];
             meta: components["schemas"]["Meta"];
@@ -16177,6 +16271,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Envelope_DeliveryPage_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_vocabulary_api_v1_projects__project_id__delivery_vocabulary_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_DeliveryMappingVocabulary_"];
                 };
             };
             /** @description Validation Error */

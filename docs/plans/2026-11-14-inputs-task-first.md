@@ -261,3 +261,40 @@ before the next starts.
     clientamide with an external dataset filed under it): the page now withholds the delivery's reading of such a study
     in "How the files were read", but the sheet form's group shows what the client-review API sends. Whether the client
     review and the delivery should blind it is an API question for the owner.
+
+- Within this plan, the fill round's API follow-ups as built (branch ux-api2, 2026-11-15; CHANGELOG "who marked a thing
+  'not data', a table's first rows, the layout words and PK-Sim's names"): done, all but the pH-solubility table entry,
+  which was not part of this branch and is still open. The notes above on the audit trail, on a note beside a table that
+  is read, on "Read this table…" showing no cells and on the layout words coming only with a mapping no longer hold.
+  - **The restore stays in the record** as a second field, `restored` (the latest restore that gave a region or a note
+    back, with what it undid), beside `decision` (the one in force), on both `DeliveryRegion` and `DeliveryOutside`.
+  - **A table's first rows are on `DeliveryRegion.head`**, not on `GET /delivery/source` by region: "Read this table…"
+    needs them with no further request. They are masked by file, as a mapping's sample is (a file that holds a blinded
+    study's values shows its header band only, digits masked), not by region as a value's source view is: an unread table
+    holds no value yet, so the source view's rule would show it whole in a blinded study's file.
+  - **The layout words are on their own route** (`GET /delivery/vocabulary`), not on `DeliveryPage`, which the page reads
+    again every 3 seconds while a file is read.
+  - **Blinded files, a hardening beyond the brief:** the digits of a person's "not data" why are masked, on the region's
+    `reason` too (its decision's id kept), as a failed run's message is, since the new fields put that why beside a note
+    whose text is withheld.
+  - **PK-Sim's names** are checked on `POST /evidence` (the person's typed value). `GET /inputs` gains
+    `CompoundRow.allowed` so the row's form reads the names from the API, not from a list typed in the web.
+  - **`DeliverySection`'s region rows are not changed here** (another branch rewrites them): `Restore.tsx` keeps
+    `useDecisionsWho` (now reading nothing) and `NotDataNote`'s `who` so they compile; only the note lines use the new
+    fields, and a region's `restored` is shown once its row renders `NotDataNote` on every region.
+  - **After its review** (same branch, 2026-11-15), each a deviation recorded here:
+    - **PK-Sim's names on every person's route**, not only `POST /evidence`: `:correct` (in `evidence_register.correct`),
+      `:decide` ACCEPTED and `:choose` refuse a binding partner that is not one of PK-Sim's names (422 `NOT_ALLOWED`),
+      so a literature agent's proposal or a name corrected into bind.partner no longer reaches the model by a person.
+      `:decide` and `:choose` check in the route, not in `evidence_register.decide`: a signed delivery's landing and the
+      client-review card's confirmation accept through it, and a refusal there would stop a signed landing half
+      written. Those two paths and values kept before stay unchecked; such a kept value is said on its Inputs row
+      (`CompoundRow.message`, chip "not a PK-Sim name", how to replace it). A published model's "unspecified"
+      (`cpf.build.UNSPECIFIED_PARTNER`, which the builder takes as "not set") is let through when accepted or kept, never
+      when typed. Checking the landing at plan time (held, before signing) is left for later.
+    - **The region rows render `NotDataNote` after all**, on every region (the decision, or else the restore, beside why
+      it is not read); `useDecisionsWho` and the `who` prop are removed. `shared.personDecision` stays, because the
+      integration branch's `Decisions.tsx` (slice 3) reads it; it can read `DeliveryRegion.decision` after the merge.
+    - **A merged cell in a table's first rows** is said by `DeliveryRegionHead.spans` (1, n over n columns, 0 covered),
+      not by blanking the covered cells: the rows keep the merged text in each column, as a mapping's header reads it,
+      so the columns stay named by it; the grid draws it once.

@@ -110,6 +110,45 @@ class DeliveryRunState(View):
     stages: list[DeliveryStage]
 
 
+class DeliveryRegionDecision(View):
+    """A person's "not data" decision in force on a region or an outside item (a `RegionDecision`, rd-n): who made it,
+    when and why. For a file that holds a blinded study's values, the digits of `why` are masked (a person may have
+    quoted what the file holds)."""
+
+    id: str
+    by: str
+    at: str
+    why: str
+
+
+class DeliveryRegionRestore(View):
+    """The latest "Restore…" that gave a region or an outside item back (a `RegionDecision` with `restores`): who, when,
+    why (masked as a decision's is) and the decisions it undid. It stays the item's record when a later decision sets
+    the item aside again."""
+
+    id: str
+    by: str
+    at: str
+    why: str
+    restores: list[str]                       # the decisions it undid (rd-n)
+
+
+class DeliveryRegionHead(View):
+    """The first rows of a table no layout reads (never read, or its layout rejected), for a person to give it a
+    layout: at most 5 rows and 30 columns, each cell as written (cut at 80 characters, "" for an empty one). For a file
+    that holds a blinded study's values, only the header band (its rows above the first row of values, as a mapping's
+    sample shows it) with every digit masked: no row of values. `spans` gives, for each of `rows`, each column's width
+    as the file draws it: 1; n > 1 for a merged cell's first column, over n columns; 0 for a column a merged cell to its
+    left covers (its text in `rows` is the merged cell's, copied as a mapping reads a merged header)."""
+
+    n_rows: int                               # the whole table's rows and columns
+    n_cols: int
+    header_rows: int                          # the header band code finds (`mapping.fingerprint.header_band`)
+    rows: list[list[str]]
+    spans: list[list[int]]                    # one per row of `rows`, one per column: 1, n (a merged cell), 0 (covered)
+    blinded: bool
+
+
 class DeliveryRegion(View):
     """One region of a file and what was done with it. `state` is `waiting` while the file is being read again, or its
     mapping was rejected and the run that follows has not finished (its earlier values are still in the ledger)."""
@@ -120,7 +159,7 @@ class DeliveryRegion(View):
     caption: str | None                       # null when the file holds a blinded study's values
     table_kind: str
     state: Literal["mapped", "excluded", "unread", "waiting"]
-    reason: str
+    reason: str                               # a person's decision: "rd-n: why" (why masked as `decision.why` is)
     origin: str | None                        # cache | rule | llm | person
     mapping_id: str | None
     mapping_version: int | None
@@ -129,16 +168,22 @@ class DeliveryRegion(View):
     used: int
     excluded: int
     silent: int
+    decision: DeliveryRegionDecision | None   # the person's "not data" decision that sets it aside; null: a rule's, or none
+    restored: DeliveryRegionRestore | None    # the latest restore that gave it back; null: none
+    head: DeliveryRegionHead | None           # a table no layout reads: its first rows; null for any other region
 
 
 class DeliveryOutside(View):
     """An item with a number outside every region that is not page furniture. `counted`: it is in the summary's
-    `outside_numeric` (no mapped table cites it and no person accepted it as not data), so it blocks a confirmation."""
+    `outside_numeric` (no mapped table cites it and no person accepted it as not data), so it blocks a confirmation.
+    Not counted with no `decision`: a table that is read cites it (a fact read once for the table)."""
 
     where: str
     text: str | None                          # null when the file holds a blinded study's values
     region: str | None                        # the region whose context line it is
     counted: bool
+    decision: DeliveryRegionDecision | None   # the person's decision in force that it is not data; null: none
+    restored: DeliveryRegionRestore | None    # the latest restore that gave it back to the count; null: none
 
 
 class DeliveryContainer(View):

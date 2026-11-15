@@ -50,6 +50,7 @@ from modeler_api.responses import answers, envelope
 from modeler_api.views.client_data import TriageStart
 from modeler_api.views.delivery import (
     DeliveryMapping,
+    DeliveryMappingVocabulary,
     DeliveryPage,
     DeliverySource,
     DeliverySpotCheck,
@@ -58,7 +59,7 @@ from modeler_api.views.delivery import (
 )
 from modeler_intake.anchors import AnchorError, check_id, parse_anchor, parse_locator, sha256_of
 from modeler_intake.fields import CONDITION_FIELDS, FIELDS, LABEL_FIELDS, SpreadKind, Statistic, TableKind
-from modeler_intake.mapping.fingerprint import layout_fingerprint
+from modeler_intake.mapping.fingerprint import header_band, layout_fingerprint
 from modeler_intake.mapping.redact import redact
 from modeler_intake.mapping.validate import validate_spec
 from modeler_intake.mapping_spec import CellForm, Cite, Layout, MappingSpec, Role, RowRule
@@ -72,7 +73,7 @@ from modeler_project.client_data import ClientDataError
 # which outside items a coverage summary counts: no public function says it per item (reported to the integrator)
 from modeler_project.coverage import _counts as outside_item_counts
 from modeler_project.coverage import _Places as places_of
-from modeler_project.coverage import person_acceptance
+from modeler_project.coverage import outside_restore, person_acceptance, region_restore
 from modeler_project.datasets import DatasetError
 from modeler_project.documents import DocumentLibrary
 from modeler_project.evidence import EvidenceState
@@ -103,6 +104,8 @@ OFF = ("the intake pipeline is off for this deployment (MODELER_INTAKE_PIPELINE=
        "nothing and does nothing")
 _WAITING = ("queued", "running")
 _DIGIT = re.compile(r"\d")
+_PERSON = re.compile(r"^(rd-\d+): ")             # a region a person's decision sets aside: its reason names the decision
+_HEAD_ROWS, _HEAD_COLS, _HEAD_CHARS = 5, 30, 80     # what a table no layout reads shows of itself (`DeliveryRegionHead`)
 _STATUS = {"UNKNOWN": 404, "INVALID": 422, "CONFLICT": 409, "BLINDED": 409, "STALE": 409}
 _ENTITY_ROLES = ("study", "arm", "product", "batch", "analyte")
 _LABEL_ROLES = ("subject", "period", "sequence", "occasion", "vessel", "matrix")
@@ -417,6 +420,56 @@ def _run(run: RunRecord, blinded: bool) -> dict[str, Any]:
                        for s in run.stages]}
 
 
+def _decision(decision: RegionDecision | None, blinded: bool) -> dict[str, Any] | None:
+    """A person's region decision as the page shows it: who, when and why (and, for a restore, what it undid). The
+    digits of why are masked for a file that holds a blinded study's values: a person may have quoted the file."""
+    if decision is None:
+        return None
+    shown = {"id": decision.id, "by": decision.by, "at": decision.at, "why": _mask(decision.why) if blinded else decision.why}
+    return {**shown, "restores": list(decision.restores)} if decision.restores else shown
+
+
+def _spans(grid: RegionGrid, row: int, columns: range) -> list[int]:
+    """Each column's width in the row as the file draws it: 1; n > 1 for a merged cell's first column, over the n
+    columns it covers; 0 for a column a merged cell to its left covers (its text is that cell's, copied as a mapping
+    reads a merged header). A merged cell whose first column is outside `columns` starts at the first one it covers."""
+    out: list[int] = []
+    start, origin = -1, None
+    for column in columns:
+        cell = grid.cell(row, column)
+        if cell.merged_from is not None and cell.merged_from == origin:
+            out[start] += 1
+            out.append(0)
+            continue
+        start, origin = len(out), cell.merged_from or cell.locator or None
+        out.append(1)
+    return out
+
+
+def _head(doc: SourceDocument | None, region_id: str, blinded: bool) -> dict[str, Any] | None:
+    """The first rows of a table no layout reads, for a person to give it its layout (`DeliveryRegionHead`): at most 5
+    rows and 30 columns as written, and where a merged cell spans columns (`_spans`); for a file with a blinded study's
+    values only the header band, digits masked, as a mapping's sample shows it. None when the file's source model is not
+    cached or the region is no table of it."""
+    if doc is None:
+        return None
+    try:
+        grid = region_grid(doc, region_id)
+    except (AnchorError, KeyError, ValueError):
+        return None
+    band = header_band(grid)
+    last = min(band if blinded else _HEAD_ROWS, _HEAD_ROWS, grid.n_rows)
+    columns = range(1, min(grid.n_cols, _HEAD_COLS) + 1)
+
+    def cell(row: int, column: int) -> str:
+        text = grid.cell(row, column).text.strip()[:_HEAD_CHARS]
+        return _mask(text) if blinded else text
+
+    return {"n_rows": grid.n_rows, "n_cols": grid.n_cols, "header_rows": band,
+            "rows": [[cell(row, column) for column in columns] for row in range(1, last + 1)],
+            "spans": [_spans(grid, row, columns) for row in range(1, last + 1)], "blinded": blinded}
+
+
 def _region_state(scope: _Scope, outcome: Any) -> str:
     """A region's state as the page shows it: `waiting` while its mapping is rejected and the coverage still shows the
     rejected reading (the run that follows the rejection has not finished: its earlier values are still active)."""
@@ -427,33 +480,57 @@ def _region_state(scope: _Scope, outcome: Any) -> str:
     return outcome.state
 
 
-def _regions(scope: _Scope, coverage: FileCoverage, blinded: bool) -> list[dict[str, Any]]:
+def _regions(scope: _Scope, coverage: FileCoverage, decisions: Sequence[RegionDecision], blinded: bool) -> list[dict[str, Any]]:
+    """The file's regions, each with the person's decision that sets it aside (the one its coverage names), the latest
+    restore that gave it back, and, for a table no layout reads (never read, or its layout rejected), its first rows.
+    For a file with a blinded study's values, an unread region's reason and the why of a person's decision have their
+    digits masked."""
+    by_id = {d.id: d for d in decisions}
+    mine = [d for d in decisions if d.file_sha256 == coverage.file.sha256]
+    docs: list[SourceDocument | None] = []              # the file's source model, read once if a table needs its rows
     out = []
     for found in coverage.regions:
         region, outcome = found.region, found.outcome
         mapping = outcome.mapping
         state = _region_state(scope, outcome)
+        status = scope.mapping_status(mapping.mapping_id, mapping.version) if mapping else None
+        person = _PERSON.match(outcome.reason) if outcome.state == "excluded" else None
+        decision = by_id.get(person.group(1)) if person else None
+        reason = outcome.reason
+        if blinded and person:
+            reason = person.group(0) + _mask(reason[person.end():])
+        elif blinded and outcome.state == "unread":
+            reason = _mask(reason)
+        head = None
+        if region.kind == "table" and (state == "unread" or status == "rejected"):
+            if not docs:
+                docs.append(scope.source_document(coverage.file.sha256))
+            head = _head(docs[0], region.id, blinded)
         out.append({
             "region_id": region.id, "kind": region.kind, "where": region.where,
             "caption": None if blinded else region.caption, "table_kind": region.table_kind, "state": state,
-            "reason": _mask(outcome.reason) if blinded and outcome.state == "unread" else outcome.reason,
-            "origin": outcome.origin, "mapping_id": mapping.mapping_id if mapping else None,
-            "mapping_version": mapping.version if mapping else None,
-            "mapping_status": scope.mapping_status(mapping.mapping_id, mapping.version) if mapping else None,
+            "reason": reason, "origin": outcome.origin, "mapping_id": mapping.mapping_id if mapping else None,
+            "mapping_version": mapping.version if mapping else None, "mapping_status": status,
             "numeric_cells": found.numeric_cells, "used": found.used, "excluded": found.excluded,
-            "silent": found.silent_count})
+            "silent": found.silent_count, "decision": _decision(decision, blinded),
+            "restored": _decision(region_restore(mine, region.id, region.kind), blinded), "head": head})
     return out
 
 
 def _outside(coverage: FileCoverage, decisions: Sequence[RegionDecision], blinded: bool) -> list[dict[str, Any]]:
     """The items with a number outside every region (page furniture left out), each with whether the summary counts
-    it (`coverage.file_coverage`'s own rule: not cited by a mapped table, not accepted by a person, or restored)."""
+    it (`coverage.file_coverage`'s own rule: not cited by a mapped table, not accepted by a person, or restored), the
+    person's decision in force that it is not data (none and not counted: a table that is read cites it), and the
+    latest restore that gave it back to the count."""
     cited = places_of(c for r in coverage.regions if r.outcome.state == "mapped" for c in r.outcome.cited)
     mine = [d for d in decisions if d.file_sha256 == coverage.file.sha256]
-    accepted = {item.where for item in coverage.outside if person_acceptance(mine, item.where) is not None}
+    shown = [item for item in coverage.outside if item.numeric and not item.furniture]
+    accepted = {item.where: person_acceptance(mine, item.where) for item in shown}
+    taken = {where for where, decision in accepted.items() if decision is not None}
     return [{"where": item.where, "text": None if blinded else item.text, "region": item.region,
-             "counted": outside_item_counts(item, cited, accepted)}
-            for item in coverage.outside if item.numeric and not item.furniture]
+             "counted": outside_item_counts(item, cited, taken), "decision": _decision(accepted[item.where], blinded),
+             "restored": _decision(outside_restore(mine, item.where), blinded)}
+            for item in shown]
 
 
 def _file(scope: _Scope, record: FileRecord, decisions: Sequence[RegionDecision]) -> dict[str, Any]:
@@ -477,7 +554,7 @@ def _file(scope: _Scope, record: FileRecord, decisions: Sequence[RegionDecision]
         "by": record.by, "at": record.at, "state": state, "reason": reason,
         "coverage": _summary(coverage.summary) if coverage is not None else None,
         "run": _run(run, blinded) if run is not None else None,
-        "regions": _regions(scope, coverage, blinded) if detail else [],      # type: ignore[arg-type]
+        "regions": _regions(scope, coverage, decisions, blinded) if detail else [],  # type: ignore[arg-type]
         "outside": _outside(coverage, decisions, blinded) if detail else [],  # type: ignore[arg-type]
         "blinded": blinded}
 
@@ -1339,6 +1416,16 @@ def _mapping_view(scope: _Scope, mapping_id: str, version: int | None = None, *,
             scope.reading(sha) for sha in queued), "queued": list(queued), "vocabulary": _VOCABULARY}
 
 
+def get_vocabulary(project_id: str, principal: Reader, store: StoreDep) -> dict[str, Any]:
+    """The words a table's layout (`mapping/2`) is written with, as every mapping answer gives them (`vocabulary`,
+    read from `modeler_intake.mapping_spec` and `fields`), for a project where no table has a layout yet: the form
+    that gives a table its first layout offers these and never makes one up. 409 while the pipeline is off."""
+    ws = workspace_for(project_id, principal, store)
+    if not _on(ws):
+        raise _refused(409, "INTAKE_PIPELINE_OFF", OFF)
+    return envelope(_VOCABULARY)
+
+
 def get_mapping(project_id: str, mapping_id: str, principal: Reader, store: StoreDep,
                 version: int | None = None) -> dict[str, Any]:
     """A mapping as a person reviews it: each column's header with its role, field and unit, the tokens and row rules,
@@ -1536,6 +1623,7 @@ def mount(router: APIRouter) -> None:
     router.post(PREFIX + "/regions:exclude", **answers(DeliveryPage))(exclude_regions)
     router.post(PREFIX + "/regions:restore", **answers(DeliveryPage))(restore_regions)
     router.post(PREFIX + "/mappings:propose", **answers(DeliveryMapping))(propose_mapping)
+    router.get(PREFIX + "/vocabulary", **answers(DeliveryMappingVocabulary))(get_vocabulary)
     router.get(mapping, **answers(DeliveryMapping))(get_mapping)
     router.post(mapping + ":approve", **answers(DeliveryMapping))(approve_mapping)
     router.post(mapping + ":reject", **answers(DeliveryMapping))(reject_mapping)

@@ -26,6 +26,24 @@ class EvidenceError(ValueError):
     pass
 
 
+class NotAllowed(EvidenceError):
+    """A value its parameter cannot take: PK-Sim takes it only by one of its names (`inputs.allowed_values`)."""
+
+    def __init__(self, message: str, allowed: tuple[str, ...]):
+        super().__init__(message)
+        self.allowed = allowed
+
+
+def not_allowed(target: str, value: float | str) -> NotAllowed | None:
+    """The refusal of a value that would enter the model under `target` (accepted, kept or corrected into it) though
+    the model builder cannot take it (`inputs.value_problem`, a published model's "unspecified" let through); None: it
+    can."""
+    from modeler_project.inputs import allowed_values, value_problem
+
+    problem = value_problem(target, value, unset=True)
+    return NotAllowed(problem, allowed_values(target)) if problem else None
+
+
 def items(ws: Workspace) -> list[EvidenceItem]:
     """Latest version of every evidence item, with conflicts flagged (the fold of the source-selection rule, D-32)."""
     from modeler_project.sources import rule
@@ -107,7 +125,8 @@ def correct(ws: Workspace, evidence_id: str, *, reason: str, by: str, target: st
     because a new name can change what the number means (30 % "plasma protein binding" is bound, not unbound: as bind.fu
     it would read 0.30 instead of 0.70).
     A sentence filed as a value ("Km = 290 µM (NODV) and …") becomes a number only by naming one the quote states
-    (`value`, with its `unit`)."""
+    (`value`, with its `unit`). A value its new parameter cannot take (a binding partner that is not one of PK-Sim's
+    names) is refused (`NotAllowed`), and nothing is written."""
     from modeler_project.inputs import target_problem
 
     if not reason.strip():
@@ -130,6 +149,8 @@ def correct(ws: Workspace, evidence_id: str, *, reason: str, by: str, target: st
         new_value, new_unit = float(value), (unit if unit is not None else item.unit)
     if isinstance(new_value, str) and numeric_target(new_target):
         raise EvidenceError(f"{new_value[:80]!r} is a description, not a value: give the number the quote states, or reject it")
+    if refused := not_allowed(new_target, new_value):    # "albumin" filed elsewhere, then corrected into bind.partner
+        raise refused
     if new_target == item.target and merged == item.conditions and new_value == item.value and new_unit == item.unit:
         raise EvidenceError("nothing changes: give a new target, new conditions or the number the quote states")
     note = f"refiled: from {item.target}; a new name can change what the number means, so a person confirms the converted value"

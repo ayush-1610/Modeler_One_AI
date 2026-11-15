@@ -61,12 +61,6 @@ export function tableName(where: string, file: string, kind = "table"): string {
   return /^(table|figure|paragraphs?|lines?|page) /.test(name) ? `${name} of ${file}` : `the ${word} ${name} of ${file}`;
 }
 
-/** A person's "not data" decision as a region's reason gives it ("rd-3: why"): its id and why; null for a rule's. */
-export function personDecision(reason: string): { id: string; why: string } | null {
-  const m = /^(rd-\d+): ([\s\S]*)$/.exec(reason);
-  return m ? { id: m[1], why: m[2] } : null;
-}
-
 /** What blocks a confirmation, in words (`DeliveryBlocker.code`); the API's own detail follows it. */
 export const BLOCKER_LABEL: Record<string, string> = {
   SILENT_LOSS: "Not everything was read",

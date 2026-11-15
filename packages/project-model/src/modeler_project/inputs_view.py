@@ -20,6 +20,7 @@ from modeler_project.artifacts import ArtifactKind
 from modeler_project.inputs import (
     MAIN,
     MODEL_IDS,
+    allowed_values,
     catalog_rows,
     choices,
     cpf_assembly,
@@ -27,6 +28,7 @@ from modeler_project.inputs import (
     evidence_view,
     placement,
     tab_of,
+    value_problem,
 )
 from modeler_project.requirements import RequirementMatrix
 from modeler_project.workspace import Workspace
@@ -45,7 +47,7 @@ def _requirement_of(matrix: RequirementMatrix | None, cpf_id: str) -> str | None
 def _row(cpf_id: str, state: str, matrix: RequirementMatrix | None, **fields: Any) -> dict[str, Any]:
     return {"id": cpf_id, "tab": tab_of(cpf_id), "state": state, "req_id": _requirement_of(matrix, cpf_id), "value": None,
             "unit": None, "status": None, "placement": placement(cpf_id), "binding": None, "candidates": [], "sources": [],
-            "alternatives": [], "message": None, **fields}
+            "alternatives": [], "message": None, "allowed": list(allowed_values(cpf_id)), **fields}
 
 
 def compound_rows(ws: Workspace, todo: list[dict[str, Any]], *, empty: bool = False) -> list[dict[str, Any]]:
@@ -70,8 +72,11 @@ def compound_rows(ws: Workspace, todo: list[dict[str, Any]], *, empty: bool = Fa
         selection = selections.get(record.id, {})
         kept = selection.get("kept") or ((record.provenance.evidence or "").split("@")[0] if record.provenance else None)
         binding = record.engine_binding
+        # a kept value the model builder cannot take (a binding partner kept before the check, or let in by a signed
+        # delivery's landing): said on its row, so a person replaces it before a model is built
         rows[record.id] = _row(
             record.id, "kept", matrix, value=record.value, unit=record.unit, status=record.status.value,
+            message=value_problem(record.id, record.value, unset=True) if record.value is not None else None,
             binding={"process": binding.process, "parameter": binding.parameter} if binding else None,
             candidates=[c.process for c in binding_candidates(record.id)]
             if is_process_id(record.id) and binding is None else [],
