@@ -4,7 +4,7 @@ import { Suspense } from "react";
 import { StepperSkeleton } from "@/components/kit/Skeleton";
 
 import { getSteps, STEP_ROUTES, type StepId, type StepState } from "@/lib/pipeline";
-import { stepReason, stepWhere } from "@/lib/words";
+import { inputsHref, stepReason, stepWhere } from "@/lib/words";
 
 const STATE_LABEL: Record<StepState, string> = {
   done: "done",
@@ -84,13 +84,14 @@ async function StepperBody({ projectId, current, waiting = true, sticky = true }
         <p className="step-waiting" data-testid="step-waiting">
           <strong>Waiting on you:</strong>{" "}
           {here.reasons.map((r, i) => {
-            // a model check opens the area of Inputs where it is settled, and its second way where it has one (OWN-13, gap 11)
+            // a model check opens the area of Inputs where it is settled, the form that adds what is missing and its second
+            // way where it has them (OWN-13, gap 11; round 3: "add a product" opens its form, "ask the client" its line)
             const at = stepWhere(r);
-            const href = (area: string) => `/projects/${encodeURIComponent(projectId)}/inputs?tab=${area}`;
             return (
               <span key={r}>{i > 0 && " · "}
-                {at ? <Link href={href(at.area)} title={at.fix} data-testid={`step-waiting-go-${at.area}`}>{stepReason(r)}</Link> : stepReason(r)}
-                {at?.or && <> (on {at.name}, or <Link href={href(at.or.area)} data-testid={`step-waiting-or-${at.or.area}`}>{at.or.say}</Link>)</>}
+                {at ? <Link href={inputsHref(projectId, at)} title={at.fix} data-testid={`step-waiting-go-${at.area}`}>{stepReason(r)}</Link> : stepReason(r)}
+                {at?.or && <> ({at.add ? <><Link href={inputsHref(projectId, at.add)} data-testid="step-waiting-add">{at.add.say}</Link> on {at.add.name}</>
+                  : <>on {at.name}</>}, or <Link href={inputsHref(projectId, at.or)} data-testid={`step-waiting-or-${at.or.area}`}>{at.or.say}</Link>)</>}
               </span>
             );
           })}

@@ -291,6 +291,30 @@ def test_the_run_page_reads_the_studies_and_the_cpf_inputs_assembled(setup):
     assert c.get("/api/v1/projects/p1/compounds/Otherdrug/cpf", headers=H).status_code == 404
 
 
+@pytest.mark.req("T-49")
+def test_an_assembled_cpf_with_no_value_is_not_answered_in_place_of_the_stored_one(setup):
+    """Round 3 (the skeptic's risk on OWN-13): the CPF Inputs assembled is answered only once it holds a value. One that
+    holds none (a pipeline project whose inputs assembled nothing yet) answers as before: the stored CPF when there is
+    one, else 404, which the compound page says as "No values … filled in on Inputs", never an empty table."""
+    from pbpk_domain.cpf.models import CPF, ParameterRecord, ParameterStatus, Provenance
+
+    c, ws, root = setup
+    empty = CPF(compound="Renaldrug", version=1, parameters=(
+        ParameterRecord(id="phys.mw", value=None, unit="g/mol", status=ParameterStatus.MISSING),))
+    ws.commit(ArtifactKind.CPF, "main", {"cpf": empty.model_dump(mode="json", exclude={"created_at"}), "assembly": {"problems": []}},
+              actor="u1", reason="assembled from 0 evidence items")
+    assert c.get("/api/v1/projects/p1/compounds/Renaldrug/cpf", headers=H).status_code == 404
+    stored = CPF(compound="Renaldrug", version=7, parameters=(
+        ParameterRecord(id="phys.mw", value=225.2, unit="g/mol", status=ParameterStatus.FIXED,
+                        provenance=Provenance(source_type="measured", reference="label")),))
+    FileWriteStore(str(root)).put_cpf("t1", "p1", "Renaldrug", stored)
+    view = c.get("/api/v1/projects/p1/compounds/Renaldrug/cpf", headers=H).json()["data"]
+    assert view["version"] == 7 and [p["id"] for p in view["parameters"]] == ["phys.mw"]
+    assemble(ws, by="u1")                                    # the inputs hold values again: theirs is answered
+    again = c.get("/api/v1/projects/p1/compounds/Renaldrug/cpf", headers=H).json()["data"]
+    assert {p["id"] for p in again["parameters"]} >= {"phys.mw", "phys.logp", "bind.fu"} and again["version"] != 7
+
+
 def test_every_canvas_route_answers_the_typed_page(setup, monkeypatch):
     """Phase 9b: the routes no other test reaches answer their response model (the conftest guard compares each typed
     answer with the handler's own value): the read-only view, a move's dry run, a fit set and removed, a structure

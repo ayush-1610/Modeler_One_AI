@@ -702,8 +702,10 @@ export function DeliveryReview({ projectId, row, mode, gate, onMapping, todo, su
         {KIND_LABEL[s.subject_type]} {s.label}: {plural(s.values, "value")} read from the files{levels ? ` (${levels})` : ""}
         {s.silent_loss ? ` · ${plural(s.silent_loss, "number")} in the delivery's files not read` : ""} · {rulesText(s.rules)}
       </p>
+      {/* why, so a wrong match is seen (round 3: "the project's blinding list names it (study …)") */}
       {s.blinded && <p className="delivery-withheld" data-testid={`delivery-blinded-${s.subject}`}>{WITHHELD}: this study is blinded until
-        the plan is signed. Its values, their spread and what is below the LLOQ are not shown, and it waits to be confirmed until then.</p>}
+        the plan is signed{s.blinded_why ? <span data-testid={`delivery-blinded-why-${s.subject}`}>, because {s.blinded_why}</span> : null}.
+        Its values, their spread and what is below the LLOQ are not shown, and it waits to be confirmed until then.</p>}
       {looking && s.confirm_on === "client-review" && <InlineIssue severity="note" testId={`delivery-confirm-on-${s.subject}`}>A filled
         client-data template: it is confirmed with the sheet form, on this card. What the delivery read is shown here for reference.</InlineIssue>}
       {/* the same source read with the sheet form: confirmed there (in the model), or only read there, not confirmed yet */}

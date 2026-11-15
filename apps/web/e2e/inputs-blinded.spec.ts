@@ -62,6 +62,8 @@ test("a study the delivery blinds shows no value, reason digit, page line or she
   if ((await toggle.getAttribute("aria-expanded")) !== "true") await toggle.click();
   const card = page.getByTestId(`delivery-card-${fed.subject}`);
   await expect(card.getByTestId(`delivery-blinded-${fed.subject}`)).toBeVisible();
+  // and says why, so a wrong match is seen (round 3)
+  await expect(card.getByTestId(`delivery-blinded-why-${fed.subject}`)).toHaveText(", because it is entered for external validation on its card");
   const decisions = card.getByTestId(`delivery-decisions-own-${fed.subject}`);
   await expect(decisions).toContainText("Entered for Purpose of the study (value withheld)");
   await expect(decisions).toContainText("Cmax ••.• ng/mL in • subjects");
@@ -92,9 +94,10 @@ test("a study the delivery blinds shows no value, reason digit, page line or she
 
   // --- the digitizer: the report holds 230-25's values, so it is neither offered nor drawn, and its original is not
   // served until the plan is signed (final review INT-3) ---
-  type Doc = { name: string; sha256: string; blinded: boolean };
+  type Doc = { name: string; sha256: string; blinded: boolean; blinded_by: string[] };
   const reportDoc = (await read<{ documents: Doc[] }>("documents")).documents.find((d) => d.name === pdf)!;
   expect(reportDoc.blinded).toBe(true);
+  expect(reportDoc.blinded_by).toEqual(["230-25"]);
   const original = await request.get(`${api}/documents/${reportDoc.sha256}/raw`, { headers: AUTH });
   expect(original.status()).toBe(409);
   const raws: string[] = [];
@@ -102,12 +105,15 @@ test("a study the delivery blinds shows no value, reason digit, page line or she
   await page.getByTestId("tab-studies").click();
   await page.getByTestId("open-digitizer").click();
   const digitizer = page.getByTestId("digitizer");
-  await expect(digitizer.getByTestId("digitize-withheld")).toContainText(`${pdf} is not offered here until the plan is signed`);
+  // it names the blinded study it waits for, and that the whole file waits, its other figures too (round 3)
+  await expect(digitizer.getByTestId("digitize-withheld")).toContainText(
+    `${pdf} is not offered here until the plan is signed: it holds the values of study 230-25, blinded until the plan is signed, `
+    + "and the whole file waits until then, its other figures and pages too");
   await expect(digitizer.getByTestId("digitize-document")).toHaveCount(0);
   await expect(digitizer.locator("canvas")).toHaveCount(0);
   // asked for by a link to its page (the reading tray's Digitize, or one kept from before): said, and not drawn
   await page.goto(`/projects/${projectId}/inputs?tab=studies&digitize=${reportDoc.sha256}&page=2#observed-datasets`);
-  await expect(page.getByTestId("digitize-withheld")).toContainText(`${pdf} is not drawn: it holds the values of a study blinded`);
+  await expect(page.getByTestId("digitize-withheld")).toContainText(`${pdf} is not drawn: it holds the values of study 230-25, blinded`);
   await expect(page.getByTestId("digitizer").locator("canvas")).toHaveCount(0);
   await page.screenshot({ path: test.info().outputPath("3-digitizer-withheld.png"), fullPage: true });
   expect(raws).toEqual([]);

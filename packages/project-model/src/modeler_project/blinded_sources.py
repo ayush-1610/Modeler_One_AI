@@ -8,8 +8,11 @@ proposal before a plan, a dataset entered for external validation). Withheld:
 - the client-review groups of such a study (by `legacy_groups`, or by the same name: `blinding.study_key`) and of a
   product the delivery blinds: their facts, options, answers and points;
 - the files that hold such a study's values (the delivery's `intake_decisions.blinded_files`, and the files the
-  datasets of a listed study were read from): no page line, the digits of their pages masked, the original not
-  served, nothing drawn by the digitizer, no figure suggested from them;
+  datasets of a listed study were read from, a library paper included): no page line, the digits of their pages
+  masked, the original not served, nothing drawn by the digitizer, no figure suggested from them. A file is withheld
+  whole, as the delivery's rule withholds it: a paper one figure of which was digitized for a listed study waits with
+  its other figures and pages (an owner's decision, plan 2026-11-14 §5 round 3); `by` names the studies, so the page
+  says why;
 - the sheets those values were read from (the delivery's anchors, the sheet form's readings that made a listed study's
   datasets, a template's sheets a listed study's rows are on): not shown, read or previewed.
 """
@@ -31,12 +34,19 @@ from modeler_project.workspace import Workspace
 @dataclass(frozen=True)
 class BlindedSources:
     """What is withheld now. `groups`: client-review group ids; `names`: "<kind>:<study_key>" of a blinded study or
-    product (a group of that name is withheld); `files`: sha256s; `sheets`: the sheets of each workbook (by sha256)."""
+    product (a group of that name is withheld); `files`: sha256s; `sheets`: the sheets of each workbook (by sha256);
+    `by`: the blinded studies whose values each file holds (by sha256: a study's id as its dataset or card names it),
+    what the page says a file is withheld for."""
 
     groups: frozenset[str] = frozenset()
     names: frozenset[str] = frozenset()
     files: frozenset[str] = frozenset()
     sheets: Mapping[str, frozenset[str]] = field(default_factory=dict)
+    by: Mapping[str, frozenset[str]] = field(default_factory=dict)
+
+    def studies(self, sha256: str | None) -> list[str]:
+        """The blinded studies a withheld file holds the values of, in order ([] for a file that is not withheld)."""
+        return sorted(self.by.get(sha256 or "", ())) if self.file(sha256) else []
 
     def group(self, group: Mapping[str, Any]) -> bool:
         gid = str(group["id"])
@@ -76,11 +86,14 @@ def blinded_sources(ws: Workspace, project: dict[str, Any] | None, model_risk: s
     names = {f"study:{blinding.study_key(s)}" for s in listed}
     files: set[str] = set()
     sheets: dict[str, set[str]] = {}
+    by: dict[str, set[str]] = {}
     if listed:
         found = datasets(ws)
         studies = {d.id: str(d.study.get("study_id")) for d in found}
         mine = [d for d in found if str(d.study.get("study_id")) in listed and d.source.doc_sha256]
         files |= {str(d.source.doc_sha256) for d in mine}
+        for d in mine:
+            by.setdefault(str(d.source.doc_sha256), set()).add(str(d.study.get("study_id")))
         for content in submissions(ws):
             sha = str(content.get("sha256"))
             on = _sheets_of(content, listed, studies)
@@ -91,14 +104,23 @@ def blinded_sources(ws: Workspace, project: dict[str, Any] | None, model_risk: s
             if on:
                 files.add(sha)
                 sheets.setdefault(sha, set()).update(on)
+                for mapping in content.get("mappings", []):
+                    if not mapping.get("replaced_by"):
+                        by.setdefault(sha, set()).update(studies[str(d)] for d in mapping.get("datasets", [])
+                                                         if studies.get(str(d)) in listed)
     if hidden:
         reader = LedgerView(ws)
         files |= intake_decisions.blinded_files(reader, hidden)
         for sha, on in intake_decisions.blinded_sheets(reader, hidden).items():
             sheets.setdefault(sha, set()).update(on)
+        for value in reader.values(active=False):
+            if value.file_sha256 and value.entity.study in hidden:
+                entity = reader.entity(value.entity.study)
+                by.setdefault(value.file_sha256, set()).add(entity.label if entity is not None else value.entity.study)
         for row in delivery_review.subjects(ws, reader=reader):
             if row["subject_type"] != "compound" and delivery_review.is_blinded(reader, row["subject_type"], row["subject"], hidden):
                 names.add(f"{row['subject_type']}:{blinding.study_key(row['label'])}")
                 groups.update(row["legacy_groups"])
     return BlindedSources(groups=frozenset(groups), names=frozenset(names), files=frozenset(files),
-                          sheets={sha: frozenset(on) for sha, on in sheets.items()})
+                          sheets={sha: frozenset(on) for sha, on in sheets.items()},
+                          by={sha: frozenset(found) for sha, found in by.items()})

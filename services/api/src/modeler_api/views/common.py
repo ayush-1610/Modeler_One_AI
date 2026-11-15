@@ -133,6 +133,8 @@ class DocumentView(View):
     # it holds a blinded study's values (D-15, `blinded_sources`): its original is not served and the digitizer does not
     # draw it until the plan is signed; its pages come with their digits masked
     blinded: bool
+    # the blinded studies whose values it holds ([] when it is not withheld): what the page says it is withheld for
+    blinded_by: list[str]
 
 
 class DataPlanStatus(View):

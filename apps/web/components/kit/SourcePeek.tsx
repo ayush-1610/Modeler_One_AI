@@ -10,6 +10,7 @@ import { useState } from "react";
 
 import { Dialog } from "@/components/kit/Dialog";
 import { useResource } from "@/lib/hooks";
+import { withheldWhy } from "@/lib/words";
 
 export type PeekSource = {
   doc_sha256?: string | null;
@@ -118,8 +119,8 @@ function StoredPage({ projectId, source }: { projectId: string; source: PeekSour
             Open the original</a>
         )}
       </div>
-      {page?.blinded && <p className="delivery-withheld m-0" data-testid="peek-withheld">Withheld (blinded): this file holds a study blinded until
-        the plan is signed, so its numbers are masked here.</p>}
+      {page?.blinded && <p className="delivery-withheld m-0" data-testid="peek-withheld">Withheld (blinded): every number of this file is
+        masked here, on every page: {withheldWhy(page.blinded_by ?? [])}.</p>}
       {doc?.warnings.map((w) => <div key={w} className="banner warn">{w}</div>)}
       {problem && <div className="banner err">{problem}</div>}
       {!page ? <p className="muted">Loading the source…</p>

@@ -28,6 +28,7 @@ from modeler_api.views.read import CpfView, Projects, ProjectSystem, Proposals, 
 from modeler_project import ProjectStore, Workspace
 from modeler_storage.filestore import FileReadStore, ReadStore
 from modeler_storage.records import CampaignRecord, ProjectRecord
+from pbpk_domain.cpf.models import ParameterStatus
 
 # re-exported so existing imports (`from modeler_api.read_api import FileReadStore`) keep working
 __all__ = ["FileReadStore", "ReadStore", "get_read_store", "project_cpf_view", "router"]
@@ -74,13 +75,17 @@ ProjectsDep = Annotated[ProjectStore, Depends(get_project_store)]
 @router.get("/projects/{project_id}/compounds/{compound}/cpf", **answers(CpfView))
 def get_compound_cpf(project_id: str, compound: str, principal: PrincipalDep, store: StoreDep, projects: ProjectsDep):
     """The compound's CPF: the one Inputs assembles for the project (the system of record every simulation of a pipeline
-    project is regenerated from; final review OWN-13), else the one stored for the campaign path."""
+    project is regenerated from; final review OWN-13) once it holds a value, else the one stored for the campaign path,
+    else 404 (the page then says the values are filled in on Inputs). An assembled CPF that holds no value yet is not
+    answered in place of the stored one, nor as an empty table (round 3: a project whose inputs had assembled nothing
+    answered 200 with no parameter where it answered 404)."""
     require_project(project_id, principal)
     from modeler_project.inputs import current_cpf
 
     assembled = current_cpf(Workspace(projects, principal.tenant_id, project_id))
-    cpf = assembled if assembled is not None and assembled.compound == compound else None
-    cpf = cpf or store.get_cpf(principal.tenant_id, project_id, compound)
+    held = assembled is not None and assembled.compound == compound and any(
+        p.value is not None and p.status is not ParameterStatus.MISSING for p in assembled.parameters)
+    cpf = assembled if held else store.get_cpf(principal.tenant_id, project_id, compound)
     if cpf is None:
         raise HTTPException(status_code=404, detail=f"no CPF for {compound} in project {project_id}")
     return envelope(project_cpf_view(cpf))

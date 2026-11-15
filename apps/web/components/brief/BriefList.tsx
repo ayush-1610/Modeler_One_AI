@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { BRIEF_CHANGED } from "@/components/inputs/after";
 import { InlineIssue } from "@/components/kit";
@@ -16,8 +16,11 @@ type Focus = { sha256: string; page: number; quote: string | null } | null;
 /** One list of the brief (the products, the populations), shown where it is used (page review 1, the owner's decision 3
  *  of 2026-10-29: Start no longer shows them). Each item's fields show their source and are changed in place; an item
  *  is added at the end and removed with the reason, which the brief keeps. The data plan follows every change. */
-export function BriefList({ projectId, group, fields, title, lede, testId }: {
+export function BriefList({ projectId, group, fields, title, lede, testId, addAt }: {
   projectId: string; group: "products" | "populations"; fields: string[]; title: string; lede: string; testId: string;
+  /** when set (a moment), the form that adds an item opens, in view, with the focus on its first field (a link that
+   *  names "Add a product" lands on it: round 3, owner-job gap 11) */
+  addAt?: number | null;
 }) {
   const page = useResource("/api/v1/projects/{project_id}/brief", { project_id: projectId }, { select: (d) => narrow<BriefView>(d) });
   const docs = useResource("/api/v1/projects/{project_id}/documents", { project_id: projectId });
@@ -27,7 +30,18 @@ export function BriefList({ projectId, group, fields, title, lede, testId }: {
   const [reason, setReason] = useState("");
   const [problem, setProblem] = useState<string | null>(null);
   const [focus, setFocus] = useState<Focus>(null);
+  const adder = useRef<HTMLDivElement>(null);
   const view = page.data;
+  useEffect(() => { if (addAt) setAdding(true); }, [addAt]);
+  useEffect(() => {
+    if (!addAt || !adding || !view) return;
+    const timer = window.setTimeout(() => {
+      adder.current?.scrollIntoView({ block: "center" });
+      // its first control: a field's input, or the "Set" that opens it
+      adder.current?.querySelector<HTMLElement>("input, select, textarea, button")?.focus({ preventScroll: true });
+    }, 50);
+    return () => window.clearTimeout(timer);
+  }, [addAt, adding, Boolean(view)]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!view) return null;
   const def = view.catalog.groups.find((g) => g.id === group);
   if (!def) return null;
@@ -77,7 +91,7 @@ export function BriefList({ projectId, group, fields, title, lede, testId }: {
         </div>
       ))}
       {adding ? (
-        <div className="note-item adding" data-testid={`${testId}-new`}>
+        <div className="note-item adding" data-testid={`${testId}-new`} ref={adder}>
           <p className="muted m-0-0-4 fs-13">A new {noun}: it is kept once one of its fields is saved.</p>
           <Fields key={items.length} view={view} paths={paths(items.length)} save={save} open={open} marks={marks} />
           <button type="button" className="link-btn" onClick={() => setAdding(false)}>Done</button>

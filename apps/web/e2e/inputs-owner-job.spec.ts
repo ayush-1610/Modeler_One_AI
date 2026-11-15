@@ -501,11 +501,41 @@ test("the owner's job: files uploaded, layouts checked, values linked with arms,
   const stepBar = page.getByTestId("step-waiting");
   await expect(stepBar.getByTestId("step-waiting-go-formulations")).toHaveText("a tablet study has no formulation");
   await expect(stepBar.getByTestId("step-waiting-or-todo")).toHaveText("ask the client");
+  // the real lever is named (round 3): with no product here, the product the study used is added first
+  await expect(stepBar.getByTestId("step-waiting-add")).toHaveText("add a product");
+  await expect(stepBar).toContainText("a tablet study has no formulation (add a product on Products and dissolution, or ask the client)");
   await stepBar.getByTestId("step-waiting-go-formulations").click();
   await expect(page.getByTestId("tab-formulations")).toHaveAttribute("aria-selected", "true");
   await expect(page.getByTestId("todo-formulation-form.*")).toContainText("a tablet or capsule study, and the model holds no formulation yet");
   await expect(page.getByTestId("todo-formulation-form.*").getByTestId("formulation-how")).toContainText("ask the client for it");
+  await expect(page.getByTestId("todo-formulation-form.*").getByTestId("formulation-how")).toContainText("“Add a product”");
   await expect(page.getByTestId("todo-formulation-form.*")).not.toContainText("form.");
+  // no product is here: the solid study's row says so and offers to add it, never "use a product's profile, above"
+  await expect(page.getByTestId("inputs-products")).toContainText("Products named in the proposal · 0");
+  const none = page.getByTestId(`formulation-none-${seed.study}`);
+  await expect(none).toContainText("no product here");
+  await expect(none.getByTestId(`formulation-add-product-${seed.study}`)).toHaveText("add the product it used");
+  await expect(page.getByTestId(`formulation-${seed.study}`)).not.toContainText("dissolution profile as its release, above");
+
+  // "ask the client" lands on the line of To do that asks the client for the formulation or dissolution of OJ-101's product
+  // (round 3: with no product in the delivery, the release model was never asked), with the focus on it
+  await stepBar.getByTestId("step-waiting-or-todo").click();
+  await expect(page).toHaveURL(/\?tab=todo&at=todo-ask-REQ-form\.release/);
+  await expect(page.getByTestId("tab-todo")).toHaveAttribute("aria-selected", "true");
+  const asked = page.getByTestId("todo-group-ask").getByTestId("todo-ask-REQ-form.release");
+  await expect(asked).toContainText("The formulation or dissolution data of the product the study used (no file names the product)");
+  await expect(asked).toContainText(seed.study);
+  await expect(asked).toContainText("needed for the model itself");
+  await expect(asked).toBeFocused();
+  // To do's formulation row names the lever too
+  await expect(page.locator("li.todo-line", { has: page.getByTestId("missing-formulation-form.*") })).toContainText("“Add a product”");
+  // "add a product" lands on the form that adds one, its first field focused
+  await page.getByTestId("step-waiting").getByTestId("step-waiting-add").click();
+  await expect(page.getByTestId("tab-formulations")).toHaveAttribute("aria-selected", "true");
+  const adding = page.getByTestId("inputs-products-new");
+  await expect(adding).toBeVisible();
+  await expect(adding.locator("input, select, textarea, button").first()).toBeFocused();       // the product's "Set"
+  await shot(page, "8-add-a-product");
 
   // --- downstream pages agree with Inputs (final review OWN-13): the Run page lists the studies Inputs holds, and Review &
   // sign says what Inputs still waits on, in words, each opening where it is done ---
@@ -518,8 +548,17 @@ test("the owner's job: files uploaded, layouts checked, values linked with arms,
   const blocked = page.getByTestId("step-blocked-reasons");
   await expect(blocked.getByTestId("step-blocked-check-formulations")).toContainText("A tablet study has no formulation");
   await expect(blocked.getByTestId("step-blocked-check-formulations").getByRole("link", { name: "ask the client" })).toBeVisible();
-  await expect(blocked).not.toContainText("MS-01");
-  await expect(blocked).not.toContainText("S0 completeness");
+  await expect(blocked.getByTestId("step-blocked-check-formulations").getByTestId("step-blocked-add")).toHaveText("add a product");
+  await expect(blocked.getByTestId("step-blocked-check-formulations")).toContainText("“Add a product”");
+  // the whole blocked panel, not only its list, is in words: no reference, no raw check name (round 3, OWN-8: the API's
+  // "the model inputs are not ready: S0 completeness (MS-01 §2.2); …" was printed under the list)
+  const panel = page.getByTestId("plan-blocked");
+  await expect(panel).toBeVisible();
+  for (const raw of ["MS-01", "§", "S0 completeness", "formulations of solid studies", "demographics stated", "every planned simulation builds",
+                     "the model inputs are not ready"]) {
+    await expect(panel).not.toContainText(raw);
+  }
+  await expect(page.getByTestId("step-blocked-detail")).toHaveCount(0);
   await expect(page.getByTestId("step-blocked-todo")).toContainText("its count is of items, not of checks");
   await blocked.getByTestId("step-blocked-check-formulations").getByRole("link").first().click();
   await expect(page).toHaveURL(new RegExp(`/projects/${projectId}/inputs\\?tab=formulations`));

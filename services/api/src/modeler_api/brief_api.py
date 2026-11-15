@@ -62,6 +62,7 @@ from modeler_api.views.brief import (
 from modeler_intake.documents import DocumentError
 from modeler_intake.file_tags import TagKind
 from modeler_project import ArtifactKind, ProjectStore, Workspace, intake_decisions
+from modeler_project.blinded_sources import BlindedSources
 from modeler_project.brief import (
     APPLICATIONS,
     DEFAULT_INTERNAL_TARGET_PE,
@@ -118,11 +119,13 @@ def _document_refs(ws: Workspace):
     return [v.ref for v in ws.list(ArtifactKind.DOCUMENT)]
 
 
-def _document_view(version, *, withdrawn: bool = False, blinded: bool = False) -> dict[str, Any]:
+def _document_view(version, *, withdrawn: bool = False, hidden: BlindedSources | None = None) -> dict[str, Any]:
     c = document_record(version)
+    by = hidden.studies(c.sha256) if hidden is not None else []
     return {"id": version.id, "sha256": c.sha256, "name": c.name, "kind": c.kind, "role": c.role, "n_pages": c.n_pages,
             "size_bytes": c.size_bytes, "warnings": list(c.warnings), "uploaded_at": version.created_at.isoformat(),
-            "uploaded_by": version.created_by, "withdrawn": withdrawn, "blinded": blinded}
+            "uploaded_by": version.created_by, "withdrawn": withdrawn,
+            "blinded": hidden is not None and hidden.file(c.sha256), "blinded_by": by}
 
 
 # --- extraction (identity + agent A1), in the background ------------------------------------------------------
@@ -339,9 +342,8 @@ async def upload_documents(project_id: str, principal: Writer, store: StoreDep,
     if refused is not None:
         raise HTTPException(status_code=422, detail=str(refused)) from refused
     entries = library.entries()
-    hidden = blinded_sources(ws).files if added else frozenset()
-    return envelope({"documents": [_document_view(d, withdrawn=_withdrawn(entries, d), blinded=document_record(d).sha256 in hidden)
-                                   for d in added],
+    hidden = blinded_sources(ws) if added else None
+    return envelope({"documents": [_document_view(d, withdrawn=_withdrawn(entries, d), hidden=hidden) for d in added],
                      "reading": reading, "not_read": not_read})
 
 
@@ -355,8 +357,8 @@ def list_documents(project_id: str, principal: Reader, store: StoreDep) -> dict[
     ws = workspace_for(project_id, principal, store)
     library = DocumentLibrary(ws)
     entries = library.entries()
-    hidden = blinded_sources(ws).files          # D-15: the digitizer and the original are not offered for these
-    return envelope({"documents": [_document_view(d, withdrawn=_withdrawn(entries, d), blinded=document_record(d).sha256 in hidden)
+    hidden = blinded_sources(ws)                # D-15: the digitizer and the original are not offered for these
+    return envelope({"documents": [_document_view(d, withdrawn=_withdrawn(entries, d), hidden=hidden)
                                    for d in library.documents()]})
 
 
@@ -429,9 +431,11 @@ def document_page(project_id: str, sha256: str, page: int, principal: Reader, st
     record = document_record(version)
     # a file that holds a blinded study's values (`blinded_sources`: the delivery's and the project's list): every digit
     # of its pages is masked, as the delivery's source view masks a text of such a file (D-15; final review INT-3)
-    blinded = blinded_sources(ws).file(sha256)
+    hidden = blinded_sources(ws)
+    blinded = hidden.file(sha256)
     return envelope({"sha256": sha256, "name": record.name, "page": page, "n_pages": record.n_pages,
-                     "text": intake_decisions.mask(text) if blinded else text, "blinded": blinded})
+                     "text": intake_decisions.mask(text) if blinded else text, "blinded": blinded,
+                     "blinded_by": hidden.studies(sha256)})
 
 
 @router.get("/projects/{project_id}/documents/{sha256}/figures", **answers(DocumentFigures))

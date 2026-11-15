@@ -14,6 +14,7 @@ import { Card } from "@/components/ui";
 import type { Envelope, Schema } from "@/lib/api";
 import { useMutation, useResource } from "@/lib/hooks";
 import { PLAN_CHANGED, ROLE_LABEL, planApi, type DiffRow, type PlanView, type Role, type Violation } from "@/lib/plan";
+import { readinessText } from "@/lib/words";
 import { startCampaign } from "@/lib/writes";
 import { celebrate, toast } from "@/components/kit/Motion";
 import { StepBlocked } from "@/components/kit/StepBlocked";
@@ -173,8 +174,9 @@ export function PlanCanvas({ projectId, steps }: { projectId: string; steps?: Re
   if (page.problem || !view) {
     return (
       <PageShell tone="review" steps={steps} eyebrow="Step 3 · Review & sign" title="Review & sign">
-        {page.problem && /not ready/i.test(page.problem)
-          // the plan is made from ready inputs: say what Inputs still waits on and go there, not an error on an empty page
+        {page.problem && /^the (model )?inputs /i.test(page.problem)
+          // the plan is made from ready inputs (`inputs_ready`'s 409: not ready, not put together, changed, no CPF or no
+          // study): say what Inputs still waits on and go there, in words, not an error on an empty page (round 3, OWN-8)
           ? <StepBlocked projectId={projectId} step="review" title="Review & sign opens when the inputs are ready"
                          detail={page.problem} testId="plan-blocked" />
           : page.problem ? <div className="banner err" data-testid="plan-problem">{page.problem}</div>
@@ -184,10 +186,12 @@ export function PlanCanvas({ projectId, steps }: { projectId: string; steps?: Re
   }
 
   // a change to the plan, then the plan and the phase rail read again; answers the API's reason when it refused
+  // a refusal because the inputs changed or are not ready (`inputs_ready`) is said in words, never as the API wrote it
+  // ("S0 completeness (MS-01 §2.2); …": round 3, OWN-8); any other refusal reads as it came
   const apply = async <T,>(call: () => Promise<Envelope<T>>, ok?: string) => {
     const { problem } = await mutation.run(call, PLAN_CHANGED);
     if (!problem && ok) setMessage(ok);
-    return problem;
+    return problem ? readinessText(problem) : problem;
   };
   const onDrop = async (studyId: string, role: Role, where: string) => {
     const from = view.overall_data.studies.find((s) => s.study_id === studyId)?.role ?? "SUPPORTIVE";
@@ -241,7 +245,7 @@ export function PlanCanvas({ projectId, steps }: { projectId: string; steps?: Re
                       : "MAP generated from the plan and signed.";
                     const { data, problem } = await mutation.run(() => planApi.sign(projectId, note), PLAN_CHANGED);
                     if (data) { setSignature(data.signature); celebrate(); toast(done); }
-                    setMessage(problem ?? done);
+                    setMessage(problem ? readinessText(problem) : done);
                   }}>
             {signed && pendingDeviations.length ? `Sign the deviation${pendingDeviations.length === 1 ? "" : "s"} (${pendingDeviations.length})` : "Approve and Sign"}</button>
           {signed && view.map && !pendingDeviations.length && (
@@ -325,7 +329,7 @@ export function PlanCanvas({ projectId, steps }: { projectId: string; steps?: Re
         <h2 id="review-inputs-title">The inputs</h2>
         <p className="muted review-lede">Every value the model takes, with the source the CPF keeps. Exclude a value with a reason:
           the next source takes its place, and the plan asks to be brought up to date.</p>
-        {review.problem ? <InlineIssue severity="error">{review.problem}</InlineIssue>
+        {review.problem ? <InlineIssue severity="error">{readinessText(review.problem)}</InlineIssue>
           : review.data ? <ReviewTable projectId={projectId} review={review.data} run={mutation.run} busy={mutation.busy} />
             : <p className="muted">Loading the review…</p>}
       </section>
@@ -334,25 +338,25 @@ export function PlanCanvas({ projectId, steps }: { projectId: string; steps?: Re
         <p className="muted review-lede">Each parameter fixed or estimated, its start value and source, and its bounds. Estimating one
           is your choice, with a reason; MS-01&apos;s default bounds are proposed and the validator checks them.</p>
         {review.data ? <EstimationPlan projectId={projectId} review={review.data} apply={apply} />
-          : review.problem ? <InlineIssue severity="error">{review.problem}</InlineIssue> : <p className="muted">Loading…</p>}
+          : review.problem ? <InlineIssue severity="error">{readinessText(review.problem)}</InlineIssue> : <p className="muted">Loading…</p>}
       </section>
       <section className="review-block" id="review-validation" aria-labelledby="review-validation-title">
         <h2 id="review-validation-title">The validation plan</h2>
         <p className="muted review-lede">What validates the model under this MAP, and what happens if it fails.</p>
         {review.data ? <ValidationPlan review={review.data} />
-          : review.problem ? <InlineIssue severity="error">{review.problem}</InlineIssue> : <p className="muted">Loading…</p>}
+          : review.problem ? <InlineIssue severity="error">{readinessText(review.problem)}</InlineIssue> : <p className="muted">Loading…</p>}
       </section>
       <section className="review-block" id="review-applications" aria-labelledby="review-applications-title">
         <h2 id="review-applications-title">Applications</h2>
         <p className="muted review-lede">What S6 runs after validation, with its inputs, and what the campaign does with each application
           the brief names. One it cannot run yet is said here; acknowledged, it becomes a limitation of the MAP.</p>
         {review.data ? <Applications projectId={projectId} view={view} review={review.data} apply={apply} />
-          : review.problem ? <InlineIssue severity="error">{review.problem}</InlineIssue> : <p className="muted">Loading…</p>}
+          : review.problem ? <InlineIssue severity="error">{readinessText(review.problem)}</InlineIssue> : <p className="muted">Loading…</p>}
       </section>
       <section className="review-block" id="review-credibility" aria-labelledby="review-credibility-title">
         <h2 id="review-credibility-title">Credibility (ICH M15)</h2>
         {review.data ? <Credibility projectId={projectId} view={view} review={review.data} apply={apply} />
-          : review.problem ? <InlineIssue severity="error">{review.problem}</InlineIssue> : <p className="muted">Loading…</p>}
+          : review.problem ? <InlineIssue severity="error">{readinessText(review.problem)}</InlineIssue> : <p className="muted">Loading…</p>}
       </section>
       <div className="cols-2" id="review-validator">
         <Card title="Live validator (MS-01)">

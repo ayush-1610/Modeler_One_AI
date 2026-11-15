@@ -1826,22 +1826,43 @@ def covered_by_confirmation(ws: Workspace, dataset: ObservedDataset) -> Confirma
 # --- blinding (D-15) ----------------------------------------------------------------------------------------------------
 
 
+# What a study is for, in words (the intake's `intended_use` choices, as the sheet form's purposes are said)
+USE_WORDS = {"model_building": "model building", "internal_validation": "internal validation",
+             "external_validation": "external validation", "application_verification": "application verification",
+             "supportive": "supportive data"}
+
+
+def use_words(use: str) -> str:
+    """A study's intended use in words ("external validation"), the text as written for one that is no choice."""
+    return USE_WORDS.get(use, use.replace("_", " "))
+
+
 def blinded_subjects(ws: Workspace, project: dict[str, Any] | None, model_risk: str | None) -> set[str]:
-    """The ledger's studies (entity ids) whose values are withheld now: with the project's blinding on and no MAP
-    signed, every study one of whose active `intended_use` values is an external purpose
-    (`blinding.EXTERNAL_PURPOSES`), every study a dataset of which the Delivery landed is one of
-    `blinding.blinded_studies` (the plan put it in S5 or S6, or it was entered for external validation), and every study
-    the sheet form read as one of those: the study of the same name, or one of whose client-review groups
-    (`legacy_groups`) is (final review INT-2: one rule for both readers of the same data). Empty when blinding is off
-    or a MAP is signed."""
+    """The ledger's studies (entity ids) whose values are withheld now (`blinded_why`'s studies). Empty when blinding is
+    off or a MAP is signed."""
+    return set(blinded_why(ws, project, model_risk))
+
+
+def blinded_why(ws: Workspace, project: dict[str, Any] | None, model_risk: str | None) -> dict[str, str]:
+    """The ledger's studies (entity ids) whose values are withheld now, each with why, in words: with the project's
+    blinding on and no MAP signed, every study one of whose active `intended_use` values is an external purpose
+    (`blinding.EXTERNAL_PURPOSES`: "it is entered for external validation on its card"), every study a dataset of which
+    the Delivery landed is one of `blinding.blinded_studies` (the plan put it in S5 or S6, or it was entered for external
+    validation: "the project's blinding list holds a dataset loaded from it"), and every study the sheet form read as
+    one of those: the study of the same name, or one of whose client-review groups (`legacy_groups`) is (final review
+    INT-2: one rule for both readers of the same data; "the project's blinding list names it"). A name is matched
+    whole on its key (`blinding.study_key`: case, spaces and punctuation aside), never as a prefix or a part: "Study 1"
+    on the list does not blind "Study 10" (round 3: the card says why, so a wrong match is seen). Empty when blinding is
+    off or a MAP is signed."""
     store = IntakeStore(ws)
     if not store.available or not blinding.setting(project, model_risk)["on"] or blinding.map_signed(ws):
-        return set()
+        return {}
     reader = LedgerView(ws)
-    out = set()
+    out: dict[str, str] = {}
     for value in reader.values(field="intended_use"):
-        if value.entity.study and (read_choice("intended_use", str(value.value)) or str(value.value)) in blinding.EXTERNAL_PURPOSES:
-            out.add(value.entity.study)
+        use = read_choice("intended_use", str(value.value)) or str(value.value)
+        if value.entity.study and use in blinding.EXTERNAL_PURPOSES:
+            out.setdefault(value.entity.study, f"it is entered for {use_words(use)} on its card")
     hidden = blinding.blinded_studies(ws, project, model_risk)
     if hidden:
         by_confirmation = {c.id: c for c in confirmations(ws) if c.subject_type == "study"}
@@ -1854,15 +1875,46 @@ def blinded_subjects(ws: Workspace, project: dict[str, Any] | None, model_risk: 
             for dataset_id in done.datasets:
                 found = dataset_of(ws, dataset_id)
                 if found is not None and str(found.study.get("study_id")) in hidden:
-                    out.add(entity.id)
-        listed = {blinding.study_key(s) for s in hidden}
+                    out.setdefault(entity.id, f"the project's blinding list holds a dataset loaded from it (study {found.study.get('study_id')})")
+        listed = {blinding.study_key(s): str(s) for s in sorted(hidden, key=str)}
         for row in subjects(ws, reader=reader):
             if row["subject_type"] != "study" or row["subject"] in out:
                 continue
-            names = [row["label"], *(g.partition(":")[2] for g in row["legacy_groups"] if g.startswith("study:"))]
-            if any(blinding.study_key(n) in listed for n in names):
-                out.add(row["subject"])
+            if (name := listed.get(blinding.study_key(row["label"]))) is not None:
+                out[row["subject"]] = f"the project's blinding list names it (study {name})"
+                continue
+            read_as = [g.partition(":")[2] for g in row["legacy_groups"] if g.startswith("study:")]
+            if (match := next((n for n in read_as if blinding.study_key(n) in listed), None)) is not None:
+                out[row["subject"]] = (f"the project's blinding list names it: the sheet form read it as study "
+                                       f"{listed[blinding.study_key(match)]}")
     return out
+
+
+def joined_purposes(ws: Workspace, subject: str, *, reader: LedgerReader | None = None) -> list[tuple[str, str]]:
+    """What the sheet form loaded a delivery study's data for, the other way round of `joined_uses` (round 3, INT-2
+    reverse): the client datasets a person confirmed (accepted) of the client-review groups joined to the study (its
+    `legacy_groups`) or of the study of its name (`blinding.study_key`, the join's two rules), as (the dataset's study
+    id, its purpose). The card's intended use is set only to what they were loaded for."""
+    reader = reader or LedgerView(ws)
+    row = next((r for r in subjects(ws, reader=reader) if r["subject_type"] == "study" and r["subject"] == subject), None)
+    if row is None:
+        return []
+    key = blinding.study_key(row["label"])
+    joined: set[str] = set(row["loaded_elsewhere"])
+    if row["legacy_groups"]:
+        from modeler_project.client_review import groups as review_groups  # read only for a joined study
+
+        for group in review_groups(ws, offers=False):
+            if group["id"] in row["legacy_groups"]:
+                joined |= {str(item["id"]) for item in group["items"] if item["kind"] == "dataset"}
+    out: list[tuple[str, str]] = []
+    for found in all_datasets(ws):
+        if (found.origin is not Origin.CLIENT or intake_landing.is_delivery_dataset(found)
+                or found.state is not EvidenceState.ACCEPTED):
+            continue
+        if found.id in joined or blinding.study_key(found.study.get("study_id")) == key:
+            out.append((str(found.study.get("study_id")), found.purpose))
+    return list(dict.fromkeys(out))
 
 
 def joined_uses(ws: Workspace, *, groups: Collection[str] = (), names: Collection[str] = ()) -> list[tuple[str, tuple[str, ...]]]:

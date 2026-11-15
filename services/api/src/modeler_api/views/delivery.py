@@ -338,6 +338,7 @@ class DeliverySubjectRow(View):
     arms: list[DeliveryEntity]                # a study's arms (for `values:assign`)
     batches: list[DeliveryEntity]             # a product's batches
     blinded: bool
+    blinded_why: str | None                   # why it is blinded, in words ("the project's blinding list names it (study X)")
 
 
 class DeliveryMappingUse(View):
@@ -566,6 +567,7 @@ class DeliverySubject(View):
     subject: str
     label: str
     blinded: bool
+    blinded_why: str | None                   # as `DeliverySubjectRow`: why, in words, so a wrong match is seen
     confirm_on: Literal["delivery", "client-review"]
     loaded_elsewhere: list[str]               # as `DeliverySubjectRow`: accepted (in the model)
     proposed_elsewhere: list[str]             # proposed (read with the sheet form, not confirmed yet)

@@ -4,6 +4,8 @@
 // lists what the earlier step still waits on, each in words, with one way forward, instead of an error on an empty page.
 // What Inputs waits on are the model's checks: each is said in the step bar's words (lib/words.ts), with what to do and a
 // link to the area of Inputs where it is done, and how they stand to the count of Inputs' To do (final review OWN-13).
+// What the API said is never printed as it came ("S0 completeness (MS-01 §2.2); …": round 3, OWN-8): the list above says
+// each check; only with no such list is it said, in the same words (lib/words.ts `readinessText`).
 
 import Link from "next/link";
 import type { ReactNode } from "react";
@@ -11,7 +13,7 @@ import type { ReactNode } from "react";
 import { useResource } from "@/lib/hooks";
 import { STEP_ROUTES, type StepId } from "@/lib/pipeline";
 import { plain } from "@/lib/plain";
-import { stepReason, stepWhere } from "@/lib/words";
+import { inputsHref, readinessText, stepReason, stepWhere } from "@/lib/words";
 
 const ORDER: StepId[] = ["start", "inputs", "review", "run"];
 const capital = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -21,7 +23,7 @@ export function StepBlocked({ projectId, step, title, detail, fallback, testId }
   /** The step this page belongs to; the first earlier step that is not done is the one to finish. */
   step: StepId;
   title: string;
-  /** What the API said, kept as the record of why (shown small, under the list). */
+  /** What the API said: shown small, in words, only when no list of what the earlier step waits on says it already. */
   detail?: string | null;
   /** What is said when every earlier step is done but this one still cannot start (what it lacks, in words). */
   fallback?: ReactNode;
@@ -42,11 +44,15 @@ export function StepBlocked({ projectId, step, title, detail, fallback, testId }
             <ul data-testid="step-blocked-reasons">
               {waiting.reasons.map((r) => {
                 const at = waiting.step === "inputs" ? stepWhere(r) : null;
-                const href = (area: string) => `${STEP_ROUTES.inputs(projectId)}?tab=${area}`;
                 return (
                   <li key={r} data-testid={at ? `step-blocked-check-${at.area}` : undefined}>
-                    {at ? <><Link href={href(at.area)}>{capital(stepReason(r))}</Link>: {at.fix}
-                      {at.or && <> (<Link href={href(at.or.area)}>{at.or.say}</Link>, on {at.or.name})</>}</>
+                    {at ? <><Link href={inputsHref(projectId, at)}>{capital(stepReason(r))}</Link>: {at.fix}
+                      {/* its other ways, as the step bar says them: "(add a product on Products and dissolution, or ask the
+                          client on To do)", each opening its form or its line (round 3, gap 11) */}
+                      {(at.add || at.or) && <> (
+                        {at.add && <><Link href={inputsHref(projectId, at.add)} data-testid="step-blocked-add">{at.add.say}</Link> on {at.add.name}</>}
+                        {at.add && at.or && ", or "}
+                        {at.or && <><Link href={inputsHref(projectId, at.or)} data-testid="step-blocked-or">{at.or.say}</Link> on {at.or.name}</>})</>}</>
                       : capital(stepReason(r))}
                   </li>
                 );
@@ -67,7 +73,7 @@ export function StepBlocked({ projectId, step, title, detail, fallback, testId }
       ) : (
         <p className="muted">Reading where the project stands…</p>
       )}
-      {detail && <p className="step-blocked-detail">{plain(detail)}</p>}
+      {detail && (steps.data || steps.problem) && !waiting?.reasons.length && <p className="step-blocked-detail" data-testid="step-blocked-detail">{readinessText(plain(detail))}</p>}
     </section>
   );
 }

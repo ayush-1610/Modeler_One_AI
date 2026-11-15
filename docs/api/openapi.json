@@ -8880,6 +8880,17 @@
             "title": "Blinded",
             "type": "boolean"
           },
+          "blinded_why": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Blinded Why"
+          },
           "blockers": {
             "items": {
               "$ref": "#/components/schemas/DeliveryBlocker"
@@ -9078,6 +9089,7 @@
           "subject",
           "label",
           "blinded",
+          "blinded_why",
           "confirm_on",
           "loaded_elsewhere",
           "proposed_elsewhere",
@@ -9125,6 +9137,17 @@
           "blinded": {
             "title": "Blinded",
             "type": "boolean"
+          },
+          "blinded_why": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Blinded Why"
           },
           "by_level": {
             "additionalProperties": {
@@ -9231,7 +9254,8 @@
           "confirm_on",
           "arms",
           "batches",
-          "blinded"
+          "blinded",
+          "blinded_why"
         ],
         "title": "DeliverySubjectRow",
         "type": "object"
@@ -10697,6 +10721,13 @@
             "title": "Blinded",
             "type": "boolean"
           },
+          "blinded_by": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Blinded By",
+            "type": "array"
+          },
           "n_pages": {
             "title": "N Pages",
             "type": "integer"
@@ -10724,7 +10755,8 @@
           "page",
           "n_pages",
           "text",
-          "blinded"
+          "blinded",
+          "blinded_by"
         ],
         "title": "DocumentPage",
         "type": "object"
@@ -10735,6 +10767,13 @@
           "blinded": {
             "title": "Blinded",
             "type": "boolean"
+          },
+          "blinded_by": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Blinded By",
+            "type": "array"
           },
           "id": {
             "title": "Id",
@@ -10796,7 +10835,8 @@
           "uploaded_at",
           "uploaded_by",
           "withdrawn",
-          "blinded"
+          "blinded",
+          "blinded_by"
         ],
         "title": "DocumentView",
         "type": "object"
@@ -33449,7 +33489,7 @@
     },
     "/api/v1/projects/{project_id}/compounds/{compound}/cpf": {
       "get": {
-        "description": "The compound's CPF: the one Inputs assembles for the project (the system of record every simulation of a pipeline\nproject is regenerated from; final review OWN-13), else the one stored for the campaign path.",
+        "description": "The compound's CPF: the one Inputs assembles for the project (the system of record every simulation of a pipeline\nproject is regenerated from; final review OWN-13) once it holds a value, else the one stored for the campaign path,\nelse 404 (the page then says the values are filled in on Inputs). An assembled CPF that holds no value yet is not\nanswered in place of the stored one, nor as an empty table (round 3: a project whose inputs had assembled nothing\nanswered 200 with no parameter where it answered 404).",
         "operationId": "get_compound_cpf_api_v1_projects__project_id__compounds__compound__cpf_get",
         "parameters": [
           {
