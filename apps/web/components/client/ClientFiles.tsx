@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { PeekButton } from "@/components/kit/SourcePeek";
 import { Card } from "@/components/ui";
@@ -166,9 +166,12 @@ function DocumentReading({ projectId, file, agents, running, agentReading, act }
   );
 }
 
-function FileCard({ projectId, file, agents, running, agentReading, act, onRetag, reading, setReading, onSaved, last, remember, inRow }: {
+function FileCard({ projectId, file, agents, running, agentReading, act, onRetag, reading, setReading, onSaved, last, remember, inRow,
+                   noSample }: {
   projectId: string; file: ClientFile; agents: boolean; running: boolean; agentReading: boolean; act: Act; onRetag?: Retag;
   reading: string | null;
+  /** cell texts a card asked to add as "no sample" to the sheet it opened (final review OWN-2 c) */
+  noSample?: string[];
   setReading: (sheet: string | null) => void; onSaved: (message: string) => Promise<void>;
   last: { form: SheetForm; study: Study } | null; remember: (s: { form: SheetForm; study: Study }) => void;
   /** under the file's row in the table of files, which says its name */
@@ -239,7 +242,7 @@ function FileCard({ projectId, file, agents, running, agentReading, act, onRetag
       )}
       {notice && <div className="banner ok">{notice}</div>}
       {reading && (
-        <SheetReader key={reading} projectId={projectId} file={file} sheet={reading} last={last} remember={remember}
+        <SheetReader key={reading} projectId={projectId} file={file} sheet={reading} last={last} remember={remember} noSample={noSample}
                      onClose={() => setReading(null)} onSaved={async (m) => { setReading(null); await onSaved(m); }} />
       )}
     </div>
@@ -343,13 +346,19 @@ export function Dissolution({ projectId, d, act }: {
 /** The client's files: each sheet with what it holds and whether it is read, the agent's proposed readings, and the reader
  *  opened on one sheet. On Inputs each file's card opens under its row in Client files (plan 2026-11-14 slice 1): `files`
  *  is that one file, and `memory` carries the last sheet form from one file's card to the next. */
-export function ClientFiles({ projectId, view, files, act, onRetag, onSaved, memory, inRow }: {
+export function ClientFiles({ projectId, view, files, act, onRetag, onSaved, memory, inRow, ask }: {
   projectId: string; view: View; files?: ClientFile[]; act: Act; onRetag?: Retag; onSaved: (message: string) => Promise<void>;
   memory?: SheetMemory;
   /** shown under the file's own row (Inputs › Client files): its name is not said again */
   inRow?: boolean;
+  /** a sheet a card asked to open in the reader, with cell texts to add as "no sample" (final review OWN-2 c) */
+  ask?: { file: string; sheet: string; noSample: string[]; at: number } | null;
 }) {
   const [reading, setReading] = useState<{ file: string; sheet: string } | null>(null);
+  const shownFiles = files ?? view.files;
+  useEffect(() => {
+    if (ask && shownFiles.some((f) => f.id === ask.file)) setReading({ file: ask.file, sheet: ask.sheet });
+  }, [ask?.at]); // eslint-disable-line react-hooks/exhaustive-deps
   const [own, setOwn] = useState<{ form: SheetForm; study: Study } | null>(null);
   const { last, remember: setLast } = memory ?? { last: own, remember: setOwn };
   return (
@@ -358,6 +367,7 @@ export function ClientFiles({ projectId, view, files, act, onRetag, onSaved, mem
         <FileCard key={f.id} projectId={projectId} file={f} agents={view.agents.enabled} running={view.running}
                   agentReading={view.reading} act={act} onRetag={onRetag} reading={reading?.file === f.id ? reading.sheet : null}
                   setReading={(sheet) => setReading(sheet ? { file: f.id, sheet } : null)}
+                  noSample={ask && ask.file === f.id && reading?.file === f.id && reading.sheet === ask.sheet ? ask.noSample : undefined}
                   onSaved={onSaved} last={last} remember={setLast} inRow={inRow} />
       ))}
     </>

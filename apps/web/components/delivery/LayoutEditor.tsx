@@ -5,16 +5,21 @@
 // statistic, its spread, the value column it qualifies), every choice a select built only from the API's own words
 // (`DeliveryMapping.vocabulary`, read from `modeler_intake`): nothing here is a name the web made up. Units are typed
 // as the table writes them; code checks each against its header, or against the cell or caption line it is said to be
-// stated in (a cite, `MappingSpec.Cite`; the time reference is always read from one). What the form does not edit (row
-// rules, label keys, constants read from the caption, a column's LLOQ or series cite) is kept as it is, and the whole
-// layout stays editable as text for experts. A layout the code refuses comes back with its findings, each shown beside
-// the column or the setting it names; one the form has no place for is said above it, so nothing the API says is lost.
-// A table no layout reads yet shows its first rows above the form (`DeliveryRegion.head`, masked as the API gives them),
-// and each column is named by its header: the rows the form says are header rows.
+// stated in (a cite, `MappingSpec.Cite`; the time reference is always read from one). The rows told apart by a cell
+// (Mean, SD, N rows: `row_rules`) are set in the form by the words the cell reads, and each fact read once for the table
+// (`constants`) is kept where it is read from, read from another place, or no longer read (final review OWN-2, OWN-8: no
+// one types JSON for these). What the form does not edit (label keys, a fact's pattern, a column's LLOQ or series cite)
+// is kept as it is, and the whole layout stays editable as text for experts. A layout the code refuses comes back with
+// its findings, each shown beside the column, the rule, the fact or the setting it names; one the form has no place for
+// is said above it, so nothing the API says is lost. Fields, roles and statistics are said by their labels
+// (`lib/words.ts`), never as the vocabulary's ids. A table no layout reads yet shows its first rows above the form
+// (`DeliveryRegion.head`, masked as the API gives them), and each column is named by its header: the rows the form says
+// are header rows.
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { Schema } from "@/lib/api";
+import { citeWords, escapePattern, layoutFieldText, layoutRoleText, patternWords, rowRoleText, tableKindText, valueWord } from "@/lib/words";
 
 import { Why, fieldText, plural } from "./shared";
 
@@ -31,6 +36,11 @@ type Place = { at: string; row: string; column: string; line: string };
 /** A column as the form edits it; `rest` keeps what the form does not show (its other cites). Role "" leaves it unread. */
 type Column = { column: number; role: string; field: string; unit: string; unit_at: Place; statistic: string; spread_kind: string;
                 of: string; cell_form: string; condition: string; reason: string; rest: Spec };
+/** A row rule as the form edits it: the column whose cell tells the rows apart, the words that cell reads (`words`;
+ *  null for a rule written as a pattern, kept as it is), what the rows are, their spread and, left out, why. */
+type Rule = { column: string; words: string | null; pattern: string; role: string; spread_kind: string; reason: string };
+/** A fact read once for the table as the form edits it: where it is read from, and whether it is still read. */
+type Fact = { field: string; at: Place; pattern: string | null; keep: boolean };
 /** The table-wide settings the form edits. */
 type Table = { kind: string; layout: string; header_rows: string; first_data_row: string; last_data_row: string; time_row: string;
                field: string; statistic: string; time_reference: string; time_reference_at: Place; time_unit: string;
@@ -39,7 +49,7 @@ type Table = { kind: string; layout: string; header_rows: string; first_data_row
 
 const TABLE_KEYS = ["kind", "layout", "header_rows", "first_data_row", "last_data_row", "time_row", "field", "statistic",
                     "time_reference", "time_reference_cite", "time_unit", "time_unit_cite", "value_unit", "value_unit_cite",
-                    "below_lloq_tokens", "missing_tokens", "not_data_reason", "columns"];
+                    "below_lloq_tokens", "missing_tokens", "not_data_reason", "columns", "row_rules", "constants"];
 const COLUMN_KEYS = ["column", "role", "field", "unit", "unit_cite", "statistic", "spread_kind", "of", "cell_form", "condition", "reason"];
 // the place words of a cite beside the table (`vocabulary.cite_near`), said plainly
 const NEAR_WORDS: Record<string, string> = { caption: "its caption", above: "the text above it", below: "the text below it" };
@@ -132,6 +142,19 @@ function tableOf(spec: Spec): Table {
   };
 }
 
+function rulesOf(spec: Spec): Rule[] {
+  return ((Array.isArray(spec.row_rules) ? spec.row_rules : []) as Spec[]).map((r) => ({
+    column: text(r.column), words: patternWords(text(r.pattern)), pattern: text(r.pattern), role: text(r.role),
+    spread_kind: text(r.spread_kind), reason: text(r.reason),
+  }));
+}
+
+function factsOf(spec: Spec): Fact[] {
+  return ((Array.isArray(spec.constants) ? spec.constants : []) as Spec[]).map((c) => ({
+    field: text(c.field), at: placeOf(c.cite), pattern: c.pattern ? text(c.pattern) : null, keep: true,
+  }));
+}
+
 function columnsOf(spec: Spec, count: number): Column[] {
   const mapped = new Map<number, Spec>();
   for (const c of (Array.isArray(spec.columns) ? spec.columns : []) as Spec[]) mapped.set(Number(c.column), c);
@@ -146,7 +169,7 @@ function columnsOf(spec: Spec, count: number): Column[] {
 }
 
 /** The spec the form says: the spec it started from, with every setting the form edits written from the form. */
-function build(base: Spec, t: Table, columns: Column[]): Spec {
+function build(base: Spec, t: Table, columns: Column[], rules: Rule[], facts: Fact[]): Spec {
   const out: Spec = Object.fromEntries(Object.entries(base).filter(([k]) => !TABLE_KEYS.includes(k)));
   out.schema = base.schema ?? "mapping/2";
   out.kind = t.kind;
@@ -175,13 +198,29 @@ function build(base: Spec, t: Table, columns: Column[]): Spec {
     if (c.unit.trim() && cite) col.unit_cite = cite;
     return col;
   });
+  // a rule written as words matches the cell whole, as written (upper or lower case alike): its words escaped
+  const ruled = rules.map((r) => {
+    const rule: Spec = { column: whole(r.column) ?? r.column, pattern: r.words !== null ? escapePattern(r.words.trim()) : r.pattern, role: r.role };
+    if (r.role === "spread" && r.spread_kind) rule.spread_kind = r.spread_kind;
+    if (r.reason.trim()) rule.reason = r.reason.trim();
+    return rule;
+  });
+  if (ruled.length || Array.isArray(base.row_rules)) out.row_rules = ruled;
+  const kept = facts.filter((f) => f.keep).map((f) => ({ field: f.field, cite: citeOf(f.at) ?? {},
+                                                        ...(f.pattern ? { pattern: f.pattern } : {}) }));
+  if (kept.length || Array.isArray(base.constants)) out.constants = kept;
   return out;
 }
 
-/** Where a finding stands: a column of the form (its number), a table-wide setting (its key), or neither (""). */
+/** Where a finding stands: a column of the form (its number), a row rule or a fact of the form (`rule-<i>`, `fact-<field>`),
+ *  a table-wide setting (its key), or neither (""). */
 function standsAt(location: string, sent: number[]): { column: number | null; key: string } {
   const col = /^columns\[(\d+)\]/.exec(location);
   if (col) return { column: sent[Number(col[1])] ?? null, key: "" };
+  const rule = /^row_rules\[(\d+)\]/.exec(location);
+  if (rule) return { column: null, key: `rule-${rule[1]}` };
+  const fact = /^constants\[\d+\] \(([^)]+)\)/.exec(location);
+  if (fact) return { column: null, key: `fact-${fact[1]}` };
   const key = (/^[a-z_]+/.exec(location)?.[0] ?? "").replace(/_cite$/, "");
   return { column: null, key: TABLE_KEYS.includes(key) || key === "below_lloq_tokens" ? key : "" };
 }
@@ -264,6 +303,8 @@ export function LayoutEditor({ vocabulary, spec, columns: count, headers, head, 
   const [base, setBase] = useState<Spec>(spec);     // what the form does not edit comes from here
   const [table, setTable] = useState<Table>(() => tableOf(spec));
   const [cols, setCols] = useState<Column[]>(() => columnsOf(spec, count));
+  const [rules, setRules] = useState<Rule[]>(() => rulesOf(spec));
+  const [facts, setFacts] = useState<Fact[]>(() => factsOf(spec));
   const [asText, setAsText] = useState<string | null>(vocabulary ? null : JSON.stringify(spec, null, 2));
   const [textProblem, setTextProblem] = useState<string | null>(null);
   const root = useRef<HTMLDivElement>(null);
@@ -285,7 +326,8 @@ export function LayoutEditor({ vocabulary, spec, columns: count, headers, head, 
   // the layout is edited as text) is said in one list above, a column's with its number
   const beside = !form ? [] : notData ? ["kind", "layout", "not_data_reason"]
     : ["kind", "layout", "header_rows", "first_data_row", "last_data_row", "time_row", "field", "statistic", "time_reference",
-       "time_unit", "value_unit", "below_lloq_tokens", "missing_tokens", "columns"];
+       "time_unit", "value_unit", "below_lloq_tokens", "missing_tokens", "columns",
+       ...rules.map((_, i) => `rule-${i}`), ...facts.filter((f) => f.keep).map((f) => `fact-${f.field}`)];
   const shownColumns = new Set(form && !notData ? cols.map((c) => c.column) : []);
   const loose = placed.filter((p) => (p.column !== null ? !shownColumns.has(p.column) : !beside.includes(p.key)))
     .map((p) => (p.column !== null ? { ...p.f, message: `Column ${p.column}: ${p.f.message}` } : p.f));
@@ -313,34 +355,39 @@ export function LayoutEditor({ vocabulary, spec, columns: count, headers, head, 
   function toForm() {
     const p = parsed();
     if (!p) return;
-    setBase(p); setTable(tableOf(p)); setCols(columnsOf(p, count)); setAsText(null);
+    setBase(p); setTable(tableOf(p)); setCols(columnsOf(p, count)); setRules(rulesOf(p)); setFacts(factsOf(p)); setAsText(null);
   }
   async function submit(why: string) {
-    const out = asText !== null ? parsed() : build(base, table, cols);
+    const out = asText !== null ? parsed() : build(base, table, cols, rules, facts);
     if (out) await onSubmit(out, why);
   }
+  const setRule = (i: number, key: keyof Rule) => (v: string) => setRules(rules.map((r, n) => (n === i ? { ...r, [key]: v } : r)));
 
   const fields = vocabulary?.fields ?? [];
   const fieldWords = fields.map((f) => f.name);
   const near = vocabulary?.cite_near ?? [];
+  // a field by its label, with the kind of unit it takes where that helps choose one ("Dose (a mass)")
+  const UNIT_CLASS: Record<string, string> = { mass: "a mass", concentration: "a concentration", time: "a time", percentage: "a percentage" };
   const describeField = (name: string) => {
     const f = fields.find((x) => x.name === name);
-    // its unit class beside it, unless the class is the field itself ("concentration")
-    return f && f.unit_class !== "none" && f.unit_class !== name ? `${fieldText(name)} (${fieldText(f.unit_class)})` : fieldText(name);
+    const unit = f && f.unit_class !== name ? UNIT_CLASS[f.unit_class] : undefined;
+    return unit ? `${layoutFieldText(name)} (${unit})` : layoutFieldText(name);
   };
+  const columnName = (n: string) => `column ${n}${named[Number(n)] ? ` “${named[Number(n)]}”` : ""}`;
   const values = cols.filter((c) => c.role === "value");
   // the columns whose LLOQ, confidence level or series name the layout reads from a cell or a line (kept, not edited here)
   const cited = cols.filter((c) => ["lloq", "level", "series"].some((k) => c.rest[k])).length;
   const kept = [
-    Array.isArray(base.row_rules) && base.row_rules.length ? `${base.row_rules.length} row rules` : "",
     Array.isArray(base.keys) && base.keys.length ? `${base.keys.length} row labels` : "",
-    Array.isArray(base.constants) && base.constants.length ? `${base.constants.length} facts read once for the table` : "",
     base.lloq ? "where the table states its LLOQ" : "",
     cited ? `where ${cited === 1 ? "a column states its" : `${cited} columns state their`} LLOQ, confidence level or series name` : "",
   ].filter(Boolean);
   // what the form still needs before the layout is sent (the API would refuse it): said above the reason
   const needs = !form ? [] : [
     !table.kind ? "Choose what the table holds." : "",
+    !notData && rules.some((r) => r.words !== null && !r.words.trim()) ? "Say the words each row rule's cell reads." : "",
+    !notData && rules.some((r) => r.role === "exclude" && !r.reason.trim()) ? "Say why the rows a rule leaves out are not data." : "",
+    !notData && facts.some((f) => f.keep && !citeOf(f.at)) ? "Say the cell, or the caption or the line beside the table, each fact is read from." : "",
     !notData && table.time_reference && !citeOf(table.time_reference_at)
       ? "Say where the table states when its times are counted from: a cell of the table, or its caption or the text beside it." : "",
   ].filter(Boolean);
@@ -362,7 +409,8 @@ export function LayoutEditor({ vocabulary, spec, columns: count, headers, head, 
           <fieldset className="layout-table">
             <legend>The table</legend>
             <div className="layout-line">
-              <Pick label="What it holds" value={table.kind} onChange={setT("kind")} words={vocabulary.kinds} testId={`${testId}-kind`} />
+              <Pick label="What it holds" value={table.kind} onChange={setT("kind")} words={vocabulary.kinds} testId={`${testId}-kind`}
+                    describe={(w) => tableKindText(w)} />
               <Pick label="Layout" value={table.layout} onChange={setT("layout")} words={vocabulary.layouts} testId={`${testId}-layout`}
                     describe={(w) => (LAYOUT_WORDS[w] ? `${fieldText(w)}: ${LAYOUT_WORDS[w]}` : fieldText(w))} />
             </div>
@@ -388,12 +436,13 @@ export function LayoutEditor({ vocabulary, spec, columns: count, headers, head, 
                   <Pick label="Field of the values" value={table.field} onChange={setT("field")} words={fieldWords} none="set per column"
                         describe={describeField} testId={`${testId}-field`} />
                   <Pick label="Statistic" value={table.statistic} onChange={setT("statistic")} words={vocabulary.statistics} none="not stated"
-                        testId={`${testId}-statistic`} />
+                        testId={`${testId}-statistic`} describe={valueWord} />
                 </div>
                 <Said findings={[...at("field"), ...at("statistic")]} />
                 <div className="layout-line">
                   <Pick label="Times counted from" value={table.time_reference} onChange={setT("time_reference")}
-                        words={vocabulary.time_references} none="not stated" testId={`${testId}-time-reference`} />
+                        words={vocabulary.time_references} none="not stated" testId={`${testId}-time-reference`}
+                        describe={(w) => ({ first_dose: "the first dose", last_dose: "the last dose", occasion_dose: "each occasion's dose" })[w] ?? fieldText(w)} />
                   {table.time_reference && (
                     <StatedIn label="stated in" place={table.time_reference_at} onChange={setPlace("time_reference_at")} near={near}
                               name="Where the table states when its times are counted from" testId={`${testId}-time-reference-at`} />
@@ -453,14 +502,14 @@ export function LayoutEditor({ vocabulary, spec, columns: count, headers, head, 
                       </div>
                       <div className="layout-line">
                         <Pick label="Holds" name={`What ${n} holds`} value={c.role} onChange={setC(c.column, "role")} words={vocabulary.roles}
-                              none="not read" testId={`${testId}-role-${c.column}`} />
+                              none="not read" testId={`${testId}-role-${c.column}`} describe={layoutRoleText} />
                         {c.role === "value" && (
                           <>
                             <Pick label="Field" name={`Field of ${n}`} value={c.field} onChange={setC(c.column, "field")} words={fieldWords}
-                                  none={table.field ? `the table's (${fieldText(table.field)})` : "choose…"} describe={describeField}
+                                  none={table.field ? `the table's (${layoutFieldText(table.field)})` : "choose…"} describe={describeField}
                                   testId={`${testId}-field-${c.column}`} />
                             <Pick label="Statistic" name={`Statistic of ${n}`} value={c.statistic} onChange={setC(c.column, "statistic")}
-                                  words={vocabulary.statistics} none={table.statistic ? "the table's" : "not stated"} />
+                                  words={vocabulary.statistics} none={table.statistic ? "the table's" : "not stated"} describe={valueWord} />
                             {/* the empty choice is the value alone (the spec's default cell form, "value") */}
                             <Pick label="Written as" name={`How ${n} writes its values`} value={c.cell_form} onChange={setC(c.column, "cell_form")}
                                   words={vocabulary.cell_forms.filter((w) => w !== "value")} none="the value alone" describe={(w) => w} />
@@ -484,7 +533,7 @@ export function LayoutEditor({ vocabulary, spec, columns: count, headers, head, 
                         )}
                         {c.role === "condition" && (
                           <Pick label="Condition" name={`Condition ${n} states`} value={c.condition} onChange={setC(c.column, "condition")}
-                                words={vocabulary.conditions} />
+                                words={vocabulary.conditions} describe={layoutFieldText} />
                         )}
                         {c.role === "ignore" && (
                           <Typed label="Why it is not data" name={`Why ${n} is not data`} value={c.reason} onChange={setC(c.column, "reason")}
@@ -498,12 +547,81 @@ export function LayoutEditor({ vocabulary, spec, columns: count, headers, head, 
               </ol>
             </fieldset>
           )}
+          {!notData && (
+            <fieldset className="layout-rules" data-testid={`${testId}-rules`}>
+              <legend>Rows told apart by a cell</legend>
+              <p className="muted fs-12 m-0">Rows such as Mean, SD or N: say the column whose cell tells them apart and the words it reads
+                (the whole cell, upper or lower case alike).</p>
+              <ol className="layout-cols">
+                {rules.map((r, i) => {
+                  const said = at(`rule-${i}`);
+                  const n = `row rule ${i + 1}`;
+                  return (
+                    <li key={i} className={said.some((f) => f.severity === "error") ? "layout-col wrong" : "layout-col"} data-testid={`${testId}-rule-${i}`}>
+                      <div className="layout-line">
+                        <Pick label="Rows whose cell in" name={`The column ${n} reads`} value={r.column} onChange={setRule(i, "column")}
+                              words={cols.map((c) => String(c.column))} describe={columnName} testId={`${testId}-rule-${i}-column`} />
+                        {r.words !== null ? (
+                          <Typed label="reads" name={`The words ${n} matches`} value={r.words} onChange={setRule(i, "words")} placeholder="e.g. Mean"
+                                 testId={`${testId}-rule-${i}-words`} />
+                        ) : <span className="muted fs-12">matches a pattern (kept as it is; edit it as text)</span>}
+                        <Pick label="are" name={`What the rows of ${n} are`} value={r.role} onChange={setRule(i, "role")} words={vocabulary.row_roles}
+                              describe={rowRoleText} testId={`${testId}-rule-${i}-role`} />
+                        {r.role === "spread" && (
+                          <Pick label="Spread" name={`The spread of ${n}`} value={r.spread_kind} onChange={setRule(i, "spread_kind")}
+                                words={vocabulary.spread_kinds} none="not stated" describe={(w) => w} testId={`${testId}-rule-${i}-spread`} />
+                        )}
+                        {r.role === "exclude" && (
+                          <Typed label="Why they are not data" name={`Why the rows of ${n} are not data`} value={r.reason} onChange={setRule(i, "reason")}
+                                 width="layout-wide" testId={`${testId}-rule-${i}-reason`} />
+                        )}
+                        <button type="button" className="link-btn" onClick={() => setRules(rules.filter((_, k) => k !== i))}
+                                aria-label={`Remove ${n}`} data-testid={`${testId}-rule-${i}-remove`}>Remove</button>
+                      </div>
+                      <Said findings={said} testId={`${testId}-rule-${i}-findings`} />
+                    </li>
+                  );
+                })}
+              </ol>
+              <button type="button" className="btn small" data-testid={`${testId}-rule-add`}
+                      onClick={() => setRules([...rules, { column: "1", words: "", pattern: "", role: vocabulary.row_roles[0] ?? "exclude", spread_kind: "", reason: "" }])}>
+                Add a row rule</button>
+            </fieldset>
+          )}
+          {!notData && facts.length > 0 && (
+            <fieldset className="layout-facts" data-testid={`${testId}-facts`}>
+              <legend>Read once for the whole table</legend>
+              <ul className="layout-cols">
+                {facts.map((f, i) => {
+                  const said = f.keep ? at(`fact-${f.field}`) : [];
+                  const name = layoutFieldText(f.field);
+                  return (
+                    <li key={`${f.field}-${i}`} className={said.some((x) => x.severity === "error") ? "layout-col wrong" : "layout-col"}
+                        data-testid={`${testId}-fact-${f.field}`}>
+                      <div className="layout-line">
+                        <label className="delivery-pick">
+                          <input type="checkbox" checked={f.keep} data-testid={`${testId}-fact-${f.field}-keep`}
+                                 onChange={(e) => setFacts(facts.map((x, n) => (n === i ? { ...x, keep: e.target.checked } : x)))} />
+                          {name}, read from
+                        </label>
+                        {f.keep ? (
+                          <StatedIn label="" place={f.at} near={near} name={`Where the table states ${name.toLowerCase()}`}
+                                    onChange={(p) => setFacts(facts.map((x, n) => (n === i ? { ...x, at: p } : x)))} testId={`${testId}-fact-${f.field}-at`} />
+                        ) : <span className="muted fs-12">not read: {citeWords(f.at.at === "cell" ? { row: f.at.row, column: f.at.column } : { near: f.at.at, line: f.at.line })} no longer gives it</span>}
+                      </div>
+                      <Said findings={said} testId={`${testId}-fact-${f.field}-findings`} />
+                    </li>
+                  );
+                })}
+              </ul>
+            </fieldset>
+          )}
           {kept.length > 0 && <p className="muted fs-12 m-0">Kept as they are: {kept.join(", ")}. Edit them as text.</p>}
         </>
       )}
       {asText === null && vocabulary && (
         <button type="button" className="link-btn" data-testid={`${testId}-text`}
-                onClick={() => setAsText(JSON.stringify(build(base, table, cols), null, 2))}>Edit as text</button>
+                onClick={() => setAsText(JSON.stringify(build(base, table, cols, rules, facts), null, 2))}>Edit as text</button>
       )}
       {needs.map((x) => <p key={x} className="muted fs-12 m-0" data-testid={`${testId}-needs`}>{x}</p>)}
       <Why action={action} label={whyLabel} busy={busy} onSubmit={submit} onCancel={onCancel} testId={whyTestId} disabled={needs.length > 0} />

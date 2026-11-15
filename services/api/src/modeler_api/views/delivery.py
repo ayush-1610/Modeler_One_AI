@@ -171,6 +171,34 @@ class DeliveryRegion(View):
     decision: DeliveryRegionDecision | None   # the person's "not data" decision that sets it aside; null: a rule's, or none
     restored: DeliveryRegionRestore | None    # the latest restore that gave it back; null: none
     head: DeliveryRegionHead | None           # a table no layout reads: its first rows; null for any other region
+    silent_cells: list[DeliveryUnreadCell]    # a read table's numbers no part of its layout reads (the first 50), and why
+    newer: DeliveryNewerLayout | None         # a read table the newest approved version of its layout does not read
+
+
+class DeliveryUnreadCell(View):
+    """A cell with a number in a read table that no part of its layout reads (silent: it holds up the delivery's
+    signatures), and why, as code's reading of the table records it (`CellUse.rule`): "" (no column or row rule of the
+    layout reads it), "unparseable" (a column reads it, but it is not a plain number), "time_unparseable" (its time is
+    not a plain number), "qualifier_twice" (a second spread, n or interval for one value), "lloq_differs" (its LLOQ is
+    not the table's), "time_unit_conflict" (the cell writes another time unit than its column). `text` is null for a
+    file that holds a blinded study's values. Read-only: a single cell is not set aside here (plan 2026-11-14 §3 API 3,
+    the owner's review)."""
+
+    where: str
+    text: str | None
+    why: str
+
+
+class DeliveryNewerLayout(View):
+    """The newest approved version of a table's layout, newer than the version the table is read with, that does not
+    read it: the pipeline reads a table only with an approved version that has no error on the table's own grid
+    (`intake_pipeline._choose`), so the table stays with the older one. `findings`: that version's errors on this table
+    (their digits masked for a file that holds a blinded study's values); `constants`: that version's facts read once
+    for the table, which a finding's location names by number."""
+
+    version: int
+    findings: list[DeliveryMappingFinding]
+    constants: list[DeliveryMappingConstant]
 
 
 class DeliveryOutside(View):
@@ -688,8 +716,11 @@ class DeliveryMappingContext(View):
 
 
 class DeliveryMappingSample(View):
-    """The table as the table mapper is shown it (`mapping.redact`): no digit of its body. For a file with a blinded
-    study's values the body and the context lines are withheld."""
+    """The table a mapping is shown on: its context lines, its header rows as the layout counts them (`header_rows`,
+    the layout's own: their cells as written, as each column's header is), and its first 5 and last 3 body rows with
+    every digit masked (`mapping.redact.redact_cell`): `body_rows` numbers them, so the rows left out are those of
+    `header_rows + 1 .. n_rows` not listed. For a file with a blinded study's values the body is withheld and the
+    digits of the header and the context lines are masked."""
 
     file_sha256: str
     file: str
@@ -717,6 +748,24 @@ class DeliveryMappingDecision(View):
     why: str
     by: str
     at: str
+
+
+class DeliveryMappingTable(View):
+    """A table of the mapping's layout that one of its versions reads now (one row per table of `used_in`), and how the
+    version shown reads it: `reads` false when that version has an error on the table (`findings`: its errors and
+    notes there, their digits masked for a file that holds a blinded study's values), null when the table's source
+    model is not cached. `newer`: the table stays with an older version because the newest approved one does not read
+    it (as on the page's region)."""
+
+    file_sha256: str
+    file: str
+    region_id: str
+    where: str
+    version: int                              # the version the table is read with now
+    state: str
+    reads: bool | None
+    findings: list[DeliveryMappingFinding]
+    newer: DeliveryNewerLayout | None
 
 
 class DeliveryMappingVersion(View):
@@ -789,6 +838,7 @@ class DeliveryMapping(View):
     findings: list[DeliveryMappingFinding]    # the spec checked on the sample table (`validate_spec`)
     versions: list[DeliveryMappingVersion]
     used_in: list[DeliveryMappingUse]
+    tables: list[DeliveryMappingTable]        # each table a version of it reads now, and how the version shown reads it
     waiting: bool                             # a file that uses it is queued or being read
     queued: list[str]                         # sha256s of the files queued again by this request
     vocabulary: DeliveryMappingVocabulary     # the words a spec may use, for a form that edits it

@@ -127,6 +127,8 @@ test("the owner's job: files uploaded, layouts checked, values linked with arms,
 
   // the work is in To do, in the order it is done: one layout to check, three files to link, one file with a number not read
   await expect(page.getByTestId("todo-group-layouts")).toBeVisible({ timeout: 60_000 });
+  // counted once the page has read that its files are no longer being read (a layout being read again is not counted)
+  await expect(page.getByTestId("todo-group-layouts").locator("h3")).toContainText("(1)");
   await expect(page.getByTestId("todo-group-link").locator("h3")).toContainText("(3)");
   await expect(page.getByTestId("todo-group-notread").locator("h3")).toContainText("(1)");
   await expect(page.getByTestId("todo-gate")).toContainText("1 table layout to check · 3 files to link · 1 file with numbers not read");
@@ -150,12 +152,10 @@ test("the owner's job: files uploaded, layouts checked, values linked with arms,
   await expect(dialog.getByTestId("mapping-sample").locator("tbody td").filter({ hasText: /\d/ })).toHaveCount(0);   // values masked
   await dialog.getByTestId("mapping-approve-why").fill("checked against the files: subjects and periods down, times in hours across");
   await dialog.getByTestId("mapping-approve-submit").click();
-  // said in To do's live region, where it stays: the dialog of the queue's last layout closes by itself as soon as its
-  // files are read again (its row, and the queue that holds the dialog, leave To do), at times before it can be read
-  await expect(page.getByTestId("todo-live")).toContainText(
-    "Version 1 of the individual PK table layout is approved: 3 files of this layout are read again.");
-  if (await dialog.count()) await page.keyboard.press("Escape");
-  await expect(dialog).toHaveCount(0);
+  // said in the dialog, and in To do's live region
+  const approved = "Version 1 of the individual PK table layout is approved: 3 files of this layout are read again.";
+  await expect(dialog.getByTestId("mapping-said")).toHaveText(approved);
+  await expect(page.getByTestId("todo-live")).toContainText(approved);
   expect((await read<{ status: string }>(request, `delivery/mappings/${layout}?version=${waiting[0].version}`)).status).toBe("approved");
   // the three files are read again with the approved layout before anything is linked
   await expect.poll(async () => {
@@ -163,6 +163,13 @@ test("the owner's job: files uploaded, layouts checked, values linked with arms,
     return !d.running && d.unassigned.length === 156 && d.unassigned.every((v) => v.level === "approved_mapping");
   }, { timeout: 120_000, intervals: [1000] }).toBe(true);
   await expect(page.getByTestId("todo-group-layouts")).toHaveCount(0);
+  // its row and its group have left To do; the dialog is To do's and stays, still saying what was done, until the person
+  // closes it (gap 2); the focus then goes to To do's title, the group's heading being gone
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByTestId("mapping-said")).toHaveText(approved);
+  await dialog.getByTestId("mapping-close").click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.locator(":focus")).toHaveAttribute("id", "todo-title");
   const checked = await agreed(page);
   expect(checked.decide).toBe(arrived.decide - 1);
 
@@ -207,7 +214,8 @@ test("the owner's job: files uploaded, layouts checked, values linked with arms,
   await expect(table.getByTestId(`link-${ref}`)).toHaveCount(0);
   await expect(table.getByTestId(`link-${tst}`)).toHaveCount(0);
   expect(assigns).toBe(2);                                                   // one call per destination
-  await expect(page.getByTestId("todo-live")).toContainText("linked to study OJ-101 · arm Reference (new); study OJ-101 · arm Test (new).");
+  // the arms the batch made are named as they now are (review CODE-10)
+  await expect(page.getByTestId("todo-live")).toContainText("linked to study OJ-101 · arm Reference; study OJ-101 · arm Test.");
   // the file that names no study: to a new study, from its row's editor
   await table.getByTestId(`link-open-${lab}`).click();
   const editor = table.getByTestId(`link-editor-${lab}`);
@@ -217,7 +225,7 @@ test("the owner's job: files uploaded, layouts checked, values linked with arms,
   await editor.getByTestId(`link-edit-${lab}-submit`).click();
   await expect(page.getByTestId("link-table")).toHaveCount(0);
   expect(assigns).toBe(3);
-  await expect(page.getByTestId("todo-live")).toContainText("lab-export-0412.xlsx linked to study OJ-102 (new)");
+  await expect(page.getByTestId("todo-live")).toContainText("lab-export-0412.xlsx linked to study OJ-102 · analyte Exampleamide.");
   await expect(page.getByTestId("todo-live")).toContainText("Every file is linked.");
   const linked = await read<Delivery>(request, "delivery");
   expect(linked.unassigned).toHaveLength(0);
@@ -245,8 +253,15 @@ test("the owner's job: files uploaded, layouts checked, values linked with arms,
   await notRead.getByTestId(`notread-mark-open-${means}`).click();
   await notRead.getByTestId(`notread-mark-${means}-why`).fill("a working note of the lab, not a value of the study");
   await notRead.getByTestId(`notread-mark-${means}-submit`).click();
+  // its row and the table go; what was marked stays listed with "Restore…" and a line that says what was done (gap 5,
+  // review CODE-3), where the focus goes; said by file (CODE-10)
   await expect(page.getByTestId("notread-table")).toHaveCount(0);
-  await expect(page.getByTestId("todo-live")).toContainText(`“${seed.stray}” marked as not data. No loose number is left.`);
+  const said = `${seed.study} plasma means.xlsx: “${seed.stray}” marked as not data. No loose number is left.`;
+  const marked = page.getByTestId("notread-marked");
+  await expect(marked.getByTestId("notread-marked-said")).toHaveText(said);
+  await expect(marked.getByTestId(`notread-undo-${means}-0`)).toBeVisible();
+  await expect(page.locator(":focus")).toHaveAttribute("id", "notread-marked-title");
+  await expect(page.getByTestId("todo-live")).toContainText(said);
   await expect(page.getByTestId("todo-gate")).toHaveCount(0);                // the delivery's clean-up holds nothing now
   const tidied = await agreed(page);
   expect(tidied.decide).toBe(0);

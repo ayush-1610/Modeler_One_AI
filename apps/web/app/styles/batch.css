@@ -75,6 +75,9 @@
 .notread-group > input { margin-top: 1px; }
 .batch .delivery-why > .muted { flex-basis: 100%; font-size: 13px; }
 .notread-marked { display: grid; gap: 4px; padding: 8px 10px; font-size: 13.5px; border-radius: var(--radius-sm); background: var(--raised); }
+.notread-marked > strong:focus { outline-offset: 2px; }
+/* a read table's numbers not read, by why: long lists of cells wrap inside the row */
+.notread-cells { font-size: 13px; overflow-wrap: anywhere; }
 
 /* the compound values to fill: sized here, not with the !important width utilities, so a phone can stack them */
 .mv-table { width: 100%; }

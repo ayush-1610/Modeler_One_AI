@@ -15,7 +15,7 @@ import { Fragment, useRef, useState } from "react";
 import { type Act, ClientFiles, FileTagLine, type Retag, type SheetMemory } from "@/components/client/ClientFiles";
 import type { ClientFile, View as ClientView } from "@/components/client/types";
 import { DeliverySection, FileItem } from "@/components/delivery/DeliverySection";
-import { MappingReview } from "@/components/delivery/MappingReview";
+import { MappingReview, type MappingOpen } from "@/components/delivery/MappingReview";
 import { Problem, useDecide, type FileRow } from "@/components/delivery/shared";
 import type { Schema } from "@/lib/api";
 import type { DataTab } from "@/lib/fileTags";
@@ -24,6 +24,7 @@ import { areaHead, type WorkItem, type WorkModel } from "@/lib/inputsWork";
 import { AREA_NAME, type Tab, plural } from "@/lib/words";
 
 import type { Run } from "./InputsTodo";
+import type { SheetAsk } from "./openSheet";
 import { AiReading, ReadingTray } from "./ReadingTray";
 import { ACCEPT, AREA_FILES, AREA_LABEL, FILE_AREAS, addClientFiles, fileArea } from "./TabFiles";
 
@@ -81,20 +82,24 @@ function needs(items: WorkItem[]): { item: WorkItem; text: string }[] {
 
 /** The files opened on their sheets and the last sheet form saved: kept by the workspace, so they hold while another
  *  area is shown. */
-export type FilesShown = { open: ReadonlySet<string>; toggle: (id: string) => void; memory: SheetMemory };
+export type FilesShown = {
+  open: ReadonlySet<string>; toggle: (id: string) => void; memory: SheetMemory;
+  /** a sheet a card asked to open in the reader (final review OWN-2 c) */
+  ask?: SheetAsk | null;
+};
 
 type Row = { id: string; name: string; sha: string; file: ClientFile | undefined; delivery: FileRow[] };
 
 /** One row per client file (and per delivered file no client file stands for): what it is (changed here, which files it
  *  again), the area its data land on, its one status and what it still needs from you. Its name opens everything about
  *  the file under the row. */
-function FilesTable({ projectId, client, rows, work, ai, aiOn, act, onRetag, onSaved, onOpen, onItem, shown: { open, toggle, memory } }: {
+function FilesTable({ projectId, client, rows, work, ai, aiOn, act, onRetag, onSaved, onOpen, onItem, shown: { open, toggle, memory, ask } }: {
   projectId: string; client: ClientView | null; rows: Row[]; work: WorkModel; ai: Map<string, ReadingItem>; aiOn: boolean;
   act: Act; onRetag: Retag; onSaved: (message: string) => Promise<void>;
   onOpen: (area: DataTab) => void; onItem: (item: WorkItem) => void; shown: FilesShown;
 }) {
   const { decide, busy, problem } = useDecide();
-  const [mapping, setMapping] = useState<string | null>(null);
+  const [mapping, setMapping] = useState<MappingOpen | null>(null);
   const firsts = new Map<string, FileRow>();
   for (const r of rows) for (const d of r.delivery) if (!d.repeat && !firsts.has(d.sha256)) firsts.set(d.sha256, d);
   return (
@@ -157,7 +162,7 @@ function FilesTable({ projectId, client, rows, work, ai, aiOn, act, onRetag, onS
                           </ul>
                         )}
                         {f && <AiReading projectId={projectId} sid={f.id} />}
-                        {f && client && <ClientFiles projectId={projectId} view={client} files={[f]} act={act} onSaved={onSaved} memory={memory} inRow />}
+                        {f && client && <ClientFiles projectId={projectId} view={client} files={[f]} act={act} onSaved={onSaved} memory={memory} inRow ask={ask} />}
                       </td>
                     </tr>
                   )}
@@ -167,7 +172,8 @@ function FilesTable({ projectId, client, rows, work, ai, aiOn, act, onRetag, onS
           </tbody>
         </table>
       </div>
-      {mapping && <MappingReview projectId={projectId} mappingId={mapping} onClose={() => setMapping(null)}
+      {mapping && <MappingReview projectId={projectId} mappingId={mapping.id} version={mapping.version} at={mapping.at} onClose={() => setMapping(null)}
+                                 onStored={(version) => setMapping((was) => (was ? { ...was, version } : was))}
                                  returnFocus={() => document.querySelector<HTMLElement>('[data-testid="files-table"] tr.open .files-name')} />}
     </>
   );

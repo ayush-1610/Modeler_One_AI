@@ -12,8 +12,8 @@
 
 import type { Schema } from "./api";
 import {
-  AREA_NAME, STATUS_WORD, type Status, type Tab, checkFix, checkLabel, factText, layoutOrigin, placeText, plural, tableKindText, todoLabel,
-  whenText, whereIs,
+  AREA_NAME, STATUS_WORD, type Status, type Tab, UNREADABLE, checkFix, checkLabel, factText, layoutOrigin, placeText, plural, tableKindText,
+  todoLabel, whenText, whereIs,
 } from "./words";
 
 type DeliveryPage = Schema<"DeliveryPage">;
@@ -114,6 +114,12 @@ export type WorkItem = {
   inModel?: string;
   /** a card signed on the delivery: what of the delivery's clean-up holds up its signature (said once per group) */
   gate?: string;
+  /** what still needs the owner's decision (final review OWN-2 d): on an item no one can settle on this page, the
+   *  decision it waits for; on a card held by the delivery's clean-up, the sentence the gate line adds (`ownerText`) */
+  owner?: string;
+  /** numbers not read: every study and product read from its file is confirmed with the sheet form (none signed on the
+   *  delivery), so a read table of it can be set aside whole as not data and nothing loaded or signed is lost */
+  elsewhere?: boolean;
   /** what a file-level item is about: the delivery file's sha256 ("entered" for values a person entered), or the table
    *  layout's id; To do's batch tables (slice 4) build the item's row from it */
   ref?: string;
@@ -400,11 +406,25 @@ export function buildWork(sources: WorkSources): WorkModel {
     const failed = f.state === "failed" || f.state === "unreadable" || f.state === "unsupported";
     if (!parts.length && !failed) continue;
     const held = hold([f.delivery]);
+    // the studies and products read from this file, each confirmed with the sheet form and none signed on the delivery:
+    // a read table of it can be set aside whole, losing nothing that is loaded or signed (review OWN-2 b)
+    const readFrom = subjects.filter((s) => s.row?.files.includes(f.sha256));
+    const elsewhere = readFrom.length > 0 && readFrom.every((s) => s.done && !s.row?.confirmation?.current);
+    // all that is left is numbers in read tables that no layout can read (not plain numbers): only setting single cells
+    // aside would clear them, which waits for the owner's decision (plan §3 API 3), so Next and the counts skip it, and
+    // its row says why (review OWN-2 d, plan §2.2.5 extended)
+    const silent = f.regions.filter((r) => r.state === "mapped" && r.silent > 0);
+    const stuck = !failed && !loose && !c?.regions_unread && !elsewhere && silent.length > 0 && silent.every(noLayoutReads);
+    const odd = [...new Set(silent.flatMap((r) => r.silent_cells ?? []).filter((x) => UNREADABLE.has(x.why) && x.text !== null).map((x) => x.text!))];
     add({
       id: `notread:${f.sha256}`, group: held.group ?? "notread", status: "to_decide", area: "files",
       label: `${f.name}: ${failed ? `could not be read${f.reason ? ` (${f.reason})` : ""}` : parts.join(" · ")}`,
       where: { tab: "todo", anchor: notReadRowId(f.file_id) }, pipeline: "delivery",
-      blocked: f.state === "unsupported" ? "Not a kind of file the reader takes." : undefined, why: held.why,
+      blocked: f.state === "unsupported" ? "Not a kind of file the reader takes."
+        : stuck ? `${odd.length === 1 ? `“${odd[0]}” is not a plain number` : odd.length ? `${odd.slice(0, 3).map((t) => `“${t}”`).join(", ")} are not plain numbers`
+          : "Its numbers are not plain numbers"}, so no table layout reads ${odd.length === 1 ? "it" : "them"}. Setting a single cell aside as`
+          + " not data waits for the owner's decision; until then, correct the file and send it again." : undefined,
+      owner: stuck ? OWNER_CELLS : undefined, why: held.why, elsewhere: elsewhere || undefined,
       files: [fileOf(f.sha256)], subjects: held.subjects, weight: (c?.silent_loss ?? 0) + loose, ref: f.sha256,
     });
   }
@@ -560,6 +580,7 @@ export function buildWork(sources: WorkSources): WorkModel {
     const ready = Boolean(card) && !own.length && !held.length && !c;
     add({ ...base, id: `confirm:${s.key}`, group: ready ? "ready" : "confirm", status: "to_confirm", label: name,
           detail: [from, step].filter(Boolean).join(" · ") + sheet + aliases, gate: held.length ? gateText(held) : undefined,
+          owner: held.length ? ownerText(held) : undefined,
           blocked: s.blinded ? "Blinded until the plan is signed: it is confirmed afterwards." : undefined });
   }
 
@@ -627,6 +648,31 @@ export function gateText(held: WorkItem[]): string {
   return [n("layouts") ? `${plural(n("layouts"), "table layout")} to check` : "",
           n("link") ? `${plural(n("link"), "file")} to link` : "",
           n("notread") ? `${plural(n("notread"), "file")} with numbers not read` : ""].filter(Boolean).join(" · ");
+}
+
+/** The decision a numbers-not-read item waits for when no layout can read its numbers (plan §3 API 3, the owner's). */
+export const OWNER_CELLS = "whether a single cell can be set aside as not data";
+/** What of a held signature still needs the owner's decision, in one sentence (review OWN-2 d): the gate itself, which
+ *  holds every signature of the delivery until its whole clean-up is done (contracts §11.10), and, when a held item
+ *  waits for it, setting single cells aside (plan §3 API 3). */
+export function ownerText(held: WorkItem[]): string {
+  const cells = held.filter((i) => i.owner === OWNER_CELLS);
+  const gate = "whether a signature waits for the whole delivery's clean-up or only for its own files'";
+  return cells.length
+    ? `Two decisions here are the owner's: ${OWNER_CELLS} (${plural(cells.length, "file")} wait${cells.length === 1 ? "s" : ""} for it), and ${gate}.`
+    : `It is the owner's decision ${gate}.`;
+}
+
+/** Whether no table layout can read a read table's numbers that are not read (review OWN-2 d): each is written so that
+ *  no reading takes it (not a plain number, `UNREADABLE`), or sits in a sheet row beside one that is (its SD or n, which
+ *  then qualifies no value). Every cell must be listed (`silent_cells` holds the first 50). */
+export function noLayoutReads(r: { silent: number; silent_cells?: { where: string; why: string }[] }): boolean {
+  const cells = r.silent_cells ?? [];
+  if (!r.silent || cells.length < r.silent) return false;
+  const rowOf = (where: string) => /![A-Z]{1,3}([0-9]+)$/.exec(where)?.[1] ?? null;
+  const rows = new Set(cells.filter((c) => UNREADABLE.has(c.why)).map((c) => rowOf(c.where)).filter((x): x is string => x !== null));
+  return cells.some((c) => UNREADABLE.has(c.why))
+    && cells.every((c) => UNREADABLE.has(c.why) || (rowOf(c.where) !== null && rows.has(rowOf(c.where)!)));
 }
 
 /** Open items by status word, in a few words: "3 missing · 1 to decide". */
@@ -1177,6 +1223,8 @@ export function looseGroups(outside: Outside[]): LooseGroup[] {
  *  numbers no column picks up (their layout to correct), and why the file could not be read. */
 export type NotReadRow = {
   item: WorkItem; file: DeliveryFile; loose: LooseGroup[]; marked: Outside[]; unread: Region[]; silent: Region[]; failed: string | null;
+  /** its studies and products are all confirmed with the sheet form: a read table can be set aside whole (`WorkItem.elsewhere`) */
+  elsewhere: boolean;
 };
 
 export function notReadRows(items: WorkItem[], page: DeliveryPage | null): NotReadRow[] {
@@ -1189,7 +1237,7 @@ export function notReadRows(items: WorkItem[], page: DeliveryPage | null): NotRe
     // a note no longer counted beside no table, or beside one no layout reads, was marked as not data by a person
     const marked = file.outside.filter((o) => !o.counted && !(o.region !== null && ["mapped", "waiting"].includes(state.get(o.region) ?? "")));
     const failed = ["failed", "unreadable", "unsupported"].includes(file.state) ? file.reason || "it could not be read" : null;
-    return [{ item, file, loose: looseGroups(file.outside.filter((o) => o.counted)), marked, failed,
+    return [{ item, file, loose: looseGroups(file.outside.filter((o) => o.counted)), marked, failed, elsewhere: Boolean(item.elsewhere),
               unread: file.regions.filter((r) => r.state === "unread"), silent: file.regions.filter((r) => r.state === "mapped" && r.silent > 0) }];
   });
 }
@@ -1223,4 +1271,31 @@ export function columnSummary(columns: { column: number; header: string | null; 
   }
   const ignored = columns.length - read.length;
   return [...parts, ignored ? `${plural(ignored, "column")} not read` : ""].filter(Boolean).join(" · ") || "no column is read";
+}
+
+/** What a batch of "Mark as not data" did, said once (review CODE-10): one file by its name and its loose numbers
+ *  ("OJ-101 plasma means.xlsx: “Note: …” marked as not data."), several collapsed ("45 loose numbers in 3 files marked
+ *  as not data: a.xlsx (12), b.xlsx (30), c.xlsx (3)."), then what is left and the files a refusal kept back. */
+export function markedText(done: { file: string; groups: LooseGroup[] }[], left: number, refused = 0): string {
+  const count = (g: LooseGroup[]) => g.reduce((n, x) => n + x.items.length, 0);
+  const said = !done.length ? "" : done.length === 1 ? `${done[0].file}: ${done[0].groups.map((g) => g.label).join(", ")} marked as not data.`
+    : `${plural(done.reduce((n, d) => n + count(d.groups), 0), "loose number")} in ${plural(done.length, "file")} marked as not data: `
+      + `${done.map((d) => `${d.file} (${count(d.groups)})`).join(", ")}.`;
+  const rest = done.length ? (left ? ` ${plural(left, "loose number")} left.` : " No loose number is left.") : "";
+  return `${said}${rest}${refused ? `${said ? " " : ""}${plural(refused, "file")} not marked: see ${refused === 1 ? "its row" : "their rows"}.` : ""}`;
+}
+
+/** The cells a sheet-form draft's own words name as neither a value nor marked (sheet_form: "Cells say '12.3*',
+ *  '>1000': mark them as 'no sample' or correct the file."), to set as "no sample" when the sheet is read (review OWN-2 c). */
+export function noSampleCells(texts: string[]): string[] {
+  const out: string[] = [];
+  for (const text of texts) {
+    const said = /Cells say (.+?): mark them as 'no sample' or correct the file/.exec(text)?.[1];
+    if (!said) continue;
+    for (const m of said.matchAll(/'((?:[^'\\]|\\.)*)'|"((?:[^"\\]|\\.)*)"/g)) {
+      const token = (m[1] ?? m[2] ?? "").replace(/\\(.)/g, "$1");
+      if (token && !out.includes(token)) out.push(token);
+    }
+  }
+  return out;
 }

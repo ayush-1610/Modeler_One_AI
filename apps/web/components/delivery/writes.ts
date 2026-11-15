@@ -41,7 +41,14 @@ export function writePage(client: QueryClient, projectId: string, page: Page) {
  *  of layouts changed and the files of the layout are being read again. The cards follow when the reading ends. */
 export function writeMapping(client: QueryClient, projectId: string, m: Mapping) {
   const params = { project_id: projectId, mapping_id: m.mapping_id };
+  // every answer of this layout says how each of its tables is read, which the decision changed: read again when shown
+  void client.invalidateQueries({ predicate: (q) => q.queryKey[0] === MAPPING && (q.queryKey[1] as { mapping_id?: string })?.mapping_id === m.mapping_id,
+                                  refetchType: "none" });
   client.setQueryData([MAPPING, params, { version: String(m.version) }], m);
+  // the answer is shown on the table the dialog asked for (the one it was opened from): written under that key too
+  if (m.sample) {
+    client.setQueryData([MAPPING, params, { version: String(m.version), file_sha256: m.sample.file_sha256, region_id: m.sample.region_id }], m);
+  }
   const latest = client.getQueryData<Mapping>([MAPPING, params, {}]);
   if (!latest || latest.version <= m.version) client.setQueryData([MAPPING, params, {}], m);
   void client.invalidateQueries({ predicate: (q) => q.queryKey[0] === CARD, refetchType: "none" });

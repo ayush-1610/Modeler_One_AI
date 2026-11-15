@@ -11,10 +11,13 @@ import { expect, test } from "@playwright/test";
 
 import {
   NEW, NO_TARGET, aboutText, analyteChoice, analyteChoices, areaHead, assignBody, buildWork, collisions, columnSummary, destinationKey, heldBy,
-  layoutRows, linkRows, linkTarget, linkWords, linkedPiece, looseGroups, nextText, normLabel, notReadRows, onDelivery, pairsMeet, prefixAlias,
-  targetProblem, type WorkSources,
+  layoutRows, linkRows, linkTarget, linkWords, linkedPiece, looseGroups, markedText, nextText, noLayoutReads, noSampleCells, normLabel, notReadRows,
+  onDelivery, pairsMeet, prefixAlias, targetProblem, type WorkSources,
 } from "../lib/inputsWork";
-import { alreadyDecidedText, checkLabel, placeText, stepReason } from "../lib/words";
+import {
+  alreadyDecidedText, checkLabel, constantText, escapePattern, layoutFieldText, layoutFindingText, patternWords, placeText, rowRuleText, rowsLeftOut,
+  stepReason, unreadWhy,
+} from "../lib/words";
 
 const load = (name: string): WorkSources => JSON.parse(readFileSync(join(__dirname, "fixtures", "inputs-work", `${name}.json`), "utf8"));
 const copy = <T,>(x: T): T => JSON.parse(JSON.stringify(x));
@@ -520,4 +523,82 @@ test("a sheet-form group of a file linked to a study or product joins its card: 
   expect(after.items.some((i) => i.id === "draft:draft|file-0773300f5a31|pH 6.8")).toBe(false);
   expect(after.subjects.find((s) => s.row?.subject === "pr-12")!.groups.map((g) => g.id)).toContain("sheet:file-0773300f5a31|pH 6.8");
   expect(after.counts.missing).toBeLessThan(before.counts.missing);
+});
+
+// --- the final review's gate, layouts and To do fixes (plan §5 "Final review fixes: the gate, layouts and To do") --------
+
+/** exampleamide's filled template with nothing left but its PK summary's "1,2" and the SD beside it (`silent_cells` as the
+ *  API lists them): what no table layout can read. */
+function stuckTemplate(): WorkSources {
+  const sources = batch();
+  const tpl = sources.delivery!.deliveries.flatMap((d) => d.files).find((f) => f.name === "client-template-filled.xlsx")!;
+  tpl.outside = tpl.outside.map((o) => ({ ...o, counted: false }));
+  const region = tpl.regions.find((r) => r.region_id === "rg-753d65349a")!;
+  region.silent_cells = [{ where: "s:'PK_Summary'!F7", text: "1,2", why: "unparseable" }, { where: "s:'PK_Summary'!G7", text: "0.4", why: "" }];
+  return sources;
+}
+
+test("numbers no table layout can read are not counted, their row says why, and the gate line names the owner's decisions (OWN-2 b, d)", () => {
+  const before = buildWork(batch());
+  const sources = stuckTemplate();
+  const model = buildWork(sources);
+  const tpl = model.items.find((i) => i.id.startsWith("notread:") && i.label.startsWith("client-template-filled.xlsx"))!;
+  expect(tpl.blocked).toBe("“1,2” is not a plain number, so no table layout reads it. Setting a single cell aside as not data waits for the owner's decision;"
+    + " until then, correct the file and send it again.");
+  expect(tpl.open).toBe(false);
+  expect(model.next?.id).not.toBe(tpl.id);
+  expect(model.counts.to_decide).toBe(before.counts.to_decide - 1);
+  // the signatures it holds say so once, with what the owner decides
+  const confirm = model.items.find((i) => i.id === "confirm:study:230-23")!;
+  expect(confirm.gate).toContain("files with numbers not read");
+  expect(confirm.owner).toBe("Two decisions here are the owner's: whether a single cell can be set aside as not data (1 file waits for it),"
+    + " and whether a signature waits for the whole delivery's clean-up or only for its own files'.");
+  expect(before.items.find((i) => i.id === "confirm:study:230-23")!.owner).toBe(
+    "It is the owner's decision whether a signature waits for the whole delivery's clean-up or only for its own files'.");
+  // an SD read by no column, in a row of its own, is a layout's to read: counted
+  expect(noLayoutReads({ silent: 2, silent_cells: [{ where: "s:'PK_Summary'!F7", why: "unparseable" }, { where: "s:'PK_Summary'!G8", why: "" }] })).toBe(false);
+  expect(noLayoutReads({ silent: 3, silent_cells: [{ where: "s:'PK_Summary'!F7", why: "unparseable" }] })).toBe(false);   // not all listed
+  // every study and product of the file confirmed with the sheet form: the whole table can be set aside, so it is counted
+  for (const g of sources.review!.groups.filter((x) => ["study:CL-01", "product:Test 10 mg", "product:Brand 10 mg"].includes(x.id))) g.state = "confirmed";
+  const elsewhere = buildWork(sources).items.find((i) => i.id === tpl.id)!;
+  expect([elsewhere.elsewhere, elsewhere.blocked]).toEqual([true, undefined]);
+  expect(notReadRows([elsewhere], sources.delivery)[0].elsewhere).toBe(true);
+});
+
+test("the words of a layout: fields by their labels, a rule and a fact in a sentence, findings in words, the rows a sample leaves out (OWN-8, OWN-15)", () => {
+  expect(layoutFieldText("pk.AUC_last")).toBe("AUC last (PK parameter)");
+  expect(layoutFieldText("relation.ddi_ratio.AUC_last")).toBe("AUC last ratio, with vs without the interacting drug");
+  expect(layoutFieldText("link.study_id")).toBe("Study named for a link to another file");
+  expect(layoutFieldText("percent_female")).toBe("Women (%)");
+  expect(constantText({ field: "batch", cite: { near: "caption", line: 1 } })).toBe("The batch is read from its caption.");
+  expect(constantText({ field: "ph", cite: { row: 2, column: 3 } })).toBe("The pH is read from the cell in row 2, column 3.");
+  expect(rowRuleText({ column: 1, role: "arithmetic_mean", pattern: "Mean" }, patternWords("Mean"))).toBe("Rows whose column 1 reads “Mean” are arithmetic means.");
+  expect(rowRuleText({ column: 1, role: "exclude", pattern: "%CV", reason: "a ratio" }, "%CV")).toBe("Rows whose column 1 reads “%CV” are not data (left out): a ratio.");
+  expect(patternWords("S\\.D\\.")).toBe("S.D.");
+  expect(patternWords("(?i)\\b(?:batch|lot)")).toBeNull();
+  expect(escapePattern("Mean (SD)")).toBe("Mean \\(SD\\)");
+  const role = { code: "CONSTANT_NOT_STATED", location: "constants[0] (product_role)",
+                 message: "code reads 0 readings where the cited text must state one choice: 'Dissolution of Reference product 50 mg (RLD)'" };
+  expect(layoutFindingText(role, [{ field: "product_role", cite: { near: "caption", line: 1 } }])).toBe("The product's role is not stated in its caption.");
+  expect(layoutFindingText({ code: "CELL_OUTSIDE_REGION", location: "last_data_row", message: "the region has 3 rows" })).toBe("The table has 3 rows.");
+  expect(rowsLeftOut(2, 9, [2, 3, 4, 5, 6, 8, 9])).toBe("Row 7 not shown");
+  expect(rowsLeftOut(2, 30, [2, 3, 4, 5, 6, 28, 29, 30])).toBe("Rows 7 to 27 not shown");
+  expect(rowsLeftOut(2, 4, [2, 3, 4])).toBe("");
+  expect(unreadWhy("")).toBe("no column or row of the layout reads it");
+  expect(unreadWhy("unparseable")).toBe("not a plain number");
+});
+
+test("a batch of numbers marked as not data is said by file; a draft's own words name the cells to read as no sample (CODE-10, OWN-2 c)", () => {
+  const group = (label: string, n: number) => ({ key: label, label, place: "", items: Array.from({ length: n }, () => ({
+    where: "s:'A'!A1", text: "x", region: null, counted: true, decision: null, restored: null })) });
+  expect(markedText([{ file: "OJ-101 plasma means.xlsx", groups: [group("“Note: 2 samples were re-assayed on day 14”", 1)] }], 0))
+    .toBe("OJ-101 plasma means.xlsx: “Note: 2 samples were re-assayed on day 14” marked as not data. No loose number is left.");
+  expect(markedText([{ file: "a.xlsx", groups: [group("12 like “vessel_1” … “vessel_12”", 12), group("3 like “d10”", 3)] },
+                     { file: "b.xlsx", groups: [group("“x”", 1)] }], 4, 1))
+    .toBe("16 loose numbers in 2 files marked as not data: a.xlsx (15), b.xlsx (1). 4 loose numbers left. 1 file not marked: see its row.");
+  expect(markedText([], 0, 2)).toBe("2 files not marked: see their rows.");
+  expect(noSampleCells(["Cells say '12.3*', '>1000': mark them as 'no sample' or correct the file.", "n = 12 is read from B2"]))
+    .toEqual(["12.3*", ">1000"]);
+  expect(noSampleCells(["Cells say \"it's\", 'n\\\\a': mark them as 'no sample' or correct the file."])).toEqual(["it's", "n\\a"]);
+  expect(noSampleCells(["Cells say 'NS': read as no sample (no value at that time)."])).toEqual([]);
 });

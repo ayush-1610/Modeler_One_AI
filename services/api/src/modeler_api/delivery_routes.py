@@ -59,12 +59,13 @@ from modeler_api.views.delivery import (
 )
 from modeler_intake.anchors import AnchorError, check_id, parse_anchor, parse_locator, sha256_of
 from modeler_intake.fields import CONDITION_FIELDS, FIELDS, LABEL_FIELDS, SpreadKind, Statistic, TableKind
+from modeler_intake.mapping.execute import execute
 from modeler_intake.mapping.fingerprint import header_band, layout_fingerprint
-from modeler_intake.mapping.redact import redact
+from modeler_intake.mapping.redact import FIRST_BODY_ROWS, LAST_BODY_ROWS, redact, redact_cell
 from modeler_intake.mapping.validate import validate_spec
-from modeler_intake.mapping_spec import CellForm, Cite, Layout, MappingSpec, Role, RowRule
+from modeler_intake.mapping_spec import CellForm, Cite, Layout, MappingError, MappingSpec, Role, RowRule
 from modeler_intake.source import region_grid
-from modeler_intake.source_model import RegionGrid, SourceDocument
+from modeler_intake.source_model import Finding, RegionGrid, SourceDocument
 from modeler_project import ArtifactKind, Workspace, intake_decisions, intake_files, intake_landing, intake_pipeline, link_carry
 from modeler_project import intake_review as review
 from modeler_project.brief import ProjectBrief
@@ -106,6 +107,7 @@ OFF = ("the intake pipeline is off for this deployment (MODELER_INTAKE_PIPELINE=
 _WAITING = ("queued", "running")
 _PERSON = re.compile(r"^(rd-\d+): ")             # a region a person's decision sets aside: its reason names the decision
 _HEAD_ROWS, _HEAD_COLS, _HEAD_CHARS = 5, 30, 80     # what a table no layout reads shows of itself (`DeliveryRegionHead`)
+_SILENT_CELLS = 50                                  # a read table's unread numbers listed on its region (`silent_cells`)
 _STATUS = {"UNKNOWN": 404, "INVALID": 422, "CONFLICT": 409, "BLINDED": 409, "STALE": 409}
 _ENTITY_ROLES = ("study", "arm", "product", "batch", "analyte")
 _LABEL_ROLES = ("subject", "period", "sequence", "occasion", "vessel", "matrix")
@@ -484,6 +486,65 @@ def _head(doc: SourceDocument | None, region_id: str, blinded: bool) -> dict[str
             "spans": [_spans(grid, row, columns) for row in range(1, last + 1)], "blinded": blinded}
 
 
+def _grid(doc: SourceDocument | None, region_id: str) -> RegionGrid | None:
+    """A table region's grid in a file's source model; None when the model is not cached or the region is no table."""
+    if doc is None:
+        return None
+    try:
+        return region_grid(doc, region_id)
+    except (AnchorError, KeyError, ValueError):
+        return None
+
+
+def _finding(finding: Finding, blinded: bool) -> dict[str, Any]:
+    """A finding of `validate_spec` as an answer gives it: its message's digits masked for a file that holds a blinded
+    study's values (a message may quote the cited text)."""
+    return {"code": finding.code, "location": finding.location,
+            "message": _mask(finding.message) if blinded else finding.message, "severity": finding.severity}
+
+
+def _unread_rules(grid: RegionGrid, spec: MappingSpec) -> dict[str, str]:
+    """Why each cell with a number that this reading of the table leaves unaccounted is left, by its locator: the rule
+    code's reading records for it (`CellUse.rule`, "" when no column or row rule reads it). The stored outcome keeps
+    only the locators, so the spec is executed again on the table's grid, as the pipeline executed it (only for a read
+    table with numbers not read: a few milliseconds each); nothing is written."""
+    try:
+        result = execute(spec, grid)
+    except MappingError:                              # the version has an error on this grid: no reading to explain
+        return {}
+    return {use.locator: use.rule for use in result.cell_use if use.use == "unaccounted" and use.numeric}
+
+
+def _silent_cells(grid: RegionGrid, spec: MappingSpec, locators: Sequence[str], blinded: bool) -> list[dict[str, Any]]:
+    """The cells with a number a read table leaves unread (`DeliveryUnreadCell`; the coverage's own locators, the first
+    50), each with its text as written (null for a file that holds a blinded study's values) and why it is left."""
+    rules = _unread_rules(grid, spec)
+    texts = {cell.locator: cell.text for cell in grid.cells.values() if cell.locator}
+    return [{"where": where, "text": None if blinded else (texts[where][:_HEAD_CHARS] if where in texts else None),
+             "why": rules.get(where, "")} for where in locators[:_SILENT_CELLS]]
+
+
+def _later_approved(scope: _Scope, mapping_id: str, version: int) -> int | None:
+    """The newest approved version of the mapping newer than `version`; None when there is none."""
+    later = [v for (mid, v) in scope.mapping_entries() if mid == mapping_id and v > version
+             and scope.mapping_status(mid, v) == "approved"]
+    return max(later) if later else None
+
+
+def _newer(scope: _Scope, mapping_id: str, later: int | None, grid: RegionGrid, blinded: bool) -> dict[str, Any] | None:
+    """`DeliveryNewerLayout`: the newest approved version `later`, newer than the one the table is read with, when it has
+    an error on the table's own grid (the pipeline reads a table only with a version that has none); None otherwise."""
+    entry = scope.mapping_entries().get((mapping_id, later)) if later is not None else None
+    if entry is None:
+        return None
+    errors = [f for f in validate_spec(entry.spec, grid) if f.severity == "error"]
+    if not errors:
+        return None
+    return {"version": entry.version, "findings": [_finding(f, blinded) for f in errors],
+            "constants": [{"field": c.field, "cite": c.cite.model_dump(mode="json", exclude_none=True), "pattern": c.pattern}
+                          for c in entry.spec.constants]}
+
+
 def _region_state(scope: _Scope, outcome: Any) -> str:
     """A region's state as the page shows it: `waiting` while its mapping is rejected and the coverage still shows the
     rejected reading (the run that follows the rejection has not finished: its earlier values are still active)."""
@@ -520,6 +581,20 @@ def _regions(scope: _Scope, coverage: FileCoverage, decisions: Sequence[RegionDe
             if not docs:
                 docs.append(scope.source_document(coverage.file.sha256))
             head = _head(docs[0], region.id, blinded)
+        # a read table: the numbers its layout leaves unread, and why; and a newer approved version that does not read it
+        silent_cells: list[dict[str, Any]] = []
+        newer = None
+        if region.kind == "table" and mapping is not None and state == "mapped":
+            later = None if scope.reading(coverage.file.sha256) else _later_approved(scope, mapping.mapping_id, mapping.version)
+            entry = scope.mapping_entries().get((mapping.mapping_id, mapping.version))
+            if (found.silent_count and entry is not None) or later is not None:
+                if not docs:
+                    docs.append(scope.source_document(coverage.file.sha256))
+                grid = _grid(docs[0], region.id)
+                if grid is not None:
+                    if found.silent_count and entry is not None:
+                        silent_cells = _silent_cells(grid, entry.spec, found.silent, blinded)
+                    newer = _newer(scope, mapping.mapping_id, later, grid, blinded)
         out.append({
             "region_id": region.id, "kind": region.kind, "where": region.where,
             "caption": None if blinded else region.caption, "table_kind": region.table_kind, "state": state,
@@ -527,7 +602,8 @@ def _regions(scope: _Scope, coverage: FileCoverage, decisions: Sequence[RegionDe
             "mapping_version": mapping.version if mapping else None, "mapping_status": status,
             "numeric_cells": found.numeric_cells, "used": found.used, "excluded": found.excluded,
             "silent": found.silent_count, "decision": _decision(decision, blinded),
-            "restored": _decision(region_restore(mine, region.id, region.kind), blinded), "head": head})
+            "restored": _decision(region_restore(mine, region.id, region.kind), blinded), "head": head,
+            "silent_cells": silent_cells, "newer": newer})
     return out
 
 
@@ -1439,13 +1515,21 @@ def get_source(project_id: str, principal: Reader, store: StoreDep, value: str |
 
 
 class DeliveryMappingApproval(BaseModel):
+    """`file_sha256` and `region_id` (both or neither): the table the answer shows the mapping on (as `GET` takes them)."""
+
     version: int = Field(ge=1)
     note: str = ""
+    file_sha256: str | None = None
+    region_id: str | None = None
 
 
 class DeliveryMappingRejection(BaseModel):
+    """`file_sha256` and `region_id` (both or neither): the table the answer shows the mapping on (as `GET` takes them)."""
+
     version: int = Field(ge=1)
     why: str = Field(min_length=1)
+    file_sha256: str | None = None
+    region_id: str | None = None
 
 
 class DeliveryMappingEdit(BaseModel):
@@ -1481,11 +1565,17 @@ def _tables_of_layout(scope: _Scope, sha256: str, fingerprint: str) -> list[tupl
     return out
 
 
-def _sample_table(scope: _Scope, versions: Sequence[MappingEntry], entry: MappingEntry,
-                  uses: Sequence[dict[str, Any]]) -> tuple[SourceDocument, Any, RegionGrid] | None:
-    """A table of the mapping's layout to show it on: where this version is in use, else where a version was first
-    seen. Only a file with a record in this project, in a source model this project cached."""
+def _sample_table(scope: _Scope, versions: Sequence[MappingEntry], entry: MappingEntry, uses: Sequence[dict[str, Any]],
+                  at: tuple[str, str] | None = None) -> tuple[SourceDocument, Any, RegionGrid] | None:
+    """A table of the mapping's layout to show it on: `at` (a file and its region, as a request names them), else where
+    this version is in use, else where a version was first seen. Only a file with a record in this project, in a source
+    model this project cached. A table named by `at` that is no table of this layout is refused (409)."""
     known = {r.sha256 for r in intake_files.files(scope.ws)}
+    if at is not None:
+        named = next((t for t in _tables_of_layout(scope, at[0], entry.fingerprint) if t[1].id == at[1]), None)
+        if at[0] not in known or named is None:
+            raise _refused(409, "CONFLICT", "that region is not a table of this mapping's layout")
+        return named
     wanted = [(use["file_sha256"], use["region_id"]) for use in uses]
     wanted += [tuple(v.first_seen) for v in (entry, *reversed(versions))]
     for sha, region_id in dict.fromkeys(wanted):
@@ -1497,7 +1587,62 @@ def _sample_table(scope: _Scope, versions: Sequence[MappingEntry], entry: Mappin
     return None
 
 
-def _mapping_view(scope: _Scope, mapping_id: str, version: int | None = None, *, queued: Sequence[str] = ()) -> dict[str, Any]:
+def _sample(scope: _Scope, doc: SourceDocument, region: Any, grid: RegionGrid, spec: MappingSpec,
+            blinded: bool) -> dict[str, Any]:
+    """`DeliveryMappingSample`: the table's context lines, its header rows as the LAYOUT counts them (their cells as
+    written, as each column's header is given; review OWN-15: the header band code finds may count fewer, and a time
+    row across the top was then masked as a body row) and its first 5 and last 3 body rows, every digit masked. A file
+    that holds a blinded study's values: no body row, the digits of the header and of the context masked."""
+    file = scope.file_name(doc.file_sha256) or doc.name
+    shown = redact(grid, region, file_name=file, document_role=doc.role)
+    rows = min(spec.header_rows, grid.n_rows)
+    columns = range(1, grid.n_cols + 1)
+    body_all = list(range(rows + 1, grid.n_rows + 1))
+    body_rows = body_all if len(body_all) <= FIRST_BODY_ROWS + LAST_BODY_ROWS else \
+        body_all[:FIRST_BODY_ROWS] + body_all[-LAST_BODY_ROWS:]
+
+    def written(row: int, column: int) -> str:
+        text = grid.cell(row, column).text.strip()[:_HEAD_CHARS]
+        return _mask(text) if blinded else text
+
+    return {
+        "file_sha256": doc.file_sha256, "file": file, "region_id": region.id, "where": region.where,
+        "n_rows": grid.n_rows, "n_cols": grid.n_cols, "header_rows": rows,
+        "context": [{"near": line.near, "line": line.line, "text": _mask(line.text) if blinded else line.text}
+                    for line in shown.context],
+        "header": [[written(row, c) for c in columns] for row in range(1, rows + 1)],
+        # a blinded study's table: no body row (a redacted body still says which cells are below the LLOQ)
+        "body_rows": [] if blinded else body_rows,
+        "body": [] if blinded else [[redact_cell(grid.cell(row, c).text) for c in columns] for row in body_rows],
+        "blinded": blinded}
+
+
+def _mapping_tables(scope: _Scope, mapping_id: str, entry: MappingEntry,
+                    uses: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
+    """`DeliveryMappingTable`: each table a version of the mapping reads now (one row per table), with the errors the
+    version shown has on it, and the newest approved version when that one does not read it."""
+    docs: dict[str, SourceDocument | None] = {}
+    out: list[dict[str, Any]] = []
+    for use in uses:
+        sha, region_id = use["file_sha256"], use["region_id"]
+        if any(t["file_sha256"] == sha and t["region_id"] == region_id for t in out):
+            continue
+        if sha not in docs:
+            docs[sha] = scope.source_document(sha)
+        grid = _grid(docs[sha], region_id)
+        blinded = sha in scope.blinded_files()
+        row = {"file_sha256": sha, "file": use["file"], "region_id": region_id, "where": use["where"],
+               "version": use["version"], "state": use["state"], "reads": None, "findings": [], "newer": None}
+        if grid is not None:
+            errors = [_finding(f, blinded) for f in validate_spec(entry.spec, grid) if f.severity == "error"]
+            later = None if scope.reading(sha) or use["state"] != "mapped" else _later_approved(scope, mapping_id, use["version"])
+            row.update(reads=not errors, findings=errors, newer=_newer(scope, mapping_id, later, grid, blinded))
+        out.append(row)
+    return out
+
+
+def _mapping_view(scope: _Scope, mapping_id: str, version: int | None = None, *, queued: Sequence[str] = (),
+                  at: tuple[str, str] | None = None) -> dict[str, Any]:
     versions = _versions(scope, mapping_id)
     entry = versions[-1] if version is None else next((e for e in versions if e.version == version), None)
     if entry is None:
@@ -1505,28 +1650,17 @@ def _mapping_view(scope: _Scope, mapping_id: str, version: int | None = None, *,
     spec = entry.spec
     all_uses = _mapping_uses(scope)
     uses = [use for v in versions for use in all_uses.get((mapping_id, v.version), [])]
-    table = _sample_table(scope, versions, entry, all_uses.get((mapping_id, entry.version), []))
+    table = _sample_table(scope, versions, entry, all_uses.get((mapping_id, entry.version), []), at)
     sample, findings, headers = None, [], {}
     if table is not None:
         doc, region, grid = table
-        file = scope.file_name(doc.file_sha256) or doc.name
         blinded = doc.file_sha256 in scope.blinded_files()
-        shown = redact(grid, region, file_name=file, document_role=doc.role)
         headers = {c: " / ".join(t for row in range(1, min(spec.header_rows, grid.n_rows) + 1)
                                  if (t := grid.cell(row, c).text.strip())) for c in range(1, grid.n_cols + 1)}
         if blinded:
             headers = {c: _mask(text) for c, text in headers.items()}
-        sample = {
-            "file_sha256": doc.file_sha256, "file": file, "region_id": region.id, "where": region.where,
-            "n_rows": shown.n_rows, "n_cols": shown.n_cols, "header_rows": shown.header_rows,
-            "context": [{"near": line.near, "line": line.line, "text": _mask(line.text) if blinded else line.text}
-                        for line in shown.context],
-            "header": [[_mask(text) if blinded else text for text in row] for row in shown.header],
-            # a blinded study's table: no body row (a redacted body still says which cells are below the LLOQ)
-            "body_rows": [] if blinded else list(shown.body_rows),
-            "body": [] if blinded else [list(row) for row in shown.body], "blinded": blinded}
-        findings = [{"code": f.code, "location": f.location, "message": _mask(f.message) if blinded else f.message,
-                     "severity": f.severity} for f in validate_spec(spec, grid)]
+        sample = _sample(scope, doc, region, grid, spec, blinded)
+        findings = [_finding(f, blinded) for f in validate_spec(spec, grid)]
     return {
         "mapping_id": mapping_id, "version": entry.version, "status": scope.mapping_status(mapping_id, entry.version),
         "origin": entry.origin, "origin_detail": entry.origin_detail, "fingerprint": entry.fingerprint, "by": entry.by,
@@ -1549,7 +1683,8 @@ def _mapping_view(scope: _Scope, mapping_id: str, version: int | None = None, *,
                       "origin_detail": v.origin_detail, "by": v.by, "at": v.at,
                       "decisions": [{"status": d.status, "why": d.why, "by": d.by, "at": d.at}
                                     for d in scope.mapping_decisions(mapping_id, v.version)]} for v in versions],
-        "used_in": uses, "waiting": any(scope.reading(use["file_sha256"]) for use in uses) or any(
+        "used_in": uses, "tables": _mapping_tables(scope, mapping_id, entry, uses),
+        "waiting": any(scope.reading(use["file_sha256"]) for use in uses) or any(
             scope.reading(sha) for sha in queued), "queued": list(queued), "vocabulary": _VOCABULARY}
 
 
@@ -1563,14 +1698,30 @@ def get_vocabulary(project_id: str, principal: Reader, store: StoreDep) -> dict[
     return envelope(_VOCABULARY)
 
 
-def get_mapping(project_id: str, mapping_id: str, principal: Reader, store: StoreDep,
-                version: int | None = None) -> dict[str, Any]:
+def _table_named(scope: _Scope, file_sha256: str | None, region_id: str | None) -> tuple[str, str] | None:
+    """A table a request names by its file and region (both or neither: 422); the file must have arrived here (404)."""
+    if (file_sha256 is None) != (region_id is None):
+        raise _refused(422, "INVALID", "name the table by its file and its region, both or neither")
+    if file_sha256 is None or region_id is None:
+        return None
+    check_id("sha256", file_sha256)
+    check_id("region", region_id)
+    if intake_files.file_record(scope.ws, file_sha256) is None:
+        raise _refused(404, "UNKNOWN", "no file with that sha256 arrived in this project")
+    return file_sha256, region_id
+
+
+def get_mapping(project_id: str, mapping_id: str, principal: Reader, store: StoreDep, version: int | None = None,
+                file_sha256: str | None = None, region_id: str | None = None) -> dict[str, Any]:
     """A mapping as a person reviews it: each column's header with its role, field and unit, the tokens and row rules,
-    the table as the table mapper is shown it (no digit of its body), every version with its decisions, and where it
-    is in use. `version`: one version (default: the latest)."""
+    a table of its layout (no digit of its body), every version with its decisions, where it is in use, and how the
+    version shown reads each table in use (`tables`). `version`: one version (default: the latest). `file_sha256` and
+    `region_id` (both or neither): the table to show it on, the one a person opened it from (409 when that region is
+    no table of this layout)."""
     scope = _scope(project_id, principal, store)
     with _refusals():
-        return envelope(_mapping_view(scope, check_id("mapping", mapping_id), version))
+        at = _table_named(scope, file_sha256, region_id)
+        return envelope(_mapping_view(scope, check_id("mapping", mapping_id), version, at=at))
 
 
 def _read_again(scope: _Scope, mapping_id: str, fingerprint: str, principal: Any, store: Any, *,
@@ -1595,15 +1746,16 @@ def _read_again(scope: _Scope, mapping_id: str, fingerprint: str, principal: Any
 
 
 def _mapping_decided(scope: _Scope, mapping_id: str, version: int, principal: Any, store: Any, *,
-                     head: int) -> dict[str, Any]:
-    """The mapping after a decision or an edit, its files queued again. `head`: the mappings log's length before it;
-    when the request added no line (the same decision or spec again) only a table that still waits is queued."""
+                     head: int, at: tuple[str, str] | None = None) -> dict[str, Any]:
+    """The mapping after a decision or an edit, its files queued again, shown on the table `at` when one is named.
+    `head`: the mappings log's length before it; when the request added no line (the same decision or spec again) only
+    a table that still waits is queued."""
     scope.refresh()
     entry = scope.mapping_entries()[(mapping_id, version)]
     queued = _read_again(scope, mapping_id, entry.fingerprint, principal, store,
                          only_waiting=scope.store.mappings.head().seq == head)
     scope.refresh()
-    return envelope(_mapping_view(scope, mapping_id, version, queued=queued))
+    return envelope(_mapping_view(scope, mapping_id, version, queued=queued, at=at))
 
 
 def approve_mapping(project_id: str, mapping_id: str, body: DeliveryMappingApproval, principal: Writer,
@@ -1613,11 +1765,12 @@ def approve_mapping(project_id: str, mapping_id: str, body: DeliveryMappingAppro
     scope = _scope(project_id, principal, store)
     with _refusals():
         check_id("mapping", mapping_id)
+        at = _table_named(scope, body.file_sha256, body.region_id)
         if (mapping_id, body.version) not in scope.mapping_entries():
             raise _refused(404, "UNKNOWN", f"no version {body.version} of mapping {mapping_id}")
         head = scope.store.mappings.head().seq
         MappingCache(scope.ws).approve(mapping_id, body.version, by=principal.user_id, note=body.note)
-        return _mapping_decided(scope, mapping_id, body.version, principal, store, head=head)
+        return _mapping_decided(scope, mapping_id, body.version, principal, store, head=head, at=at)
 
 
 def reject_mapping(project_id: str, mapping_id: str, body: DeliveryMappingRejection, principal: Writer,
@@ -1627,11 +1780,12 @@ def reject_mapping(project_id: str, mapping_id: str, body: DeliveryMappingReject
     scope = _scope(project_id, principal, store)
     with _refusals():
         check_id("mapping", mapping_id)
+        at = _table_named(scope, body.file_sha256, body.region_id)
         if (mapping_id, body.version) not in scope.mapping_entries():
             raise _refused(404, "UNKNOWN", f"no version {body.version} of mapping {mapping_id}")
         head = scope.store.mappings.head().seq
         MappingCache(scope.ws).reject(mapping_id, body.version, by=principal.user_id, why=body.why)
-        return _mapping_decided(scope, mapping_id, body.version, principal, store, head=head)
+        return _mapping_decided(scope, mapping_id, body.version, principal, store, head=head, at=at)
 
 
 def _checked_spec(scope: _Scope, raw: dict[str, Any], doc: SourceDocument, grid: RegionGrid) -> MappingSpec:
@@ -1690,7 +1844,8 @@ def edit_mapping(project_id: str, mapping_id: str, body: DeliveryMappingEdit, pr
         elif cache.status(mapping_id, entry.version) == "rejected":
             raise _refused(409, "CONFLICT", f"this spec is version {entry.version}, which a person rejected: a rejected "
                                             "version is never read with (approve that version to use it)")
-        return _mapping_decided(scope, mapping_id, entry.version, principal, store, head=head)
+        return _mapping_decided(scope, mapping_id, entry.version, principal, store, head=head,
+                                at=(doc.file_sha256, region.id) if body.file_sha256 is not None else None)
 
 
 class DeliveryMappingProposal(BaseModel):

@@ -9,9 +9,11 @@ import { useState } from "react";
 import { CleaningRecord, type CleaningLine } from "@/components/client/CleaningRecord";
 import { PeekButton, type PeekSource } from "@/components/kit/SourcePeek";
 import { send, type Schema } from "@/lib/api";
+import { noSampleCells } from "@/lib/inputsWork";
 
 import { DatasetView } from "./DatasetView";
 import type { Run } from "./InputsTodo";
+import { useOpenSheet } from "./openSheet";
 
 type Item = Schema<"ReviewItem">;
 /** A value the project holds for a need: a document's (with its quote), Start's, or the data plan's (build L). */
@@ -45,6 +47,10 @@ export function DraftItem({ projectId, item, run }: { projectId: string; item: I
   const ready = asked.length > 0 && onSheet.length === 0 && asked.every((n) => (values[n] ?? "").trim() !== "");
   const set = (key: string, value: string) => setValues({ ...values, [key]: value });
   const id = (n: string) => `draft-${draft.sid}-${draft.sheet}-${n}`;
+  // its problems are settled where the sheet is read: the cells its own words name, offered there as "no sample"
+  const openSheet = useOpenSheet();
+  const noSample = noSampleCells([...draft.problems, ...draft.notes]);
+  const fix = noSample.length > 0 || draft.problems.length > 0;
   return (
     <div className="draft-item" data-testid={`draft-${draft.sheet}`}>
       {item.data && <DatasetView data={item.data} label={item.label} unsaved />}
@@ -56,6 +62,15 @@ export function DraftItem({ projectId, item, run }: { projectId: string; item: I
       )}
       <CleaningRecord lines={draft.cleaning} testId={`cleaning-${draft.sheet}`} />
       {draft.problems.length > 0 && <ul className="flags" data-testid="draft-problems">{draft.problems.map((p) => <li key={p}>{p}</li>)}</ul>}
+      {fix && openSheet && (
+        <p className="m-0 fs-13">
+          <button type="button" className="btn small" data-testid={`draft-read-sheet-${draft.sheet}`}
+                  onClick={() => openSheet({ file: draft.sid, sheet: draft.sheet, noSample })}>
+            {noSample.length ? `Read this sheet: mark ${noSample.map((t) => `“${t}”`).join(" and ")} as no sample…` : "Read this sheet…"}</button>{" "}
+          <span className="muted">Opens the sheet in Client files{noSample.length ? ", with these cells read as no sample" : ""}: check it, then save
+            the reading. Or correct the file and send it again.</span>
+        </p>
+      )}
       {asked.length > 0 && (
         <fieldset className="draft-form">
           <legend>The sheet does not say: give it here</legend>

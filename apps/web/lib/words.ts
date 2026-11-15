@@ -324,3 +324,153 @@ export function alreadyDecidedText(decided: unknown): string | null {
   const marked = (decided as Earlier[]).some((d) => d.where !== undefined);
   return `${said.join(" ")} ${marked ? "Restore it to decide again." : "The card is read again to show it."}`;
 }
+
+// --- a table's layout, in words (final review OWN-8, OWN-2) ---------------------------------------------------------------
+// The layout dialog and the layout form say a layout's fields, roles, rules and findings in these words; the rule ids,
+// the patterns and the codes stay in a "technical detail" fold. Each name is the intake vocabulary's
+// (`DeliveryMappingVocabulary`, read from `modeler_intake`), never one the web made up.
+
+/** A PK parameter's short name, by the part after `pk.` (the intake's `pk.AUC_last`, `pk.CL/F`). */
+const PK_WORD: Record<string, string> = {
+  AUC_last: "AUC last", AUC_inf: "AUC inf", Cmax: "Cmax", tmax: "tmax", t_half: "half-life", Ctrough: "Ctrough",
+  "CL/F": "CL/F", "Vz/F": "Vz/F",
+};
+/** A field of the intake vocabulary as a layout names it (the layout form's field choices, a column's field), in words:
+ *  "AUC last (PK parameter)", "Cmax ratio, test vs reference", never `pk.AUC_last` or `relation.test_vs_reference.Cmax`. */
+export function layoutFieldText(name: string): string {
+  const pk = (x: string) => PK_WORD[x] ?? spaced(x);
+  let m: RegExpExecArray | null;
+  if ((m = /^pk\.(.+)$/.exec(name))) return `${pk(m[1])} (PK parameter)`;
+  if ((m = /^relation\.ddi_ratio\.(.+)$/.exec(name))) return `${pk(m[1])} ratio, with vs without the interacting drug`;
+  if ((m = /^relation\.test_vs_reference\.(.+)$/.exec(name))) return `${pk(m[1])} ratio, test vs reference`;
+  const words: Record<string, string> = {
+    "excretion.amount": "Amount excreted", "excretion.fraction": "Fraction excreted (%)", "composition.amount": "Amount in the composition",
+    "link.study_id": "Study named for a link to another file", "link.protocol": "Protocol named for a link to another file",
+    "link.cross_reference": "Reference to another file", concentration: "Concentration", percent_dissolved: "Percent dissolved",
+    study_id: "Study", treatment: "Treatment (arm)", product_role: "Product's role", analyte_role: "Analyte's role",
+    molecular_weight: "Molecular weight", subject: "Subject", period: "Period", sequence: "Sequence", occasion: "Occasion",
+    vessel: "Vessel", product: "Product", interval_start_h: "Interval start (h)", interval_end_h: "Interval end (h)",
+  };
+  return words[name] ?? fieldLabel(name);
+}
+/** A field inside a sentence: "the product's role", "the batch", "the pH", "the Cmax (PK parameter)" (a name keeps its capitals). */
+const fieldInSentence = (name: string) => {
+  const t = layoutFieldText(name);
+  return `the ${/^[A-Z][a-z]/.test(t) && !/^(AUC|Cmax|Ctrough|CL|Vz)/.test(t) ? `${t.charAt(0).toLowerCase()}${t.slice(1)}` : t}`;
+};
+
+/** What a column holds (a column's role, `MappingSpec` Role), in words. */
+const ROLE_WORD: Record<string, string> = {
+  time: "time", time_actual: "actual sampling time", time_unit: "time unit, row by row", value: "values", spread: "spread",
+  spread_kind: "kind of spread, row by row", statistic: "statistic, row by row", n: "number of subjects (n)", lloq: "LLOQ",
+  blq_flag: "below-LLOQ flag", interval_low: "interval, low end", interval_high: "interval, high end", subject: "subject",
+  arm: "arm", period: "period", sequence: "sequence", occasion: "occasion", study: "study", analyte: "analyte", matrix: "matrix",
+  product: "product", batch: "batch", vessel: "vessel", other_arm: "the other arm", parameter: "parameter name",
+  condition: "a condition", unit: "unit, row by row", ignore: "not data",
+};
+export const layoutRoleText = (role: string) => ROLE_WORD[role] ?? spaced(role);
+
+/** What a row rule makes of the rows it matches (`RowRule.role`), in words. */
+const ROW_ROLE_WORD: Record<string, string> = {
+  exclude: "not data (left out)", arithmetic_mean: "arithmetic means", geometric_mean: "geometric means", median: "medians",
+  spread: "the spread of the values above", n: "the number of subjects (n)", interval_low: "the interval's low end",
+  interval_high: "the interval's high end",
+};
+export const rowRoleText = (role: string) => ROW_ROLE_WORD[role] ?? spaced(role);
+
+/** Where a table states a thing read once for it (a `Cite`): "its caption", "line 2 of the text above it", "the cell
+ *  in row 2, column 3". */
+export function citeWords(cite: Record<string, unknown>): string {
+  const near: Record<string, string> = { caption: "its caption", above: "the text above it", below: "the text below it" };
+  if (typeof cite.near === "string") {
+    const line = Number(cite.line ?? 1);
+    return `${line > 1 ? `line ${line} of ` : ""}${near[cite.near] ?? spaced(cite.near)}`;
+  }
+  if (cite.row !== undefined && cite.row !== null) return `the cell in row ${String(cite.row)}, column ${String(cite.column)}`;
+  return "the table";
+}
+
+/** A fact read once for the whole table (a `Constant`), in a sentence: "The batch is read from its caption." */
+export const constantText = (c: { field: string; cite: Record<string, unknown> }) => {
+  const f = fieldInSentence(c.field);
+  return `${f.charAt(0).toUpperCase()}${f.slice(1)} is read from ${citeWords(c.cite)}.`;
+};
+
+/** A row rule (`RowRule`) in a sentence: "Rows whose column 1 reads “Mean” are arithmetic means." `literal`: the words
+ *  the rule matches, when its pattern is plain words (else it is a pattern, said in the technical detail). */
+export function rowRuleText(r: { column: number; role: string; pattern: string; reason?: string | null }, literal: string | null): string {
+  const what = literal !== null ? `reads “${literal}”` : "matches a pattern (technical detail)";
+  return `Rows whose column ${r.column} ${what} are ${rowRoleText(r.role)}${r.role === "exclude" && r.reason ? `: ${r.reason}` : ""}.`;
+}
+
+/** The words a pattern matches when it is plain words with its special characters escaped ("Mean", "S\\.D\\."), else
+ *  null. A row rule's text matches its cell whole, upper or lower case alike. */
+export function patternWords(pattern: string): string | null {
+  const plain = pattern.replace(/\\(.)/g, "$1");
+  return escapePattern(plain) === pattern ? plain : null;
+}
+/** Plain words as a pattern that matches them as written (a row rule's text typed in the layout form). */
+export const escapePattern = (words: string) => words.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/** A layout's origin and who made it ("suggested by the template rules", "entered by dev-user"): never the rule's id. */
+export const layoutMadeBy = (origin: string, by: string, detail = "") =>
+  origin === "person" ? `entered by ${detail || by}` : layoutOrigin(origin);
+
+/** What code found wrong when a layout version is checked on a table (`DeliveryMappingFinding`), in a person's words.
+ *  `constants`: the layout's facts read once for the table, which a finding's location names by number. The code and
+ *  the location are for the technical detail; a message this does not know is given with its engine words replaced. */
+export function layoutFindingText(f: { code: string; location: string; message: string },
+                                  constants: { field: string; cite: Record<string, unknown> }[] = []): string {
+  const constant = /^constants\[(\d+)\]/.exec(f.location);
+  const c = constant ? constants[Number(constant[1])] : undefined;
+  const fieldIn = /\(([^)]+)\)\s*$/.exec(f.location)?.[1];
+  if (f.code === "CONSTANT_NOT_STATED" && (c || fieldIn)) {
+    const what = fieldInSentence(c?.field ?? fieldIn!);
+    const where = c ? citeWords(c.cite) : "the text it is read from";
+    const many = /reads (\d+) readings/.exec(f.message);
+    const said = many && Number(many[1]) === 0 ? "is not stated in" : many ? `is stated ${many[1]} times in` : / as ambiguous /.test(f.message)
+      ? "is written ambiguously in" : /at the cite, not/.test(f.message) ? "reads otherwise in" : "is not stated in";
+    return `${what.charAt(0).toUpperCase()}${what.slice(1)} ${said} ${where}.`;
+  }
+  if (f.code === "CONSTANT_NOT_STATED" && f.location === "time_reference") return "When the times are counted from is not stated where the layout says.";
+  if (f.code === "UNIT_NOT_STATED" || f.code === "UNIT_NOT_CITED") {
+    const unit = /unit '([^']+)'/.exec(f.message)?.[1];
+    return `The unit${unit ? ` “${unit}”` : ""} is not written where the layout says.`;
+  }
+  const text = f.message.replace(/\bthe region\b/g, "the table").replace(/\bregion\b/g, "table").replace(/\bthe cited text\b/g, "the text it is read from")
+    .replace(/\(([a-z_]+)\)/g, (_m, k: string) => `(${spaced(k)})`);
+  return `${text.charAt(0).toUpperCase()}${text.slice(1)}${/[.!?]$/.test(text) ? "" : "."}`;
+}
+
+/** Why a read table's number is not read (`DeliveryUnreadCell.why`, the reading's own rule), in words. */
+const UNREAD_WHY: Record<string, string> = {
+  "": "no column or row of the layout reads it", unparseable: "not a plain number", time_unparseable: "its time is not a plain number",
+  qualifier_twice: "a second spread, n or interval for the same value", lloq_differs: "its LLOQ is not the table's",
+  time_unit_conflict: "it writes another time unit than its column",
+};
+export const unreadWhy = (rule: string) => UNREAD_WHY[rule] ?? spaced(rule);
+/** The reasons no table layout can clear: the number is written so that no reading takes it (a single cell could only
+ *  be set aside as not data, which waits for the owner's decision). */
+export const UNREADABLE = new Set(["unparseable", "time_unparseable"]);
+
+/** The rows of a table's body a sample leaves out (review OWN-15), in words: "Row 6 not shown", "Rows 6 to 20 not
+ *  shown", "Rows 6 and 9 to 12 not shown"; "" when every row from `first` to `last` is shown. */
+export function rowsLeftOut(first: number, last: number, shown: number[]): string {
+  const seen = new Set(shown);
+  const runs: [number, number][] = [];
+  for (let r = first; r <= last; r += 1) {
+    if (seen.has(r)) continue;
+    const run = runs[runs.length - 1];
+    if (run && run[1] === r - 1) run[1] = r; else runs.push([r, r]);
+  }
+  if (!runs.length) return "";
+  const one = runs.length === 1 && runs[0][0] === runs[0][1];
+  const said = runs.map(([a, b]) => (a === b ? `${a}` : `${a} to ${b}`));
+  return `${one ? "Row" : "Rows"} ${said.length > 1 ? `${said.slice(0, -1).join(", ")} and ${said[said.length - 1]}` : said[0]} not shown`;
+}
+
+/** Findings said inside a sentence ("does not read it: the product's role is not stated in its caption; …"): each in
+ *  words, its first letter small and its full stop dropped. */
+export const findingsInline = (findings: { code: string; location: string; message: string }[],
+                               constants: { field: string; cite: Record<string, unknown> }[] = []) =>
+  findings.map((f) => layoutFindingText(f, constants).replace(/\.$/, "")).map((t) => `${t.charAt(0).toLowerCase()}${t.slice(1)}`).join("; ");

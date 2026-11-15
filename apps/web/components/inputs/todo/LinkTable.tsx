@@ -94,13 +94,15 @@ function asTheFilesSay(rows: LinkRow[]): string {
 const studiesOf = (sends: Send[]) => [...new Set(sends.filter((s) => s.row.pairs.length && s.target.study && s.target.study !== NEW).map((s) => s.target.study))].sort();
 const rowOf = (key: string) => key.split("#")[0];
 
-export function LinkTable({ projectId, items, subjects, heading }: {
+export function LinkTable({ projectId, items, subjects, heading, shared }: {
   projectId: string;
   /** the work model's link and alias items shown (To do's filters applied) */
   items: WorkItem[];
   subjects: Subject[];
   /** the group heading's element id: where the focus goes when the last row is linked */
   heading: string;
+  /** the reason the group says once for every row: a row's chip says only a reason of its own (review CODE-9) */
+  shared?: string;
 }) {
   const page = useResource(DELIVERY, { project_id: projectId }).data;
   const client = useQueryClient();
@@ -221,7 +223,8 @@ export function LinkTable({ projectId, items, subjects, heading }: {
     setPicked((was) => new Set([...was].filter((s) => !done.some((r) => r.sha === s))));
     if (done.length) {
       const left = rows.length - done.length;
-      const whereOf = (r: LinkRow) => [...new Set(plan(r).map((s) => whereText(s.target, current, s.row)))].join(" and ");
+      // where each went, as the page now holds it: a study or arm the batch made is named as it now is, not "(new)" (CODE-10)
+      const whereOf = (r: LinkRow) => [...new Set(plan(r).map((s) => whereText(made(s.target, page!, current), current, s.row)))].join(" and ");
       announce(`${done.map((r) => r.file).join(", ")} linked to ${[...new Set(done.map(whereOf))].join("; ")}. `
         + `${left ? `${plural(left, "file")} left to link.` : "Every file is linked."}${Object.keys(failed).length ? ` ${plural(Object.keys(failed).length, "file")} not linked: see its row.` : ""}`);
       const decided = done.map((r) => `link-${r.fileId}`);
@@ -289,7 +292,7 @@ export function LinkTable({ projectId, items, subjects, heading }: {
                 <div className="batch-what">
                   <strong>{r.file}</strong>
                   <span className="muted">{r.holds}</span>
-                  {r.item.why && r.item.group !== "tidy" && <span className="chip neutral" title={r.item.why}>holds up nothing yet</span>}
+                  {r.item.why && r.item.group !== "tidy" && r.item.why !== shared && <span className="chip neutral" title={r.item.why}>holds up nothing yet</span>}
                 </div>
                 <div className="batch-where" data-testid={`link-to-${r.fileId}`}>
                   {asking(r) && !split ? (

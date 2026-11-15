@@ -329,8 +329,10 @@ before the next starts.
     a link unless the page read it in the last 10 s; a card not read is never taken as empty, and one that cannot be read
     refuses the link). It refuses before anything is sent, offering an arm each.
   - **Numbers not read:** per-cell "not data" (API 3) waits for the owner; tables with numbers no column picks up offer
-    "Check its layout" (marking a whole read table as not data stays in the file's own view). What is marked in To do is
-    listed under the table with "Restore…" for the visit, since a file's row leaves the list once nothing is left.
+    "Check its layout" (marking a whole read table as not data stays in the file's own view; since the final review it is
+    offered in To do too where the file's studies are confirmed with the sheet form). What is marked in To do is listed
+    with "Restore…" for the visit, since a file's row leaves the list once nothing is left (since the final review, kept
+    by To do after the table's last row goes too).
   - **Missing compound values:** a missing row of /inputs carries no unit, so the unit is typed as the source states
     it, as in the row's own form (pre-filled only where the API gives one); the web supplies no unit. The names are the
     rows' ids in words (`lib/words.ts`). A pKa and an elimination value are then settled under "Settle disagreements".
@@ -424,3 +426,52 @@ before the next starts.
   only read with the sheet form. The join reads both.
 - **A disagreement's subject:** the card's To do lists a subject's disagreements under one line ("Subject 001, period
   I: 11 disagreements"), open while three subjects or fewer have any; To do lists them flat, each naming its subject.
+
+### Final review fixes: the gate, layouts and To do (2026-11-15; OWN-2, OWN-15, A11Y-2, CODE-2, CODE-3, CODE-5, CODE-9, CODE-10, OWN-8's layout part, the owner-job gaps 2 and 5; CHANGELOG "Fixed — final review, the gate, layouts and To do")
+- **The read-only part of API 3 is built; per-cell "not data" is not.** A read table's numbers not read are listed on
+  its region (`DeliveryRegion.silent_cells`, the first 50 of the coverage's own locators, each with its text, withheld
+  for a blinded study's file, and why), so "Show them" names the cells. The why is the rule code's reading records
+  (`CellUse.rule`), which the stored outcome does not keep: the table's layout is executed again on its grid for the
+  view (nothing is written; memoised by file, parser, region and spec). Setting a single cell aside (the exclusion scope
+  `cells`) stays the owner's review (§3 row 3). Where every study and product read from a file is confirmed with the
+  sheet form (none signed on the delivery), a read table's whole "Not data…" is offered in To do as well as in Client
+  files: nothing loaded or signed is lost.
+- **§2.2.5 extended: what cannot be settled on this page is not counted.** Besides a blinded study's items and a layout
+  being read again, a numbers-not-read item is left out of Next and of the counts, its row saying why, when all that is
+  left of its file is numbers in read tables that are not plain numbers ("1,2" in a point-decimal table, `unparseable`,
+  `time_unparseable`) and the cells in the same sheet row as one (its SD or n then qualifies no value: the reading
+  records no rule for those, so the row is the web's reading, `noLayoutReads`). Only per-cell "not data" (the owner's)
+  or a corrected file clears them; a file confirmed elsewhere (above) is counted, since its table can be set aside. The
+  gate line, in To do and on the card, says in one sentence what still needs the owner's decision: the per-delivery gate
+  (contracts §11.10) always, per-cell "not data" when an item waits for it.
+- **A table the newest approved version cannot read** is said where it is read (`DeliveryRegion.newer`, `DeliveryMapping.
+  tables[].newer`): the pipeline reads a table only with an approved version that has no error on its grid, so RLD stays
+  on version 1 while version 2 reads Test's caption's product role (RLD's caption names "Reference" and "RLD"). The
+  dialog opens at the row's version and table and offers "Correct the layout for this table…" there. **Not changed, for
+  the owner (science-adjacent):** `intake_pipeline._choose` ranks the approved versions that read a table by the numbers
+  they leave unread, then the facts they read, then the newest. A version corrected for one table that reads all its
+  numbers is therefore also chosen for another table of the layout when it leaves fewer of that table's numbers unread,
+  even if it reads fewer facts there: in the e2e, the version made for RLD (no product role, Mean, SD and %CV set aside)
+  is then read on Test too, which loses its product role until Test's own correction (from version 2, with the same
+  columns set aside) is stored and approved. The dialog's tables say which version reads each table, so this is seen;
+  the ranking itself is not changed here.
+- **"Read this sheet" from a sheet-form draft** reads the cells to mark as no sample from the draft's own sentence
+  (`sheet_form`: "Cells say '12.3*', '>1000': mark them as 'no sample' or correct the file", `noSampleCells`), not from a
+  field of the API. API follow-up: the draft's unread cell texts as data. The opener is a context of the Inputs page
+  (`components/inputs/openSheet.ts`); elsewhere the draft shows no button.
+- **The dialog's table** is the layout's header rows as written (their cells are each column's header, already shown
+  unmasked in "Each column") and its first 5 and last 3 body rows masked; it is no longer "the table as the mapper is
+  shown it" (the LLM's redacted payload, `mapping.redact`, is unchanged and still uses the header band code finds).
+- **Layout form:** a row rule is set by the words its cell reads, matched whole (escaped); a rule written as a pattern
+  is kept as it is and edited as text. A fact read once is kept, read from another place (a cell, the caption, a line
+  beside the table) or no longer read; its pattern, and the label keys of a key-value table, are still edited as text.
+  Fields, roles and statistics are named by their labels (`lib/words.ts`, `layoutFieldText`; the intake's ids in the
+  technical detail).
+- **To do keeps for the visit** the layout dialog (the queue, or one layout opened from a table's row) and what was
+  marked as not data (`components/inputs/todo/visit.tsx`): both outlive the batch table's last row. Leaving To do for
+  another area ends the visit (the list and an open dialog go), as before.
+- **The dialog's focus safety net** (`Dialog.tsx`) watches the topmost panel for a focus that leaves to the page and for
+  a change inside it (a removed focused element fires no event in every browser), and gives the panel the focus back.
+- The slice-4 note "What is marked in To do is listed under the table with 'Restore…' for the visit" holds now after the
+  last row too; the owner-job e2e's gaps 2 and 5 (CHANGELOG "Added — an end-to-end test of the owner's whole job") are
+  fixed here.
