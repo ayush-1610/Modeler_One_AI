@@ -1,7 +1,8 @@
 "use client";
 
+import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { BriefList } from "@/components/brief/BriefList";
@@ -12,12 +13,13 @@ import { Banner, PageShell } from "@/components/kit";
 import { TabPanel, Tabs } from "@/components/kit/Tabs";
 import { narrow, send, type Envelope, type Narrow, type Schema } from "@/lib/api";
 import { TAG_LABELS } from "@/lib/fileTags";
-import { useMutation, useRefresh, useResource } from "@/lib/hooks";
+import { HeldReads, readAgain, useMutation, useResource, type After } from "@/lib/hooks";
 import { areaHead, cardAnchor, type InputsLike, nextText, releaseOf, type Subject, type WorkItem } from "@/lib/inputsWork";
 import { type ArtifactView, STEP_ROUTES } from "@/lib/pipeline";
 import { AREA_NAME, STATUS_MEANS, plural as count, valueWord } from "@/lib/words";
 
 import { AddDataMenu } from "./AddDataMenu";
+import { DOCUMENTS, FILES, MODEL, SEARCH, inputsAfter } from "./after";
 import { SheetGroups } from "./ClientConfirm";
 import { ClientFilesTab, type FilesShown } from "./ClientFilesTab";
 import { type CardEnv, type CardFocus, focused } from "./cards/ConfirmPath";
@@ -65,7 +67,8 @@ function FormulationChoice({ study, options, projectId, run }: { study: string; 
       <input placeholder="why" value={reason} onChange={(e) => setReason(e.target.value)} className="w-160" />
       <button className="btn" disabled={!reason.trim() || !value}
               onClick={() => void run(() => send("put", "/api/v1/projects/{project_id}/inputs/choices", { project_id: projectId },
-                                                 { kind: "formulation", key: study, value, reason }), `${study}: ${value}.`)}>Choose</button>
+                                                 { kind: "formulation", key: study, value, reason }), `${study}: ${value}.`,
+                                      inputsAfter(projectId, []))}>Choose</button>
     </div>
   );
 }
@@ -116,15 +119,29 @@ function LiteratureProgress({ r }: { r: LiteratureRun }) {
   );
 }
 
+type WorkspaceProps = { projectId: string; initialTab?: string; initialOnly?: boolean; initialStatus?: string; steps?: ReactNode };
+
 /** Step 2 · Inputs (redesign §3.2): one workspace in PK-Sim's building blocks. Values flow in from every source not
  *  excluded and the source-selection rule keeps one per input (D-32). The frame (plan 2026-11-14 slice 1): a compact head
  *  with "Add data", the step bar, and a bar of areas that stays in view; To do lists the one list of work (slice 2,
  *  lib/inputsWork.ts), each item opening where it is settled, and Client files holds the files, their reading and the
  *  delivery. Every count on the page is read from that one list. The area and To do's filters are in the URL
- *  (`?tab=…&only=1&status=…`). Nothing is accepted here: the one review is at the MAP signature (D-27). */
-export function InputsWorkspace({ projectId, initialTab, initialOnly, initialStatus, steps }: {
-  projectId: string; initialTab?: string; initialOnly?: boolean; initialStatus?: string; steps?: ReactNode;
-}) {
+ *  (`?tab=…&only=1&status=…`). Nothing is accepted here: the one review is at the MAP signature (D-27). The page holds
+ *  what it has read for the visit (`HeldReads`; final review CODE-4): an area shown again reads nothing it holds, and a
+ *  decision reads again only what it changed (`after.ts`, `components/delivery/writes.ts`). */
+export function InputsWorkspace(props: WorkspaceProps) {
+  return <HeldReads><Workspace {...props} /></HeldReads>;
+}
+
+/** The step bar's say on Inputs, from the readiness the inputs answer with: its state and what it waits on
+ *  (`modeler_project.steps.inputs_step`). */
+function stepSays(readiness: View["readiness"]): string | null {
+  if (!readiness) return null;
+  const failing = (readiness.content?.checks ?? []).filter((c) => !c.ok).map((c) => c.check);
+  return JSON.stringify([readiness.status, Boolean(readiness.content?.ready), failing]);
+}
+
+function Workspace({ projectId, initialTab, initialOnly, initialStatus, steps }: WorkspaceProps) {
   const page = useResource("/api/v1/projects/{project_id}/inputs", { project_id: projectId }, { select: (d) => narrow<View>(d) });
   const client = useResource("/api/v1/projects/{project_id}/client-data", { project_id: projectId },
     { select: (d) => narrow<ClientView>(d), poll: (d) => d.running });
@@ -151,16 +168,22 @@ export function InputsWorkspace({ projectId, initialTab, initialOnly, initialSta
   const [sheetAsk, setSheetAsk] = useState<SheetAsk | null>(null);
   const shown: FilesShown = {
     open: filesOpen, memory: { last: lastSheet, remember: rememberSheet }, ask: sheetAsk,
-    toggle: (id) => setFilesOpen((was) => {
-      const next = new Set(was);
-      if (!next.delete(id)) next.add(id);
-      return next;
-    }),
+    toggle: (id) => {
+      setFilesOpen((was) => {
+        const next = new Set(was);
+        if (!next.delete(id)) next.add(id);
+        return next;
+      });
+      // a card's ask is spent once its file's row is closed: opened again, the row shows the file as it is, not the reader
+      // with the ask's cells added again (round 2's gate-todo skeptic)
+      if (filesOpen.has(id) && sheetAsk?.file === id) setSheetAsk(null);
+    },
   };
   const review = useResource("/api/v1/projects/{project_id}/client-review", { project_id: projectId });
   const literature = useResource("/api/v1/projects/{project_id}/literature-run", { project_id: projectId },
     { poll: (d) => d.running, interval: 5000 });
-  const refresh = useRefresh();
+  const queries = useQueryClient();
+  const router = useRouter();
   // a file read by code or by the agent brings values onto the cards, whichever area is open
   const deliveryPage = useDeliveryRefresh(projectId);
   useReadingRefresh(projectId);
@@ -183,16 +206,16 @@ export function InputsWorkspace({ projectId, initialTab, initialOnly, initialSta
   useEffect(() => { setOnlyState(urlOnly); }, [urlOnly]);
   useEffect(() => { setStatusState(isStatus(urlStatus)); }, [urlStatus]);
 
-  const run: Run = async <T,>(fn: () => Promise<Envelope<T>>, ok: string) => {
-    const { problem } = await mutation.run(fn);
+  const run: Run = async <T,>(fn: () => Promise<Envelope<T>>, ok: string, after: After<T>) => {
+    const { problem } = await mutation.run(fn, after);
     setNotice(problem ? { ok: false, text: problem } : ok ? { ok: true, text: ok } : null);
     return problem;
   };
 
   // a file's tag files it under the area of its data (plan 2026-11-05 §3.1): changed, the file moves there
   const retag: Retag = (file, kind) => run(retagCall(projectId, file, kind),
-                                           `${file.file}: ${TAG_LABELS[kind].toLowerCase()}, ${whereShown(kind)}.`);
-  const clientAct: Act = (fn) => run(fn, "");
+                                           `${file.file}: ${TAG_LABELS[kind].toLowerCase()}, ${whereShown(kind)}.`, FILES);
+  const clientAct: Act = (fn, after) => run(fn, "", after);
   const clientSaved = async (m: string) => setNotice({ ok: true, text: m });
 
   // the literature agent's end is said once, with what it found, when the page saw it searching
@@ -202,16 +225,17 @@ export function InputsWorkspace({ projectId, initialTab, initialOnly, initialSta
     else if (searching.current && literature.data) {
       searching.current = false;
       setNotice({ ok: true, text: `The literature agent finished: ${plural(literature.data.proposed, "value")} proposed, in the rows below.` });
-      void refresh();
+      // what it proposed is in the model's inputs and the evidence, its sources in the documents
+      void readAgain(queries, [...MODEL.reads!, DOCUMENTS]);
     }
   }, [running]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function askLiterature() {
     const problem = await run(() => send("post", "/api/v1/projects/{project_id}/evidence:research", { project_id: projectId }),
-                              "PubChem, the FDA label and ChEMBL are being read; then the literature agent searches what is still missing.");
+                              "PubChem, the FDA label and ChEMBL are being read; then the literature agent searches what is still missing.", SEARCH);
     if (problem && /already in progress/.test(problem)) {   // started elsewhere: its progress is shown, not a refusal
       setNotice(null);
-      await refresh();
+      await readAgain(queries, SEARCH.reads!);
     }
   }
 
@@ -219,9 +243,20 @@ export function InputsWorkspace({ projectId, initialTab, initialOnly, initialSta
     if (!stale || assembled.current) return;
     assembled.current = true;
     // in the background: it reports only a problem, so it never wipes the message of what the person just did
-    void mutation.run(() => send("post", "/api/v1/projects/{project_id}/inputs:assemble", { project_id: projectId }))
+    void mutation.run(() => send("post", "/api/v1/projects/{project_id}/inputs:assemble", { project_id: projectId }), inputsAfter(projectId, []))
       .then(({ problem }) => { if (problem) setNotice({ ok: false, text: problem }); });
   }, [stale]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // the step bar is drawn on the server from the readiness: drawn again when what it says on Inputs changes (a change
+  // assembled the inputs again, a reading or the literature brought values in), not after every decision (final review
+  // OWN-7: a decision on a card leaves it as it was)
+  const says = view ? stepSays(view.readiness) : null;
+  const said = useRef<string | null>(null);
+  useEffect(() => {
+    if (says === null) return;
+    if (said.current !== null && said.current !== says) router.refresh();
+    said.current = says;
+  }, [says]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const head = { tone: "inputs" as const, steps, eyebrow: "Step 2 of 4", title: "Inputs", noReveal: true, slim: true,
                  lede: "Fill in what the model needs and confirm the client's data." };
@@ -260,7 +295,7 @@ export function InputsWorkspace({ projectId, initialTab, initialOnly, initialSta
   // ranked below the client and the literature (D-32), and the person checks them at the review like any other
   async function take(templateId: string) {
     const { data, problem } = await mutation.run(() => send("post", "/api/v1/projects/{project_id}/evidence:published-model",
-                                                            { project_id: projectId }, { template_id: templateId }));
+                                                            { project_id: projectId }, { template_id: templateId }), MODEL);
     setNotice(problem ? { ok: false, text: problem } : data ? { ok: true, text:
       `The published OSP ${data.model} model: ${data.values} values and ${data.datasets} datasets added`
       + (data.already ? `, ${data.already} already here` : "") + (data.skipped.length ? `; ${data.skipped.length} not taken (not plasma data of the drug)` : "")
@@ -434,7 +469,7 @@ export function InputsWorkspace({ projectId, initialTab, initialOnly, initialSta
                      onFindObserved={client.data?.agents.enabled ? () => {
                        setTab("studies");
                        void run(() => send("post", "/api/v1/projects/{project_id}/evidence:research", { project_id: projectId }, undefined, { agent: "A3" }),
-                                "The observed-data agent is searching; datasets appear under Every dataset as it records them.");
+                                "The observed-data agent is searching; datasets appear under Every dataset as it records them.", SEARCH);
                      } : undefined}>
           <button type="button" className="menu-item" data-testid="ask-literature" disabled={running} onClick={() => void askLiterature()}
                   title="PubChem, the FDA label and ChEMBL by code, then the literature agent (when agents are on)">

@@ -13,6 +13,7 @@ import { PeekButton, type PeekSource } from "@/components/kit/SourcePeek";
 import { send, type Schema } from "@/lib/api";
 import { noSampleCells } from "@/lib/inputsWork";
 
+import { sheetReadAfter } from "./after";
 import { DatasetView } from "./DatasetView";
 import type { Run } from "./InputsTodo";
 import { useOpenSheet } from "./openSheet";
@@ -132,7 +133,7 @@ export function DraftItem({ projectId, item, run, known = {} }: {
           <button type="button" className="btn primary" disabled={!ready} data-testid={`finish-${draft.sheet}`}
                   onClick={() => void run(() => send("post", "/api/v1/projects/{project_id}/client-review:finish", { project_id: projectId },
                                                      { file: draft.sid, sheet: draft.sheet, answers: values }),
-                                          `${draft.sheet}: read. Its data are on the card, to confirm.`)}>
+                                          `${draft.sheet}: read. Its data are on the card, to confirm.`, sheetReadAfter(projectId))}>
             Read these data
           </button>
           <span className="muted fs-12">Nothing loads until the {draft.kind === "dissolution" ? "product" : "study"} is confirmed.</span>

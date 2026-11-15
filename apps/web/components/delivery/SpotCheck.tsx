@@ -17,6 +17,7 @@ import { drawText, spotGroupText, whenText } from "@/lib/words";
 
 import { Problem, TUPLE_HEADS, TupleCells, fieldText, num, plural, timeText, useDecide, valueText, type Subject } from "./shared";
 import { ValueSource } from "./ValueSource";
+import { spotAfter } from "./writes";
 
 type Spot = Schema<"DeliverySpotCheck">;
 type SpotValue = Schema<"DeliverySpotValue">;
@@ -86,14 +87,14 @@ export function SpotCheck({ projectId, subject }: { projectId: string; subject: 
       setDrawn(null); setShowing(true); setTicks({}); setSource(null); setUnfolded(true);
       return;
     }
-    const { data } = await decide(() => send("post", DRAW, params));
+    const { data } = await decide(() => send("post", DRAW, params), spotAfter(projectId, subject.subject_type, subject.subject));
     if (data) { setDrawn(data); setTicks({}); setSource(null); setUnfolded(true); }
   }
 
   async function submit() {
     if (!spot?.draw) return;
     const body = { draw_id: spot.draw.id, ticks: spot.wanted.map((value_id) => ({ value_id, ok: ticks[value_id]?.ok === true, note: ticks[value_id]?.note ?? "" })) };
-    const { data } = await decide(() => send("post", TICKS, params, body));
+    const { data } = await decide(() => send("post", TICKS, params, body), spotAfter(projectId, subject.subject_type, subject.subject));
     if (data) { setDrawn(data); setTicks({}); setUnfolded(false); }
   }
 

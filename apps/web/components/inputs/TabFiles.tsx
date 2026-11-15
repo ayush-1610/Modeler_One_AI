@@ -10,6 +10,7 @@ import type { ClientFile } from "@/components/client/types";
 import { apiFile, upload } from "@/lib/api";
 import { type DataTab, TAG_TAB, type TagKind, guessStudy, tagFor, tagsField } from "@/lib/fileTags";
 
+import { FILES } from "./after";
 import type { Run } from "./InputsTodo";
 
 export const AREA_LABEL: Record<DataTab, string> = {
@@ -53,7 +54,7 @@ export async function addClientFiles(projectId: string, run: Run, list: FileList
   const elsewhere = tagged.filter((t) => TAG_TAB[t.tag] !== tab).map((t) => `${t.file.name} is ${whereShown(t.tag)}, by its name`);
   await run(() => upload("/api/v1/projects/{project_id}/client-data", { project_id: projectId }, form),
             `${plural(files.length, "file")} stored.${elsewhere.length ? ` ${elsewhere.join("; ")}.` : ""}`
-            + " Each has a row under Client files: open it there, check each data sheet's reading and save it.");
+            + " Each has a row under Client files: open it there, check each data sheet's reading and save it.", FILES);
 }
 
 /** Download the client-data template (named as the project names it); answers why it could not be, or null. */

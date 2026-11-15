@@ -2,6 +2,7 @@
 // The ModelPlan JSON is the record; the canvas only renders it and sends changes, each with a reason.
 
 import { send, type Schema } from "@/lib/api";
+import type { After } from "@/lib/hooks";
 
 // The plan page as the API sends it (generated from the contract; the plan is the owner's ModelPlan model).
 export type PlanView = Schema<"PlanPage">;
@@ -21,6 +22,15 @@ export const ROLE_LABEL: Record<Role, string> = {
 };
 
 const project = (projectId: string) => ({ project_id: projectId });
+
+/** What a change on Review & sign makes stale (`useMutation`'s `After`): the plan, its review table and the blinding the
+ *  page reads; the inputs and the evidence, which leaving a value or a study out changes (read when next shown); and the
+ *  step bar, drawn on the server, which the plan's state and the signature move. */
+export const PLAN_CHANGED: After = {
+  reads: ["/api/v1/projects/{project_id}/plan", "/api/v1/projects/{project_id}/plan/review", "/api/v1/projects/{project_id}/blinding",
+          "/api/v1/projects/{project_id}/steps", "/api/v1/projects/{project_id}/inputs", "/api/v1/projects/{project_id}/evidence"],
+  server: true,
+};
 
 // The canvas's changes, each a typed route; the page reads the plan with useResource and runs these with useMutation.
 export const planApi = {

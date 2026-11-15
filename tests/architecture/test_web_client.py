@@ -7,8 +7,9 @@ path parameters, body and answer type follow from the contract. The untyped help
 only exported function of the client that takes a URL is `apiFile`, the download of a file route. A raw `fetch`
 anywhere else in the app fails here too.
 
-A client page reads a typed route with `useResource` and changes state with `useMutation` (`lib/hooks.ts`, phase 7d),
-so a change refreshes the page's resources and the phase rail. Only the hooks import the typed browser read `get`.
+A client page reads a typed route with `useResource` and changes state with `useMutation` (`lib/hooks.ts`, phase 7d), whose
+`After` says what each change made stale: its answer written, the reads it changed read again, the step bar drawn again
+where it shows what changed (final review OWN-7, CODE-4). Only the hooks import the typed browser read `get`.
 """
 
 from __future__ import annotations
@@ -65,5 +66,5 @@ def test_pages_read_through_the_hooks() -> None:
     offenders = [str(p.relative_to(ROOT)) for p in _sources() if p != HOOKS
                  for m in imports.finditer(p.read_text()) if re.search(r"(?<![\w.])get\b(?!\s+as)", m.group(1))]
     assert not offenders, (
-        "A page reads a typed route with useResource (lib/hooks.ts), so a change made with useMutation refreshes it and "
-        "the phase rail; only the hooks import `get`:\n  " + "\n  ".join(offenders))
+        "A page reads a typed route with useResource (lib/hooks.ts), so a change made with useMutation reads it again (its "
+        "`After`); only the hooks import `get`:\n  " + "\n  ".join(offenders))

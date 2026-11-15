@@ -2,10 +2,12 @@
 
 import { useEffect, useState } from "react";
 
+import { FILES, RELEASE } from "@/components/inputs/after";
 import { PeekButton } from "@/components/kit/SourcePeek";
 import { Card } from "@/components/ui";
 import { send, type Envelope, type Schema } from "@/lib/api";
 import { TAG_KINDS, TAG_LABELS, type TagKind } from "@/lib/fileTags";
+import type { After } from "@/lib/hooks";
 
 import { CleaningRecord } from "./CleaningRecord";
 import { SheetReader, type Study } from "./SheetReader";
@@ -14,7 +16,8 @@ import {
   type View, readSheets,
 } from "./types";
 
-export type Act = <T>(fn: () => Promise<Envelope<T>>) => Promise<string | null>;
+/** A change made on a client file, with what it made stale (`components/inputs/after.ts`). */
+export type Act = <T>(fn: () => Promise<Envelope<T>>, after: After<T>) => Promise<string | null>;
 /** The last sheet form saved, offered to the next sheet read ("Same layout as the last sheet"), across files. */
 export type SheetMemory = { last: { form: SheetForm; study: Study } | null; remember: (s: { form: SheetForm; study: Study }) => void };
 /** Say what a file is (its tag), which moves it to the area of Inputs that holds that data (plan 2026-11-05 §3.1). */
@@ -123,7 +126,7 @@ function DocumentReading({ projectId, file, agents, running, agentReading, act }
         {agents && <button className={`btn${last ? "" : " primary"}`} disabled={running} data-testid={`read-doc-${file.file}`}
                 title={agents ? "Agent A4 reads the file; code checks every value against its page" : "agents are off"}
                 onClick={async () => setNotice(await act(() => send("post", "/api/v1/projects/{project_id}/client-data/{sid}:read",
-                                                                    { project_id: projectId, sid: file.id }, {}))
+                                                                    { project_id: projectId, sid: file.id }, {}), FILES)
                   ?? "Agent A4 reads the file, after any file queued before it. What code accepts appears in its study or product, to confirm.")}>
           {agentReading ? "Reading…" : last ? "Read again with AI" : "Read the data in this file with AI"}
         </button>}
@@ -195,13 +198,13 @@ function FileCard({ projectId, file, agents, running, agentReading, act, onRetag
         <div className="row">
           {agents && spreadsheet && !file.template && undecided && (
             <button className="btn" disabled={running}
-                    onClick={async () => setNotice(await act(() => send("post", "/api/v1/projects/{project_id}/client-data/{sid}:triage", { project_id: projectId, sid: file.id }))
+                    onClick={async () => setNotice(await act(() => send("post", "/api/v1/projects/{project_id}/client-data/{sid}:triage", { project_id: projectId, sid: file.id }), FILES)
                       ?? "Agent A4 is sorting the unsorted sheets.")}>Sort the unsorted sheets with AI</button>
           )}
           {agents && spreadsheet && !file.template && unread > 0 && (
             <button className="btn" disabled={running}
                     data-testid={`read-agent-${file.file}`}
-                    onClick={async () => setNotice(await act(() => send("post", "/api/v1/projects/{project_id}/client-data/{sid}:read", { project_id: projectId, sid: file.id }, {}))
+                    onClick={async () => setNotice(await act(() => send("post", "/api/v1/projects/{project_id}/client-data/{sid}:read", { project_id: projectId, sid: file.id }, {}), FILES)
                       ?? "Agent A4 reads the data sheets, after any file queued before them. Each reading opens on its sheet once code has checked it.")}>
               {agentReading ? "Reading the sheets…" : `Read the ${unread} data sheets with AI`}
             </button>
@@ -227,7 +230,7 @@ function FileCard({ projectId, file, agents, running, agentReading, act, onRetag
                          onRead={() => setReading(reading === t.sheet ? null : t.sheet)}
                          onClassify={(category, reason) => act(() => send(
                            "post", "/api/v1/projects/{project_id}/client-data/{sid}/sheets/{sheet}:classify",
-                           { project_id: projectId, sid: file.id, sheet: t.sheet }, { category, reason }))} />
+                           { project_id: projectId, sid: file.id, sheet: t.sheet }, { category, reason }), FILES)} />
             ))}
           </tbody>
         </table>
@@ -316,7 +319,7 @@ export function Dissolution({ projectId, d, act }: {
         <tbody>
           {d.profiles.map((p) => (
             <ProfileRow key={p.id} p={p} onPropose={(formulation) =>
-              act(() => send("post", "/api/v1/projects/{project_id}/dissolution/{profile_id}:propose", { project_id: projectId, profile_id: p.id }, { formulation }))} />
+              act(() => send("post", "/api/v1/projects/{project_id}/dissolution/{profile_id}:propose", { project_id: projectId, profile_id: p.id }, { formulation }), RELEASE)} />
           ))}
         </tbody>
       </table>

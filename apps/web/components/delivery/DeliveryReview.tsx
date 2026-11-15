@@ -30,17 +30,18 @@ import type { MappingOpen } from "./MappingReview";
 import { FactsForm, DemographicsForm, statedDemographics, type Suggestions } from "./FactsForm";
 import {
   BLOCKER_LABEL, ChipFor, KIND_LABEL, MAPPING_STATE, Problem, TupleCells, WITHHELD, Why, fieldText, labelsText, levelText, plural,
-  statisticText, typed, useDecide, valueText, when, type Subject, type SubjectRow, type Value,
+  pageAfter, statisticText, typed, useCardDecide, useDecide, valueText, when, type CardDecide, type Subject, type SubjectRow, type Value,
 } from "./shared";
 import { SpotCheck } from "./SpotCheck";
 import { ValueSource } from "./ValueSource";
+import { cardKey } from "./writes";
 
 type Check = Schema<"DeliveryCheck">;
 type Table = Schema<"DeliveryTable">;
 type Requirement = Schema<"DeliveryRequirement">;
 type Link = Schema<"DeliveryLink">;
 type Conflict = Schema<"DeliveryConflict">;
-type Decide = ReturnType<typeof useDecide>["decide"];
+type Decide = CardDecide;
 export type Options = Schema<"InputsPage">["study_options"];
 /** The path parameters of a card's routes. */
 type CardParams = { project_id: string; type: string; subject: string };
@@ -244,9 +245,10 @@ function ValueTable({ projectId, params, table, flagged, decide, busy, onMapping
 /** "State it…" for concentrations that name no analyte (ANALYTE_MISSING): the analyte chosen from the delivery's
  *  analytes, or a new one the person names, given to the check's values by linking them again (`values:assign`) with
  *  what they are linked to now (their study and arm, their product and batch), so that only the analyte changes and
- *  the values keep their file as their source. One link per set of values that share those; one reason for all. */
-function StateAnalyte({ projectId, check, values, onDone }: {
-  projectId: string; check: Check; values: Map<string, Value>; onDone: () => void;
+ *  the values keep their file as their source. One link per set of values that share those; one reason for all. Each
+ *  link's answer is the delivery page, written; the card, whose check it settles, is read again after the last. */
+function StateAnalyte({ projectId, params, check, values, onDone }: {
+  projectId: string; params: CardParams; check: Check; values: Map<string, Value>; onDone: () => void;
 }) {
   const page = useResource("/api/v1/projects/{project_id}/delivery", { project_id: projectId });
   const all = page.data?.enabled ? page.data.analytes : [];
@@ -272,7 +274,7 @@ function StateAnalyte({ projectId, check, values, onDone }: {
       const linked = Object.fromEntries(LINKED.filter((r) => group[0].entity[r]).map((r) => [r, group[0].entity[r]]));
       const { data } = await decide(() => send("post", ASSIGN, { project_id: projectId }, {
         targets: group.map((v) => v.id), why, ...linked, ...(chosen ? { analyte: chosen } : { new_analyte: named.trim() }),
-      }), { refresh: i === list.length - 1 });
+      }), i === list.length - 1 ? { ...pageAfter(projectId), keys: [cardKey(projectId, params.type, params.subject)] } : pageAfter(projectId));
       if (!data) return;
       // a new analyte is named once: the next links name it by the id the delivery gave it
       chosen ??= (data as { analytes: { id: string; label: string }[] }).analytes.find((a) => a.label.trim().toLowerCase() === named.trim().toLowerCase())?.id ?? null;
@@ -343,7 +345,7 @@ function CheckRow({ check, subject, decide, busy, onMapping, params, read, value
             </>
         )}
       </div>
-      {!read && open && stating && <StateAnalyte projectId={params.project_id} check={check} values={values} onDone={() => setStating(false)} />}
+      {!read && open && stating && <StateAnalyte projectId={params.project_id} params={params} check={check} values={values} onDone={() => setStating(false)} />}
       {!read && open && acting && (
         <Why action="Accept as is" label={`Why "${message}" holds as it is`} busy={busy} onCancel={() => setActing(false)}
              testId={`delivery-override-${check.id}`} placeholder="why it holds as it is (kept on the audit trail)" autoFocus
@@ -592,7 +594,7 @@ export function DeliveryReview({ projectId, row, mode, gate, onMapping, todo, su
   const params = { project_id: projectId, type: row.subject_type, subject: row.subject };
   const read = useResource(SUBJECT, params, { poll: (d) => d.tables.some((t) => t.waiting) || d.mappings.some((m) => m.waiting) });
   const inputs = useResource("/api/v1/projects/{project_id}/inputs", { project_id: projectId });
-  const { decide, busy, problem } = useDecide();
+  const { decide, busy, problem } = useCardDecide(projectId);
   const [confirming, setConfirming] = useState(false);
   const [entering, setEntering] = useState(false);
   const [notes, setNotes] = useState(false);

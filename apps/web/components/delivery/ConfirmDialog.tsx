@@ -8,7 +8,6 @@
 // client opens the step-up, then sends the confirmation once more. No password is typed on this page.
 
 import { useQueryClient } from "@tanstack/react-query";
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { Dialog } from "@/components/kit/Dialog";
@@ -16,6 +15,7 @@ import { send } from "@/lib/api";
 import { engineWords, tableKindText } from "@/lib/words";
 
 import { BLOCKER_LABEL, KIND_LABEL, Problem, WITHHELD, levelText, plural, useDecide, type Blocker, type Subject } from "./shared";
+import { writeConfirmed } from "./writes";
 
 // what holds a signature, in the card's words (the delivery's clean-up is one of them)
 const BLOCKER_WORD: Record<string, string> = {
@@ -36,7 +36,6 @@ function coverageCounts(subject: Subject) {
 export function ConfirmDialog({ projectId, subject, onClose }: { projectId: string; subject: Subject; onClose: () => void }) {
   const { decide, busy, problem } = useDecide();
   const client = useQueryClient();
-  const router = useRouter();
   const [signed, setSigned] = useState<Subject | null>(null);
   const [refusedFor, setRefusedFor] = useState<Blocker[]>([]);
   const counts = coverageCounts(subject);
@@ -55,12 +54,12 @@ export function ConfirmDialog({ projectId, subject, onClose }: { projectId: stri
       const env = await send("post", CONFIRM, { project_id: projectId, type: subject.subject_type, subject: subject.subject });
       named = (env.errors[0]?.detail?.blockers as Blocker[] | undefined) ?? [];
       return env;
-    }, { refresh: false });
+    }, {});
     setRefusedFor(named);
     if (data) setSigned(data);
   }
   const close = () => {
-    if (signed) { router.refresh(); void client.invalidateQueries(); }
+    if (signed) void writeConfirmed(client, projectId, signed);
     onClose();
   };
 

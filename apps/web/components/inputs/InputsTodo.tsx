@@ -3,7 +3,10 @@
 import { useState } from "react";
 
 import { send, type Envelope } from "@/lib/api";
+import type { After } from "@/lib/hooks";
 import { flagLines, formulationProblem, PARAM_LABEL, paramLabel, todoLabel, todoMessage, unitText } from "@/lib/words";
+
+import { MODEL, evidenceAfter, inputsAfter } from "./after";
 
 export type Ev = {
   id: string; target: string; value: number | string | null; unit: string | null; value_pksim: number | null;
@@ -31,7 +34,8 @@ export type TodoItem = {
   /** an item about the data plan's "elim": the pathways a value for it is filed under (OWN-5) */
   pathways?: Pathway[];
 };
-export type Run = <T>(fn: () => Promise<Envelope<T>>, ok: string) => Promise<string | null>;
+/** A change made on the page: its call, what is said when it succeeds, and what it made stale (`components/inputs/after.ts`). */
+export type Run = <T>(fn: () => Promise<Envelope<T>>, ok: string, after: After<T>) => Promise<string | null>;
 
 /** A model input's name in words, by its CPF id (one list of names: lib/words.ts). */
 export const LABEL: Record<string, string> = PARAM_LABEL;
@@ -93,7 +97,7 @@ function FileUnderPathway({ e, pathways, projectId, run }: { e: Ev; pathways: Pa
         <button className="btn primary" disabled={!target || !reason.trim()}
                 onClick={() => void run(() => send("post", "/api/v1/projects/{project_id}/evidence/{evidence_id}:correct",
                                                    { project_id: projectId, evidence_id: e.id }, { target, reason }),
-                                        `Filed under ${paramLabel(target).toLowerCase()}: check its value and accept it.`)}>
+                                        `Filed under ${paramLabel(target).toLowerCase()}: check its value and accept it.`, MODEL)}>
           File it under this pathway</button>
       </div>
     </div>
@@ -122,7 +126,7 @@ function Conflict({ t, projectId, run }: { t: TodoItem; projectId: string; run: 
         <input placeholder="why this value (kept in the audit trail)" value={reason} onChange={(e) => setReason(e.target.value)} className="flex-1 minw-220" aria-label={`reason for ${t.target}`} />
         <button className="btn primary" disabled={!keep || !reason.trim()}
                 onClick={() => void run(() => send("post", "/api/v1/projects/{project_id}/evidence/{evidence_id}:choose", { project_id: projectId, evidence_id: keep }, { reason }),
-                                        `${paramLabel(t.target)}: one value kept, the others rejected with your reason.`)}>
+                                        `${paramLabel(t.target)}: one value kept, the others rejected with your reason.`, MODEL)}>
           Keep the selected value, reject the others
         </button>
       </div>
@@ -178,12 +182,12 @@ function Correction({ e, t, projectId, run }: { e: Ev; t: TodoItem; projectId: s
                                                       pka ? { conditions: { type: kind }, reason }
                                                           : { target: concrete, reason, ...(statement ? { value: Number(number), unit: unit || null } : {}) }),
                                         pka ? `pKa ${fmt(e.value)} recorded as ${kind === "acid" ? "acidic" : "basic"}.`
-                                            : `Filed as ${paramLabel(concrete)}: check its value below and accept it.`)}>
+                                            : `Filed as ${paramLabel(concrete)}: check its value below and accept it.`, MODEL)}>
           {pka ? "Save" : "Correct"}
         </button>
         <button className="btn" disabled={!reason.trim()}
                 onClick={() => void run(() => send("post", "/api/v1/projects/{project_id}/evidence/{evidence_id}:decide", { project_id: projectId, evidence_id: e.id }, { state: "REJECTED", reason }),
-                                        `${paramLabel(e.target)} ${fmt(e.value)}: rejected.`)}>Reject</button>
+                                        `${paramLabel(e.target)} ${fmt(e.value)}: rejected.`, evidenceAfter(projectId))}>Reject</button>
       </div>
     </div>
   );
@@ -252,12 +256,12 @@ export function Decide({ e, projectId, run, pathways, todo }: {
                                                          { project_id: projectId, evidence_id: e.id },
                                                          { state: "ACCEPTED", reason,
                                                            ...(byHand ? { value_pksim: handValue, unit_pksim: e.pksim_unit || null } : {}) }),
-                                              `${name} = ${fmt(byHand ? handValue : e.value_pksim ?? e.value)}${byHand && e.pksim_unit ? ` ${e.pksim_unit}` : ""} accepted.`)}>
+                                              `${name} = ${fmt(byHand ? handValue : e.value_pksim ?? e.value)}${byHand && e.pksim_unit ? ` ${e.pksim_unit}` : ""} accepted.`, evidenceAfter(projectId))}>
                 Accept</button>
             )}
             <button className="btn" disabled={!reason.trim()}
                     onClick={() => void run(() => send("post", "/api/v1/projects/{project_id}/evidence/{evidence_id}:decide", { project_id: projectId, evidence_id: e.id }, { state: "REJECTED", reason }),
-                                            `${name} ${fmt(e.value)}: rejected.`)}>Reject</button>
+                                            `${name} ${fmt(e.value)}: rejected.`, evidenceAfter(projectId))}>Reject</button>
           </div>
         </>
       )}
@@ -277,7 +281,7 @@ function StudyFix({ t, projectId, run }: { t: TodoItem; projectId: string; run: 
       <p className="muted m-2-0 fs-13">{t.message}</p>
       {t.dataset_id && t.kind === "demographics" && (
         <button className="btn" onClick={() => void run(() => send("post", path, params, { demographics_choice: "healthy_adult_default" }),
-                                                        `${t.target}: the healthy adult default, listed as a limitation of the MAP.`)}>
+                                                        `${t.target}: the healthy adult default, listed as a limitation of the MAP.`, MODEL)}>
           Use the healthy adult default
         </button>
       )}
@@ -287,7 +291,7 @@ function StudyFix({ t, projectId, run }: { t: TodoItem; projectId: string; run: 
           <input placeholder="interval (h)" value={every} onChange={(x) => setEvery(x.target.value)} aria-label={`interval for ${t.target}`} />
           <button className="btn primary" disabled={!(Number(doses) > 0 && Number(every) > 0)}
                   onClick={() => void run(() => send("post", path, params, { changes: { n_doses: Number(doses), dosing_interval_h: Number(every) } }),
-                                          `${t.target}: ${doses} doses every ${every} h.`)}>Save</button>
+                                          `${t.target}: ${doses} doses every ${every} h.`, MODEL)}>Save</button>
         </div>
       )}
     </>
@@ -336,7 +340,7 @@ export function TodoAction({ t, projectId, run }: { t: TodoItem; projectId: stri
               <span className="fs-13">The brief&apos;s PubChem record ({t.identity.name}, CID {t.identity.cid}) says
                 <strong> {t.identity.value} g/mol</strong>. Check it is the free base, not the salt.</span>
               <button className="btn" onClick={() => void run(() => send("post", "/api/v1/projects/{project_id}/inputs:propose-identity", { project_id: projectId }),
-                                                                "Molecular weight proposed from PubChem.")}>Propose it</button>
+                                                                "Molecular weight proposed from PubChem.", inputsAfter(projectId))}>Propose it</button>
             </div>
           )}
           {(t.items as Ev[]).map((e) => <Decide key={e.id} e={e} projectId={projectId} run={run} pathways={t.pathways} todo={t} />)}

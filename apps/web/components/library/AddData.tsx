@@ -12,13 +12,14 @@
 import Link from "next/link";
 import { useState } from "react";
 
+import { FILES } from "@/components/inputs/after";
 import { InlineIssue } from "@/components/kit";
 import { Dialog } from "@/components/kit/Dialog";
 import { ReadingStatus } from "@/components/inputs/ReadingTray";
 import { TagProposals, type UploadedFile } from "@/components/library/TagProposals";
 import { upload } from "@/lib/api";
 import { guessStudy, guessTag, TAG_KINDS, TAG_LABELS, type TagKind, tagsField } from "@/lib/fileTags";
-import { useMutation } from "@/lib/hooks";
+import { useMutation, type After } from "@/lib/hooks";
 
 type DocRole = "annex" | "paper" | "context" | "proposal" | "other";
 type Goes = `client:${TagKind}` | `doc:${DocRole}`;
@@ -38,6 +39,9 @@ function guessGoes(name: string): Goes {
 }
 export const RELATED_STEPS: [string, string][] = [["start", "Start"], ["inputs", "Inputs"], ["review", "Review & sign"], ["run", "Run"]];
 const WORKBOOK = /\.(xlsx|xlsm|xls|csv|tsv)$/i;
+/** What files added from any page change: the client's files (their reading, the sheet form and the delivery that read
+ *  them), the documents and the library, the brief's documents; and the page under the dialog, drawn on the server. */
+const ADDED: After = { reads: [...FILES.reads!, "/api/v1/projects/{project_id}/library", "/api/v1/projects/{project_id}/brief"], server: true };
 const ARCHIVE = /\.zip$/i;
 const ACCEPT = ".pdf,.docx,.md,.markdown,.txt,.json,.csv,.tsv,.xlsx,.xlsm,.xls,.png,.jpg,.jpeg,.zip";
 /** What the reading agent reads for data (the API's READ_FOR_DATA). */
@@ -109,14 +113,14 @@ export function AddData({ projectId, step: initial, onClose }: { projectId: stri
         let failed: string | null;
         if (role === null) {
           form.set("tags", tagsField(list.map(({ file, goes, study }) => ({ file, tag: goes.slice(7) as TagKind, study }))));
-          const result = await run(() => upload("/api/v1/projects/{project_id}/client-data", { project_id: projectId }, form));
+          const result = await run(() => upload("/api/v1/projects/{project_id}/client-data", { project_id: projectId }, form), ADDED);
           failed = result.problem;
           if (!failed && result.data) setUploaded((before) => [...before, ...result.data!.read]);
           if (!failed) notes.push(`${names}: added as client data; the agent reads it on Inputs`);
         } else {
           form.set("role", role);
           if (read) form.set("read", "true");
-          const result = await run(() => upload("/api/v1/projects/{project_id}/documents", { project_id: projectId }, form));
+          const result = await run(() => upload("/api/v1/projects/{project_id}/documents", { project_id: projectId }, form), ADDED);
           failed = result.problem;
           if (!failed && result.data) {
             const reading = result.data.reading;

@@ -12,7 +12,7 @@ import { Dialog } from "@/components/kit/Dialog";
 import { SortHeader } from "@/components/kit/SortableTable";
 import { RiskChip } from "@/components/ui";
 import { send } from "@/lib/api";
-import { useMutation } from "@/lib/hooks";
+import { useMutation, type After } from "@/lib/hooks";
 import { ordinal, useTableView } from "@/lib/tableView";
 import type { Project } from "@/lib/types";
 
@@ -25,6 +25,8 @@ const PROJECT_KEYS = {
 };
 
 type Pending = { project: Project; action: "archive" | "restore" } | null;
+/** A project archived or restored: the list of projects, drawn on the server (the dashboard's), and read in the browser. */
+const ARCHIVED: After = { reads: ["/api/v1/projects"], server: true };
 
 export function ProjectsTable({ projects }: { projects: Project[] }) {
   const { run, busy } = useMutation();
@@ -45,7 +47,7 @@ export function ProjectsTable({ projects }: { projects: Project[] }) {
   async function confirm() {
     if (!pending) return;
     const route = pending.action === "archive" ? "/api/v1/projects/{project_id}:archive" : "/api/v1/projects/{project_id}:restore";
-    const result = await run(() => send("post", route, { project_id: pending.project.id }, { reason: reason.trim() }));
+    const result = await run(() => send("post", route, { project_id: pending.project.id }, { reason: reason.trim() }), ARCHIVED);
     if (result.problem) setProblem(result.problem);
     else setPending(null);
   }

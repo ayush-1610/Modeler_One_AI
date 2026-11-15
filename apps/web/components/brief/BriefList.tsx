@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { BRIEF_CHANGED } from "@/components/inputs/after";
 import { InlineIssue } from "@/components/kit";
 import { SourcePeek } from "@/components/kit/SourcePeek";
 import { Fields } from "@/components/start/Blocks";
@@ -37,19 +38,19 @@ export function BriefList({ projectId, group, fields, title, lede, testId }: {
   const open = (c: Citation) => setFocus({ sha256: c.doc_sha256, page: c.page, quote: c.quote });
 
   async function save(changes: BriefChange[]): Promise<string | null> {
-    const { problem: refused } = await run(() => send("put", "/api/v1/projects/{project_id}/brief", { project_id: projectId }, { changes }));
+    const { problem: refused } = await run(() => send("put", "/api/v1/projects/{project_id}/brief", { project_id: projectId }, { changes }), BRIEF_CHANGED);
     return refused;
   }
 
   async function answer(questionId: string, text: string, status: "answered" | "accepted_as_limitation") {
     const { problem: refused } = await run(() => send("post", "/api/v1/projects/{project_id}/brief/questions/{question_id}",
-      { project_id: projectId, question_id: questionId }, { answer: text, status }));
+      { project_id: projectId, question_id: questionId }, { answer: text, status }), BRIEF_CHANGED);
     setProblem(refused);
   }
 
   async function remove(index: number) {
     const { problem: refused } = await run(() => send("post", "/api/v1/projects/{project_id}/brief/items:remove",
-      { project_id: projectId }, { group, index, reason: reason.trim() }));
+      { project_id: projectId }, { group, index, reason: reason.trim() }), BRIEF_CHANGED);
     setProblem(refused);
     if (!refused) { setRemoving(null); setReason(""); }
   }

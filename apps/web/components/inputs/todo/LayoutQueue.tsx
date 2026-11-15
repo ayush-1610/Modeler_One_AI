@@ -71,7 +71,7 @@ export function LayoutQueue({ projectId, items, heading, shared }: {
     let approved = 0;
     for (const r of notData) {
       const { data } = await decide(() => send("post", APPROVE, { project_id: projectId, mapping_id: r.mapping.mapping_id },
-        { version: r.mapping.version, note: [note.trim(), said].filter(Boolean).join(" · ") }), { refresh: false });
+        { version: r.mapping.version, note: [note.trim(), said].filter(Boolean).join(" · ") }), {});
       if (!data) break;
       writeMapping(client, projectId, data);
       approved += 1;

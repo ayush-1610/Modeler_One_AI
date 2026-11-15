@@ -349,7 +349,8 @@ before the next starts.
   - **Cache writes:** the cards of subjects whose own row a decision changed are read again; the others are marked stale
     and read when next shown, so a card open in Client files keeps its delivery-wide blockers (loose numbers) as they
     were until it is shown again (slice 3's gate line reads them from the page). The step bar is redrawn only after the
-    compound values are entered (it follows the readiness), not after a delivery decision.
+    compound values are entered (it follows the readiness), not after a delivery decision. (Round 3 made this true for
+    every decision on Inputs, slice 3's cards included, which still read everything: "Final review fixes round 3".)
   - **A delivery whose files name no study yet** (after the review, 2026-11-15): not counted, as slice 2 counts it (it
     holds up no signature), but its layouts, values to link and numbers not read stay in their own groups in view, the
     group saying once how many are not counted and why ("Its files name no study or product yet …"), not under "Blocks
@@ -525,7 +526,8 @@ before the next starts.
   its region (`DeliveryRegion.silent_cells`, the first 50 of the coverage's own locators, each with its text, withheld
   for a blinded study's file, and why), so "Show them" names the cells. The why is the rule code's reading records
   (`CellUse.rule`), which the stored outcome does not keep: the table's layout is executed again on its grid for the
-  view (nothing is written; memoised by file, parser, region and spec). Setting a single cell aside (the exclusion scope
+  view (nothing is written; executed again on each read of the page, not memoised as said before round 3: GET /delivery
+  takes about 0.25 s on the 9-file review projects). Setting a single cell aside (the exclusion scope
   `cells`) stays the owner's review (§3 row 3). Where every study and product read from a file is confirmed with the
   sheet form (none signed on the delivery), a read table's whole "Not data…" is offered in To do as well as in Client
   files: nothing loaded or signed is lost.
@@ -622,3 +624,45 @@ before the next starts.
   round 1's API follow-up. Not reproduced, so not changed: "How the files were read" twice on one card (the skeptic
   found it once). Not in this group's list and left: a client file's name repeated on the first To do view (3 to 8
   times for a file with several kinds of work).
+
+### Final review fixes round 3: speed and cache writes (2026-11-15; round 2's layout-dialog regression, OWN-7, CODE-4; CHANGELOG "Fixed — final review round 3, speed and cache writes")
+- **One rule for the layout's cache keys.** `writeMapping` writes a layout's answer at its version and, when the answer
+  is the latest by its own list of versions, with no version, on no table and on the table it shows: the API's rule for
+  `GET …/mappings/{id}`. Chosen over passing the stored version from "Read this table…" or pinning the version after a
+  decision (CHANGELOG): every key a dialog can read is written by the same rule, from the answer itself, never from what
+  the cache happens to hold.
+- **§2.1 "a decision click costs at most 2 requests", as built.** A decision on a delivery card, a selection in the sheet
+  form, a choice, a value accepted or rejected on Compound: the decision and one read (the delivery page; the inputs'
+  to-do; nothing, when the answer is the page). A spot check's record: the record and its card. Facts entered together:
+  one `:enter` each and one read. Compound values entered in To do (or on Compound): one `POST /evidence` each, then the
+  inputs (and, where Compound shows them, the evidence and the other projects' offers) and the step bar, drawn again when
+  the readiness it says changed. **Deviation:** a confirmation costs more, because it loads data and every view of the
+  data changes: the sheet form's confirmation reads the inputs, the evidence and the client data, and the delivery and a
+  card where one of its subjects reads the same source (3 to 5 reads); the signed confirmation, when its dialog closes,
+  the delivery, the inputs, the sheet form, the client data and the evidence (up to 5), the other cards marked stale. So
+  do the background events that are not decisions (an AI reading or the literature search ending). Next's prefetch of a
+  page a link leads to is not counted (it reads none of this page's data; none was seen in the measured flows).
+- **The step bar follows the readiness (replaces slice 4's "redrawn only after the compound values are entered").** It
+  is drawn on the server, so `InputsWorkspace` draws it again when what it says about Inputs changes (the readiness's
+  state and failing checks in the inputs' answer), whatever changed it, and only then. Known gap: Review & sign's own
+  state on the bar (a signed MAP that a change to the inputs makes stale) is not part of that answer; it is current on
+  the next page drawn (a change on Inputs that moves it also changes the readiness in every case seen, but this is not
+  guaranteed).
+- **A reading a decision asked for is followed by two signals.** The delivery page says it is reading (`running`) and
+  is read every few seconds until it is not; the layout dialog's answer says its files wait to be read (`waiting`), and
+  when it stops waiting the page and the cards shown are read again. Before round 3, every part of the page read the
+  page again when it was drawn, which hid that the first signal alone can miss a reading that ends just as the page is
+  read (seen once in three runs of inputs-task-first's corrected-layout test). Known gap: a decision whose reading ends
+  after its dialog is closed relies on the first signal alone.
+- **The visit holds its reads (CODE-4).** Inside `HeldReads` (Inputs) an answer read during the visit stays fresh until
+  a change marks it stale, so an area shown again reads nothing; what was read before the visit is read once when shown.
+  Consequence, owner's note: another reviewer's change is shown after this person's next decision on it (a 409 says it
+  in the server's words, §2.2.6), on a file's reading ending, or on the next visit; switching areas no longer reads the
+  page again. Other pages keep reading on every mount, as before.
+- **`useMutation` callers outside Inputs** say what they change too (CHANGELOG lists them). Where a page is drawn on the
+  server (the dashboard's projects, the project page, Start's and Review & sign's step bar, the campaign monitor), the
+  change draws it again, as the broad refresh did; nothing else is read for it.
+- Round 2's other minors from the gate-todo skeptic: the "memoised" wording above is corrected (not memoised); a card's
+  "Read this sheet" ask is spent when its file's row is closed; "Restore…" under "Marked as not data just now" says what
+  it restored and its Cancel keeps the entry listed. Not covered by an e2e: the last two (unit-level behaviour of the
+  visit; the specs that pass through them, inputs-task-first and inputs-owner-job, still pass).

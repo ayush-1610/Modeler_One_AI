@@ -7,8 +7,13 @@
 import { useState } from "react";
 
 import { ApiProblem, Card } from "@/components/ui";
-import { send } from "@/lib/api";
-import { useMutation, useResource } from "@/lib/hooks";
+import { send, type Schema } from "@/lib/api";
+import { useMutation, useResource, type After } from "@/lib/hooks";
+
+/** A member added or removed: the answer is the members' page, written; nothing else on the page changed. */
+const membersAfter = (projectId: string): After<Schema<"MembersPage">> => ({
+  write: (page, client) => client.setQueryData(["/api/v1/projects/{project_id}/members", { project_id: projectId }, {}], page),
+});
 
 export function MembersPanel({ projectId }: { projectId: string }) {
   const { data, problem } = useResource("/api/v1/projects/{project_id}/members", { project_id: projectId });
@@ -22,7 +27,7 @@ export function MembersPanel({ projectId }: { projectId: string }) {
 
   async function add() {
     const result = await run(() => send("post", "/api/v1/projects/{project_id}/members", { project_id: projectId },
-                                        { subject: adding, reason: reason.trim() }));
+                                        { subject: adding, reason: reason.trim() }), membersAfter(projectId));
     setOutcome(result.problem ? { ok: false, message: result.problem } : { ok: true, message: "Member added." });
     if (!result.problem) {
       setAdding("");
@@ -36,7 +41,7 @@ export function MembersPanel({ projectId }: { projectId: string }) {
       return;
     }
     const result = await run(() => send("post", "/api/v1/projects/{project_id}/members:remove", { project_id: projectId },
-                                        { subject, reason: reason.trim() }));
+                                        { subject, reason: reason.trim() }), membersAfter(projectId));
     setOutcome(result.problem ? { ok: false, message: result.problem } : { ok: true, message: `${name} removed.` });
     if (!result.problem) setReason("");
   }

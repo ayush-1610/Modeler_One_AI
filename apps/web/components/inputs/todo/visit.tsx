@@ -25,7 +25,9 @@ export type TodoVisit = {
   /** what the last "Mark as not data" did, said where the marked notes are listed (not only to a screen reader) */
   said: string | null;
   mark: (entries: Omit<Marked, "id">[], said: string) => void;
-  unmark: (id: string) => void;
+  /** a marked entry restored: no longer listed, and what the restore did said in place of the last mark (round 2's
+   *  gate-todo skeptic: the line kept saying the restored numbers were marked) */
+  unmark: (id: string, said: string) => void;
   /** open the layout dialog */
   walk: (walk: LayoutWalk) => void;
 };

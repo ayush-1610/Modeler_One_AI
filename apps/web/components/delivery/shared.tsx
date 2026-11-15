@@ -10,9 +10,9 @@ import { useCallback, useState } from "react";
 import { ReasonForm } from "@/components/kit/Reason";
 import type { Envelope, Schema } from "@/lib/api";
 import { alreadyDecidedText, whereIs } from "@/lib/words";
-import { useMutation, type Outcome } from "@/lib/hooks";
+import { useMutation, type After, type Outcome } from "@/lib/hooks";
 
-import { writePage } from "./writes";
+import { cardAfter, writePage } from "./writes";
 
 export type Page = Schema<"DeliveryPage">;
 export type FileRow = Schema<"DeliveryFile">;
@@ -140,15 +140,15 @@ const readAgain = (client: QueryClient) => client.invalidateQueries({
 /** A decision's outcome, with the code of the API's refusal (`CONFLICT`: the server moved on). */
 export type Decided<T> = Outcome<T> & { code: string | null };
 
-/** A change made on the section: `decide(() => send(...))` answers its outcome and keeps the API's refusal to show.
- *  A refusal that says the server moved on (409 `CONFLICT`: another reviewer decided first, a name exists already) is
- *  shown in the server's words and the section is read again, so the item shows what holds now (plan 2026-11-14
- *  §2.2.6). `{ refresh: false }`: the caller writes the answer into the page itself (`useWritePage`). */
+/** A change made on the section: `decide(() => send(...), after)` answers its outcome and keeps the API's refusal to
+ *  show; `after` says what the decision made stale (its answer written into the page, `writes.ts`). A refusal that says
+ *  the server moved on (409 `CONFLICT`: another reviewer decided first, a name exists already) is shown in the server's
+ *  words and the section is read again, so the item shows what holds now (plan 2026-11-14 §2.2.6). */
 export function useDecide() {
   const mutation = useMutation();
   const client = useQueryClient();
   const [problem, setProblem] = useState<string | null>(null);
-  const decide = useCallback(async <T,>(call: () => Promise<Envelope<T>>, options?: { refresh?: boolean }): Promise<Decided<T>> => {
+  const decide = useCallback(async <T,>(call: () => Promise<Envelope<T>>, after: After<T>): Promise<Decided<T>> => {
     let code: string | null = null;
     let decided: unknown = null;
     const out = await mutation.run(async () => {
@@ -156,7 +156,7 @@ export function useDecide() {
       code = (env.errors?.[0]?.detail?.code as string | undefined) ?? null;
       decided = env.errors?.[0]?.detail?.decided ?? null;
       return env;
-    }, options);
+    }, after);
     // a decision someone made already: who made it, when and why, never the line's id or a raw place (INT-11)
     const problem = code === "CONFLICT" ? alreadyDecidedText(decided) ?? out.problem : out.problem;
     setProblem(problem);
@@ -165,6 +165,20 @@ export function useDecide() {
   }, [mutation, client]);
   return { decide, busy: mutation.busy, problem, clear: () => setProblem(null) };
 }
+
+/** A decision on a subject's card (`:enter`, `:override`, `:dispose`, `:choose`, `:link`): its answer, the card, is
+ *  written into the page and the delivery page is read again once (`writes.ts` `cardAfter`), so it costs two requests. */
+export type CardDecide = (call: () => Promise<Envelope<Subject>>) => Promise<Decided<Subject>>;
+
+export function useCardDecide(projectId: string) {
+  const { decide, busy, problem, clear } = useDecide();
+  const onCard: CardDecide = useCallback((call) => decide(call, cardAfter(projectId)), [decide, projectId]);
+  return { decide: onCard, busy, problem, clear };
+}
+
+/** What a decision the delivery page answers made stale (`values:assign`, `regions:exclude`, `regions:restore`): the
+ *  page, written (`writePage`). */
+export const pageAfter = (projectId: string): After<Page> => ({ write: (page, client) => writePage(client, projectId, page) });
 
 /** Write a decision's answer (the page, which `values:assign`, `regions:exclude` and `regions:restore` return) into
  *  the page's cache instead of reading everything again (plan 2026-11-14 §2.1): only the cards of the subjects the

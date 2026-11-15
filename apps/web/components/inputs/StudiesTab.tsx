@@ -20,6 +20,7 @@ import { DESIGNS, DESIGN_TITLE, type Design, designOf, plural, valueWord } from 
 
 import { SheetGroups } from "./ClientConfirm";
 import { type CardEnv, StatusChip, cardStatus, focused, viaSheet } from "./cards/ConfirmPath";
+import { MODEL, inputsAfter } from "./after";
 import { StudyCard, studyNames } from "./cards/StudyCard";
 import { type Run, TodoCard, type TodoItem } from "./InputsTodo";
 import { ObservedDatasets, datasetsWaiting, useDatasets } from "./ObservedDatasets";
@@ -136,7 +137,7 @@ function Regimen({ s, projectId, run }: { s: StudyRow; projectId: string; run: R
               onClick={() => void run(() => send("post", "/api/v1/projects/{project_id}/datasets/{dataset_id}:study",
                                                  { project_id: projectId, dataset_id: s.dataset_id ?? "" },
                                                  { changes: { n_doses: Number(doses), dosing_interval_h: Number(every) } }),
-                                      `${s.study_id}: ${doses} doses every ${every} h.`)}>Save</button>
+                                      `${s.study_id}: ${doses} doses every ${every} h.`, MODEL)}>Save</button>
     </div>
   );
 }
@@ -161,7 +162,7 @@ function LeaveOut({ s, projectId, run }: { s: StudyRow; projectId: string; run: 
       <button className="btn" disabled={!reason.trim()}
               onClick={() => void run(() => send("put", "/api/v1/projects/{project_id}/inputs/choices", { project_id: projectId },
                                                  { kind: "excluded_studies", key: s.study_id, value: s.excluded ? null : reason, reason }),
-                                      s.excluded ? `${s.study_id} is used again.` : `${s.study_id} is left out: ${reason}.`)}>
+                                      s.excluded ? `${s.study_id} is used again.` : `${s.study_id} is left out: ${reason}.`, inputsAfter(projectId, []))}>
         {verb}
       </button>
       <button type="button" className="link-btn" onClick={() => setOpen(false)}>Cancel</button>
@@ -239,7 +240,7 @@ function TypedTable({ projectId, run, options }: { projectId: string; run: Run; 
                   origin: f.origin as "LITERATURE" | "CLIENT" | "ILLUSTRATIVE",
                   series: [{ times, values, n: Number(f.n), statistic: "arithmetic_mean" }],
                   source: { title: f.title, ...(f.link.startsWith("10.") ? { doi: f.link } : f.link ? { url: f.link } : {}) },
-                }), `${f.study_id}: the typed table is added.`)}>
+                }), `${f.study_id}: the typed table is added.`, MODEL)}>
           Add the study
         </button>
       </div>

@@ -16,6 +16,73 @@ Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: compl
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
 
+### Fixed — final review round 3, speed and cache writes (round 2's layout-dialog regression, OWN-7, CODE-4; plan 2026-11-14 §5)
+- **Round 2's regression (the gate-todo skeptic): an approval or a rejection made in the layout dialog that "Read this
+  table…" opens is shown.** The dialog opened on the stored layout's table with no version, a cache key
+  (`[mapping, {file_sha256, region_id}]`) that `writeMapping` never wrote; its write was marked stale without a read, so
+  the chip stayed "waits for approval" and the Approve form stayed. `writeMapping` (`components/delivery/writes.ts`) now
+  writes the answer under every key a dialog reads a layout by, by the API's own rule for `GET …/mappings/{id}` (no
+  version is the latest; a file and region, the table it is shown on): at its version, and, when it is the latest by its
+  own list of versions, with no version, each on no table and on the table it shows. Chosen over passing the stored
+  version from "Read this table…" (it fixes only the openers that know a version; the key with a table and no version
+  stays one no decision writes) and over pinning the version after a decision (it changes the dialog's key under the
+  person): one rule for every key, from the answer itself. Also fixed with it: the latest was judged by what the cache
+  held, so with nothing cached an older version's answer was written as the latest. The stored layout is written too, so
+  the dialog that opens next shows it with no read. Impact: the person sees the approval at once; inputs-fill now
+  approves the first layout in that dialog and checks "approved" with the Approve form gone.
+- **OWN-7, CODE-4: a decision on Inputs costs the decision and what it changed, not every read on the page.** Before,
+  `useMutation` (`lib/hooks.ts`) redrew the server-rendered page and read every query again after every change (17 to 31
+  requests, 4–7 s, per click), and every area switch read the 458 KB delivery page again. Now a change says what it made
+  stale (`After`: its answer written into the cache; the reads it changed, by route, or one answer by its key; the
+  server-rendered parts drawn again only where they show what changed), and the argument is required, so every caller
+  in the app says it:
+  - *a decision on a delivery card* (`:enter`, `:override`, `:dispose`, `:choose`, `:link`; `useCardDecide`): the card,
+    its answer, is written under the key every part of the page reads it by; the delivery page is read again once (the
+    subject's row there follows the card). The facts form writes each `:enter`'s card and reads the page once after the
+    last; the spot check writes its draw and reads its one card; "State the analyte" writes each answered page and reads
+    its card once; a signed confirmation, when its dialog closes, writes the card and reads the delivery, the inputs, the
+    sheet form, the client data and the evidence, the other cards marked stale (one landing can name another's source);
+  - *a model input* (a value proposed, decided, corrected or chosen, values reused or taken from a published model, a
+    dataset's study, a figure digitized): the inputs, the evidence and the offers of the person's other projects; a
+    choice or the identity proposed writes the inputs page it answers; a dataset kept or left out writes the evidence
+    page it answers and reads the delivery and that card only when a delivery subject names the dataset;
+  - *the sheet form*: a selection writes its groups and reads the inputs' to-do; a confirmation also reads the inputs,
+    the evidence and the client data, and the delivery and the card of a subject that reads the same source;
+  - *files*: an upload, the library's documents read for data, a file read again, filed under another area or a sheet
+    sorted reads the files, their reading, the sheet form, the delivery (which then says it is reading, and the page
+    follows it to the end) and the documents; a sheet saved in the sheet reader the files, the sheet form, the
+    inputs and the delivery; a release proposed the client data and the model inputs; a search its progress;
+  - *what is not a decision*: the end of an AI reading or of the literature search reads what they bring (the files,
+    the sheet form, the inputs, the evidence, the delivery, the documents), no longer every query of the app.
+  A layout's decision that has its files read again is followed to the end of that reading by the layout's own answer
+  too (the dialog reads it every few seconds while it waits; when it no longer does, the delivery page and the cards
+  shown are read again), not only by the page's "reading" flag: the broad refresh had hidden that a read answered just
+  as the reading ended could leave a table's row in To do as it was before (seen once in inputs-task-first).
+  The step bar (drawn on the server) is drawn again when what it says about Inputs changes: its state and the readiness
+  checks that fail, from the readiness the inputs answer with, whatever changed it; never after a decision that leaves
+  it as it was (a card decision). The Inputs page holds what it has read for the visit (`HeldReads`): an area shown
+  again, or a second part of the page that reads the same route, draws from the cache; what was read before the visit is
+  read once when first shown; what a change marks stale is read again as always. Measured on the delivery seed
+  (delivery.spec, which now asserts it): saving a fact 17 → 2 requests (the `:enter` and the delivery page); "asked of
+  the client" 31 → 2; "Accept as is" 18 → 2; the spot check's record 2 (the record and its card; 22 in the review);
+  Client files shown again 4 → 0; the study's card shown again 9 → 0. inputs-task-first asserts that three compound
+  values entered in To do cost their three `POST /evidence`, one read of the inputs and the step bar drawn again (its
+  readiness changed).
+  Other pages, each audited: Review & sign (`PLAN_CHANGED`: the plan, its review, the blinding, the steps, the inputs and
+  the evidence, and the step bar), Start (the brief, its documents, the steps, the inputs, the client data, and the step
+  bar), the library (its documents; a withdrawal also what was taken from the document), "+ Add data" in the sidebar (the
+  files' reads and the library, and the page under it, drawn on the server), the members (their page, written), the
+  system (the system, the inputs and the plan, and the page), the projects list (archived or restored: the list and the
+  page) and an escalation's decision (the escalations, the campaigns and the page). Impact: a card decision costs two
+  requests instead of about twenty and no server render (the page keeps its place), and what the page shows stays
+  current (inputs-work, inputs-task-first, inputs-fill, inputs-owner-job, delivery, client-confirm, inputs-todo and the
+  rest of the suite pass as before).
+- **Round 2's minors from the same skeptic.** The "memoised" silent-cell reading in the round-2 entry and plan §5 was
+  never memoised (each read of the delivery page executes it again: about 0.25 s on the 9-file review projects): the
+  words are corrected. A card's "Read this sheet" ask is spent once its file's row in Client files is closed (opened
+  again, the row no longer reopens the reader with the ask's cells added again). "Restore…" under "Marked as not data
+  just now" says what it restored in place of the last mark's line, and its Cancel no longer takes the entry off the list.
+
 ### Fixed — final review, round-1 remainders: blinding, the arm guard, link elsewhere (INT-3, INT-2 a and b, INT-4, INT-5, INT-1's over-masking, OWN-1; plan 2026-11-14 §5) — science-adjacent
 - **INT-3 (blocker): a blinded study's file is not drawn, served or suggested.** Round 1 withheld a blinded file's lines
   and masked its pages, but the Digitizer on the Studies area still listed the report and drew 230-25's whole
@@ -167,8 +234,9 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
   set aside in the form, stored for RLD's table and approved; RLD's 24 numbers are read, as the e2e checks.
 - **OWN-2 b: "Show them" lists the numbers not read, and why.** `DeliveryRegion.silent_cells` (read-only, the first 50;
   the coverage's own locators, each with its text, null for a blinded study's file, and the reason code's reading
-  records, `CellUse.rule`, the table's layout executed again, memoised) is listed by reason ("Not a plain number (1):
-  sheet PK_Summary, cell F7 “1,2”"; "No column or row of the layout reads it (24): …"). No single cell is set aside (plan
+  records, `CellUse.rule`, the table's layout executed again on each read of the page, not memoised as said before
+  round 3) is listed by reason ("Not a plain number (1): sheet PK_Summary, cell F7 “1,2”"; "No column or row of the
+  layout reads it (24): …"). No single cell is set aside (plan
   §3 API 3 stays the owner's). Where every study and product read from the file is confirmed with the sheet form, the
   read table's whole "Not data…" is offered there (it loses nothing loaded or signed).
 - **OWN-2 c: a sheet-form draft's problems lead to the sheet.** Its own words "Cells say '12.3*', '>1000': mark them as

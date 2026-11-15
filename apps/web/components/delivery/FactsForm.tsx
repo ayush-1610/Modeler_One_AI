@@ -14,10 +14,11 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { send, type Schema } from "@/lib/api";
-import { useResource } from "@/lib/hooks";
+import { readAgain, useResource } from "@/lib/hooks";
 import { engineWords, fieldLabel, valueWord } from "@/lib/words";
 
-import { Problem, Why, useDecide, type Value } from "./shared";
+import { Problem, Why, useCardDecide, useDecide, type Value } from "./shared";
+import { cardAfter } from "./writes";
 
 type Gap = Schema<"DeliveryGap">;
 type Check = Schema<"DeliveryCheck">;
@@ -28,6 +29,7 @@ export type Suggestions = Record<string, { value: string; from: string }[]>;
 
 const ENTER = "/api/v1/projects/{project_id}/delivery/subjects/{type}/{subject}:enter" as const;
 const OVERRIDE = "/api/v1/projects/{project_id}/delivery/subjects/{type}/{subject}:override" as const;
+const DELIVERY = "/api/v1/projects/{project_id}/delivery" as const;
 // the check that names a fact the study record needs is settled only by entering it (the landing cannot load the study
 // without it); the others (no dose, no matrix stated) may also be accepted as is, with the reason
 const ENTER_ONLY = "LANDING_FIELD_MISSING";
@@ -76,7 +78,7 @@ function rowsOf(gaps: Gap[], checks: Check[], field: (c: Check) => string | null
 /** "Accept as is…" for a check that may stand as written (no dose, no matrix stated), with the reason. */
 function AcceptAsIs({ params, check }: { params: Params; check: Check }) {
   const [acting, setActing] = useState(false);
-  const { decide, busy, problem } = useDecide();
+  const { decide, busy, problem } = useCardDecide(params.project_id);
   const message = engineWords(check.message ?? "the check");
   if (!acting) {
     return <button type="button" className="link-btn" onClick={() => setActing(true)} data-testid={`delivery-override-open-${check.id}`}
@@ -125,17 +127,21 @@ const typedValue = (field: string, text: string): string | number => {
   return (INTEGER.has(field) || NUMBER.has(field)) && /^-?\d+(\.\d+)?$/.test(t) ? Number(t) : t;
 };
 
-/** Enter every filled fact with one reason, one `:enter` each; the card is read again once, after the last. */
+/** Enter every filled fact with one reason, one `:enter` each. Each answer is the card, written into the page; the
+ *  delivery page (the subject's row: its values and how they were read) is read again once, after the last (final
+ *  review CODE-4: nothing else on the page changed). */
 function useEnterAll(params: Params) {
   const { decide, busy, problem } = useDecide();
   const client = useQueryClient();
   const enter = async (entries: Schema<"DeliveryEntry">[]): Promise<boolean> => {
     let ok = true;
+    let entered = false;
     for (const body of entries) {
-      const { data } = await decide(() => send("post", ENTER, params, body), { refresh: false });
+      const { data } = await decide(() => send("post", ENTER, params, body), cardAfter(params.project_id, []));
       if (!data) { ok = false; break; }
+      entered = true;
     }
-    await client.invalidateQueries();
+    if (entered) await readAgain(client, [DELIVERY]);
     return ok;
   };
   return { enter, busy, problem };

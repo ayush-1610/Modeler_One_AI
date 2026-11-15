@@ -6,11 +6,14 @@
 // table (`AiReading`), the only list of files on Inputs: the tray keeps no list of its own. With AI off the line says
 // so, and says the files were read without AI where the delivery read them.
 
+import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
 import { send } from "@/lib/api";
-import { useMutation, useRefresh, useResource } from "@/lib/hooks";
+import { readAgain, useMutation, useResource } from "@/lib/hooks";
+
+import { FILES, READ_AGAIN, READ_DONE } from "./after";
 
 const FOUND: [string, string][] = [
   ["datasets", "dataset"], ["facts", "study fact"], ["dissolution_rows", "dissolution row"], ["links", "study link"],
@@ -39,12 +42,14 @@ export function trayLine(counts: Record<string, number>): string {
 const useQueue = (projectId: string) => useResource("/api/v1/projects/{project_id}/reading-queue", { project_id: projectId },
   { poll: (d) => d.agents.enabled && (d.counts.queued > 0 || d.counts.reading > 0), interval: 4000 });
 
-/** Each file read brings data onto the cards: the page is read again when a reading finishes while it is open (the
- *  newest finish time, which the queue's pruning cannot cap); not on the first answer. Used by the Inputs workspace, so
- *  it holds on every area, not only while the Client files area shows the tray (plan 2026-11-14 slice 1). */
+/** Each file read brings data onto the cards: what a reading changes (`READ_DONE`) is read again when one finishes while
+ *  the page is open (the newest finish time, which the queue's pruning cannot cap); not on the first answer. Used by the
+ *  Inputs workspace, so it holds on every area, not only while the Client files area shows the tray (plan 2026-11-14
+ *  slice 1). */
 export function useReadingRefresh(projectId: string) {
   const data = useQueue(projectId).data;
-  const refresh = useRefresh();
+  const client = useQueryClient();
+  const refresh = () => readAgain(client, READ_DONE.reads!);
   const seen = useRef<string | null>(null);
   const newest = data ? data.items.reduce((m, i) => (i.finished_at && i.finished_at > m ? i.finished_at : m), "") : null;
   useEffect(() => {
@@ -65,8 +70,8 @@ export function AiReading({ projectId, sid }: { projectId: string; sid: string }
 
   async function again(id: string) {
     const { problem: failed } = await mutation.run(() => send("post", "/api/v1/projects/{project_id}/reading-queue/{item_id}:again",
-                                                              { project_id: projectId, item_id: id }));
-    setProblem(failed);   // on success the page's resources are read again
+                                                              { project_id: projectId, item_id: id }), READ_AGAIN);
+    setProblem(failed);   // on success the queue and the files are read again
   }
   return (
     <div className="file-ai-reading" data-testid={`reading-item-${item.file}`}>
@@ -106,7 +111,7 @@ export function ReadingTray({ projectId, readWithoutAi = 0 }: { projectId: strin
 
   async function readLibrary() {
     const { data: read, problem: failed } = await mutation.run(() => send("post",
-      "/api/v1/projects/{project_id}/documents:read-for-data", { project_id: projectId }));
+      "/api/v1/projects/{project_id}/documents:read-for-data", { project_id: projectId }), FILES);
     setProblem(failed ?? (read?.not_read.length ? `Not read: ${read.not_read.join("; ")}` : null));
   }
 
