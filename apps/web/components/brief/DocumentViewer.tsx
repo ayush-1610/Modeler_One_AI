@@ -55,8 +55,11 @@ export function DocumentViewer({
             <button className="btn" disabled={pageNo <= 1} onClick={() => setPageNo(pageNo - 1)}>‹</button>
             <span className="muted tnum">p. {pageNo} / {doc.n_pages}</span>
             <button className="btn" disabled={pageNo >= doc.n_pages} onClick={() => setPageNo(pageNo + 1)}>›</button>
-            <a className="btn" href={`/api/v1/projects/${projectId}/documents/${doc.sha256}/raw`} target="_blank"
-               rel="noreferrer">Original</a>
+            {/* a file that holds a blinded study's values (D-15): its pages come with their digits masked, and its
+                original is not served until the plan is signed */}
+            {doc.blinded ? <span className="muted fs-13" data-testid="document-original-withheld">original withheld (blinded)</span>
+              : <a className="btn" href={`/api/v1/projects/${projectId}/documents/${doc.sha256}/raw`} target="_blank"
+                   rel="noreferrer">Original</a>}
           </span>
         )}
       </div>

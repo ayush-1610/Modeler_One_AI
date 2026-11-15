@@ -130,6 +130,9 @@ class DocumentView(View):
     uploaded_at: str
     uploaded_by: str
     withdrawn: bool              # withdrawn from the project by a person (the document library, PR 2): kept, not used
+    # it holds a blinded study's values (D-15, `blinded_sources`): its original is not served and the digitizer does not
+    # draw it until the plan is signed; its pages come with their digits masked
+    blinded: bool
 
 
 class DataPlanStatus(View):

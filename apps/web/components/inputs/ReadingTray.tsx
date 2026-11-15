@@ -147,7 +147,14 @@ export function ReadingTray({ projectId, readWithoutAi = 0 }: { projectId: strin
           <strong>Figures worth digitizing</strong>{" "}
           <span className="muted">(no table in the client&apos;s files holds their values)</span>
           <ul>
-            {data.figures.map((f) => (
+            {data.figures.map((f) => f.blinded ? (
+              // its file holds a blinded study's values (D-15): what it shows, its caption and Digitize wait for the plan
+              <li key={`${f.sid}-${f.n}`} data-testid={`figure-${f.file}-${f.page}`}>
+                <span>{f.file}, {f.file.toLowerCase().endsWith(".pdf") ? "p." : "part"} {f.page}: a figure</span>
+                <span className="delivery-withheld" data-testid={`figure-withheld-${f.file}-${f.page}`}> · withheld (blinded): its file holds
+                  the values of a study blinded until the plan is signed, and it can be digitized then</span>
+              </li>
+            ) : (
               <li key={`${f.sid}-${f.n}`} data-testid={`figure-${f.file}-${f.page}`}>
                 <span>
                   {/* a Word file has no pages: its text is read in parts, which are not Word's pages */}

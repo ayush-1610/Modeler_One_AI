@@ -552,12 +552,23 @@ def _label(text: str | None) -> str | None:
     return name_key(text) if text else None
 
 
+def matrix_key(matrix: str | None) -> str | None:
+    """A matrix as conflicts compare it (`_entity_key`): its choice ("plasma", "urine"), else its name's key."""
+    return (read_choice("matrix", matrix) or name_key(matrix)) if matrix else None
+
+
+def in_conflicts(value: ValueState) -> bool:
+    """Whether a value's kind takes part in `find_conflicts` (its status aside): not a spread fact, a naming fact, a
+    link fact or an LLOQ (why, there)."""
+    return not (is_spread_fact(value) or value.field in _NAMING or value.field.startswith("link.") or value.field == "lloq")
+
+
 def _entity_key(entity: EntityRef, analytes: Mapping[str, str] | None = None) -> tuple[Any, ...]:
     """An entity as conflicts compare it. The analyte of a study's (or a product's) value by its name (`analytes`:
     analyte id -> `label_key`): analytes are resolved inside their file, so one study's analyte named in two files is
     two entities, and their values must still meet. A value of no study and no product keeps its analyte's id: two
     files' unassigned values are never one entity."""
-    matrix = (read_choice("matrix", entity.matrix) or name_key(entity.matrix)) if entity.matrix else None
+    matrix = matrix_key(entity.matrix)
     analyte: Any = entity.analyte
     if analyte is not None and analytes and (entity.study or entity.product) and analyte in analytes:
         analyte = ("name", analytes[analyte])
@@ -623,8 +634,7 @@ def find_conflicts(values: Sequence[ValueState], *, resolution_min: float,
     groups: dict[str, list[tuple[tuple[str, float] | None, ValueState]]] = {}
     keys: dict[str, list[Any]] = {}
     for value in values:
-        if value.status not in _ACTIVE or is_spread_fact(value) or value.field in _NAMING \
-                or value.field.startswith("link.") or value.field == "lloq":
+        if value.status not in _ACTIVE or not in_conflicts(value):
             continue
         if value.value is None and not value.censored and value.uloq is None:
             continue

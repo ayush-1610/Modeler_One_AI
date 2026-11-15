@@ -3,8 +3,8 @@
 // blinds them, and no view of Inputs shows their values, the digits of the reasons, their pages' lines or their sheets.
 // The card lists its decisions with the reason's digits masked ("Entered for Purpose of the study (value withheld)"),
 // offers no "Confirm now with the sheet form" and withholds the sheet form's reading; Client files withholds the
-// report's page lines (no peek) and the workbook's blinded sheet. Software test data (the made-up Exampleamide), never a
-// model.
+// report's page lines (no peek) and the workbook's blinded sheet; the digitizer neither offers nor draws the report, and
+// its original is not served. Software test data (the made-up Exampleamide), never a model.
 import { execFileSync } from "node:child_process";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -89,6 +89,28 @@ test("a study the delivery blinds shows no value, reason digit, page line or she
   await expect(page.getByTestId("sheet-blinded-Fed")).toHaveText("blinded until the plan is signed");
   await expect(page.getByTestId("sheet-blinded-Fasting")).toHaveCount(0);           // 230-23's sheet stays open
   await page.screenshot({ path: test.info().outputPath("2-blinded-files.png"), fullPage: true });
+
+  // --- the digitizer: the report holds 230-25's values, so it is neither offered nor drawn, and its original is not
+  // served until the plan is signed (final review INT-3) ---
+  type Doc = { name: string; sha256: string; blinded: boolean };
+  const reportDoc = (await read<{ documents: Doc[] }>("documents")).documents.find((d) => d.name === pdf)!;
+  expect(reportDoc.blinded).toBe(true);
+  const original = await request.get(`${api}/documents/${reportDoc.sha256}/raw`, { headers: AUTH });
+  expect(original.status()).toBe(409);
+  const raws: string[] = [];
+  page.on("request", (r) => { if (r.url().includes("/raw")) raws.push(r.url()); });
+  await page.getByTestId("tab-studies").click();
+  await page.getByTestId("open-digitizer").click();
+  const digitizer = page.getByTestId("digitizer");
+  await expect(digitizer.getByTestId("digitize-withheld")).toContainText(`${pdf} is not offered here until the plan is signed`);
+  await expect(digitizer.getByTestId("digitize-document")).toHaveCount(0);
+  await expect(digitizer.locator("canvas")).toHaveCount(0);
+  // asked for by a link to its page (the reading tray's Digitize, or one kept from before): said, and not drawn
+  await page.goto(`/projects/${projectId}/inputs?tab=studies&digitize=${reportDoc.sha256}&page=2#observed-datasets`);
+  await expect(page.getByTestId("digitize-withheld")).toContainText(`${pdf} is not drawn: it holds the values of a study blinded`);
+  await expect(page.getByTestId("digitizer").locator("canvas")).toHaveCount(0);
+  await page.screenshot({ path: test.info().outputPath("3-digitizer-withheld.png"), fullPage: true });
+  expect(raws).toEqual([]);
 
   // the APIs the page reads give none of it either
   const review = await request.get(`${api}/client-review`, { headers: AUTH });

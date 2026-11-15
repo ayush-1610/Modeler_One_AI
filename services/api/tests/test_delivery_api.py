@@ -2466,14 +2466,14 @@ def test_a_link_that_covered_part_of_a_table_is_not_carried_and_the_page_says_wh
     assert again.status_code == 200 and again.json()["data"]["relink"] == [] and again.json()["data"]["unassigned"] == []
 
 
-def _arm_workbook(arm: str, *, period: bool) -> bytes:
+def _arm_workbook(arm: str, *, period: bool, title: str | None = None) -> bytes:
     """A BE arm's workbook as a CRO sends it (the times across the top), under a title the rules do not read as a study
-    id: subjects 001 to 004, with their period ("I", "II") when `period`."""
+    id: subjects 001 to 004, with their period ("I", "II") when `period`. `title`: another title."""
     book = Workbook()
     sheet = book.active
     sheet.title = "Sheet1"
     times = ["1.00", "2.00", "4.00", "8.00"]
-    sheet.append([f"Study ABC-1: plasma concentrations of {synthetic.DRUG} (ng/mL), {arm}, 50 mg, fasting"])
+    sheet.append([title or f"Study ABC-1: plasma concentrations of {synthetic.DRUG} (ng/mL), {arm}, 50 mg, fasting"])
     sheet.append([])
     sheet.append(["Time (hr)"])
     sheet.append(["Subject No.", *(["Period"] if period else []), *times])
@@ -2534,6 +2534,95 @@ def test_two_files_with_the_same_subjects_are_refused_one_arm_of_a_study_whateve
     assert elsewhere.status_code == 200, elsewhere.text
     moved = next(f for d in elsewhere.json()["data"]["deliveries"] for f in d["files"] if f["sha256"] == _sha(test))["links"]
     assert [(m["labels"], m["values"]) for m in moved] == [({"study": "ABC-2"}, n_test)]
+
+
+@pytest.mark.req("T-47", "F-404", "T-05")
+def test_the_arm_guard_refuses_only_what_would_be_one_series_and_never_what_stays_where_it_is(project):
+    """Final review INT-4 (the round-1 guard's regression): the guard compares what the ledger compares (subject, period,
+    analyte by name, matrix, field), and does not check values a request keeps in their study and arm."""
+    p = project()
+    # a plasma file and a urine file of one study, the same subjects and periods: two series, so one arm is fine
+    plasma = _arm_workbook("Reference", period=True)
+    urine = _arm_workbook("Reference", period=True, title=f"Study ABC-1: urine concentrations of {synthetic.DRUG} (ng/mL), "
+                                                         "Reference, 50 mg, fasting")
+    ref, test = _arm_workbook("Reference", period=False), _arm_workbook("Test", period=True)
+    p.deliver(("abc-plasma.xlsx", plasma), ("abc-urine.xlsx", urine), ("abc-reference.xlsx", ref), ("abc-test.xlsx", test))
+    page = p.page()
+    of = {sha: _all_targets([v for v in page["unassigned"] if v["file_sha256"] == sha])
+          for sha in (_sha(plasma), _sha(urine), _sha(ref), _sha(test))}
+    matrices = {sha: {v["labels"].get("matrix") for v in page["unassigned"] if v["file_sha256"] == sha and v["labels"].get("subject")}
+                for sha in (_sha(plasma), _sha(urine))}
+    assert matrices == {_sha(plasma): {"plasma"}, _sha(urine): {"urine"}}, matrices
+    made = p.post("delivery/values:assign", {"targets": of[_sha(plasma)], "new_study": "ABC-1", "why": "the plasma of ABC-1"})
+    assert made.status_code == 200, made.text
+    study = next(s for s in made.json()["data"]["subjects"] if s["label"] == "ABC-1")["subject"]
+    urine_linked = p.post("delivery/values:assign", {"targets": of[_sha(urine)], "study": study, "why": "the urine of ABC-1"})
+    assert urine_linked.status_code == 200, urine_linked.text
+    # the original bypass is still refused: the Reference and the Test file into one arm, each with its own analyte id of
+    # one name, in one call or one after the other
+    analytes = {v["file_sha256"]: v["entity"].get("analyte") for v in page["unassigned"] if v["entity"].get("analyte")}
+    both = p.post("delivery/values:assign", {"targets": [*of[_sha(ref)], *of[_sha(test)]], "new_study": "ABC-2",
+                                              "why": "both arms"})
+    assert both.status_code == 409 and "abc-reference.xlsx and abc-test.xlsx both hold subject 001" in both.json()["detail"]["message"]
+    first = p.post("delivery/values:assign", {"targets": of[_sha(ref)], "new_study": "ABC-2", "why": "the Reference arm",
+                                               **({"analyte": analytes[_sha(ref)]} if _sha(ref) in analytes else {})})
+    assert first.status_code == 200, first.text
+    abc2 = next(s for s in first.json()["data"]["subjects"] if s["label"] == "ABC-2")["subject"]
+    second = p.post("delivery/values:assign", {"targets": of[_sha(test)], "study": abc2, "why": "the Test arm",
+                                                **({"analyte": analytes[_sha(test)]} if _sha(test) in analytes else {})})
+    assert second.status_code == 409 and "which study ABC-2 (no arm) holds already from abc-reference.xlsx" in second.text
+
+
+@pytest.mark.req("T-47", "F-404", "T-05")
+def test_stating_the_analyte_of_values_whose_files_name_their_study_is_never_refused_by_the_arm_guard(project):
+    """Final review INT-4: the card's "State it…" for ANALYTE_MISSING keeps the values' study and arm, so nothing new sits
+    beside them, and stating their analyte only narrows a match: the guard does not check them again."""
+    p = project()
+    named = _arm_workbook("x", period=True, title=f"Study 230-31, 50 mg, fasting: plasma concentrations of {synthetic.DRUG} (ng/mL)")
+    bare = _arm_workbook("x", period=True, title="Study 230-31, 50 mg, fasting: concentrations (ng/mL)")
+    p.deliver(("named-plasma.xlsx", named), ("named-bare.xlsx", bare))
+    path = p.subject("230-31")
+    card = p.card(path)
+    values = {v["id"]: v for t in card["tables"] for v in t["values"]}
+    missing = [c for c in card["checks"] if c["code"] == "ANALYTE_MISSING"]
+    assert missing and card["conflicts"] == [], (missing, card["conflicts"])
+    targets = missing[0]["values"]
+    first_value = values[targets[0]]
+    assert {values[t]["file_sha256"] for t in targets} == {_sha(bare)}
+    analyte = next(a["id"] for a in p.page()["analytes"] if a["label"].lower() == synthetic.DRUG.lower())
+    stated = p.post("delivery/values:assign", {"targets": targets, "why": "the report says what it measures", "analyte": analyte,
+                                                **{r: first_value["entity"][r] for r in ("study", "arm") if first_value["entity"].get(r)}})
+    assert stated.status_code == 200, stated.text
+    assert not [c for c in p.card(path)["checks"] if c["code"] == "ANALYTE_MISSING"]
+
+
+@pytest.mark.req("T-47", "F-404", "T-05")
+def test_a_file_under_two_links_to_one_place_is_moved_whole_by_the_union_of_their_targets(project):
+    """Final review INT-5: a file's facts (dose, fed state) and its table, linked by two links to one study and arm, are
+    listed as two links on the file; "Link elsewhere…" sends the union of their targets, so nothing stays behind."""
+    p = project()
+    ref = _arm_workbook("Reference", period=False)
+    p.deliver(("abc-reference.xlsx", ref))
+    values = [v for v in p.page()["unassigned"] if v["file_sha256"] == _sha(ref)]
+    facts, table = _all_targets([v for v in values if "#" not in v["id"]]), _all_targets([v for v in values if "#" in v["id"]])
+    assert facts and table, values
+    made = p.post("delivery/values:assign", {"targets": table, "new_study": "ABC-1", "new_arm": "Reference", "why": "the table"})
+    assert made.status_code == 200, made.text
+    study = next(s for s in made.json()["data"]["subjects"] if s["label"] == "ABC-1")
+    reference = study["arms"][0]["id"]
+    assert p.post("delivery/values:assign", {"targets": facts, "study": study["subject"], "arm": reference,
+                                             "why": "the facts of the same arm"}).status_code == 200
+    links = next(f for d in p.page()["deliveries"] for f in d["files"] if f["sha256"] == _sha(ref))["links"]
+    assert [sorted(link["targets"]) for link in links] == [sorted(table), sorted(facts)]
+    assert {(link["study"], link["arm"]) for link in links} == {(study["subject"], reference)}
+    # moved together: one call with both links' targets; one link left, every value in the new arm, none in the old one
+    union = list(dict.fromkeys(t for link in links for t in link["targets"]))
+    moved = p.post("delivery/values:assign", {"targets": union, "study": study["subject"], "new_arm": "Test", "why": "the Test arm"})
+    assert moved.status_code == 200, moved.text
+    (link,) = next(f for d in moved.json()["data"]["deliveries"] for f in d["files"] if f["sha256"] == _sha(ref))["links"]
+    assert link["labels"] == {"study": "ABC-1", "arm": "Test"} and link["values"] == len(values)
+    arms = {v.entity.arm for v in LedgerView(p.ws).values(file_sha256=_sha(ref))}
+    assert arms == {link["arm"]}
 
 
 @pytest.mark.req("T-47", "F-404")
@@ -2816,8 +2905,13 @@ def test_values_linked_to_a_study_are_its_decisions_and_say_how_many_are_still_i
 def test_a_blinded_studys_decisions_and_audit_trail_withhold_its_values_and_reason_digits(project):
     p = project(blinding=True)
     workbook = synthetic.messy_workbook()
-    p.deliver(workbook)
+    p.deliver(workbook, ("loose-profile.csv", LOOSE))
     path = p.subject("230-23")
+    # the delivery's clean-up in a file that holds no value of 230-23: in the card's fold, its why is said as written
+    (region,) = next(f for d in p.page()["deliveries"] for f in d["files"] if f["sha256"] == _sha(LOOSE))["regions"]
+    aside = p.post("delivery/regions:exclude", {"file_sha256": _sha(LOOSE), "regions": [region["region_id"]], "scope": "regions",
+                                                 "why": "the 2nd copy of the 12 mg run"})
+    assert aside.status_code == 200, aside.text
     why = "CSR 230-23 table 14.2.1: 50 mg oral, 24 subjects, Cmax 41.2 ng/mL kept for external validation"
     for field, value in (("route", "oral"), ("n", 24), ("intended_use", "external_validation")):
         answer = p.post(f"{path}:enter", {"field": field, "value": value, "why": why})
@@ -2830,6 +2924,9 @@ def test_a_blinded_studys_decisions_and_audit_trail_withhold_its_values_and_reas
     assert all(not any(ch.isdigit() for ch in d["why"]) and "Cmax ••.• ng/mL" in d["why"] for d in entered)
     (note,) = _decided(card, "not_data")
     assert note["why"] == "a working note, not data"                       # no digit to mask
+    # only what is about the blinded study or its files is masked: the fold's decision about the other file is not
+    (other_file,) = _decided(card, "not_data", "delivery")
+    assert (other_file["files"], other_file["why"]) == (["loose-profile.csv"], "the 2nd copy of the 12 mg run")
     # the audit trail's view: the reasons of the decisions about it are masked while it is blinded; the chain verifies
     trail = p.get("audit", limit=2000).json()["data"]
     entries = [e for e in trail["events"] if e["action"] == "intake.entry"]
@@ -2861,6 +2958,15 @@ def test_a_study_the_delivery_blinds_is_withheld_and_refused_on_the_sheet_form_a
     assert p.get(f"client-data/{sid}/sheets/Fed").status_code == 200
     page = p.get(f"documents/{report}/pages/2").json()["data"]
     assert page["blinded"] is False and any(ch.isdigit() for ch in page["text"])
+    # a figure the reading agent suggested from the report (agents are off here: recorded as its reading would)
+    caption = "Figure 2. Study 230-25: mean plasma concentrations after 50 mg (n = 6)"
+    client_data.record_document_reading(p.ws, client_data.submission_id(report), facts=[], dissolution=[], links=[], datasets=[],
+                                        refused=[], digitization=[], summary="", run_id=None, by="u1",
+                                        figures=[{"kind": "concentration_time", "page": 2, "quote": caption, "study_id": "230-25"}])
+    (figure,) = p.get("reading-queue").json()["data"]["figures"]
+    assert (figure["quote"], figure["study_id"], figure["digitizable"], figure["blinded"]) == (caption, "230-25", True, False)
+    assert {d["sha256"]: d["blinded"] for d in p.get("documents").json()["data"]["documents"]}[report] is False
+    assert p.get(f"documents/{report}/raw").status_code == 200
 
     # entered for external validation on its delivery card: the delivery blinds 231-24 and 230-25 (the report's)
     shown = {s.pattern for s in _secrets(p.ws, "230-23")}       # 230-23 stays open: a number it shares too is no leak
@@ -2898,3 +3004,114 @@ def test_a_study_the_delivery_blinds_is_withheld_and_refused_on_the_sheet_form_a
         page = p.get(f"documents/{report}/pages/{number}")
         assert page.status_code == 200 and page.json()["data"]["blinded"] is True
         assert not any(ch.isdigit() for ch in page.json()["data"]["text"]) and _leaks(secrets, page.text) == []
+    # their originals are not served, the documents' list says so (the digitizer offers neither), and the figure the
+    # report suggests says nothing it shows and is not offered for digitizing (final review INT-3)
+    for sha in (report, _sha(workbook.data)):
+        raw = p.get(f"documents/{sha}/raw")
+        assert raw.status_code == 409 and raw.json()["detail"]["code"] == "BLINDED", raw.text
+    listed = {d["sha256"]: d["blinded"] for d in p.get("documents").json()["data"]["documents"]}
+    assert listed[report] is True and listed[_sha(workbook.data)] is True
+    queue = p.get("reading-queue")
+    (figure,) = queue.json()["data"]["figures"]
+    assert (figure["quote"], figure["study_id"], figure["product"], figure["digitizable"], figure["blinded"]) == ("", "", "", False, True)
+    assert (figure["file"], figure["page"]) == (pdf.name, 2) and "230-25" not in queue.text and _leaks(secrets, queue.text) == []
+    (suggested,) = {f["file"]: f for f in p.get("client-data").json()["data"]["files"]}[pdf.name]["figure_suggestions"]
+    assert (suggested["quote"], suggested["study_id"], suggested["blinded"]) == ("", "", True)
+    # a file with no blinded value stays served
+    assert p.get(f"documents/{_sha(LOOSE)}/raw").status_code in (200, 404)
+
+
+@pytest.mark.req("T-47", "F-402")
+def test_a_study_blinded_only_by_the_projects_list_is_withheld_on_the_sheet_form_as_the_delivery_withholds_one(project):
+    """Final review INT-2 (b), INT-3: a study the project's blinding list holds (a dataset read for external validation)
+    that no delivery study is: its sheet is not read, its group not confirmed, its file's original not served; the
+    dataset's reveal for a check, with a reason on the audit chain, works as it did."""
+    p = project(blinding=True)
+    ref = _arm_workbook("Reference", period=False)
+    p.deliver(("abc-reference.xlsx", ref))
+    sid = client_data.submission_id(_sha(ref))
+    group = "study:abc-REF"
+    assert p.get(f"client-data/{sid}/sheets/Sheet1").status_code == 200
+    assert p.get(f"documents/{_sha(ref)}/raw").status_code == 200
+    answers = {"n": 4, "purpose": "external_validation", "route": "oral", "formulation": "ir_tablet", "food_state": "fasted", "dose": 50}
+    finished = p.post("client-review:finish", {"file": sid, "sheet": "Sheet1", "answers": answers})
+    assert finished.status_code == 200, finished.text
+    (made,) = [d for d in all_datasets(p.ws) if d.study.get("study_id") == "abc-REF"]
+    assert made.purpose == "external_validation"
+    assert p.get("blinding").json()["data"]["on"] is True and not any(s["label"] == "abc-REF" for s in p.page()["subjects"])
+    # on the project's list now: withheld as a study the delivery blinds is
+    blinded = next(g for g in p.get("client-review").json()["data"]["groups"] if g["id"] == group)
+    assert blinded["blinded"] is True and all(f["value"] == "withheld (blinded)" for f in blinded["facts"])
+    for refused in (p.get(f"client-data/{sid}/sheets/Sheet1"), p.post("client-review:confirm", {"group": group}),
+                    p.get(f"documents/{_sha(ref)}/raw")):
+        assert refused.status_code == 409 and refused.json()["detail"]["code"] == "BLINDED", refused.text
+    files = {f["file"]: f for f in p.get("client-data").json()["data"]["files"]}
+    assert files["abc-reference.xlsx"]["blinded"] is True and files["abc-reference.xlsx"]["blinded_sheets"] == ["Sheet1"]
+    assert {d["sha256"]: d["blinded"] for d in p.get("documents").json()["data"]["documents"]}[_sha(ref)] is True
+    page = p.get(f"documents/{_sha(ref)}/pages/1").json()["data"]
+    assert page["blinded"] is True and not any(ch.isdigit() for ch in page["text"])
+    # the dataset's reveal for a check is unchanged: its values, with the reason on the audit chain (never the file)
+    shown = p.post(f"datasets/{made.id}:reveal", {"reason": "check the transcription"})
+    assert shown.status_code == 200 and any(v is not None for s in shown.json()["data"]["series"] for v in s["values"])
+    assert [e.reason for e in p.events("dataset.reveal")] == ["check the transcription"]
+    assert p.get(f"documents/{_sha(ref)}/raw").status_code == 409
+    # blinding off (as once the plan is signed): served and read again
+    FileWriteStore(str(p.store.root)).put_project("t1", {"id": "p1", "name": "P1", "compounds": [synthetic.DRUG], "openQuestions": 0,
+                                                         "risk": "medium", "questions": [], "pipeline": True,
+                                                         "blinding": {"on": False, "reason": "the MIDD lead's choice"}})
+    assert p.get(f"client-data/{sid}/sheets/Sheet1").status_code == 200 and p.get(f"documents/{_sha(ref)}/raw").status_code == 200
+
+
+@pytest.mark.req("T-47", "F-402", "F-404")
+def test_the_sheet_form_loads_a_study_only_for_what_its_delivery_card_says_it_is_for(project):
+    """Final review INT-2 (a): a study entered for external validation on its delivery card is not read or loaded as model
+    building through the sheet form (409 PURPOSE_DIFFERS naming both); with no purpose given, the card's is taken."""
+    p = project()
+    workbook = synthetic.messy_workbook()
+    p.deliver(workbook)
+    sid = client_data.submission_id(_sha(workbook.data))
+    group = "study:231-24"                         # the sheet form read the Fed sheet as study 231-24, still to confirm
+    answers = {"n": 6, "route": "oral", "formulation": "ir_tablet", "food_state": "fed", "dose": 100}
+    # read as model building before the card said anything: saved, to confirm
+    first = p.post("client-review:finish", {"file": sid, "sheet": "Fed", "answers": {**answers, "purpose": "model_building"}})
+    assert first.status_code == 200, first.text
+    (read,) = [d for d in all_datasets(p.ws) if d.study.get("study_id") == "231-24"]
+    assert read.purpose == "model_building"
+    entered = p.post(f"{p.subject('231-24')}:enter", {"field": "intended_use", "value": "external_validation",
+                                                       "why": "the plan keeps it for external validation"})
+    assert entered.status_code == 200, entered.text
+    # the card says external validation: confirming the model-building reading is refused, naming both
+    refused = p.post("client-review:confirm", {"group": group})
+    assert refused.status_code == 409 and refused.json()["detail"]["code"] == "PURPOSE_DIFFERS", refused.text
+    message = refused.json()["detail"]["message"]
+    assert "study 231-24 is entered for external validation on its card" in message and "says model building" in message
+    assert dataset(p.ws, read.id).state is EvidenceState.PROPOSED
+    # a sheet the sheet form has not saved yet (230-23's Fasting sheet), its card saying model building: another purpose is
+    # refused before anything is saved, and with none given the card's is taken
+    assert p.post(f"{p.subject('230-23')}:enter", {"field": "intended_use", "value": "model_building",
+                                                   "why": "the protocol"}).status_code == 200
+    fasting = {"n": 24, "route": "oral", "formulation": "ir_tablet", "food_state": "fasted", "dose": 50}
+    other = p.post("client-review:finish", {"file": sid, "sheet": "Fasting", "answers": {**fasting, "purpose": "external_validation"}})
+    assert other.status_code == 409 and other.json()["detail"]["code"] == "PURPOSE_DIFFERS", other.text
+    assert "study 230-23 is entered for model building" in other.json()["detail"]["message"]
+    assert not [d for d in all_datasets(p.ws) if d.study.get("study_id") == "230-23"]
+
+    # a sheet-form group joined to a delivery study by its linked file (abc-REF on ABC-1): with no purpose given, the
+    # purpose its card states is taken
+    q = project(project_id="p2")
+    ref = _arm_workbook("Reference", period=False)
+    q.deliver(("abc-reference.xlsx", ref))
+    linked = q.post("delivery/values:assign", {"targets": _all_targets(q.page()["unassigned"]), "new_study": "ABC-1",
+                                                "why": "the title names study ABC-1"})
+    assert linked.status_code == 200, linked.text
+    row = next(s for s in linked.json()["data"]["subjects"] if s["label"] == "ABC-1")
+    assert row["legacy_groups"] == ["study:abc-REF"]
+    assert q.post(f"{q.subject('ABC-1')}:enter", {"field": "intended_use", "value": "external_validation",
+                                                  "why": "kept for external validation"}).status_code == 200
+    sheet = {"file": client_data.submission_id(_sha(ref)), "sheet": "Sheet1"}
+    abc = {"n": 4, "route": "oral", "formulation": "ir_tablet", "food_state": "fasted", "dose": 50}
+    said = q.post("client-review:finish", {**sheet, "answers": {**abc, "purpose": "model_building"}})
+    assert said.status_code == 409 and "study ABC-1 is entered for external validation" in said.json()["detail"]["message"]
+    taken = q.post("client-review:finish", {**sheet, "answers": abc})
+    assert taken.status_code == 200, taken.text
+    assert {d.purpose for d in all_datasets(q.ws) if d.study.get("study_id") == "abc-REF"} == {"external_validation"}

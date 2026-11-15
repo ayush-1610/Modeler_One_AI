@@ -16,6 +16,63 @@ Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: compl
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
 
+### Fixed — final review, round-1 remainders: blinding, the arm guard, link elsewhere (INT-3, INT-2 a and b, INT-4, INT-5, INT-1's over-masking, OWN-1; plan 2026-11-14 §5) — science-adjacent
+- **INT-3 (blocker): a blinded study's file is not drawn, served or suggested.** Round 1 withheld a blinded file's lines
+  and masked its pages, but the Digitizer on the Studies area still listed the report and drew 230-25's whole
+  concentration table from `GET /documents/{sha}/raw`, which served it to anyone. Now one rule says what D-15 withholds
+  of the client's files (`modeler_project/blinded_sources.py`: the delivery's rule and the project's blinding list
+  together), and every view reads it: `GET /documents/{sha}/raw` answers 409 `BLINDED` for a file that holds a blinded
+  study's values until the MAP is signed; `GET /documents` says `blinded` per file (`DocumentView.blinded`), and the
+  Digitizer leaves such files out and says why ("… is not offered here until the plan is signed"; a link to one says it
+  is not drawn); the reading tray's figures from such a file (`GET reading-queue` and `GET client-data`'s
+  `figure_suggestions`) give no caption, study, product or media and no Digitize (`FigureSuggestion.blinded`; the tray
+  says "withheld (blinded)"); a document's pages and the value's source view mask or leave out such a file's page for
+  the project's list too; the Start step's viewer says "original withheld". **Round 1's note corrected:** it kept the
+  original open "for D-15's reveal for a check" and said Inputs no longer offered the link; both were wrong. The reveal
+  (`POST datasets/{id}:reveal`, a reason on the audit chain) gives a dataset's values and never reads the file; it is
+  unchanged, and no caller needs the original after it.
+- **INT-2 (b): a study blinded only by the project's list** (a dataset read for external validation, the plan's S5 or
+  S6) is withheld on the sheet form as a delivery-blinded one is: its group says `blinded`, reading its sheet
+  (`GET client-data/{sid}/sheets/{sheet}`), `:map`, `:finish` and `:confirm` answer 409 `BLINDED`, and its file's lines,
+  sheets, pages and original are withheld. A delivery study the sheet form read as a listed one is blinded on its card
+  too (`intake_review.blinded_subjects`). A group confirmed earlier says it is in the model.
+- **INT-2 (a): the sheet form loads a study only for what its delivery card says it is for.** Once the MAP is signed the
+  `BLINDED` refusal lifts, and a study entered for external validation on its card could be confirmed as model building
+  through the sheet form. Now, for a client-review group joined to a delivery study whose `intended_use` is set
+  (`intake_review.joined_uses`: its `legacy_groups` or its name), `:finish` takes the card's purpose when none is given and
+  refuses another, `:confirm` refuses a group whose datasets were read for another, and so does `:map` (409
+  `PURPOSE_DIFFERS`, naming both: "study 231-24 is entered for external validation on its card in the delivery, and the
+  sheet form says model building …").
+- **INT-4 (regression from round 1): the arm guard refuses only what really mixes.** Round 1's API guard compared subject,
+  period and analyte only, and ran even when a request kept the values' study and arm: it refused a urine file and a
+  plasma file of one study, and the card's "State it…" on values whose files name their study. It now compares the
+  ledger's conflict key (subject, period, analyte by name, matrix, field; `ledger_view.in_conflicts`, `matrix_key`), a
+  period, analyte or matrix left out matching any, and leaves alone values that stay in their study and arm (their
+  analyte kept or first stated). The web's `collisions` and `pairsMeet` read the same key (`seriesKey`).
+- **INT-5: "Link elsewhere…" moves all of a file's values in one place.** A file's facts (dose, fed state, LLOQ) and its
+  table are often two links to one place ("State it…" relinks the concentrations, a re-read carries the table's link
+  over apart from the facts'); moving the first line moved only the facts. Client files now lists a file's links by the
+  place they sent its values (`linkPlaces`), and one "Link elsewhere…" sends the union of their targets in one call, with
+  the analyte they state filled in. A file whose values went to two places says so; each is moved on its own and the form
+  names what stays.
+- **INT-1's over-masking:** a blinded card's delivery fold masks only decisions about a blinded study or its files; the
+  clean-up of other files reads as on any card.
+- **OWN-1's remainder:** a table linked to two places before a re-read (two partial links) comes back on the link list
+  saying both ("Linked before, in part, to … and to …"), filled with neither, where it said nothing.
+- **Why:** the round-1 skeptics found the Digitizer still drawing a blinded study's table, the project's list not
+  withheld on the sheet form, the sheet form's purpose unchecked once blinding lifts, the arm guard refusing legitimate
+  links, "Link elsewhere…" leaving the facts behind, and two notes in plan §5 and here that were wrong.
+- **Impact:** API contract (additive): `DocumentView.blinded`, `FigureSuggestion.blinded`, 409 `BLINDED` on
+  `GET /documents/{sha}/raw`, 409 `PURPOSE_DIFFERS` on `client-review:finish`, `:confirm` and `client-data/{sid}:map`;
+  `docs/api/openapi.json` and `apps/web/lib/api-types.ts` regenerated. The arm guard lets through what it wrongly refused.
+  No record, ruleset or locked file changes. Tests: `test_delivery_api.py` (the original, the documents' list and the
+  figures of a blinded file; a study blinded only by the project's list, with its reveal unchanged; the purpose checks;
+  the urine and plasma files and "State it…" allowed and the original bypass refused, both shown to fail on round 1's
+  guard; a file under two links moved whole; the fold's decision about another file unmasked), `inputs-work.spec.ts`
+  (the guard's key and staying values, `linkPlaces`, two partial links), `inputs-blinded.spec.ts` (the Digitizer offers
+  and draws no blinded file, and requests no original). Remaining gaps are in plan §5 ("Final review fixes: round-1
+  remainders"). Software test data on the stub engine: none of it is PBPK evidence.
+
 ### Fixed — final review, blinding, Part 11 records and the decisions list (INT-1, INT-2, INT-3, INT-6, INT-7, INT-8, INT-11, CODE-8 d, owner-e2e gaps 6 and 9) — science-adjacent
 - **INT-1 (blocker): a blinded study's reasons no longer show its values.** The decision list read who, when and why
   from `GET /audit` and printed a blinded study's reasons word for word ("… Cmax 41.2 ng/mL …"). The card's API now
@@ -83,9 +140,11 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
   `inputs-owner-job.spec.ts` (13 decisions, the links, the note, the layout's three files, the delivery's fold, the
   dialog's line, and a note given back after the signature named under "Changed since signed"), and a new
   `inputs-blinded.spec.ts` (the card, its decisions, its sheet-form path and Client files of two blinded studies).
-  **Not changed (plan §5):** the raw file route (`/documents/{sha}/raw`) still serves a blinded file to whoever opens
-  it (only the peek stops offering it): refusing it would stop the D-15 reveal-for-a-check path; a dataset the project
-  (not the delivery) blinds keeps its sheet-form path.
+  ~~Not changed (plan §5): the raw file route still serves a blinded file; a dataset the project (not the delivery)
+  blinds keeps its sheet-form path.~~ *Corrected by "Fixed — final review, round-1 remainders" above:* the reason given
+  (that refusing the route would stop D-15's reveal for a check) was wrong, since the reveal never reads the file, and
+  the Digitizer still drew the file; the route now answers 409 `BLINDED`, and the project's list is withheld by the same
+  rule.
 
 ### Fixed — final review, linking values, arms, analytes and the sheet-form join (plan 2026-11-14 §5)
 Findings OWN-1, INT-4, OWN-11, INT-5, OWN-4, INT-9, OWN-3, INT-10 and the owner-job e2e's gaps 4 and 8.
@@ -108,7 +167,8 @@ Findings OWN-1, INT-4, OWN-11, INT-5, OWN-4, INT-9, OWN-3, INT-10 and the owner-
   and what the study holds in that arm from another file) that hold the same subject in the same period with the same
   analyte cannot share one arm; analytes are compared by name, an analyte left out ("as the file says") is the file's
   own or matches any when the file states none, and a period left out matches any period. A stale page or a direct
-  call can no longer put Test and Reference in one arm.
+  call can no longer put Test and Reference in one arm. *(Corrected in the round-1 remainders above: the rule now
+  compares the ledger's conflict key, matrix and field included, and leaves values that stay where they are alone.)*
 - **OWN-11 and gap 8: one analyte per name.** Each file's analyte is an entity of its own by design (the ledger resolves
   an analyte inside its file and compares a study's analytes by name), so the delivery holds an-9 and an-17, both
   "Exampleamide". Every picker (the link editor, the bulk bar, "State it…") now offers one option per name, the one the
@@ -118,7 +178,8 @@ Findings OWN-1, INT-4, OWN-11, INT-5, OWN-4, INT-9, OWN-3, INT-10 and the owner-
 - **INT-5 (blocker): a link can be changed on the page.** A file's row in Client files lists the links in force on its
   values (`DeliveryFile.links`: what each covers, where it went, who, when, why) with "Link elsewhere…": To do's link
   form, the same collision guard (what the new study holds is read from its card first) and a reason, one
-  `values:assign` of that link's targets, which replaces it whole. Not offered for a blinded file.
+  `values:assign` of that link's targets, which replaces it whole. Not offered for a blinded file. *(Corrected in the
+  round-1 remainders above: the links are listed by place, and one "Link elsewhere…" moves all of their targets.)*
 - **OWN-4, INT-9, gap 4: a linked file's sheet-form reading joins its study.** `DeliverySubjectRow.legacy_groups` also
   names the client-review groups all of whose items were read from files a person linked to that subject, every value
   of each (230-23-REF and 230-23-TEST on 230-23; the owner job's OJ-101-REF, OJ-101-TEST on OJ-101 and its "Study lab"

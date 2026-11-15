@@ -18,7 +18,9 @@ const EMPTY_AXIS: Axis = { p1: null, v1: "", p2: null, v2: "", log: false };
 /** T-19: a person calibrates the axes of a published figure and picks the points; the server maps them to data.
  *  Nothing is detected automatically: which marker is a point, and of which series, is the person's call. A figure
  *  inside a PDF is found from the figure list (an image placed on a page) or cropped by hand (a drawn figure), and
- *  zoomed; the points are picked in that view, whose frame is kept with the dataset (R3d). */
+ *  zoomed; the points are picked in that view, whose frame is kept with the dataset (R3d). A file that holds a blinded
+ *  study's values (`DocumentView.blinded`, D-15) is not offered or drawn until the plan is signed, and the API does not
+ *  serve its original until then (409 BLINDED; final review INT-3). */
 export function Digitizer({ projectId, documents, onSaved, initial }: {
   projectId: string;
   documents: DocumentView[];
@@ -26,8 +28,12 @@ export function Digitizer({ projectId, documents, onSaved, initial }: {
   /** Open on this document and page, for this study (a figure the reading tray suggested; plan 2026-11-10, R5). */
   initial?: { sha: string; page: number; study?: string };
 }) {
-  const figures = documents.filter((d) => d.kind === "pdf" || d.kind === "image");
+  const drawable = documents.filter((d) => d.kind === "pdf" || d.kind === "image");
+  const figures = drawable.filter((d) => !d.blinded);
+  const withheld = drawable.filter((d) => d.blinded);
   const start = initial && figures.some((d) => d.sha256 === initial.sha) ? initial : null;
+  // a figure asked for (a link from before the study was blinded) whose file holds a blinded study's values
+  const askedWithheld = initial ? withheld.find((d) => d.sha256 === initial.sha) ?? null : null;
   const [sha, setSha] = useState(start?.sha ?? figures[0]?.sha256 ?? "");
   const [page, setPage] = useState(start?.page ?? 1);
   const [size, setSize] = useState<{ w: number; h: number } | null>(null);
@@ -149,11 +155,25 @@ export function Digitizer({ projectId, documents, onSaved, initial }: {
     else onSaved(data.id);
   }
 
-  if (!figures.length) return <p className="muted">Upload the paper (PDF) or a figure image first.</p>;
+  const others = withheld.filter((d) => d !== askedWithheld);
+  const notOffered = withheld.length > 0 && (
+    <p className="delivery-withheld m-0" data-testid="digitize-withheld">
+      {[askedWithheld ? `${askedWithheld.name} is not drawn: it holds the values of a study blinded until the plan is signed.` : "",
+        others.length === 0 ? ""
+          : `${others.length === 1 ? `${others[0].name} is` : `${others.length} files (${others.map((d) => d.name).join(", ")}) are`} not offered `
+            + `here until the plan is signed: ${others.length === 1 ? "it holds" : "they hold"} the values of a blinded study.`]
+        .filter(Boolean).join(" ")}
+    </p>
+  );
+  if (!figures.length) {
+    return withheld.length ? <div className="digitizer" data-testid="digitizer">{notOffered}</div>
+      : <p className="muted">Upload the paper (PDF) or a figure image first.</p>;
+  }
   const set = (k: keyof Study) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setStudy({ ...study, [k]: e.target.value });
 
   return (
     <div className="digitizer" data-testid="digitizer">
+      {notOffered}
       <div className="row">
         <select value={sha} onChange={(e) => { setSha(e.target.value); setPage(1); }} aria-label="document" data-testid="digitize-document">
           {figures.map((d) => <option key={d.sha256} value={d.sha256}>{d.name}</option>)}

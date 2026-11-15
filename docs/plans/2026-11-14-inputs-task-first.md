@@ -380,13 +380,16 @@ before the next starts.
   answers and points are withheld in `GET /client-review`; `:finish`, `:confirm`, reading one of its sheets and
   `:map` on such a sheet answer 409 `BLINDED`. Sheets are found by the anchors of the blinded study's values (a sheet of
   the same workbook with another study's values stays open); a page of a PDF or Word file is masked file by file, as
-  the delivery's file-level rule and the source view's rule for a text of such a file do. Not done: checking the sheet
-  form's purpose against the delivery's `intended_use` (moot while it refuses), and the `:select`, `:reopen` and
-  `:edit` routes of such a group (they load nothing; the page offers none of them for it).
-- **Not changed, for the owner:** the raw file route (`/documents/{sha}/raw`) still serves a file that holds a blinded
-  study's values to whoever opens it: the peek stops offering "Open the original", but refusing the route would stop
-  D-15's reveal for a check (digitization). A study the project's blinding list holds and the delivery does not keeps
-  its sheet-form path (the API redacts its points, as before).
+  the delivery's file-level rule and the source view's rule for a text of such a file do. Not done: the `:select`,
+  `:reopen` and `:edit` routes of such a group (they load nothing; the page offers none of them for it). *Corrected by
+  "Final review fixes: round-1 remainders" below:* the sheet form's purpose is now checked against the delivery's
+  `intended_use` (it was not moot: once the MAP is signed the refusal lifts), and a study the project's blinding list
+  holds is withheld by the same rule.
+- ~~Not changed, for the owner: the raw file route still serves a blinded file~~ *(round 1's note, wrong, corrected
+  below):* round 1 kept `/documents/{sha}/raw` open on the grounds that refusing it would stop D-15's reveal for a check
+  (digitization), and said Inputs no longer offered the link. Both were wrong: the Digitizer on the Studies area drew a
+  blinded study's whole table from that route, and the reveal is `POST datasets/{id}:reveal` (a reason on the audit
+  chain, the dataset's values), which never reads the file. The route now answers 409 `BLINDED` for such a file.
 - **Two confirm paths, two Part 11 controls (INT-7) — open decision for the owner (contracts §11.10).** "Confirm and
   sign" records an electronic signature (step-up, meaning Reviewed, the record's sha256); "Confirm now with the sheet
   form" records who confirmed and when, with no reason, step-up or signature. The path stays (§2.2.1); its note now says
@@ -408,11 +411,15 @@ before the next starts.
   no browser flow corrects a layout after linking (the owner job approves its layout first, as To do orders it).
 - **The arm guard** is the API's too (409 on values:assign). For "as the file says" the API compares the analyte the
   values carry now (after any earlier link), the web the file's own; both match any analyte when none is stated.
+  *Corrected by "Final review fixes: round-1 remainders":* round 1's rule (subject, period, analyte) refused a urine and
+  a plasma file of one study and the card's "State it…"; it now compares the ledger's conflict key and leaves values that
+  stay where they are alone.
 - **Analytes stay one entity per file** (the ledger resolves an analyte inside its file and compares a study's by
   name, `ledger_view._entity_key`): not a ledger change. The pickers offer one per name, the one the study uses.
-- **"Link elsewhere…"** is on a file's row in Client files, per link in force on its values, not on a card's Files
-  and tables (one home per decision); not offered for a blinded file (its values are withheld until the plan is
-  signed). A link elsewhere replaces the earlier one whole, with the arm, batch and analyte chosen in the form.
+- **"Link elsewhere…"** is on a file's row in Client files, ~~per link in force on its values~~ (per place its values
+  went to since the round-1 remainders: below), not on a card's Files and tables (one home per decision); not offered
+  for a blinded file (its values are withheld until the plan is signed). A link elsewhere replaces the earlier one
+  whole, with the arm, batch and analyte chosen in the form.
 - **The join by linked file:** `legacy_groups` names a client-review group when every one of its items was read from
   files a person linked on the delivery whose values all belong to that one subject (no value left with no subject);
   a file that names its study itself joins by the exact label as before. A joined card keeps the key of its own name.
@@ -424,3 +431,47 @@ before the next starts.
   only read with the sheet form. The join reads both.
 - **A disagreement's subject:** the card's To do lists a subject's disagreements under one line ("Subject 001, period
   I: 11 disagreements"), open while three subjects or fewer have any; To do lists them flat, each naming its subject.
+
+### Final review fixes: round-1 remainders — blinding, the arm guard, link elsewhere (2026-11-15; INT-3, INT-2, INT-4, INT-5, INT-1's over-masking, OWN-1; CHANGELOG "Fixed — final review, round-1 remainders …")
+- **One rule for what D-15 withholds of the client's files** (`modeler_project/blinded_sources.py`, read through
+  `deps.blinded_sources`): the delivery's rule (`intake_review.blinded_subjects`, `intake_decisions.blinded_files` and
+  `blinded_sheets`) and the project's blinding list (`blinding.blinded_studies`: the files the listed studies' datasets
+  were read from, and the sheets their readings or template rows came from) together. Every view that showed a client
+  file reads it: Client files, the client review, a document's pages, the documents' list (`DocumentView.blinded`), the
+  reading tray's figures (`FigureSuggestion.blinded`), the original, and the delivery's source view (no page drawn for
+  such a file). `blinded_subjects` also blinds a delivery study the sheet form read as a listed one (the same name, or
+  one of its `legacy_groups`), so both readers of one study withhold it.
+- **The original (`GET /documents/{sha}/raw`) answers 409 `BLINDED`** for such a file until the MAP is signed. Its
+  callers: the Digitizer (leaves such files out of its list and says so; a link to one says it is not drawn), the peek
+  (offers no "Open the original" for a masked page), the value's source view (draws no page: the route gives none), the
+  Start step's document viewer (says "original withheld"). No caller needs the original after a recorded reveal: the
+  reveal (`POST datasets/{id}:reveal`, a reason on the audit chain) gives the dataset's values, never the file, and is
+  unchanged; so no reveal path to the original was kept. **Cost, file-level as the delivery's rule:** a paper that holds
+  a listed study's figure is withheld whole, so its other figures wait for the plan too. **Not changed:** the delivery
+  report command (`delivery_report.py`, a command-line report, not a page) still prints the figures' captions.
+- **A study blinded only by the project's list** is withheld on the sheet form as a delivery-blinded one is: its group
+  says `blinded` (facts, options, answers and points withheld), reading its sheet, `:map` on it, `:finish` and
+  `:confirm` answer 409 `BLINDED`. A group confirmed before (in the model already) says so ("It is in the model") rather
+  than "read and confirmed once the plan is signed". Its datasets' reveal for a check is unchanged.
+- **The sheet form's purpose against the delivery's** (`intake_review.joined_uses`, the join's two rules): `:finish`
+  takes the delivery card's `intended_use` when the sheet form was given no purpose, and refuses another one; `:confirm`
+  refuses a group whose datasets were read for another purpose; `:map` (Save these data) refuses the same; each with
+  409 `PURPOSE_DIFFERS` naming both. A use the sheet form cannot state (internal validation, supportive) is refused, not
+  taken: such a study is confirmed on its delivery card. **Not built:** the sheet form on the page still asks what the
+  study is for (left empty, the card's is taken).
+- **The arm guard compares the ledger's conflict key** (`intake_review._arm_collision`, web `collisions` and
+  `pairsMeet`): the same subject and field, the same period, analyte (by name) and matrix or one of them left out, for
+  the values that take part in conflicts (`ledger_view.in_conflicts`). A matrix left out matching any is wider than the
+  ledger (which reads no matrix as its own): a file that states none is most likely the other's matrix, so it is
+  refused rather than let through. Values a request keeps in their study and arm (their analyte kept or first stated)
+  are not compared with what they sit beside already, so "State it…" is never refused by it. The web compares a matrix
+  by its written name, the API by the ledger's reading of it; where they differ, the API's 409 is what the page shows.
+- **"Link elsewhere…" moves a place's values** (`linkPlaces`): a file's links are listed by the place they sent its
+  values to, and one "Link elsewhere…" sends the union of those links' targets in one `values:assign`, so the facts
+  (dose, fed state, LLOQ) go with the table. The analyte the links state is filled in and sent for all of them (as a
+  first link with an analyte is); links stating two analytes ask for one. A file whose values went to two places lists
+  both, says each is moved on its own, and the form names what stays where it is.
+- **A blinded card's delivery fold** masks only decisions about a blinded study or its files; the clean-up of other
+  files reads as on any card (INT-1's over-masking).
+- **A table linked to two places before a re-read** (two partial links): its row says both ("Linked before, in part, to
+  … and to …") and fills neither; the person links it again.
