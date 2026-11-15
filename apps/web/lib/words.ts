@@ -392,6 +392,27 @@ export function whereIs(where: string): FilePlace {
 /** Where in a file, as a person reads it ("sheet Sheet1, cells A4 to M12", "page 3, table 1"), never the raw locator. */
 export const placeText = (where: string) => whereIs(where).place;
 
+/** Where a table starts in its file, from its first value's anchor (`<sha256>@<reader>#<locator>`): "sheet Fasting from
+ *  cell B4", "page 4, table 1"; "" when the anchor says nothing a person reads. Two tables of one kind in one file (a
+ *  summary on two pages of a report, two on one sheet) are told apart by it (final review round 4). */
+export function anchorPlace(anchor: string | null | undefined): string {
+  const locator = (anchor ?? "").split("#")[1]?.split("@")[0] ?? "";
+  if (!locator) return "";
+  const at = whereIs(locator);
+  if (at.start !== null) return at.place.replace(/, cells? /, " from cell ").replace(/ to [A-Z]+[0-9]+$/, "");
+  return at.name === locator ? "" : at.name;
+}
+
+/** A label named with its source's file (`title`), or where in it when no file is named (its sheet range in words, its
+ *  page): "Study EX-101: profile · 1 series · parent, plasma · EX-101_PK_sheet.xlsx". A study the sheet form read from
+ *  two files has two groups whose items read alike: their charts and peeks are told apart by it (final review round 4). */
+export function sourceNamed(label: string, source: Record<string, unknown> | null | undefined): string {
+  if (!source) return label;
+  const where = source.title ? String(source.title)
+    : source.locator ? locatorText(String(source.locator)) : source.page ? `page ${String(source.page)}` : "";
+  return where ? `${label} · ${where}` : label;
+}
+
 /** A dataset's source locator as the sheet form writes it ("Studies!A2:AK2; PK_Summary!2:7"), in plain words: "sheet
  *  Studies, cells A2 to AK2; sheet PK_Summary, rows 2 to 7"; a sheet named by the reading's recipe ("Fed (recipe
  *  file-…-r1 v1)") as "sheet Fed". A part in the intake grammar is said as `placeText` says it; any other part is given
@@ -467,10 +488,31 @@ export function drawText(reasons: (string | null)[]): string {
  *  drawn (the draw's rule is the intake rules', SME-governed, unchanged). Null when no spot check is drawn, or it is
  *  stale already. "Saving this changes what the spot check was drawn from, so it is drawn again. Of the 117 values
  *  ticked (recorded by dev-user on 15 Nov 2026, 09:42), the 17 always checked keep their ticks; the 100 drawn at random
- *  are drawn anew, and only those drawn again keep theirs." */
-export function redrawText(spot: { state: string; drawn: number; always: number; recorded_by: string | null; recorded_at: string | null }): string | null {
+ *  are drawn anew, and only those drawn again keep theirs." `why` says what the decision changes, where it is not an
+ *  entry (final review round 4, each checked against the API's rule, `intake_review._stale`: the subject's digest over
+ *  its active values, or a value of a check accepted as is outside the draw): a check accepted as is whose values the
+ *  draw does not all hold (`DeliveryCheck.outside_draw`), the analyte stated for values something is computed from
+ *  (`DeliveryCheck.computed`), one value of a disagreement kept (the others set aside), a file's link refused (its values
+ *  leave the study) or a link that joins another study's values to this one. Settling a required item never draws it
+ *  again (no value changes), and is not said. */
+export type RedrawWhy = { kind: "entered" } | { kind: "accepted"; values: number } | { kind: "analyte"; values: number }
+  | { kind: "kept" } | { kind: "refused" } | { kind: "joined" };
+function redrawLead(why: RedrawWhy): string {
+  switch (why.kind) {
+    case "accepted": return `Accepted as is, its values are always checked, and ${why.values === 1 ? "1 of them is" : `${why.values} of them are`} not in `
+      + "the spot check, so it is drawn again";
+    case "analyte": return `Stating the analyte computes ${why.values === 1 ? "the value" : `the ${why.values} values`} derived from these again `
+      + "(a spread worked out from another), so the spot check is drawn again";
+    case "kept": return "Keeping one value sets the others aside, which changes what the spot check was drawn from, so it is drawn again";
+    case "refused": return "Saying no takes the file's values out of the study, so the spot check is drawn again";
+    case "joined": return "Saying yes joins the file's study and its values to this one, so the spot check is drawn again";
+    default: return "Saving this changes what the spot check was drawn from, so it is drawn again";
+  }
+}
+export function redrawText(spot: { state: string; drawn: number; always: number; recorded_by: string | null; recorded_at: string | null },
+                           why: RedrawWhy = { kind: "entered" }): string | null {
   if (spot.state === "none" || spot.state === "stale") return null;
-  const lead = "Saving this changes what the spot check was drawn from, so it is drawn again";
+  const lead = redrawLead(why);
   if (spot.recorded_by === null) return `${lead}: ticks not recorded yet are not kept.`;
   const sampled = spot.drawn - spot.always;
   const who = `recorded by ${spot.recorded_by}${spot.recorded_at ? ` on ${whenText(spot.recorded_at)}` : ""}`;

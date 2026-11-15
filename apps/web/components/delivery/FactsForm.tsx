@@ -12,14 +12,14 @@
 // the button stays enabled and says what is missing when pressed (final review A11Y-10, CODE-6).
 
 import { useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { focusSoon } from "@/components/kit/focus";
 
 import { send, type Schema } from "@/lib/api";
 import { readAgain, useResource } from "@/lib/hooks";
 import { cardPlace, checkField } from "@/lib/inputsWork";
-import { engineWords, fieldLabel, redrawText, valueWord } from "@/lib/words";
+import { engineWords, fieldLabel, redrawText, valueWord, type RedrawWhy } from "@/lib/words";
 
 import { Problem, Why, useCardDecide, useDecide, type Value } from "./shared";
 import { cardAfter } from "./writes";
@@ -85,24 +85,33 @@ function rowsOf(gaps: Gap[], checks: Check[], field: (c: Check) => string | null
 
 /** What saving a person's entry does to a spot check drawn already, said before Save (`redrawText`: drawn again, the
  *  values always checked with their ticks). Nothing when no spot check is drawn, or it is stale already. */
-export function SpotRedraw({ spot, testId }: { spot?: SpotState | null; testId: string }) {
-  const text = spot ? redrawText(spot) : null;
+export function SpotRedraw({ spot, testId, why }: { spot?: SpotState | null; testId: string; why?: RedrawWhy }) {
+  const text = spot ? redrawText(spot, why) : null;
   if (!text) return null;
   return <p className="inline-issue warn m-0 fs-13" data-testid={`${testId}-redraw`}>{text}</p>;
 }
 
-/** "Accept as is…" for a check that may stand as written (no dose, no matrix stated), with the reason. */
-function AcceptAsIs({ params, check }: { params: Params; check: Check }) {
+/** "Accept as is…" for a check that may stand as written (no dose, no matrix stated), with the reason. Accepted as is,
+ *  its values are always checked: a value of it that the spot check drawn now does not hold draws it again, said before
+ *  Save (`DeliveryCheck.outside_draw`, final review round 4). */
+function AcceptAsIs({ params, check, whose, spot }: {
+  params: Params; check: Check;
+  /** the subject in words ("study 230-23"): the same check is on every card */
+  whose: string;
+  spot?: SpotState | null;
+}) {
   const [acting, setActing] = useState(false);
   const { decide, busy, problem } = useCardDecide(params.project_id);
   const message = engineWords(check.message ?? "the check");
   if (!acting) {
     return <button type="button" className="link-btn" onClick={() => setActing(true)} data-testid={`delivery-override-open-${check.id}`}
-                   aria-label={`Accept as is: ${message}`}>Accept as is…</button>;
+                   aria-label={`Accept as is: ${message} (${whose})`}>Accept as is…</button>;
   }
   return (
     <div className="facts-accept">
-      <Why action="Accept as is" label={`Why "${message}" holds as it is`} busy={busy} autoFocus kind="accepted as is"
+      {check.outside_draw > 0 && <SpotRedraw spot={spot} testId={`delivery-override-${check.id}`} why={{ kind: "accepted", values: check.outside_draw }} />}
+      <Why action="Accept as is" actionLabel={`Accept as is: ${message} (${whose})`} label={`Why "${message}" holds as it is (${whose})`} busy={busy}
+           autoFocus kind="accepted as is"
            onCancel={() => { setActing(false); focusSoon(`delivery-override-open-${check.id}`); }}
            testId={`delivery-override-${check.id}`} placeholder="why it holds as it is (kept on the audit trail)"
            onSubmit={async (why) => {
@@ -115,12 +124,12 @@ function AcceptAsIs({ params, check }: { params: Params; check: Check }) {
   );
 }
 
-/** The typed control of one fact. */
-function Control({ row, value, unit, options, onValue, onUnit }: {
-  row: Row; value: string; unit: string; options: Options | null; onValue: (v: string) => void; onUnit: (u: string) => void;
+/** The typed control of one fact, named with its subject (the same form is on every study's card). */
+function Control({ row, value, unit, options, onValue, onUnit, whose }: {
+  row: Row; value: string; unit: string; options: Options | null; onValue: (v: string) => void; onUnit: (u: string) => void; whose: string;
 }) {
   const choices = options?.[CHOICE_OF[row.field] ?? ""] ?? [];
-  const label = fieldLabel(row.field || "fact");
+  const label = `${fieldLabel(row.field || "fact")} of ${whose}`;
   if (choices.length) {
     return (
       <select id={`${row.testId}-value`} value={value} onChange={(e) => onValue(e.target.value)} aria-label={label} data-testid={`${row.testId}-value`}>
@@ -136,7 +145,7 @@ function Control({ row, value, unit, options, onValue, onUnit }: {
              step={INTEGER.has(row.field) ? 1 : "any"} value={value} onChange={(e) => onValue(e.target.value)} aria-label={label}
              data-testid={`${row.testId}-value`} />
       {row.field in UNIT_OF && (
-        <input type="text" className="facts-unit" value={unit} onChange={(e) => onUnit(e.target.value)} aria-label={`${label}: unit`}
+        <input type="text" className="facts-unit" value={unit} onChange={(e) => onUnit(e.target.value)} aria-label={`${fieldLabel(row.field || "fact")}: unit, ${whose}`}
                placeholder="unit" data-testid={`${row.testId}-unit`} />
       )}
     </span>
@@ -170,11 +179,14 @@ function useEnterAll(params: Params) {
 
 /** The facts no file states, filled in with one reason (`read`: listed, with no form). `stated`: the fields the card
  *  has an active value of (not asked again when the route makes them needed). */
-export function FactsForm({ params, gaps, checks, options, suggestions = {}, read = false, testId, stated = new Set<string>(), spot }: {
+export function FactsForm({ params, gaps, checks, options, suggestions = {}, read = false, testId, stated = new Set<string>(), spot, whose }: {
   params: Params; gaps: Gap[]; checks: Check[]; options: Options | null; suggestions?: Suggestions;
   read?: boolean; testId: string; stated?: Set<string>;
   /** the card's spot check: drawn already, saving draws it again (said before Save) */
   spot?: SpotState | null;
+  /** the subject in words ("study 230-23"), on the form's fields and button: every card has this form (final review
+   *  round 4, A11Y-7) */
+  whose: string;
 }) {
   const [values, setValues] = useState<Record<string, string>>({});
   const [units, setUnits] = useState<Record<string, string>>({});
@@ -215,15 +227,15 @@ export function FactsForm({ params, gaps, checks, options, suggestions = {}, rea
               <span className="facts-input">
                 {!r.field && (
                   <input id={`${r.testId}-field`} type="text" value={fields[k] ?? ""} onChange={(e) => { const t = e.target.value; setFields((p) => ({ ...p, [k]: t })); }}
-                         placeholder="the fact" aria-label="the fact" data-testid={`${r.testId}-field`} />
+                         placeholder="the fact" aria-label={`A fact the study needs (${whose})`} data-testid={`${r.testId}-field`} />
                 )}
-                <Control row={r} value={values[k] ?? ""} unit={units[k] ?? UNIT_OF[r.field] ?? ""} options={options}
+                <Control row={r} value={values[k] ?? ""} unit={units[k] ?? UNIT_OF[r.field] ?? ""} options={options} whose={whose}
                          onValue={(v) => setValues((p) => ({ ...p, [k]: v }))} onUnit={(u) => setUnits((p) => ({ ...p, [k]: u }))} />
                 {offered.map((o, i) => (
                   <button key={`${o.value}-${i}`} type="button" className={`chip-btn${values[k] === o.value ? " on" : ""}`}
                           onClick={() => setValues((p) => ({ ...p, [k]: o.value }))} data-testid={`${r.testId}-suggest-${i}`}
                           aria-pressed={values[k] === o.value}
-                          aria-label={`${valueWord(o.value)} · the sheet form's answer for ${fieldLabel(r.field || "fact").toLowerCase()} (${o.from})`}
+                          aria-label={`${valueWord(o.value)} · the sheet form's answer for ${fieldLabel(r.field || "fact").toLowerCase()} of ${whose} (${o.from})`}
                           title={`What the sheet form read: ${o.from}`}>
                     {valueWord(o.value)} <span className="muted">· the sheet form&apos;s answer</span>
                   </button>
@@ -235,7 +247,7 @@ export function FactsForm({ params, gaps, checks, options, suggestions = {}, rea
                   {r.checks.filter((c) => c.code !== ENTER_ONLY || !r.field).map((c) => (
                     <div key={c.id} className="facts-check" data-testid={r.anchor === `delivery-check-${c.id}` ? undefined : `delivery-check-${c.id}`}
                          data-code={c.code}>{engineWords(c.message ?? "a check failed")}
-                      {c.code !== ENTER_ONLY && <> <AcceptAsIs params={params} check={c} /></>}</div>
+                      {c.code !== ENTER_ONLY && <> <AcceptAsIs params={params} check={c} whose={whose} spot={spot} /></>}</div>
                   ))}
                 </div>
               )}
@@ -244,7 +256,9 @@ export function FactsForm({ params, gaps, checks, options, suggestions = {}, rea
         })}
       </ul>
       {filled.length > 0 && <SpotRedraw spot={spot} testId={testId} />}
-      <Why action={filled.length > 1 ? `Save these ${filled.length} facts` : "Save this fact"} label="Where the facts come from" busy={busy}
+      <Why action={filled.length > 1 ? `Save these ${filled.length} facts` : "Save this fact"}
+           actionLabel={`${filled.length > 1 ? `Save these ${filled.length} facts` : "Save this fact"} of ${whose}`}
+           label={`Where the facts of ${whose} come from`} busy={busy}
            kind="fact entered" missing={filled.length ? null : rows.length > 1 ? "Choose or type at least one of the facts" : "Choose or type the fact"}
            testId={testId} formTestId={`${testId}-reason`} placeholder="where they come from, e.g. the protocol (kept on the audit trail)"
            onSubmit={async (why) => {
@@ -296,7 +310,7 @@ type IndividualOptions = { population: string[]; sex: string[] } | null;
  *  entered through `:enter` with one reason, and with the mean age they become the study's individual when it is
  *  confirmed. `stated`: what is stated already; a person's entry is shown and corrected (`supersedes`) where changed,
  *  never entered twice; a file's is shown as read. */
-export function DemographicsForm({ projectId, params, vocabulary, options, onDone, testId, stated = {}, spot, label }: {
+export function DemographicsForm({ projectId, params, vocabulary, options, onDone, testId, stated = {}, spot, label, focusOn = "first" }: {
   projectId: string; params: Params;
   /** a table layout to read the intake vocabulary from (the population's words), if any */
   vocabulary: { mapping: string | null };
@@ -307,6 +321,9 @@ export function DemographicsForm({ projectId, params, vocabulary, options, onDon
   spot?: SpotState | null;
   /** the study's label, on the form's button (the same form is on every study's card) */
   label?: string;
+  /** where the focus goes when the form opens: its first field a person fills, or the individual's PK-Sim population
+   *  (opened by "Choose the individual…") */
+  focusOn?: "first" | "individual";
 }) {
   const layout = useResource("/api/v1/projects/{project_id}/delivery/mappings/{mapping_id}",
                              { project_id: projectId, mapping_id: vocabulary.mapping ?? "" }, { enabled: Boolean(vocabulary.mapping) });
@@ -328,31 +345,46 @@ export function DemographicsForm({ projectId, params, vocabulary, options, onDon
     ? "Choose the population and give at least one of the mean age, the age range, the mean weight or the share of women"
     : !has("population") ? "Choose the population" : !FOUND_BY.some(has) ? "Give at least one of the mean age, the age range, the mean weight or the share of women"
       : !changed.length ? (correcting ? "Change a value to save a correction" : "Give a value to save") : null;
-  // the form opens on its first field a person fills (it is opened by a button that then goes away)
+  // the form opens on its first field a person fills (it is opened by a button that then goes away), or on the
+  // individual's population when it is opened to choose the individual. The population is drawn disabled while its words
+  // are read and React keeps that element once they arrive, so an autoFocus never ran on a first open: the focus is
+  // moved once the field can take it, once per opening (final review round 4, A11Y-5)
   const first = fromFile("population") ? NUMBERS.find((f) => !fromFile(f)) ?? "individual_population" : "population";
+  const target = focusOn === "individual" ? "individual_population" : first;
+  const box = useRef<HTMLDivElement>(null);
+  const took = useRef(false);
+  useEffect(() => {
+    if (took.current || loading) return;
+    const field = box.current?.querySelector<HTMLElement>(`[data-testid="${CSS.escape(`${testId}-${target}`)}"]`);
+    if (!field || field.matches(":disabled")) return;
+    took.current = true;
+    field.focus();
+  }, [loading, target, testId]);
   const read = (f: string) => (
     <span className="facts-read" data-testid={`${testId}-${f}`}>{valueWord(String(stated[f].value))}
       <span className="muted"> · from its file</span></span>
   );
-  const women = has("percent_female") ? `${fromFile("percent_female") ? String(stated.percent_female.value) : d.percent_female} % women` : "";
+  // each field named with its study, the words on the page first (the same form opens on every study's card)
+  const named = (f: string) => (label ? `${fieldLabel(f)} of ${params.type} ${label}` : undefined);
+  const women = has("percent_female") ?`${fromFile("percent_female") ? String(stated.percent_female.value) : d.percent_female} % women` : "";
   return (
-    <div className="facts-form" data-testid={testId}>
+    <div className="facts-form" data-testid={testId} ref={box}>
       <div className="facts-grid">
         <label className="facts-field">{fieldLabel("population")}
           {fromFile("population") ? read("population")
-            : loading ? <select disabled data-testid={`${testId}-population`} aria-busy="true"><option>loading the words…</option></select>
+            : loading ? <select disabled data-testid={`${testId}-population`} aria-busy="true" aria-label={named("population")}><option>loading the words…</option></select>
             : populations.length ? (
-              <select value={d.population ?? ""} onChange={set("population")} data-testid={`${testId}-population`} autoFocus={first === "population"}>
+              <select value={d.population ?? ""} onChange={set("population")} data-testid={`${testId}-population`} aria-label={named("population")}>
                 <option value="">choose…</option>
                 {populations.map((p) => <option key={p} value={p}>{valueWord(p)}</option>)}
               </select>
-            ) : <input type="text" value={d.population ?? ""} onChange={set("population")} data-testid={`${testId}-population`} autoFocus={first === "population"} />}
+            ) : <input type="text" value={d.population ?? ""} onChange={set("population")} data-testid={`${testId}-population`} aria-label={named("population")} />}
         </label>
         {NUMBERS.map((f) => (
           <label key={f} className="facts-field">{fieldLabel(f)}
             {fromFile(f) ? read(f)
               : <input type="number" inputMode="decimal" min={0} step="any" value={d[f] ?? ""} onChange={set(f)} data-testid={`${testId}-${f}`}
-                       autoFocus={first === f} />}
+                       aria-label={named(f)} />}
           </label>
         ))}
       </div>
@@ -361,13 +393,14 @@ export function DemographicsForm({ projectId, params, vocabulary, options, onDon
         <div className="facts-grid">
           <label className="facts-field">{fieldLabel("individual_population")}
             <select value={d.individual_population ?? ""} onChange={set("individual_population")} data-testid={`${testId}-individual_population`}
-                    autoFocus={first === "individual_population"}>
+                    aria-label={named("individual_population")}>
               <option value="">choose…</option>
               {(options?.population ?? []).map((p) => <option key={p} value={p}>{valueWord(p)}</option>)}
             </select>
           </label>
           <label className="facts-field">{fieldLabel("individual_sex")}{women && <span className="muted fs-12"> ({women})</span>}
-            <select value={d.individual_sex ?? ""} onChange={set("individual_sex")} data-testid={`${testId}-individual_sex`}>
+            <select value={d.individual_sex ?? ""} onChange={set("individual_sex")} data-testid={`${testId}-individual_sex`}
+                    aria-label={named("individual_sex")}>
               <option value="">choose…</option>
               {(options?.sex ?? []).map((v) => <option key={v} value={v}>{valueWord(v)}</option>)}
             </select>

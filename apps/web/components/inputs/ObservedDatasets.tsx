@@ -97,16 +97,20 @@ function LeaveOut({ d, projectId, run, onProblem }: { d: Listed; projectId: stri
   const [reason, setReason] = useState("");
   const out = d.state === "REJECTED";
   const id = String(d.study.study_id);
+  // a study has a dataset per file it is read from (EX-101's sheet and its protocol): each named by its source too
+  // (final review round 4, A11Y-7)
+  const which = `${id} · ${sourceText(d)}`;
   if (!open) {
     return <button type="button" className="link-btn" onClick={() => setOpen(true)} data-testid={`dataset-leave-${d.id}`}
-                   aria-label={out ? `Use the dataset of ${id} again` : `Leave the dataset of ${id} out`}>{out ? "Use it again…" : "Leave it out…"}</button>;
+                   aria-label={out ? `Use it again… the dataset of ${which}` : `Leave it out… the dataset of ${which}`}>{out ? "Use it again…" : "Leave it out…"}</button>;
   }
   return (
     <span className="row gap-6">
       <input autoFocus className="flex-1 minw-180" placeholder={out ? "why use it again" : "why leave it out"} value={reason}
-             onChange={(e) => setReason(e.target.value)} aria-label={`reason for dataset ${id}`}
+             onChange={(e) => setReason(e.target.value)} aria-label={`reason for the dataset of ${which}`}
              onKeyDown={(e) => { if (e.key === "Escape") setOpen(false); }} />
       <button className="btn" disabled={!reason.trim()} data-testid={`dataset-exclude-${d.id}`}
+              aria-label={`${out ? "Use it again" : "Leave it out"}: the dataset of ${which}`}
               onClick={async () => onProblem(await run(() => send("post", "/api/v1/projects/{project_id}/datasets/{dataset_id}:decide",
                                                                   { project_id: projectId, dataset_id: d.id },
                                                                   { state: out ? "PROPOSED" : "REJECTED", reason }),

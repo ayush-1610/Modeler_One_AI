@@ -162,21 +162,24 @@ html:has(.area-bar) { scroll-padding-top: 76px; }
 .files-name { display: inline-flex; gap: 6px; align-items: baseline; min-height: 28px; padding: 4px 0; border: 0; background: none; font: inherit;
   font-weight: 600; text-align: left; overflow-wrap: break-word; color: var(--ink); cursor: pointer; }
 .files-table td:first-child { min-width: 14ch; }
+.files-name:hover { color: var(--brand-ink); text-decoration: underline; }
+.files-caret { color: var(--ink-dim); font-size: 11px; }
+.files-table tr.open > td { border-bottom-color: transparent; }
+.files-table tr.files-detail > td { padding: 0 8px 12px 22px; background: var(--surface); }
+.files-detail .file-card { margin: 0; }
 /* on a phone each file is a block, its parts one under the other with their column's name, so a file's name breaks
-   between its words, never inside one, and no column is cut off (final review OWN-16) */
+   between its words, never inside one, and no column is cut off (final review OWN-16). After the rules above and as
+   specific as the kit's `.table-scroll table { min-width: 560px }`, which kept each block 560 px wide in a 358 px box
+   and cut its long lines (final review round 4) */
 @media (max-width: 600px) {
-  .files-table, .files-table tbody, .files-table tr, .files-table td { display: block; width: 100%; min-width: 0; }
+  .files-table, .table-scroll table.files-table, .files-table tbody, .files-table tr, .files-table td,
+  .files-table td:first-child { display: block; width: 100%; min-width: 0; }
   .files-table thead { display: none; }
   .files-table tr:not(.files-detail) { padding: 8px 0; border-bottom: 1px solid var(--line-soft, var(--line)); }
   .files-table tr:not(.files-detail) > td { padding: 2px 0; border: 0; }
   .files-table td[data-label]::before { content: attr(data-label); display: block; font-size: 12px; font-weight: 600; color: var(--ink-dim); }
   .files-table tr.files-detail > td { padding: 0 0 12px; }
 }
-.files-name:hover { color: var(--brand-ink); text-decoration: underline; }
-.files-caret { color: var(--ink-dim); font-size: 11px; }
-.files-table tr.open > td { border-bottom-color: transparent; }
-.files-table tr.files-detail > td { padding: 0 8px 12px 22px; background: var(--surface); }
-.files-detail .file-card { margin: 0; }
 .client-files h3 { margin: 4px 0 6px; font-size: 15px; color: var(--ink); }
 .file-card { scroll-margin-top: 80px; }
 /* on a phone a file's sheet table scrolls inside its card, never the page */

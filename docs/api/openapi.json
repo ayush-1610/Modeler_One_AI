@@ -4575,6 +4575,10 @@
             "title": "Code",
             "type": "string"
           },
+          "computed": {
+            "title": "Computed",
+            "type": "integer"
+          },
           "id": {
             "title": "Id",
             "type": "string"
@@ -4589,6 +4593,10 @@
               }
             ],
             "title": "Message"
+          },
+          "outside_draw": {
+            "title": "Outside Draw",
+            "type": "integer"
           },
           "overridden": {
             "title": "Overridden",
@@ -4622,7 +4630,9 @@
           "message",
           "values",
           "rule",
-          "overridden"
+          "overridden",
+          "outside_draw",
+          "computed"
         ],
         "title": "DeliveryCheck",
         "type": "object"

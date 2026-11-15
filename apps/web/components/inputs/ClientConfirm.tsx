@@ -14,7 +14,7 @@ import { useState, type ReactNode } from "react";
 import type { Profile } from "@/components/client/types";
 import { PeekButton, type PeekSource } from "@/components/kit/SourcePeek";
 import { send, type Schema } from "@/lib/api";
-import { valueWord, whenText } from "@/lib/words";
+import { sourceNamed, valueWord, whenText } from "@/lib/words";
 
 import { confirmAfter, reviewAfter } from "./after";
 import { DatasetView, ReleaseView } from "./DatasetView";
@@ -33,6 +33,10 @@ const KIND: Record<Issue["kind"], [string, string]> = {
 };
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+
+// a study read from two files has two groups and items that read alike: their peeks and charts are named with their source
+// (`sourceNamed`, final review round 4)
+const peekName = sourceNamed;
 
 function src(s: Record<string, unknown> | null | undefined): PeekSource | null {
   return s ? (s as PeekSource) : null;
@@ -209,7 +213,7 @@ export function GroupCard({ projectId, group, run, mode = "confirm", alsoOnDeliv
               : openText(group) ? <span className="chip high" data-testid={`group-open-${group.id}`}>{openText(group)}</span>
                 : <span className="chip medium">To confirm</span>}
         </div>
-        <PeekButton projectId={projectId} source={src(first)} label={group.title} testId={`peek-group-${group.id}`} />
+        <PeekButton projectId={projectId} source={src(first)} label={peekName(group.title, first)} testId={`peek-group-${group.id}`} />
       </header>
 
       {(group.notes ?? []).length > 0 && (
@@ -229,7 +233,7 @@ export function GroupCard({ projectId, group, run, mode = "confirm", alsoOnDeliv
                     set on {plural((f.fills ?? []).length, "dataset")} on confirm</span>
                 )}
               </dd>
-              <PeekButton projectId={projectId} source={src(f.source)} label={`${group.title}: ${f.label}`} />
+              <PeekButton projectId={projectId} source={src(f.source)} label={peekName(`${group.title}: ${f.label}`, f.source)} />
             </div>
           ))}
         </dl>
@@ -243,10 +247,11 @@ export function GroupCard({ projectId, group, run, mode = "confirm", alsoOnDeliv
                 <span className="confirm-item-value">{i.value}{i.note && <span className="muted"> · {i.note}</span>}</span>
                 {/* named apart from the group's own peek above when they read the same (a sheet with one draft) */}
                 <PeekButton projectId={projectId} source={src(i.source)} testId={`peek-item-${i.id}`}
-                            label={itemLabel(i.label, i.target) === group.title ? `${group.title}, its data` : itemLabel(i.label, i.target)} />
+                            label={peekName(itemLabel(i.label, i.target) === group.title ? `${group.title}, its data`
+                              : `${group.title}: ${itemLabel(i.label, i.target)}`, i.source)} />
               </div>
               {i.kind === "draft" && !read ? <DraftItem projectId={projectId} item={i} run={run} known={known} /> : drawn ? <>
-                {i.data && <DatasetView data={i.data} label={`${group.title}: ${itemLabel(i.label, i.target)}`} />}
+                {i.data && <DatasetView data={i.data} label={peekName(`${group.title}: ${itemLabel(i.label, i.target)}`, i.source)} />}
                 {/* its name is the item's line just above: not said again over the chart */}
                 {i.release && <ReleaseView p={i.release as Profile} title="" />}
               </> : (i.data || i.release) && <p className="muted m-0 fs-12">Drawn above, on the card.</p>}

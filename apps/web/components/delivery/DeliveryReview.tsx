@@ -21,7 +21,7 @@ import { useResource } from "@/lib/hooks";
 import { analyteChoices, cardPlace, foldChecks, normLabel } from "@/lib/inputsWork";
 import { numericKey, useTableView } from "@/lib/tableView";
 import {
-  DISPOSITION_WORD, checkGist, engineWords, fieldInText, fieldLabel, heldText, individualNeeds, individualText, landingText, placeText, rulesText, tableKindText,
+  DISPOSITION_WORD, anchorPlace, checkGist, engineWords, fieldInText, fieldLabel, heldText, individualNeeds, individualText, landingText, placeText, rulesText, tableKindText,
   valueWord, whenText,
 } from "@/lib/words";
 
@@ -87,34 +87,40 @@ const capitalized = (text: string) => text.charAt(0).toUpperCase() + text.slice(
 const active = (v: Value) => v.status !== "superseded" && v.status !== "excluded";
 
 /** A value a person corrects, or enters with no form (a fact no other row names), with the reason. A correction keeps
- *  the old value's time, labels and statistic. */
-function Enter({ entry, busy, onSubmit, onCancel, testId, spot }: {
+ *  the old value's time, labels and statistic. The form opens on its first field: the fact's name, or the value it
+ *  corrects (only one field of the form takes the focus: final review round 4, A11Y-5). `about`: what the value is, said
+ *  after the form's words on its fields and button, which every card and row repeats ("Value: study 230-23"). */
+function Enter({ entry, busy, onSubmit, onCancel, testId, spot, about }: {
   entry: Entry; busy: boolean;
   onSubmit: (body: Schema<"DeliveryEntry">) => void | Promise<unknown>; onCancel: () => void; testId: string;
   /** the card's spot check: drawn already, saving draws it again (said before Save) */
   spot?: Schema<"DeliverySpotState"> | null;
+  about: string;
 }) {
   const [field, setField] = useState(entry.field);
   const [value, setValue] = useState(entry.value ?? "");
   const [unit, setUnit] = useState(entry.unit ?? "");
+  const action = entry.supersedes ? "Correct the value" : "Enter the value";
   return (
-    <Why action={entry.supersedes ? "Correct the value" : "Enter the value"} label="Where the value comes from" busy={busy}
-         placeholder="where it comes from (kept on the audit trail)" onCancel={onCancel} testId={testId} autoFocus={!entry.supersedes}
+    <Why action={action} actionLabel={`${action}: ${about}`} label={`Where the value comes from: ${about}`} busy={busy}
+         placeholder="where it comes from (kept on the audit trail)" onCancel={onCancel} testId={testId}
          kind={entry.supersedes ? "value corrected" : "value entered"}
          missing={!entry.supersedes && !field.trim() ? "Name the fact" : !value.trim() ? "Type the value" : null}
          onSubmit={(why) => onSubmit({ ...(entry.supersedes ? { supersedes: entry.supersedes } : { field: field.trim() }),
                                        value: typed(value), ...(unit.trim() ? { unit: unit.trim() } : {}), why })}>
       {!entry.supersedes && (
         <label className="delivery-pick">Fact
-          <input type="text" value={field} onChange={(e) => setField(e.target.value)} data-testid={`${testId}-field`} autoFocus />
+          <input type="text" value={field} onChange={(e) => setField(e.target.value)} data-testid={`${testId}-field`} autoFocus
+                 aria-label={`Fact: ${about}`} />
         </label>
       )}
       <label className="delivery-pick">Value
-        <input type="text" value={value} onChange={(e) => setValue(e.target.value)} data-testid={`${testId}-value`} />
+        <input type="text" value={value} onChange={(e) => setValue(e.target.value)} data-testid={`${testId}-value`} autoFocus={Boolean(entry.supersedes)}
+               aria-label={`Value: ${about}`} />
       </label>
       <label className="delivery-pick">Unit
         <input type="text" className="delivery-unit" value={unit} onChange={(e) => setUnit(e.target.value)} placeholder="if it has one"
-               data-testid={`${testId}-unit`} />
+               data-testid={`${testId}-unit`} aria-label={`Unit: ${about}`} />
       </label>
       <SpotRedraw spot={spot} testId={testId} />
     </Why>
@@ -142,9 +148,11 @@ function foldNames(folded: { check: Check }[]): string[] {
 /** The subject's values of one table, with the table's layout said on its head (a layout no person approved is checked
  *  from there: its rows are not marked one by one). `folded`: the checks every row needing the person comes from, each
  *  with its own row in Checks: the table stays folded to a line naming each with its count (final review OWN-9). */
-function ValueTable({ projectId, params, table, flagged, decide, busy, onMapping, read, folded, stateable, onCheck, spot }: {
+function ValueTable({ projectId, params, table, flagged, decide, busy, onMapping, read, folded, stateable, onCheck, spot, whose }: {
   projectId: string; params: CardParams; table: Table; flagged: Map<string, string>; decide: Decide; busy: boolean;
   onMapping: (open: MappingOpen) => void; read: boolean; spot: SpotState;
+  /** the subject in words: a file's table can be on two cards, and its buttons with it (final review round 4, A11Y-7) */
+  whose: string;
   folded: { check: Check; count: number }[] | null;
   /** whether a check's row in Checks has "State it…" (the analyte, stated for all its values at once) */
   stateable: (check: Check) => boolean;
@@ -166,11 +174,15 @@ function ValueTable({ projectId, params, table, flagged, decide, busy, onMapping
   const view = useTableView({ rows, keys: VALUE_KEYS, text: valueWords, keep: (v) => flagged.has(v.id), pageSize: 8 });
   const columns = 9;
   const title = table.kind === "facts" ? (table.file ? `Facts of ${table.file}` : "Entered by a person") : capitalized(tableKindText(table.table_kind));
+  // the table named on its buttons: its kind, its file, where it starts there and its subject (two tables of one kind in
+  // a file, two tables of a card, or one file on two cards)
+  const at = table.kind === "table" ? anchorPlace(table.values.find((v) => v.anchor)?.anchor) : "";
+  const tableName = `the ${title.toLowerCase()}${table.file && table.kind === "table" ? ` in ${table.file}` : ""}${at ? `, ${at}` : ""} (${whose})`;
   return (
     <section className="delivery-table" data-testid={`delivery-table-${table.id}`}>
       <div className="delivery-block-head">
         <button type="button" className="table-toggle" aria-expanded={open} onClick={() => setOpen(!open)} data-testid={`delivery-table-toggle-${table.id}`}
-                aria-label={`${open ? "Hide" : "Show"} the ${plural(table.values.length, "value")} of the ${title.toLowerCase()}${table.file ? ` in ${table.file}` : ""}`}>
+                aria-label={`${title}: ${open ? "hide" : "show"} the ${plural(table.values.length, "value")} of ${tableName}`}>
           <strong>{title}</strong></button>
         {table.kind === "table" && <span className="muted">{table.file}</span>}
         <span className="muted">{plural(table.values.length, "value")}</span>
@@ -180,7 +192,7 @@ function ValueTable({ projectId, params, table, flagged, decide, busy, onMapping
                   onClick={() => onMapping({ id: table.mapping_id as string, version: table.mapping_version ?? undefined,
                                              at: table.file_sha256 && table.region_id ? { file_sha256: table.file_sha256, region_id: table.region_id } : undefined })}
                   data-testid={`delivery-table-mapping-${table.id}`}
-                  aria-label={`Check the layout of the ${tableKindText(table.table_kind)} in ${table.file ?? "a file"}`}>
+                  aria-label={`Check the layout of ${tableName}`}>
             <ChipFor state={table.mapping_status} table={MAPPING_STATE} /> table layout, version {table.mapping_version}
           </button>
         )}
@@ -200,16 +212,17 @@ function ValueTable({ projectId, params, table, flagged, decide, busy, onMapping
               <span data-testid={`delivery-table-by-${table.id}-${check.id}`}>{names[i]} ({count})</span>
               {!read && <>{" "}<button type="button" className="link-btn" onClick={() => onCheck(check.id)}
                                       data-testid={`delivery-table-check-${table.id}-${check.id}`}
-                                      aria-label={`${stateable(check) ? "State the analyte" : "Decide it"} in Checks: ${names[i]}`}>
+                                      aria-label={`${stateable(check) ? "State it… the analyte" : "Decide it…"} in Checks: ${names[i]}, for ${tableName}`}>
                 {stateable(check) ? "State it…" : "Decide it…"}</button></>}
             </Fragment>
           ))}{read ? ". " : " · "}
-          <button type="button" className="link-btn" onClick={() => setOpen(true)} data-testid={`delivery-table-show-${table.id}`}>
+          <button type="button" className="link-btn" onClick={() => setOpen(true)} data-testid={`delivery-table-show-${table.id}`}
+                  aria-label={`Show the ${plural(table.values.length, "value")} of ${tableName}`}>
             Show the {plural(table.values.length, "value")}</button>
         </p>
       )}
       {open && <>
-      {table.values.length > 8 && <TableFilter view={view} placeholder="Filter: field, label, statistic…" label="Filter these values" />}
+      {table.values.length > 8 && <TableFilter view={view} placeholder="Filter: field, label, statistic…" label={`Filter the values of ${tableName}`} />}
       <div className="table-scroll">
         <table className="delivery-values">
           <caption className="sr-only">Values of {table.file ?? "a person's entries"}</caption>
@@ -234,12 +247,12 @@ function ValueTable({ projectId, params, table, flagged, decide, busy, onMapping
                   <td>
                     {v.anchor ? (
                       <button type="button" className="link-btn" aria-expanded={source === v.id} data-testid={`delivery-source-open-${v.id}`}
-                              aria-label={`${source === v.id ? "Hide" : "Show"} the source of ${valueName(v)}`}
+                              aria-label={`${source === v.id ? "Hide" : "Show"} the source of ${valueName(v)} (${whose})`}
                               onClick={() => setSource(source === v.id ? null : v.id)}>{source === v.id ? "Hide" : "Show"}</button>
                     ) : <span className="muted fs-12">{v.method === "person" ? "entered" : "computed"}</span>}
                     {!read && !v.blinded && active(v) && (
                       <button type="button" className="link-btn" data-testid={`delivery-correct-${v.id}`}
-                              aria-label={`Correct ${valueName(v)}`}
+                              aria-label={`Correct ${valueName(v)} (${whose})`}
                               onClick={() => setCorrecting(correcting === v.id ? null : v.id)}>Correct</button>
                     )}
                   </td>
@@ -248,6 +261,7 @@ function ValueTable({ projectId, params, table, flagged, decide, busy, onMapping
                   <tr className="delivery-source-row"><td colSpan={columns}>
                     <Enter entry={{ field: v.field, supersedes: v.id, value: v.value === null ? "" : String(v.value), unit: v.unit ?? "" }}
                            busy={busy} onCancel={() => { setCorrecting(null); focusSoon(`delivery-correct-${v.id}`); }} testId={`correct-${v.id}`} spot={spot}
+                           about={`${valueName(v)} (${whose})`}
                            onSubmit={async (body) => {
                              const { data } = await decide(() => send("post", ENTER, params, body));
                              if (data) setCorrecting(null);
@@ -273,10 +287,15 @@ function ValueTable({ projectId, params, table, flagged, decide, busy, onMapping
  *  analytes, or a new one the person names, given to the check's values by linking them again (`values:assign`) with
  *  what they are linked to now (their study and arm, their product and batch), so that only the analyte changes and
  *  the values keep their file as their source. One link per set of values that share those; one reason for all. Each
- *  link's answer is the delivery page, written; the card, whose check it settles, is read again after the last. */
-function StateAnalyte({ projectId, params, check, values, onDone, onCancel }: {
+ *  link's answer is the delivery page, written; the card, whose check it settles, is read again after the last. The
+ *  values keep their ids, so a spot check drawn is drawn again only where values are computed from them (a spread worked
+ *  out from an SE: computed again with the analyte, `DeliveryCheck.computed`), said before Save (final review round 4). */
+function StateAnalyte({ projectId, params, check, values, onDone, onCancel, whose, spot }: {
   projectId: string; params: CardParams; check: Check; values: Map<string, Value>; onDone: () => void; onCancel: () => void;
+  whose: string; spot: SpotState;
 }) {
+  // the check named with its subject, on the form's fields and button (two such checks, and every card, repeat them)
+  const about = `${engineWords(check.message ?? WITHHELD)} (${whose})`;
   const page = useResource("/api/v1/projects/{project_id}/delivery", { project_id: projectId });
   const all = page.data?.enabled ? page.data.analytes : [];
   // one option per name (review OWN-11): of two analytes both called "Exampleamide", the one the study's values carry
@@ -311,13 +330,16 @@ function StateAnalyte({ projectId, params, check, values, onDone, onCancel }: {
   }
   return (
     <>
-      <Why action="State the analyte" label={`Why the ${plural(mine.length, "value")} are of this analyte`} busy={busy} kind="analyte stated"
+      {check.computed > 0 && <SpotRedraw spot={spot} testId={`delivery-analyte-${check.id}`} why={{ kind: "analyte", values: check.computed }} />}
+      <Why action="State the analyte" actionLabel={`State the analyte: ${about}`} label={`Why the ${plural(mine.length, "value")} are of this analyte: ${about}`}
+           busy={busy} kind="analyte stated"
            missing={!mine.length ? "Its values are not shown here: open its table" : !analyte ? "Choose the analyte"
              : analyte === NEW && !named.trim() ? "Name the new analyte" : exists ? `An analyte named ${exists.label} exists already: pick it` : null}
            testId={`delivery-analyte-${check.id}`} onCancel={onCancel} placeholder="where it comes from, e.g. the bioanalytical report (kept on the audit trail)"
            onSubmit={state}>
         <label className="delivery-pick">Analyte
-          <select value={analyte} onChange={(e) => setAnalyte(e.target.value)} data-testid={`delivery-analyte-${check.id}-choice`} autoFocus>
+          <select value={analyte} onChange={(e) => setAnalyte(e.target.value)} data-testid={`delivery-analyte-${check.id}-choice`} autoFocus
+                  aria-label={`Analyte: ${about}`}>
             <option value="">choose…</option>
             {analytes.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}
             <option value={NEW}>A new analyte…</option>
@@ -325,7 +347,7 @@ function StateAnalyte({ projectId, params, check, values, onDone, onCancel }: {
         </label>
         {analyte === NEW && (
           <input type="text" maxLength={80} value={named} onChange={(e) => setNamed(e.target.value)} placeholder="the analyte's name, as the client writes it"
-                 aria-label="The new analyte's name" data-testid={`delivery-analyte-${check.id}-new`} />
+                 aria-label={`The new analyte's name: ${about}`} data-testid={`delivery-analyte-${check.id}-new`} />
         )}
       </Why>
       <Problem text={problem} testId={`delivery-analyte-problem-${check.id}`} />
@@ -333,11 +355,13 @@ function StateAnalyte({ projectId, params, check, values, onDone, onCancel }: {
   );
 }
 
-function CheckRow({ check, subject, decide, busy, onMapping, params, read, values, start }: {
+function CheckRow({ check, subject, decide, busy, onMapping, params, read, values, start, whose }: {
   check: Check; subject: Subject; decide: Decide; busy: boolean; onMapping: (open: MappingOpen) => void; params: CardParams; read: boolean;
   values: Map<string, Value>;
   /** asked from a folded table's line ("State it…"): a new number each time it is asked */
   start?: number;
+  /** the subject in words, on the row's buttons: the same check is on every card (final review round 4, A11Y-7) */
+  whose: string;
 }) {
   const [acting, setActing] = useState(false);
   const [stating, setStating] = useState(false);
@@ -362,22 +386,28 @@ function CheckRow({ check, subject, decide, busy, onMapping, params, read, value
         {!read && open && !acting && !stating && (
           check.code === MAPPED ? (mapping
             ? <button type="button" className="btn small" data-testid={`delivery-check-mapping-${check.id}`}
+                      aria-label={`Check layout: the ${tableKindText(mapping.kind)} in ${mapping.used_in[0]?.file ?? "no file"} (${whose})…`}
                       onClick={() => onMapping({ id: mapping.mapping_id, version: mapping.version,
                                                  at: mapping.used_in[0] ? { file_sha256: mapping.used_in[0].file_sha256, region_id: mapping.used_in[0].region_id } : undefined })}>
                 Check layout…</button>
             : <span className="muted fs-12">checked with its table&apos;s layout</span>)
             : <>
               {analyte && <button type="button" className="btn small" onClick={() => setStating(true)} data-testid={`delivery-analyte-open-${check.id}`}
-                                  aria-label={`State the analyte: ${message}`}>State it…</button>}
+                                  aria-label={`State the analyte: ${engineWords(message)} (${whose})`}>State it…</button>}
               <button type="button" className="btn small" onClick={() => setActing(true)} data-testid={`delivery-override-open-${check.id}`}
-                      aria-label={`Accept as is: ${message}`}>Accept as is…</button>
+                      aria-label={`Accept as is: ${engineWords(message)} (${whose})`}>Accept as is…</button>
             </>
         )}
       </div>
       {!read && open && stating && <StateAnalyte projectId={params.project_id} params={params} check={check} values={values} onDone={() => setStating(false)}
+                                                 whose={whose} spot={subject.spot_check}
                                                  onCancel={() => { setStating(false); focusSoon(`delivery-analyte-open-${check.id}`); }} />}
-      {!read && open && acting && (
-        <Why action="Accept as is" label={`Why "${message}" holds as it is`} busy={busy} kind="accepted as is"
+      {!read && open && acting && <>
+        {/* accepted as is, its values are always checked: one the spot check drawn now does not hold draws it again */}
+        {check.outside_draw > 0 && <SpotRedraw spot={subject.spot_check} testId={`delivery-override-${check.id}`}
+                                               why={{ kind: "accepted", values: check.outside_draw }} />}
+        <Why action="Accept as is" actionLabel={`Accept as is: ${engineWords(message)} (${whose})`}
+             label={`Why "${engineWords(message)}" holds as it is (${whose})`} busy={busy} kind="accepted as is"
              onCancel={() => { setActing(false); focusSoon(`delivery-override-open-${check.id}`); }}
              testId={`delivery-override-${check.id}`} placeholder="why it holds as it is (kept on the audit trail)" autoFocus
              onSubmit={async (why) => {
@@ -385,13 +415,15 @@ function CheckRow({ check, subject, decide, busy, onMapping, params, read, value
                if (data) setActing(false);
                return Boolean(data);
              }} />
-      )}
+      </>}
     </li>
   );
 }
 
-function ConflictRow({ conflict, values, decide, busy, params, read }: {
+function ConflictRow({ conflict, values, decide, busy, params, read, spot }: {
   conflict: Conflict; values: Map<string, Value>; decide: Decide; busy: boolean; params: CardParams; read: boolean;
+  /** the card's spot check: keeping one value sets the others aside, so one drawn is drawn again (said before Save) */
+  spot: SpotState;
 }) {
   const [keep, setKeep] = useState("");
   const where = [fieldText(conflict.field), conflict.time !== null ? `at ${conflict.time}` : "", Object.entries(conflict.labels).map(([r, l]) => `${r} ${l}`).join(" · ")].filter(Boolean).join(" · ");
@@ -413,6 +445,7 @@ function ConflictRow({ conflict, values, decide, busy, params, read }: {
           );
         })}
       </fieldset>
+      {!read && <SpotRedraw spot={spot} testId={`delivery-choose-${conflict.id}`} why={{ kind: "kept" }} />}
       {!read && (
         <Why action="Keep this value" actionLabel={`Keep this value of ${where}`} label={`Why this value of ${where} is kept`} busy={busy}
              kind="value kept" missing={keep ? null : "Choose the value to keep"} testId={`delivery-choose-${conflict.id}`}
@@ -425,6 +458,11 @@ function ConflictRow({ conflict, values, decide, busy, params, read }: {
 function LinkRow({ link, subject, decide, busy, params, read }: {
   link: Link; subject: Subject; decide: Decide; busy: boolean; params: CardParams; read: boolean;
 }) {
+  // what the answer does to a spot check drawn, said before it is given (final review round 4): "No" takes the file's
+  // values out of the study; "Yes" to a link that names several studies joins this file's own study to the one chosen.
+  // A plain "Yes" leaves the values where they are (they count on the card already) and is not said; it can still
+  // draw the spot check again when values are computed from the file's values once the link is confirmed (plan §5).
+  const spot = subject.spot_check;
   const [refusing, setRefusing] = useState(false);
   const [study, setStudy] = useState(link.study ?? "");
   const body = (confirmed: boolean, why: string) => ({
@@ -442,12 +480,14 @@ function LinkRow({ link, subject, decide, busy, params, read }: {
         </span>
       </div>
       {!read && link.state !== "refused" && (
-        refusing ? (
+        refusing ? (<>
+          {link.values > 0 && <SpotRedraw spot={spot} testId={`delivery-link-refuse-${key}`} why={{ kind: "refused" }} />}
           <Why action="Not the same study" actionLabel={`Not the same study: ${link.file} is not about study ${subject.label}`}
                label={`Why ${link.file} is not about study ${subject.label}`} busy={busy} kind="link refused" autoFocus
                onCancel={() => { setRefusing(false); focusSoon(`delivery-link-refuse-open-${key}`); }}
                testId={`delivery-link-refuse-${key}`} onSubmit={(why) => decide(() => send("post", LINK, params, body(false, why)))} />
-        ) : (
+        </>) : (<>
+          {link.state === "ambiguous" && <SpotRedraw spot={spot} testId={`delivery-link-confirm-${key}`} why={{ kind: "joined" }} />}
           <Why action="Yes, the same study" actionLabel={`Yes, the same study: ${link.file} is about study ${subject.label}`}
                label={`A note on the link of ${link.file}`} busy={busy} optional testId={`delivery-link-confirm-${key}`} kind="link confirmed"
                missing={link.state === "ambiguous" && !study ? "Choose the study" : null}
@@ -463,7 +503,7 @@ function LinkRow({ link, subject, decide, busy, params, read }: {
             <button type="button" className="btn small" aria-disabled={busy || undefined} onClick={() => { if (!busy) setRefusing(true); }}
                     data-testid={`delivery-link-refuse-open-${key}`} aria-label={`No, ${link.file} is not about study ${subject.label}…`}>No…</button>
           </Why>
-        )
+        </>)
       )}
     </li>
   );
@@ -488,19 +528,22 @@ function RequirementRow({ item, decide, busy, params, read, projectId, vocabular
   start?: number;
 }) {
   const [disposition, setDisposition] = useState<Schema<"DeliveryDisposition">["disposition"]>("ask_client");
-  const [entering, setEntering] = useState(false);
+  // the demographics form open, and what opened it: "individual" (choosing the individual) opens it on the individual's
+  // population, "first" on its first field (the form moves the focus there itself once the field can take it)
+  const [entering, setEntering] = useState<false | "first" | "individual">(false);
   const row = useRef<HTMLLIElement>(null);
   useEffect(() => {
     if (!start || read) return;
-    setEntering(true);
+    setEntering("individual");
     row.current?.scrollIntoView({ block: "center", behavior: "smooth" });
-    window.setTimeout(() => row.current?.querySelector<HTMLElement>("fieldset select, fieldset input, select, input")?.focus(), 80);
   }, [start]); // eslint-disable-line react-hooks/exhaustive-deps
   // a disposition is the item's status ("ask_client"); `disposition` is the decision's id
   const said = DISPOSITION_WORD[item.status];
   const open = item.status === "missing" && !item.disposition;
   const demographics = item.req_id === DEMOGRAPHICS;
   const unset = demographics && !open && individual !== null && !individual.demographics && individual.stated.length > 0;
+  // the subject named on the item's form, which every card repeats (final review round 4, A11Y-7)
+  const whose = `${params.type} ${subjectLabel}`;
   // closed (saved or cancelled), the form gives the focus back to the button that opens it, as it then reads
   const close = () => { setEntering(false); focusSoon(`delivery-demographics-open-${params.subject}`, cardPlace("requirement", params.subject, item.req_id)); };
   return (
@@ -511,7 +554,7 @@ function RequirementRow({ item, decide, busy, params, read, projectId, vocabular
         <span className="delivery-check-text">{item.label}</span>
         <span className="muted fs-12">{item.criticality.toLowerCase()}{said ? ` · ${said}` : ""}</span>
         {!read && open && item.req_id === DEMOGRAPHICS && !entering && (
-          <button type="button" className="btn small" onClick={() => setEntering(true)} data-testid={`delivery-demographics-open-${params.subject}`}
+          <button type="button" className="btn small" onClick={() => setEntering("first")} data-testid={`delivery-demographics-open-${params.subject}`}
                   aria-label={`Enter them… the demographics of ${subjectLabel}`}>Enter them…</button>
         )}
       </div>
@@ -519,7 +562,7 @@ function RequirementRow({ item, decide, busy, params, read, projectId, vocabular
         <p className="m-4-0-0 fs-13" data-testid={`delivery-individual-${params.subject}`}>
           <span className="muted">The study&apos;s individual, which loads with it:</span> {individualText(individual.demographics)}
           {individual.kept.length > 0 && <span className="muted"> · {individual.kept.map(fieldInText).join(", ")} kept, not simulated</span>}
-          {!read && !open && !entering && <> <button type="button" className="link-btn" onClick={() => setEntering(true)}
+          {!read && !open && !entering && <> <button type="button" className="link-btn" onClick={() => setEntering("first")}
                                                      data-testid={`delivery-demographics-open-${params.subject}`}
                                                      aria-label={`Correct the demographics or the individual of ${subjectLabel}…`}>Correct…</button></>}
         </p>
@@ -527,22 +570,24 @@ function RequirementRow({ item, decide, busy, params, read, projectId, vocabular
       {unset && individual && (
         <p className="m-4-0-0 fs-13" data-testid={`delivery-individual-${params.subject}`}>
           <span className="chip high">Not simulated yet</span> {capitalized(individualNeeds(individual.needs, individual.why))}.
-          {!read && !entering && <> <button type="button" className="btn small" onClick={() => setEntering(true)}
+          {!read && !entering && <> <button type="button" className="btn small" onClick={() => setEntering("individual")}
                                             data-testid={`delivery-demographics-open-${params.subject}`}
                                             aria-label={`Choose the individual of ${subjectLabel}…`}>Choose the individual…</button></>}
         </p>
       )}
       {!read && (open || (demographics && individual !== null)) && entering && (
         <DemographicsForm projectId={projectId} params={params} vocabulary={vocabulary} options={options} onDone={close}
-                          testId={`delivery-demographics-${params.subject}`} stated={stated} spot={spot} label={subjectLabel} />
+                          testId={`delivery-demographics-${params.subject}`} stated={stated} spot={spot} label={subjectLabel}
+                          focusOn={entering === "individual" ? "individual" : "first"} />
       )}
       {!read && open && !entering && (
-        <Why action="Record it" actionLabel={`Record it: how ${item.label} is settled`} label={`Why ${item.label} is settled this way`} busy={busy}
+        <Why action="Record it" actionLabel={`Record it: how ${item.label} is settled for ${whose}`}
+             label={`Why ${item.label} is settled this way for ${whose}`} busy={busy}
              testId={cardPlace("dispose", params.subject, item.req_id)} kind="item settled"
              onSubmit={(why) => decide(() => send("post", DISPOSE, params, { req_id: item.req_id, disposition, why }))}>
           <label className="delivery-pick">It is
             <select value={disposition} onChange={(e) => setDisposition(e.target.value as typeof disposition)}
-                    data-testid={`${cardPlace("dispose", params.subject, item.req_id)}-choice`} aria-label={`How ${item.label} is settled`}>
+                    data-testid={`${cardPlace("dispose", params.subject, item.req_id)}-choice`} aria-label={`It is: how ${item.label} is settled for ${whose}`}>
               {DISPOSITIONS.map(([id, label]) => <option key={id} value={id}>{label}</option>)}
             </select>
           </label>
@@ -562,9 +607,11 @@ function factLabels(v: Value, own: string): string {
 }
 
 /** The facts stated for the subject, one row per fact (its files' facts and a person's entries), each correctable. */
-function StatedFacts({ projectId, params, values: all, flagged, decide, busy, read, spot }: {
+function StatedFacts({ projectId, params, values: all, flagged, decide, busy, read, spot, whose }: {
   projectId: string; params: CardParams; values: Value[]; flagged: Map<string, string>; decide: Decide; busy: boolean; read: boolean;
   spot: SpotState;
+  /** the subject in words: one file states the same fact for several studies, each on its card */
+  whose: string;
 }) {
   const [source, setSource] = useState<string | null>(null);
   const [correcting, setCorrecting] = useState<string | null>(null);
@@ -579,8 +626,14 @@ function StatedFacts({ projectId, params, values: all, flagged, decide, busy, re
     seen.add(key);
     return true;
   });
-  // a fact named for its buttons with what it is stated for ("the LLOQ, Exampleamide-M1, plasma"): two LLOQs are two names
-  const factName = (v: Value) => [fieldLabel(v.field), factLabels(v, params.type)].filter(Boolean).join(", ");
+  // a fact named for its buttons by its value, what it is stated for, its file and its subject ("LLOQ 0.5 ng/mL,
+  // Exampleamide-M1, plasma, from 230-23 Bioanalytical.pdf (study 230-23)"): two LLOQs are two names, and so are two
+  // analytes, which have no labels to tell them apart, and one file's fact on two cards (final review round 4, A11Y-7); a
+  // blinded fact by its file only
+  const factName = (v: Value) => `${[
+    `${fieldLabel(v.field)} ${v.blinded ? "(withheld)" : `${typeof v.value === "string" ? valueWord(v.value) : valueText(v)}${v.unit ? ` ${v.unit}` : ""}`}`,
+    factLabels(v, params.type), v.method === "person" ? "entered by a person" : v.file ? `from ${v.file}` : "",
+  ].filter(Boolean).join(", ")} (${whose})`;
   // the facts of one field together (two analytes, then their two LLOQs), in the order the fields first appear
   const order = [...new Set(values.map((v) => v.field))];
   values.sort((a, b) => order.indexOf(a.field) - order.indexOf(b.field));
@@ -608,6 +661,7 @@ function StatedFacts({ projectId, params, values: all, flagged, decide, busy, re
             {correcting === v.id && (
               <Enter entry={{ field: v.field, supersedes: v.id, value: v.value === null ? "" : String(v.value), unit: v.unit ?? "" }}
                      busy={busy} onCancel={() => { setCorrecting(null); focusSoon(`delivery-correct-${v.id}`); }} testId={`correct-${v.id}`} spot={spot}
+                     about={factName(v)}
                      onSubmit={async (body) => {
                        const { data } = await decide(() => send("post", ENTER, params, body));
                        if (data) setCorrecting(null);
@@ -716,11 +770,14 @@ export function DeliveryReview({ projectId, row, mode, gate, onMapping, todo, su
   // a table layout is checked from its table's head; listed apart only when no table on the card shows it
   const unheaded = s.mappings.filter((m) => !tables.some((t) => t.mapping_id === m.mapping_id && t.mapping_version === m.version && t.mapping_status));
   const vocabulary = { mapping: s.tables.find((t) => t.mapping_id)?.mapping_id ?? s.mappings[0]?.mapping_id ?? null };
+  // the subject in words ("study 230-23"), on the card's controls that every card repeats (final review round 4, A11Y-7)
+  const whose = `${KIND_LABEL[s.subject_type].toLowerCase()} ${s.label}`;
   const gateLine = gated.length > 0 && (
     <p className="card-gate" data-testid={`delivery-gate-${s.subject}`} data-codes={gated.map((b) => b.code).join(" ")}>
       <strong>Waits for the delivery clean-up:</strong>{" "}
       {gate?.text || gated.map((b) => GATE_WORD[b.code]).join(" · ")}.{" "}
-      {gate && <button type="button" className="link-btn" onClick={gate.onOpen} data-testid={`delivery-gate-open-${s.subject}`}>Open in To do</button>}
+      {gate && <button type="button" className="link-btn" onClick={gate.onOpen} data-testid={`delivery-gate-open-${s.subject}`}
+                       aria-label={`Open in To do the delivery clean-up that ${whose} waits for`}>Open in To do</button>}
       {gate?.owner && <span className="muted" data-testid={`delivery-gate-owner-${s.subject}`}> {gate.owner}</span>}
     </p>
   );
@@ -768,17 +825,17 @@ export function DeliveryReview({ projectId, row, mode, gate, onMapping, todo, su
                                                                     data-testid={`delivery-enter-open-${s.subject}`}
                                                                     aria-label={`Enter another fact of ${KIND_LABEL[s.subject_type].toLowerCase()} ${s.label}…`}>
                  Enter another fact…</button> : null}>
-        <StatedFacts projectId={projectId} params={params} values={facts} flagged={flagged} decide={decide} busy={busy} read={looking}
+        <StatedFacts projectId={projectId} params={params} values={facts} flagged={flagged} decide={decide} busy={busy} read={looking} whose={whose}
                      spot={s.spot_check} />
         {facts.length === 0 && !s.gaps.length && !factChecks.length && <p className="muted m-0">No fact of the {KIND_LABEL[s.subject_type].toLowerCase()} is stated in its files.</p>}
         {(s.gaps.length > 0 || factChecks.length > 0) && (
           <FactsForm params={params} gaps={s.gaps} checks={factChecks} options={options} suggestions={suggestions}
-                     read={looking} testId={`delivery-facts-form-${s.subject}`} spot={s.spot_check}
+                     read={looking} testId={`delivery-facts-form-${s.subject}`} spot={s.spot_check} whose={whose}
                      stated={new Set([...values.values()].filter((v) => active(v) && v.value !== null).map((v) => v.field))} />
         )}
         {entering && (
           <Enter entry={{ field: "" }} busy={busy} onCancel={() => { setEntering(false); focusSoon(`delivery-enter-open-${s.subject}`); }}
-                 testId={`delivery-enter-${s.subject}`} spot={s.spot_check}
+                 testId={`delivery-enter-${s.subject}`} spot={s.spot_check} about={whose}
                  onSubmit={async (body) => {
                    const { data } = await decide(() => send("post", ENTER, params, body));
                    if (data) { setEntering(false); focusSoon(`delivery-enter-open-${s.subject}`); }
@@ -801,7 +858,7 @@ export function DeliveryReview({ projectId, row, mode, gate, onMapping, todo, su
                   <button type="button" className="btn small" data-testid={`delivery-card-mapping-${m.mapping_id}`}
                           onClick={() => onMapping({ id: m.mapping_id, version: m.version,
                                                      at: m.used_in[0] ? { file_sha256: m.used_in[0].file_sha256, region_id: m.used_in[0].region_id } : undefined })}
-                          aria-label={`Check the layout of the ${tableKindText(m.kind)} in ${m.used_in[0]?.file ?? "no file"}`}>Check layout…</button>
+                          aria-label={`Check the layout of the ${tableKindText(m.kind)} in ${m.used_in[0]?.file ?? "no file"} (${whose})`}>Check layout…</button>
                 </div>
               </li>
             ))}
@@ -809,7 +866,7 @@ export function DeliveryReview({ projectId, row, mode, gate, onMapping, todo, su
         )}
         {tables.length === 0 && <p className="muted m-0">No table of its files gave a value yet.</p>}
         {tables.map((t) => <ValueTable key={t.id} projectId={projectId} params={params} table={t} flagged={flagged} decide={decide} busy={busy}
-                                       onMapping={onMapping} read={looking} folded={foldedOf(t)} stateable={stateable} spot={s.spot_check}
+                                       onMapping={onMapping} read={looking} folded={foldedOf(t)} stateable={stateable} spot={s.spot_check} whose={whose}
                                        onCheck={(id) => setAsked({ id, at: Date.now() })} />)}
       </Section>
 
@@ -819,13 +876,14 @@ export function DeliveryReview({ projectId, row, mode, gate, onMapping, todo, su
           {checks.length > 0 && (
             <ul className="delivery-plain">
               {checks.map((check) => <CheckRow key={check.id} check={check} subject={s} decide={decide} busy={busy} onMapping={onMapping} params={params}
-                                               read={looking} values={values} start={asked?.id === check.id ? asked.at : undefined} />)}
+                                               read={looking} values={values} start={asked?.id === check.id ? asked.at : undefined} whose={whose} />)}
             </ul>
           )}
           {s.conflicts.length > 0 && (
             <div data-testid={`delivery-conflicts-${s.subject}`}>
               <h4 className="delivery-sub">The files disagree</h4>
-              <ul className="delivery-plain">{s.conflicts.map((x) => <ConflictRow key={x.id} conflict={x} values={values} decide={decide} busy={busy} params={params} read={looking} />)}</ul>
+              <ul className="delivery-plain">{s.conflicts.map((x) => <ConflictRow key={x.id} conflict={x} values={values} decide={decide} busy={busy} params={params}
+                                                                                  read={looking} spot={s.spot_check} />)}</ul>
             </div>
           )}
           {s.links.length > 0 && (
@@ -848,10 +906,11 @@ export function DeliveryReview({ projectId, row, mode, gate, onMapping, todo, su
           )}
           {others.length > 0 && (
             <>
-              <button type="button" className="link-btn" aria-expanded={notes} onClick={() => setNotes(!notes)} data-testid={`delivery-checks-more-${s.subject}`}>
+              <button type="button" className="link-btn" aria-expanded={notes} onClick={() => setNotes(!notes)} data-testid={`delivery-checks-more-${s.subject}`}
+                      aria-label={`${notes ? "Hide" : "Show"} ${plural(others.length, "more check")} of ${whose} (warnings, notes and checks accepted as is)`}>
                 {notes ? "Hide" : "Show"} {plural(others.length, "more check")} (warnings, notes and checks accepted as is)</button>
               {notes && <ul className="delivery-plain">{others.map((check) => <CheckRow key={check.id} check={check} subject={s} decide={decide} busy={busy}
-                                                                                         onMapping={onMapping} params={params} read values={values} />)}</ul>}
+                                                                                         onMapping={onMapping} params={params} read values={values} whose={whose} />)}</ul>}
             </>
           )}
         </Section>

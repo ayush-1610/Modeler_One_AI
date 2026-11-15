@@ -218,6 +218,15 @@ function Workspace({ projectId, initialTab, initialOnly, initialStatus, steps }:
   useEffect(() => {
     if (chosen === null && view && !stale && work.loaded) setChosen(model.counts.open ? "todo" : "compound");
   }, [chosen, view, stale, work.loaded, model.counts.open]);
+  // what a message said is about the area it was said in: another area starts without it, however the area changes (the
+  // area bar, a To do row, a status-line count, a link; final review OWN-16, round 4: the counts kept it). Once the page
+  // has settled on its first area: a message said while it loads stays
+  const lastArea = useRef<Tab | null>(null);
+  useEffect(() => {
+    if (chosen === null) return;
+    if (lastArea.current !== null && lastArea.current !== chosen) setNotice(null);
+    lastArea.current = chosen;
+  }, [chosen]);
   // a link to another area of this page (Add data's "See each file on Inputs") changes the area and the filters without a
   // new page; the URL this page writes itself says what the page already shows
   const urlTab = url.get("tab") ?? undefined, urlOnly = url.get("only") === "1", urlStatus = url.get("status") ?? undefined;
@@ -360,9 +369,8 @@ function Workspace({ projectId, initialTab, initialOnly, initialStatus, steps }:
     if (s && t === "todo") q.set("status", s);
     window.history.replaceState(null, "", `${pathname}?${q.toString()}`);
   };
-  // what a message said is about the area it was said in: another area starts without it (final review OWN-16)
+  // (a message of one area is cleared when the area changes: the effect on `chosen` above)
   const setTab = (t: Tab) => {
-    if (t !== tab) setNotice(null);
     setChosen(t); sync(t, only, t === "todo" ? status : null); if (t !== "todo") setStatusState(null);
   };
   const setOnly = (o: boolean) => { setOnlyState(o); sync(tab, o, status); };
@@ -420,7 +428,6 @@ function Workspace({ projectId, initialTab, initialOnly, initialStatus, steps }:
     const w = item.where;
     const keepStatus = w.tab === "todo" && status === item.status ? status : null;
     const keepOnly = only && item.open;
-    if (w.tab !== tab) setNotice(null);
     setChosen(w.tab);
     setStatusState(keepStatus);
     if (keepOnly !== only) setOnlyState(keepOnly);

@@ -4672,10 +4672,14 @@ export interface components {
         DeliveryCheck: {
             /** Code */
             code: string;
+            /** Computed */
+            computed: number;
             /** Id */
             id: string;
             /** Message */
             message: string | null;
+            /** Outside Draw */
+            outside_draw: number;
             /** Overridden */
             overridden: boolean;
             /** Rule */

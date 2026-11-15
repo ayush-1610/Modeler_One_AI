@@ -188,7 +188,9 @@ export function StudyIndividuals({ studies, projectId, run, options, subjects = 
 function Pending({ s, projectId, vocabulary, options, onOpen }: {
   s: Subject; projectId: string; vocabulary: string | null; options: Options; onOpen?: (item: WorkItem | null, subject: Subject) => void;
 }) {
-  const [entering, setEntering] = useState(false);
+  // the form open, and what opened it: choosing the individual opens it on the individual's population, the others on its
+  // first field (the form moves the focus there once the field can take it: final review round 4)
+  const [entering, setEntering] = useState<false | "first" | "individual">(false);
   const delivery = s.path === "delivery" && s.row && !s.blinded ? s.row : null;
   // the study's card, under the key its card uses: what is stated on it already, and the individual it makes
   const card = useResource(SUBJECT, { project_id: projectId, type: delivery?.subject_type ?? "study", subject: delivery?.subject ?? "" },
@@ -210,18 +212,19 @@ function Pending({ s, projectId, vocabulary, options, onOpen }: {
         entering ? (
           <DemographicsForm key={said} projectId={projectId} params={{ project_id: projectId, type: delivery.subject_type, subject: delivery.subject }}
                             vocabulary={{ mapping: vocabulary }} options={options} onDone={close} label={s.label}
-                            testId={`individual-enter-${delivery.subject}`} stated={stated} spot={card.data?.spot_check ?? null} />
+                            testId={`individual-enter-${delivery.subject}`} stated={stated} spot={card.data?.spot_check ?? null}
+                            focusOn={entering === "individual" ? "individual" : "first"} />
         ) : said ? (
           <p className="m-4-0-0 fs-13" data-testid={`individual-entered-${delivery.subject}`}>
             {set ? <><span className="muted">The individual:</span> {individualText(set)}
               {individual && individual.kept.length > 0 && <span className="muted"> · {individual.kept.map(fieldInText).join(", ")} kept, not simulated</span>}</>
               : <>{said}{individual ? <span className="muted"> · {individualNeeds(individual.needs, individual.why)}</span> : null}</>}{" "}
-            <button type="button" className="link-btn" onClick={() => setEntering(true)} data-testid={`individual-enter-open-${delivery.subject}`}
+            <button type="button" className="link-btn" onClick={() => setEntering(set ? "first" : "individual")} data-testid={`individual-enter-open-${delivery.subject}`}
                     aria-label={`${set ? "Correct" : "Choose"} the individual of ${s.label}`}>{set ? "Correct…" : "Choose the individual…"}</button>
           </p>
         ) : (
           <p className="m-4-0-0 fs-13">
-            <button type="button" className="btn small" onClick={() => setEntering(true)} data-testid={`individual-enter-open-${delivery.subject}`}
+            <button type="button" className="btn small" onClick={() => setEntering("first")} data-testid={`individual-enter-open-${delivery.subject}`}
                     disabled={!card.data && !card.problem} aria-label={`Enter them… the demographics of ${s.label}`}>Enter them…</button>
             <span className="muted"> the population, age, weight and share of women, from the study&apos;s report, with the PK-Sim population and the
               sex to simulate; or ask the client from its card.</span>

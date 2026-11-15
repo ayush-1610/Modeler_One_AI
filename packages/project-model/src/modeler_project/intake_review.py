@@ -1465,6 +1465,43 @@ def spot_check_state(ws: Workspace, subject_type: SubjectType, subject: str, *, 
     return "complete" if done else "drawn"
 
 
+def outside_draw(ws: Workspace, subject_type: SubjectType, subject: str, *, reader: LedgerReader) -> dict[str, int]:
+    """For each check the ledger alone gives (`run_checks`: those an override of which the draw follows), how many of its
+    active values the subject's latest draw does not hold, while that draw still describes the subject. Accepted as is, a
+    check's values are always checked (`_always`), so one outside the draw makes the draw stale (`_stale`) and the spot
+    check is drawn again; the page says so before the override is made. Empty when there is no draw or it is stale; a
+    check with no such value is left out. Reads only: the draw's rule is `_stale`'s, unchanged."""
+    subject = _subject(reader, subject_type, subject)
+    store = IntakeStore(ws)
+    found = _latest_spot_check(store, reader, subject_type, subject)
+    if found is None:
+        return {}
+    draw = found[1]
+    if _stale(draw, reader, store):
+        return {}
+    drawn = {*draw.always, *draw.sampled, *draw.carried}
+    active = {v.id for v in _values(reader, subject_type, subject, spread_facts=True)}
+    out: dict[str, int] = {}
+    for check in run_checks(reader, subject_type=subject_type, subject=subject):   # type: ignore[arg-type]
+        count = sum(1 for vid in dict.fromkeys(check.values) if vid in active and vid not in drawn)
+        if count:
+            out[check.id] = count
+    return out
+
+
+def computed_from(reader: LedgerReader, subject_type: SubjectType, subject: str, value_ids: Iterable[str]) -> int:
+    """How many active values of the subject are computed from one of `value_ids` (`derived_from`: an SD worked out from
+    an SE or a CV%, a dose in mg). A derived value carries its input's entity, so linking its input again (its analyte
+    stated) computes it again (`ledger_compute.derivations`: a new fact superseding it), which changes the subject's
+    digest and makes a spot check drawn stale; nothing else an assignment that keeps the study and arm does changes it
+    (the values keep their ids, and a series' n is per study and arm)."""
+    inputs = set(value_ids)
+    if not inputs:
+        return 0
+    return sum(1 for v in _values(reader, subject_type, subject, spread_facts=True)
+               if v.method == "derived" and inputs.intersection(v.derived_from))
+
+
 # --- blockers, the bound record, the confirmation ------------------------------------------------------------------------
 
 
