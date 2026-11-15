@@ -10361,6 +10361,10 @@
       "DocumentView": {
         "additionalProperties": false,
         "properties": {
+          "blinded": {
+            "title": "Blinded",
+            "type": "boolean"
+          },
           "id": {
             "title": "Id",
             "type": "string"
@@ -10420,7 +10424,8 @@
           "warnings",
           "uploaded_at",
           "uploaded_by",
-          "withdrawn"
+          "withdrawn",
+          "blinded"
         ],
         "title": "DocumentView",
         "type": "object"
@@ -14128,6 +14133,10 @@
         "additionalProperties": false,
         "description": "A figure worth digitizing: no table holds its values (plan 2026-11-10, R5).",
         "properties": {
+          "blinded": {
+            "title": "Blinded",
+            "type": "boolean"
+          },
           "digitizable": {
             "title": "Digitizable",
             "type": "boolean"
@@ -14196,7 +14205,8 @@
           "sid",
           "file",
           "doc_sha256",
-          "digitizable"
+          "digitizable",
+          "blinded"
         ],
         "title": "FigureSuggestion",
         "type": "object"
@@ -35651,6 +35661,7 @@
     },
     "/api/v1/projects/{project_id}/documents/{sha256}/raw": {
       "get": {
+        "description": "The stored file itself. A file that holds a blinded study's values (`blinded_sources`, D-15) is not served until\nthe MAP is signed: 409 BLINDED (final review INT-3). Its pages are read masked (`pages/{n}`); a blinded dataset is\nseen for a check through `datasets/{id}:reveal`, with a reason on the audit chain, which gives its values, never the\nfile.",
         "operationId": "document_raw_api_v1_projects__project_id__documents__sha256__raw_get",
         "parameters": [
           {

@@ -19,6 +19,7 @@ from modeler_api.part11 import audit_mirror
 from modeler_intake.file_tags import TAG_KINDS, TagKind
 from modeler_project import ArtifactKind, ArtifactVersion, FileProjectStore, ProjectStore, Workspace
 from modeler_project import blinding as blind
+from modeler_project.blinded_sources import BlindedSources
 from modeler_project.documents import DocumentLibrary, RelatesTo, document_record
 
 READ_ROLES = ("modeler-viewer", "modeler-curator", "modeler-reviewer")
@@ -110,6 +111,16 @@ def model_risk(ws: Workspace) -> str | None:
 
 def blinded_studies(ws: Workspace) -> set[str]:
     return blind.blinded_studies(ws, project_record(ws), model_risk(ws))
+
+
+def blinded_sources(ws: Workspace) -> BlindedSources:
+    """What D-15 withholds of the client's files now, the delivery's rule and the project's list together (one rule
+    for the client files, the client review, the documents' pages, their originals and the digitizer; final review
+    INT-2, INT-3)."""
+    from modeler_api import intake_pipeline_jobs
+    from modeler_project.blinded_sources import blinded_sources as withheld
+
+    return withheld(ws, project_record(ws), model_risk(ws), delivery=intake_pipeline_jobs.enabled())
 
 
 def redact(ws: Workspace, kind: ArtifactKind, content: dict[str, Any], hidden: set[str] | None = None) -> dict[str, Any]:

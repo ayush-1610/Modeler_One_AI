@@ -110,7 +110,16 @@ from modeler_project.intake_store import ChainEntry, IntakeStore
 from modeler_project.ledger import Ledger
 from modeler_project.ledger_entities import label_key, now, with_article
 from modeler_project.ledger_models import EntityType, ExtractRef, ValueState
-from modeler_project.ledger_view import LedgerReader, LedgerView, in_subject, is_compound_field, is_spread_fact, is_unassigned
+from modeler_project.ledger_view import (
+    LedgerReader,
+    LedgerView,
+    in_conflicts,
+    in_subject,
+    is_compound_field,
+    is_spread_fact,
+    is_unassigned,
+    matrix_key,
+)
 from modeler_project.requirements import RequirementMatrix
 from modeler_project.scorecard import scorecard
 from modeler_project.study_requirements import product_requirements, requirement_status
@@ -726,17 +735,18 @@ def _arm_collision(reader: LedgerReader, store: IntakeStore, values: Sequence[Va
                    arm: str | None, new_arm: bool, analyte: str | None) -> str | None:
     """Why these values cannot go to one arm of one study, in words, or None (plan 2026-11-14 §2.2.2; review INT-4):
     two of them from different files, or one of them and a value the study holds in that arm (no arm counts as one)
-    from another file, hold the same subject in the same period with the same analyte. A period left out matches any
-    period, and an analyte left out (the file states none) matches any analyte; analytes are compared by name, since
-    each file's analyte is an entity of its own (`analyte`: the one the assignment states, by its `label_key`; else each
-    value's own). Never one file's values with each other, nor with what the study holds of that file. A new arm holds
-    nothing yet; a new study neither (`study` None)."""
+    from another file, would be one series in the ledger: the same subject, period, analyte, matrix and field, the
+    entity and field `ledger_view.find_conflicts` compares (`_entity_key`), for the values that take part in conflicts
+    (`in_conflicts`). A period, an analyte or a matrix left out matches any; analytes are compared by name, since each
+    file's analyte is an entity of its own (`analyte`: the one the assignment states, by its `label_key`; else each
+    value's own). So a urine file and a plasma file of one study, or a file of concentrations and one of demographics,
+    share an arm. Never one file's values with each other, nor with what the study holds of that file. Only what the
+    assignment brings together is compared: a value that stays where it is (the same study and arm, its analyte kept or
+    first stated: "State it…" only narrows a match) is not compared with what it sits beside already (final review
+    INT-4). A new arm holds nothing yet; a new study neither (`study` None)."""
     names: dict[str, str] = {}
 
-    def analyte_of(value: ValueState) -> str:
-        if analyte is not None:
-            return analyte
-        found = value.entity.analyte
+    def analyte_name(found: str | None) -> str:
         if not found:
             return ""
         if found not in names:
@@ -744,41 +754,56 @@ def _arm_collision(reader: LedgerReader, store: IntakeStore, values: Sequence[Va
             names[found] = label_key(entity.label) if entity is not None else found
         return names[found]
 
-    def key(value: ValueState) -> tuple[str, str, str] | None:
-        subject = name_key(value.entity.subject) if value.entity.subject else ""
-        if not subject:
-            return None
-        return subject, name_key(value.entity.period) if value.entity.period else "", analyte_of(value)
+    def analyte_of(value: ValueState) -> str:
+        return analyte if analyte is not None else analyte_name(value.entity.analyte)
 
-    def meet(a: tuple[str, str, str], b: tuple[str, str, str]) -> bool:
-        return a[0] == b[0] and (not a[1] or not b[1] or a[1] == b[1]) and (not a[2] or not b[2] or a[2] == b[2])
+    Key = tuple[str, str, str, str, str]
+
+    def key(value: ValueState, *, going: bool) -> Key | None:
+        subject = name_key(value.entity.subject) if value.entity.subject else ""
+        if not subject or not in_conflicts(value):
+            return None
+        return (subject, name_key(value.entity.period) if value.entity.period else "",
+                analyte_of(value) if going else analyte_name(value.entity.analyte), matrix_key(value.entity.matrix) or "",
+                value.field)
+
+    def meet(a: Key, b: Key) -> bool:
+        return a[0] == b[0] and a[4] == b[4] and all(not x or not y or x == y for x, y in zip(a[1:4], b[1:4], strict=True))
+
+    def stays(value: ValueState) -> bool:
+        """Already in that study and arm, and its analyte not changed to another name."""
+        now = analyte_name(value.entity.analyte)
+        return (study is not None and not new_arm and value.entity.study == study and (value.entity.arm or None) == (arm or None)
+                and (analyte is None or not now or now == analyte))
 
     files = {f.sha256: f.name for f in _file_lines(store)}
     named = reader.entity(study) if study is not None else None
     where = (f"study {named.label}" if named is not None else "the new study") + (
         "" if new_arm else f", arm {getattr(reader.entity(arm), 'label', arm)}" if arm else " (no arm)")
 
-    def said(k: tuple[str, str, str]) -> str:
+    def said(k: Key) -> str:
         return f"subject {k[0]}" + (f", period {k[1]}" if k[1] else "")
 
     def name(sha: str | None) -> str:
         return files.get(sha or "", "values a person entered")
 
     mine = {v.id for v in values}
-    going = [(k, v) for v in values if v.status in ("proposed", "confirmed") and (k := key(v)) is not None]
-    for i, (ka, a) in enumerate(going):
-        for kb, b in going[i + 1:]:
-            if a.file_sha256 != b.file_sha256 and meet(ka, kb):
+    going = [(k, v, stays(v)) for v in values if v.status in ("proposed", "confirmed") and (k := key(v, going=True)) is not None]
+    for i, (ka, a, sa) in enumerate(going):
+        for kb, b, sb in going[i + 1:]:
+            if a.file_sha256 != b.file_sha256 and not (sa and sb) and meet(ka, kb):
                 return (f"{name(a.file_sha256)} and {name(b.file_sha256)} both hold {said(ka)}: in {where} each file "
                         f"needs its own arm")
     if study is None or new_arm:
         return None
-    held: dict[str, list[tuple[tuple[str, str, str], ValueState]]] = {}
+    held: dict[str, list[tuple[Key, ValueState]]] = {}
     for v in reader.values(study=study):
-        if v.id in mine or (v.entity.arm or None) != (arm or None) or (k := key(v)) is None:
+        if v.id in mine or (v.entity.arm or None) != (arm or None) or (k := key(v, going=False)) is None:
             continue
         held.setdefault(k[0], []).append((k, v))
-    for ka, a in going:
+    for ka, a, sa in going:
+        if sa:
+            continue
         for kb, b in held.get(ka[0], []):
             if b.file_sha256 != a.file_sha256 and meet(ka, kb):
                 return (f"{name(a.file_sha256)} holds {said(ka)}, which {where} holds already from "
@@ -813,9 +838,10 @@ def assign(ws: Workspace, *, targets: Sequence[str], study: str | None = None, a
     2026-11-14 §2.2.4: a link is changed by linking again), so an analyte an earlier assignment stated is not kept: a
     re-link that keeps it names it again, as it does the arm. The assignment is still a study's or a product's.
 
-    Two files that hold the same subject in the same period are refused one arm of one study, and so is a file whose
-    subjects the study holds in that arm already from another file (`_arm_collision`: CONFLICT naming the files, the
-    subject, the period and the arm), so a page that did not check, or a direct call, cannot mix two arms' values."""
+    Two files whose values would be one series (the same subject, period, analyte, matrix and field) are refused one arm
+    of one study, and so is a file whose such values the study holds in that arm already from another file
+    (`_arm_collision`: CONFLICT naming the files, the subject, the period and the arm), so a page that did not check, or
+    a direct call, cannot mix two arms' values; values that stay in their study and arm are not checked again."""
     why = _why(why, "an assignment")
     if not targets:
         raise ReviewError("INVALID", "an assignment names the values it assigns")
@@ -1802,9 +1828,11 @@ def covered_by_confirmation(ws: Workspace, dataset: ObservedDataset) -> Confirma
 def blinded_subjects(ws: Workspace, project: dict[str, Any] | None, model_risk: str | None) -> set[str]:
     """The ledger's studies (entity ids) whose values are withheld now: with the project's blinding on and no MAP
     signed, every study one of whose active `intended_use` values is an external purpose
-    (`blinding.EXTERNAL_PURPOSES`), and every study a dataset of which the Delivery landed is one of
-    `blinding.blinded_studies` (the plan put it in S5 or S6, or it was entered for external validation). Empty when
-    blinding is off or a MAP is signed."""
+    (`blinding.EXTERNAL_PURPOSES`), every study a dataset of which the Delivery landed is one of
+    `blinding.blinded_studies` (the plan put it in S5 or S6, or it was entered for external validation), and every study
+    the sheet form read as one of those: the study of the same name, or one of whose client-review groups
+    (`legacy_groups`) is (final review INT-2: one rule for both readers of the same data). Empty when blinding is off
+    or a MAP is signed."""
     store = IntakeStore(ws)
     if not store.available or not blinding.setting(project, model_risk)["on"] or blinding.map_signed(ws):
         return set()
@@ -1826,6 +1854,37 @@ def blinded_subjects(ws: Workspace, project: dict[str, Any] | None, model_risk: 
                 found = dataset_of(ws, dataset_id)
                 if found is not None and str(found.study.get("study_id")) in hidden:
                     out.add(entity.id)
+        listed = {blinding.study_key(s) for s in hidden}
+        for row in subjects(ws, reader=reader):
+            if row["subject_type"] != "study" or row["subject"] in out:
+                continue
+            names = [row["label"], *(g.partition(":")[2] for g in row["legacy_groups"] if g.startswith("study:"))]
+            if any(blinding.study_key(n) in listed for n in names):
+                out.add(row["subject"])
+    return out
+
+
+def joined_uses(ws: Workspace, *, groups: Collection[str] = (), names: Collection[str] = ()) -> list[tuple[str, tuple[str, ...]]]:
+    """What the delivery says a study is for, for the client-review groups and study names the sheet form reads: each
+    delivery study one of them is (its `legacy_groups` holds one of `groups`, or its label is one of `names` by
+    `blinding.study_key`: the join's two rules, plan 2026-11-14 §2.1) whose active `intended_use` values say something,
+    as (its label, the uses they say, read as the landing reads them). The sheet form loads such a study only for one of
+    those uses (final review INT-2)."""
+    store = IntakeStore(ws)
+    if not store.available:
+        return []
+    reader = LedgerView(ws)
+    if not reader.values(field="intended_use"):
+        return []
+    keys = {blinding.study_key(n) for n in names if n}
+    out: list[tuple[str, tuple[str, ...]]] = []
+    for row in subjects(ws, reader=reader):
+        if row["subject_type"] != "study" or not (set(row["legacy_groups"]) & set(groups) or blinding.study_key(row["label"]) in keys):
+            continue
+        uses = tuple(dict.fromkeys(read_choice("intended_use", str(v.value)) or str(v.value)
+                                   for v in reader.values(study=row["subject"], field="intended_use")))
+        if uses:
+            out.append((row["label"], uses))
     return out
 
 

@@ -44,7 +44,7 @@ from modeler_api import agent_jobs, intake_pipeline_jobs, jobs
 from modeler_api.auth import ensure_step_up
 from modeler_api.compliance.signatures import SignatureMeaning, Signer, sign_after_step_up
 from modeler_api.config import SettingsDep
-from modeler_api.deps import Reader, StoreDep, Writer, model_risk, project_record, workspace_for
+from modeler_api.deps import Reader, StoreDep, Writer, blinded_sources, model_risk, project_record, workspace_for
 from modeler_api.part11 import record_signature
 from modeler_api.responses import answers, envelope
 from modeler_api.views.client_data import TriageStart
@@ -834,8 +834,9 @@ def _decisions(scope: _Scope, subject_type: str, subject: str, values: Sequence[
     """What the subject's signature binds besides its files (`DeliveryDecision`; `intake_decisions.decisions`), newest
     first: the decisions about the subject, the layouts of its own tables and the "not data" decisions in the files its
     values were read from ("subject"), and the clean-up of the delivery's other files and tables ("delivery": layouts,
-    links and "not data" decisions there; contracts §11.10). The why of a blinded subject's decision, and of one about a file or a study that is blinded, has its
-    digits masked (D-15, as a region decision's why); an entry of a blinded subject gives no value."""
+    links and "not data" decisions there; contracts §11.10). The why of a blinded subject's own decision ("subject"),
+    and of any about a file or a study that is blinded, has its digits masked (D-15, as a region decision's why), and
+    such an entry gives no value; a decision of the delivery's fold about other files is shown as on any card."""
     reader = scope.reader
     everything = _all_values(reader, subject_type, subject)
     own = {v.file_sha256 for v in everything if v.file_sha256}
@@ -865,7 +866,9 @@ def _decisions(scope: _Scope, subject_type: str, subject: str, values: Sequence[
             where = "subject" if d.files & own else "delivery" if d.files & cover else None
         if where is None:
             continue
-        masked = blinded or bool(d.files & hidden_files) or bool(d.subjects & scope.hidden)
+        # a blinded subject's own decisions and those about its files; in the delivery's fold, only those about a blinded
+        # file or study (final review: a fold decision about other files reads as on any other card)
+        masked = (blinded and where == "subject") or bool(d.files & hidden_files) or bool(d.subjects & scope.hidden)
         body = d.record
         row: dict[str, Any] = {
             "id": d.id, "kind": d.kind, "scope": where, "by": d.by, "at": d.at, "why": _mask(d.why) if masked else d.why,
@@ -1424,14 +1427,17 @@ def get_source(project_id: str, principal: Reader, store: StoreDep, value: str |
             if intake_files.file_record(scope.ws, parsed.file_sha256) is None:
                 raise _refused(404, "UNKNOWN", "no file with that sha256 arrived in this project")
         view, file, value_id, blinded = scope.source(value=value, anchor=anchor)
+        # its page is drawn from the stored file, which is not served while it holds a blinded study's values (the
+        # project's list too: `blinded_sources`, final review INT-3)
+        drawn = not blinded and (view.page is None or not blinded_sources(scope.ws).file(file.sha256))
         return envelope({
             "kind": view.kind, "title": view.title, "region_id": view.region_id, "n_rows": view.n_rows,
             "n_cols": view.n_cols, "cells": [c.model_dump(mode="json") for c in view.cells], "text": view.text,
             "span": list(view.span) if view.span is not None else None,
             # a blinded region's page is not given: drawn from the file, it would show what the cells withhold
-            "page": None if blinded else view.page,
-            "page_size": None if blinded or view.page_size is None else list(view.page_size),
-            "box": None if blinded or view.box is None else list(view.box),
+            "page": view.page if drawn else None,
+            "page_size": list(view.page_size) if drawn and view.page_size is not None else None,
+            "box": list(view.box) if drawn and view.box is not None else None,
             "file": file.name, "sha256": file.sha256, "value_id": value_id, "blinded": blinded})
 
 

@@ -1831,7 +1831,13 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Document Raw */
+        /**
+         * Document Raw
+         * @description The stored file itself. A file that holds a blinded study's values (`blinded_sources`, D-15) is not served until
+         *     the MAP is signed: 409 BLINDED (final review INT-3). Its pages are read masked (`pages/{n}`); a blinded dataset is
+         *     seen for a check through `datasets/{id}:reveal`, with a reason on the audit chain, which gives its values, never the
+         *     file.
+         */
         get: operations["document_raw_api_v1_projects__project_id__documents__sha256__raw_get"];
         put?: never;
         post?: never;
@@ -6475,6 +6481,8 @@ export interface components {
         };
         /** DocumentView */
         DocumentView: {
+            /** Blinded */
+            blinded: boolean;
             /** Id */
             id: string;
             /** Kind */
@@ -7668,6 +7676,8 @@ export interface components {
          * @description A figure worth digitizing: no table holds its values (plan 2026-11-10, R5).
          */
         FigureSuggestion: {
+            /** Blinded */
+            blinded: boolean;
             /** Digitizable */
             digitizable: boolean;
             /** Doc Sha256 */

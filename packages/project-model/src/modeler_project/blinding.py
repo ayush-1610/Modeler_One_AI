@@ -7,12 +7,15 @@ split is decided on it. A curator who must check a blinded dataset (digitization
 request with a reason, and the reveal is an event on the audit chain.
 
 The setting is per project (D-15): an explicit choice by the MIDD lead, recorded with its reason, or by default on
-when the human-confirmed model risk tier in the brief is high. Source documents are outside its reach (a paper is a
-paper); it covers what the platform shows.
+when the human-confirmed model risk tier in the brief is high. A copy of a paper outside the platform is outside its
+reach; it covers what the platform shows, and that includes a stored file that holds a blinded study's values: its
+original is not served, its pages come with their digits masked and the digitizer does not draw it until the MAP is
+signed (`blinded_sources`; final review INT-3).
 """
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from modeler_project.workspace import Workspace
@@ -55,6 +58,12 @@ def blinded_studies(ws: Workspace, project: dict[str, Any] | None, model_risk: s
     if not setting(project, model_risk)["on"] or map_signed(ws):
         return set()
     return external_studies(ws)
+
+
+def study_key(study_id: Any) -> str:
+    """A study's name as the readers compare it (`client_review._key`): case, spaces and punctuation make no other
+    study. A delivery study, a client-review group and a dataset of one name are one study for blinding."""
+    return re.sub(r"[^A-Z0-9]", "", str(study_id).upper())
 
 
 def redact_dataset(content: dict[str, Any]) -> dict[str, Any]:

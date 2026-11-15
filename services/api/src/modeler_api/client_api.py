@@ -9,8 +9,6 @@ read on the Inputs step's Studies tab, and nothing is approved (D-27): the one r
 
 from __future__ import annotations
 
-import re
-from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Annotated, Any, Literal
 
@@ -22,11 +20,10 @@ from modeler_api.deps import (
     Reader,
     StoreDep,
     Writer,
+    blinded_sources,
     blinded_studies,
     blinding_view,
     file_tag_view,
-    model_risk,
-    project_record,
     redact,
     relates_to_form,
     tags_form,
@@ -67,6 +64,7 @@ from modeler_intake.sheet_form import SheetForm, preview_rows, suggest, to_propo
 from modeler_intake.triage import SheetCategory, SheetTriage
 from modeler_project import ArtifactKind, ProjectStore, Workspace, intake_decisions
 from modeler_project import intake_review as delivery_review
+from modeler_project.blinded_sources import BlindedSources
 from modeler_project.blinding import redact_dataset
 from modeler_project.brief import ProjectBrief
 from modeler_project.client_data import (
@@ -93,9 +91,9 @@ from modeler_project.evidence import EvidenceState
 from modeler_project.figure_suggestions import open_suggestions
 from modeler_project.inputs import refresh_inputs
 from modeler_project.intake_review import covered_by_confirmation
-from modeler_project.ledger_view import LedgerView
 from modeler_project.reading_queue import ReadingQueue
 from modeler_project.requirements import RequirementMatrix, client_request
+from modeler_project.sheet_intake import PURPOSES as SHEET_PURPOSES
 from modeler_project.sheet_intake import READ as READ_SHEETS
 from modeler_project.sheet_intake import SheetIntakeError, finish, keep, products_of, read_on_arrival
 
@@ -116,52 +114,9 @@ def _brief(ws: Workspace) -> ProjectBrief | None:
     return ProjectBrief.from_content(version.content) if version else None
 
 
-# --- what the delivery blinds, on the client files' and the client review's views (D-15; final review INT-2, INT-3) ------
+# --- what D-15 withholds, on the client files' and the client review's views (final review INT-2, INT-3) ---------------
 
 WITHHELD = "withheld (blinded)"
-
-
-def _name_key(text: Any) -> str:
-    """A study's or product's name as the client review compares it (`client_review._key`): case, spaces and
-    punctuation make no other name."""
-    return re.sub(r"[^A-Z0-9]", "", str(text).upper())
-
-
-@dataclass(frozen=True)
-class _Blinded:
-    """What the delivery blinds now (`intake_review.blinded_subjects`, the delivery's own rule): the client-review
-    groups of its blinded studies and products (the groups of the same source, `legacy_groups`, or of the same name),
-    the files that hold a blinded study's values (`intake_decisions.blinded_files`) and the sheets they were read from."""
-
-    groups: set[str] = field(default_factory=set)
-    names: set[str] = field(default_factory=set)          # "<kind>:<name key>"
-    files: set[str] = field(default_factory=set)
-    sheets: dict[str, set[str]] = field(default_factory=dict)
-
-    def group(self, group: dict[str, Any]) -> bool:
-        gid = str(group["id"])
-        kind, _sep, name = gid.partition(":")
-        return gid in self.groups or f"{kind}:{_name_key(name)}" in self.names
-
-    def sheet(self, sha256: str, sheet: str) -> bool:
-        return sheet in self.sheets.get(sha256, ())
-
-
-def _delivery_blinded(ws: Workspace) -> _Blinded:
-    """What the delivery blinds now; nothing with the intake pipeline off, blinding off or the MAP signed."""
-    if not intake_pipeline_jobs.enabled():
-        return _Blinded()
-    hidden = delivery_review.blinded_subjects(ws, project_record(ws), model_risk(ws))
-    if not hidden:
-        return _Blinded()
-    reader = LedgerView(ws)
-    found = _Blinded(files=intake_decisions.blinded_files(reader, hidden),
-                     sheets=intake_decisions.blinded_sheets(reader, hidden))
-    for row in delivery_review.subjects(ws, reader=reader):
-        if row["subject_type"] != "compound" and delivery_review.is_blinded(reader, row["subject_type"], row["subject"], hidden):
-            found.names.add(f"{row['subject_type']}:{_name_key(row['label'])}")
-            found.groups.update(row["legacy_groups"])
-    return found
 
 
 def _masked(text: Any) -> Any:
@@ -174,10 +129,11 @@ def _blinded_refusal(what: str) -> HTTPException:
         "plan is signed")})
 
 
-def _file_view(content: dict[str, Any], blinded: _Blinded) -> dict[str, Any]:
-    """A client file as the viewer may see it: a file that holds a blinded study's values shows no page's line (as the
-    delivery shows no caption or outside text of it), and the digits of what its sheets and its readings quote are
-    masked (as a failed run's message is); `blinded` says so."""
+def _file_view(content: dict[str, Any], blinded: BlindedSources) -> dict[str, Any]:
+    """A client file as the viewer may see it: a file that holds a blinded study's values (`blinded_sources`: the
+    delivery's rule and the project's list) shows no page's line (as the delivery shows no caption or outside text of
+    it) and no figure worth digitizing (its caption and study), and the digits of what its sheets and its readings
+    quote are masked (as a failed run's message is); `blinded` says so."""
     sha = str(content.get("sha256"))
     if sha not in blinded.files:
         return {**content, "blinded": False, "blinded_sheets": []}
@@ -192,7 +148,16 @@ def _file_view(content: dict[str, Any], blinded: _Blinded) -> dict[str, Any]:
                                  for r in content["document_reads"]]
     if content.get("readings"):
         out["readings"] = {sheet: _reading_withheld(r) if sheet in sheets else r for sheet, r in content["readings"].items()}
+    if content.get("figure_suggestions"):
+        out["figure_suggestions"] = [_figure_withheld(f) for f in content["figure_suggestions"]]
     return out
+
+
+def _figure_withheld(figure: dict[str, Any]) -> dict[str, Any]:
+    """A figure suggested from a file that holds a blinded study's values: where it is, and nothing it says (its caption,
+    the study or product it shows, its media), and not to digitize until the plan is signed."""
+    return {**figure, "quote": "", "study_id": "", "product": "", "medium": "", "ph": [], "blinded": True,
+            **({"digitizable": False} if "digitizable" in figure else {})}
 
 
 def _reading_withheld(reading: dict[str, Any]) -> dict[str, Any]:
@@ -211,7 +176,7 @@ def _view(ws: Workspace) -> dict[str, Any]:
     register = ws.latest(ArtifactKind.CLIENT_SUBMISSION, REGISTER)
     reading = jobs.running(ws.store, ws.tenant_id, ws.project_id, "reading")
     library = DocumentLibrary(ws)
-    blinded = _delivery_blinded(ws)
+    blinded = blinded_sources(ws)
     return {
         "template": TEMPLATE_ID,
         "data_plan": {"version": matrix_version.version, "status": ws.status(matrix_version).value},
@@ -267,7 +232,14 @@ def _queue_view(ws: Workspace) -> dict[str, Any]:
                        for state in ("queued", "reading", "done", "failed")},
             "items": [i.model_dump(mode="json") for i in items],
             "mapped": {sid: line for sid, entry in delivery_map(ws)["files"].items() if (line := file_line(entry))},
-            "figures": open_suggestions(ws), "unread_documents": [d["name"] for d in unread_documents(ws)]}
+            "figures": _figures(ws), "unread_documents": [d["name"] for d in unread_documents(ws)]}
+
+
+def _figures(ws: Workspace) -> list[dict[str, Any]]:
+    """The figures worth digitizing, each from a file that holds a blinded study's values withheld (`_figure_withheld`:
+    no caption, study or Digitize link until the plan is signed, D-15)."""
+    blinded = blinded_sources(ws)
+    return [_figure_withheld(f) if blinded.file(f["doc_sha256"]) else {**f, "blinded": False} for f in open_suggestions(ws)]
 
 
 @router.get("/projects/{project_id}/reading-queue", **answers(ReadingQueuePage))
@@ -488,7 +460,7 @@ def read_sheet(project_id: str, sid: str, sheet: str, principal: Reader, store: 
     content, workbook = _workbook(ws, sid)
     if sheet not in workbook.sheets:
         raise HTTPException(status_code=404, detail=f"no sheet {sheet!r} in this file")
-    if _delivery_blinded(ws).sheet(content["sha256"], sheet):     # its rows are a blinded study's values (D-15)
+    if blinded_sources(ws).sheet(content["sha256"], sheet):        # its rows are a blinded study's values (D-15)
         raise _blinded_refusal(f"sheet {sheet}")
     grid = workbook.sheets[sheet]
     brief = _brief(ws)
@@ -572,7 +544,8 @@ def map_sheets(project_id: str, sid: str, body: MappingBody, principal: Writer, 
             raise HTTPException(status_code=404, detail=f"no sheet {body.form.sheet!r} in this file")
         raw = to_proposal(body.form, workbook.sheets[body.form.sheet])
     sheets_read = {str(t.get("sheet")) for t in (raw or {}).get("tables", []) if isinstance(t, dict)}
-    blinded_sheets = sorted(x for x in sheets_read if _delivery_blinded(ws).sheet(content["sha256"], x))
+    withheld = blinded_sources(ws)
+    blinded_sheets = sorted(x for x in sheets_read if withheld.sheet(content["sha256"], x))
     if blinded_sheets:                                            # its preview would draw a blinded study's values
         raise _blinded_refusal(f"sheet {', '.join(blinded_sheets)}")
     try:
@@ -605,6 +578,11 @@ def map_sheets(project_id: str, sid: str, body: MappingBody, principal: Writer, 
         except (DatasetError, ValueError):
             made = []                       # what cannot be built is refused by `keep` below, with its reason
         _not_on_delivery(ws, made, sheets=sheets)
+        # a study the delivery says is for something else is not read in for this purpose (409 PURPOSE_DIFFERS, INT-2)
+        said = str(body.study.get("purpose") or "")
+        for label, uses in delivery_review.joined_uses(ws, names=preview["studies"]) if review.concentrations else []:
+            if said and said not in uses:
+                raise _purpose_refusal(label, uses, said)
     try:   # the same saving as a draft read on arrival (`sheet_intake.keep`)
         ids = keep(ws, DocumentLibrary(ws), sid, content, review, study=body.study, by=principal.user_id, replace=body.replace)
     except SheetIntakeError as exc:
@@ -706,7 +684,7 @@ def _review(ws: Workspace) -> dict[str, Any]:
     hidden = blinded_studies(ws)
     register = {p["id"]: p for p in profiles(ws)}
     blinding = blinding_view(ws)
-    delivery = _delivery_blinded(ws)
+    delivery = blinded_sources(ws)
     # a sheet not yet saved has no purpose: while blinding is on and the MAP unsigned, its values are not drawn (D-15)
     withhold = bool(blinding["on"] and not blinding["map_signed"])
     for group in found:   # each dataset and profile as data on its card (build C), as the viewer may see it (D-15)
@@ -806,8 +784,9 @@ def finish_sheet(project_id: str, body: ReviewFinish, principal: Writer, store: 
     if intake_pipeline_jobs.enabled() and (covered := _delivery_recipes(content, {body.sheet})):
         raise _loaded_on_delivery(f"sheet {body.sheet}", covered[0])
     _not_blinded(ws, draft=f"draft|{body.file}|{body.sheet}", sha256=content["sha256"], sheet=body.sheet)
+    given = _delivery_purpose(ws, content, body.file, body.sheet, dict(body.answers))   # 409 PURPOSE_DIFFERS
     try:
-        finish(ws, DocumentLibrary(ws), body.file, body.sheet, dict(body.answers), by=principal.user_id)
+        finish(ws, DocumentLibrary(ws), body.file, body.sheet, given, by=principal.user_id)
     except SheetIntakeError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     refresh_inputs(ws, by=principal.user_id)   # the inputs follow every change (redesign §3.2)
@@ -821,23 +800,79 @@ def confirm_review_group(project_id: str, body: ReviewGroupRef, principal: Write
     def confirm(ws: Workspace) -> None:
         _group_not_on_delivery(ws, body.group)      # 409 LOADED_ON_DELIVERY: what Delivery confirmed is not loaded twice
         _not_blinded(ws, group=body.group)          # 409 BLINDED: a study the delivery blinds waits for the MAP
+        _group_purpose(ws, body.group)              # 409 PURPOSE_DIFFERS: loaded only for what the delivery says it is for
         confirm_group(ws, body.group, by=principal.user_id)
 
     return _act(project_id, principal, store, confirm)
 
 
+_USE_WORDS = {"model_building": "model building", "internal_validation": "internal validation",
+              "external_validation": "external validation", "application_verification": "application verification",
+              "supportive": "supportive data"}
+
+
+def _purpose_refusal(label: str, uses: tuple[str, ...], said: str) -> HTTPException:
+    """409 PURPOSE_DIFFERS naming both: what the study's delivery card says it is for, and what the sheet form says."""
+    card = " or ".join(_USE_WORDS.get(u, u) for u in uses)
+    return HTTPException(status_code=409, detail={"code": "PURPOSE_DIFFERS", "message": (
+        f"study {label} is entered for {card} on its card in the delivery, and the sheet form says {_USE_WORDS.get(said, said)}: "
+        f"it is loaded only for what its card says. Read it for {card}, or change what its card says first, with a reason")})
+
+
+def _delivery_purpose(ws: Workspace, content: dict[str, Any], sid: str, sheet: str, given: dict[str, Any]) -> dict[str, Any]:
+    """A concentration-time sheet's answers checked against what the delivery says its study is for (final review INT-2):
+    the study the sheet form reads it as (its study id, or the client-review group that holds its draft) that is one of
+    the delivery's studies (`intake_review.joined_uses`). With no purpose given yet, the delivery's is taken when the
+    sheet form has it; a purpose that is not the delivery's is refused (409 PURPOSE_DIFFERS, naming both)."""
+    draft = (content.get("readings") or {}).get(sheet) or {}
+    form = draft.get("form") or {}
+    if not intake_pipeline_jobs.enabled() or form.get("kind") not in (None, "concentration_time"):
+        return given
+    name = str(given.get("study_id") or (form.get("constants") or {}).get("study_id") or "")
+    groups = [str(g["id"]) for g in review_groups(ws, offers=False) if any(i["id"] == f"draft|{sid}|{sheet}" for i in g["items"])]
+    joined = delivery_review.joined_uses(ws, groups=groups, names=[name] if name else [])
+    if not joined:
+        return given
+    said = str(given.get("purpose") or (form.get("study") or {}).get("purpose") or "")
+    for label, uses in joined:
+        if said and said not in uses:
+            raise _purpose_refusal(label, uses, said)
+    uses = {u for _label, found in joined for u in found}
+    if not said and len(uses) == 1 and (use := next(iter(uses))) in SHEET_PURPOSES:
+        return {**given, "purpose": use}
+    return given
+
+
+def _group_purpose(ws: Workspace, gid: str) -> None:
+    """The guard of `client-review:confirm`: a group whose study the delivery says is for something else than what its
+    datasets were read for is not loaded (409 PURPOSE_DIFFERS, naming both; final review INT-2)."""
+    if not intake_pipeline_jobs.enabled():
+        return
+    group = next((g for g in review_groups(ws, offers=False) if g["id"] == gid), None)
+    if group is None or group["state"] == "confirmed" or group["kind"] != "study":
+        return
+    found = [d for item in group["items"] if item["kind"] == "dataset" and (d := dataset(ws, item["id"])) is not None]
+    if not found:
+        return
+    joined = delivery_review.joined_uses(ws, groups=[gid], names=[gid.partition(":")[2], *(str(d.study.get("study_id")) for d in found)])
+    for label, uses in joined:
+        for d in found:
+            if d.purpose not in uses:
+                raise _purpose_refusal(label, uses, d.purpose)
+
+
 def _not_blinded(ws: Workspace, *, group: str | None = None, draft: str | None = None, sha256: str | None = None,
                  sheet: str | None = None) -> None:
-    """409 BLINDED (the code a blinded delivery card's confirmation answers with) for a group of a study or product the
-    delivery blinds, for the group that holds a sheet's draft, or for a sheet a blinded study's values were read from:
-    nothing of it is read into the project or confirmed until the MAP is signed (D-15). A study entered for external
-    validation on its delivery card is not loaded as model building through the sheet form (final review INT-2)."""
-    blinded = _delivery_blinded(ws)
-    if not (blinded.groups or blinded.names or blinded.files):
+    """409 BLINDED (the code a blinded delivery card's confirmation answers with) for a group of a study or product
+    blinded until the MAP is signed (`blinded_sources`: the delivery's rule and the project's list), for the group that
+    holds a sheet's draft, or for a sheet a blinded study's values were read from: nothing of it is read into the
+    project or confirmed until the MAP is signed (D-15; final review INT-2)."""
+    blinded = blinded_sources(ws)
+    if not blinded:
         return
     if sha256 is not None and sheet is not None and blinded.sheet(sha256, sheet):
         raise _blinded_refusal(f"sheet {sheet}")
-    for found in review_groups(ws):
+    for found in review_groups(ws, offers=False):
         if (found["id"] == group or any(i["id"] == draft for i in found["items"])) and blinded.group(found):
             raise _blinded_refusal(str(found["title"]))
 

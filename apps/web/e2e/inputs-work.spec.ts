@@ -11,7 +11,8 @@ import { expect, test } from "@playwright/test";
 
 import {
   NEW, NO_TARGET, aboutText, analyteChoice, analyteChoices, areaHead, assignBody, buildWork, collisions, columnSummary, destinationKey, heldBy,
-  layoutRows, linkRows, linkTarget, linkWords, linkedPiece, looseGroups, nextText, normLabel, notReadRows, onDelivery, pairsMeet, prefixAlias,
+  layoutRows, linkPlaces, linkRows, linkTarget, linkWords, linkedPiece, looseGroups, nextText, normLabel, notReadRows, onDelivery, pairsMeet,
+  prefixAlias, seriesKey,
   targetProblem, type WorkSources,
 } from "../lib/inputsWork";
 import { alreadyDecidedText, checkLabel, placeText, stepReason } from "../lib/words";
@@ -279,7 +280,7 @@ test("the link table: one row per file, suggested from its own labels, the alias
   expect(reference.alias!.study.label).toBe("230-23");
   expect(reference.alias!.target).toMatchObject({ study: "st-8", arm: NEW, newArm: "Reference" });
   expect(test230.alias!.target).toMatchObject({ study: "st-8", arm: NEW, newArm: "Test" });
-  expect(reference.pairs).toContain("001 · I");
+  expect(reference.pairs).toContain("001 · I · plasma · concentration");
   // the two files in one arm of one study collide on their subjects and periods; each in its own arm, they do not
   const studies = sources.delivery!.subjects;
   const same = { ...NO_TARGET, study: "st-8" };
@@ -288,7 +289,7 @@ test("the link table: one row per file, suggested from its own labels, the alias
       keys: [reference.sha, test230.sha] }]);
   expect(collisions([{ row: reference, target: reference.alias!.target }, { row: test230, target: test230.alias!.target }], studies)).toEqual([]);
   // and against what the study already holds in that arm (its card, when read)
-  expect(collisions([{ row: reference, target: same }], studies, { "st-8": [{ arm: "", analyte: "", pair: "001 · I" }] })[0].files)
+  expect(collisions([{ row: reference, target: same }], studies, { "st-8": [{ arm: "", analyte: "", pair: "001 · I · plasma · concentration" }] })[0].files)
     .toEqual(["230-23 Fasting Reference.xlsx"]);
   // each file naming its analyte, read as an entity of its own (an-1, an-2: one per file, both "Exampleamide"): the same
   // analyte by name, so the two still collide; and against what the study holds of that analyte, by name too
@@ -298,7 +299,7 @@ test("the link table: one row per file, suggested from its own labels, the alias
     .toHaveLength(1);
   expect(collisions([{ row: named(reference, "an-1"), target: { ...same, analyte: "an-2" } }, { row: named(test230, "an-2"), target: same }],
                     studies, {}, analytes)).toHaveLength(1);
-  expect(collisions([{ row: named(reference, "an-1"), target: same }], studies, { "st-8": [{ arm: "", analyte: "exampleamide", pair: "001 · I" }] }))
+  expect(collisions([{ row: named(reference, "an-1"), target: same }], studies, { "st-8": [{ arm: "", analyte: "exampleamide", pair: "001 · I · plasma · concentration" }] }))
     .toHaveLength(1);
   // a dissolution file's values go to a product, with the batch the file names
   const rld = row("Dissolution RLD pH 6.8.xlsx");
@@ -355,11 +356,11 @@ test("a workbook with one sheet per study: each table its own part, its own sugg
   // each part is checked on its own: Sheet1's table into 230-23 beside the Reference file's subjects, not beside its own sheet
   const studies = page.subjects;
   const to = { ...NO_TARGET, study: "st-8" };
-  expect(collisions([{ row: two.parts[0], target: to }], studies, { "st-8": [{ arm: "", analyte: "", pair: "001 · I", sha: ref.sha256 }] })[0])
+  expect(collisions([{ row: two.parts[0], target: to }], studies, { "st-8": [{ arm: "", analyte: "", pair: "001 · I · plasma · concentration", sha: ref.sha256 }] })[0])
     .toMatchObject({ files: ["two-studies.xlsx, its individual PK table on sheet Sheet1"], keys: [`${sha}#tx-aaaa`] });
   expect(collisions([{ row: two.parts[0], target: to }, { row: two.parts[1], target: to }], studies)).toEqual([]);   // one file's tables
-  expect(collisions([{ row: two.parts[0], target: to }], studies, { "st-8": [{ arm: "", analyte: "", pair: "001 · I", sha }] })).toEqual([]);
-  expect(heldBy({ tables: [{ file_sha256: ref.sha256, values: own.slice(0, 1) }] })).toEqual([{ arm: "", analyte: "", pair: "001 · I", sha: ref.sha256 }]);
+  expect(collisions([{ row: two.parts[0], target: to }], studies, { "st-8": [{ arm: "", analyte: "", pair: "001 · I · plasma · concentration", sha }] })).toEqual([]);
+  expect(heldBy({ tables: [{ file_sha256: ref.sha256, values: own.slice(0, 1) }] })).toEqual([{ arm: "", analyte: "", pair: "001 · I · plasma · concentration", sha: ref.sha256 }]);
 });
 
 test("the second file of a pair is told apart from the first one, already linked; a delivery whose files name no study stays in view", () => {
@@ -436,12 +437,52 @@ test("the arm guard: an analyte or a period left out matches any, by name, in th
   expect(collisions([{ row: bare(reference), target: { ...same, analyte: "an-10" } }, { row: bare(test230), target: { ...same, analyte: "an-17" } }],
                     studies, {}, analytes)).toEqual([]);
   // a period left out matches any period: the study's values of subject 001 with no period, beside period I
-  const held = { "st-8": [{ arm: "", analyte: "exampleamide", pair: "001 · ", sha: "a".repeat(64) }] };
+  const held = { "st-8": [{ arm: "", analyte: "exampleamide", pair: "001 ·  · plasma · concentration", sha: "a".repeat(64) }] };
   expect(collisions([{ row: bare(reference), target: same }], studies, held, analytes)).toEqual([
     { files: ["230-23 Fasting Reference.xlsx"], study: "230-23", example: "subject 001, period I", keys: [reference.sha] }]);
   expect(collisions([{ row: bare(reference), target: { ...same, analyte: "an-10" } }], studies, held, analytes)).toEqual([]);
   expect([pairsMeet("001 · ", "001 · II"), pairsMeet("001 · I", "001 · II"), pairsMeet("002 · ", "001 · "), pairsMeet("001 · I", "001 · I")])
     .toEqual([true, false, false, true]);
+});
+
+test("the arm guard compares what the ledger compares and leaves alone what stays where it is (final review INT-4)", () => {
+  const sources = batch();
+  const model = buildWork(sources);
+  const rows = linkRows(model.items.filter((i) => /^(link|alias):/.test(i.id)), sources.delivery, model.subjects);
+  const reference = rows.find((r) => r.file === "230-23 Fasting Reference.xlsx")!, test230 = rows.find((r) => r.file === "230-23 Fasting Test.xlsx")!;
+  const studies = sources.delivery!.subjects;
+  const same = { ...NO_TARGET, study: "st-8" };
+  const analytes = [{ id: "an-9", label: "Exampleamide" }, { id: "an-17", label: "Exampleamide" }];
+  type Piece = typeof reference;
+  /** the same file's values as another file (its sha) gives them, each value changed by `change` */
+  const as = (r: Piece, sha: string, name: string, change: (v: Piece["values"][number]) => Piece["values"][number]): Piece => {
+    const values = r.values.map((v) => change(copy(v)));
+    return { ...linkedPiece(sha, name, values), own: { arm: null, batch: null, analyte: null } } as Piece;
+  };
+  // a urine file of the same subjects and periods as the plasma file: two series, so one arm takes both
+  const urine = as(reference, "u".repeat(64), "230-23 urine.xlsx", (v) => ({ ...v, file_sha256: "u".repeat(64), labels: { ...v.labels, matrix: "Urine" } }));
+  expect(urine.pairs).toContain("001 · I · urine · concentration");
+  expect(collisions([{ row: reference, target: same }, { row: urine, target: same }], studies, {}, analytes)).toEqual([]);
+  const plasmaHeld = { "st-8": reference.values.filter((v) => v.labels.subject).map((v) => ({ arm: "", analyte: "", pair: seriesKey(v), sha: reference.sha })) };
+  expect(collisions([{ row: urine, target: same }], studies, plasmaHeld, analytes)).toEqual([]);
+  // a demographics table of the same subjects: another field, another series
+  const ages = as(reference, "d".repeat(64), "230-23 demographics.xlsx", (v) => ({ ...v, file_sha256: "d".repeat(64), field: "age" }));
+  expect(collisions([{ row: ages, target: same }], studies, plasmaHeld, analytes)).toEqual([]);
+  // "State it…" on values whose file names their study: they are in st-8 already, so stating their analyte only narrows
+  const inStudy = as(test230, test230.sha, test230.file, (v) => ({ ...v, entity: { ...v.entity, study: "st-8" } }));
+  const theirs = { "st-8": reference.values.filter((v) => v.labels.subject).map((v) => ({ arm: "", analyte: "exampleamide", pair: seriesKey(v), sha: reference.sha })) };
+  expect(collisions([{ row: inStudy, target: { ...same, analyte: "an-9" } }], studies, theirs, analytes)).toEqual([]);
+  // the same values not yet in the study are what the guard is for: refused
+  const outside = as(test230, test230.sha, test230.file, (v) => v);
+  expect(collisions([{ row: outside, target: { ...same, analyte: "an-9" } }], studies, theirs, analytes)).toHaveLength(1);
+  // the original bypass stays refused: the Reference and Test files into one arm with two ids of one analyte's name
+  const bare = (r: Piece) => ({ ...r, own: { ...r.own, analyte: null } });
+  expect(collisions([{ row: bare(reference), target: { ...same, analyte: "an-9" } }, { row: bare(test230), target: { ...same, analyte: "an-17" } }],
+                    studies, {}, analytes)).toHaveLength(1);
+  // the rule's own words: same subject and field; a period or a matrix left out matches any
+  expect([pairsMeet("001 · I · plasma · concentration", "001 · I · urine · concentration"),
+          pairsMeet("001 · I ·  · concentration", "001 · I · urine · concentration"),
+          pairsMeet("001 · I · plasma · concentration", "001 · I · plasma · age")]).toEqual([false, true, false]);
 });
 
 test("one analyte per name in every picker, the one the study uses, and no new analyte of a name that exists (OWN-11)", () => {
@@ -482,10 +523,45 @@ test("a link a re-read did not carry over comes back on its row, filled with whe
   row = linkRows(model.items.filter((i) => /^(link|alias):/.test(i.id)), page, model.subjects).find((r) => r.file === ref.name)!;
   expect(row.before!.note).toMatch(/^Linked before to study LOOSE-1 \(by dev-user on .+\)\. Its table was read again before links were carried over/);
   expect(row.before!.subjects.map((s) => [s.subject, s.label])).toEqual([["st-99", "LOOSE-1"]]);
+  // one table's values sent to two places before the re-read (two partial links): the row says both and fills neither,
+  // so they are linked again with a choice, not left looking as if never linked (final review OWN-1)
+  page.relink = [{ ...was, targets: [table], labels: { study: "230-23", arm: "Reference" }, whole: false },
+                 { ...was, assignment: "as-2", arm: "arm-22", at: "2026-11-15T09:26:00Z", targets: [table],
+                   labels: { study: "230-23", arm: "Test" }, whole: false }];
+  model = buildWork(sources);
+  row = linkRows(model.items.filter((i) => /^(link|alias):/.test(i.id)), page, model.subjects).find((r) => r.file === ref.name)!;
+  expect(row.before).not.toBeNull();
+  expect([row.before!.target, row.suggested, row.alias]).toEqual([null, null, null]);
+  expect(row.before!.why).toBe("linked before to study 230-23 · arm Reference and to study 230-23 · arm Test");
+  expect(row.before!.note).toMatch(/^Linked before, in part, to study 230-23 · arm Reference \(by dev-user on .+\) and to study 230-23 · arm Test \(by dev-user on .+\)\. Read again, its values were linked to more than one place/);
+  const tablePart = row.parts.find((p) => p.values.some((v) => v.id.startsWith(`${table}#`)))!;
+  expect([tablePart.before!.target, tablePart.suggested]).toEqual([null, null]);
   // a link's destination, as the page reads it back
   expect(linkWords({ ...was, labels: { study: "230-23", arm: "Reference" } })).toBe("study 230-23 · arm Reference");
   expect(linkTarget(was)).toEqual({ ...NO_TARGET, study: "st-8", arm: "arm-21" });
-  expect(linkedPiece(ref.sha256, ref.name, page.unassigned.filter((v) => v.file_sha256 === ref.sha256)).pairs).toContain("001 · I");
+  expect(linkedPiece(ref.sha256, ref.name, page.unassigned.filter((v) => v.file_sha256 === ref.sha256)).pairs).toContain("001 · I · plasma · concentration");
+});
+
+test("Link elsewhere moves every value a file has in one place: its facts' link and its table's link together (final review INT-5)", () => {
+  // the owner's real case: the file's facts (dose, fed state, LLOQ) under the person's link, its table under the reader's
+  // link carried over a re-read (or "State it…", which states the table's analyte): two links, one place
+  const by = { by: "dev-user", at: "2026-11-15T09:25:00Z", why: "the file names say 230-23" };
+  const facts = { assignment: "as-1", targets: ["f-1", "f-2", "f-3"], values: 3, study: "st-8", arm: "arm-21", product: null, batch: null,
+                  analyte: null, labels: { study: "230-23", arm: "Reference" }, ...by };
+  const table = { ...facts, assignment: "as-14", targets: ["tx-77369134"], values: 76, analyte: "an-9", by: "code",
+                  labels: { study: "230-23", arm: "Reference", analyte: "Exampleamide" } };
+  const [place, ...more] = linkPlaces([facts, table]);
+  expect(more).toEqual([]);
+  expect([place.targets, place.values, place.words]).toEqual([["f-1", "f-2", "f-3", "tx-77369134"], 79, "study 230-23 · arm Reference · analyte Exampleamide"]);
+  expect(place.target).toEqual({ ...NO_TARGET, study: "st-8", arm: "arm-21", analyte: "an-9" });
+  expect(place.links.map((l) => l.assignment)).toEqual(["as-1", "as-14"]);
+  // what is sent: one call with both links' targets, so the dose, fed state and LLOQ go with the table
+  expect(assignBody({ ...place.target, arm: "arm-22" }, place.targets, "the Test arm")).toMatchObject({
+    targets: ["f-1", "f-2", "f-3", "tx-77369134"], study: "st-8", arm: "arm-22", analyte: "an-9" });
+  // linked to two places (the table to the Test arm): two lines, each moved on its own, the form saying the other stays
+  const apart = linkPlaces([facts, { ...table, arm: "arm-22", labels: { study: "230-23", arm: "Test", analyte: "Exampleamide" } }]);
+  expect(apart.map((p) => [p.words, p.values, p.targets])).toEqual([
+    ["study 230-23 · arm Reference", 3, ["f-1", "f-2", "f-3"]], ["study 230-23 · arm Test · analyte Exampleamide", 76, ["tx-77369134"]]]);
 });
 
 test("a disagreement says whom it is about and when, with its unit, and a card lists them by subject (INT-10)", () => {

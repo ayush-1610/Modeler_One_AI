@@ -729,7 +729,8 @@ export type LinkPiece = {
   /** in words: the file's name, or "the file, its table on sheet Sheet1" */
   name: string;
   values: Value[];
-  /** the subject and period of each individual value ("001 · I") */
+  /** each individual value as the arm guard compares it, its analyte aside (`seriesKey`: "001 · I · plasma ·
+   *  concentration") */
   pairs: string[];
   /** the arm, batch and analyte it gives all its values (as read from it), if it gives one */
   own: { arm: Entity | null; batch: Entity | null; analyte: Entity | null };
@@ -751,9 +752,10 @@ export type LinkPart = LinkPiece & {
 };
 
 /** A link a re-read of its table did not carry over (`DeliveryPage.relink`, review OWN-1): where the values went, which
- *  the row is filled with again, why it was not carried, in words, and the subject it named (a study with no value left
- *  is no longer on the page's list of subjects, so the row's choices offer it from here). */
-export type Before = { target: LinkTarget; why: string; note: string; subjects: SubjectRow[] };
+ *  the row is filled with again (`target`; null when they went to more than one place, said in the note, and the person
+ *  chooses again: final review OWN-1), why it was not carried, in words, and the subjects it named (a study with no value
+ *  left is no longer on the page's list of subjects, so the row's choices offer it from here). */
+export type Before = { target: LinkTarget | null; why: string; note: string; subjects: SubjectRow[] };
 
 export type LinkRow = LinkPiece & {
   item: WorkItem;
@@ -832,6 +834,33 @@ export function linkTarget(l: { study: string | null; arm: string | null; produc
            analyte: l.analyte ?? "" };
 }
 
+type FileLink = { assignment: string; targets: string[]; values: number; study: string | null; arm: string | null; product: string | null;
+                  batch: string | null; analyte: string | null; labels: Record<string, string> };
+/** A place a file's values were linked to (its study and arm, or its product and batch) with every link in force that
+ *  sent some of them there (a file's facts and its table are often two links: "State it…" relinks the concentrations
+ *  alone, and a re-read carries the table's link over apart from the facts'). Moved as one (final review INT-5): `targets`
+ *  are the union of the links' targets, `values` their count, `target` the link form filled with the place and the
+ *  analyte they state (the one stated, when the others state none), `words` the place in words. */
+export type LinkPlace<L extends FileLink = FileLink> = { key: string; links: L[]; targets: string[]; values: number; target: LinkTarget; words: string };
+
+/** A file's links (`DeliveryFile.links`) by the place they sent its values to, in the order the links were made. */
+export function linkPlaces<L extends FileLink>(links: L[]): LinkPlace<L>[] {
+  const places = new Map<string, L[]>();
+  for (const l of links) {
+    const key = [l.study, l.study ? l.arm : null, l.product, l.product ? l.batch : null].join("|");
+    places.set(key, [...(places.get(key) ?? []), l]);
+  }
+  return [...places.entries()].map(([key, list]) => {
+    const stated = [...new Set(list.map((l) => l.analyte).filter((a): a is string => Boolean(a)))];
+    const analyte = stated.length === 1 ? stated[0] : null;
+    const first = list.find((l) => l.analyte === analyte) ?? list[0];
+    const place = { ...first, analyte, labels: { ...first.labels } };
+    if (!analyte) delete place.labels.analyte;
+    return { key, links: list, targets: [...new Set(list.flatMap((l) => l.targets))], values: list.reduce((n, l) => n + l.values, 0),
+             target: linkTarget(place), words: linkWords(place) };
+  });
+}
+
 /** A link's destination in words, by the labels the API gives with it: "study 230-23 · arm Reference". */
 export function linkWords(l: { study: string | null; arm: string | null; product: string | null; batch: string | null; analyte: string | null;
                                labels: Record<string, string> }): string {
@@ -840,7 +869,17 @@ export function linkWords(l: { study: string | null; arm: string | null; product
           l.product ? `product ${named("product")}` : "", l.product && l.batch ? `batch ${named("batch")}` : "",
           l.analyte ? `analyte ${named("analyte")}` : ""].filter(Boolean).join(" · ");
 }
-const pairsOf = (values: Value[]) => [...new Set(values.filter((v) => v.labels.subject).map((v) => `${v.labels.subject} · ${v.labels.period ?? ""}`))];
+/** The fields that are never one series with another, as the ledger reads them (`ledger_view.in_conflicts`): a naming
+ *  fact, a link fact, the LLOQ (written per study, analyte and matrix), a derived spread fact. */
+const NAMING_FIELDS = new Set(["study_id", "treatment", "analyte", "product", "batch"]);
+const inConflicts = (v: Value) => !(NAMING_FIELDS.has(v.field) || v.field.startsWith("link.") || v.field === "lloq"
+  || (v.value === null && v.spread !== null && v.method === "derived" && (v.compute ?? "").startsWith("spread-")));
+/** An individual value as the arm guard compares it, its analyte aside (compared per piece): "subject · period · matrix ·
+ *  field", the ledger's conflict key (`ledger_view._entity_key` and the field; review INT-4). A period or a matrix left
+ *  out is "" and matches any. */
+export const seriesKey = (v: { field: string; labels: Record<string, string> }) =>
+  [v.labels.subject, v.labels.period ?? "", v.labels.matrix ? normLabel(v.labels.matrix) : "", v.field].join(" · ");
+const pairsOf = (values: Value[]) => [...new Set(values.filter((v) => v.labels.subject && inConflicts(v)).map(seriesKey))];
 const kindGoesTo = (kinds: Set<string | null>): "study" | "product" =>
   (kinds.has("dissolution") || kinds.has("product_batch") || kinds.has("composition") ? "product" : "study");
 
@@ -886,28 +925,36 @@ export function linkRows(items: WorkItem[], page: DeliveryPage | null, subjects:
   const relinks = page.relink ?? [];
   const beforeOf = (vs: Value[]): Before | null => {
     const found = relinks.filter((r) => vs.some((v) => r.targets.some((t) => v.id === t || v.id.startsWith(`${t}#`))));
+    if (!found.length) return null;
     const where = (r: (typeof relinks)[number]) => [r.study, r.arm, r.product, r.batch, r.analyte].join("|");
-    if (!found.length || new Set(found.map(where)).size > 1) return null;
-    const r = found[found.length - 1];
-    const listed = page.subjects.some((s) => s.subject === r.study || s.subject === r.product);
-    const named = (role: "study" | "arm" | "product" | "batch" | "analyte") => r.labels[role] ?? r[role] ?? "";
-    const words = linkWords(r);
-    const who = `${r.by === "code" ? "carried over by the reader" : `by ${r.by}`} on ${whenText(r.at)}`;
-    const subject = r.study ?? r.product;
+    // one line per place they went (the latest link to it), in the order the links were made
+    const places = [...new Map(found.map((r) => [where(r), r])).values()];
+    const said = places.map((r) => `${linkWords(r)} (${r.by === "code" ? "carried over by the reader" : `by ${r.by}`} on ${whenText(r.at)})`)
+      .join(" and to ");
     // a study or product with no value left is not on the page's list: offered from here, with the arm or batch named
-    const kept = listed || !subject ? [] : [{
-      subject_type: r.study ? "study" : "product", subject, label: named(r.study ? "study" : "product"), values: 0, by_level: {},
-      by_method: {}, files: [], deliveries: [], confirmation: null, loaded_elsewhere: [], proposed_elsewhere: [], legacy_groups: [],
-      confirm_on: "delivery", blinded: false,
-      arms: r.study && r.arm ? [{ id: r.arm, label: named("arm") }] : [], batches: r.product && r.batch ? [{ id: r.batch, label: named("batch") }] : [],
-    } satisfies SubjectRow];
+    const kept = places.flatMap((r) => {
+      const subject = r.study ?? r.product;
+      const named = (role: "study" | "arm" | "product" | "batch" | "analyte") => r.labels[role] ?? r[role] ?? "";
+      if (!subject || page.subjects.some((s) => s.subject === subject)) return [];
+      return [{
+        subject_type: r.study ? "study" : "product", subject, label: named(r.study ? "study" : "product"), values: 0, by_level: {},
+        by_method: {}, files: [], deliveries: [], confirmation: null, loaded_elsewhere: [], proposed_elsewhere: [], legacy_groups: [],
+        confirm_on: "delivery", blinded: false,
+        arms: r.study && r.arm ? [{ id: r.arm, label: named("arm") }] : [], batches: r.product && r.batch ? [{ id: r.batch, label: named("batch") }] : [],
+      } satisfies SubjectRow];
+    }).filter((s, i, all) => all.findIndex((x) => x.subject === s.subject) === i);
+    const one = places.length === 1 ? places[0] : null;
     return {
-      target: { ...linkTarget(r), analyte: r.analyte ?? ownEntity(vs, "analyte")?.id ?? "" },
-      why: `linked before to ${words}`, subjects: kept,
+      // one place: the row is filled with it; two or more (part of a table linked here, part there): said, and the
+      // person chooses again (final review OWN-1)
+      target: one ? { ...linkTarget(one), analyte: one.analyte ?? ownEntity(vs, "analyte")?.id ?? "" } : null,
+      why: `linked before to ${places.map((r) => linkWords(r)).join(" and to ")}`, subjects: kept,
       note: found.every((x) => x.whole)
-        ? `Linked before to ${words} (${who}). Its table was read again before links were carried over: link it again.`
-        : `Linked before, in part, to ${words} (${who}). Its table was read again, and the link covered only part of it, so `
-          + "it was not carried over: check where these values go and link them again.",
+        ? `Linked before to ${said}. ${one ? "Its table was" : "Its tables were"} read again before links were carried over: link ${one ? "it" : "them"} again.`
+        : one ? `Linked before, in part, to ${said}. Its table was read again, and the link covered only part of it, so `
+          + "it was not carried over: check where these values go and link them again."
+          : `Linked before, in part, to ${said}. Read again, its values were linked to more than one place and the links `
+            + "were not carried over: check where these values go and link them again.",
     };
   };
   const rows: LinkRow[] = items.filter((i) => /^(link|alias):/.test(i.id) && i.ref).map((item) => {
@@ -953,7 +1000,7 @@ export function linkRows(items: WorkItem[], page: DeliveryPage | null, subjects:
       return {
         key: `${sha}#${id}`, sha, name: `${file}, ${place ? `its ${label.split(",")[0]} on ${place}` : label}`, values: vs, pairs: pairsOf(vs),
         own: ownOf(vs), label, place, goesTo: goes, before,
-        suggested: before ? { why: before.why, target: before.target } : found ? {
+        suggested: before ? (before.target ? { why: before.why, target: before.target } : null) : found ? {
           why: `its title names ${KIND_WORD[found.subject_type].toLowerCase()} ${found.label}`,
           target: found.subject_type === "product" ? { ...base, product: found.subject, batch: ownEntity(vs, "batch")?.id ?? "" } : { ...base, study: found.subject, arm },
         } : null,
@@ -984,9 +1031,9 @@ export function linkRows(items: WorkItem[], page: DeliveryPage | null, subjects:
     // whose titles point to different places (or one does and another does not) start each in its own place
     const tabled = parts.filter((p) => p.key !== `${sha}#facts`);
     const said = tabled.map((p) => (p.suggested ? destinationKey(p.suggested.target) : ""));
-    const split = !aliasRow && !before && tabled.length > 1 && new Set(said).size > 1;
+    const split = !aliasRow && !before?.target && tabled.length > 1 && new Set(said).size > 1;
     const inName = said.every((k) => !k) ? fit(file, goesTo === "product" ? products : studies) : undefined;
-    const suggested = before ? { why: before.why, target: before.target } : aliasRow || split ? null : tabled.length && said[0] ? {
+    const suggested = before?.target ? { why: before.why, target: before.target } : before || aliasRow || split ? null : tabled.length && said[0] ? {
       why: `${tabled.length > 1 ? "its tables' titles name" : "its title names"} ${tabled[0].suggested!.why.replace(/^its title names /, "")}`,
       target: { ...tabled[0].suggested!.target, analyte: own.analyte?.id ?? "" },
     } : inName ? {
@@ -1076,35 +1123,39 @@ export function destinationKey(t: LinkTarget): string {
 }
 
 export type Collision = { files: string[]; study: string; example: string; keys: string[] };
-/** What a study already holds, by its id: each individual value's arm ("" for none), analyte, pair and file. */
+/** What a study already holds, by its id: each individual value's arm ("" for none), analyte, `seriesKey` and file. */
 export type Held = Record<string, { arm: string; analyte: string; pair: string; sha?: string | null }[]>;
 
 /** The individual values of a study's card (`/delivery/subjects/study/{id}`), as `collisions` compares them (the analyte
  *  by its name, as `collisions` does). */
 export function heldBy(card: { tables: { file_sha256: string | null; values: Value[] }[] } | null | undefined): Held[string] {
-  return (card?.tables ?? []).flatMap((t) => t.values.filter((v) => v.labels.subject).map((v) => ({
+  return (card?.tables ?? []).flatMap((t) => t.values.filter((v) => v.labels.subject && inConflicts(v)).map((v) => ({
     arm: v.entity.arm ?? "", analyte: v.labels.analyte ? normLabel(v.labels.analyte) : v.entity.analyte ?? "",
-    pair: `${v.labels.subject} · ${v.labels.period ?? ""}`, sha: v.file_sha256 ?? t.file_sha256,
+    pair: seriesKey(v), sha: v.file_sha256 ?? t.file_sha256,
   })));
 }
 
-/** Whether two "subject · period" pairs are one subject in one period: the same subject, and the same period or one of
- *  them stating none (a file that gives no period holds the subject in every period, as the ledger reads it). */
+/** Whether two values (`seriesKey`: "subject · period · matrix · field") would be one series: the same subject and field,
+ *  and the same period and matrix or one of them stating none (a file that gives no period holds the subject in every
+ *  period, as the ledger reads it). A urine file and a plasma file of one study's subjects are two series. */
 export function pairsMeet(a: string, b: string): boolean {
-  const [sa, pa = ""] = a.split(" · "), [sb, pb = ""] = b.split(" · ");
-  return sa === sb && (!pa || !pb || pa === pb);
+  const [sa, pa = "", ma = "", fa = ""] = a.split(" · "), [sb, pb = "", mb = "", fb = ""] = b.split(" · ");
+  const any = (x: string, y: string) => !x || !y || x === y;
+  return sa === sb && fa === fb && any(pa, pb) && any(ma, mb);
 }
 /** Whether two analytes (by name; "" for none stated) can be one: the same name, or one of them stating none. */
 const analytesMeet = (a: string, b: string) => !a || !b || a === b;
 
-/** Two files (or two files' tables) linked to one study in the same arm (no arm counts as one) that hold the same
- *  subject in the same period with the same analyte: refused before anything is sent, each needs its own arm (plan
- *  §2.2.2; the API refuses the same with 409, review INT-4). A period left out matches any period, and an analyte left
- *  out matches any: "as the file says" is the file's own analyte, or any when the file states none. Tables of one file
- *  are not compared with each other (the file reads them together), nor with what the study holds of that file.
- *  `existing`: what each study already holds (`heldBy` its card), compared by the same rule. An analyte is compared by
- *  its name (`analytes`: the delivery's, to name a chosen one): the delivery gives each file's analyte an entity of its
- *  own, so the two arms' files of one study that both name Exampleamide carry two ids of one analyte. */
+/** Two files (or two files' tables) linked to one study in the same arm (no arm counts as one) whose values would be
+ *  one series in the ledger (the same subject, period, matrix and field, `pairsMeet`, with the same analyte): refused
+ *  before anything is sent, each needs its own arm (plan §2.2.2; the API refuses the same with 409, review INT-4). A
+ *  period, a matrix or an analyte left out matches any: "as the file says" is the file's own analyte, or any when the
+ *  file states none. Tables of one file are not compared with each other (the file reads them together), nor with what
+ *  the study holds of that file. `existing`: what each study already holds (`heldBy` its card), compared by the same
+ *  rule. An analyte is compared by its name (`analytes`: the delivery's, to name a chosen one): the delivery gives each
+ *  file's analyte an entity of its own, so the two arms' files of one study that both name Exampleamide carry two ids of
+ *  one analyte. Only what the link brings together is compared: values that stay where they are (in that study and arm
+ *  already, their analyte kept or first stated) are not compared with what they sit beside already (final review INT-4). */
 export function collisions(picked: { row: LinkPiece; target: LinkTarget }[], studies: SubjectRow[], existing: Held = {},
                            analytes: Entity[] = []): Collision[] {
   const named = (id: string) => normLabel(analytes.find((a) => a.id === id)?.label ?? id);
@@ -1114,11 +1165,16 @@ export function collisions(picked: { row: LinkPiece; target: LinkTarget }[], stu
     if (!p.target.analyte) return own ? normLabel(own.label) : "";
     return own?.id === p.target.analyte && !analytes.some((a) => a.id === own.id) ? normLabel(own.label) : named(p.target.analyte);
   };
-  const groups = new Map<string, { row: LinkPiece; target: LinkTarget; arm: string; analyte: string }[]>();
+  /** every value already in the target's study and arm, with no analyte or one of the name it is linked with now */
+  const staysOf = (p: { row: LinkPiece; target: LinkTarget }, analyte: string) => p.target.study !== NEW && p.target.arm !== NEW
+    && p.row.values.length > 0 && p.row.values.every((v) => v.entity.study === p.target.study && (v.entity.arm ?? "") === p.target.arm
+      && (!v.entity.analyte || named(v.entity.analyte) === analyte || (p.row.own.analyte?.id === v.entity.analyte && normLabel(p.row.own.analyte.label) === analyte)));
+  const groups = new Map<string, { row: LinkPiece; target: LinkTarget; arm: string; analyte: string; stays: boolean }[]>();
   for (const p of picked.filter((x) => x.target.study && x.row.pairs.length)) {
     const arm = choiceKey(p.target.arm, p.target.newArm);
     const key = `${choiceKey(p.target.study, p.target.newStudy)}|${arm}`;
-    groups.set(key, [...(groups.get(key) ?? []), { ...p, arm, analyte: analyteOf(p) }]);
+    const analyte = analyteOf(p);
+    groups.set(key, [...(groups.get(key) ?? []), { ...p, arm, analyte, stays: staysOf(p, analyte) }]);
   }
   const out: Collision[] = [];
   const say = (pair: string) => { const [s, period] = pair.split(" · "); return `subject ${s}${period ? `, period ${period}` : ""}`; };
@@ -1135,11 +1191,11 @@ export function collisions(picked: { row: LinkPiece; target: LinkTarget }[], stu
     const study = t.study === NEW ? t.newStudy.trim() : studies.find((s) => s.subject === t.study)?.label ?? t.study;
     for (let i = 0; i < list.length; i += 1) {
       for (let j = i + 1; j < list.length; j += 1) {
-        if (list[i].row.sha === list[j].row.sha || !analytesMeet(list[i].analyte, list[j].analyte)) continue;
+        if (list[i].row.sha === list[j].row.sha || (list[i].stays && list[j].stays) || !analytesMeet(list[i].analyte, list[j].analyte)) continue;
         const both = shared(list[i].row.pairs, list[j].row.pairs);
         if (both) out.push({ files: [list[i].row.name, list[j].row.name], study, example: say(both), keys: [list[i].row.key, list[j].row.key] });
       }
-      const held = t.study === NEW ? [] : (existing[t.study] ?? [])
+      const held = t.study === NEW || list[i].stays ? [] : (existing[t.study] ?? [])
         .filter((v) => v.arm === list[i].arm && analytesMeet(v.analyte ? named(v.analyte) : "", list[i].analyte) && v.sha !== list[i].row.sha);
       const there = shared(list[i].row.pairs, held.map((v) => v.pair));
       if (there) out.push({ files: [list[i].row.name], study, example: say(there), keys: [list[i].row.key] });

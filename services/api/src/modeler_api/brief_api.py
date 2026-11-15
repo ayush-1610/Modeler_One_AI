@@ -35,10 +35,9 @@ from modeler_api.deps import (
     Reader,
     StoreDep,
     Writer,
+    blinded_sources,
     file_tag_view,
     impact_view,
-    model_risk,
-    project_record,
     relates_to_form,
     tags_form,
     version_view,
@@ -62,7 +61,7 @@ from modeler_api.views.brief import (
 )
 from modeler_intake.documents import DocumentError
 from modeler_intake.file_tags import TagKind
-from modeler_project import ArtifactKind, ProjectStore, Workspace, intake_decisions, intake_review
+from modeler_project import ArtifactKind, ProjectStore, Workspace, intake_decisions
 from modeler_project.brief import (
     APPLICATIONS,
     DEFAULT_INTERNAL_TARGET_PE,
@@ -84,7 +83,6 @@ from modeler_project.documents import DocumentLibrary, LibraryEntry, LibraryErro
 from modeler_project.evidence import SourceType
 from modeler_project.evidence_register import items as evidence_items
 from modeler_project.feasibility import pathway_suggestions, pathways_not_named, scope_gates
-from modeler_project.ledger_view import LedgerView
 from modeler_project.library import library_rows
 from modeler_project.requirements import RequirementMatrix, application_additions, client_request
 from modeler_project.risk_draft import draft_risk
@@ -120,11 +118,11 @@ def _document_refs(ws: Workspace):
     return [v.ref for v in ws.list(ArtifactKind.DOCUMENT)]
 
 
-def _document_view(version, *, withdrawn: bool = False) -> dict[str, Any]:
+def _document_view(version, *, withdrawn: bool = False, blinded: bool = False) -> dict[str, Any]:
     c = document_record(version)
     return {"id": version.id, "sha256": c.sha256, "name": c.name, "kind": c.kind, "role": c.role, "n_pages": c.n_pages,
             "size_bytes": c.size_bytes, "warnings": list(c.warnings), "uploaded_at": version.created_at.isoformat(),
-            "uploaded_by": version.created_by, "withdrawn": withdrawn}
+            "uploaded_by": version.created_by, "withdrawn": withdrawn, "blinded": blinded}
 
 
 # --- extraction (identity + agent A1), in the background ------------------------------------------------------
@@ -341,7 +339,9 @@ async def upload_documents(project_id: str, principal: Writer, store: StoreDep,
     if refused is not None:
         raise HTTPException(status_code=422, detail=str(refused)) from refused
     entries = library.entries()
-    return envelope({"documents": [_document_view(d, withdrawn=_withdrawn(entries, d)) for d in added],
+    hidden = blinded_sources(ws).files if added else frozenset()
+    return envelope({"documents": [_document_view(d, withdrawn=_withdrawn(entries, d), blinded=document_record(d).sha256 in hidden)
+                                   for d in added],
                      "reading": reading, "not_read": not_read})
 
 
@@ -355,7 +355,9 @@ def list_documents(project_id: str, principal: Reader, store: StoreDep) -> dict[
     ws = workspace_for(project_id, principal, store)
     library = DocumentLibrary(ws)
     entries = library.entries()
-    return envelope({"documents": [_document_view(d, withdrawn=_withdrawn(entries, d)) for d in library.documents()]})
+    hidden = blinded_sources(ws).files          # D-15: the digitizer and the original are not offered for these
+    return envelope({"documents": [_document_view(d, withdrawn=_withdrawn(entries, d), blinded=document_record(d).sha256 in hidden)
+                                   for d in library.documents()]})
 
 
 @router.get("/projects/{project_id}/library", **answers(LibraryPage))
@@ -425,19 +427,11 @@ def document_page(project_id: str, sha256: str, page: int, principal: Reader, st
     if version is None or text is None:
         raise HTTPException(status_code=404, detail="no such document page")
     record = document_record(version)
-    # a file that holds a blinded study's values: every digit of its pages is masked, as the delivery's source view masks
-    # a text of such a file (D-15; final review INT-3)
-    blinded = sha256 in _delivery_blinded_files(ws)
+    # a file that holds a blinded study's values (`blinded_sources`: the delivery's and the project's list): every digit
+    # of its pages is masked, as the delivery's source view masks a text of such a file (D-15; final review INT-3)
+    blinded = blinded_sources(ws).file(sha256)
     return envelope({"sha256": sha256, "name": record.name, "page": page, "n_pages": record.n_pages,
                      "text": intake_decisions.mask(text) if blinded else text, "blinded": blinded})
-
-
-def _delivery_blinded_files(ws: Any) -> set[str]:
-    """The files that hold a value of a study the delivery blinds now (`intake_decisions.blinded_files`)."""
-    if not intake_pipeline_jobs.enabled():
-        return set()
-    hidden = intake_review.blinded_subjects(ws, project_record(ws), model_risk(ws))
-    return intake_decisions.blinded_files(LedgerView(ws), hidden) if hidden else set()
 
 
 @router.get("/projects/{project_id}/documents/{sha256}/figures", **answers(DocumentFigures))
@@ -463,11 +457,19 @@ def document_figures(project_id: str, sha256: str, principal: Reader, store: Sto
 
 @router.get("/projects/{project_id}/documents/{sha256}/raw")
 def document_raw(project_id: str, sha256: str, principal: Reader, store: StoreDep) -> FileResponse:
+    """The stored file itself. A file that holds a blinded study's values (`blinded_sources`, D-15) is not served until
+    the MAP is signed: 409 BLINDED (final review INT-3). Its pages are read masked (`pages/{n}`); a blinded dataset is
+    seen for a check through `datasets/{id}:reveal`, with a reason on the audit chain, which gives its values, never the
+    file."""
     ws = workspace_for(project_id, principal, store)
     version = DocumentLibrary(ws).by_sha(sha256)
     path = store.blob_path(principal.tenant_id, project_id, sha256) if version else None
     if path is None:
         raise HTTPException(status_code=404, detail="no such document")
+    if blinded_sources(ws).file(sha256):
+        raise HTTPException(status_code=409, detail={"code": "BLINDED", "message": (
+            "this file holds the values of a study blinded until the MAP is signed (D-15): its original is not served "
+            "until then; its pages are shown with their numbers masked")})
     record = document_record(version)
     return FileResponse(path, media_type=record.media_type, filename=record.name)
 

@@ -117,6 +117,9 @@ class FigureSuggestion(View):
     file: str
     doc_sha256: str
     digitizable: bool              # a PDF's concentration-time figure: the digitizer opens its page and makes a profile
+    # its file holds a blinded study's values (D-15): its caption, study, product and media are left out, and it is not
+    # digitizable until the plan is signed
+    blinded: bool
 
 
 class ReadingQueuePage(View):
