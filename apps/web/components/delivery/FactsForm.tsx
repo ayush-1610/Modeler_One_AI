@@ -15,11 +15,13 @@ import { useState } from "react";
 
 import { send, type Schema } from "@/lib/api";
 import { useResource } from "@/lib/hooks";
-import { engineWords, fieldLabel, valueWord } from "@/lib/words";
+import { cardPlace } from "@/lib/inputsWork";
+import { engineWords, fieldLabel, redrawText, valueWord } from "@/lib/words";
 
 import { Problem, Why, useDecide, type Value } from "./shared";
 
 type Gap = Schema<"DeliveryGap">;
+type SpotState = Schema<"DeliverySpotState">;
 type Check = Schema<"DeliveryCheck">;
 type Options = Schema<"InputsPage">["study_options"];
 type Params = { project_id: string; type: string; subject: string };
@@ -58,11 +60,14 @@ type Row = {
 };
 
 /** The facts to fill, one row per field: the gaps first (their place is where To do opens), then a check's field no gap
- *  names; a check whose fact has a row already is kept on that row (its "Accept as is…"). */
-function rowsOf(gaps: Gap[], checks: Check[], field: (c: Check) => string | null): Row[] {
+ *  names; a check whose fact has a row already is kept on that row (its "Accept as is…"). Each place is the subject's
+ *  own (`subject`), so two cards open at once never share one (final review CODE-1). */
+function rowsOf(gaps: Gap[], checks: Check[], field: (c: Check) => string | null, subject: string): Row[] {
   const out = new Map<string, Row>();
   for (const g of gaps) {
-    if (!out.has(g.tag)) out.set(g.tag, { field: g.tag, anchor: `delivery-gap-${g.tag}`, testId: `delivery-enter-gap-${g.tag}`, written: g.value, checks: [] });
+    if (!out.has(g.tag)) {
+      out.set(g.tag, { field: g.tag, anchor: cardPlace("gap", subject, g.tag), testId: cardPlace("enter-gap", subject, g.tag), written: g.value, checks: [] });
+    }
   }
   for (const c of checks) {
     const f = field(c) ?? "";
@@ -71,6 +76,14 @@ function rowsOf(gaps: Gap[], checks: Check[], field: (c: Check) => string | null
     out.set(f || c.id, { field: f, anchor: `delivery-check-${c.id}`, testId: `delivery-enter-${c.id}`, written: "", code: c.code, checks: [c] });
   }
   return [...out.values()];
+}
+
+/** What saving a person's entry does to a spot check drawn already, said before Save (`redrawText`: drawn again, the
+ *  values always checked with their ticks). Nothing when no spot check is drawn, or it is stale already. */
+export function SpotRedraw({ spot, testId }: { spot?: SpotState | null; testId: string }) {
+  const text = spot ? redrawText(spot) : null;
+  if (!text) return null;
+  return <p className="inline-issue warn m-0 fs-13" data-testid={`${testId}-redraw`}>{text}</p>;
 }
 
 /** "Accept as is…" for a check that may stand as written (no dose, no matrix stated), with the reason. */
@@ -143,9 +156,11 @@ function useEnterAll(params: Params) {
 
 /** The facts no file states, filled in with one reason (`read`: listed, with no form). `stated`: the fields the card
  *  has an active value of (not asked again when the route makes them needed). */
-export function FactsForm({ params, gaps, checks, options, suggestions = {}, read = false, testId, stated = new Set<string>() }: {
+export function FactsForm({ params, gaps, checks, options, suggestions = {}, read = false, testId, stated = new Set<string>(), spot }: {
   params: Params; gaps: Gap[]; checks: Check[]; options: Options | null; suggestions?: Suggestions;
   read?: boolean; testId: string; stated?: Set<string>;
+  /** the card's spot check: drawn already, saving draws it again (said before Save) */
+  spot?: SpotState | null;
 }) {
   const fieldOf = (c: Check) => (c.code === "LANDING_FIELD_MISSING" ? /needs (\w+)/.exec(c.message ?? "")?.[1] ?? null
     : c.code === "DOSE_MISSING" ? "dose" : c.code === "MATRIX_MISSING" ? "matrix" : null);
@@ -156,11 +171,12 @@ export function FactsForm({ params, gaps, checks, options, suggestions = {}, rea
   // a row is keyed by its fact, so what is typed in it stays when the card is read again and the row comes back from
   // another gap or check (the dosage form offered with the route, then asked by the landing's check)
   const key = (r: Row) => (r.field ? `field:${r.field}` : r.anchor);
-  const rows = rowsOf(gaps, checks, fieldOf);
+  const rows = rowsOf(gaps, checks, fieldOf, params.subject);
   const route = rows.find((r) => r.field === "route");
   for (const f of route && !read ? AFTER_ROUTE[values[key(route)] ?? ""] ?? [] : []) {
     if (!rows.some((r) => r.field === f) && !stated.has(f)) {
-      rows.push({ field: f, anchor: `delivery-after-route-${f}`, testId: `delivery-enter-after-route-${f}`, written: "", checks: [] });
+      rows.push({ field: f, anchor: cardPlace("after-route", params.subject, f), testId: cardPlace("enter-after-route", params.subject, f),
+                  written: "", checks: [] });
     }
   }
   const filled = rows.filter((r) => (values[key(r)] ?? "").trim() && (r.field || (fields[key(r)] ?? "").trim()));
@@ -212,6 +228,7 @@ export function FactsForm({ params, gaps, checks, options, suggestions = {}, rea
           );
         })}
       </ul>
+      {filled.length > 0 && <SpotRedraw spot={spot} testId={testId} />}
       <Why action={filled.length > 1 ? `Save these ${filled.length} facts` : "Save this fact"} label="Where the facts come from" busy={busy}
            disabled={!filled.length} testId={testId} formTestId={`${testId}-reason`} placeholder="where they come from, e.g. the protocol (kept on the audit trail)"
            onSubmit={async (why) => {
@@ -262,12 +279,15 @@ type IndividualOptions = { population: string[]; sex: string[] } | null;
  *  entered through `:enter` with one reason, and with the mean age they become the study's individual when it is
  *  confirmed. `stated`: what is stated already; a person's entry is shown and corrected (`supersedes`) where changed,
  *  never entered twice; a file's is shown as read. */
-export function DemographicsForm({ projectId, params, vocabulary, options, onDone, testId, stated = {} }: {
+export function DemographicsForm({ projectId, params, vocabulary, options, onDone, testId, stated = {}, spot }: {
   projectId: string; params: Params;
   /** a table layout to read the intake vocabulary from (the population's words), if any */
   vocabulary: { mapping: string | null };
   options: IndividualOptions; onDone: () => void; testId: string;
   stated?: Record<string, Value>;
+  /** the study's spot check: drawn already, choosing the individual (or any of these facts) draws it again, said before
+   *  Save (final review round 3) */
+  spot?: SpotState | null;
 }) {
   const layout = useResource("/api/v1/projects/{project_id}/delivery/mappings/{mapping_id}",
                              { project_id: projectId, mapping_id: vocabulary.mapping ?? "" }, { enabled: Boolean(vocabulary.mapping) });
@@ -330,6 +350,7 @@ export function DemographicsForm({ projectId, params, vocabulary, options, onDon
             : "One PK-Sim population and one sex, with the mean age: without them the demographics are kept with the study, not simulated."}
         </p>
       </fieldset>
+      <SpotRedraw spot={spot} testId={testId} />
       <Why action={correcting ? "Save the corrections" : "Save the demographics"} label="Where the demographics come from" busy={busy}
            disabled={!has("population") || !FOUND_BY.some(has) || !changed.length}
            testId={testId} formTestId={`${testId}-reason`} onCancel={onDone} placeholder="where they come from, e.g. the clinical study report (kept on the audit trail)"

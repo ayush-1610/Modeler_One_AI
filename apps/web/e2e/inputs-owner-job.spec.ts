@@ -32,7 +32,7 @@ type Delivery = {
   running: boolean; deliveries: { files: File[] }[];
   subjects: { subject: string; label: string; subject_type: string; arms: { id: string; label: string }[]; legacy_groups: string[] }[];
   unassigned: { file: string | null; level: string }[];
-  mappings: { mapping_id: string; version: number; kind: string; status: string }[];
+  mappings: { mapping_id: string; version: number; kind: string; status: string; waiting: boolean }[];
 };
 type Study = { study_id: string; purpose: string | null; facts: Record<string, unknown>; demographics: string };
 
@@ -53,6 +53,8 @@ async function snapshot(page: Page) {
     const head = q("area-head-studies")?.textContent ?? null;
     return {
       checking: Boolean(q("status-checking")),
+      // a layout whose files are being read again is shown "Reading…" and is not counted until the reading ends
+      reading: [...document.querySelectorAll(".chip")].some((c) => c.textContent?.trim() === "Reading…"),
       missing: n(q("status-missing")), confirm: n(q("to-confirm-count")), decide: n(q("status-decide")),
       todo: badge("todo"), areas: Object.fromEntries(areas.map((a) => [a, badge(a)])) as Record<string, number>,
       all: q("todo-filter-all") ? n(q("todo-filter-all")) : null,
@@ -64,7 +66,8 @@ async function snapshot(page: Page) {
 }
 type Snapshot = Awaited<ReturnType<typeof snapshot>>;
 
-/** The counts once the page has read every card, checked to agree: the status line's open work = the To do badge = the
+/** The counts once the page has read every card and no file is being read again, checked to agree: the status line's
+ *  open work = the To do badge = the
  *  sum of the area badges (= To do's "All" = the sum of its groups' open rows, on To do), and the Clinical studies head =
  *  its badge (on Clinical studies). Waits on the page's state, never on time. */
 async function agreed(page: Page): Promise<Snapshot> {
@@ -72,6 +75,7 @@ async function agreed(page: Page): Promise<Snapshot> {
   await expect.poll(async () => {
     const s = (last = await snapshot(page));
     if (s.checking) return "checking cards…";
+    if (s.reading) return "files being read again…";
     const chain = [s.missing + s.confirm + s.decide, s.todo, Object.values(s.areas).reduce((a, b) => a + b, 0),
                    ...(s.all === null ? [] : [s.all]), ...(s.groups === null ? [] : [s.groups.reduce((a, b) => a + b, 0)])];
     return `open ${chain.join(" = ")}${s.studiesHead === null ? "" : ` · studies ${s.studiesHead} = ${s.areas.studies}`}`;
@@ -129,8 +133,15 @@ test("the owner's job: files uploaded, layouts checked, values linked with arms,
 
   // the work is in To do, in the order it is done: one layout to check, three files to link, one file with a number not read
   await expect(page.getByTestId("todo-group-layouts")).toBeVisible({ timeout: 60_000 });
-  // counted once the page has read that its files are no longer being read (a layout being read again is not counted)
-  await expect(page.getByTestId("todo-group-layouts").locator("h3")).toContainText("(1)");
+  // counted once the page has read that its files are no longer being read (a layout being read again is "Reading…" and
+  // not counted): the API's reading has ended, and so has the page's, before the counts are taken (a snapshot taken while
+  // the layout's row still read "Reading…" counted one decision fewer)
+  await expect.poll(async () => {
+    const d = await read<Delivery>(request, "delivery");
+    return !d.running && d.mappings.every((m) => !m.waiting);
+  }, { timeout: 120_000, intervals: [1000] }).toBe(true);
+  await expect(page.getByTestId(`todo-layout-${layout}`)).not.toContainText("Reading…");
+  await expect(page.getByTestId("todo-group-layouts").locator("h3 .muted")).toHaveText("(1)");
   await expect(page.getByTestId("todo-group-link").locator("h3")).toContainText("(3)");
   await expect(page.getByTestId("todo-group-notread").locator("h3")).toContainText("(1)");
   await expect(page.getByTestId("todo-gate")).toContainText("1 table layout to check · 3 files to link · 1 file with numbers not read");
@@ -275,7 +286,7 @@ test("the owner's job: files uploaded, layouts checked, values linked with arms,
   await expect(page).toHaveURL(/[?&]tab=studies/);
   await expect(page.getByTestId("tab-studies")).toHaveAttribute("aria-selected", "true");
   const card = page.getByTestId(`delivery-card-${study}`);
-  await expect(card.getByTestId("delivery-enter-gap-route-value")).toBeFocused();     // at the fact To do named
+  await expect(card.getByTestId(`delivery-enter-gap-${study}-route-value`)).toBeFocused();     // at the fact To do named
   await agreed(page);
   // two studies, not five: the arms' files and the file that named no study are read on the cards they were linked to
   await expect(page.getByTestId("area-head-studies")).toContainText(/^2 studies\b/);
@@ -283,7 +294,7 @@ test("the owner's job: files uploaded, layouts checked, values linked with arms,
   const row = (label: string) => facts.locator(".facts-row", { hasText: label });
   // the sheet form's answers are offered as chips the person still saves
   await row("Route").locator('[data-testid$="-suggest-0"]').click();
-  await expect(card.getByTestId("delivery-enter-gap-route-value")).toHaveValue("oral");
+  await expect(card.getByTestId(`delivery-enter-gap-${study}-route-value`)).toHaveValue("oral");
   await row("Number of subjects").locator('[data-testid$="-suggest-0"]').click();
   await expect(row("Number of subjects").locator('[data-testid$="-value"]')).toHaveValue("12");
   await row("Purpose of the study").locator('[data-testid$="-value"]').selectOption("model_building");
@@ -295,8 +306,8 @@ test("the owner's job: files uploaded, layouts checked, values linked with arms,
   const source = "the protocol of OJ-101, section 9.1";
   await facts.getByTestId(`delivery-facts-form-${study}-why`).fill(source);
   await facts.getByTestId(`delivery-facts-form-${study}-submit`).click();
-  await expect(card.getByTestId("delivery-gap-route")).toHaveCount(0);
-  await expect(card.getByTestId("delivery-blocker-SCHEMA_GAP")).toHaveCount(0);
+  await expect(card.getByTestId(`delivery-gap-${study}-route`)).toHaveCount(0);
+  await expect(card.getByTestId(`delivery-blocker-${study}-SCHEMA_GAP`)).toHaveCount(0);
   await expect(facts).toHaveCount(0);
   await expect(card.locator('[data-code="LANDING_FIELD_MISSING"]')).toHaveCount(0);
   // the demographics the person has, entered on the card (not asked of the client)
@@ -317,7 +328,7 @@ test("the owner's job: files uploaded, layouts checked, values linked with arms,
   await demo.getByTestId(`delivery-demographics-${study}-why`).fill("the clinical study report, table 14.1.2");
   await demo.getByTestId(`delivery-demographics-${study}-submit`).click();
   await expect(demo).toHaveCount(0);
-  await expect(card.getByTestId("delivery-requirement-REQ-sys.demographics")).toContainText("Done");
+  await expect(card.getByTestId(`delivery-requirement-${study}-REQ-sys.demographics`)).toContainText("Done");
   // one truth: the card says the individual that loads, and only what it does not carry is said as kept
   await expect(card.getByTestId(`delivery-individual-${study}`)).toContainText("European ICRP 2002 · male · 31 y · 72 kg");
   await expect(card.getByTestId(`delivery-individual-${study}`)).toContainText("women (%) kept, not simulated");
@@ -326,7 +337,7 @@ test("the owner's job: files uploaded, layouts checked, values linked with arms,
   await expect(held).toContainText("Kept, not used by the model: women (%) (the study's individual is one sex and one PK-Sim population");
   // only the spot check is left
   await expect(card.locator('[data-testid^="delivery-blocker-"]')).toHaveCount(1);
-  await expect(card.getByTestId("delivery-blocker-SPOT_CHECK")).toBeVisible();
+  await expect(card.getByTestId(`delivery-blocker-${study}-SPOT_CHECK`)).toBeVisible();
   await agreed(page);
   await shot(page, "3-facts");
 

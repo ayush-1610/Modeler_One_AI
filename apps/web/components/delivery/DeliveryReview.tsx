@@ -17,17 +17,17 @@ import { InlineIssue } from "@/components/kit";
 import { SortHeader, TableFilter, TableMore } from "@/components/kit/SortableTable";
 import { send, type Schema } from "@/lib/api";
 import { useResource } from "@/lib/hooks";
-import { analyteChoices, normLabel, oneCheck } from "@/lib/inputsWork";
+import { analyteChoices, cardPlace, foldChecks, normLabel } from "@/lib/inputsWork";
 import { numericKey, useTableView } from "@/lib/tableView";
 import {
-  DISPOSITION_WORD, engineWords, fieldInText, fieldLabel, heldText, individualNeeds, individualText, landingText, placeText, rulesText, tableKindText,
+  DISPOSITION_WORD, checkGist, engineWords, fieldInText, fieldLabel, heldText, individualNeeds, individualText, landingText, placeText, rulesText, tableKindText,
   valueWord, whenText,
 } from "@/lib/words";
 
 import { ChangedSince, Decisions } from "./Decisions";
 import { ConfirmDialog } from "./ConfirmDialog";
 import type { MappingOpen } from "./MappingReview";
-import { FactsForm, DemographicsForm, statedDemographics, type Suggestions } from "./FactsForm";
+import { FactsForm, DemographicsForm, SpotRedraw, statedDemographics, type Suggestions } from "./FactsForm";
 import {
   BLOCKER_LABEL, ChipFor, KIND_LABEL, MAPPING_STATE, Problem, TupleCells, WITHHELD, Why, fieldText, labelsText, levelText, plural,
   statisticText, typed, useDecide, valueText, when, type Subject, type SubjectRow, type Value,
@@ -40,6 +40,7 @@ type Table = Schema<"DeliveryTable">;
 type Requirement = Schema<"DeliveryRequirement">;
 type Link = Schema<"DeliveryLink">;
 type Conflict = Schema<"DeliveryConflict">;
+type SpotState = Schema<"DeliverySpotState">;
 type Decide = ReturnType<typeof useDecide>["decide"];
 export type Options = Schema<"InputsPage">["study_options"];
 /** The path parameters of a card's routes. */
@@ -91,9 +92,11 @@ export function checkField(c: { code: string; message: string | null }): string 
 
 /** A value a person corrects, or enters with no form (a fact no other row names), with the reason. A correction keeps
  *  the old value's time, labels and statistic. */
-function Enter({ entry, busy, onSubmit, onCancel, testId }: {
+function Enter({ entry, busy, onSubmit, onCancel, testId, spot }: {
   entry: Entry; busy: boolean;
   onSubmit: (body: Schema<"DeliveryEntry">) => void | Promise<unknown>; onCancel: () => void; testId: string;
+  /** the card's spot check: drawn already, saving draws it again (said before Save) */
+  spot?: Schema<"DeliverySpotState"> | null;
 }) {
   const [field, setField] = useState(entry.field);
   const [value, setValue] = useState(entry.value ?? "");
@@ -116,6 +119,7 @@ function Enter({ entry, busy, onSubmit, onCancel, testId }: {
         <input type="text" className="delivery-unit" value={unit} onChange={(e) => setUnit(e.target.value)} placeholder="if it has one"
                data-testid={`${testId}-unit`} />
       </label>
+      <SpotRedraw spot={spot} testId={testId} />
     </Why>
   );
 }
@@ -128,22 +132,32 @@ const VALUE_KEYS = {
 };
 const valueWords = (v: Value) => [v.field, labelsText(v), statisticText(v), v.unit ?? "", v.level, v.blinded ? "" : v.verbatim ?? ""].join(" ");
 
+/** The checks a folded values table names, each by what is wrong ("the profile states more than one LLOQ"); two of the
+ *  same kind are told apart by what they are about ("…, arm Test"). */
+function foldNames(folded: { check: Check }[]): string[] {
+  const gists = folded.map(({ check }) => checkGist(check.message ?? WITHHELD));
+  return gists.map((g) => (gists.filter((x) => x.gist === g.gist).length > 1 && g.where ? `${g.gist}, ${g.where}` : g.gist));
+}
+
 /** The subject's values of one table, with the table's layout said on its head (a layout no person approved is checked
- *  from there: its rows are not marked one by one). `oneCheck`: the one check every row needing the person comes from,
- *  when that check has its own row in Checks: the table stays folded to a line naming it (final review OWN-9). */
-function ValueTable({ projectId, params, table, flagged, decide, busy, onMapping, read, oneCheck, onCheck }: {
+ *  from there: its rows are not marked one by one). `folded`: the checks every row needing the person comes from, each
+ *  with its own row in Checks: the table stays folded to a line naming each with its count (final review OWN-9). */
+function ValueTable({ projectId, params, table, flagged, decide, busy, onMapping, read, folded, stateable, onCheck, spot }: {
   projectId: string; params: CardParams; table: Table; flagged: Map<string, string>; decide: Decide; busy: boolean;
-  onMapping: (open: MappingOpen) => void; read: boolean;
-  oneCheck: Check | null;
+  onMapping: (open: MappingOpen) => void; read: boolean; spot: SpotState;
+  folded: { check: Check; count: number }[] | null;
+  /** whether a check's row in Checks has "State it…" (the analyte, stated for all its values at once) */
+  stateable: (check: Check) => boolean;
   /** go to the check's row in Checks (and open its "State it…" when it has one) */
   onCheck: (checkId: string) => void;
 }) {
   const [source, setSource] = useState<string | null>(null);
   const [correcting, setCorrecting] = useState<string | null>(null);
   const marked = table.values.filter((v) => flagged.has(v.id)).length;
-  // a table is folded to its one line unless one of its rows needs the person, and that need is not one check's that
-  // is decided in Checks (one decision for all its rows)
-  const [open, setOpen] = useState(marked > 0 && !oneCheck);
+  // a table is folded to its one line unless one of its rows needs the person otherwise than by checks decided in
+  // Checks (one decision each for all its rows)
+  const [open, setOpen] = useState(marked > 0 && !folded);
+  const names = folded ? foldNames(folded) : [];
   // the subject's own label ("study 230-23") is the card's name: not said again on each of its rows
   const rows = useMemo(() => table.values.map((v) => {
     const labels = Object.fromEntries(Object.entries(v.labels).filter(([role]) => role !== params.type));
@@ -176,12 +190,22 @@ function ValueTable({ projectId, params, table, flagged, decide, busy, onMapping
         <InlineIssue severity="warn">Its layout was rejected: these are the values read before. They stay until the table is
           marked as not data or read with another layout.</InlineIssue>
       )}
-      {oneCheck && !open && (
+      {folded && !open && (
         <p className="table-marked-by m-0 fs-13" data-testid={`delivery-table-marked-${table.id}`}>
-          {marked === table.values.length ? `All ${plural(marked, "value")}` : plural(marked, "value")} marked by one check:{" "}
-          {engineWords(oneCheck.message ?? WITHHELD)}.{" "}
-          {!read && <button type="button" className="link-btn" onClick={() => onCheck(oneCheck.id)} data-testid={`delivery-table-check-${table.id}`}>
-            {oneCheck.code === "ANALYTE_MISSING" ? "State it…" : "Decide it in Checks"}</button>}
+          {marked === table.values.length && marked > 1 ? `All ${plural(marked, "value")}` : plural(marked, "value")} marked by
+          {" "}{folded.length === 1 ? "one check" : `${folded.length} checks`}
+          {read ? ": " : `, ${folded.length === 1 ? "decided" : "each decided once"} in Checks: `}
+          {folded.map(({ check, count }, i) => (
+            <Fragment key={check.id}>{i > 0 && " · "}
+              <span data-testid={`delivery-table-by-${table.id}-${check.id}`}>{names[i]} ({count})</span>
+              {!read && <>{" "}<button type="button" className="link-btn" onClick={() => onCheck(check.id)}
+                                      data-testid={`delivery-table-check-${table.id}-${check.id}`}
+                                      aria-label={`${stateable(check) ? "State the analyte" : "Decide it"} in Checks: ${names[i]}`}>
+                {stateable(check) ? "State it…" : "Decide it…"}</button></>}
+            </Fragment>
+          ))}{read ? ". " : " · "}
+          <button type="button" className="link-btn" onClick={() => setOpen(true)} data-testid={`delivery-table-show-${table.id}`}>
+            Show the {plural(table.values.length, "value")}</button>
         </p>
       )}
       {open && <>
@@ -223,7 +247,7 @@ function ValueTable({ projectId, params, table, flagged, decide, busy, onMapping
                 {correcting === v.id && (
                   <tr className="delivery-source-row"><td colSpan={columns}>
                     <Enter entry={{ field: v.field, supersedes: v.id, value: v.value === null ? "" : String(v.value), unit: v.unit ?? "" }}
-                           busy={busy} onCancel={() => setCorrecting(null)} testId={`correct-${v.id}`}
+                           busy={busy} onCancel={() => setCorrecting(null)} testId={`correct-${v.id}`} spot={spot}
                            onSubmit={async (body) => { const { data } = await decide(() => send("post", ENTER, params, body)); if (data) setCorrecting(null); }} />
                   </td></tr>
                 )}
@@ -359,7 +383,7 @@ function ConflictRow({ conflict, values, decide, busy, params, read }: {
   const [keep, setKeep] = useState("");
   const where = [fieldText(conflict.field), conflict.time !== null ? `at ${conflict.time}` : "", Object.entries(conflict.labels).map(([r, l]) => `${r} ${l}`).join(" · ")].filter(Boolean).join(" · ");
   return (
-    <li className="delivery-check open" data-testid={`delivery-conflict-${conflict.id}`}>
+    <li className="delivery-check open" data-testid={cardPlace("conflict", params.subject, conflict.id)}>
       <div className="delivery-check-line">
         <span className="chip medium">To decide</span>
         <span className="delivery-check-text">{where}: the files give {conflict.kind === "unit" ? "different units" : "different values"}.{read ? "" : " Choose the one to keep; the others are not used."}</span>
@@ -370,7 +394,7 @@ function ConflictRow({ conflict, values, decide, busy, params, read }: {
           const v = values.get(id);
           return (
             <label key={id}>
-              <input type="radio" name={`conflict-${conflict.id}`} checked={keep === id} onChange={() => setKeep(id)} data-testid={`delivery-conflict-keep-${id}`} />
+              <input type="radio" name={`conflict-${params.subject}-${conflict.id}`} checked={keep === id} onChange={() => setKeep(id)} data-testid={`delivery-conflict-keep-${id}`} />
               {" "}{v ? `${valueText(v)}${v.unit ? ` ${v.unit}` : ""} · ${v.file ?? "entered by a person"}${v.blinded || !v.verbatim ? "" : ` · as written: ${v.verbatim}`}` : id}
             </label>
           );
@@ -392,7 +416,8 @@ function LinkRow({ link, subject, decide, busy, params, read }: {
   const body = (confirmed: boolean, why: string) => ({
     file_sha256: link.file_sha256, confirmed, why, ...(link.link_fact ? { link_fact: link.link_fact } : {}), ...(study ? { study } : {}),
   });
-  const key = link.id.replace(/[^A-Za-z0-9-]/g, "-");
+  // the subject's own (final review CODE-1): a file that names a study may be asked on two cards
+  const key = `${params.subject}-${link.id.replace(/[^A-Za-z0-9-]/g, "-")}`;
   return (
     <li className={link.state === "refused" ? "delivery-check" : "delivery-check open"} data-testid={`delivery-link-${key}`}>
       <div className="delivery-check-line">
@@ -430,23 +455,34 @@ function LinkRow({ link, subject, decide, busy, params, read }: {
  *  demographics a person has can be entered instead ("Enter them…", through `:enter`). Found demographics say the
  *  study's individual they make (D-29), or what it still needs, with "Choose the individual…": one truth with what
  *  loads and with Populations and individuals (`DeliverySubject.individual`). */
-function RequirementRow({ item, decide, busy, params, read, projectId, vocabulary, stated, individual, options }: {
+function RequirementRow({ item, decide, busy, params, read, projectId, vocabulary, stated, individual, options, spot, start }: {
   item: Requirement; decide: Decide; busy: boolean; params: CardParams; read: boolean; projectId: string;
+  /** the study's spot check: drawn already, choosing the individual draws it again (said in the form, before Save) */
+  spot: SpotState;
   vocabulary: { mapping: string | null };
   /** the demographics stated already (a person's corrected, never entered twice; a file's shown as read) */
   stated: Record<string, Value>;
   individual: Schema<"DeliveryIndividual"> | null;
   options: { population: string[]; sex: string[] } | null;
+  /** asked from the spot check's "Choose the individual…" (its form opens here): a new number each time it is asked */
+  start?: number;
 }) {
   const [disposition, setDisposition] = useState<Schema<"DeliveryDisposition">["disposition"]>("ask_client");
   const [entering, setEntering] = useState(false);
+  const row = useRef<HTMLLIElement>(null);
+  useEffect(() => {
+    if (!start || read) return;
+    setEntering(true);
+    row.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+    window.setTimeout(() => row.current?.querySelector<HTMLElement>("fieldset select, fieldset input, select, input")?.focus(), 80);
+  }, [start]); // eslint-disable-line react-hooks/exhaustive-deps
   // a disposition is the item's status ("ask_client"); `disposition` is the decision's id
   const said = DISPOSITION_WORD[item.status];
   const open = item.status === "missing" && !item.disposition;
   const demographics = item.req_id === DEMOGRAPHICS;
   const unset = demographics && !open && individual !== null && !individual.demographics && individual.stated.length > 0;
   return (
-    <li className={open ? "delivery-check open" : "delivery-check"} data-testid={`delivery-requirement-${item.req_id}`}>
+    <li ref={row} className={open ? "delivery-check open" : "delivery-check"} data-testid={cardPlace("requirement", params.subject, item.req_id)}>
       <div className="delivery-check-line">
         <span className={`chip ${open ? "high" : item.status === "found" ? "low" : "neutral"}`}>
           {open ? "Missing" : said ? "Settled" : item.status === "found" ? "Done" : valueWord(item.status)}</span>
@@ -474,13 +510,14 @@ function RequirementRow({ item, decide, busy, params, read, projectId, vocabular
       )}
       {!read && (open || (demographics && individual !== null)) && entering && (
         <DemographicsForm projectId={projectId} params={params} vocabulary={vocabulary} options={options} onDone={() => setEntering(false)}
-                          testId={`delivery-demographics-${params.subject}`} stated={stated} />
+                          testId={`delivery-demographics-${params.subject}`} stated={stated} spot={spot} />
       )}
       {!read && open && !entering && (
-        <Why action="Record it" label={`Why ${item.label} is settled this way`} busy={busy} testId={`delivery-dispose-${item.req_id}`}
+        <Why action="Record it" label={`Why ${item.label} is settled this way`} busy={busy} testId={cardPlace("dispose", params.subject, item.req_id)}
              onSubmit={(why) => decide(() => send("post", DISPOSE, params, { req_id: item.req_id, disposition, why }))}>
           <label className="delivery-pick">It is
-            <select value={disposition} onChange={(e) => setDisposition(e.target.value as typeof disposition)} data-testid={`delivery-dispose-${item.req_id}-choice`}>
+            <select value={disposition} onChange={(e) => setDisposition(e.target.value as typeof disposition)}
+                    data-testid={`${cardPlace("dispose", params.subject, item.req_id)}-choice`}>
               {DISPOSITIONS.map(([id, label]) => <option key={id} value={id}>{label}</option>)}
             </select>
           </label>
@@ -500,8 +537,9 @@ function factLabels(v: Value, own: string): string {
 }
 
 /** The facts stated for the subject, one row per fact (its files' facts and a person's entries), each correctable. */
-function StatedFacts({ projectId, params, values: all, flagged, decide, busy, read }: {
+function StatedFacts({ projectId, params, values: all, flagged, decide, busy, read, spot }: {
   projectId: string; params: CardParams; values: Value[]; flagged: Map<string, string>; decide: Decide; busy: boolean; read: boolean;
+  spot: SpotState;
 }) {
   const [source, setSource] = useState<string | null>(null);
   const [correcting, setCorrecting] = useState<string | null>(null);
@@ -542,7 +580,7 @@ function StatedFacts({ projectId, params, values: all, flagged, decide, busy, re
             )}
             {correcting === v.id && (
               <Enter entry={{ field: v.field, supersedes: v.id, value: v.value === null ? "" : String(v.value), unit: v.unit ?? "" }}
-                     busy={busy} onCancel={() => setCorrecting(null)} testId={`correct-${v.id}`}
+                     busy={busy} onCancel={() => setCorrecting(null)} testId={`correct-${v.id}`} spot={spot}
                      onSubmit={async (body) => { const { data } = await decide(() => send("post", ENTER, params, body)); if (data) setCorrecting(null); }} />
             )}
             {source === v.id && <ValueSource projectId={projectId} valueId={v.id} onClose={() => setSource(null)} />}
@@ -598,6 +636,8 @@ export function DeliveryReview({ projectId, row, mode, gate, onMapping, todo, su
   const [notes, setNotes] = useState(false);
   // a check asked from a folded table's line, and when (each ask opens it again)
   const [asked, setAsked] = useState<{ id: string; at: number } | null>(null);
+  // the individual's form asked from the spot check ("Choose the individual…"), and when
+  const [choosing, setChoosing] = useState<number | undefined>(undefined);
   const s = read.data;
   const looking = mode === "read";
 
@@ -633,9 +673,15 @@ export function DeliveryReview({ projectId, row, mode, gate, onMapping, todo, su
   const blockers = s.blockers.filter((b) => !GATE_CODES.has(b.code));
   const facts = s.tables.filter((t) => t.kind === "facts").flatMap((t) => t.values).filter(active);
   const tables = s.tables.filter((t) => t.kind === "table");
-  // the one check every row of a table that needs the person comes from, when it has its own row in Checks: the table
-  // stays one line naming it (OWN-9)
-  const oneCheckOf = (t: Table): Check | null => oneCheck(t.values, (id) => flagged.has(id), checks, s.conflicts);
+  // the checks every row of a table that needs the person comes from, when each has its own row in Checks: the table
+  // stays one line naming them (OWN-9); the checks that mark values are those that make the rows needing the person
+  const marking = failing.filter((x) => x.code !== MAPPED);
+  const foldedOf = (t: Table) => foldChecks(t.values, marking, (x) => checks.includes(x), s.conflicts);
+  const stateable = (x: Check) => x.code === "ANALYTE_MISSING" && !s.blinded && x.values.some((id) => values.has(id));
+  // the study's individual still to choose, with its demographics stated (as To do counts it, `inputsWork` "individual:"):
+  // chosen, it enters facts the spot check is drawn from, so it is chosen first and the spot check says so (round 3)
+  const individualFirst = Boolean(s.individual && !s.individual.demographics && s.individual.stated.length > 0
+    && s.requirements.some((r) => r.req_id === DEMOGRAPHICS && !(r.status === "missing" && !r.disposition)));
   // a table layout is checked from its table's head; listed apart only when no table on the card shows it
   const unheaded = s.mappings.filter((m) => !tables.some((t) => t.mapping_id === m.mapping_id && t.mapping_version === m.version && t.mapping_status));
   const vocabulary = { mapping: s.tables.find((t) => t.mapping_id)?.mapping_id ?? s.mappings[0]?.mapping_id ?? null };
@@ -674,7 +720,7 @@ export function DeliveryReview({ projectId, row, mode, gate, onMapping, todo, su
               <span className="muted">Before it can be signed: </span>
               {blockers.map((b, i) => (
                 <Fragment key={`${b.code}-${i}`}>{i > 0 && " · "}
-                  <span data-testid={`delivery-blocker-${b.code}`} title={engineWords(b.detail)}>{BLOCKER_WORD[b.code] ?? BLOCKER_LABEL[b.code] ?? valueWord(b.code)}</span>
+                  <span data-testid={cardPlace("blocker", s.subject, b.code)} title={engineWords(b.detail)}>{BLOCKER_WORD[b.code] ?? BLOCKER_LABEL[b.code] ?? valueWord(b.code)}</span>
                 </Fragment>
               ))}
             </p>
@@ -687,15 +733,16 @@ export function DeliveryReview({ projectId, row, mode, gate, onMapping, todo, su
       <Section title="Facts" testId={`delivery-facts-${s.subject}`}
                aside={!looking && !entering && !s.blinded ? <button type="button" className="link-btn" onClick={() => setEntering(true)}
                                                                     data-testid={`delivery-enter-open-${s.subject}`}>Enter another fact…</button> : null}>
-        <StatedFacts projectId={projectId} params={params} values={facts} flagged={flagged} decide={decide} busy={busy} read={looking} />
+        <StatedFacts projectId={projectId} params={params} values={facts} flagged={flagged} decide={decide} busy={busy} read={looking}
+                     spot={s.spot_check} />
         {facts.length === 0 && !s.gaps.length && !factChecks.length && <p className="muted m-0">No fact of the {KIND_LABEL[s.subject_type].toLowerCase()} is stated in its files.</p>}
         {(s.gaps.length > 0 || factChecks.length > 0) && (
           <FactsForm params={params} gaps={s.gaps} checks={factChecks} options={options} suggestions={suggestions}
-                     read={looking} testId={`delivery-facts-form-${s.subject}`}
+                     read={looking} testId={`delivery-facts-form-${s.subject}`} spot={s.spot_check}
                      stated={new Set([...values.values()].filter((v) => active(v) && v.value !== null).map((v) => v.field))} />
         )}
         {entering && (
-          <Enter entry={{ field: "" }} busy={busy} onCancel={() => setEntering(false)} testId={`delivery-enter-${s.subject}`}
+          <Enter entry={{ field: "" }} busy={busy} onCancel={() => setEntering(false)} testId={`delivery-enter-${s.subject}`} spot={s.spot_check}
                  onSubmit={async (body) => { const { data } = await decide(() => send("post", ENTER, params, body)); if (data) setEntering(false); }} />
         )}
       </Section>
@@ -722,7 +769,7 @@ export function DeliveryReview({ projectId, row, mode, gate, onMapping, todo, su
         )}
         {tables.length === 0 && <p className="muted m-0">No table of its files gave a value yet.</p>}
         {tables.map((t) => <ValueTable key={t.id} projectId={projectId} params={params} table={t} flagged={flagged} decide={decide} busy={busy}
-                                       onMapping={onMapping} read={looking} oneCheck={oneCheckOf(t)}
+                                       onMapping={onMapping} read={looking} folded={foldedOf(t)} stateable={stateable} spot={s.spot_check}
                                        onCheck={(id) => setAsked({ id, at: Date.now() })} />)}
       </Section>
 
@@ -753,7 +800,8 @@ export function DeliveryReview({ projectId, row, mode, gate, onMapping, todo, su
               <ul className="delivery-plain">{s.requirements.map((x) => <RequirementRow key={x.req_id} item={x} decide={decide} busy={busy} params={params}
                                                                                      read={looking} projectId={projectId} vocabulary={vocabulary}
                                                                                      stated={statedDemographics([...values.values()])}
-                                                                                     individual={s.individual ?? null}
+                                                                                     individual={s.individual ?? null} spot={s.spot_check}
+                                                                                     start={x.req_id === DEMOGRAPHICS ? choosing : undefined}
                                                                                      options={options ? { population: options.population ?? [], sex: options.sex ?? [] } : null} />)}</ul>
             </div>
           )}
@@ -778,7 +826,10 @@ export function DeliveryReview({ projectId, row, mode, gate, onMapping, todo, su
 
       {!looking && <Decisions subject={s} />}
 
-      {!looking && <SpotCheck projectId={projectId} subject={s} />}
+      {!looking && <SpotCheck projectId={projectId} subject={s}
+                              first={individualFirst ? { text: "Choose the study's individual first: it is entered as facts the spot check is drawn "
+                                + "from, so choosing it after the spot check draws the spot check again.", action: "Choose the individual…",
+                                                         onGo: () => setChoosing(Date.now()) } : null} />}
 
       {!looking && (
         <section className="delivery-block delivery-confirmation card-section" data-testid={`delivery-confirmation-${s.subject}`}>

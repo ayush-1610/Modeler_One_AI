@@ -19,7 +19,7 @@ import { useMemo, useState } from "react";
 import { MappingReview } from "@/components/delivery/MappingReview";
 import { LiveRegion } from "@/components/kit/LiveRegion";
 import { STEP_ROUTES } from "@/lib/pipeline";
-import { GROUPS, GROUP_LEDE, GROUP_TITLE, INLINE_TODO, type Group, type Subject, type WorkItem, type WorkModel } from "@/lib/inputsWork";
+import { GROUPS, GROUP_LEDE, GROUP_TITLE, INLINE_TODO, restoredText, type Group, type Subject, type WorkItem, type WorkModel } from "@/lib/inputsWork";
 import { STATUS_TONE, STATUS_WORD, type Status, plural } from "@/lib/words";
 
 import { IssueCard } from "./ClientConfirm";
@@ -184,7 +184,12 @@ export function TodoTab({ projectId, work, run, status, only, onStatus, onOnly, 
       setMarked((was) => [...was, ...entries.map((e, i) => ({ ...e, id: `${e.file.file_id}-${was.length + i}` }))]);
       setSaid(text);
     },
-    unmark: (id) => setMarked((was) => was.filter((m) => m.id !== id)),
+    // a restore says what it did on the same line: what was said of the marking no longer holds
+    unmark: (id) => {
+      const gone = marked.find((m) => m.id === id);
+      setMarked((was) => was.filter((m) => m.id !== id));
+      if (gone) setSaid(restoredText(gone.label));
+    },
   }), [marked, said]);
   const visible = work.items.filter((i) => (!status || i.status === status) && (!only || i.open));
   const groups = GROUPS.filter((g) => g !== "tidy" && g !== "done")

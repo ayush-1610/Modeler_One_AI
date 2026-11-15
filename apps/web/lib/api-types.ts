@@ -5459,7 +5459,8 @@ export interface components {
          *     version shown reads it: `reads` false when that version has an error on the table (`findings`: its errors and
          *     notes there, their digits masked for a file that holds a blinded study's values), null when the table's source
          *     model is not cached. `newer`: the table stays with an older version because the newest approved one does not read
-         *     it (as on the page's region).
+         *     it (as on the page's region). `moves`: the version shown waits for approval, and approving it moves the table to
+         *     it (final review round 3: said before the approval, never found after it); null otherwise.
          */
         DeliveryMappingTable: {
             /** File */
@@ -5468,6 +5469,7 @@ export interface components {
             file_sha256: string;
             /** Findings */
             findings: components["schemas"]["DeliveryMappingFinding"][];
+            moves: components["schemas"]["DeliveryTableMove"] | null;
             newer: components["schemas"]["DeliveryNewerLayout"] | null;
             /** Reads */
             reads: boolean | null;
@@ -5969,6 +5971,8 @@ export interface components {
         };
         /** DeliverySpotState */
         DeliverySpotState: {
+            /** Always */
+            always: number;
             /** Draw Id */
             draw_id: string | null;
             /** Drawn */
@@ -6163,6 +6167,26 @@ export interface components {
             values: components["schemas"]["DeliveryValue"][];
             /** Waiting */
             waiting: boolean;
+        };
+        /**
+         * DeliveryTableMove
+         * @description What approving the version shown (one waiting for approval) changes for a table of its layout: the pipeline's
+         *     own rule (`intake_pipeline.choose_version`: of the approved versions that read a table, the one leaving the fewest
+         *     numbers unread, then reading the most facts once, then the newest) would read it with that version instead of the
+         *     one it is read with now (`from_version`). What changes: the numbers its reading leaves unread, before and after,
+         *     and the facts read once for the whole table (by field) that it no longer reads or newly reads.
+         */
+        DeliveryTableMove: {
+            /** Facts Gained */
+            facts_gained: string[];
+            /** Facts Lost */
+            facts_lost: string[];
+            /** From Version */
+            from_version: number;
+            /** Unread After */
+            unread_after: number;
+            /** Unread Before */
+            unread_before: number;
         };
         /** DeliveryTick */
         DeliveryTick: {

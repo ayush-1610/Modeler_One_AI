@@ -7125,7 +7125,7 @@
       },
       "DeliveryMappingTable": {
         "additionalProperties": false,
-        "description": "A table of the mapping's layout that one of its versions reads now (one row per table of `used_in`), and how the\nversion shown reads it: `reads` false when that version has an error on the table (`findings`: its errors and\nnotes there, their digits masked for a file that holds a blinded study's values), null when the table's source\nmodel is not cached. `newer`: the table stays with an older version because the newest approved one does not read\nit (as on the page's region).",
+        "description": "A table of the mapping's layout that one of its versions reads now (one row per table of `used_in`), and how the\nversion shown reads it: `reads` false when that version has an error on the table (`findings`: its errors and\nnotes there, their digits masked for a file that holds a blinded study's values), null when the table's source\nmodel is not cached. `newer`: the table stays with an older version because the newest approved one does not read\nit (as on the page's region). `moves`: the version shown waits for approval, and approving it moves the table to\nit (final review round 3: said before the approval, never found after it); null otherwise.",
         "properties": {
           "file": {
             "title": "File",
@@ -7141,6 +7141,16 @@
             },
             "title": "Findings",
             "type": "array"
+          },
+          "moves": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeliveryTableMove"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "newer": {
             "anyOf": [
@@ -7189,7 +7199,8 @@
           "state",
           "reads",
           "findings",
-          "newer"
+          "newer",
+          "moves"
         ],
         "title": "DeliveryMappingTable",
         "type": "object"
@@ -8665,6 +8676,10 @@
       "DeliverySpotState": {
         "additionalProperties": false,
         "properties": {
+          "always": {
+            "title": "Always",
+            "type": "integer"
+          },
           "draw_id": {
             "anyOf": [
               {
@@ -8722,6 +8737,7 @@
           "state",
           "draw_id",
           "drawn",
+          "always",
           "wanted",
           "recorded_by",
           "recorded_at"
@@ -9339,6 +9355,47 @@
           "values"
         ],
         "title": "DeliveryTable",
+        "type": "object"
+      },
+      "DeliveryTableMove": {
+        "additionalProperties": false,
+        "description": "What approving the version shown (one waiting for approval) changes for a table of its layout: the pipeline's\nown rule (`intake_pipeline.choose_version`: of the approved versions that read a table, the one leaving the fewest\nnumbers unread, then reading the most facts once, then the newest) would read it with that version instead of the\none it is read with now (`from_version`). What changes: the numbers its reading leaves unread, before and after,\nand the facts read once for the whole table (by field) that it no longer reads or newly reads.",
+        "properties": {
+          "facts_gained": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Facts Gained",
+            "type": "array"
+          },
+          "facts_lost": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Facts Lost",
+            "type": "array"
+          },
+          "from_version": {
+            "title": "From Version",
+            "type": "integer"
+          },
+          "unread_after": {
+            "title": "Unread After",
+            "type": "integer"
+          },
+          "unread_before": {
+            "title": "Unread Before",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "from_version",
+          "unread_before",
+          "unread_after",
+          "facts_lost",
+          "facts_gained"
+        ],
+        "title": "DeliveryTableMove",
         "type": "object"
       },
       "DeliveryTick": {

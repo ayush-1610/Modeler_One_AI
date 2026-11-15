@@ -61,7 +61,12 @@ function standing(v: SpotValue): { text: string; tone: string } | null {
   return null;
 }
 
-export function SpotCheck({ projectId, subject }: { projectId: string; subject: Subject }) {
+export function SpotCheck({ projectId, subject, first }: {
+  projectId: string; subject: Subject;
+  /** work of the card that enters what the spot check is drawn from, best done before it (the study's individual, final
+   *  review round 3): said while the spot check is not started or not recorded, with a link to it */
+  first?: { text: string; action: string; onGo: () => void } | null;
+}) {
   const params = { project_id: projectId, type: subject.subject_type, subject: subject.subject };
   const { decide, busy, problem } = useDecide();
   const [drawn, setDrawn] = useState<Spot | null>(null);
@@ -128,6 +133,11 @@ export function SpotCheck({ projectId, subject }: { projectId: string; subject: 
               {spot ? `${drawText(spot.values.map((v) => v.reason))}. ` : "Compare values with their file: some are always checked (the study's key "
                 + "facts, values computed from others or read from another file, values with a check accepted as is), the rest is a random sample. "}
               Tick each one that matches: its value, unit, time, labels and statistic as the file writes them.</p>
+          )}
+          {first && (card.state === "none" || card.state === "drawn") && (
+            <p className="inline-issue note m-0 fs-13" data-testid={`spot-first-${subject.subject}`}>{first.text}{" "}
+              <button type="button" className="link-btn" onClick={first.onGo} data-testid={`spot-first-go-${subject.subject}`}>{first.action}</button>
+            </p>
           )}
           {!spot && !folded && (
             <div className="row gap-8">

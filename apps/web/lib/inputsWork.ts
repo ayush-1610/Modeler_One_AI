@@ -12,8 +12,8 @@
 
 import type { Schema } from "./api";
 import {
-  AREA_NAME, STATUS_WORD, type Status, type Tab, UNREADABLE, checkFix, checkLabel, factText, layoutOrigin, placeText, plural, tableKindText,
-  todoLabel, whenText, whereIs,
+  AREA_NAME, STATUS_WORD, type Status, type Tab, UNREADABLE, checkFix, checkLabel, factText, individualNeeds, layoutOrigin, placeText, plural,
+  tableKindText, todoLabel, whenText, whereIs,
 } from "./words";
 
 type DeliveryPage = Schema<"DeliveryPage">;
@@ -45,6 +45,8 @@ export type CardLike = {
   links: { id: string; state: string; file: string; study_label: string | null }[];
   requirements: { req_id: string; status: string; disposition: string | null; label: string }[];
   spot_check: { state: string };
+  /** a study's simulated individual (D-29): what it still needs once demographics are stated (absent on older cards) */
+  individual?: { demographics: Record<string, unknown> | null; needs: string[]; why: string; stated: string[] } | null;
 };
 export type WorkSources = {
   inputs: InputsLike | null; review: ReviewPage | null; delivery: DeliveryPage | null; files?: FileLike[];
@@ -283,7 +285,9 @@ export const notReadRowId = (fileId: string) => `notread-${fileId}`;
 const FILE_WORK = /^(layout|link|alias|notread|draft):/;
 const DECIDE = new Set(["conflict", "correct", "pka", "review", "formulation", "process", "unit"]);
 /** A delivery subject's own items, from its card. */
-const CARD_ITEM = /^(fact|need|check|differ|same|hold):/;
+const CARD_ITEM = /^(fact|need|individual|check|differ|same|hold):/;
+/** The data plan's demographics item: a study's individual is chosen with them (D-29). */
+const DEMOGRAPHICS_REQ = "REQ-sys.demographics";
 /** A card's failed checks counted as another of its rows (a fact not stated, a required item, a disagreement). */
 const SETTLED_ELSEWHERE = new Set(["LANDING_FIELD_MISSING", "DOSE_MISSING", "REQUIRED_ITEM_UNDISPOSED", "CONFLICT_OPEN"]);
 /** A card's blockers counted elsewhere: the delivery-wide clean-up (once, by file), the card's own rows, the spot check
@@ -499,9 +503,10 @@ export function buildWork(sources: WorkSources): WorkModel {
     const base = { area: s.area, pipeline: "delivery" as const, files: s.files, subjects: [s.key], weight: 1 };
     // on the card in its area (slice 3; until then the card opened in Client files)
     const at = (anchor: string): Where => ({ tab: s.area, anchor, subject: ref });
+    const own = s.row!.subject;
     const failing = card.checks.filter((c) => c.severity === "fail" && !c.overridden);
     const facts = new Map<string, string>();
-    for (const g of card.gaps) if (!facts.has(g.tag)) facts.set(g.tag, `delivery-gap-${g.tag}`);
+    for (const g of card.gaps) if (!facts.has(g.tag)) facts.set(g.tag, cardPlace("gap", own, g.tag));
     for (const c of failing) {
       const field = c.code === "LANDING_FIELD_MISSING" ? /needs (\w+)/.exec(c.message ?? "")?.[1] : c.code === "DOSE_MISSING" ? "dose" : undefined;
       if (field && !facts.has(field)) facts.set(field, `delivery-check-${c.id}`);
@@ -514,7 +519,20 @@ export function buildWork(sources: WorkSources): WorkModel {
     for (const r of card.requirements.filter((x) => x.status === "missing" && !x.disposition)) {
       add({ ...base, id: `need:${s.key}:${r.req_id}`, group: "missing", status: "missing",
             label: `${name} · not in the files: ${r.label.replace(` — ${s.label}`, "")}`,
-            detail: "Record that it is asked of the client, taken from the literature or not needed.", where: at(`delivery-requirement-${r.req_id}`) });
+            detail: "Record that it is asked of the client, taken from the literature or not needed.", where: at(cardPlace("requirement", own, r.req_id)) });
+    }
+    // the study's individual (D-29), once its demographics are stated: the PK-Sim population and the sex a person
+    // chooses. It comes before the spot check in the order of work, since choosing it enters facts the spot check is
+    // drawn from (a spot check recorded before it is drawn again). Its demographics still to give are the row above.
+    const individual = card.individual;
+    // (the card shows it on the data plan's demographics row once that row is settled; before, that row asks for both)
+    const demographicsSettled = card.requirements.some((r) => r.req_id === DEMOGRAPHICS_REQ && !(r.status === "missing" && !r.disposition));
+    if (individual && !individual.demographics && individual.stated.length > 0 && demographicsSettled) {
+      add({ ...base, id: `individual:${s.key}`, group: "missing", status: "missing", label: `${name} · choose the study's individual`,
+            // where the spot check is drawn already, choosing it draws the spot check again: said, not found later
+            detail: `${capital(individualNeeds(individual.needs, individual.why))}${["none", "stale"].includes(card.spot_check.state)
+              ? ", before the spot check." : "; the spot check is then drawn again."}`,
+            where: at(`delivery-individual-${s.row!.subject}`) });
     }
     for (const c of failing) {
       if (SETTLED_ELSEWHERE.has(c.code) || (c.code === "MAPPING_NOT_APPROVED" && layoutIds.some((id) => c.message?.includes(id)))) continue;
@@ -528,11 +546,11 @@ export function buildWork(sources: WorkSources): WorkModel {
       const when = x.time !== null ? ` at ${x.time}${x.time_unit ? ` ${x.time_unit}` : ""}` : "";
       add({ ...base, id: `differ:${s.key}:${x.id}`, group: "disagree", status: "to_decide", about: about || undefined,
             label: `${name}: the files give different ${x.kind === "unit" ? "units" : "values"} for ${x.field.replace(/_/g, " ")}${when}${about ? `, ${about}` : ""}`,
-            where: at(`delivery-conflict-${x.id}`) });
+            where: at(cardPlace("conflict", own, x.id)) });
     }
     for (const l of card.links.filter((x) => x.state !== "refused")) {
       add({ ...base, id: `same:${s.key}:${l.id}`, group: "disagree", status: "to_decide", label: `${name}: is ${l.file} about the same study?`,
-            detail: `It names ${l.study_label ? `study ${l.study_label}` : "a study"} in its text.`, where: at(`delivery-link-${l.id.replace(/[^A-Za-z0-9-]/g, "-")}`) });
+            detail: `It names ${l.study_label ? `study ${l.study_label}` : "a study"} in its text.`, where: at(cardPlace("link", own, l.id.replace(/[^A-Za-z0-9-]/g, "-"))) });
     }
     for (const b of card.blockers.filter((x) => !CARD_COUNTED.has(x.code))) {
       add({ ...base, id: `hold:${s.key}:${b.code}`, group: "disagree", status: "to_decide", label: `${name}: ${b.detail}`,
@@ -619,10 +637,10 @@ export function buildWork(sources: WorkSources): WorkModel {
     for (const f of i.files) (fileWork[f] ??= []).push(i);
   }
 
-  // an open check whose gap the /inputs to-do lists as rows of To do (by the to-do's kind), or, for the observed data,
+  // an open check whose gap the /inputs to-do lists as rows of To do (a row that is that gap), or, for the observed data,
   // the studies still to confirm: said there, not again among the model checks
-  const listed = new Set(items.filter((i) => i.status !== "done" && i.id.startsWith("todo:")).map((i) => i.id.split(":")[1]));
-  const said = (raw: string) => (CHECK_TODO[checkKeyOf(raw)] ?? []).some((k) => listed.has(k))
+  const listed = items.filter((i) => i.status !== "done" && i.todo).map((i) => i.todo as TodoLike);
+  const said = (raw: string) => listed.some((t) => CHECK_TODO[checkKeyOf(raw)]?.(t) ?? false)
     || (checkKeyOf(raw) === "observed data to judge on" && toConfirmStudies);
   const checks = (inputs?.readiness?.content?.checks ?? []).map((c) => ({
     raw: c.check, label: checkLabel(c.check, c.detail, c.ok), ok: c.ok, detail: c.detail, fix: checkFix(c.check),
@@ -646,25 +664,42 @@ function draftItem(add: (i: Omit<WorkItem, "open">) => void, g: ReviewGroup, i: 
         files: draft?.sid ? [draft.sid] : sha ? [fileOf(sha)] : [], subjects, weight: 1 });
 }
 
-/** The /inputs to-do kinds that list a model check's gap as rows of To do (`modeler_project.inputs.todo`, by the check's
- *  name without its reference): the compound values missing, a pathway's process, the tablet studies' formulation, a
- *  multiple-dose study's dosing, a study's demographics. */
-const CHECK_TODO: Record<string, string[]> = {
-  "S0 completeness": ["missing"], "every pathway placeable": ["process"], "formulations of solid studies": ["formulation"],
-  "multiple-dose regimens": ["regimen"], "demographics stated": ["demographics"],
+/** The /inputs to-do rows that are a model check's gap (`modeler_project.inputs.todo`, by the check's name without its
+ *  reference): a pathway's process, the tablet studies' formulation, a multiple-dose study's dosing, a study's
+ *  demographics; and, for the minimum compound data (S0), a compound value missing, or a compound value held for a
+ *  person's check (a value to accept or correct, a pKa, a unit, a disagreement, an elimination pathway's process),
+ *  which is how the to-do lists an S0 gap a value was found for ("an open issue on a parameter is what settles its S0
+ *  gap: not listed twice"; final review OWN-14: the review's "An elimination pathway: check this value before it is
+ *  used"). Every S0 gap is one of these rows, so a failed S0 check with one of them listed is said in To do. */
+const COMPOUND_ISSUE = new Set(["review", "correct", "pka", "unit", "conflict"]);
+const CHECK_TODO: Record<string, (t: TodoLike) => boolean> = {
+  // an elimination pathway's process to choose settles its S0 gap too (`inputs.todo`: any issue on an elim.* target)
+  "S0 completeness": (t) => t.kind === "missing" || ((COMPOUND_ISSUE.has(t.kind) || (t.kind === "process" && t.target.startsWith("elim")))
+    && (t.tab ?? "compound") === "compound"),
+  "every pathway placeable": (t) => t.kind === "process", "formulations of solid studies": (t) => t.kind === "formulation",
+  "multiple-dose regimens": (t) => t.kind === "regimen", "demographics stated": (t) => t.kind === "demographics",
 };
 const checkKeyOf = (raw: string) => raw.replace(/\s*\([^)]*\)\s*$/, "");
 
-/** The one check every row of a table that needs the person comes from, when that check is decided in Checks (`checks`:
- *  the card's failed checks listed there) and no row is in a disagreement (settled value by value): the table then stays
- *  folded to one line naming it, one decision for all its rows (final review OWN-9). Null otherwise. */
-export function oneCheck<C extends { values: string[] }>(rows: { id: string }[], marked: (id: string) => boolean, checks: C[],
-                                                         conflicts: { values: string[] }[]): C | null {
-  const mine = rows.filter((v) => marked(v.id));
-  if (!mine.length || conflicts.some((x) => mine.some((v) => x.values.includes(v.id)))) return null;
-  const from = checks.filter((c) => mine.some((v) => c.values.includes(v.id)));
-  return from.length === 1 && mine.every((v) => from[0].values.includes(v.id)) ? from[0] : null;
+/** The checks a values table stays folded under (final review OWN-9): when every row of it that needs the person is
+ *  marked only by failed checks that each have their own row in Checks (`marking`: the card's failed checks that mark
+ *  values; `listed`: whether one is listed in Checks), and no row is in a disagreement (settled value by value), the
+ *  table stays one line naming each check with the number of its rows it marks, most first: one decision each, in
+ *  Checks. Several checks may mark the same rows (the concentrations of an arm name no analyte, and 6 of them state more
+ *  than one LLOQ because of it). Null when no row needs the person, or when one does otherwise (a disagreement, a check
+ *  not listed in Checks): the table then opens. */
+export function foldChecks<C extends { id: string; values: string[] }>(rows: { id: string }[], marking: C[], listed: (c: C) => boolean,
+                                                                       conflicts: { values: string[] }[]): { check: C; count: number }[] | null {
+  const ids = new Set(rows.map((r) => r.id));
+  const from = marking.map((check) => ({ check, count: new Set(check.values.filter((v) => ids.has(v))).size })).filter((x) => x.count > 0);
+  if (!from.length || conflicts.some((x) => x.values.some((v) => ids.has(v))) || from.some((x) => !listed(x.check))) return null;
+  return from.sort((a, b) => b.count - a.count);
 }
+
+/** A place on a delivery subject's card, by the subject (`delivery-gap-st-8-route`): two cards open at once each have
+ *  their own facts, required items, blockers, disagreements and links, so a link into one card never lands on the other
+ *  (final review CODE-1). */
+export const cardPlace = (place: string, subject: string, id: string) => `delivery-${place}-${subject}-${id}`;
 
 /** The status line's one primary button: what comes next, in words ("Next: Check 10 table layouts"). */
 export function nextText(model: WorkModel): string | null {
@@ -1409,6 +1444,13 @@ export function markedText(done: { file: string; groups: LooseGroup[] }[], left:
       + `${done.map((d) => `${d.file} (${count(d.groups)})`).join(", ")}.`;
   const rest = done.length ? (left ? ` ${plural(left, "loose number")} left.` : " No loose number is left.") : "";
   return `${said}${rest}${refused ? `${said ? " " : ""}${plural(refused, "file")} not marked: see ${refused === 1 ? "its row" : "their rows"}.` : ""}`;
+}
+
+/** What a Restore of notes marked in this visit did, said on the line that said what was marked (gate-todo review: that
+ *  line, "No loose number is left", no longer held once they were back): "“Note: …” in messy-delivery.xlsx restored: back
+ *  in To do, to decide again." */
+export function restoredText(label: string): string {
+  return `${label.charAt(0).toUpperCase()}${label.slice(1)} restored: back in To do, to decide again.`;
 }
 
 /** The cells a sheet-form draft's own words name as neither a value nor marked (sheet_form: "Cells say '12.3*',

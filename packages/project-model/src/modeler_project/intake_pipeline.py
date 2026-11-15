@@ -369,6 +369,45 @@ def _constants_read(spec: MappingSpec) -> int:
     return len(spec.constants) + (1 if spec.lloq is not None else 0)
 
 
+def facts_read(spec: MappingSpec) -> tuple[str, ...]:
+    """The facts read once for the whole table that a spec with no error on a region reads there (its constants'
+    fields, and "lloq" for the table's LLOQ): what `_constants_read` counts, by name."""
+    return (*(c.field for c in spec.constants), *(("lloq",) if spec.lloq is not None else ()))
+
+
+def unread_numbers(region: Region, grid: RegionGrid, spec: MappingSpec) -> int | None:
+    """The cells with a number a reading of this table with `spec` leaves unaccounted (`_unaccounted`); None when the
+    spec cannot read it (an error on its grid, or its execution fails)."""
+    if any(f.severity == "error" for f in validate_spec(spec, grid)):
+        return None
+    try:
+        return _unaccounted(region, execute(spec, grid))
+    except MappingError:
+        return None
+
+
+def choose_version(region: Region, grid: RegionGrid, versions: Sequence[MappingEntry],
+                   tried: dict[tuple[str, str, int], ExtractResult] | None = None) -> MappingEntry | None:
+    """Among these versions of the region's layout, the one to read it with: only one that has no error on this
+    region's own grid (`validate_spec`); among several, the one that leaves the fewest cells with a number
+    unaccounted, then the one that reads the most constants, then the newest. None when none reads here. `tried`:
+    where each execution is kept (the run's own cache). The pipeline's rule; the API asks it what approving a version
+    would change for each table of its layout (final review round 3)."""
+    passing = [e for e in versions if not any(f.severity == "error" for f in validate_spec(e.spec, grid))]
+    if len(passing) < 2:
+        return passing[0] if passing else None
+    ranked: list[tuple[tuple[int, int, int], MappingEntry]] = []
+    for entry in passing:
+        try:
+            result = execute(entry.spec, grid)
+        except MappingError:
+            continue
+        if tried is not None:
+            tried[(region.id, entry.mapping_id, entry.version)] = result
+        ranked.append(((_unaccounted(region, result), -_constants_read(entry.spec), -entry.version), entry))
+    return min(ranked, key=lambda item: item[0])[1] if ranked else None
+
+
 class _Runner:
     """One file's run through the stages (see the module docstring); `go` raises `_Stopped` at a failed stage."""
 
@@ -487,22 +526,8 @@ class _Runner:
     # --- map ---------------------------------------------------------------------------------------------------------
 
     def _choose(self, region: Region, versions: Sequence[MappingEntry]) -> MappingEntry | None:
-        """Among these versions of the region's layout, the one to read it with: only one that has no error on this
-        region's own grid (`validate_spec`); among several, the one that leaves the fewest cells with a number
-        unaccounted, then the one that reads the most constants, then the newest. None when none reads here."""
-        grid = self.grids[region.id]
-        passing = [e for e in versions if not any(f.severity == "error" for f in validate_spec(e.spec, grid))]
-        if len(passing) < 2:
-            return passing[0] if passing else None
-        ranked: list[tuple[tuple[int, int, int], MappingEntry]] = []
-        for entry in passing:
-            try:
-                result = execute(entry.spec, grid)
-            except MappingError:
-                continue
-            self.tried[(region.id, entry.mapping_id, entry.version)] = result
-            ranked.append(((_unaccounted(region, result), -_constants_read(entry.spec), -entry.version), entry))
-        return min(ranked, key=lambda item: item[0])[1] if ranked else None
+        """Among these versions of the region's layout, the one to read it with (`choose_version`)."""
+        return choose_version(region, self.grids[region.id], versions, self.tried)
 
     def _map(self) -> str:
         assert self.doc is not None and self.file is not None

@@ -94,7 +94,9 @@ test("a Word synopsis is read for its study's facts, and its dose against the PK
   await expect(dose).toContainText("Done");
   await expect(card.getByTestId("issue-final-study:EX-301|dose_mg")).toHaveText("10");
   await card.getByTestId("confirm-study:EX-301").click();
-  await expect(card).toContainText("Confirmed by");
+  // said once, on the card's head line: who confirmed it and how; the group inside does not repeat it (final review OWN-14)
+  await expect(page.getByTestId("card-loaded-study:EX-301")).toContainText(/Confirmed with the sheet form by dev-user on \d{1,2} \w{3} \d{4}, \d\d:\d\d\./);
+  await expect(card.getByTestId("group-confirmed-study:EX-301")).toHaveCount(0);
   await shot(page, "2-settled-and-confirmed");
   const datasets = (await (await request.get(`/api/v1/projects/${projectId}/evidence`, { headers: AUTH })).json()).data.datasets;
   expect(datasets.filter((d: { state: string }) => d.state === "ACCEPTED").map((d: { study: { dose_mg: number } }) => d.study.dose_mg))
@@ -141,7 +143,8 @@ test("a synopsis's demographics become the study's individual once the person ch
   await sex.getByTestId("issue-confirm-study:EX-302|demographics:sex").click();
   await expect(sex).toContainText("Done");
   await card.getByTestId("confirm-study:EX-302").click();
-  await expect(card).toContainText("Confirmed by");
+  await expect(page.getByTestId("card-loaded-study:EX-302")).toContainText(/Confirmed with the sheet form by dev-user on \d{1,2} \w{3} \d{4}, \d\d:\d\d\./);
+  await expect(card.getByTestId("group-confirmed-study:EX-302")).toHaveCount(0);
   await shot(page, "4-demographics-confirmed");
   const ev = await (await request.get(`/api/v1/projects/${projectId}/evidence`, { headers: AUTH })).json();
   const study = (ev.data.datasets as { study: { demographics?: Record<string, unknown> } }[])[0].study;

@@ -94,9 +94,9 @@ test("a delivery is reviewed by exception, spot-checked, signed and loaded once"
   await open(study.subject);
   const card = page.getByTestId(`delivery-card-${study.subject}`);
   for (const code of ["SCHEMA_GAP", "CHECK_FAILED", "SPOT_CHECK"]) {
-    await expect(card.getByTestId(`delivery-blocker-${code}`)).toBeVisible();
+    await expect(card.getByTestId(`delivery-blocker-${study.subject}-${code}`)).toBeVisible();
   }
-  await expect(card.getByTestId("delivery-blocker-OUTSIDE_NUMBERS")).toHaveCount(0);
+  await expect(card.getByTestId(`delivery-blocker-${study.subject}-OUTSIDE_NUMBERS`)).toHaveCount(0);
   await expect(card.getByTestId(`delivery-gate-${study.subject}`)).toHaveAttribute("data-codes", /OUTSIDE_NUMBERS/);
   await expect(card.getByTestId(`delivery-gate-${study.subject}`)).toContainText("Waits for the delivery clean-up");
   await expect(card.getByTestId(`delivery-confirm-${study.subject}`)).toBeDisabled();
@@ -170,11 +170,11 @@ test("a delivery is reviewed by exception, spot-checked, signed and loaded once"
   // --- the study's facts no file states, in one typed form with one reason: the route first (an oral study then also
   // needs its dosage form), then what the study record needs before it can be loaded ---
   const facts = card.getByTestId(`delivery-facts-form-${study.subject}`);
-  await card.getByTestId("delivery-enter-gap-route-value").selectOption("oral");
+  await card.getByTestId(`delivery-enter-gap-${study.subject}-route-value`).selectOption("oral");
   await facts.getByTestId(`delivery-facts-form-${study.subject}-why`).fill("from the protocol");
   await facts.getByTestId(`delivery-facts-form-${study.subject}-submit`).click();
-  await expect(card.getByTestId("delivery-gap-route")).toHaveCount(0);
-  await expect(card.getByTestId("delivery-blocker-SCHEMA_GAP")).toHaveCount(0);
+  await expect(card.getByTestId(`delivery-gap-${study.subject}-route`)).toHaveCount(0);
+  await expect(card.getByTestId(`delivery-blocker-${study.subject}-SCHEMA_GAP`)).toHaveCount(0);
   for (const [label, entered] of [["Number of subjects", "24"], ["Purpose of the study", "model_building"], ["Dosage form", "ir_tablet"]]) {
     const control = facts.locator(".facts-row", { hasText: label }).locator('[data-testid$="-value"]');
     if (await control.evaluate((e) => e.tagName) === "SELECT") await control.selectOption(entered);
@@ -186,18 +186,18 @@ test("a delivery is reviewed by exception, spot-checked, signed and loaded once"
   await expect(facts).toHaveCount(0);
   await expect(card.getByTestId(`delivery-landing-problem-${study.subject}`)).toHaveCount(0);
   // the required item no file gives: asked of the client
-  await card.getByTestId("delivery-dispose-REQ-sys.demographics-choice").selectOption("ask_client");
-  await card.getByTestId("delivery-dispose-REQ-sys.demographics-why").fill("asked in the data request");
-  await card.getByTestId("delivery-dispose-REQ-sys.demographics-submit").click();
-  await expect(card.getByTestId("delivery-requirement-REQ-sys.demographics")).toContainText("asked of the client");
+  await card.getByTestId(`delivery-dispose-${study.subject}-REQ-sys.demographics-choice`).selectOption("ask_client");
+  await card.getByTestId(`delivery-dispose-${study.subject}-REQ-sys.demographics-why`).fill("asked in the data request");
+  await card.getByTestId(`delivery-dispose-${study.subject}-REQ-sys.demographics-submit`).click();
+  await expect(card.getByTestId(`delivery-requirement-${study.subject}-REQ-sys.demographics`)).toContainText("asked of the client");
   // the failed check that stands as written: accepted as is, with why
   const above = card.locator('[data-code="ABOVE_RANGE"]');
   await above.locator('[data-testid^="delivery-override-open-"]').click();
   await above.locator('[data-testid$="-why"]').fill("read against the source: written as >1000");
   await above.locator('[data-testid$="-submit"]').click();
-  await expect(card.getByTestId("delivery-blocker-CHECK_FAILED")).toHaveCount(0);
+  await expect(card.getByTestId(`delivery-blocker-${study.subject}-CHECK_FAILED`)).toHaveCount(0);
   // only the spot check is left
-  await expect(card.getByTestId("delivery-blocker-SPOT_CHECK")).toBeVisible();
+  await expect(card.getByTestId(`delivery-blocker-${study.subject}-SPOT_CHECK`)).toBeVisible();
   await expect(card.locator('[data-testid^="delivery-blocker-"]')).toHaveCount(1);
   await shot(page, "5-settled");
 

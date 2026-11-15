@@ -1048,7 +1048,8 @@ def _subject_view(scope: _Scope, subject_type: str, subject: str, *, signature: 
         "mappings": _waiting_mappings(scope, only=used), "tables": _tables(scope, values), "held": held,
         "landing_problem": problem, "individual": individual,
         "spot_check": {"state": state, "draw_id": draw.id if draw is not None else None,
-                       "drawn": len({*draw.always, *draw.sampled}) if draw is not None else 0, "wanted": len(wanted),
+                       "drawn": len({*draw.always, *draw.sampled}) if draw is not None else 0,
+                       "always": len(set(draw.always)) if draw is not None else 0, "wanted": len(wanted),
                        "recorded_by": record.by if record is not None else None,
                        "recorded_at": record.at if record is not None else None},
         "confirmation": _confirmation(scope, subject_type, subject, blinded), "rules": _rules(),
@@ -1656,10 +1657,35 @@ def _sample(scope: _Scope, doc: SourceDocument, region: Any, grid: RegionGrid, s
         "blinded": blinded}
 
 
+def _move(scope: _Scope, mapping_id: str, entry: MappingEntry, doc: SourceDocument, region_id: str, grid: RegionGrid,
+          use: dict[str, Any]) -> dict[str, Any] | None:
+    """`DeliveryTableMove`: when `entry` waits for approval and, once approved, the pipeline's own choice
+    (`intake_pipeline.choose_version` over the approved versions and it) would read this table with it instead of the
+    version it is read with now, what changes: the numbers left unread before and after, and the facts read once that
+    it loses or gains. None when the table would stay with its version, or is not read now."""
+    if scope.mapping_status(mapping_id, entry.version) != "proposed" or use["state"] != "mapped" or use["version"] == entry.version:
+        return None
+    region = next((r for r in doc.regions if r.id == region_id), None)
+    entries = scope.mapping_entries()
+    now = entries.get((mapping_id, use["version"]))
+    if region is None or now is None:
+        return None
+    approved = sorted((e for (mid, v), e in entries.items() if mid == mapping_id and scope.mapping_status(mid, v) == "approved"),
+                      key=lambda e: e.version, reverse=True)
+    chosen = intake_pipeline.choose_version(region, grid, [*approved, entry])
+    if chosen is None or chosen.version != entry.version:
+        return None
+    before, after = intake_pipeline.unread_numbers(region, grid, now.spec), intake_pipeline.unread_numbers(region, grid, entry.spec)
+    had, has = intake_pipeline.facts_read(now.spec), intake_pipeline.facts_read(entry.spec)
+    return {"from_version": now.version, "unread_before": before or 0, "unread_after": after or 0,
+            "facts_lost": [f for f in had if f not in has], "facts_gained": [f for f in has if f not in had]}
+
+
 def _mapping_tables(scope: _Scope, mapping_id: str, entry: MappingEntry,
                     uses: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
     """`DeliveryMappingTable`: each table a version of the mapping reads now (one row per table), with the errors the
-    version shown has on it, and the newest approved version when that one does not read it."""
+    version shown has on it, the newest approved version when that one does not read it, and, for a version waiting for
+    approval, what approving it changes for the table (`_move`)."""
     docs: dict[str, SourceDocument | None] = {}
     out: list[dict[str, Any]] = []
     for use in uses:
@@ -1671,11 +1697,12 @@ def _mapping_tables(scope: _Scope, mapping_id: str, entry: MappingEntry,
         grid = _grid(docs[sha], region_id)
         blinded = sha in scope.blinded_files()
         row = {"file_sha256": sha, "file": use["file"], "region_id": region_id, "where": use["where"],
-               "version": use["version"], "state": use["state"], "reads": None, "findings": [], "newer": None}
+               "version": use["version"], "state": use["state"], "reads": None, "findings": [], "newer": None, "moves": None}
         if grid is not None:
             errors = [_finding(f, blinded) for f in validate_spec(entry.spec, grid) if f.severity == "error"]
             later = None if scope.reading(sha) or use["state"] != "mapped" else _later_approved(scope, mapping_id, use["version"])
-            row.update(reads=not errors, findings=errors, newer=_newer(scope, mapping_id, later, grid, blinded))
+            row.update(reads=not errors, findings=errors, newer=_newer(scope, mapping_id, later, grid, blinded),
+                       moves=None if errors or scope.reading(sha) else _move(scope, mapping_id, entry, docs[sha], region_id, grid, use))
         out.append(row)
     return out
 

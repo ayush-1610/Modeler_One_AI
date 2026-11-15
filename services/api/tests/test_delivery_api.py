@@ -397,7 +397,7 @@ def test_a_studys_card_shows_exceptions_first_and_each_decision_is_one_audited_l
     assert card["conflicts"] == [] and card["links"] == [] and card["mappings"] == []
     # what the landing would hold back, or why it cannot be planned yet
     assert card["held"] == [] and "the study record needs n" in card["landing_problem"]
-    assert card["spot_check"] == {"state": "none", "draw_id": None, "drawn": 0, "wanted": 0, "recorded_by": None,
+    assert card["spot_check"] == {"state": "none", "draw_id": None, "drawn": 0, "always": 0, "wanted": 0, "recorded_by": None,
                                   "recorded_at": None}
     # its values by table, each with the tuple it is read with and its source reference
     tables = {t["id"]: t for t in card["tables"]}
@@ -493,7 +493,11 @@ def test_the_spot_check_is_drawn_ticked_once_in_one_request_and_the_confirmation
     assert person["value"]["anchor"] is None and person["reason"] and person["inputs"] == []
     assert p.get("delivery/source", value=person["value"]["id"]).status_code == 404
     assert p.post(f"{path}/spot-check:draw").json()["data"]["draw"] == draw            # the same state: the same draw
-    assert p.card(path)["spot_check"] == {"state": "drawn", "draw_id": draw["id"], "drawn": len(spot["wanted"]),
+    # of the values drawn, those always checked: drawn again in any new draw, their ticks with them (said before a
+    # person's entry draws it again, final review round 3)
+    always = len([v for v in spot["values"] if (v["reason"] or "").startswith("always:")])
+    assert always and always == len(set(draw["always"]))
+    assert p.card(path)["spot_check"] == {"state": "drawn", "draw_id": draw["id"], "drawn": len(spot["wanted"]), "always": always,
                                          "wanted": len(spot["wanted"]), "recorded_by": None, "recorded_at": None}
     ticks = [{"value_id": v, "ok": True} for v in spot["wanted"]]
     # refused: a reader, another subject's draw, a draw that is none, ticks that are not every value once
@@ -1062,6 +1066,46 @@ def test_a_layout_is_shown_on_the_table_it_was_opened_from_and_says_how_each_ver
     assert p.get(path, file_sha256=_sha(b"never sent"), region_id=regions[short]).status_code == 404
     assert p.get(path, file_sha256=short, region_id="rg-0123456789").status_code == 409
     assert p.post(f"{path}:approve", {"version": 2, "file_sha256": short}).status_code == 422
+
+
+@pytest.mark.req("T-47", "F-404", "T-05")
+def test_a_version_waiting_for_approval_says_which_tables_its_approval_moves_to_it_and_what_changes(project):
+    """Final review round 3 (the gate-todo review): approving a layout version can move other tables of its layout to it
+    (the pipeline's own choice: the fewest numbers unread, then the most facts read once, then the newest), which
+    changes what they read. Before the approval, each table of the version says whether it moves and what changes; the
+    approval then does exactly that."""
+    p = project()
+    p.deliver(("loose-profile.csv", LOOSE), ("short-profile.csv", SHORT))
+    loose, short = _sha(LOOSE), _sha(SHORT)
+    (row,) = p.page()["mappings"]
+    path = f"delivery/mappings/{row['mapping_id']}"
+    spec = p.get(path).json()["data"]["spec"]
+    # a version that does not read the SD column, approved first: both tables are read with it, their SDs left unread
+    columns = [c for c in spec["columns"] if c["role"] != "spread"]
+    edited = p.post(f"{path}:edit", {"spec": {**spec, "columns": columns}, "why": "the SD column is read later"})
+    assert edited.status_code == 200, edited.text
+    p.settle()
+    assert p.post(f"{path}:approve", {"version": 2, "note": "checked"}).status_code == 200
+    p.settle()
+
+    def read_with() -> list[tuple[int, int]]:
+        regions = {f["sha256"]: f["regions"][0] for d in p.page()["deliveries"] for f in d["files"]}
+        return [(regions[x]["mapping_version"], regions[x]["silent"]) for x in (loose, short)]
+
+    assert read_with() == [(2, 4), (2, 2)]
+    # version 1 waits for approval: approving it moves both tables to it, each then reading its SDs
+    waiting = p.get(path, version=1).json()["data"]
+    assert waiting["status"] == "proposed"
+    assert {t["file_sha256"]: t["moves"] for t in waiting["tables"]} == {
+        loose: {"from_version": 2, "unread_before": 4, "unread_after": 0, "facts_lost": [], "facts_gained": []},
+        short: {"from_version": 2, "unread_before": 2, "unread_after": 0, "facts_lost": [], "facts_gained": []}}
+    # the approved version moves nothing: it is what they are read with
+    assert [t["moves"] for t in p.get(path, version=2).json()["data"]["tables"]] == [None, None]
+    # approved, both are read with it, as it said; nothing is left to move
+    assert p.post(f"{path}:approve", {"version": 1, "note": "checked"}).status_code == 200
+    p.settle()
+    assert read_with() == [(1, 0), (1, 0)]
+    assert [t["moves"] for t in p.get(path, version=1).json()["data"]["tables"]] == [None, None]
 
 
 @pytest.mark.req("T-47", "F-404", "T-05")
@@ -1916,8 +1960,8 @@ def test_a_stale_draw_is_drawn_again_with_its_ok_ticks_carried_and_a_failed_tick
     first = p.post(f"{path}/spot-check:draw").json()["data"]
     assert first["state"] == "drawn" and first["wanted"]
     assert enter({"field": "age_mean", "value": 33.0})["spot_check"] == {
-        "state": "stale", "draw_id": first["draw"]["id"], "drawn": len(first["wanted"]), "wanted": 0, "recorded_by": None,
-        "recorded_at": None}
+        "state": "stale", "draw_id": first["draw"]["id"], "drawn": len(first["wanted"]),
+        "always": len(set(first["draw"]["always"])), "wanted": 0, "recorded_by": None, "recorded_at": None}
     stale = p.post(f"{path}/spot-check", ticks(first))
     assert stale.status_code == 409 and stale.json()["detail"]["code"] == "STALE"
     assert p.events("intake.spot_check") == []

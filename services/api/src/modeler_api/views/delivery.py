@@ -490,6 +490,8 @@ class DeliverySpotState(View):
     state: Literal["none", "drawn", "failed", "complete", "stale"]
     draw_id: str | None
     drawn: int                                # values in the draw
+    always: int                               # of them, the values always checked (not sampled): drawn again in any
+                                              # new draw while they stand, their ticks with them
     wanted: int                               # values that still need a tick
     recorded_by: str | None                   # who recorded the draw's ticks, and when (null: not recorded)
     recorded_at: str | None
@@ -765,12 +767,27 @@ class DeliveryMappingDecision(View):
     at: str
 
 
+class DeliveryTableMove(View):
+    """What approving the version shown (one waiting for approval) changes for a table of its layout: the pipeline's
+    own rule (`intake_pipeline.choose_version`: of the approved versions that read a table, the one leaving the fewest
+    numbers unread, then reading the most facts once, then the newest) would read it with that version instead of the
+    one it is read with now (`from_version`). What changes: the numbers its reading leaves unread, before and after,
+    and the facts read once for the whole table (by field) that it no longer reads or newly reads."""
+
+    from_version: int
+    unread_before: int
+    unread_after: int
+    facts_lost: list[str]
+    facts_gained: list[str]
+
+
 class DeliveryMappingTable(View):
     """A table of the mapping's layout that one of its versions reads now (one row per table of `used_in`), and how the
     version shown reads it: `reads` false when that version has an error on the table (`findings`: its errors and
     notes there, their digits masked for a file that holds a blinded study's values), null when the table's source
     model is not cached. `newer`: the table stays with an older version because the newest approved one does not read
-    it (as on the page's region)."""
+    it (as on the page's region). `moves`: the version shown waits for approval, and approving it moves the table to
+    it (final review round 3: said before the approval, never found after it); null otherwise."""
 
     file_sha256: str
     file: str
@@ -781,6 +798,7 @@ class DeliveryMappingTable(View):
     reads: bool | None
     findings: list[DeliveryMappingFinding]
     newer: DeliveryNewerLayout | None
+    moves: DeliveryTableMove | None
 
 
 class DeliveryMappingVersion(View):

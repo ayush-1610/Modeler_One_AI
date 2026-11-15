@@ -186,7 +186,7 @@ function Pending({ s, projectId, vocabulary, options, onOpen }: {
         entering ? (
           <DemographicsForm key={said} projectId={projectId} params={{ project_id: projectId, type: delivery.subject_type, subject: delivery.subject }}
                             vocabulary={{ mapping: vocabulary }} options={options} onDone={() => setEntering(false)}
-                            testId={`individual-enter-${delivery.subject}`} stated={stated} />
+                            testId={`individual-enter-${delivery.subject}`} stated={stated} spot={card.data?.spot_check ?? null} />
         ) : said ? (
           <p className="m-4-0-0 fs-13" data-testid={`individual-entered-${delivery.subject}`}>
             {set ? <><span className="muted">The individual:</span> {individualText(set)}

@@ -525,7 +525,8 @@ before the next starts.
   its region (`DeliveryRegion.silent_cells`, the first 50 of the coverage's own locators, each with its text, withheld
   for a blinded study's file, and why), so "Show them" names the cells. The why is the rule code's reading records
   (`CellUse.rule`), which the stored outcome does not keep: the table's layout is executed again on its grid for the
-  view (nothing is written; memoised by file, parser, region and spec). Setting a single cell aside (the exclusion scope
+  view on every read (nothing is written; not memoised: round 3 corrected "memoised by file, parser, region and spec",
+  measured 7 to 23 ms of a 0.28 to 0.37 s GET /delivery). Setting a single cell aside (the exclusion scope
   `cells`) stays the owner's review (§3 row 3). Where every study and product read from a file is confirmed with the
   sheet form (none signed on the delivery), a read table's whole "Not data…" is offered in To do as well as in Client
   files: nothing loaded or signed is lost.
@@ -602,7 +603,8 @@ before the next starts.
   page reads it instead of mirroring the rule.
 - **A values table folded to one check (OWN-9):** only when every row that needs the person comes from one check that
   has its own row in Checks (not a disagreement, which is settled value by value); the line opens that check's form.
-  Its rows are still listed, and still "always shown" once the table is opened.
+  Its rows are still listed, and still "always shown" once the table is opened. *Round 3:* that never held on the
+  owner's 230-23 (two checks mark its rows); the rule is now several checks, each with its own row in Checks (below).
 - **The spot check's size, a question for the SME and the owner (not changed here):** on the owner's seed 111 values, on
   230-23 117, are drawn: a random sample of up to 100 (`intake_rules.yaml` `spot_check.size: 100`, the owner's decision
   6, at least 2 from each stratum) on top of every value always checked (`intake_review._always`: the study's key
@@ -614,11 +616,73 @@ before the next starts.
   record; before, "Show the values to check" posted a draw, which wrote a new draw once the ticks were recorded.
 - **Repetition (OWN-14):** a model check is not repeated when a To do group lists its gap (by the /inputs to-do's kind:
   `missing`, `process`, `formulation`, `regimen`, `demographics`, and the observed data while studies wait to be
-  confirmed); the step bar's own line ("Waiting on you: …") stays, as it is the whole page's. Ask the client keeps the
-  "needed for …" line and drops the chip. A card confirmed with the sheet form says who confirmed it in its head line
+  confirmed; *round 3:* for S0 also a compound value held for a person's check, below); the step bar's own line
+  ("Waiting on you: …") stays, as it is the whole page's. Ask the client keeps the "needed for …" line and drops the
+  chip. A card confirmed with the sheet form says who confirmed it in its head line
   only. The sheet form's path on a card signed on the delivery is pre-filled in the page from the delivery card's facts
   (entered or read: the number of subjects, a dose in mg, the dosage form, the purpose, fasted or fed, the route, an
   infusion's time; the sheet form's need names mapped from the intake's), each saying where it came from; this replaces
   round 1's API follow-up. Not reproduced, so not changed: "How the files were read" twice on one card (the skeptic
   found it once). Not in this group's list and left: a client file's name repeated on the first To do view (3 to 8
   times for a file with several kinds of work).
+
+### Final review fixes round 3: cards and gate follow-ups (2026-11-15; the five "Confirmed by" specs, OWN-9, OWN-14, the spot check made stale by the individual, the gate minors a to e, the owner-job flake, CODE-1; CHANGELOG "Fixed — final review round 3, cards and gate follow-ups")
+- **A values table folds under several checks (OWN-9, corrected).** Round 2's rule (one check for every row) never held
+  on the owner's own 230-23: the analyte missing marks all 76 rows of each arm's table and "more than one LLOQ in the
+  profile" marks 6 of them, because of the same missing analyte. The rule is now every row that needs the person marked
+  only by failed checks that each have their own row in Checks; the line names each with its count and a link to its
+  row ("State it…" for the analyte, "Decide it…" otherwise), and "Show the 76 values". A disagreement, or a failed check
+  settled elsewhere on the card (a fact, a required item), still opens the table. The checks are named from their own
+  messages (the part after what they are about, before their reason), not from a list of check codes kept in the page.
+  Measured on the review copy cut to the owner's state (seq ≤ 12): 230-23's card is 4,902 px folded (15,870 px in round
+  2), 10,441 px with one 76-value table shown.
+- **The minimum compound data said in To do (OWN-14, corrected).** /inputs lists an S0 gap a value was found for as that
+  value's own row (`review`, `correct`, `pka`, `unit`, `conflict`, or an elimination pathway's `process`), never as
+  `missing` as well. Since every S0 gap is
+  one of these rows, a failed S0 check with any of them listed on the compound is said in To do and not repeated among
+  the model checks. Round 2's note above ("by the /inputs to-do's kind: `missing`, …") held only for a compound with no
+  value found.
+- **The individual before the spot check; the spot check's digest (owner question).** A study's individual (the PK-Sim
+  population and the sex, D-29) is entered as two ledger facts, so it is in the subject's digest and the draw's seed
+  (`intake_review.draw_spot_check`): chosen after the spot check is recorded, the spot check is stale and a new draw asks
+  for new ticks (55 on the review's 230-23, 62 carried over). Not changed (the digest and the draw are SME-governed, and
+  the facts a signature binds include the individual): the card puts the individual first in its open work, counted
+  like its other rows (its row says "the spot check is then drawn again" where one is drawn already; the signature does
+  not wait for it, as before), the spot check itself says "Choose the study's individual first" while it is not
+  recorded, and every form that enters a fact on a card with a spot check drawn says before Save that it is drawn again
+  and which ticks carry over: the values always checked, counted (`DeliverySpotState.always`, the draw's own list: 17 of
+  230-23's 117), and of the random sample only those drawn again. How many of the sample carry over is not said: it is
+  known only once drawn (the seed is the ledger's head, so a new entry draws a new sample), and computing it would be a
+  second draw. **Owner question:** should a person's own choices of the individual (`individual_population`,
+  `individual_sex`, `FieldDef.person_only`) be left out of the spot check's digest and seed? They are words a person
+  chose, not read from a file, so no draw includes them (`intake_review._always` and the sample take numbers, censored
+  values and what is read from a figure, computed, linked or read from another file); they still change the digest and
+  the seed, and they are bound by the signature either way.
+- **What a layout approval moves, said before it (gate minor e).** The pipeline reads each table with the approved
+  version that has no error on its grid and leaves the fewest numbers unread, then reads the most facts once, then is
+  the newest (`intake_pipeline.choose_version`, which `_choose` now calls; the rule is unchanged). The API asks that
+  same function, for a version waiting for approval, which tables of the layout it would move and what changes for each
+  (`DeliveryMappingTable.moves`); the dialog says it above "Approve" and the approval's sentence names them. Only the
+  tables a version of the layout reads now are asked (`used_in`); a table of the same layout that no version reads is
+  not listed (none on the seeds). **Still the owner's (recorded under the gate's fixes above):** whether the ranking
+  should keep the facts a table reads (its product's role) over the numbers it leaves unread.
+- **The silent cells are not memoised (gate minor a, corrected).** The note above said "memoised by file, parser, region
+  and spec": no memo was built (a module-level one was removed for `tests/architecture/test_process_state`). Each GET
+  /delivery executes a read table's layout again; measured on the 9-file review projects that is 7 to 23 ms of the 0.28
+  to 0.37 s the page takes, so none is added.
+- **The places on a delivery card are the subject's own (CODE-1).** Since slice 3 several cards are open at once (up to
+  three studies, plus the first to confirm and any the person opens), so a place named only by its fact
+  (`delivery-gap-route`) was on the page once per card and the page's look-up took the first. Every place To do or a
+  card's own list links to is now `delivery-<place>-<subject>-<id>` (`inputsWork.cardPlace`; a check's place was its
+  own already, its id being the subject's), its HTML id with it, and the page looks inside the item's card first. A
+  subject is one card on the page, so its subject is enough; the look-up inside the card covers a second instance.
+- **Smaller ones:** a Restore says what it did on the line that said the marking; a card's "Read this sheet" is taken
+  once (the page forgets it once the reader opens); every field of the intake vocabulary has a label in the layout
+  editor; the owner-job e2e counts once nothing is being read again (three runs in a row passed; one earlier run in a
+  batch failed later in the flow on a 500 from GET /inputs, the web proxy's connection to the API reset under load,
+  not on the arrival count; `inputs-task-first.spec.ts`'s two-file "Mark as not data" batch once waited past 15 s for
+  its row to update in a loaded batch and passed when the spec was run again, untouched here).
+- **Not in this group:** the gate-todo review's regression (the layout dialog opened on a table with no version, right
+  after "Read this table…", keeps "waits for approval" after an approval: `writeMapping` never writes that key) is
+  still open at this group's base and is another round-3 group's (speed); not touched here, to keep one fix of it.
+- Nothing was stopped for a locked file, an SME rule or an owner decision; no boundary exception was added.

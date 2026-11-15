@@ -346,18 +346,26 @@ export function Dissolution({ projectId, d, act }: {
 /** The client's files: each sheet with what it holds and whether it is read, the agent's proposed readings, and the reader
  *  opened on one sheet. On Inputs each file's card opens under its row in Client files (plan 2026-11-14 slice 1): `files`
  *  is that one file, and `memory` carries the last sheet form from one file's card to the next. */
-export function ClientFiles({ projectId, view, files, act, onRetag, onSaved, memory, inRow, ask }: {
+export function ClientFiles({ projectId, view, files, act, onRetag, onSaved, memory, inRow, ask, onAsked }: {
   projectId: string; view: View; files?: ClientFile[]; act: Act; onRetag?: Retag; onSaved: (message: string) => Promise<void>;
   memory?: SheetMemory;
   /** shown under the file's own row (Inputs › Client files): its name is not said again */
   inRow?: boolean;
   /** a sheet a card asked to open in the reader, with cell texts to add as "no sample" (final review OWN-2 c) */
   ask?: { file: string; sheet: string; noSample: string[]; at: number } | null;
+  /** the ask was taken (the reader opened on its sheet): the page forgets it, so the file's row closed and opened again
+   *  does not open the reader and add its texts a second time (gate-todo review) */
+  onAsked?: () => void;
 }) {
   const [reading, setReading] = useState<{ file: string; sheet: string } | null>(null);
+  // the ask taken, kept here while the reader it opened is shown
+  const [asked, setAsked] = useState<{ file: string; sheet: string; noSample: string[] } | null>(null);
   const shownFiles = files ?? view.files;
   useEffect(() => {
-    if (ask && shownFiles.some((f) => f.id === ask.file)) setReading({ file: ask.file, sheet: ask.sheet });
+    if (!ask || !shownFiles.some((f) => f.id === ask.file)) return;
+    setReading({ file: ask.file, sheet: ask.sheet });
+    setAsked({ file: ask.file, sheet: ask.sheet, noSample: ask.noSample });
+    onAsked?.();
   }, [ask?.at]); // eslint-disable-line react-hooks/exhaustive-deps
   const [own, setOwn] = useState<{ form: SheetForm; study: Study } | null>(null);
   const { last, remember: setLast } = memory ?? { last: own, remember: setOwn };
@@ -366,8 +374,12 @@ export function ClientFiles({ projectId, view, files, act, onRetag, onSaved, mem
       {(files ?? view.files).map((f) => (
         <FileCard key={f.id} projectId={projectId} file={f} agents={view.agents.enabled} running={view.running}
                   agentReading={view.reading} act={act} onRetag={onRetag} reading={reading?.file === f.id ? reading.sheet : null}
-                  setReading={(sheet) => setReading(sheet ? { file: f.id, sheet } : null)}
-                  noSample={ask && ask.file === f.id && reading?.file === f.id && reading.sheet === ask.sheet ? ask.noSample : undefined}
+                  setReading={(sheet) => {
+                    setReading(sheet ? { file: f.id, sheet } : null);
+                    // the reader closed or moved to another sheet: the ask's texts are not added again
+                    if (asked && (asked.file !== f.id || asked.sheet !== sheet)) setAsked(null);
+                  }}
+                  noSample={asked && asked.file === f.id && reading?.file === f.id && reading.sheet === asked.sheet ? asked.noSample : undefined}
                   onSaved={onSaved} last={last} remember={setLast} inRow={inRow} />
       ))}
     </>
