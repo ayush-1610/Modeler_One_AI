@@ -16,6 +16,7 @@ import { PeekButton, type PeekSource } from "@/components/kit/SourcePeek";
 import { send, type Schema } from "@/lib/api";
 import { valueWord, whenText } from "@/lib/words";
 
+import { confirmAfter, reviewAfter } from "./after";
 import { DatasetView, ReleaseView } from "./DatasetView";
 import { DraftItem } from "./DraftItem";
 import { LABEL, type Run } from "./InputsTodo";
@@ -82,7 +83,7 @@ export function IssueCard({ projectId, group, issue, run, read = false }: {
         {!confirmed && !read && (
           <button type="button" className="link-btn" data-testid={`issue-change-${issue.id}`}
                   onClick={() => void run(() => send("post", "/api/v1/projects/{project_id}/client-review:reopen", params,
-                                                     { group: group.id, issue: issue.id }), "")}>
+                                                     { group: group.id, issue: issue.id }), "", reviewAfter(projectId))}>
             Change
           </button>
         )}
@@ -123,7 +124,7 @@ export function IssueCard({ projectId, group, issue, run, read = false }: {
         <button type="button" className="btn small" disabled={!ready} data-testid={`issue-confirm-${issue.id}`}
                 onClick={() => void run(() => send("post", "/api/v1/projects/{project_id}/client-review:select", params,
                   issue.answer ? { group: group.id, issue: issue.id, answer: Number(answer) }
-                    : { group: group.id, issue: issue.id, option }), "")}>
+                    : { group: group.id, issue: issue.id, option }), "", reviewAfter(projectId))}>
           Confirm the selection
         </button>
       )}
@@ -281,7 +282,7 @@ export function GroupCard({ projectId, group, run, mode = "confirm", alsoOnDeliv
                                                      { project_id: projectId }, { group: group.id }),
                                           group.kind === "product"
                                             ? `${group.title}: confirmed. Its dissolution profile is kept; the formulation's release is set with “Use this profile as the release” on its card.`
-                                            : `${group.title}: confirmed, in the model.`)}>
+                                            : `${group.title}: confirmed, in the model.`, confirmAfter(projectId, group.id))}>
             Confirm {name}
           </button>
         </footer>

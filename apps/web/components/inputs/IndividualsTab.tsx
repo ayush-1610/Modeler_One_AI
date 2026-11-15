@@ -19,6 +19,7 @@ import { useResource } from "@/lib/hooks";
 import { normLabel, type Subject, type WorkItem } from "@/lib/inputsWork";
 import { fieldInText, individualNeeds, individualText, plural } from "@/lib/words";
 
+import { MODEL } from "./after";
 import { type Run } from "./InputsTodo";
 import type { Options, StudyRow } from "./StudiesTab";
 
@@ -73,12 +74,12 @@ function Individual({ s, projectId, run, options }: { s: StudyRow; projectId: st
             <button className="btn primary" disabled={!s.dataset_id || !complete}
                     onClick={() => void run(() => send("post", path, params, { changes: { demographics: {
                       population: d.population, sex: d.sex, age_years: Number(d.age), age_min: num(d.min), age_max: num(d.max),
-                      weight_kg: num(d.weight), height_cm: num(d.height) } } }), `${s.study_id}: its individual is entered.`)}>
+                      weight_kg: num(d.weight), height_cm: num(d.height) } } }), `${s.study_id}: its individual is entered.`, MODEL)}>
               Save the individual
             </button>
             <button className="btn" disabled={!s.dataset_id || s.demographics === "default"}
                     onClick={() => void run(() => send("post", path, params, { demographics_choice: "healthy_adult_default" }),
-                                            `${s.study_id}: the healthy adult default, listed as a limitation of the MAP.`)}>
+                                            `${s.study_id}: the healthy adult default, listed as a limitation of the MAP.`, MODEL)}>
               Use the healthy adult default
             </button>
           </div>

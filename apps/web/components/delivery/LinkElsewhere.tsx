@@ -139,7 +139,7 @@ function LinkElsewhere({ projectId, file, place, others, onDone }: {
     const sent = { ...target, analyte: analyteChoice(target.analyte, analyteChoices(analytes, mine.own.analyte, uses), analytes, mine.own.analyte) };
     // one call for every value the file has in that place, its facts and its tables together
     const { data, problem: refused } = await decide(() => send("post", ASSIGN, { project_id: projectId }, assignBody(sent, place.targets, why)),
-                                                    { refresh: false });
+                                                    {});
     if (data) {
       writePage(client, projectId, data);
       announce(`The ${plural(place.values, "value")} of ${file.name} are linked again: the earlier ${place.links.length > 1 ? "links" : "link"} to ${place.words} ${place.links.length > 1 ? "are" : "is"} replaced.`);

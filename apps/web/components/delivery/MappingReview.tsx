@@ -29,7 +29,7 @@ import {
 
 import { LayoutEditor, columnsSent } from "./LayoutEditor";
 import { ChipFor, MAPPING_STATE, Problem, WITHHELD, Why, plural, useDecide } from "./shared";
-import { writeMapping } from "./writes";
+import { readReading, writeMapping } from "./writes";
 
 type Mapping = Schema<"DeliveryMapping">;
 type Finding = Schema<"DeliveryMappingFinding">;
@@ -194,6 +194,19 @@ function MappingBody({ projectId, mappingId, version, at, onSaid, queue, startEd
   // the table the answer is shown on: the one this dialog shows (a decision's answer keeps it)
   const shownAt = m?.sample ? { file_sha256: m.sample.file_sha256, region_id: m.sample.region_id } : at;
 
+  // the layout's files are read again after a decision (its answer waits, and is read every few seconds until they are):
+  // once they are, the delivery page and the cards are read again, so a table's row in To do and a card follow the
+  // reading by the layout's own word, not only by the page's "reading" flag (final review round 3)
+  const waiting = m?.waiting ?? false;
+  const wasWaiting = useRef(false);
+  useEffect(() => {
+    if (waiting) wasWaiting.current = true;
+    else if (wasWaiting.current) {
+      wasWaiting.current = false;
+      readReading(client, projectId);
+    }
+  }, [waiting]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // the focus follows the form (review A11Y-2): into the layout form's heading when it opens, back to the button that
   // opened a form when it is cancelled (the reject form's reason takes it by itself: autoFocus)
   useEffect(() => {
@@ -207,7 +220,7 @@ function MappingBody({ projectId, mappingId, version, at, onSaid, queue, startEd
 
   async function approve(note: string) {
     if (!m) return;
-    const { data } = await decide(() => send("post", APPROVE, params, { version: m.version, note, ...(shownAt ?? {}) }), { refresh: false });
+    const { data } = await decide(() => send("post", APPROVE, params, { version: m.version, note, ...(shownAt ?? {}) }), {});
     if (!data) return;
     writeMapping(client, projectId, data);
     const again = data.queued.length ? `${plural(data.queued.length, "file")} of this layout ${data.queued.length === 1 ? "is" : "are"} read again` : "";
@@ -220,7 +233,7 @@ function MappingBody({ projectId, mappingId, version, at, onSaid, queue, startEd
 
   async function reject(why: string) {
     if (!m) return;
-    const { data } = await decide(() => send("post", REJECT, params, { version: m.version, why, ...(shownAt ?? {}) }), { refresh: false });
+    const { data } = await decide(() => send("post", REJECT, params, { version: m.version, why, ...(shownAt ?? {}) }), {});
     if (!data) return;
     writeMapping(client, projectId, data);
     setMode("none");
@@ -235,7 +248,7 @@ function MappingBody({ projectId, mappingId, version, at, onSaid, queue, startEd
       const env = await send("post", EDIT, params, { spec, why, ...(shownAt ?? {}) });
       found = (env.errors[0]?.detail?.findings as Finding[] | undefined) ?? [];
       return env;
-    }, { refresh: false });
+    }, {});
     setRefused(found);
     if (!data) return;
     writeMapping(client, projectId, data);

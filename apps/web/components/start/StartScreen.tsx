@@ -11,7 +11,7 @@ import { ScopeGates } from "@/components/start/ScopeGates";
 import { ShortBrief } from "@/components/start/ShortBrief";
 import { narrow, send } from "@/lib/api";
 import type { BriefView, Citation, DocumentView } from "@/lib/brief";
-import { useMutation, useResource } from "@/lib/hooks";
+import { useMutation, useResource, type After } from "@/lib/hooks";
 import { STEP_ROUTES } from "@/lib/pipeline";
 import { LINEAR_DRAFT, marks as startMarks, recordOf, type BriefChange } from "@/lib/start";
 
@@ -19,6 +19,13 @@ type Focus = { sha256: string; page: number; quote: string | null } | null;
 
 // The order the viewer lists documents in, so it opens on the proposal: documents are stored by content hash, and a
 // client file or the PubChem record listed first would open instead. The client's files come last (read in Inputs).
+/** A change on Start (the brief, an answer, the proposal read again): the brief and its documents; the data plan, the
+ *  client data's plan and the inputs follow the brief; the step bar, drawn on the server, says what Start still needs. */
+const BRIEF_CHANGED: After = {
+  reads: ["/api/v1/projects/{project_id}/brief", "/api/v1/projects/{project_id}/documents", "/api/v1/projects/{project_id}/steps",
+          "/api/v1/projects/{project_id}/inputs", "/api/v1/projects/{project_id}/client-data"],
+  server: true,
+};
 const VIEWER_ORDER = ["proposal", "annex", "context", "retrieved_record", "paper", "other", "client_file"];
 
 function forViewer(documents: DocumentView[]): DocumentView[] {
@@ -59,18 +66,18 @@ export function StartScreen({ projectId, steps }: { projectId: string; steps?: R
   const open = (c: Citation) => setFocus({ sha256: c.doc_sha256, page: c.page, quote: c.quote });
 
   async function save(changes: BriefChange[]): Promise<string | null> {
-    const { problem } = await run(() => send("put", "/api/v1/projects/{project_id}/brief", { project_id: projectId }, { changes }));
+    const { problem } = await run(() => send("put", "/api/v1/projects/{project_id}/brief", { project_id: projectId }, { changes }), BRIEF_CHANGED);
     return problem;
   }
 
   async function answer(questionId: string, text: string, status: "answered" | "accepted_as_limitation") {
     const { problem } = await run(() => send("post", "/api/v1/projects/{project_id}/brief/questions/{question_id}",
-      { project_id: projectId, question_id: questionId }, { answer: text, status }));
+      { project_id: projectId, question_id: questionId }, { answer: text, status }), BRIEF_CHANGED);
     if (problem) setNotice(problem);
   }
 
   async function readAgain() {
-    const { data, problem } = await run(() => send("post", "/api/v1/projects/{project_id}/brief:extract", { project_id: projectId }, {}));
+    const { data, problem } = await run(() => send("post", "/api/v1/projects/{project_id}/brief:extract", { project_id: projectId }, {}), BRIEF_CHANGED);
     setNotice(problem ?? (data?.agents ? "The intake agent is reading the documents; the screen fills in as it finishes."
       : `${data?.problem ? `${data.problem}. ` : ""}Code read the proposal again; each draft waits for you below.`));
   }

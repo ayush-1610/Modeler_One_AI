@@ -8,7 +8,7 @@ import { useState } from "react";
 
 import { ApiProblem, Card } from "@/components/ui";
 import { send, type Schema } from "@/lib/api";
-import { useMutation, useResource } from "@/lib/hooks";
+import { useMutation, useResource, type After } from "@/lib/hooks";
 
 type SystemDetail = Schema<"SystemDetail">;
 type Fractions = Record<string, Record<string, string>>;
@@ -35,6 +35,13 @@ function parsed(draft: Fractions): { products: Record<string, Record<string, num
   return { products, problem: null };
 }
 
+/** The system saved (its answer is not the read's shape): the system read again; the inputs and the plan built from it
+ *  follow (read when next shown), and the step bar, drawn on the server, may move with them. */
+const SAVED: After = {
+  reads: ["/api/v1/projects/{project_id}/system", "/api/v1/projects/{project_id}/inputs", "/api/v1/projects/{project_id}/plan"],
+  server: true,
+};
+
 export function SystemPanel({ projectId }: { projectId: string }) {
   const { data, problem } = useResource("/api/v1/projects/{project_id}/system", { project_id: projectId });
   const { run, busy } = useMutation();
@@ -53,7 +60,7 @@ export function SystemPanel({ projectId }: { projectId: string }) {
       return;
     }
     const result = await run(() => send("put", "/api/v1/projects/{project_id}/system", { project_id: projectId },
-                                        { ...data!.links, products }));
+                                        { ...data!.links, products }), SAVED);
     setOutcome(result.problem ? { ok: false, message: result.problem } : { ok: true, message: "Dose fractions saved." });
     if (!result.problem) setDraft(null);
   }

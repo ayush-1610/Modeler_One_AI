@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { DIGITIZED } from "@/components/inputs/after";
 import type { DocumentView } from "@/lib/brief";
 import { BROWSER_TOKEN, apiFile, send, type Schema } from "@/lib/api";
 import { useMutation, useResource } from "@/lib/hooks";
@@ -150,7 +151,7 @@ export function Digitizer({ projectId, documents, onSaved, initial }: {
       pixels: Object.fromEntries(Object.entries(points).filter(([, p]) => p.length > 0)),
       ...(crop ? { crop } : {}), scale,
     };
-    const { data, problem } = await run(() => send("post", "/api/v1/projects/{project_id}/datasets:digitize", { project_id: projectId }, body));
+    const { data, problem } = await run(() => send("post", "/api/v1/projects/{project_id}/datasets:digitize", { project_id: projectId }, body), DIGITIZED);
     if (problem || !data) setError(problem ?? "not saved");
     else onSaved(data.id);
   }

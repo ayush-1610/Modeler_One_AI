@@ -77,11 +77,11 @@ function FileItem({ projectId, file, first, decide, busy, onMapping, inRow = fal
   // the answer is the page, written into the cache: only the cards it changed are read again (writes.ts)
   const exclude = (regions: string[], scope: "regions" | "unread_prose" | "figures" | "outside") => async (why: string) => {
     const { data } = await decide(() => send("post", EXCLUDE, { project_id: projectId }, { file_sha256: file.sha256, regions, scope, why }),
-                                  { refresh: false });
+                                  {});
     if (data) { writePage(client, projectId, data); setAside(null); }
   };
   const readAgain = async () => {
-    const { data } = await decide(() => send("post", RUN, { project_id: projectId }, { files: [file.sha256] }), { refresh: false });
+    const { data } = await decide(() => send("post", RUN, { project_id: projectId }, { files: [file.sha256] }), {});
     if (data !== null) readPage(client, projectId);
   };
   return (
@@ -317,7 +317,7 @@ export function DeliverySection({ projectId, work, focus, onOpenGroup, onItem }:
                    page.unassigned.length ? count(page.unassigned.length, "value") + " to link" : "",
                    t.silent_loss || t.outside_numeric ? "numbers not read" : ""].filter(Boolean);
   async function readAll() {
-    const { data } = await decide(() => send("post", RUN, { project_id: projectId }, { files: [] }), { refresh: false });
+    const { data } = await decide(() => send("post", RUN, { project_id: projectId }, { files: [] }), {});
     if (data !== null) readPage(client, projectId);
   }
 

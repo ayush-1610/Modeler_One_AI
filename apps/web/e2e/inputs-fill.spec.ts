@@ -233,9 +233,16 @@ test("loose values are linked with new arms and an analyte, a table set aside is
   await shot(page, "4b-time-reference");
   await mapping.getByRole("button", { name: "Cancel" }).click();
   await expect(mapping.getByTestId("mapping-status")).toHaveText("waits for approval");
+  // approved in the dialog "Read this table…" opened (on the table, at no version): the dialog shows the approval at
+  // once, the Approve form gone (final review round 3: the answer is written under the key that dialog reads)
+  await mapping.getByTestId("mapping-approve-why").fill("hours across, the result as the mean level: checked against the file");
+  await mapping.getByTestId("mapping-approve-submit").click();
+  await expect(mapping.getByTestId("mapping-said")).toContainText("Version 1 of the PK summary table layout is approved");
+  await expect(mapping.getByTestId("mapping-status")).toHaveText("approved");
+  await expect(mapping.getByTestId("mapping-approve-submit")).toHaveCount(0);
   await mapping.getByTestId("mapping-close").click();
   await expect(section.getByTestId("delivery-running")).toHaveCount(0, { timeout: 120_000 });
-  await expect(oddItem.getByTestId(`delivery-region-mapping-${table.region_id}`)).toContainText("waits for approval");
+  await expect(oddItem.getByTestId(`delivery-region-mapping-${table.region_id}`)).toContainText("approved");
   await expect(oddItem.getByTestId(`delivery-region-read-${table.region_id}`)).toHaveCount(0);
 
   // --- its values, in To do's link table: a new study by a name that exists is refused in the server's words, on the

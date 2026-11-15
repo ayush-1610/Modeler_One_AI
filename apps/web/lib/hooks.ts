@@ -1,12 +1,14 @@
 // How a client page reads and changes the project (phase 7d, rule B6). A page reads a route with `useResource` and
-// changes state with `useMutation`. A change that succeeds refreshes the resources on the page and the server-rendered
-// parts of it, the phase rail among them, so a page cannot show a status its own change made stale.
+// changes state with `useMutation`. A change says what it made stale (`After`): its answer written into the page's
+// cache, the reads it changed read again, and the server-rendered parts of the page (the step bar) drawn again where
+// they show what changed, so a page cannot show a status its own change made stale, and a change costs the change and
+// what it changed, not every read on the page (plan 2026-11-14 §2.1 "fewer refetches"; final review OWN-7, CODE-4).
 
 import {
-  keepPreviousData, useMutation as useQueryMutation, useQueries, useQuery, useQueryClient, type QueryClient,
+  keepPreviousData, useMutation as useQueryMutation, useQueries, useQuery, useQueryClient, type QueryClient, type QueryKey,
 } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { useCallback } from "react";
+import { createContext, createElement, useCallback, useContext, useState, type ReactNode } from "react";
 
 import { get, type Data, type Envelope, type Params, type RouteFor } from "@/lib/api";
 
@@ -19,6 +21,29 @@ export type Resource<T> = {
   /** Why it could not be read; the page shows it instead of sample data. */
   problem: string | null;
 };
+
+// --- a page whose reads are held for the visit --------------------------------------------------------------------------
+
+// A page of many areas (Inputs) holds what it has read for the visit: an area shown again, or a second part of the page
+// that reads the same route, is drawn from the cache with no request. What was read before the visit (an earlier visit
+// of the page) is read again once, when first shown; a read a change marks stale is read again as always.
+const Visit = createContext<number | null>(null);
+
+/** Hold the reads of the parts inside for this visit of the page (from when it was first drawn). */
+export function HeldReads({ children }: { children: ReactNode }) {
+  const [from] = useState(() => Date.now());
+  return createElement(Visit.Provider, { value: from }, children);
+}
+
+/** A cached answer, as far as its freshness goes. */
+type Answered = { state: { dataUpdatedAt: number } };
+
+/** How long an answer stays fresh: inside `HeldReads`, until a change marks it stale if it was read in this visit;
+ *  elsewhere `otherwise` (0: every part that is drawn reads it again). */
+function useFreshness(otherwise = 0): number | ((query: Answered) => number) {
+  const from = useContext(Visit);
+  return from === null ? otherwise : (query: Answered) => (query.state.dataUpdatedAt >= from ? Infinity : 0);
+}
 
 type ResourceOptions<D, T> = {
   query?: Record<string, string | undefined>;
@@ -38,6 +63,7 @@ export function useResource<R extends RouteFor<"get">, T = Data<R, "get">>(
   route: R, params: Params<R>, options: ResourceOptions<Data<R, "get">, T> = {},
 ): Resource<T> {
   const { query, select, poll, interval = 3000, enabled = true, keepPrevious = false } = options;
+  const staleTime = useFreshness();
   const result = useQuery<Data<R, "get">, ApiProblem, T>({
     queryKey: [route, params, query ?? {}],
     queryFn: async () => {
@@ -47,6 +73,7 @@ export function useResource<R extends RouteFor<"get">, T = Data<R, "get">>(
     },
     select,
     enabled,
+    staleTime,
     refetchInterval: poll ? (q) => (q.state.data !== undefined && poll(q.state.data) ? interval : false) : false,
     placeholderData: keepPrevious ? keepPreviousData : undefined,
   });
@@ -69,12 +96,13 @@ async function fewAtATime<T>(limit: number, read: () => Promise<T>): Promise<T> 
 
 /** Typed reads of one route for each of several parameters (the cards of a list), cached under the key `useResource`
  *  gives each, so a page that shows one of them reads it once. `limit` reads at most that many at a time; `enabled`
- *  holds them back (until the page is idle); `staleTime` keeps an answer that long before a new one is read. `at`
- *  changes whenever an answer or a problem arrives. */
+ *  holds them back (until the page is idle); `staleTime` keeps an answer that long before a new one is read (inside
+ *  `HeldReads`, for the visit). `at` changes whenever an answer or a problem arrives. */
 export function useResources<R extends RouteFor<"get">>(
   route: R, list: Params<R>[], options: { enabled?: boolean; limit?: number; staleTime?: number } = {},
 ): (Resource<Data<R, "get">> & { at: number })[] {
   const { enabled = true, limit = 2, staleTime = 0 } = options;
+  const fresh = useFreshness(staleTime);
   const results = useQueries({
     queries: list.map((params) => ({
       queryKey: [route, params, {}],
@@ -83,7 +111,7 @@ export function useResources<R extends RouteFor<"get">>(
         if (env.errors?.length || env.data === null) throw new ApiProblem(env.errors?.[0]?.message ?? "no answer");
         return env.data;
       }),
-      enabled, staleTime,
+      enabled, staleTime: fresh,
     })),
   });
   return results.map((r) => ({ data: (r.data as Data<R, "get"> | undefined) ?? null, problem: r.error?.message ?? null,
@@ -105,20 +133,36 @@ export function fetchResource<R extends RouteFor<"get">>(client: QueryClient, ro
   });
 }
 
-/** Read the page's resources again, after a refusal that says the server moved on (a run already going elsewhere). */
-export function useRefresh() {
-  const client = useQueryClient();
-  return useCallback(() => client.invalidateQueries(), [client]);
+// --- what a change made stale -------------------------------------------------------------------------------------------
+
+/** A read of the page, by its route: every answer of the route (whatever its parameters) is meant. */
+export type Read = RouteFor<"get">;
+
+/** Mark every answer of `routes` stale: those shown are read again (once each), the others when next shown. */
+export function readAgain(client: QueryClient, routes: readonly Read[]): Promise<void> {
+  if (!routes.length) return Promise.resolve();
+  const named = new Set<string>(routes);
+  return client.invalidateQueries({ predicate: (q) => named.has(q.queryKey[0] as string) });
 }
+
+/** What a change made stale, said where the change is made. `write`: the answer, written into the page's cache (what
+ *  the server holds now, so nothing is read for it). `reads`: the reads it changed, by route; `keys`: one answer of a
+ *  route it changed (one card of many). `server`: the parts of the page drawn on the server show what it changed (a page
+ *  drawn on the server, a step bar the change moves), so they are drawn again. A dry run that changes nothing says `{}`. */
+export type After<T = unknown> = {
+  write?: (data: T, client: QueryClient) => void;
+  reads?: readonly Read[];
+  keys?: readonly QueryKey[];
+  server?: boolean;
+};
 
 /** The outcome of a change: the answer's data, or the API's reason it refused. */
 export type Outcome<T> = { data: T | null; problem: string | null };
 
-type Change = { call: () => Promise<Envelope<unknown>>; refresh: boolean };
+type Change = { call: () => Promise<Envelope<unknown>>; after: After<never> };
 
-/** Change state through the API. `run(() => send(...))` answers the outcome; when the change succeeds, the page's
- *  resources are read again and its server-rendered parts (the phase rail) re-rendered before `run` returns, unless
- *  `{ refresh: false }` (a dry run that changes nothing). */
+/** Change state through the API. `run(() => send(...), after)` answers the outcome; when the change succeeds, what it
+ *  made stale (`after`) is written and read again before `run` returns. */
 export function useMutation() {
   const client = useQueryClient();
   const router = useRouter();
@@ -128,16 +172,17 @@ export function useMutation() {
       if (env.errors?.length) throw new ApiProblem(env.errors[0].message);
       return env.data;
     },
-    onSuccess: async (_data, { refresh }) => {
-      if (!refresh) return;
-      router.refresh();
-      await client.invalidateQueries();
+    onSuccess: async (data, { after }) => {
+      (after as After<unknown>).write?.(data, client);
+      if (after.server) router.refresh();
+      await Promise.all([readAgain(client, after.reads ?? []),
+                         ...(after.keys ?? []).map((queryKey) => client.invalidateQueries({ queryKey, exact: true }))]);
     },
   });
   const run = useCallback(
-    async <T>(call: () => Promise<Envelope<T>>, { refresh = true }: { refresh?: boolean } = {}): Promise<Outcome<T>> => {
+    async <T>(call: () => Promise<Envelope<T>>, after: After<T>): Promise<Outcome<T>> => {
       try {
-        return { data: (await mutateAsync({ call, refresh })) as T | null, problem: null };
+        return { data: (await mutateAsync({ call, after: after as After<never> })) as T | null, problem: null };
       } catch (err) {
         return { data: null, problem: err instanceof Error ? err.message : String(err) };
       }

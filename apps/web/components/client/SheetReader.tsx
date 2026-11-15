@@ -2,6 +2,7 @@
 
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 
+import { SHEET } from "@/components/inputs/after";
 import { narrow, send } from "@/lib/api";
 import { useMutation, useResource } from "@/lib/hooks";
 
@@ -232,7 +233,7 @@ export function SheetReader({ projectId, file, sheet, last, onSaved, onClose, re
   async function save() {
     setBusy(true);
     const { data, problem } = await run(() => send("post", "/api/v1/projects/{project_id}/client-data/{sid}:map",
-                                                   { project_id: projectId, sid: file.id }, body(true)));
+                                                   { project_id: projectId, sid: file.id }, body(true)), SHEET);
     setBusy(false);
     if (!data) { setError(problem ?? "Not saved."); return; }
     const saved = narrow<ReadPreview>(data);

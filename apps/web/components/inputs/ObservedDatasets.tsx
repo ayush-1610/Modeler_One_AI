@@ -12,6 +12,7 @@ import { useResource } from "@/lib/hooks";
 import { useTableView } from "@/lib/tableView";
 import { locatorText } from "@/lib/words";
 
+import { MODEL, SEARCH, datasetAfter, evidenceAfter } from "./after";
 import type { Run } from "./InputsTodo";
 
 // a stored dataset (modeler_project.datasets.ObservedDataset), as the dataset routes answer it
@@ -109,7 +110,7 @@ function LeaveOut({ d, projectId, run, onProblem }: { d: Listed; projectId: stri
               onClick={async () => onProblem(await run(() => send("post", "/api/v1/projects/{project_id}/datasets/{dataset_id}:decide",
                                                                   { project_id: projectId, dataset_id: d.id },
                                                                   { state: out ? "PROPOSED" : "REJECTED", reason }),
-                                                       out ? `${id} is used again.` : `${id} is left out: ${reason}.`))}>
+                                                       out ? `${id} is used again.` : `${id} is left out: ${reason}.`, datasetAfter(projectId, d.id)))}>
         {out ? "Use it again" : "Leave it out"}
       </button>
       <button type="button" className="link-btn" onClick={() => setOpen(false)}>Cancel</button>
@@ -168,7 +169,7 @@ function Overlay({ d, projectId, run, onProblem, small = false }: {
     <button className={small ? "btn small" : "btn primary"} data-testid={`overlay-${d.id}`}
             onClick={async () => onProblem(await run(() => send("post", "/api/v1/projects/{project_id}/datasets/{dataset_id}:overlay",
                                                                 { project_id: projectId, dataset_id: d.id }),
-                                                    `${String(d.study.study_id)}: the overlay is checked; the study is used.`))}>
+                                                    `${String(d.study.study_id)}: the overlay is checked; the study is used.`, MODEL))}>
       The overlay matches the figure
     </button>
   );
@@ -336,7 +337,7 @@ export function ObservedDatasets({ projectId, run, digitize, except, unpromised 
             <button type="button" className="btn" disabled={view.running} data-testid="find-observed"
                     onClick={() => void run(() => send("post", "/api/v1/projects/{project_id}/evidence:research", { project_id: projectId },
                                                        undefined, { agent: "A3" }),
-                                            "The observed-data agent is searching; datasets appear as it records them.")}>
+                                            "The observed-data agent is searching; datasets appear as it records them.", SEARCH)}>
               {view.running ? "Searching…" : "Find observed data with AI"}
             </button>
           )}
@@ -381,7 +382,7 @@ export function AccessRequests({ projectId, run }: { projectId: string; run: Run
                 const form = new FormData();
                 form.set("file", file);
                 void run(() => upload("/api/v1/projects/{project_id}/access-requests/{request_id}:fulfil",
-                                      { project_id: projectId, request_id: r.id }, form), "Paper stored; the agent can cite it now.");
+                                      { project_id: projectId, request_id: r.id }, form), "Paper stored; the agent can cite it now.", evidenceAfter(projectId));
               }} />
             </label>
           </li>

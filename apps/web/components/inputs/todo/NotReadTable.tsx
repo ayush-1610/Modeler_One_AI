@@ -94,7 +94,8 @@ export function MarkedNow({ projectId, entries, said, alone = false, titleId }: 
                       data-testid={`notread-undo-${m.id}`}>Restore…</button>
             ) : (
               <RestoreForm projectId={projectId} file={m.file} items={m.items} scope="outside" label={m.label} testId={`notread-undo-${m.id}`}
-                           onDone={() => { setRestoring(null); unmark(m.id); }} />
+                           onDone={() => { setRestoring(null); unmark(m.id, `Restored: ${m.label}. Its numbers count again.`); }}
+                           onCancel={() => setRestoring(null)} />
             )}
           </li>
         ))}
@@ -144,7 +145,7 @@ export function NotReadTable({ projectId, items, heading, group, shared }: {
     for (const { row, groups } of list) {
       const wheres = groups.flatMap((g) => g.items.map((o) => o.where));
       const { data, problem: said } = await decide(() => send("post", EXCLUDE, { project_id: projectId },
-        { file_sha256: row.file.sha256, regions: wheres, scope: "outside", why }), { refresh: false });
+        { file_sha256: row.file.sha256, regions: wheres, scope: "outside", why }), {});
       if (!data) { refused[row.file.file_id] = said ?? "It was not marked."; continue; }
       writePage(client, projectId, data);
       done.push({ row, groups });
@@ -168,7 +169,7 @@ export function NotReadTable({ projectId, items, heading, group, shared }: {
 
   async function setAsideRegion(file: FileRow, r: Region, why: string) {
     const { data } = await decide(() => send("post", EXCLUDE, { project_id: projectId },
-      { file_sha256: file.sha256, regions: [r.region_id], scope: scopeOf(r), why }), { refresh: false });
+      { file_sha256: file.sha256, regions: [r.region_id], scope: scopeOf(r), why }), {});
     if (!data) return;
     writePage(client, projectId, data);
     setAside(null);
@@ -176,7 +177,7 @@ export function NotReadTable({ projectId, items, heading, group, shared }: {
   }
 
   async function readAgain(file: FileRow) {
-    const { data } = await decide(() => send("post", RUN, { project_id: projectId }, { files: [file.sha256] }), { refresh: false });
+    const { data } = await decide(() => send("post", RUN, { project_id: projectId }, { files: [file.sha256] }), {});
     if (data !== null) readPage(client, projectId);
   }
 

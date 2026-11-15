@@ -4,12 +4,16 @@ import { useState } from "react";
 
 import { FeedbackDiagnosisView } from "@/components/campaign/Feedback";
 import { Dialog } from "@/components/kit/Dialog";
-import { useMutation } from "@/lib/hooks";
+import { useMutation, type After } from "@/lib/hooks";
 import type { Escalation } from "@/lib/types";
 import { resolveEscalation } from "@/lib/writes";
 import { celebrate, toast } from "@/components/kit/Motion";
 
 type Result = { kind: "ok" | "err"; message: string } | null;
+
+/** What a decision on an escalated stage changes: the open escalations, the campaigns and the monitor drawn on the
+ *  server (the step bar's Run with it). */
+const DECIDED: After = { reads: ["/api/v1/escalations", "/api/v1/campaigns", "/api/v1/campaigns/{campaign_id}"], server: true };
 
 export function EscalationDecision({ escalation }: { escalation: Escalation }) {
   const { run, busy } = useMutation();
@@ -43,7 +47,7 @@ export function EscalationDecision({ escalation }: { escalation: Escalation }) {
         ...(choice === "learn" ? { studies, beyond_cap: beyondCap } : {}),
         ...(choice === "new_evidence" ? { evidence: { parameter: evidence.parameter.trim(), value: evidenceValue,
           unit: evidence.unit.trim() || null, reference: evidence.reference.trim() } } : {}),
-    }));
+    }), DECIDED);
     setConfirming(false);
     if (!data) {
       setResult({ kind: "err", message: problem ?? "The decision was rejected." });

@@ -20,7 +20,7 @@ import { SortHeader, TableMore } from "@/components/kit/SortableTable";
 import { RELATED_STEPS } from "@/components/library/AddData";
 import { send, type Schema } from "@/lib/api";
 import { TAG_KINDS, TAG_LABELS, type TagKind, tagLabel } from "@/lib/fileTags";
-import { useMutation, useResource } from "@/lib/hooks";
+import { useMutation, useResource, type After } from "@/lib/hooks";
 import { STEP_ROUTES, type StepId } from "@/lib/pipeline";
 import { type SortState, useTableView } from "@/lib/tableView";
 
@@ -42,6 +42,13 @@ const ROLE: Record<string, string> = {
 };
 const KIND: Record<Contribution["kind"], string> = { value: "value", dataset: "dataset", brief: "brief" };
 const SHOWN = 3;
+const LIBRARY = "/api/v1/projects/{project_id}/library" as const, DOCUMENTS = "/api/v1/projects/{project_id}/documents" as const;
+/** A client file's tag changed: the library, the documents and the client's files (the area of Inputs it is filed under). */
+const TAGGED: After = { reads: [LIBRARY, DOCUMENTS, "/api/v1/projects/{project_id}/client-data"] };
+/** A document withdrawn or restored: the library and the documents; what the project took from it (the evidence, the
+ *  inputs, the brief's citations, the client's files) follows, read when next shown. */
+const WITHDRAWN: After = { reads: [LIBRARY, DOCUMENTS, "/api/v1/projects/{project_id}/client-data", "/api/v1/projects/{project_id}/evidence",
+                                   "/api/v1/projects/{project_id}/inputs", "/api/v1/projects/{project_id}/brief"] };
 
 function Uses({ projectId, row }: { projectId: string; row: Row }) {
   const [all, setAll] = useState(false);
@@ -85,7 +92,7 @@ function TagCell({ projectId, row }: { projectId: string; row: Row }) {
 
   async function retag(kind: TagKind) {
     const { problem } = await run(() => send("post", "/api/v1/projects/{project_id}/documents/{sha256}:tag",
-      { project_id: projectId, sha256: row.sha256 }, { kind, study: kind === "clinical" ? row.tag?.study ?? "" : "" }));
+      { project_id: projectId, sha256: row.sha256 }, { kind, study: kind === "clinical" ? row.tag?.study ?? "" : "" }), TAGGED);
     setProblem(problem);
   }
 
@@ -138,8 +145,8 @@ function ChangeDialog({ projectId, change, onClose }: { projectId: string; chang
   async function confirm() {
     const params = { project_id: projectId, sha256: row.sha256 };
     const { problem } = action === "withdraw"
-      ? await run(() => send("post", "/api/v1/projects/{project_id}/documents/{sha256}:withdraw", params, { reason: reason.trim() }))
-      : await run(() => send("post", "/api/v1/projects/{project_id}/documents/{sha256}:restore", params, { reason: reason.trim() }));
+      ? await run(() => send("post", "/api/v1/projects/{project_id}/documents/{sha256}:withdraw", params, { reason: reason.trim() }), WITHDRAWN)
+      : await run(() => send("post", "/api/v1/projects/{project_id}/documents/{sha256}:restore", params, { reason: reason.trim() }), WITHDRAWN);
     if (problem) setProblem(problem);
     else onClose();
   }

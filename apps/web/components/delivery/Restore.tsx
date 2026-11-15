@@ -43,22 +43,24 @@ export const restorable = (r: Region) => r.decision !== null;
 export const restorableNote = (o: Note) => o.decision !== null;
 
 /** The reason form that restores `items` of `file` (region ids, or with scope `outside` the notes' locators). */
-export function RestoreForm({ projectId, file, items, scope, label, onDone, testId }: {
+export function RestoreForm({ projectId, file, items, scope, label, onDone, onCancel, testId }: {
   projectId: string; file: FileRow; items: string[]; scope: Scope;
   /** what is restored, read with the field and the button: "the table Sheet1 of 230-23.xlsx" */
   label: string; onDone: () => void; testId: string;
+  /** the form closed with nothing restored (else `onDone`) */
+  onCancel?: () => void;
 }) {
   const { decide, busy, problem } = useDecide();
   const write = useWritePage(projectId);
   async function restore(why: string) {
     const { data } = await decide(() => send("post", RESTORE, { project_id: projectId },
-                                             { file_sha256: file.sha256, regions: items, scope, why }), { refresh: false });
+                                             { file_sha256: file.sha256, regions: items, scope, why }), {});
     if (data) { write(data); onDone(); }
   }
   return (
     <>
       <Why action="Restore" actionLabel={`Restore ${label}`} label={`Why ${label} is data after all`} busy={busy} onSubmit={restore}
-           onCancel={onDone} testId={testId} autoFocus
+           onCancel={onCancel ?? onDone} testId={testId} autoFocus
            placeholder="why it is data after all (kept on the audit trail)">
         <span className="muted">Restore {label}: what was read from it counts again.</span>
       </Why>

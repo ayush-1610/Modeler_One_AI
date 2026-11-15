@@ -18,6 +18,7 @@ import { useResource } from "@/lib/hooks";
 import { LayoutEditor, columnsSent, type Finding } from "./LayoutEditor";
 import { whereIs } from "@/lib/words";
 import { Problem, WITHHELD, fieldText, useDecide, type FileRow, type Region } from "./shared";
+import { writeMapping } from "./writes";
 
 const PROPOSE = "/api/v1/projects/{project_id}/delivery/mappings:propose" as const;
 const VOCABULARY = "/api/v1/projects/{project_id}/delivery/vocabulary" as const;
@@ -49,7 +50,7 @@ export function ReadTable({ projectId, file, region, onClose, onStored }: {
       const env = await send("post", PROPOSE, { project_id: projectId }, { file_sha256: file.sha256, region_id: region.region_id, spec, why });
       found = (env.errors[0]?.detail?.findings as Finding[] | undefined) ?? [];
       return env;
-    });
+    }, { write: (m, client) => writeMapping(client, projectId, m) });
     setFindings(found);
     if (data) onStored(data.mapping_id);
   }

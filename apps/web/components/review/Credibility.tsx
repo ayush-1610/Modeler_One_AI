@@ -11,7 +11,7 @@ import { InlineIssue } from "@/components/kit";
 import { RiskAndBudget } from "@/components/plan/RiskAndBudget";
 import type { Envelope } from "@/lib/api";
 import type { useMutation } from "@/lib/hooks";
-import { planApi, ROLE_LABEL, type PlanView } from "@/lib/plan";
+import { PLAN_CHANGED, planApi, ROLE_LABEL, type PlanView } from "@/lib/plan";
 import { minutes, reviewApi, type ReviewPage, type ReviewStudy } from "@/lib/review";
 
 type Apply = <T>(call: () => Promise<Envelope<T>>, ok?: string) => Promise<string | null>;
@@ -166,7 +166,7 @@ function LeaveOut({ study, onChange, busy }: { study: ReviewStudy; onChange: (wh
  *  until the signature (D-15, following the S5 role), its demographics, and leaving it out. */
 export function StudiesTable({ projectId, review, run, busy }: { projectId: string; review: ReviewPage; run: Run; busy: boolean }) {
   async function change(study: ReviewStudy, why: string | null, reason: string) {
-    return (await run(() => reviewApi.leaveOut(projectId, study.study_id, why, reason))).problem;
+    return (await run(() => reviewApi.leaveOut(projectId, study.study_id, why, reason), PLAN_CHANGED)).problem;
   }
   return (
     <div className="table-scroll" data-testid="review-studies">

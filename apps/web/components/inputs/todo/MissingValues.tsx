@@ -12,17 +12,17 @@
 // stands in the unit field); the value is filed under that pathway, never under the placeholder itself.
 
 import { useQueryClient } from "@tanstack/react-query";
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { Problem } from "@/components/delivery/shared";
 import { focusAfter } from "@/components/kit/focus";
 import { announce } from "@/components/kit/LiveRegion";
 import { send, type Schema } from "@/lib/api";
-import { useMutation, useResource } from "@/lib/hooks";
+import { readAgain, useMutation, useResource } from "@/lib/hooks";
 import type { WorkItem } from "@/lib/inputsWork";
 import { paramLabel, plural } from "@/lib/words";
 
+import { MODEL } from "../after";
 import { PathwayPick, type TodoItem } from "../InputsTodo";
 
 const INPUTS = "/api/v1/projects/{project_id}/inputs" as const;
@@ -47,7 +47,6 @@ export function MissingValues({ projectId, items, onOpen, heading }: {
 }) {
   const inputs = useResource(INPUTS, { project_id: projectId }).data;
   const client = useQueryClient();
-  const router = useRouter();
   const mutation = useMutation();
   const [entries, setEntries] = useState<Record<string, Entry>>({});
   const [type, setType] = useState<(typeof SOURCE_TYPES)[number][0]>("PUBLICATION");
@@ -86,17 +85,16 @@ export function MissingValues({ projectId, items, onOpen, heading }: {
       const { problem } = await mutation.run(() => send("post", EVIDENCE, { project_id: projectId }, {
         req_id: row.req_id as string, target: targetOf(r), value: number ? Number(e.value) : e.value.trim(), unit: e.unit.trim() || null,
         source_type: type, title, quote: e.quote, ...(link.startsWith("10.") ? { doi: link.trim() } : link.trim() ? { url: link.trim() } : {}),
-      }), { refresh: false });
+      }), {});
       if (problem) refused[row.id] = problem;
       else { sent.push(row.id); named.push(paramLabel(targetOf(r))); }
     }
     setProblems(refused);
     if (!sent.length) return;
     setEntries((was) => Object.fromEntries(Object.entries(was).filter(([id]) => !sent.includes(id))));
-    // the compound's rows, the to-do and the model checks follow: the inputs and the evidence are read again, and the
-    // step bar (drawn on the server) with them
-    await client.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && (q.queryKey[0] === INPUTS || q.queryKey[0].startsWith(EVIDENCE)) });
-    router.refresh();
+    // the compound's rows, the to-do and the model checks follow: what a model input changes is read again once, after
+    // the last (the step bar follows the readiness: the workspace draws it again when the readiness changes)
+    await readAgain(client, MODEL.reads!);
     const text = `${named.join(", ")}: ${plural(sent.length, "value")} added with ${title.trim() ? `“${title.trim()}”` : "the source"}.`
       + `${Object.keys(refused).length ? ` ${plural(Object.keys(refused).length, "value")} not added: see its row.` : ""}`;
     setSaid(text);

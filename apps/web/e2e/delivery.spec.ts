@@ -4,14 +4,15 @@
 // waits, the study's card on Clinical studies (plan 2026-11-14 slice 3) with the delivery's clean-up said once as its
 // gate line (the loose note settled with its file, in Client files), its facts filled in one typed form, its other
 // blockers each settled with its decision and reason, the spot check ticked and sent once, the decisions listed before
-// the signed confirmation, and the study in the project once. Software test data: it proves the review path, never a
-// model.
+// the signed confirmation, and the study in the project once. A decision on the card costs the decision and the one
+// page it changed, and an area shown again reads nothing the page holds (plan 2026-11-14 §2.1; final review OWN-7,
+// CODE-4). Software test data: it proves the review path, never a model.
 import { execFileSync } from "node:child_process";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
-import { expect, type Locator, type Page, test } from "@playwright/test";
+import { expect, type Locator, type Page, type Request, test } from "@playwright/test";
 
 import { AUTH, finishStart } from "./fixtures/inputs";
 
@@ -23,6 +24,27 @@ type Card = { tables: { id: string; kind: string; values: Value[]; mapping_id: s
 
 async function shot(page: Page, name: string) {
   await page.screenshot({ path: test.info().outputPath(`${name}.png`), fullPage: true });
+}
+
+/** The requests the page sends while `act` runs and the page settles: to the API (but the escalations bell's, which
+ *  polls by itself every few seconds) and for its server-rendered parts. Next's prefetch of a page a link leads to is
+ *  said apart ("prefetch …"): it reads no data of this page. */
+async function requests(page: Page, act: () => Promise<void>, settle = 1500): Promise<string[]> {
+  const seen: string[] = [];
+  const hear = (r: Request) => {
+    const url = r.url();
+    if (url.includes("_rsc=")) {
+      const path = new URL(url).pathname.replace(/^\/projects\/[^/]+/, "");
+      seen.push(r.headers()["next-router-prefetch"] ? `prefetch ${path || "/"}` : `${r.method()} server render ${path || "/"}`);
+    } else if (url.includes("/api/v1/") && !/\/api\/v1\/escalations(\?|$)/.test(url)) {
+      seen.push(`${r.method()} ${url.replace(/^.*\/api\/v1\/(projects\/[^/?]+\/)?/, "")}`);
+    }
+  };
+  page.on("request", hear);
+  await act();
+  await page.waitForTimeout(settle);
+  page.off("request", hear);
+  return seen;
 }
 
 test("a delivery is reviewed by exception, spot-checked, signed and loaded once", async ({ page, request }) => {
@@ -172,8 +194,13 @@ test("a delivery is reviewed by exception, spot-checked, signed and loaded once"
   const facts = card.getByTestId(`delivery-facts-form-${study.subject}`);
   await card.getByTestId("delivery-enter-gap-route-value").selectOption("oral");
   await facts.getByTestId(`delivery-facts-form-${study.subject}-why`).fill("from the protocol");
-  await facts.getByTestId(`delivery-facts-form-${study.subject}-submit`).click();
-  await expect(card.getByTestId("delivery-gap-route")).toHaveCount(0);
+  const saved = await requests(page, async () => {
+    await facts.getByTestId(`delivery-facts-form-${study.subject}-submit`).click();
+    await expect(card.getByTestId("delivery-gap-route")).toHaveCount(0);
+  });
+  // a decision on the card costs the decision and the delivery page read again (final review OWN-7, CODE-4: 17 requests
+  // before round 3); the card is the decision's answer, written into the page
+  expect(saved, saved.join("\n")).toEqual([`POST delivery/subjects/study/${study.subject}:enter`, "GET delivery"]);
   await expect(card.getByTestId("delivery-blocker-SCHEMA_GAP")).toHaveCount(0);
   for (const [label, entered] of [["Number of subjects", "24"], ["Purpose of the study", "model_building"], ["Dosage form", "ir_tablet"]]) {
     const control = facts.locator(".facts-row", { hasText: label }).locator('[data-testid$="-value"]');
@@ -188,14 +215,34 @@ test("a delivery is reviewed by exception, spot-checked, signed and loaded once"
   // the required item no file gives: asked of the client
   await card.getByTestId("delivery-dispose-REQ-sys.demographics-choice").selectOption("ask_client");
   await card.getByTestId("delivery-dispose-REQ-sys.demographics-why").fill("asked in the data request");
-  await card.getByTestId("delivery-dispose-REQ-sys.demographics-submit").click();
-  await expect(card.getByTestId("delivery-requirement-REQ-sys.demographics")).toContainText("asked of the client");
+  const disposed = await requests(page, async () => {
+    await card.getByTestId("delivery-dispose-REQ-sys.demographics-submit").click();
+    await expect(card.getByTestId("delivery-requirement-REQ-sys.demographics")).toContainText("asked of the client");
+  });
+  expect(disposed, disposed.join("\n")).toEqual([`POST delivery/subjects/study/${study.subject}:dispose`, "GET delivery"]);   // 31 before
   // the failed check that stands as written: accepted as is, with why
   const above = card.locator('[data-code="ABOVE_RANGE"]');
   await above.locator('[data-testid^="delivery-override-open-"]').click();
   await above.locator('[data-testid$="-why"]').fill("read against the source: written as >1000");
-  await above.locator('[data-testid$="-submit"]').click();
-  await expect(card.getByTestId("delivery-blocker-CHECK_FAILED")).toHaveCount(0);
+  // the page's own reads of the cards (once it is idle) are done before the decision is counted
+  await expect(page.getByTestId("status-checking")).toHaveCount(0);
+  await page.waitForLoadState("networkidle");
+  const accepted = await requests(page, async () => {
+    await above.locator('[data-testid$="-submit"]').click();
+    await expect(card.getByTestId("delivery-blocker-CHECK_FAILED")).toHaveCount(0);
+  });
+  expect(accepted, accepted.join("\n")).toEqual([`POST delivery/subjects/study/${study.subject}:override`, "GET delivery"]);   // 18 before
+  // an area whose reads the page holds is shown with no request (4 and 9 before round 3): Client files, then the card again
+  const toFiles = await requests(page, async () => {
+    await page.getByTestId("tab-files").click();
+    await expect(section).toBeVisible();
+  });
+  expect(toFiles, toFiles.join("\n")).toEqual([]);
+  const toStudies = await requests(page, async () => {
+    await page.getByTestId("tab-studies").click();
+    await expect(card).toBeVisible();
+  });
+  expect(toStudies, toStudies.join("\n")).toEqual([]);
   // only the spot check is left
   await expect(card.getByTestId("delivery-blocker-SPOT_CHECK")).toBeVisible();
   await expect(card.locator('[data-testid^="delivery-blocker-"]')).toHaveCount(1);
@@ -220,8 +267,13 @@ test("a delivery is reviewed by exception, spot-checked, signed and loaded once"
   await expect(card.getByTestId(`spot-progress-${study.subject}`)).toContainText(`${wanted} of ${wanted} ticked`);
   expect(tickRequests).toBe(0);                                             // nothing is sent while ticking
   await shot(page, "6-spot-check");
-  await submit.click();
-  await expect(card.getByTestId(`spot-state-${study.subject}`)).toHaveText("complete");
+  // the ticks are recorded, and the card, which says how far the spot check is, is read again: nothing else
+  const recorded = await requests(page, async () => {
+    await submit.click();
+    await expect(card.getByTestId(`spot-state-${study.subject}`)).toHaveText("complete");
+  });
+  expect(recorded, recorded.join("\n")).toEqual([`POST delivery/subjects/study/${study.subject}/spot-check`,
+                                                  `GET delivery/subjects/study/${study.subject}`]);
   expect(tickRequests).toBe(1);                                             // every tick, once
   await expect(card.getByTestId(`delivery-ready-${study.subject}`)).toBeVisible();
   // before the signature, the decisions made on the study, each with who made it and why

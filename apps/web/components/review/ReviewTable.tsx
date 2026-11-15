@@ -12,6 +12,7 @@ import { EmptyState, InlineIssue } from "@/components/kit";
 import { SortHeader, TableMore } from "@/components/kit/SortableTable";
 import { PeekButton } from "@/components/kit/SourcePeek";
 import type { useMutation } from "@/lib/hooks";
+import { PLAN_CHANGED } from "@/lib/plan";
 import {
   CONFIDENCE_CHIP, FILTERS, matches, reviewApi, STATE_LABEL, type Filter, type ReviewPage, type ReviewRow,
 } from "@/lib/review";
@@ -81,7 +82,7 @@ export function ReviewTable({ projectId, review, run, busy }: { projectId: strin
   const count: Record<Filter, number> = review.counts;
 
   async function exclude(row: ReviewRow, reason: string): Promise<string | null> {
-    return (await run(() => reviewApi.exclude(projectId, row.evidence_id as string, reason))).problem;
+    return (await run(() => reviewApi.exclude(projectId, row.evidence_id as string, reason), PLAN_CHANGED)).problem;
   }
 
   return (

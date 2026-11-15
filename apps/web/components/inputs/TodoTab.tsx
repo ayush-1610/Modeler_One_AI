@@ -184,7 +184,7 @@ export function TodoTab({ projectId, work, run, status, only, onStatus, onOnly, 
       setMarked((was) => [...was, ...entries.map((e, i) => ({ ...e, id: `${e.file.file_id}-${was.length + i}` }))]);
       setSaid(text);
     },
-    unmark: (id) => setMarked((was) => was.filter((m) => m.id !== id)),
+    unmark: (id, text) => { setMarked((was) => was.filter((m) => m.id !== id)); setSaid(text); },
   }), [marked, said]);
   const visible = work.items.filter((i) => (!status || i.status === status) && (!only || i.open));
   const groups = GROUPS.filter((g) => g !== "tidy" && g !== "done")

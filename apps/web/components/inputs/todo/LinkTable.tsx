@@ -212,7 +212,7 @@ export function LinkTable({ projectId, items, subjects, heading, shared }: {
     for (const g of groups.values()) {
       const target = made(g.target, page!, current);
       const { data, problem } = await decide(() => send("post", ASSIGN, { project_id: projectId },
-        assignBody(target, g.sends.flatMap((s) => s.row.values.map((v) => v.id)), why)), { refresh: false });
+        assignBody(target, g.sends.flatMap((s) => s.row.values.map((v) => v.id)), why)), {});
       if (data) {
         writePage(client, projectId, data);
         current = data;

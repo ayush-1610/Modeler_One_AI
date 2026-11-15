@@ -13,7 +13,7 @@ import { ValidationPlan } from "@/components/review/ValidationPlan";
 import { Card } from "@/components/ui";
 import type { Envelope, Schema } from "@/lib/api";
 import { useMutation, useResource } from "@/lib/hooks";
-import { ROLE_LABEL, planApi, type DiffRow, type PlanView, type Role, type Violation } from "@/lib/plan";
+import { PLAN_CHANGED, ROLE_LABEL, planApi, type DiffRow, type PlanView, type Role, type Violation } from "@/lib/plan";
 import { startCampaign } from "@/lib/writes";
 import { celebrate, toast } from "@/components/kit/Motion";
 import { StepBlocked } from "@/components/kit/StepBlocked";
@@ -144,7 +144,7 @@ function BlindingPanel({ projectId }: { projectId: string }) {
         <div className="row gap-4">
           <input placeholder="reason (MIDD lead)" value={reason} onChange={(e) => setReason(e.target.value)} className="flex-1 minw-100" />
           <button className="btn tiny" disabled={!reason.trim()} data-testid="blinding-toggle" onClick={async () => {
-            const { problem } = await run(() => planApi.setBlinding(projectId, !state.on, reason));
+            const { problem } = await run(() => planApi.setBlinding(projectId, !state.on, reason), PLAN_CHANGED);
             if (!problem) setReason("");
             setError(problem);
           }}>{state.on ? "Turn off" : "Turn on"}</button>
@@ -185,7 +185,7 @@ export function PlanCanvas({ projectId, steps }: { projectId: string; steps?: Re
 
   // a change to the plan, then the plan and the phase rail read again; answers the API's reason when it refused
   const apply = async <T,>(call: () => Promise<Envelope<T>>, ok?: string) => {
-    const { problem } = await mutation.run(call);
+    const { problem } = await mutation.run(call, PLAN_CHANGED);
     if (!problem && ok) setMessage(ok);
     return problem;
   };
@@ -239,7 +239,7 @@ export function PlanCanvas({ projectId, steps }: { projectId: string; steps?: Re
                     const done = pendingDeviations.length
                       ? `Deviations signed: MAP v${(view.map?.map_version ?? 1) + 1} supersedes v${view.map?.map_version ?? 1}.`
                       : "MAP generated from the plan and signed.";
-                    const { data, problem } = await mutation.run(() => planApi.sign(projectId, note));
+                    const { data, problem } = await mutation.run(() => planApi.sign(projectId, note), PLAN_CHANGED);
                     if (data) { setSignature(data.signature); celebrate(); toast(done); }
                     setMessage(problem ?? done);
                   }}>

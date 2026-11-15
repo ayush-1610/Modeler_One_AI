@@ -41,12 +41,14 @@ async function shot(page: Page, name: string) {
   await page.screenshot({ path: test.info().outputPath(`${name}.png`), fullPage: true });
 }
 /** The requests the page sends about the project (its API and its server-rendered parts) while `act` runs and the page
- *  settles; the app's own reads that are not the project's (the escalations bell) are not the decision's. */
+ *  settles; the app's own reads that are not the project's (the escalations bell) are not the decision's. Next's
+ *  prefetch of a page a link leads to is said apart ("prefetch …"): it reads nothing of this page. */
 async function requests(page: Page, act: () => Promise<void>, settle = 2500): Promise<string[]> {
   const seen: string[] = [];
-  const hear = (r: { method(): string; url(): string }) => {
+  const hear = (r: { method(): string; url(): string; headers(): Record<string, string> }) => {
     if (r.url().includes(`/api/v1/projects/${projectId}/`) || r.url().includes("_rsc=")) {
-      seen.push(`${r.method()} ${r.url().replace(/^.*\/projects\/[^/]+\//, "")}`);
+      const prefetch = r.url().includes("_rsc=") && r.headers()["next-router-prefetch"] ? "prefetch " : "";
+      seen.push(`${prefetch}${r.method()} ${r.url().replace(/^.*\/projects\/[^/]+\//, "")}`);
     }
   };
   page.on("request", hear);
@@ -299,9 +301,20 @@ test("the compound values no source gives: entered together with one citation", 
   await mv.getByTestId("mv-link").fill("10.1000/exampleamide");
   const posted: string[] = [];
   page.on("request", (r) => { if (r.method() === "POST" && /\/evidence$/.test(r.url())) posted.push(String(r.postDataJSON()?.target)); });
-  await mv.getByTestId("mv-submit").click();
   const live = page.getByTestId("todo-live");
-  await expect(live).toContainText("3 values added with “Exampleamide physico-chemistry”.");
+  // the three values, then what a model input changes, read once (the inputs; the evidence and the offers are not shown
+  // on To do), and the step bar drawn again because the readiness it says changed (final review OWN-7, CODE-4); the
+  // page's own reads of the cards (once it is idle) are done before the decision is counted
+  await expect(page.getByTestId("status-checking")).toHaveCount(0);
+  await page.waitForLoadState("networkidle");
+  const sent = await requests(page, async () => {
+    await mv.getByTestId("mv-submit").click();
+    await expect(live).toContainText("3 values added with “Exampleamide physico-chemistry”.");
+  });
+  const reads = sent.filter((r) => !r.startsWith("POST") && !r.startsWith("prefetch"));
+  expect(sent.filter((r) => r.startsWith("POST")), sent.join("\n")).toEqual(["POST evidence", "POST evidence", "POST evidence"]);
+  expect(reads.filter((r) => !/_rsc=/.test(r)), sent.join("\n")).toEqual(["GET inputs"]);
+  expect(reads.length, sent.join("\n")).toBeLessThanOrEqual(2);
   for (const name of ["Molecular weight", "Lipophilicity", "Hepatic plasma clearance (total)"]) await expect(live).toContainText(name);
   await expect(mv.getByTestId("mv-row-phys.mw")).toHaveCount(0);
   await expect(mv.getByTestId("mv-row-elim")).toHaveCount(0);
