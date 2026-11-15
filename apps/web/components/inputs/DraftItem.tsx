@@ -2,7 +2,9 @@
 
 // A sheet read by code on arrival and not saved yet (plan 2026-11-05 §3.1, build C2), on its study's or product's
 // card: its data drawn, what code read and left out, and only what the sheet does not say, asked here. A document's
-// value for the same study is offered with its quote. Once nothing is left, its data join the card, to confirm.
+// value for the same study is offered with its quote, and what the study's delivery card states already (entered on it
+// or read from its files) is pre-filled, so a fact entered once is not asked again (final review OWN-14). Once nothing
+// is left, its data join the card, to confirm.
 
 import { useState } from "react";
 
@@ -36,11 +38,18 @@ const CHOICES: Record<string, [string, string][]> = {
 const NUMBERS = new Set(["n", "dose", "infusion_time_min"]);
 const ON_THE_SHEET = new Set(["value_columns", "time_column"]);     // a reading's own settings: corrected on the sheet
 
-export function DraftItem({ projectId, item, run }: { projectId: string; item: Item; run: Run }) {
+export function DraftItem({ projectId, item, run, known = {} }: {
+  projectId: string; item: Item; run: Run;
+  /** what the study's delivery card states already, by need (`ConfirmPath.knownFacts`) */
+  known?: Record<string, { value: string; from: string }>;
+}) {
   const draft = item.draft as unknown as Draft;
-  // what the project holds is pre-filled; the person changes only what is wrong, then reads the sheet (build L)
-  const [values, setValues] = useState<Record<string, string>>(draft.prefill ?? {});
   const asked = draft.needs.filter((n) => !ON_THE_SHEET.has(n));
+  // what the project holds is pre-filled, the study's own card first; the person changes only what is wrong, then
+  // reads the sheet (build L)
+  const [values, setValues] = useState<Record<string, string>>(() => ({
+    ...(draft.prefill ?? {}), ...Object.fromEntries(asked.filter((n) => known[n]).map((n) => [n, known[n].value])),
+  }));
   const onSheet = draft.needs.filter((n) => ON_THE_SHEET.has(n));
   const ready = asked.length > 0 && onSheet.length === 0 && asked.every((n) => (values[n] ?? "").trim() !== "");
   const set = (key: string, value: string) => setValues({ ...values, [key]: value });
@@ -71,7 +80,17 @@ export function DraftItem({ projectId, item, run }: { projectId: string; item: I
                 <input id={id(n)} value={values[n] ?? ""} onChange={(e) => set(n, e.target.value)} data-testid={`need-${n}`}
                        inputMode={NUMBERS.has(n) ? "decimal" : undefined} type={NUMBERS.has(n) ? "number" : "text"} min={0} step="any" />
               )}
-              {(draft.offers[n] ?? []).map((o) => (
+              {known[n] && (values[n] === known[n].value ? (
+                <span className="draft-offer" data-testid={`known-${n}`}>
+                  <span className="chip medium">pre-filled</span> <span className="muted">{known[n].from}</span>
+                </span>
+              ) : (
+                <span className="draft-offer">
+                  <button type="button" className="btn small" onClick={() => set(n, known[n].value)} data-testid={`known-use-${n}`}>
+                    Use {known[n].value} ({known[n].from})</button>
+                </span>
+              ))}
+              {(draft.offers[n] ?? []).filter((o) => !(known[n] && values[n] === o.value && values[n] === known[n].value)).map((o) => (
                 values[n] === o.value ? (
                   <span key={o.label} className="draft-offer" data-testid={`prefilled-${n}`}>
                     <span className="chip medium">{draft.prefill?.[n] === o.value ? "pre-filled" : "chosen"}</span>

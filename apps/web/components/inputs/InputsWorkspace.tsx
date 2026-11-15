@@ -467,7 +467,8 @@ export function InputsWorkspace({ projectId, initialTab, initialOnly, initialSta
             checking {count(model.checking, "card")}…</span>}
           <span className="muted status-note" data-testid="status-in-model"
                 title="What the model holds now: the client's data only once confirmed">
-            In the model: {count(inModel.studies, "study", "studies")} · {plural(inModel.formulations, "formulation")} · {plural(inModel.values, "compound value")}
+            In the model: {count(inModel.studies, "study", "studies")}{inModel.datasets !== inModel.studies ? ` (${plural(inModel.datasets, "dataset")})` : ""}
+            {" "}· {plural(inModel.formulations, "formulation")} · {plural(inModel.values, "compound value")}
           </span>
           <span className="sr-only" aria-live="polite">{`${counts.missing} missing, ${counts.to_confirm} to confirm, ${counts.to_decide} to decide`}</span>
         </div>

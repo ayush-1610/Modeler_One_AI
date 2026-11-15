@@ -188,9 +188,14 @@ export function locatorText(locator: string): string {
  *  polymorph): kept in the ledger; only dissolution lands" → "Kept, not used by the model: dosage form, polymorph (only
  *  the dissolution is loaded)"). `own`: the card's own name, not said again at the start of a line. */
 export function heldText(line: string, own?: string): string {
-  const fields = (list: string) => list.split(",").map((f) => fieldLabel(f.trim()).toLowerCase()).join(", ");
+  const fields = (list: string) => list.split(",").map((f) => fieldInText(f.trim())).join(", ");
   let text = own && line.startsWith(`${own}: `) ? line.slice(own.length + 2) : line;
   text = text
+    .replace(/^demographics the individual does not carry \(([^)]+)\): kept in the ledger; .*$/,
+             (_m, l: string) => `Kept, not used by the model: ${fields(l)} (the study's individual is one sex and one PK-Sim population, chosen by a person)`)
+    .replace(/^demographics not yet the study's individual \(([^)]+)\): kept in the ledger; the individual (?:needs ([\w, ]+?)|cannot be set)(?: \((.*)\))?$/,
+             (_m, l: string, needs: string | undefined, why: string | undefined) =>
+               `Kept, not used by the model yet: ${fields(l)} (${individualNeeds(needs ? needs.split(",").map((f) => f.trim()) : [], why ?? "")})`)
     .replace(/^product attributes \(([^)]+)\): kept in the ledger; only dissolution lands$/, (_m, l: string) => `Kept, not used by the model: ${fields(l)} (only the dissolution is loaded)`)
     .replace(/^study facts with no place in the study record \(([^)]+)\): kept in the ledger$/, (_m, l: string) => `Kept, not used by the model: ${fields(l)} (the study record has no place for them)`)
     .replace(/\b(excretion|relations) \(([^)]+)\): kept in the ledger; the model inputs have no place for (?:it|them) yet/,
@@ -199,6 +204,57 @@ export function heldText(line: string, own?: string): string {
     .replace(/kept in the ledger/g, "kept with the delivery").replace(/\bnot landed\b/g, "not loaded").replace(/\(lands PROPOSED\)/g, "(loaded as proposed)")
     .replace(/the client-review card/g, "the sheet form's card");
   return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+/** Why a spot check's values are drawn, from the draw's own reasons (`DeliverySpotValue.reason`; the intake rules
+ *  decide how many: SME-governed): "117 values drawn: 4 key facts of the study, 13 computed from other values are always
+ *  checked; 100 are a random sample". */
+export function drawText(reasons: (string | null)[]): string {
+  const n = (test: (r: string) => boolean) => reasons.filter((r): r is string => r !== null && test(r)).length;
+  const named: Record<string, string> = {
+    "always:field": "key fact[s] of the study", "always:derived": "computed from other values", "always:digitized": "read from a figure",
+    "always:cross_file": "read from another file than the study's own", "always:link": "linking two files",
+    "always:override": "with a check accepted as is", "always:failed": "that did not match before",
+  };
+  const said = (k: number, what: string) => what.replace("[s]", k === 1 ? "" : "s");
+  const always: [number, string][] = [
+    ...Object.entries(named).map(([reason, what]) => { const k = n((r) => r === reason); return [k, said(k, what)] as [number, string]; }),
+    [n((r) => r.startsWith("always:") && !named[r]), "named by the intake rules"],
+  ];
+  const listed = always.filter(([k]) => k > 0);
+  const sampled = n((r) => !r.startsWith("always:"));
+  const head = `${plural(reasons.length, "value")} drawn`;
+  if (!listed.length) return `${head}: a random sample`;
+  const one = listed.length === 1 && listed[0][0] === 1;
+  return `${head}: ${listed.map(([k, what]) => `${k} ${what}`).join(", ")} ${one ? "is" : "are"} always checked`
+    + (sampled ? `; ${sampled} ${sampled === 1 ? "is" : "are"} a random sample` : "");
+}
+
+/** What a study's simulated individual still needs (D-29; `DeliveryIndividual.needs` and `why`, the landing's held
+ *  line), in words: "the study's individual needs the PK-Sim population and the sex: choose them with the demographics".
+ *  The values are named by their field, never by their ids. */
+const NEED_WORD: Record<string, string> = { individual_population: "the PK-Sim population", individual_sex: "the sex simulated",
+                                            age_mean: "the mean age" };
+export function individualNeeds(needs: string[], why: string): string {
+  const named = needs.map((f) => NEED_WORD[f] ?? fieldInText(f));
+  const list = named.length > 1 ? `${named.slice(0, -1).join(", ")} and ${named[named.length - 1]}` : named[0] ?? "";
+  const reasons = why.split("; ").filter(Boolean).map((r) => r
+    .replace(/^(\w+) \([^)]*\) is written in '([^']*)', not (\w+)$/, (_m, f: string, unit: string, wanted: string) =>
+      `${fieldInText(f)} is written in “${unit}”, not ${wanted}`)
+    .replace(/^(\w+) \([^)]*\) is not (a number|one of PK-Sim's)$/, (_m, f: string, what: string) => `${fieldInText(f)} is not ${what}`)
+    .replace(/^two values of (\w+) are active: choose one$/, (_m, f: string) => `two values of ${fieldInText(f)}: keep one`)
+    .replace(/^the individual is refused: .*$/, "a number is out of range"));
+  const parts = [list ? `the study's individual needs ${list}` : "", ...reasons].filter(Boolean);
+  return `${parts.join("; ")}: give them with the demographics`;
+}
+
+/** A study's simulated individual in a line: "European ICRP 2002 · female · 32 y (21 to 45) · 74 kg". */
+export function individualText(d: Record<string, unknown>): string {
+  const age = d.age_years !== undefined ? `${String(d.age_years)} y${d.age_min !== undefined && d.age_max !== undefined
+    ? ` (${String(d.age_min)} to ${String(d.age_max)})` : ""}` : "";
+  return [d.population ? valueWord(String(d.population)) : "", d.sex ? valueWord(String(d.sex)).toLowerCase() : "", age,
+          d.weight_kg !== undefined ? `${String(d.weight_kg)} kg` : "", d.height_cm !== undefined ? `${String(d.height_cm)} cm` : ""]
+    .filter(Boolean).join(" · ");
 }
 
 /** A fact a study record needs (the intake's field, as a gap's `tag` or a check's "needs <field>" names it), in words:
@@ -253,11 +309,18 @@ const FIELD_LABEL: Record<string, string> = {
   dosing_interval_h: "Dosing interval (h)", n_doses: "Number of doses", population: "Population",
   age_mean: "Mean age (years)", age_min: "Youngest (years)", age_max: "Oldest (years)", weight_mean_kg: "Mean weight (kg)",
   height_mean_cm: "Mean height (cm)", percent_female: "Women (%)", n_female: "Number of women", ethnicity: "Ethnicity",
+  individual_population: "PK-Sim population", individual_sex: "Sex simulated",
   product_role: "Role", strength_mg: "Strength (mg)", dosage_form: "Dosage form", release: "Release", batch: "Batch",
   particle_size_d50_um: "Particle size d50 (µm)", polymorph: "Polymorph", salt_form: "Salt form",
   apparatus: "Apparatus", medium: "Medium", ph: "pH", rpm: "Stirring (rpm)", volume_ml: "Volume (mL)",
 };
 export const fieldLabel = (field: string) => FIELD_LABEL[field] ?? `${spaced(field).charAt(0).toUpperCase()}${spaced(field).slice(1)}`;
+/** A fact's label inside a sentence: its first letter in lower case, a name in capitals kept ("PK-Sim population",
+ *  "LLOQ"). */
+export const fieldInText = (field: string) => {
+  const label = fieldLabel(field);
+  return /^[A-Z]{2}/.test(label) ? label : label.charAt(0).toLowerCase() + label.slice(1);
+};
 
 /** A vocabulary entry in words (the study record's enums, the intake vocabulary's choices and the brief's purposes, as
  *  the API sends them in `study_options` or a field's `choices`); an entry with no word is shown as sent. */
@@ -268,7 +331,7 @@ const VALUE_WORD: Record<string, string> = {
   model_building: "Model building", internal_validation: "Internal validation", external_validation: "External validation",
   application_verification: "Application verification", supportive: "Supportive",
   plasma: "Plasma", blood: "Blood", serum: "Serum", urine: "Urine", feces: "Feces",
-  healthy: "Healthy", patient: "Patients", TEST: "Test", RLD: "RLD", REFERENCE: "Reference", SOLUTION: "Solution", OTHER: "Other",
+  healthy: "Healthy", patient: "Patients", MALE: "Male", FEMALE: "Female", TEST: "Test", RLD: "RLD", REFERENCE: "Reference", SOLUTION: "Solution", OTHER: "Other",
   arithmetic_mean: "arithmetic mean", geometric_mean: "geometric mean", median: "median",
 };
 export const valueWord = (value: string) => VALUE_WORD[value] ?? spaced(value);

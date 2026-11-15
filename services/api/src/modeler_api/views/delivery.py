@@ -282,6 +282,7 @@ class DeliveryConfirmationState(View):
     manifestation: str
     record_sha256: str
     landed: bool
+    landed_datasets: list[str]                # the datasets its landing loaded (one count on the page: the card, the status line)
     current: bool                             # the record still describes the subject: its values, and no restore since
                                               # undid a "not data" decision it binds (`confirmation_current`)
 
@@ -446,11 +447,24 @@ class DeliveryTable(View):
     values: list[DeliveryValue]
 
 
+class DeliveryIndividual(View):
+    """A study's simulated individual (D-29) as the landing would set it from the study's active values: one source
+    for the card, Populations and individuals, and what loads (`intake_landing.study_individual`)."""
+
+    demographics: dict[str, Any] | None       # the study record's `demographics`; null until a person chose it
+    needs: list[str]                          # the fields a person still gives (individual_population, individual_sex, age_mean)
+    why: str                                  # why a stated value cannot make it ("" when none)
+    stated: list[str]                         # the demographic fields with an active value
+    kept: list[str]                           # of them, those the individual does not carry (the share of women, ...)
+
+
 class DeliverySpotState(View):
     state: Literal["none", "drawn", "failed", "complete", "stale"]
     draw_id: str | None
     drawn: int                                # values in the draw
     wanted: int                               # values that still need a tick
+    recorded_by: str | None                   # who recorded the draw's ticks, and when (null: not recorded)
+    recorded_at: str | None
 
 
 class DeliveryLanded(View):
@@ -541,6 +555,7 @@ class DeliverySubject(View):
     tables: list[DeliveryTable]
     held: list[str] | None                    # what the landing would hold back; null for a blinded subject
     landing_problem: str | None               # why the landing cannot be planned (a study record field no value gives)
+    individual: DeliveryIndividual | None     # a study's simulated individual; null for a product, the compound or blinded
     spot_check: DeliverySpotState
     confirmation: DeliveryConfirmation | None
     rules: DeliveryRules

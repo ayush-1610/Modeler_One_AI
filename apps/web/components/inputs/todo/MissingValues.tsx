@@ -96,7 +96,7 @@ export function MissingValues({ projectId, items, onOpen, heading }: {
         source once for all of them.</p>
       <div className="table-scroll mv-scroll">
         <table className="mv-table">
-          <caption className="sr-only">The compound values no source gives yet</caption>
+          <caption className="sr-only">Compound values to type in</caption>
           <thead><tr><th>Value of</th><th>Value</th><th>Unit</th><th>The sentence that states it</th></tr></thead>
           <tbody>
             {rows.map(({ item, row }) => {

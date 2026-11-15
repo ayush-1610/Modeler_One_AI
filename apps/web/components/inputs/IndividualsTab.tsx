@@ -5,18 +5,19 @@
 // (entered from the study's report, or the explicit healthy adult default, listed as a limitation in the MAP; never
 // applied silently); studies that share one individual (the same default, the same published individual, the same
 // entered demographics) sit on one line, each opening its own form. A study of the client's still to confirm on the
-// delivery takes its demographics now, through `:enter`, kept with the study and simulated once it is confirmed; one to
-// confirm with the sheet form is entered once it is confirmed, from its card.
+// delivery takes its demographics now, through `:enter`, with the individual PK-Sim simulates (its population database
+// and sex, a person's choice): said as the card says it (`DeliverySubject.individual`, the landing's own rule), and
+// simulated once it is confirmed; one to confirm with the sheet form is entered once it is confirmed, from its card.
 
 import { useState } from "react";
 
 import { SUBJECT } from "@/components/delivery/DeliveryReview";
-import { DemographicsForm, demographicsText, enteredDemographics } from "@/components/delivery/FactsForm";
+import { DemographicsForm, demographicsText, statedDemographics } from "@/components/delivery/FactsForm";
 import { EmptyState } from "@/components/kit";
 import { send } from "@/lib/api";
 import { useResource } from "@/lib/hooks";
 import { normLabel, type Subject, type WorkItem } from "@/lib/inputsWork";
-import { plural } from "@/lib/words";
+import { fieldInText, individualNeeds, individualText, plural } from "@/lib/words";
 
 import { type Run } from "./InputsTodo";
 import type { Options, StudyRow } from "./StudiesTab";
@@ -152,47 +153,54 @@ export function StudyIndividuals({ studies, projectId, run, options, subjects = 
       {pending.length > 0 && (
         <div className="individuals-pending" data-testid="individuals-pending">
           <h4 className="delivery-sub">The client&apos;s studies to confirm</h4>
-          {pending.map((s) => <Pending key={s.key} s={s} projectId={projectId} vocabulary={vocabulary} onOpen={onOpen} />)}
+          {pending.map((s) => <Pending key={s.key} s={s} projectId={projectId} vocabulary={vocabulary} options={options} onOpen={onOpen} />)}
         </div>
       )}
     </>
   );
 }
 
-/** A client's study not confirmed yet: on the delivery, its demographics are entered now (they load with the study),
- *  and once entered they are shown on its line, to correct; with the sheet form, they are entered once it is confirmed. */
-function Pending({ s, projectId, vocabulary, onOpen }: {
-  s: Subject; projectId: string; vocabulary: string | null; onOpen?: (item: WorkItem | null, subject: Subject) => void;
+/** A client's study not confirmed yet: on the delivery, its demographics are entered now with the individual PK-Sim
+ *  simulates, which loads with the study; until the individual is chosen they are kept, not simulated, as the card and
+ *  the loading say (`DeliverySubject.individual`). With the sheet form, they are entered once it is confirmed. */
+function Pending({ s, projectId, vocabulary, options, onOpen }: {
+  s: Subject; projectId: string; vocabulary: string | null; options: Options; onOpen?: (item: WorkItem | null, subject: Subject) => void;
 }) {
   const [entering, setEntering] = useState(false);
   const delivery = s.path === "delivery" && s.row && !s.blinded ? s.row : null;
-  // the study's card, under the key its card uses: what a person entered on it already
+  // the study's card, under the key its card uses: what is stated on it already, and the individual it makes
   const card = useResource(SUBJECT, { project_id: projectId, type: delivery?.subject_type ?? "study", subject: delivery?.subject ?? "" },
                            { enabled: Boolean(delivery) });
-  const entered = enteredDemographics((card.data?.tables ?? []).flatMap((t) => t.values));
-  const said = demographicsText(entered);
+  const stated = statedDemographics((card.data?.tables ?? []).flatMap((t) => t.values));
+  const said = demographicsText(stated);
+  const individual = card.data?.individual ?? null;
+  const set = individual?.demographics ?? null;
+  const chip = s.path !== "delivery" ? "to confirm first" : set || !said ? "loads when the study is confirmed" : "kept, not simulated yet";
   return (
     <div className="individual pending" data-testid={`individual-pending-${s.key}`}>
       <div className="spread">
         <strong>{s.label}</strong>
-        <span className="chip neutral">{s.path === "delivery" ? "loads when the study is confirmed" : "to confirm first"}</span>
+        <span className={`chip ${set || !said || s.path !== "delivery" ? "neutral" : "high"}`}>{chip}</span>
       </div>
       {delivery ? (
         entering ? (
           <DemographicsForm key={said} projectId={projectId} params={{ project_id: projectId, type: delivery.subject_type, subject: delivery.subject }}
-                            vocabulary={{ mapping: vocabulary }} onDone={() => setEntering(false)} testId={`individual-enter-${delivery.subject}`}
-                            entered={entered} />
+                            vocabulary={{ mapping: vocabulary }} options={options} onDone={() => setEntering(false)}
+                            testId={`individual-enter-${delivery.subject}`} stated={stated} />
         ) : said ? (
           <p className="m-4-0-0 fs-13" data-testid={`individual-entered-${delivery.subject}`}>
-            <span className="chip low">entered</span> {said}{" "}
+            {set ? <><span className="muted">The individual:</span> {individualText(set)}
+              {individual && individual.kept.length > 0 && <span className="muted"> · {individual.kept.map(fieldInText).join(", ")} kept, not simulated</span>}</>
+              : <>{said}{individual ? <span className="muted"> · {individualNeeds(individual.needs, individual.why)}</span> : null}</>}{" "}
             <button type="button" className="link-btn" onClick={() => setEntering(true)} data-testid={`individual-enter-open-${delivery.subject}`}
-                    aria-label={`Correct the demographics of ${s.label}`}>Correct…</button>
+                    aria-label={`${set ? "Correct" : "Choose"} the individual of ${s.label}`}>{set ? "Correct…" : "Choose the individual…"}</button>
           </p>
         ) : (
           <p className="m-4-0-0 fs-13">
             <button type="button" className="btn small" onClick={() => setEntering(true)} data-testid={`individual-enter-open-${delivery.subject}`}
                     disabled={!card.data && !card.problem}>Enter them…</button>
-            <span className="muted"> the population, age, weight and share of women, from the study&apos;s report; or ask the client from its card.</span>
+            <span className="muted"> the population, age, weight and share of women, from the study&apos;s report, with the PK-Sim population and the
+              sex to simulate; or ask the client from its card.</span>
           </p>
         )
       ) : (

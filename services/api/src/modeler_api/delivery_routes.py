@@ -58,7 +58,7 @@ from modeler_api.views.delivery import (
     SubjectKind,
 )
 from modeler_intake.anchors import AnchorError, check_id, parse_anchor, parse_locator, sha256_of
-from modeler_intake.fields import CONDITION_FIELDS, FIELDS, LABEL_FIELDS, SpreadKind, Statistic, TableKind
+from modeler_intake.fields import CONDITION_FIELDS, FIELDS, LABEL_FIELDS, SpreadKind, Statistic, TableKind, read_choice
 from modeler_intake.mapping.fingerprint import header_band, layout_fingerprint
 from modeler_intake.mapping.redact import redact
 from modeler_intake.mapping.validate import validate_spec
@@ -74,7 +74,7 @@ from modeler_project.client_data import ClientDataError
 from modeler_project.coverage import _counts as outside_item_counts
 from modeler_project.coverage import _Places as places_of
 from modeler_project.coverage import outside_restore, person_acceptance, region_restore
-from modeler_project.datasets import DatasetError
+from modeler_project.datasets import HUMAN_POPULATIONS, DatasetError
 from modeler_project.documents import DocumentLibrary
 from modeler_project.evidence import EvidenceState
 from modeler_project.inputs import current_cpf, refresh_inputs
@@ -398,7 +398,8 @@ def _words(annotation: Any) -> list[str]:
 
 # The words a mapping spec (`mapping/2`) is written with, read from `modeler_intake.mapping_spec` and
 # `modeler_intake.fields`, so a form that edits a layout offers these and never makes one up. A CPF id of the parameter
-# registry is a field too (a physico-chemical table): `fields` lists the ledger's own vocabulary only.
+# registry is a field too (a physico-chemical table): `fields` lists the ledger's own vocabulary only, without a person's
+# own choices (`person_only`), which no table is read as.
 _VOCABULARY = {
     "kinds": _words(TableKind), "layouts": _words(Layout), "roles": _words(Role),
     "row_roles": _words(RowRule.model_fields["role"].annotation), "cell_forms": _words(CellForm),
@@ -406,7 +407,7 @@ _VOCABULARY = {
     "time_references": _words(MappingSpec.model_fields["time_reference"].annotation),
     "cite_near": _words(Cite.model_fields["near"].annotation),
     "fields": [{"name": f.name, "value": f.value, "level": f.level, "unit_class": f.unit_class, "choices": list(f.choices)}
-               for f in FIELDS.values()],
+               for f in FIELDS.values() if not f.person_only],
     "conditions": list(CONDITION_FIELDS), "labels": list(LABEL_FIELDS)}
 
 
@@ -922,7 +923,12 @@ def _subject_view(scope: _Scope, subject_type: str, subject: str, *, signature: 
     values = subject_values(reader, subject_type, subject)  # type: ignore[arg-type]
     held: list[str] | None = None
     problem: str | None = None
+    individual: dict[str, Any] | None = None
     if not blinded:           # the plan holds the values: nothing of it is shown for a blinded subject
+        if subject_type == "study":
+            found = intake_landing.study_individual(intake_landing.study_own(values))
+            individual = {"demographics": found.demographics, "needs": list(found.needs), "why": found.why,
+                          "stated": list(found.stated), "kept": list(found.hints)}
         try:
             held = list(intake_landing.plan_landing(ws, DocumentLibrary(ws), subject_type, subject,  # type: ignore[arg-type]
                                                     reader=reader, matrix=scope.matrix, mol_weight=scope.mol_weight).held)
@@ -961,9 +967,11 @@ def _subject_view(scope: _Scope, subject_type: str, subject: str, *, signature: 
                           "disposition": r.disposition}
                          for r in sorted(card.requirements, key=lambda r: _REQUIREMENT.get(r.status, 9))],
         "mappings": _waiting_mappings(scope, only=used), "tables": _tables(scope, values), "held": held,
-        "landing_problem": problem,
+        "landing_problem": problem, "individual": individual,
         "spot_check": {"state": state, "draw_id": draw.id if draw is not None else None,
-                       "drawn": len({*draw.always, *draw.sampled}) if draw is not None else 0, "wanted": len(wanted)},
+                       "drawn": len({*draw.always, *draw.sampled}) if draw is not None else 0, "wanted": len(wanted),
+                       "recorded_by": record.by if record is not None else None,
+                       "recorded_at": record.at if record is not None else None},
         "confirmation": _confirmation(scope, subject_type, subject, blinded), "rules": _rules(),
         "decisions": _decisions(scope, subject_type, subject, values, blinded)}
     if signature is not None:
@@ -1124,6 +1132,20 @@ def _entity_of(scope: _Scope, entity_id: str, kind: str, parent: str | None = No
     return found.id
 
 
+def _individual_choice(subject_type: str, field: str | None, value: Any) -> None:
+    """A study's simulated individual is chosen from PK-Sim's own names (D-29): the population database one of the
+    harvested `HUMAN_POPULATIONS`, the sex as the study record writes it; 422 NOT_ALLOWED otherwise, as a binding
+    partner that is not one of PK-Sim's names is refused."""
+    if field not in ("individual_population", "individual_sex"):
+        return
+    if subject_type != "study":
+        raise _refused(422, "INVALID", "a simulated individual is a study's")
+    known = value in HUMAN_POPULATIONS if field == "individual_population" else read_choice(field, str(value)) is not None
+    if not known:
+        names = ", ".join(HUMAN_POPULATIONS) if field == "individual_population" else ", ".join(FIELDS[field].choices)
+        raise _refused(422, "NOT_ALLOWED", f"{value!r} is not one of PK-Sim's names for it ({names})")
+
+
 def enter_value(project_id: str, subject_type: SubjectType, subject: str, body: DeliveryEntry, principal: Writer,
                 store: StoreDep) -> dict[str, Any]:
     """A person's entry or correction of a value of the subject, with the reason (method "person": no source, the
@@ -1139,6 +1161,7 @@ def enter_value(project_id: str, subject_type: SubjectType, subject: str, body: 
         field = body.field if body.field is not None else old.field if old is not None else None
         if subject_type == "compound" and (field is None or not is_compound_field(field)):
             raise _refused(422, "INVALID", f"{field!r} is not a compound-level field")
+        _individual_choice(subject_type, field, body.value)
         parts: dict[str, Any] = {role: text for role, text in body.labels.items() if text.strip()}
         if body.analyte is not None:
             parts["analyte"] = _entity_of(scope, body.analyte, "analyte")
@@ -1316,6 +1339,16 @@ def _spot_view(scope: _Scope, subject_type: str, subject: str) -> dict[str, Any]
             "id": record.id, "by": record.by, "at": record.at,
             "ticks": [{"value_id": t.value_id, "ok": t.ok, "note": t.note} for t in record.ticks]},
         "values": values, "wanted": wanted}
+
+
+def get_spot_check(project_id: str, subject_type: SubjectType, subject: str, principal: Reader,
+                   store: StoreDep) -> dict[str, Any]:
+    """The subject's latest spot check as it stands: its draw, its record and each value drawn, read only. Showing a
+    recorded spot check again draws nothing (a draw is written only by `:draw`, and once its ticks are recorded a draw
+    asked again is a new one); a blinded study's values are withheld as everywhere."""
+    scope = _scope(project_id, principal, store)
+    with _refusals():
+        return envelope(_spot_view(scope, subject_type, _subject_id(subject_type, subject)))
 
 
 def draw_spot_check(project_id: str, subject_type: SubjectType, subject: str, principal: Writer,
@@ -1772,5 +1805,6 @@ def mount(router: APIRouter) -> None:
     router.post(subject + ":link", **answers(DeliverySubject))(decide_link)
     router.post(subject + ":enter", **answers(DeliverySubject))(enter_value)
     router.post(subject + ":confirm", **answers(DeliverySubject))(confirm_subject)
+    router.get(subject + "/spot-check", **answers(DeliverySpotCheck))(get_spot_check)
     router.post(subject + "/spot-check:draw", **answers(DeliverySpotCheck))(draw_spot_check)
     router.post(subject + "/spot-check", **answers(DeliverySpotCheck))(record_spot_check)

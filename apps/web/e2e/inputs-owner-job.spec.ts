@@ -5,11 +5,13 @@
 // To do's queue, with a reason; the values of three files that name no study are linked: the study's two arms (the same
 // subjects and periods) are first refused one arm of OJ-101 and given an arm each, and a file naming no study goes to a
 // new study; the working note with a number is marked as not data; the study's card, opened from its To do row, gets
-// the facts no file states (in its one facts form, with one reason, then the dosage form the oral route asks for) and its
-// demographics; the spot check is ticked and recorded; the decisions listed on the card each name who made it and why;
-// the card is confirmed and signed (the DEV sign-in carries a fresh step-up); then the card says who signed, when and
-// what loaded, the status line's "In the model" rose, To do fell to what remains, and GET /inputs holds the study's data
-// for what comes after Inputs. At every step the status line, the area badges, To do's filter and its groups (and the
+// the facts no file states (in its one facts form, with one reason and one submission: the dosage form the oral route
+// asks for is offered as soon as the route is chosen) and its demographics with the individual PK-Sim simulates (its
+// population database and sex, the person's choice); the spot check is ticked, recorded and folded to its result; the
+// decisions listed on the card each name who made it and why; the card is confirmed and signed (the DEV sign-in carries a
+// fresh step-up); then the card says who signed, when and what loaded (the dialog's, the card's and the status line's
+// counts agree: one study, three datasets), To do fell to what remains and does not ask for the demographics again, and
+// GET /inputs holds the study's data, its individual included, for what comes after Inputs. At every step the status line, the area badges, To do's filter and its groups (and the
 // Clinical studies head) count the same open work; the sheet form's own reading of a file linked on the delivery joins the
 // card it was linked to (no second card). Software test data on the stub engine: it proves the review path, never a model.
 import { execFileSync } from "node:child_process";
@@ -32,7 +34,7 @@ type Delivery = {
   unassigned: { file: string | null; level: string }[];
   mappings: { mapping_id: string; version: number; kind: string; status: string }[];
 };
-type Study = { study_id: string; purpose: string | null; facts: Record<string, unknown> };
+type Study = { study_id: string; purpose: string | null; facts: Record<string, unknown>; demographics: string };
 
 async function shot(page: Page, name: string) {
   await page.screenshot({ path: test.info().outputPath(`${name}.png`), fullPage: true });
@@ -270,16 +272,16 @@ test("the owner's job: files uploaded, layouts checked, values linked with arms,
   await row("Number of subjects").locator('[data-testid$="-suggest-0"]').click();
   await expect(row("Number of subjects").locator('[data-testid$="-value"]')).toHaveValue("12");
   await row("Purpose of the study").locator('[data-testid$="-value"]').selectOption("model_building");
-  await expect(facts.getByTestId(`delivery-facts-form-${study}-submit`)).toHaveText("Save these 3 facts");
+  // an oral study's record also needs its dosage form: offered in the same form as soon as the route is chosen, so the
+  // facts go in one submission with one reason (owner-job gap 7); the fasted state its file states is not asked
+  await row("Dosage form").locator('[data-testid$="-value"]').selectOption("ir_tablet");
+  await expect(row("Fasted or fed")).toHaveCount(0);
+  await expect(facts.getByTestId(`delivery-facts-form-${study}-submit`)).toHaveText("Save these 4 facts");
   const source = "the protocol of OJ-101, section 9.1";
   await facts.getByTestId(`delivery-facts-form-${study}-why`).fill(source);
   await facts.getByTestId(`delivery-facts-form-${study}-submit`).click();
   await expect(card.getByTestId("delivery-gap-route")).toHaveCount(0);
   await expect(card.getByTestId("delivery-blocker-SCHEMA_GAP")).toHaveCount(0);
-  // an oral study's record also needs its dosage form: asked in the same form once the route is saved
-  await row("Dosage form").locator('[data-testid$="-value"]').selectOption("ir_tablet");
-  await facts.getByTestId(`delivery-facts-form-${study}-why`).fill(source);
-  await facts.getByTestId(`delivery-facts-form-${study}-submit`).click();
   await expect(facts).toHaveCount(0);
   await expect(card.locator('[data-code="LANDING_FIELD_MISSING"]')).toHaveCount(0);
   // the demographics the person has, entered on the card (not asked of the client)
@@ -290,10 +292,23 @@ test("the owner's job: files uploaded, layouts checked, values linked with arms,
   await demo.getByTestId(`delivery-demographics-${study}-age_mean`).fill("31");
   await demo.getByTestId(`delivery-demographics-${study}-weight_mean_kg`).fill("72");
   await demo.getByTestId(`delivery-demographics-${study}-percent_female`).fill("50");
+  // the individual PK-Sim simulates: one population database and one sex, the person's choice (D-29, as on the sheet
+  // form's path); with the mean age they are what loads (final review OWN-6, owner-job gap 1)
+  await expect(demo.getByTestId(`delivery-demographics-${study}-individual-note`)).toContainText("without them the demographics are kept");
+  await demo.getByTestId(`delivery-demographics-${study}-individual_population`).selectOption("European_ICRP_2002");
+  await expect(demo.getByTestId(`delivery-demographics-${study}-individual`)).toContainText("(50 % women)");
+  await demo.getByTestId(`delivery-demographics-${study}-individual_sex`).selectOption("MALE");
+  await expect(demo.getByTestId(`delivery-demographics-${study}-individual-note`)).toContainText("the individual the study is simulated with");
   await demo.getByTestId(`delivery-demographics-${study}-why`).fill("the clinical study report, table 14.1.2");
   await demo.getByTestId(`delivery-demographics-${study}-submit`).click();
   await expect(demo).toHaveCount(0);
   await expect(card.getByTestId("delivery-requirement-REQ-sys.demographics")).toContainText("Done");
+  // one truth: the card says the individual that loads, and only what it does not carry is said as kept
+  await expect(card.getByTestId(`delivery-individual-${study}`)).toContainText("European ICRP 2002 · male · 31 y · 72 kg");
+  await expect(card.getByTestId(`delivery-individual-${study}`)).toContainText("women (%) kept, not simulated");
+  const held = card.getByTestId(`delivery-held-${study}`);
+  await expect(held).not.toContainText("mean age");
+  await expect(held).toContainText("Kept, not used by the model: women (%) (the study's individual is one sex and one PK-Sim population");
   // only the spot check is left
   await expect(card.locator('[data-testid^="delivery-blocker-"]')).toHaveCount(1);
   await expect(card.getByTestId("delivery-blocker-SPOT_CHECK")).toBeVisible();
@@ -310,13 +325,22 @@ test("the owner's job: files uploaded, layouts checked, values linked with arms,
   await card.getByTestId(`spot-submit-${study}`).click();
   await expect(card.getByTestId(`spot-state-${study}`)).toHaveText("complete");
   await expect(card.getByTestId(`delivery-ready-${study}`)).toBeVisible();
+  // recorded: folded to its one-line result (OWN-9); showing its values again reads them, it never draws again
+  await expect(card.getByTestId(`spot-done-${study}`)).toContainText(/Every value drawn matches its source · recorded by dev-user, \d{1,2} \w{3} \d{4}, \d\d:\d\d/);
+  await expect(card.getByTestId(`spot-values-${study}`)).toHaveCount(0);
+  const drawId = async () => (await read<{ spot_check: { draw_id: string; state: string } }>(request, `delivery/subjects/study/${study}`)).spot_check;
+  const recorded = await drawId();
+  await card.getByTestId(`spot-show-${study}`).click();
+  await expect(card.getByTestId(`spot-values-${study}`)).toBeVisible();
+  await expect(card.getByTestId(`spot-lede-${study}`)).toContainText(`${wanted} values drawn`);
+  expect(await drawId()).toEqual(recorded);
 
   // --- before the signature: each decision made on the study, with who made it, when and why ---
   const decisions = card.getByTestId(`delivery-decisions-${study}`);
-  // every decision the signature binds: the 4 facts, the 4 demographics, the 2 layouts of its tables, the 2 links of its
-  // arms' values and the note marked as not data in its own file (final review gaps 6 and 9)
+  // every decision the signature binds: the 4 facts, the 4 demographics and the individual's 2 choices, the 2 layouts of
+  // its tables, the 2 links of its arms' values and the note marked as not data in its own file (final review gaps 6, 9)
   const listed = card.getByTestId(`delivery-decisions-own-${study}`).locator('[data-testid^="decision-"]');
-  await expect(listed).toHaveCount(13);
+  await expect(listed).toHaveCount(15);
   for (const text of await listed.allInnerTexts()) expect(text).toMatch(/(dev-user|e2e-fixture), \d{1,2} \w{3} \d{4}, \d\d:\d\d · “.+”/);
   const decision = (what: string | RegExp) => listed.filter({ hasText: what });
   // a layout names every file it reads
@@ -343,7 +367,7 @@ test("the owner's job: files uploaded, layouts checked, values linked with arms,
     await expect(decision(entered)).toContainText(`“${source}”`);
   }
   for (const entered of ["Entered Healthy for Population", "Entered 31 for Mean age (years)", "Entered 72 for Mean weight (kg)",
-                         "Entered 50 for Women (%)"]) {
+                         "Entered 50 for Women (%)", "Entered European ICRP 2002 for PK-Sim population", "Entered Male for Sex simulated"]) {
     await expect(decision(entered)).toContainText("“the clinical study report, table 14.1.2”");
   }
   await shot(page, "4-decisions");
@@ -365,7 +389,7 @@ test("the owner's job: files uploaded, layouts checked, values linked with arms,
   await expect(confirm.getByTestId("delivery-confirm-rules")).toContainText("v0.1, UNVERIFIED");
   // what the signature binds of the delivery beyond the study's own files is said in one line
   await expect(confirm.getByTestId("delivery-confirm-decisions")).toContainText(
-    "13 decisions made on it, and 1 decision on the clean-up of the delivery's other files");
+    "15 decisions made on it, and 1 decision on the clean-up of the delivery's other files");
   await expect(confirm.getByTestId("delivery-confirm-blockers")).toHaveCount(0);
   await confirm.getByTestId("delivery-confirm-sign").click();
   await expect(confirm.getByTestId("delivery-signed")).toContainText(/Dev User \| Reviewed \| \d{4}-\d\d-\d\d/, { timeout: 60_000 });
@@ -373,28 +397,31 @@ test("the owner's job: files uploaded, layouts checked, values linked with arms,
   await shot(page, "5-signed");
   await confirm.getByTestId("delivery-confirm-done").click();
 
-  // --- in the model: the card says who signed, when and what loaded; its row is Done ---
-  await expect(page.getByTestId(`card-loaded-study:${seed.study}`)).toContainText(/Signed by Dev User on \d{1,2} \w{3} \d{4}, \d\d:\d\d\. In the model/);
+  // --- in the model: the card says who signed, when and what loaded (as many datasets as the dialog said); Done ---
+  await expect(page.getByTestId(`card-loaded-study:${seed.study}`)).toContainText(/Signed by Dev User on \d{1,2} \w{3} \d{4}, \d\d:\d\d\. In the model: 3 datasets/);
   await expect(card.getByTestId(`delivery-manifestation-${study}`)).toContainText("Dev User | Reviewed |");
   await expect(card).toContainText(/In the model since \d{4}-\d\d-\d\d \d\d:\d\d: 3 datasets/);
   await expect(card.getByTestId(`delivery-confirm-${study}`)).toHaveCount(0);
   await expect(page.getByTestId(`study-status-study:${seed.study}`)).toHaveText("Done");
   // the Model inputs list on Clinical studies holds the study and each arm, as studies of the model
   for (const id of [seed.study, `${seed.study}-Reference`, `${seed.study}-Test`]) await expect(page.getByTestId(`study-${id}`)).toBeVisible();
-  await expect(page.getByTestId("status-in-model")).toContainText("In the model: 3 studies");
+  // one study signed, its means and its two arms loaded as three datasets: the status line, the studies list and the
+  // dialog count the same (owner-job gap 3)
+  await expect(page.getByTestId("status-in-model")).toContainText("In the model: 1 study (3 datasets)");
+  await expect(page.getByTestId("studies-in-model-count")).toHaveText("(1 study, 3 datasets)");
   const after = await agreed(page);
-  expect(studiesInModel(after)).toBe(3);                                     // the status line's "In the model" rose
+  expect(studiesInModel(after)).toBe(1);                                     // the status line's "In the model" rose
   // To do: what remains, and nothing of OJ-101's signature is open there. OJ-101's confirm row is gone; what the loading
-  // adds is the /inputs to-do of the studies now in the model, two known gaps of their own (CHANGELOG, this job's gaps
-  // 1 and 11): the demographics of the study and each arm (held back at loading) and the tablet studies' formulation (no
-  // product came in this delivery). Until the linked files' sheet-form groups joined OJ-101 (review OWN-4), the signature
-  // also settled their double-counted rows, so the total happened to fall
+  // adds is the /inputs to-do of the studies now in the model: only the tablet studies' formulation (no product came in
+  // this delivery; this job's gap 11, owned elsewhere). The demographics are not asked again: they loaded as the study's
+  // individual (owner-job gap 1, final review OWN-6). Until the linked files' sheet-form groups joined OJ-101 (review
+  // OWN-4), the signature also settled their double-counted rows, so the total happened to fall
   await page.getByTestId("tab-todo").click();
   const left = await agreed(page);
   const added = (await inputsTodo()).filter((t) => !todoBefore.includes(t));
-  expect(added.filter((t) => !/^(demographics|formulation):/.test(t))).toEqual([]);
-  expect(added.filter((t) => t.startsWith("demographics:")).sort())
-    .toEqual([`demographics:${seed.study}`, `demographics:${seed.study}-Reference`, `demographics:${seed.study}-Test`]);
+  expect(added.filter((t) => !/^formulation:/.test(t))).toEqual([]);
+  expect(added.filter((t) => t.startsWith("demographics:"))).toEqual([]);
+  expect((await inputsTodo()).filter((t) => t.startsWith(`demographics:${seed.study}`))).toEqual([]);
   expect(open(left)).toBe(open(before) - 1 + added.length);
   for (const id of [`todo-row-fact:study:${seed.study}`, `todo-row-need:study:${seed.study}:REQ-sys.demographics`]) {
     await expect(page.getByTestId(id)).toHaveCount(0);
@@ -412,6 +439,9 @@ test("the owner's job: files uploaded, layouts checked, values linked with arms,
     expect(byId[id].purpose).toBe("model_building");
     expect(byId[id].facts).toMatchObject({ n: 12, route: "oral", dose_mg: 50, formulation: "ir_tablet", food_state: "fasted",
                                            population_type: "healthy", lloq: 0.5 });
+    // the individual entered on the card, as the study is simulated
+    expect(byId[id].demographics).toBe("entered");
+    expect(byId[id].facts.demographics).toEqual({ population: "European_ICRP_2002", sex: "MALE", age_years: 31, weight_kg: 72 });
   }
   expect(byId[`${seed.study}-Reference`].facts.joined_from).toEqual([expect.stringMatching(/^OJ-101 Reference\.xlsx via /)]);
   expect(byId[`${seed.study}-Test`].facts.joined_from).toEqual([expect.stringMatching(/^OJ-101 Test\.xlsx via /)]);

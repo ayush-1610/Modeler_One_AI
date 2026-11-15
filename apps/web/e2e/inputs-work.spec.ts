@@ -10,11 +10,11 @@ import { join } from "node:path";
 import { expect, test } from "@playwright/test";
 
 import {
-  NEW, NO_TARGET, aboutText, analyteChoice, analyteChoices, areaHead, assignBody, buildWork, collisions, columnSummary, destinationKey, heldBy,
+  NEW, NO_TARGET, aboutText, analyteChoice, analyteChoices, areaHead, assignBody, buildWork, collisions, columnSummary, destinationKey, heldBy, inModel, oneCheck,
   layoutRows, linkRows, linkTarget, linkWords, linkedPiece, looseGroups, nextText, normLabel, notReadRows, onDelivery, pairsMeet, prefixAlias,
   targetProblem, type WorkSources,
 } from "../lib/inputsWork";
-import { alreadyDecidedText, checkLabel, placeText, stepReason } from "../lib/words";
+import { alreadyDecidedText, checkLabel, drawText, heldText, individualNeeds, individualText, placeText, stepReason } from "../lib/words";
 
 const load = (name: string): WorkSources => JSON.parse(readFileSync(join(__dirname, "fixtures", "inputs-work", `${name}.json`), "utf8"));
 const copy = <T,>(x: T): T => JSON.parse(JSON.stringify(x));
@@ -82,7 +82,7 @@ test("exampleamide: the counts agree everywhere, and Next is the first open item
   const reference = model.items.find((i) => i.id === "alias:study:230-23-REF")!.files[0];
   expect(model.byFile[reference].map((i) => i.id.split(":")[0]).sort()).toEqual(["alias", "draft", "layout", "notread"]);
   // nothing is in the model while nothing is confirmed (the client's data are proposed)
-  expect(model.inModel).toEqual({ studies: 0, formulations: 0, values: 0 });
+  expect(model.inModel).toEqual({ studies: 0, datasets: 0, formulations: 0, values: 0 });
   expect(model.counts.done).toBe(0);
 });
 
@@ -520,4 +520,76 @@ test("a sheet-form group of a file linked to a study or product joins its card: 
   expect(after.items.some((i) => i.id === "draft:draft|file-0773300f5a31|pH 6.8")).toBe(false);
   expect(after.subjects.find((s) => s.row?.subject === "pr-12")!.groups.map((g) => g.id)).toContain("sheet:file-0773300f5a31|pH 6.8");
   expect(after.counts.missing).toBeLessThan(before.counts.missing);
+});
+
+test("a study signed on the delivery is one study in the model, its datasets counted beside it (owner-job gap 3)", () => {
+  const inputs = { todo: [], compound: [], readiness: null, studies: [
+    { study_id: "OJ-101", excluded: null, blinded: false, dataset_id: "ds-1" },
+    { study_id: "OJ-101-Reference", excluded: null, blinded: false, dataset_id: "ds-2" },
+    { study_id: "OJ-101-Test", excluded: null, blinded: false, dataset_id: "ds-3" },
+    { study_id: "doe-iv-250", excluded: null, blinded: false, dataset_id: "ds-9" },
+    { study_id: "left-out", excluded: "a person left it out", blinded: false, dataset_id: "ds-8" }] };
+  // the landing's own list of what it loaded (the signing dialog's count) groups the rows; a study it did not land is one
+  const delivery = { subjects: [{ label: "OJ-101", confirmation: { landed_datasets: ["ds-1", "ds-2", "ds-3"] } }, { label: "OJ-102", confirmation: null }] };
+  expect(inModel(inputs, delivery)).toEqual({ studies: 2, datasets: 4, formulations: 0, values: 0 });
+  expect(inModel(inputs, null)).toEqual({ studies: 4, datasets: 4, formulations: 0, values: 0 });
+});
+
+test("a model check whose gap a To do group lists is not said again among the model checks (OWN-14)", () => {
+  const model = buildWork(load("exampleamide"));
+  const s0 = model.checks.find((c) => c.raw.startsWith("S0 completeness"))!;
+  // the compound values missing are rows of To do (the /inputs to-do's "missing"): said there, once
+  expect(s0.ok).toBe(false);
+  expect(model.items.some((i) => i.id.startsWith("todo:missing:"))).toBe(true);
+  expect(s0.said).toBe(true);
+  // a check no group lists stays a model check
+  const sources = load("exampleamide");
+  sources.inputs!.todo = sources.inputs!.todo.filter((t) => t.kind !== "missing");
+  expect(buildWork(sources).checks.find((c) => c.raw.startsWith("S0 completeness"))!.said).toBe(false);
+  expect(model.checks.filter((c) => c.ok).every((c) => !c.said)).toBe(true);
+});
+
+test("a study's individual in words: what it is, and what it still needs, never an id or a field name (OWN-6)", () => {
+  expect(individualText({ population: "European_ICRP_2002", sex: "FEMALE", age_years: 32, age_min: 21, age_max: 45, weight_kg: 74 }))
+    .toBe("European ICRP 2002 · female · 32 y (21 to 45) · 74 kg");
+  expect(individualNeeds(["individual_population", "individual_sex"], ""))
+    .toBe("the study's individual needs the PK-Sim population and the sex simulated: give them with the demographics");
+  expect(individualNeeds([], "age_mean (f-3) is not a number; individual_population (f-4) is not one of PK-Sim's"))
+    .toBe("mean age (years) is not a number; PK-Sim population is not one of PK-Sim's: give them with the demographics");
+  // the landing's held lines, as the card and the signing dialog say them
+  expect(heldText("OJ-101: demographics not yet the study's individual (age_mean, weight_mean_kg, percent_female): kept in the ledger; "
+                  + "the individual needs individual_population, individual_sex", "OJ-101"))
+    .toBe("Kept, not used by the model yet: mean age (years), mean weight (kg), women (%) (the study's individual needs the PK-Sim "
+          + "population and the sex simulated: give them with the demographics)");
+  expect(heldText("OJ-101: demographics not yet the study's individual (age_mean): kept in the ledger; the individual needs "
+                  + "individual_population (age_mean (f-12) is written in 'months', not years)", "OJ-101"))
+    .toBe("Kept, not used by the model yet: mean age (years) (the study's individual needs the PK-Sim population; mean age (years) "
+          + "is written in “months”, not years: give them with the demographics)");
+  expect(heldText("OJ-101: demographics the individual does not carry (percent_female): kept in the ledger; the study's individual "
+                  + "is one sex and one PK-Sim population, chosen by a person", "OJ-101"))
+    .toBe("Kept, not used by the model: women (%) (the study's individual is one sex and one PK-Sim population, chosen by a person)");
+});
+
+test("the spot check says why so many values are drawn, from the draw's own reasons (OWN-9; the number drawn is the rules')", () => {
+  const reasons = [...Array(4).fill("always:field"), ...Array(13).fill("always:derived"), ...Array(100).fill("table_kind=pk_individual")];
+  expect(drawText(reasons)).toBe("117 values drawn: 4 key facts of the study, 13 computed from other values are always checked; "
+                                 + "100 are a random sample");
+  expect(drawText(["always:cross_file", "always:cross_file", "unit_class=time"]))
+    .toBe("3 values drawn: 2 read from another file than the study's own are always checked; 1 is a random sample");
+  expect(drawText(["always:field"])).toBe("1 value drawn: 1 key fact of the study is always checked");
+  expect(drawText(["unit_class=concentration", "unit_class=concentration"])).toBe("2 values drawn: a random sample");
+});
+
+test("a values table whose rows all need one check decided in Checks stays one line naming it (OWN-9)", () => {
+  const rows = Array.from({ length: 76 }, (_, i) => ({ id: `tx-1#${i}` }));
+  const analyte = { id: "ck-1", values: rows.map((r) => r.id) };
+  const all = () => true;
+  expect(oneCheck(rows, all, [analyte], [])).toBe(analyte);
+  // a row also marked by another check, a row in a disagreement, or a check that is not listed in Checks: opened
+  expect(oneCheck(rows, all, [analyte, { id: "ck-2", values: ["tx-1#3"] }], [])).toBeNull();
+  expect(oneCheck(rows, all, [analyte], [{ values: ["tx-1#5", "tx-2#5"] }])).toBeNull();
+  expect(oneCheck(rows, all, [], [])).toBeNull();
+  // only the rows that need the person count: a table with none is folded anyway, and says nothing
+  expect(oneCheck(rows, () => false, [analyte], [])).toBeNull();
+  expect(oneCheck(rows, (id) => id === "tx-1#0", [{ id: "ck-3", values: ["tx-1#0"] }], [])).toEqual({ id: "ck-3", values: ["tx-1#0"] });
 });

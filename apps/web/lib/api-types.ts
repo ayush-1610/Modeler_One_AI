@@ -1514,7 +1514,13 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * Get Spot Check
+         * @description The subject's latest spot check as it stands: its draw, its record and each value drawn, read only. Showing a
+         *     recorded spot check again draws nothing (a draw is written only by `:draw`, and once its ticks are recorded a draw
+         *     asked again is a new one); a blinded study's values are withheld as everywhere.
+         */
+        get: operations["get_spot_check_api_v1_projects__project_id__delivery_subjects__type___subject__spot_check_get"];
         put?: never;
         /**
          * Record Spot Check
@@ -4719,6 +4725,8 @@ export interface components {
             id: string;
             /** Landed */
             landed: boolean;
+            /** Landed Datasets */
+            landed_datasets: string[];
             /** Manifestation */
             manifestation: string;
             /** Printed Name */
@@ -5037,6 +5045,25 @@ export interface components {
             tag: string;
             /** Value */
             value: string;
+        };
+        /**
+         * DeliveryIndividual
+         * @description A study's simulated individual (D-29) as the landing would set it from the study's active values: one source
+         *     for the card, Populations and individuals, and what loads (`intake_landing.study_individual`).
+         */
+        DeliveryIndividual: {
+            /** Demographics */
+            demographics: {
+                [key: string]: unknown;
+            } | null;
+            /** Kept */
+            kept: string[];
+            /** Needs */
+            needs: string[];
+            /** Stated */
+            stated: string[];
+            /** Why */
+            why: string;
         };
         /** DeliveryLanded */
         DeliveryLanded: {
@@ -5865,6 +5892,10 @@ export interface components {
             draw_id: string | null;
             /** Drawn */
             drawn: number;
+            /** Recorded At */
+            recorded_at: string | null;
+            /** Recorded By */
+            recorded_by: string | null;
             /**
              * State
              * @enum {string}
@@ -5945,6 +5976,7 @@ export interface components {
             gaps: components["schemas"]["DeliveryGap"][];
             /** Held */
             held: string[] | null;
+            individual: components["schemas"]["DeliveryIndividual"] | null;
             /** Label */
             label: string;
             /** Landing Problem */
@@ -16091,6 +16123,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Envelope_DeliverySubject_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_spot_check_api_v1_projects__project_id__delivery_subjects__type___subject__spot_check_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+                type: "study" | "product" | "compound";
+                subject: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_DeliverySpotCheck_"];
                 };
             };
             /** @description Validation Error */

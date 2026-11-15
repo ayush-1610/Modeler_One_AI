@@ -89,8 +89,9 @@ test("a study two client files contradict is settled on its card, then confirmed
   await expect(confirm).toHaveText("Confirm study EX-101");
   await expect(card).toContainText("Ready. Confirming adds this study to the model under your name.");
   await confirm.click();
-  await expect(card).toContainText("Confirmed by");
+  // one confirmation line per card: its head line says who confirmed it and when; the group inside does not repeat it
   await expect(page.getByTestId("card-loaded-study:EX-101")).toContainText("Confirmed with the sheet form by");
+  await expect(card.getByTestId("group-confirmed-study:EX-101")).toHaveCount(0);
   await expect(card.getByTestId("issue-final-study:EX-101|dose_mg")).toHaveText("10");   // still shown, final
   await expect(page.getByTestId("study-EX-101")).toBeVisible();                          // loaded into the project
   await shot(page, "3-confirmed-and-loaded");
@@ -129,7 +130,9 @@ test("a study the client named at upload is linked to the sheet's other name onc
   await expect(linked).toContainText("Done");
   await expect(linked.getByTestId("notes-study:EXZ-101")).toContainText("Also called EX-101");
   await linked.getByTestId("confirm-study:EXZ-101").click();
-  await expect(linked).toContainText("Confirmed by");
+  // said once, on the card's head line (the only study confirmed in this project)
+  await expect(page.getByTestId(/^card-loaded-/)).toContainText("Confirmed with the sheet form by");
+  await expect(linked.getByTestId("group-confirmed-study:EXZ-101")).toHaveCount(0);
   await expect(page.getByTestId("study-EXZ-101")).toBeVisible();                  // in the project under the study's name
   await shot(page, "5-linked-and-confirmed");
 });

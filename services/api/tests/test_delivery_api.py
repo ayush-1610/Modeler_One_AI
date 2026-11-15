@@ -397,7 +397,8 @@ def test_a_studys_card_shows_exceptions_first_and_each_decision_is_one_audited_l
     assert card["conflicts"] == [] and card["links"] == [] and card["mappings"] == []
     # what the landing would hold back, or why it cannot be planned yet
     assert card["held"] == [] and "the study record needs n" in card["landing_problem"]
-    assert card["spot_check"] == {"state": "none", "draw_id": None, "drawn": 0, "wanted": 0}
+    assert card["spot_check"] == {"state": "none", "draw_id": None, "drawn": 0, "wanted": 0, "recorded_by": None,
+                                  "recorded_at": None}
     # its values by table, each with the tuple it is read with and its source reference
     tables = {t["id"]: t for t in card["tables"]}
     assert sum(len(t["values"]) for t in tables.values()) == card["values"]
@@ -493,7 +494,7 @@ def test_the_spot_check_is_drawn_ticked_once_in_one_request_and_the_confirmation
     assert p.get("delivery/source", value=person["value"]["id"]).status_code == 404
     assert p.post(f"{path}/spot-check:draw").json()["data"]["draw"] == draw            # the same state: the same draw
     assert p.card(path)["spot_check"] == {"state": "drawn", "draw_id": draw["id"], "drawn": len(spot["wanted"]),
-                                         "wanted": len(spot["wanted"])}
+                                         "wanted": len(spot["wanted"]), "recorded_by": None, "recorded_at": None}
     ticks = [{"value_id": v, "ok": True} for v in spot["wanted"]]
     # refused: a reader, another subject's draw, a draw that is none, ticks that are not every value once
     other = p.subject("231-24")
@@ -522,6 +523,14 @@ def test_the_spot_check_is_drawn_ticked_once_in_one_request_and_the_confirmation
     assert (event.after["ok"], event.after["not_ok"], event.after["draw"]) == (len(ticks), 0, draw["id"])
     card = p.card(path)
     assert card["blockers"] == [] and card["spot_check"]["state"] == "complete" and card["spot_check"]["wanted"] == 0
+    # who recorded it and when, on the card (its one-line result); shown again by a read, which draws nothing (OWN-9)
+    (record_line,) = [e for e in IntakeStore(p.ws).review.entries() if e.kind == "spot_check"]
+    assert (card["spot_check"]["recorded_by"], card["spot_check"]["recorded_at"]) == ("u1", record_line.body["at"])
+    draws = len([e for e in IntakeStore(p.ws).review.entries() if e.kind == "spot_draw"])
+    shown = p.get(f"{path}/spot-check", token="viewer")
+    assert shown.status_code == 200 and shown.json()["data"]["state"] == "complete"
+    assert shown.json()["data"]["draw"]["id"] == draw["id"] and shown.json()["data"]["record"]["by"] == "u1"
+    assert len([e for e in IntakeStore(p.ws).review.entries() if e.kind == "spot_draw"]) == draws
 
     # --- the confirmation: a writer, with a step-up ---
     assert p.post(f"{path}:confirm", token="viewer").status_code == 403
@@ -566,6 +575,7 @@ def test_the_spot_check_is_drawn_ticked_once_in_one_request_and_the_confirmation
                for t in done["tables"] for v in t["values"])
     row = next(s for s in p.page()["subjects"] if s["label"] == "230-23")
     assert row["confirmation"]["landed"] is True and row["confirmation"]["current"] is True
+    assert row["confirmation"]["landed_datasets"] == shown["landed"]["datasets"]     # the page counts what loaded from it
     assert row["confirmation"]["signature_id"] == confirmation.signature_id
     # the same record confirmed again: nothing is signed twice, nothing lands twice
     again = p.post(f"{path}:confirm", token="plain")
@@ -1318,14 +1328,14 @@ def test_in_legacy_the_page_answers_enabled_false_and_no_other_delivery_route_do
         f"{subject}:link": {"file_sha256": sha, "confirmed": True}, f"{subject}:enter": {"field": "route", "value": "oral", **why},
         f"{subject}:confirm": None, f"{subject}/spot-check:draw": None,
         f"{subject}/spot-check": {"draw_id": "sd-1", "ticks": []}}
-    gets = ["delivery/source?value=f-1", "delivery/mappings/mp-0123456789ab", subject, "delivery/vocabulary"]
+    gets = ["delivery/source?value=f-1", "delivery/mappings/mp-0123456789ab", subject, "delivery/vocabulary", f"{subject}/spot-check"]
     answers = [p.post(path, body) for path, body in posts.items()] + [p.get(path) for path in gets]
     for answer in answers:
         assert answer.status_code == 409, (answer.request.url, answer.text)
         assert answer.json()["detail"]["code"] == "INTAKE_PIPELINE_OFF"
     # every /delivery route but the page was asked, and nothing was written: no intake folder, no event
     mounted = {(m, r.path) for r in client_api.router.routes if isinstance(r, APIRoute) and "/delivery" in r.path for m in r.methods}
-    assert len(mounted) == len(posts) + len(gets) + 1 == 21
+    assert len(mounted) == len(posts) + len(gets) + 1 == 22
     assert not (Path(p.store.root) / "t1" / "projects" / "p1" / "intake").exists()
     assert [e.action for e in p.events() if e.action.startswith(("intake.", "signature."))] == []
 
@@ -1406,13 +1416,13 @@ def test_delivery_routes_defines_no_router_and_imports_no_module_that_defines_on
     # its handlers are client_api's routes: mounted on that router, covered by the response ratchet
     assert not hasattr(delivery_routes, "router")
     handlers = {r.endpoint for r in client_api.router.routes if isinstance(r, APIRoute) and "/delivery" in r.path}
-    assert len(handlers) == 21 and all(h.__module__ == "modeler_api.delivery_routes" for h in handlers)
+    assert len(handlers) == 22 and all(h.__module__ == "modeler_api.delivery_routes" for h in handlers)
 
 
 def test_every_delivery_route_and_the_admin_pipeline_route_has_a_typed_answer():
     routes = [r for router in (client_api.router, admin_api.router) for r in router.routes
               if isinstance(r, APIRoute) and ("/delivery" in r.path or r.path.endswith("/admin/pipeline"))]
-    assert len(routes) == 22
+    assert len(routes) == 23
     names = set()
     for route in routes:
         model = route.response_model
@@ -1825,7 +1835,8 @@ def test_a_stale_draw_is_drawn_again_with_its_ok_ticks_carried_and_a_failed_tick
     first = p.post(f"{path}/spot-check:draw").json()["data"]
     assert first["state"] == "drawn" and first["wanted"]
     assert enter({"field": "age_mean", "value": 33.0})["spot_check"] == {
-        "state": "stale", "draw_id": first["draw"]["id"], "drawn": len(first["wanted"]), "wanted": 0}
+        "state": "stale", "draw_id": first["draw"]["id"], "drawn": len(first["wanted"]), "wanted": 0, "recorded_by": None,
+        "recorded_at": None}
     stale = p.post(f"{path}/spot-check", ticks(first))
     assert stale.status_code == 409 and stale.json()["detail"]["code"] == "STALE"
     assert p.events("intake.spot_check") == []
@@ -2099,7 +2110,7 @@ def test_a_table_no_layout_reads_gets_a_persons_first_layout_checked_on_it_and_r
     assert vocabulary["spread_kinds"] == list(get_args(SpreadKind)) and vocabulary["cite_near"] == ["caption", "above", "below"]
     assert vocabulary["time_references"] == ["first_dose", "last_dose", "occasion_dose"] and "pk_summary" in vocabulary["kinds"]
     fields = {f["name"]: f for f in vocabulary["fields"]}
-    assert set(fields) == set(FIELDS) and fields["matrix"]["choices"] == list(FIELDS["matrix"].choices)
+    assert set(fields) == {n for n, f in FIELDS.items() if not f.person_only} and fields["matrix"]["choices"] == list(FIELDS["matrix"].choices)
     assert (fields["concentration"]["level"], fields["concentration"]["unit_class"]) == ("observation", "concentration")
     assert vocabulary["conditions"] == list(CONDITION_FIELDS) and vocabulary["labels"] == list(LABEL_FIELDS)
     assert p.get(f"delivery/mappings/{mapping['mapping_id']}", "viewer").json()["data"]["vocabulary"] == vocabulary
@@ -2141,6 +2152,56 @@ def test_demographics_a_person_enters_on_the_card_are_found_for_the_study(projec
     assert not [c for c in card["checks"] if c["code"] == "REQUIRED_ITEM_UNDISPOSED" and not c["overridden"]
                 and "REQ-sys.demographics" in (c["message"] or "")]
     assert not [line for line in p.page()["request"] if line["req_id"] == "REQ-sys.demographics" and "230-23" in line["what"]]
+
+
+@pytest.mark.req("T-47", "F-404", "T-49")
+def test_the_demographics_entered_on_the_card_land_as_the_studys_individual_and_are_not_asked_again(project):
+    """OWN-6 (owner-job gap 1): one truth for a study's demographics. The card says what they make (`individual`), and
+    the loading lands it: entered with the PK-Sim population database and the sex a person chose (D-29: never a
+    default), the age, its range and the weight become the study's individual; the share of women is kept, said so.
+    GET /inputs then has the study's demographics "entered", and its to-do does not ask for them again. A population
+    that is not one of PK-Sim's names is refused; a layout never reads a column as the individual."""
+    p = project()
+    workbook = synthetic.messy_workbook()
+    p.deliver(workbook)
+    assert _accept_note(p, workbook).status_code == 200
+    path = p.subject("230-23")
+    for field, value in (*FACTS_230_23.items(), ("population", "healthy"), ("age_mean", 32), ("age_min", 21), ("age_max", 45),
+                         ("weight_mean_kg", 74), ("percent_female", 50)):
+        assert p.post(f"{path}:enter", {"field": field, "value": value, "why": "the clinical study report"}).status_code == 200
+    card = p.card(path)
+    stated = ["age_mean", "age_min", "age_max", "weight_mean_kg", "percent_female"]
+    assert card["individual"] == {"demographics": None, "needs": ["individual_population", "individual_sex"], "why": "",
+                                  "stated": stated, "kept": ["percent_female"]}
+    held = [h for h in card["held"] if "demographics" in h]
+    assert held == [("230-23: demographics not yet the study's individual (age_mean, age_min, age_max, weight_mean_kg, "
+                     "percent_female): kept in the ledger; the individual needs individual_population, individual_sex")]
+    # PK-Sim's own names only, on a study only
+    refused = p.post(f"{path}:enter", {"field": "individual_population", "value": "Caucasian", "why": "the report"})
+    assert refused.status_code == 422 and refused.json()["detail"]["code"] == "NOT_ALLOWED"
+    assert "European_ICRP_2002" in refused.json()["detail"]["message"]
+    assert p.post(f"{path}:enter", {"field": "individual_sex", "value": "both", "why": "the report"}).status_code == 422
+    assert not [f for f in p.get("delivery/vocabulary").json()["data"]["fields"] if f["name"].startswith("individual_")]
+    for field, value in (("individual_population", "European_ICRP_2002"), ("individual_sex", "female")):
+        assert p.post(f"{path}:enter", {"field": field, "value": value, "why": "the protocol's population"}).status_code == 200
+    card = p.card(path)
+    individual = {"population": "European_ICRP_2002", "sex": "FEMALE", "age_years": 32.0, "age_min": 21.0, "age_max": 45.0,
+                  "weight_kg": 74.0}
+    assert card["individual"]["demographics"] == individual and card["individual"]["needs"] == []
+    assert [h for h in card["held"] if "demographics" in h] == [
+        ("230-23: demographics the individual does not carry (percent_female): kept in the ledger; the study's individual "
+         "is one sex and one PK-Sim population, chosen by a person")]
+    assert not [h for h in card["held"] if "no place in the study record" in h and "age_mean" in h]
+    _decide(p, path)
+    _spot_check(p, path)
+    signed = p.post(f"{path}:confirm")
+    assert signed.status_code == 200, signed.text
+    landed = [dataset(p.ws, i) for i in signed.json()["data"]["confirmation"]["landed"]["datasets"]]
+    assert landed and all(d.study["demographics"] == individual and d.demographics_choice == "entered" for d in landed)
+    inputs = p.get("inputs").json()["data"]
+    assert {s["study_id"]: s["demographics"] for s in inputs["studies"] if s["study_id"].startswith("230-23")} == {
+        "230-23": "entered"}
+    assert not [t for t in inputs["todo"] if t["kind"] == "demographics" and str(t["target"]).startswith("230-23")]
 
 
 @pytest.mark.req("T-47", "F-404", "T-05")
@@ -2719,7 +2780,7 @@ def test_the_layout_words_are_given_to_a_project_where_no_table_has_a_layout_yet
     vocabulary = answer.json()["data"]
     # the intake package's own words, the same every mapping answer gives
     assert vocabulary["roles"] == list(get_args(Role)) and vocabulary["statistics"] == list(get_args(Statistic))
-    assert {f["name"] for f in vocabulary["fields"]} == set(FIELDS) and vocabulary["labels"] == list(LABEL_FIELDS)
+    assert {f["name"] for f in vocabulary["fields"]} == {n for n, f in FIELDS.items() if not f.person_only} and vocabulary["labels"] == list(LABEL_FIELDS)
     (region,) = page["deliveries"][0]["files"][0]["regions"]
     proposed = p.post("delivery/mappings:propose", {"file_sha256": _sha(ODD), "region_id": region["region_id"],
                                                     "spec": ODD_SPEC, "why": "hours, and the mean level"})

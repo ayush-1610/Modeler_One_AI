@@ -4770,6 +4770,13 @@
             "title": "Landed",
             "type": "boolean"
           },
+          "landed_datasets": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Landed Datasets",
+            "type": "array"
+          },
           "manifestation": {
             "title": "Manifestation",
             "type": "string"
@@ -4796,6 +4803,7 @@
           "manifestation",
           "record_sha256",
           "landed",
+          "landed_datasets",
           "current"
         ],
         "title": "DeliveryConfirmationState",
@@ -5903,6 +5911,58 @@
           "reason"
         ],
         "title": "DeliveryGap",
+        "type": "object"
+      },
+      "DeliveryIndividual": {
+        "additionalProperties": false,
+        "description": "A study's simulated individual (D-29) as the landing would set it from the study's active values: one source\nfor the card, Populations and individuals, and what loads (`intake_landing.study_individual`).",
+        "properties": {
+          "demographics": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Demographics"
+          },
+          "kept": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Kept",
+            "type": "array"
+          },
+          "needs": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Needs",
+            "type": "array"
+          },
+          "stated": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Stated",
+            "type": "array"
+          },
+          "why": {
+            "title": "Why",
+            "type": "string"
+          }
+        },
+        "required": [
+          "demographics",
+          "needs",
+          "why",
+          "stated",
+          "kept"
+        ],
+        "title": "DeliveryIndividual",
         "type": "object"
       },
       "DeliveryLanded": {
@@ -8433,6 +8493,28 @@
             "title": "Drawn",
             "type": "integer"
           },
+          "recorded_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recorded At"
+          },
+          "recorded_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recorded By"
+          },
           "state": {
             "enum": [
               "none",
@@ -8453,7 +8535,9 @@
           "state",
           "draw_id",
           "drawn",
-          "wanted"
+          "wanted",
+          "recorded_by",
+          "recorded_at"
         ],
         "title": "DeliverySpotState",
         "type": "object"
@@ -8681,6 +8765,16 @@
             ],
             "title": "Held"
           },
+          "individual": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeliveryIndividual"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "label": {
             "title": "Label",
             "type": "string"
@@ -8799,6 +8893,7 @@
           "tables",
           "held",
           "landing_problem",
+          "individual",
           "spot_check",
           "confirmation",
           "rules",
@@ -34383,6 +34478,86 @@
       }
     },
     "/api/v1/projects/{project_id}/delivery/subjects/{type}/{subject}/spot-check": {
+      "get": {
+        "description": "The subject's latest spot check as it stands: its draw, its record and each value drawn, read only. Showing a\nrecorded spot check again draws nothing (a draw is written only by `:draw`, and once its ticks are recorded a draw\nasked again is a new one); a blinded study's values are withheld as everywhere.",
+        "operationId": "get_spot_check_api_v1_projects__project_id__delivery_subjects__type___subject__spot_check_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "type",
+            "required": true,
+            "schema": {
+              "enum": [
+                "study",
+                "product",
+                "compound"
+              ],
+              "title": "Type",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "subject",
+            "required": true,
+            "schema": {
+              "title": "Subject",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_DeliverySpotCheck_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Spot Check",
+        "tags": [
+          "client-data"
+        ]
+      },
       "post": {
         "description": "Every tick of a draw, once, in one request: a tick says the value, its unit, its time, its labels and its\nstatistic match the source.",
         "operationId": "record_spot_check_api_v1_projects__project_id__delivery_subjects__type___subject__spot_check_post",

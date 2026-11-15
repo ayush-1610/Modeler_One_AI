@@ -168,7 +168,8 @@ export function TodoTab({ projectId, work, run, status, only, onStatus, onOnly, 
   const tidyWhys = [...new Set(tidy.map((i) => i.why))];
   const tidyWhy = tidyWhys.length === 1 ? tidyWhys[0] : undefined;
   const done = work.items.filter((i) => i.group === "done");
-  const openChecks = work.checks.filter((c) => !c.ok);
+  // an open check whose gap a group above lists already is not said again (final review OWN-14)
+  const openChecks = work.checks.filter((c) => !c.ok && !c.said);
   const passed = work.checks.filter((c) => c.ok);
   const filters: [StatusFilter, string, number][] = [
     [null, "All", work.counts.open], ["missing", STATUS_WORD.missing, work.counts.missing],
@@ -220,10 +221,10 @@ export function TodoTab({ projectId, work, run, status, only, onStatus, onOnly, 
               {work.ask.map((a) => (
                 <li key={`${a.req}|${a.what}`} className="todo-line" data-testid={`todo-ask-${a.req}`}>
                   <div className="todo-line-head">
-                    <span className="chip neutral">{a.required ? "needed" : "useful"}</span>
                     <span>{a.what}{a.subjects.length > 0 && <span className="muted"> · {a.subjects.join(", ")}</span>}</span>
                   </div>
-                  <p className="todo-line-detail muted">needed for {a.why}</p>
+                  {/* said once: what it is needed (or useful) for (final review OWN-14) */}
+                  <p className="todo-line-detail muted">{a.required ? "needed" : "useful"} for {a.why}</p>
                 </li>
               ))}
             </ul>

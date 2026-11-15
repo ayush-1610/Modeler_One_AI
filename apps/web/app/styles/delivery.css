@@ -81,6 +81,7 @@
 .delivery-options { margin: 0; padding: 0; border: 0; display: grid; gap: 4px; font-size: 13.5px; }
 .delivery-table { display: grid; gap: 6px; min-width: 0; }
 .delivery-table + .delivery-table { margin-top: 8px; }
+.table-marked-by { color: var(--ink); }
 
 /* ---- a decision with its reason ---- */
 .delivery-why { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; }
