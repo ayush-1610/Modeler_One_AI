@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 import { send, type Envelope } from "@/lib/api";
-import { PARAM_LABEL, todoLabel } from "@/lib/words";
+import { flagLines, formulationProblem, PARAM_LABEL, paramLabel, todoLabel, todoMessage, unitText } from "@/lib/words";
 
 export type Ev = {
   id: string; target: string; value: number | string | null; unit: string | null; value_pksim: number | null;
@@ -11,7 +11,12 @@ export type Ev = {
   conditions: Record<string, string>; quote: string;
   source: { title: string; authors: string; year: number | null; doi: string | null; page: number | null; locator: string | null;
             doc_sha256?: string | null; url?: string | null; pmid?: string | null };
+  /** the unit PK-Sim holds a value of its target in ("" none); null: not named (a placeholder, filed under a pathway first) */
+  pksim_unit?: string | null;
 };
+/** An elimination pathway the data plan's "elim" is filed under (`inputs.elimination_pathways`): its unit and the
+ *  harvested PK-Sim process and parameter that take it. */
+export type Pathway = { id: string; unit: string | null; process: string; parameter: string };
 type DatasetRow = { id: string; study_id: string; purpose: string; origin: string; provider: string; state: string; kind: string;
                     statistics: string[]; series: number };
 export type TodoItem = {
@@ -23,6 +28,8 @@ export type TodoItem = {
   warnings?: string[];
   dataset_id?: string | null;
   tab?: string;
+  /** an item about the data plan's "elim": the pathways a value for it is filed under (OWN-5) */
+  pathways?: Pathway[];
 };
 export type Run = <T>(fn: () => Promise<Envelope<T>>, ok: string) => Promise<string | null>;
 
@@ -40,7 +47,8 @@ export function Source({ e }: { e: Ev }) {
       <div className="muted">{e.provider.toLowerCase()} · {e.source_type.toLowerCase().replace(/_/g, " ")} · grade {e.confidence}
         {Object.keys(e.conditions).length > 0 && ` · ${Object.entries(e.conditions).map(([k, v]) => `${k} ${v}`).join(", ")}`}</div>
       {e.quote && <div className="quote">“{e.quote}”</div>}
-      {e.flags.length > 0 && <ul className="flags">{e.flags.map((f) => <li key={f}>{f}</li>)}</ul>}
+      {/* why it waits, in words (final review OWN-5): no engine codes, a condition list as its template writes it */}
+      {e.flags.length > 0 && <ul className="flags">{flagLines(e.flags).map((f) => <li key={f}>{f}</li>)}</ul>}
     </div>
   );
 }
@@ -48,10 +56,47 @@ export function Source({ e }: { e: Ev }) {
 export function Value({ e }: { e: Ev }) {
   return (
     <span>
-      <strong>{fmt(e.value)}</strong> {e.unit ?? ""}
+      <strong>{fmt(e.value)}</strong> {unitText(e.unit)}
       {e.value_pksim !== null && (e.value_pksim !== e.value || (e.unit_pksim ?? null) !== (e.unit ?? null)) &&
-        <div className="muted fs-12">PK-Sim: {fmt(e.value_pksim)} {e.unit_pksim ?? ""}</div>}
+        <div className="muted fs-12">PK-Sim: {fmt(e.value_pksim)} {unitText(e.unit_pksim)}</div>}
     </span>
+  );
+}
+
+/** The pathway a value for the data plan's "elim" is filed under (OWN-5): chosen first, each pathway by its name and the
+ *  unit its value is stored in. */
+export function PathwayPick({ pathways, value, onChange, label, testId }: {
+  pathways: Pathway[]; value: string; onChange: (id: string) => void; label: string; testId?: string;
+}) {
+  return (
+    <select value={value} onChange={(x) => onChange(x.target.value)} aria-label={label} data-testid={testId}>
+      <option value="">choose the pathway…</option>
+      {pathways.map((p) => <option key={p.id} value={p.id}>{paramLabel(p.id)}{p.unit ? ` (${p.unit})` : " (no unit)"}</option>)}
+    </select>
+  );
+}
+
+/** A value filed under the data plan's "elim" (OWN-5): it cannot be used or accepted until it is filed under a pathway,
+ *  said on the row; the pathway is chosen here and the value is filed under it (`:correct`: a corrected copy, held until
+ *  a person checks its converted value). */
+function FileUnderPathway({ e, pathways, projectId, run }: { e: Ev; pathways: Pathway[]; projectId: string; run: Run }) {
+  const [target, setTarget] = useState("");
+  const [reason, setReason] = useState("");
+  return (
+    <div className="mt-6" data-testid={`file-pathway-${e.id}`}>
+      <p className="fs-13 m-0" data-testid={`decide-refused-${e.id}`}>It cannot be accepted as it is: a value counts only under
+        the elimination pathway it belongs to. Choose the pathway, then check its value there.</p>
+      <div className="row gap-6 mt-4">
+        <PathwayPick pathways={pathways} value={target} onChange={setTarget} label={`pathway for ${e.id}`} testId={`pathway-${e.id}`} />
+        <input placeholder="why" value={reason} onChange={(x) => setReason(x.target.value)} className="flex-1 minw-160"
+               aria-label={`reason to file ${e.id} under the pathway`} />
+        <button className="btn primary" disabled={!target || !reason.trim()}
+                onClick={() => void run(() => send("post", "/api/v1/projects/{project_id}/evidence/{evidence_id}:correct",
+                                                   { project_id: projectId, evidence_id: e.id }, { target, reason }),
+                                        `Filed under ${paramLabel(target).toLowerCase()}: check its value and accept it.`)}>
+          File it under this pathway</button>
+      </div>
+    </div>
   );
 }
 
@@ -77,7 +122,7 @@ function Conflict({ t, projectId, run }: { t: TodoItem; projectId: string; run: 
         <input placeholder="why this value (kept in the audit trail)" value={reason} onChange={(e) => setReason(e.target.value)} className="flex-1 minw-220" aria-label={`reason for ${t.target}`} />
         <button className="btn primary" disabled={!keep || !reason.trim()}
                 onClick={() => void run(() => send("post", "/api/v1/projects/{project_id}/evidence/{evidence_id}:choose", { project_id: projectId, evidence_id: keep }, { reason }),
-                                        `${t.target}: one value kept, the others rejected with your reason.`)}>
+                                        `${paramLabel(t.target)}: one value kept, the others rejected with your reason.`)}>
           Keep the selected value, reject the others
         </button>
       </div>
@@ -99,7 +144,7 @@ function Correction({ e, t, projectId, run }: { e: Ev; t: TodoItem; projectId: s
   return (
     <div className="todo-row">
       <div className="row items-start gap-14">
-        <div className="minw-110"><code>{e.target}</code><div><Value e={e} /></div></div>
+        <div className="minw-110"><span className="fs-13">{paramLabel(e.target)}</span><div><Value e={e} /></div></div>
         <div className="flex-1 minw-220"><Source e={e} /></div>
       </div>
       <div className="row gap-6 mt-6">
@@ -110,7 +155,7 @@ function Correction({ e, t, projectId, run }: { e: Ev; t: TodoItem; projectId: s
         ) : (
           <>
             <select value={target} onChange={(x) => setTarget(x.target.value)} aria-label={`parameter for ${e.id}`}>
-              {(t.suggestions?.targets ?? []).map((s) => <option key={s} value={s}>{LABEL[s] ? `${LABEL[s]} (${s})` : s}</option>)}
+              {(t.suggestions?.targets ?? []).map((s) => <option key={s} value={s}>{paramLabel(s)}</option>)}
             </select>
             {needsMolecule && (
               <select value={molecule} onChange={(x) => setMolecule(x.target.value)} aria-label={`enzyme for ${e.id}`}>
@@ -133,36 +178,89 @@ function Correction({ e, t, projectId, run }: { e: Ev; t: TodoItem; projectId: s
                                                       pka ? { conditions: { type: kind }, reason }
                                                           : { target: concrete, reason, ...(statement ? { value: Number(number), unit: unit || null } : {}) }),
                                         pka ? `pKa ${fmt(e.value)} recorded as ${kind === "acid" ? "acidic" : "basic"}.`
-                                            : `Filed as ${concrete}: check its value below and accept it.`)}>
+                                            : `Filed as ${paramLabel(concrete)}: check its value below and accept it.`)}>
           {pka ? "Save" : "Correct"}
         </button>
         <button className="btn" disabled={!reason.trim()}
                 onClick={() => void run(() => send("post", "/api/v1/projects/{project_id}/evidence/{evidence_id}:decide", { project_id: projectId, evidence_id: e.id }, { state: "REJECTED", reason }),
-                                        `${e.id} rejected.`)}>Reject</button>
+                                        `${paramLabel(e.target)} ${fmt(e.value)}: rejected.`)}>Reject</button>
       </div>
     </div>
   );
 }
 
-export function Decide({ e, projectId, run }: { e: Ev; projectId: string; run: Run }) {
+/** A value to accept or reject. One whose unit was not converted to PK-Sim's is accepted with its value typed in PK-Sim's
+ *  unit, which the API names (`pksim_unit`), in place of the dead "accept it on the Literature page" (final review OWN-5);
+ *  one filed under the data plan's "elim" is filed under its pathway first (`pathways`), and is never accepted as it is;
+ *  one filed under a kind of parameter (an enzyme's clearance with no enzyme named) or a name PK-Sim does not take is
+ *  filed under the parameter it is first, where its item names them (`todo.suggestions`). Where none of these can be
+ *  done, the row says why Accept is not offered and what can be done instead. */
+export function Decide({ e, projectId, run, pathways, todo }: {
+  e: Ev; projectId: string; run: Run; pathways?: Pathway[];
+  /** the item the value waits under: its suggested parameters, to file a value PK-Sim cannot take as it is */
+  todo?: TodoItem;
+}) {
   const [reason, setReason] = useState("");
+  const [typed, setTyped] = useState("");
+  const name = paramLabel(e.target);
+  const unconverted = typeof e.value === "number" && e.value_pksim === null;
+  // a number whose parameter PK-Sim names no unit for (the data plan's "elim", a kind of parameter, a name the model does
+  // not take): it cannot be checked in PK-Sim's unit, so it is never accepted as it is
+  const unplaced = unconverted && e.pksim_unit === null;
+  const placeholder = e.pksim_unit === null && Boolean(pathways?.length);
+  const byHand = unconverted && typeof e.pksim_unit === "string";
+  const handValue = typed.trim() !== "" && !Number.isNaN(Number(typed)) ? Number(typed) : null;
+  const unitWord = e.pksim_unit ? e.pksim_unit : "PK-Sim's terms (no unit)";
+  if (!placeholder && unplaced && todo?.suggestions?.targets.length) {
+    return (
+      <div data-testid={`decide-${e.id}`}>
+        <p className="fs-13 m-6-0-0" data-testid={`decide-refused-${e.id}`}>It cannot be accepted as it is: it is filed under
+          {" "}{name.toLowerCase()}, which is not one parameter PK-Sim takes. Choose the parameter it is (with its enzyme, where it
+          names one), then check its value.</p>
+        <Correction e={e} t={todo} projectId={projectId} run={run} />
+      </div>
+    );
+  }
   return (
-    <div className="todo-row">
+    <div className="todo-row" data-testid={`decide-${e.id}`}>
       <div className="row items-start gap-14">
-        <div className="minw-110"><code>{e.target}</code><div><Value e={e} /></div></div>
+        <div className="minw-110"><span className="fs-13">{name}</span><div><Value e={e} /></div></div>
         <div className="flex-1 minw-220"><Source e={e} /></div>
       </div>
-      <div className="row gap-6 mt-6">
-        <input placeholder="why" value={reason} onChange={(x) => setReason(x.target.value)} className="flex-1 minw-160"
-               aria-label={`reason for ${e.id}`} />
-        <button className="btn primary" disabled={!reason.trim() || (typeof e.value === "number" && e.value_pksim === null)}
-                title={typeof e.value === "number" && e.value_pksim === null ? "no automatic conversion: accept it on the Literature page with its PK-Sim value" : undefined}
-                onClick={() => void run(() => send("post", "/api/v1/projects/{project_id}/evidence/{evidence_id}:decide", { project_id: projectId, evidence_id: e.id }, { state: "ACCEPTED", reason }),
-                                        `${e.target} = ${fmt(e.value_pksim ?? e.value)} accepted.`)}>Accept</button>
-        <button className="btn" disabled={!reason.trim()}
-                onClick={() => void run(() => send("post", "/api/v1/projects/{project_id}/evidence/{evidence_id}:decide", { project_id: projectId, evidence_id: e.id }, { state: "REJECTED", reason }),
-                                        `${e.id} rejected.`)}>Reject</button>
-      </div>
+      {placeholder ? <FileUnderPathway e={e} pathways={pathways!} projectId={projectId} run={run} /> : (
+        <>
+          {byHand && (
+            <p className="fs-13 m-6-0-0" data-testid={`decide-by-hand-${e.id}`}>{fmt(e.value)} {unitText(e.unit)} is not converted
+              automatically: type its value in {unitWord} to accept it.</p>
+          )}
+          {unplaced && (
+            <p className="fs-13 m-6-0-0" data-testid={`decide-refused-${e.id}`}>It cannot be accepted: no unit is known in which
+              PK-Sim takes {name.toLowerCase()}, so its value cannot be checked. Reject it, and add the value again under the parameter
+              it is, on its row on <a href="?tab=compound" data-testid={`decide-refused-go-${e.id}`}>Compound</a>.</p>
+          )}
+          <div className="row gap-6 mt-6">
+            {byHand && (
+              <label className="add-field">Value in {unitWord}
+                <input value={typed} onChange={(x) => setTyped(x.target.value)} className="w-110" inputMode="decimal"
+                       aria-label={`value of ${name} in ${unitWord}`} data-testid={`decide-pksim-${e.id}`} /></label>
+            )}
+            <input placeholder="why" value={reason} onChange={(x) => setReason(x.target.value)} className="flex-1 minw-160"
+                   aria-label={`reason for ${e.id}`} />
+            {!unplaced && (!unconverted || byHand) && (
+              <button className="btn primary" disabled={!reason.trim() || (byHand && handValue === null)}
+                      onClick={() => void run(() => send("post", "/api/v1/projects/{project_id}/evidence/{evidence_id}:decide",
+                                                         { project_id: projectId, evidence_id: e.id },
+                                                         { state: "ACCEPTED", reason,
+                                                           ...(byHand ? { value_pksim: handValue, unit_pksim: e.pksim_unit || null } : {}) }),
+                                              `${name} = ${fmt(byHand ? handValue : e.value_pksim ?? e.value)}${byHand && e.pksim_unit ? ` ${e.pksim_unit}` : ""} accepted.`)}>
+                Accept</button>
+            )}
+            <button className="btn" disabled={!reason.trim()}
+                    onClick={() => void run(() => send("post", "/api/v1/projects/{project_id}/evidence/{evidence_id}:decide", { project_id: projectId, evidence_id: e.id }, { state: "REJECTED", reason }),
+                                            `${name} ${fmt(e.value)}: rejected.`)}>Reject</button>
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -227,7 +325,7 @@ export function TodoAction({ t, projectId, run }: { t: TodoItem; projectId: stri
       {t.kind === "conflict" && <Conflict t={t} projectId={projectId} run={run} />}
       {(t.kind === "correct" || t.kind === "pka") && (
         <>
-          <p className="muted m-2-0-4 fs-13">{t.message.replace(/^ev-[0-9a-f]+: /, "")}</p>
+          <p className="muted m-2-0-4 fs-13">{todoMessage(t.kind, t.message)}</p>
           {(t.items as Ev[]).map((e) => <Correction key={e.id} e={e} t={t} projectId={projectId} run={run} />)}
         </>
       )}
@@ -241,26 +339,32 @@ export function TodoAction({ t, projectId, run }: { t: TodoItem; projectId: stri
                                                                 "Molecular weight proposed from PubChem.")}>Propose it</button>
             </div>
           )}
-          {(t.items as Ev[]).map((e) => <Decide key={e.id} e={e} projectId={projectId} run={run} />)}
+          {(t.items as Ev[]).map((e) => <Decide key={e.id} e={e} projectId={projectId} run={run} pathways={t.pathways} todo={t} />)}
         </>
       )}
       {t.kind === "review" && (
         <>
-          <p className="muted m-2-0-4 fs-13">{t.message.replace(/^ev-[0-9a-f]+: /, "")}</p>
-          {(t.items as Ev[]).map((e) => <Decide key={e.id} e={e} projectId={projectId} run={run} />)}
+          <p className="muted m-2-0-4 fs-13">{todoMessage(t.kind, t.message)}</p>
+          {(t.items as Ev[]).map((e) => <Decide key={e.id} e={e} projectId={projectId} run={run} pathways={t.pathways} todo={t} />)}
         </>
       )}
       {(t.kind === "regimen" || t.kind === "demographics") && <StudyFix t={t} projectId={projectId} run={run} />}
       {t.kind === "datasets" && <Datasets t={t} />}
       {t.kind === "formulation" && (
         <>
-          <p className="muted m-2-0 fs-13">{t.message}. Propose the release model from the test
-            product&apos;s dissolution profile (below), or give the formulation&apos;s values with their source.</p>
+          <ul className="m-2-0 fs-13" data-testid="formulation-problems">
+            {t.message.split("; ").map((m) => <li key={m}>{formulationProblem(m)}</li>)}
+          </ul>
+          <p className="muted m-2-0 fs-13" data-testid="formulation-how">A formulation&apos;s release comes from a product&apos;s dissolution
+            profile: &ldquo;Use this profile as the release&rdquo; on the product&apos;s card, on <a href="?tab=formulations">Products and
+            dissolution</a>. With no dissolution data here, add the product&apos;s dissolution file (Add data) or ask the client for it
+            (<a href="?tab=todo">To do</a>, &ldquo;Ask the client&rdquo;). A study wrongly read as a tablet or capsule is corrected on its
+            card on <a href="?tab=studies">Clinical studies</a>.</p>
           {(t.items as Ev[]).map((e) => <Decide key={e.id} e={e} projectId={projectId} run={run} />)}
         </>
       )}
       {(t.kind === "process" || t.kind === "unit" || t.kind === "check") && (
-        <p className="muted m-2-0 fs-13">{t.message}</p>
+        <p className="muted m-2-0 fs-13">{todoMessage(t.kind, t.message)}</p>
       )}
     </>
   );
@@ -270,10 +374,8 @@ export function TodoAction({ t, projectId, run }: { t: TodoItem; projectId: stri
 export function TodoCard({ t, projectId, run }: { t: TodoItem; projectId: string; run: Run }) {
   return (
     <div className="todo-item" data-testid={`todo-${t.kind}-${t.target}`} id={`todo-${t.kind}-${t.target}`}>
-      <div className="spread">
-        <strong>{todoLabel(t.kind, t.target)}</strong>
-        <code className="muted">{t.target}</code>
-      </div>
+      {/* named in words only (final review OWN-8): "The formulation of the tablet studies", never "form.*" */}
+      <strong>{todoLabel(t.kind, t.target)}</strong>
       <TodoAction t={t} projectId={projectId} run={run} />
     </div>
   );

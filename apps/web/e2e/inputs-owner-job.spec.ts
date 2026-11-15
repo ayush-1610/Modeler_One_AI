@@ -439,4 +439,33 @@ test("the owner's job: files uploaded, layouts checked, values linked with arms,
   await expect(changed).toContainText("Given back (counted again): sheet Means, cell A19 of OJ-101 plasma means.xlsx");
   await expect(changed).toContainText(/dev-user, \d{1,2} \w{3} \d{4}, \d\d:\d\d · “the re-assay count is asked of the lab”/);
   await shot(page, "7-changed-since-signed");
+
+  // --- what is left points to where it is done (this job's gap 11): the tablet study's missing formulation opens
+  // Products and dissolution, or To do to ask the client; no product came, so its To do row says how a release is set ---
+  const stepBar = page.getByTestId("step-waiting");
+  await expect(stepBar.getByTestId("step-waiting-go-formulations")).toHaveText("a tablet study has no formulation");
+  await expect(stepBar.getByTestId("step-waiting-or-todo")).toHaveText("ask the client");
+  await stepBar.getByTestId("step-waiting-go-formulations").click();
+  await expect(page.getByTestId("tab-formulations")).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByTestId("todo-formulation-form.*")).toContainText("a tablet or capsule study, and the model holds no formulation yet");
+  await expect(page.getByTestId("todo-formulation-form.*").getByTestId("formulation-how")).toContainText("ask the client for it");
+  await expect(page.getByTestId("todo-formulation-form.*")).not.toContainText("form.");
+
+  // --- downstream pages agree with Inputs (final review OWN-13): the Run page lists the studies Inputs holds, and Review &
+  // sign says what Inputs still waits on, in words, each opening where it is done ---
+  await page.goto(`/projects/${projectId}`);
+  for (const id of [seed.study, `${seed.study}-Reference`, `${seed.study}-Test`]) {
+    await expect(page.getByTestId(`overview-study-${id}`)).toContainText("Inputs");
+  }
+  await expect(page.getByText("No observed data yet")).toHaveCount(0);
+  await page.goto(`/projects/${projectId}/plan`);
+  const blocked = page.getByTestId("step-blocked-reasons");
+  await expect(blocked.getByTestId("step-blocked-check-formulations")).toContainText("A tablet study has no formulation");
+  await expect(blocked.getByTestId("step-blocked-check-formulations").getByRole("link", { name: "ask the client" })).toBeVisible();
+  await expect(blocked).not.toContainText("MS-01");
+  await expect(blocked).not.toContainText("S0 completeness");
+  await expect(page.getByTestId("step-blocked-todo")).toContainText("its count is of items, not of checks");
+  await blocked.getByTestId("step-blocked-check-formulations").getByRole("link").first().click();
+  await expect(page).toHaveURL(new RegExp(`/projects/${projectId}/inputs\\?tab=formulations`));
+  await expect(page.getByTestId("tab-formulations")).toHaveAttribute("aria-selected", "true");
 });

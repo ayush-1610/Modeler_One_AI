@@ -7,6 +7,8 @@ through; a study row is the upload's shape (`modeler_api.studies.StudyUpload`) a
 
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import ConfigDict
 
 from modeler_api.studies import ObservedProfile, StudyUpload
@@ -64,6 +66,9 @@ class StudyRow(StudyUpload):
     project: str
     profile: ObservedProfile | None = None   # type: ignore[assignment]
     blinded: bool = False
+    # where it comes from: uploaded for the campaign path (`POST .../studies`), or the study catalog Inputs assembles
+    # from the confirmed data (what a signed plan stages); absent: uploaded
+    source: Literal["upload", "inputs"] = "upload"
 
 
 class Studies(View):

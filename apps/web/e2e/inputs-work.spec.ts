@@ -10,11 +10,16 @@ import { join } from "node:path";
 import { expect, test } from "@playwright/test";
 
 import {
-  NEW, NO_TARGET, aboutText, analyteChoice, analyteChoices, areaHead, assignBody, buildWork, collisions, columnSummary, destinationKey, heldBy,
+  NEW, NO_TARGET, aboutText, analyteChoice, analyteChoices, areaHead, assignBody, buildWork, collisions, columnSummary, destinationKey,
+  formulationsHeld, heldBy, releaseAnchor, releaseOf,
   layoutRows, linkRows, linkTarget, linkWords, linkedPiece, looseGroups, nextText, normLabel, notReadRows, onDelivery, pairsMeet, prefixAlias,
   targetProblem, type WorkSources,
 } from "../lib/inputsWork";
-import { alreadyDecidedText, checkLabel, placeText, stepReason } from "../lib/words";
+import {
+  alreadyDecidedText, bracketed, checkLabel, flagLines, formulationLine, formulationProblem, paramLabel, placeText, spotGroupText, stepReason,
+  stepWhere, todoMessage,
+  unitText,
+} from "../lib/words";
 
 const load = (name: string): WorkSources => JSON.parse(readFileSync(join(__dirname, "fixtures", "inputs-work", `${name}.json`), "utf8"));
 const copy = <T,>(x: T): T => JSON.parse(JSON.stringify(x));
@@ -520,4 +525,85 @@ test("a sheet-form group of a file linked to a study or product joins its card: 
   expect(after.items.some((i) => i.id === "draft:draft|file-0773300f5a31|pH 6.8")).toBe(false);
   expect(after.subjects.find((s) => s.row?.subject === "pr-12")!.groups.map((g) => g.id)).toContain("sheet:file-0773300f5a31|pH 6.8");
   expect(after.counts.missing).toBeLessThan(before.counts.missing);
+});
+
+test("a confirmed product says whether its release is set; a tablet study's missing formulation opens the product that can give it (OWN-10)", () => {
+  const sources = copy(load("exampleamide"));
+  const test10 = sources.review!.groups.find((g) => g.id === "product:Test 10 mg")!;
+  Object.assign(test10, { state: "confirmed", confirmed_by: "dev-user", confirmed_at: "2026-11-15T09:19:00Z" });
+  sources.inputs!.todo.push({ kind: "formulation", target: "form.*", tab: "formulations",
+                              message: "CL-01: the CPF defines no formulation 'Test 10 mg' (form.Test 10 mg.type)" });
+  const model = buildWork(sources);
+  const card = model.subjects.find((s) => s.label === "Test 10 mg")!;
+  expect(releaseOf(card, sources.inputs)).toEqual({ name: null, needed: true });
+  expect(releaseOf(model.subjects.find((s) => s.label === "Brand 10 mg")!, sources.inputs)).toEqual({ name: null, needed: false });
+  // confirmed is not "in the model" as a formulation: the card says its dissolution is kept and its release is not set
+  expect(model.items.find((i) => i.id === `confirm:${card.key}`)!.inModel)
+    .toBe("Confirmed by dev-user on 15 Nov 2026, 09:19; in the model. Its dissolution profile is kept; the formulation's release is not set yet.");
+  // the tablet study's missing formulation is the card's open work, and opens where its release is set
+  const item = model.items.find((i) => i.id === "todo:formulation:form.*")!;
+  expect(item.open).toBe(true);
+  expect(item.subjects).toEqual([card.key]);
+  expect(item.where).toMatchObject({ tab: "formulations", anchor: releaseAnchor(card) });
+  expect(item.detail).toBe("Use the dissolution profile of Test 10 mg as its release, on its card.");
+  // once the model holds the formulation under the product's name, its release is set
+  sources.inputs!.compound.push({ id: "form.Test 10 mg.type", state: "kept", tab: "formulations" });
+  expect(formulationsHeld(sources.inputs)).toEqual(["Test 10 mg"]);
+  expect(releaseOf(card, sources.inputs).name).toBe("Test 10 mg");
+  sources.inputs!.todo = sources.inputs!.todo.filter((t) => t.kind !== "formulation");
+  expect(buildWork(sources).items.find((i) => i.id === `confirm:${card.key}`)!.inModel).toContain("Its release is the formulation “Test 10 mg”.");
+  // no product names the formulation a study needs: the item stays on Products and dissolution, opening its own row
+  const none = copy(load("clientamide"));
+  none.inputs!.todo.push({ kind: "formulation", target: "form.*", tab: "formulations",
+                           message: "CL-1: the study is a solid oral form but the CPF defines no formulation (form.{name}.type)" });
+  expect(buildWork(none).items.find((i) => i.id === "todo:formulation:form.*")!.where).toEqual({ tab: "formulations", anchor: "todo-formulation-form.*" });
+});
+
+test("a value's flags, its parameter and a formulation in a person's words, never the engine's codes or ids (OWN-5, OWN-8)", () => {
+  // the template's condition list arrives split at every comma: one bracket is one condition again, never a stray bracket
+  expect(bracketed(["system (HLM", "hepatocytes", "rCYP)", "fu", "inc"])).toEqual(["system (HLM, hepatocytes, rCYP)", "fu", "inc"]);
+  expect(bracketed(["hepatocytes", "rCYP)"])).toEqual(["hepatocytes", "rCYP"]);
+  expect(bracketed(["system (HLM"])).toEqual(["system (HLM)"]);
+  const lines = flagLines(["needs_conversion: no storage unit known for elim; enter the PK-Sim value by hand", "condition_missing: system (HLM",
+                           "condition_missing: hepatocytes", "condition_missing: rCYP)", "condition_missing: inc", "value_not_in_quote"]);
+  expect(lines).toEqual(["Filed under no elimination pathway: choose the pathway it belongs to",
+                         "The source does not state: system (HLM, hepatocytes, rCYP); inc", "The value is not in the quoted sentence"]);
+  expect(flagLines(["refiled: from elim; a new name can change what the number means, so a person confirms the converted value",
+                    "needs_conversion: an absolute clearance needs the body weight to become ml/min/kg"]))
+    .toEqual(["Filed under a new parameter (it was filed as an elimination pathway): check the converted value before you accept it",
+              "Not converted: an absolute clearance needs the body weight to become ml/min/kg"]);
+  for (const line of [...lines, ...flagLines(["species_mismatch: rat", "conflict >2-fold with ev-1"])]) {
+    expect(line).not.toMatch(/needs_conversion|condition_missing|species_mismatch|\bev-|\belim\b|_/);
+  }
+  // a held value's sentence: the placeholder asks for its pathway; another names its parameter, never its id
+  expect(todoMessage("review", "ev-1a2b: elim = 21.0 L/h is held until a person accepts or corrects it (needs_conversion: no storage unit known for elim)"))
+    .toBe("21.0 L/h is filed under no elimination pathway: it is used once it is filed under one (below).");
+  expect(todoMessage("review", "ev-9: phys.logp = 2.1 Log Units is held until a person accepts or corrects it (value_not_in_quote)"))
+    .toBe("Lipophilicity = 2.1 waits for your check before it is used: why is said under its source.");
+  // a parameter by its label, a family's member by what its id says; a unit as a person writes it
+  expect(["phys.logp", "phys.mw", "phys.pka.base.0", "phys.pka.acid.1", "bind.fu", "elim", "elim.hepatic.total.plasma_clearance",
+          "elim.hepatic.CYP3A4.clspec", "form.Test 10 mg.type", "form.Test 10 mg.weibull.t50"].map(paramLabel))
+    .toEqual(["Lipophilicity", "Molecular weight", "pKa, basic", "pKa, acidic (group 2)", "Fraction unbound in plasma", "An elimination pathway",
+              "Hepatic plasma clearance (total)", "Specific clearance by CYP3A4 (CLspec)", "Test 10 mg: release model",
+              "Test 10 mg: Dissolution time (50% dissolved)"]);
+  expect([unitText("Log Units"), unitText("ml/min/kg"), unitText(null)]).toEqual(["", "ml/min/kg", ""]);
+  // a formulation in one line; why a tablet study has none, without the CPF's ids
+  expect(formulationLine("Test 10 mg", { type: { value: "Weibull", unit: null }, "weibull.t50": { value: 18.0004, unit: "min" },
+                                         "weibull.shape": { value: 1.3, unit: null } })).toBe("Test 10 mg · release Weibull · t50 18 min · shape 1.3");
+  expect(formulationLine("Brand 10 mg", {})).toBe("Brand 10 mg · release not set");
+  expect(formulationProblem("CL-01: the study is a solid oral form but the CPF defines no formulation (form.{name}.type)"))
+    .toBe("CL-01: a tablet or capsule study, and the model holds no formulation yet");
+  expect(formulationProblem("CL-01: the CPF defines no formulation 'Test 10 mg' (form.Test 10 mg.type)"))
+    .toBe("CL-01: the model holds no formulation “Test 10 mg”");
+  expect(formulationProblem("CL-01: Weibull formulation 'T' needs form.T.weibull.t50, form.T.weibull.shape (the in-vitro dissolution fit)"))
+    .toBe("CL-01: formulation “T” has no dissolution time (50% dissolved), dissolution shape yet");
+  // the spot check's group, never its key
+  expect(spotGroupText("table_kind=pk_individual|unit_class=concentration|blq_form=BLQ|cross_file=yes"))
+    .toBe("picked at random among the concentrations of individual PK tables, those written “BLQ”, read from another file than the study's own");
+  expect(spotGroupText("table_kind=fact|unit_class=other|blq_form=|cross_file=no")).toBe("picked at random among the values of the facts read from the files");
+  // a model check opens the area of Inputs where it is done, and a tablet study's formulation has a second way (gap 11)
+  expect(stepWhere("S0 completeness (MS-01 §2.2)")).toMatchObject({ area: "todo", name: "To do" });
+  expect(stepWhere("formulations of solid studies")).toMatchObject({ area: "formulations", name: "Products and dissolution",
+                                                                     or: { say: "ask the client", area: "todo" } });
+  expect(stepWhere("Review the plan, then approve and sign the MAP")).toBeNull();
 });

@@ -8,7 +8,9 @@ import { useResource } from "@/lib/hooks";
 
 import { PeekButton } from "@/components/kit/SourcePeek";
 
-import { Decide, type Ev, LABEL, type Run, Source, TodoAction, TodoCard, type TodoItem, Value } from "./InputsTodo";
+import { formulationLine, paramLabel, unitText } from "@/lib/words";
+
+import { Decide, type Ev, fmt, PathwayPick, type Pathway, type Run, Source, TodoAction, TodoCard, type TodoItem, Value } from "./InputsTodo";
 
 export type Row = Schema<"CompoundRow">;
 type Alternative = Schema<"AlternativeView">;
@@ -44,10 +46,17 @@ const CHOICE_HELP: Record<string, string> = { "bind.partner": "The plasma protei
 /** A value with its source, typed into the row (p2-add): filed under the row's data-checklist item, cited. A value is
  *  typed with its unit as the source states it; a name (the binding partner) is chosen from PK-Sim's; a neutral compound
  *  is stated as such (phys.pka.neutral set to 1, as the CPF records it for a published model, `osp_import`). */
-function AddValue({ row, name, projectId, run }: { row: Row; name: string; projectId: string; run: Run }) {
+function AddValue({ row, name, projectId, run, pathways = [] }: {
+  row: Row; name: string; projectId: string; run: Run;
+  /** the data plan's "elim" (an elimination pathway): the pathways its value is filed under, chosen first (OWN-5) */
+  pathways?: Pathway[];
+}) {
   const entry = entryOf(row);
   const [value, setValue] = useState(entry.kind === "neutral" ? "1" : "");
   const [unit, setUnit] = useState(row.unit ?? "");
+  const [pathway, setPathway] = useState("");
+  // the parameter the value is filed under: the row's own, or the pathway chosen for the data plan's "elim" (never "elim")
+  const target = pathways.length ? pathway : row.id;
   const [type, setType] = useState<(typeof SOURCE_TYPES)[number][0]>("PUBLICATION");
   const [title, setTitle] = useState("");
   const [link, setLink] = useState("");
@@ -57,7 +66,8 @@ function AddValue({ row, name, projectId, run }: { row: Row; name: string; proje
   const cited = type === "ASSUMPTION" || link.trim() !== "";
   if (!row.req_id) return <p className="muted fs-13 m-0">This input has no item on the data checklist to file a value under.</p>;
   if (entry.kind === "elsewhere") return null;
-  const done = entry.kind === "neutral" ? `${name}: stated with its source.` : `${name}: value added with its source.`;
+  const done = entry.kind === "neutral" ? `${name}: stated with its source.`
+    : `${pathways.length ? paramLabel(target) : name}: value added with its source.`;
   // each field is named on screen (plan 2026-11-14, design "How the person fills what is missing"); its accessible name
   // keeps the row's id, so a field is never one of several with the same name
   return (
@@ -68,6 +78,15 @@ function AddValue({ row, name, projectId, run }: { row: Row; name: string; proje
           : entry.kind === "choice" ? <>{CHOICE_HELP[row.id] ?? "One of PK-Sim's names for it, as the model builder takes it."}</>
             : <>The source states that the compound is neutral: it has no pKa.</>}
         {" "}Cite the source by its DOI or URL, or call it an assumption.</p>
+      {pathways.length > 0 && (
+        <div className="row gap-6" data-testid={`add-pathway-${row.id}`}>
+          <label className="add-field">Elimination pathway
+            <PathwayPick pathways={pathways} value={pathway} label={`the elimination pathway of the value for ${name}`} testId={`pathway-for-${row.id}`}
+                         onChange={(id) => { setPathway(id); setUnit(pathways.find((p) => p.id === id)?.unit ?? ""); }} /></label>
+          <p className="muted fs-12 m-0 flex-1 minw-220">A value counts only for the pathway it belongs to: choose it first. Its unit is
+            the one the model stores it in; another unit is converted where it can be.</p>
+        </div>
+      )}
       <div className="row gap-6">
         {typed && <>
           <label className="add-field">Value
@@ -94,9 +113,10 @@ function AddValue({ row, name, projectId, run }: { row: Row; name: string; proje
       <div className="row gap-6 mt-4">
         <label className="add-field flex-1 minw-220">The sentence that states it
           <input value={quote} onChange={(e) => setQuote(e.target.value)} aria-label={`quote for ${row.id}`} /></label>
-        <button className="btn primary" disabled={!value.trim() || !cited}
+        <button className="btn primary" disabled={!value.trim() || !cited || !target}
+                title={!target ? "Choose the elimination pathway first" : undefined}
                 onClick={() => void run(() => send("post", "/api/v1/projects/{project_id}/evidence", { project_id: projectId }, {
-                  req_id: row.req_id as string, target: row.id, value: numeric || entry.kind === "neutral" ? Number(value) : value,
+                  req_id: row.req_id as string, target, value: numeric || entry.kind === "neutral" ? Number(value) : value,
                   unit: typed ? unit || null : null, source_type: type, title, quote,
                   ...(link.startsWith("10.") ? { doi: link } : link ? { url: link } : {}),
                 }), done)}>
@@ -114,7 +134,7 @@ function SourceLine({ e, projectId, run }: { e: Ev; projectId: string; run: Run 
     <li className="source-line">
       <div className="source-line-head">
         <Source e={e} />
-        <PeekButton projectId={projectId} source={{ ...e.source, quote: e.quote }} label={`${e.target} (${e.id})`}
+        <PeekButton projectId={projectId} source={{ ...e.source, quote: e.quote }} label={paramLabel(e.target)}
                     testId={`peek-${e.id}`} />
       </div>
       <div className="row gap-6 mt-4">
@@ -123,7 +143,7 @@ function SourceLine({ e, projectId, run }: { e: Ev; projectId: string; run: Run 
         <button className="btn" disabled={!reason.trim()}
                 onClick={() => void run(() => send("post", "/api/v1/projects/{project_id}/evidence/{evidence_id}:decide",
                                                    { project_id: projectId, evidence_id: e.id }, { state: "REJECTED", reason }),
-                                        `${e.id} excluded; the next best source is used.`)}>Exclude</button>
+                                        `${paramLabel(e.target)} ${fmt(e.value)} excluded; the next best source is used.`)}>Exclude</button>
       </div>
     </li>
   );
@@ -135,7 +155,7 @@ function AlternativeLine({ a, projectId }: { a: Alternative; projectId: string }
     <li className="source-line">
       <div className="row gap-8">
         <Value e={e} />
-        <PeekButton projectId={projectId} source={{ ...e.source, quote: e.quote }} label={`${e.target} (${e.id})`}
+        <PeekButton projectId={projectId} source={{ ...e.source, quote: e.quote }} label={paramLabel(e.target)}
                     testId={`peek-${e.id}`} />
         <span className={`chip ${a.relation === "conflicts" ? "high" : "medium"}`}>
           {a.relation === "conflicts" ? "more than 2-fold apart" : `differs by ${a.differs_pct} %`}
@@ -158,7 +178,7 @@ function ChooseProcess({ row, projectId, run }: { row: Row; projectId: string; r
       <button className="btn" disabled={!reason.trim()}
               onClick={() => void run(() => send("put", "/api/v1/projects/{project_id}/inputs/choices", { project_id: projectId },
                                                  { kind: "process", key: row.id.split(".").slice(0, -1).join("."), value, reason }),
-                                      `${row.id}: carried by ${value}.`)}>Choose</button>
+                                      `${paramLabel(row.id)}: carried by the PK-Sim process ${value}.`)}>Choose</button>
     </div>
   );
 }
@@ -179,12 +199,12 @@ function InputRow({ row, name, items, projectId, run }: { row: Row; name: string
     <div className={`input-row ${row.state}`} data-testid={`record-${row.id}`} id={`row-${row.id}`}>
       <div className="input-head">
         <div className="input-name">
+          {/* named in words only (final review OWN-8): the CPF id is not shown */}
           <strong>{name}</strong>
-          <code className="muted">{row.id}</code>
         </div>
         <div className="input-value">
           {row.value === null ? (row.state === "empty" ? null : <span className="muted">—</span>)
-            : entry.kind === "neutral" ? <strong>neutral</strong> : <><strong>{typeof row.value === "number" ? +row.value.toPrecision(5) : row.value}</strong> {row.unit ?? ""}</>}
+            : entry.kind === "neutral" ? <strong>neutral</strong> : <><strong>{typeof row.value === "number" ? +row.value.toPrecision(5) : row.value}</strong> {unitText(row.unit)}</>}
         </div>
         <div className="input-source">
           {kept ? <>
@@ -239,7 +259,7 @@ function InputRow({ row, name, items, projectId, run }: { row: Row; name: string
           {row.alternatives.map((a) => <AlternativeLine key={a.id} a={a} projectId={projectId} />)}
         </ul>
       )}
-      {adding && <AddValue row={row} name={name} projectId={projectId} run={run} />}
+      {adding && <AddValue row={row} name={name} projectId={projectId} run={run} pathways={items.find((t) => t.pathways?.length)?.pathways} />}
     </div>
   );
 }
@@ -288,12 +308,14 @@ function useChecklistNames(projectId: string, wanted: boolean): Map<string, stri
 /** The model inputs of one tab, each in its row, with what waits on a person settled where it is. Items about no row
  *  of the tab (a placeholder parameter, a build) come first. `grouped`: the compound's rows under their building
  *  blocks, each block's open rows first. The rows to fill come last, folded, in each block. */
-export function InputRows({ rows, todo, projectId, run, empty, grouped }: {
-  rows: Row[]; todo: TodoItem[]; projectId: string; run: Run; empty: string; grouped?: boolean;
+export function InputRows({ rows, todo, projectId, run, empty, emptyTitle = "Nothing on this tab yet", grouped }: {
+  rows: Row[]; todo: TodoItem[]; projectId: string; run: Run; empty: ReactNode; emptyTitle?: string; grouped?: boolean;
 }) {
-  const checklist = useChecklistNames(projectId, rows.some((r) => !LABEL[r.id] && r.req_id));
-  // a row's title: its plain name, else its checklist item's; the id itself stays in the row's small code line
-  const nameOf = (r: Row) => LABEL[r.id] ?? (r.req_id ? checklist.get(r.req_id) : undefined) ?? r.id;
+  const known = (id: string) => paramLabel(id) !== id;
+  const checklist = useChecklistNames(projectId, rows.some((r) => !known(r.id) && r.req_id));
+  // a row's title: its plain name (lib/words.ts, a family's member by what its id says), else its checklist item's; the
+  // CPF id is not shown (final review OWN-8)
+  const nameOf = (r: Row) => (known(r.id) ? paramLabel(r.id) : (r.req_id ? checklist.get(r.req_id) : undefined) ?? paramLabel(r.id));
   const ids = new Set(rows.map((r) => r.id));
   const loose = todo.filter((t) => !ids.has(t.target));
   const sorted = [...rows].sort((a, b) => FIRST.indexOf(a.state) - FIRST.indexOf(b.state));
@@ -309,11 +331,23 @@ export function InputRows({ rows, todo, projectId, run, empty, grouped }: {
     .map((r) => { const e = entryOf(r); return `${nameOf(r)} (${e.kind === "elsewhere" ? e.what : ""})`; });
   // what waits on a person: a value missing, in conflict or held; a row to fill is not open
   const open = (list: Row[]) => list.filter((r) => r.state !== "kept" && r.state !== "empty").length;
+  // a formulation's values (form.<name>.*) are one formulation: one line, its values folded under it (final review OWN-8)
+  const flat = (list: Row[]) => {
+    const forms = new Map<string, Row[]>();
+    const out: ReactNode[] = [];
+    for (const r of list) {
+      const m = FORM_ROW.exec(r.id);
+      if (!m) { out.push(one(r)); continue; }
+      if (!forms.has(m[1])) { forms.set(m[1], []); out.push(m[1]); }
+      forms.get(m[1])!.push(r);
+    }
+    return out.map((x) => (typeof x === "string" ? <FormulationRow key={`form-${x}`} name={x} rows={forms.get(x)!} one={one} /> : x));
+  };
   return (
     <>
       {loose.map((t, i) => <TodoCard key={`${t.kind}-${t.target}-${i}`} t={t} projectId={projectId} run={run} />)}
       {rows.length === 0 && loose.length === 0
-        ? <EmptyState title="Nothing on this tab yet">{empty}</EmptyState>
+        ? <EmptyState title={emptyTitle}>{empty}</EmptyState>
         : grouped ? blocks.map(([name, list]) => (
           <section key={name} className="input-block" aria-label={name} data-testid={`block-${name}`}>
             <h3 className="input-block-title">{name}
@@ -321,7 +355,38 @@ export function InputRows({ rows, todo, projectId, run, empty, grouped }: {
             {filled(list).map(one)}
             <ToFill rows={toFill(list)} elsewhere={elsewhere(list)} name={name} one={one} />
           </section>
-        )) : <div className="input-block">{filled(sorted).map(one)}<ToFill rows={toFill(sorted)} elsewhere={elsewhere(sorted)} name="rows" one={one} /></div>}
+        )) : <div className="input-block">{flat(filled(sorted))}<ToFill rows={toFill(sorted)} elsewhere={elsewhere(sorted)} name="rows" one={one} /></div>}
     </>
+  );
+}
+
+/** A formulation's own values: `form.<name>.<part>` (the CPF's formulation family, pbpk_domain.cpf.formulations). */
+const FORM_ROW = /^form\.(.+)\.(type|weibull\.[a-z0-9_]+|particles\.[a-z0-9_]+|bins)$/;
+
+/** One formulation the model holds, in one line ("Test 10 mg · release Weibull · t50 18 min · shape 1.3"), with what of
+ *  it waits on a person said beside it and its values, each with its source, folded under it. */
+function FormulationRow({ name, rows, one }: { name: string; rows: Row[]; one: (r: Row) => ReactNode }) {
+  const [open, setOpen] = useState(false);
+  const values = Object.fromEntries(rows.filter((r) => r.state === "kept")
+    .map((r) => [FORM_ROW.exec(r.id)![2], { value: r.value, unit: r.unit }] as const));
+  const waiting = rows.filter((r) => r.state !== "kept");
+  const kept = rows.find((r) => r.id.endsWith(".type"))?.sources[0] ?? rows.find((r) => r.sources.length)?.sources[0];
+  return (
+    <div className={`input-row ${waiting.length ? "held" : "kept"}`} data-testid={`formulation-row-${name}`}>
+      <div className="input-head">
+        <div className="input-name"><strong data-testid={`formulation-line-${name}`}>{formulationLine(name, values)}</strong></div>
+        <div className="input-source">{kept ? <>{kept.source.title || kept.source_type.toLowerCase().replace(/_/g, " ")}
+          <span className="muted"> · grade {kept.confidence}</span></> : null}</div>
+        <div className="input-state">
+          <span className={`chip ${waiting.length ? "medium" : "low"}`}>{waiting.length ? `${waiting.length} to check` : "in the model"}</span>
+        </div>
+      </div>
+      {waiting.map(one)}
+      {rows.length > waiting.length && (
+        <button type="button" className="link-btn" aria-expanded={open} onClick={() => setOpen(!open)} data-testid={`formulation-values-${name}`}>
+          {open ? "Hide its values" : `Its values and their sources (${rows.length - waiting.length})`}</button>
+      )}
+      {open && <div className="input-fill-rows">{rows.filter((r) => r.state === "kept").map(one)}</div>}
+    </div>
   );
 }

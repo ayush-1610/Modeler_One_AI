@@ -411,6 +411,9 @@ export function buildWork(sources: WorkSources): WorkModel {
 
   // 4–5 · the /inputs to-do: what no source gives (missing), and the choices on the compound's values
   const toConfirmStudies = subjects.some((s) => s.kind === "study" && !s.done);
+  // the one product whose release a tablet study needs (final review OWN-10): the formulation item opens its card, where
+  // "Use this profile as the release" is the card's first action, and the card counts it as open work
+  const releaseNeeded = subjects.filter((s) => s.kind === "product" && !releaseOf(s, inputs).name && releaseOf(s, inputs).needed);
   for (const t of inputs?.todo ?? []) {
     if (t.kind === "confirm") continue;                      // a group to confirm is its subject's card, below
     if (t.kind === "check") continue;                        // the software build is a model check
@@ -418,11 +421,15 @@ export function buildWork(sources: WorkSources): WorkModel {
     const decide = DECIDE.has(t.kind);
     const tab = (t.tab ?? "compound") as Tab;
     const blinded = (t.kind === "regimen" || t.kind === "demographics") && blindedStudies.has(normLabel(t.target));
+    const product = t.kind === "formulation" && releaseNeeded.length === 1 ? releaseNeeded[0] : null;
     add({
       id: `todo:${t.kind}:${t.target}`, group: decide ? "disagree" : "missing", status: decide ? "to_decide" : "missing", area: tab,
-      label: todoLabel(t.kind, t.target), where: { tab, anchor: `todo-${t.kind}-${t.target}` }, pipeline: "inputs",
+      label: todoLabel(t.kind, t.target), pipeline: "inputs",
+      where: product ? { tab: product.area, anchor: releaseAnchor(product), subject: product.row ? `${product.row.subject_type}/${product.row.subject}` : undefined }
+        : { tab, anchor: `todo-${t.kind}-${t.target}` },
+      detail: product ? `Use the dissolution profile of ${product.label} as its release, on its card.` : undefined,
       blocked: blinded ? "Blinded until the plan is signed: its facts are set afterwards." : undefined,
-      files: [], subjects: [], weight: 1, todo: t,
+      files: [], subjects: product ? [product.key] : [], weight: 1, todo: t,
     });
   }
 
@@ -522,7 +529,11 @@ export function buildWork(sources: WorkSources): WorkModel {
     const base = { area: s.area, where, pipeline: (s.path === "delivery" ? "delivery" : "sheet-form") as WorkItem["pipeline"],
                    files: s.files, subjects: [s.key], weight: s.row?.values ?? s.groups.reduce((n, x) => n + x.items.length, 0) };
     if (s.done) {
-      add({ ...base, id: `confirm:${s.key}`, group: "done", status: "done", label: name, inModel: inModelText(s) });
+      // a product says what of it is in the model: its dissolution kept, and its release set or not (OWN-10)
+      const release = s.kind === "product" ? releaseOf(s, inputs).name : null;
+      const what = s.kind !== "product" ? "" : release ? ` Its release is the formulation “${release}”.`
+        : " Its dissolution profile is kept; the formulation's release is not set yet.";
+      add({ ...base, id: `confirm:${s.key}`, group: "done", status: "done", label: name, inModel: `${inModelText(s)}${what}` });
       continue;
     }
     const c = s.row?.confirmation;
@@ -654,6 +665,27 @@ export function inModel(inputs: InputsLike | null): InModel {
     values: kept.filter((r) => r.tab === "compound").length,
   };
 }
+
+/** The formulations the model holds: each a kept `form.<name>.type` (the CPF's release model of a formulation), by name. */
+export function formulationsHeld(inputs: InputsLike | null): string[] {
+  return [...new Set((inputs?.compound ?? []).filter((r) => r.state === "kept" && /^form\..+\.type$/.test(r.id))
+    .map((r) => r.id.slice("form.".length, -".type".length)))];
+}
+
+/** A product's release in the model (final review OWN-10): the formulation the model holds under the product's name (its
+ *  card's, or another name the sheet form gave it), or null while its release is not set; and whether a tablet or capsule
+ *  study needs it: the readiness check "formulations of solid studies" names this product's formulation as missing or
+ *  incomplete, or says a solid study has no formulation at all (any product may then be the one). */
+export function releaseOf(s: Pick<Subject, "label" | "aliases">, inputs: InputsLike | null): { name: string | null; needed: boolean } {
+  const names = new Set([s.label, ...s.aliases].map(normLabel));
+  const name = formulationsHeld(inputs).find((n) => names.has(normLabel(n))) ?? null;
+  const parts = (inputs?.todo ?? []).filter((t) => t.kind === "formulation").flatMap((t) => t.message.split("; "));
+  const needed = parts.some((p) => /defines no formulation \(/.test(p)
+    || [...p.matchAll(/formulation '([^']+)'/g)].some((m) => names.has(normLabel(m[1]))));
+  return { name, needed };
+}
+/** Where a product's card says its release, and offers to set it. */
+export const releaseAnchor = (s: Pick<Subject, "key">) => `card-release-${s.key}`;
 
 /** What only the client can send, one line per requirement with the subjects it is asked for. */
 export function askLines(delivery: DeliveryPage | null): AskLine[] {

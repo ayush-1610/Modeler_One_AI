@@ -27,7 +27,7 @@ test("another project's literature value for the same drug is reused here with i
   await page.goto(`/projects/${here}/inputs?tab=compound`);
   const offer = page.getByTestId(`reuse-${first}`);
   await expect(offer).toContainText("1 value");
-  await expect(offer).toContainText("phys.logp (Pharmacokinetics of reusamide)");
+  await expect(offer).toContainText("lipophilicity (Pharmacokinetics of reusamide)");      // named in words (OWN-8)
   await page.screenshot({ path: test.info().outputPath("value-reuse.png"), fullPage: true });
   // what only the client can send downloads from Inputs, under what is still missing in To do (moved off Start, 2026-11-06)
   await page.getByTestId("tab-todo").click();

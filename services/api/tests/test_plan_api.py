@@ -261,6 +261,36 @@ def test_external_values_are_blinded_until_the_map_is_signed(setup):
     assert next(d for d in after["datasets"] if d["study"]["study_id"] == sid)["series"][0]["values"][0] == 20.0
 
 
+@pytest.mark.req("T-49")
+def test_the_run_page_reads_the_studies_and_the_cpf_inputs_assembled(setup):
+    """Final review OWN-13: the Run page's study list and its compound page read what Inputs shows. With no study
+    uploaded for the campaign path, GET /studies lists the catalog Inputs assembled (what a signed plan stages), each
+    marked as the inputs'; an upload of the same study wins. GET /compounds/{c}/cpf answers the CPF Inputs assembled."""
+    c, ws, root = setup
+    from modeler_api.studies import StudyUpload
+    from modeler_project.inputs import catalog_rows, current_cpf
+
+    listed = c.get("/api/v1/projects/p1/studies", headers=H).json()["data"]["studies"]
+    assert {s["study_id"] for s in listed} == {str(r["study_id"]) for r in catalog_rows(ws)} and listed
+    iv = next(s for s in listed if s["study_id"] == "iv-250")
+    assert iv["source"] == "inputs" and iv["route"] == "iv_infusion" and iv["dose_mg"] == 250 and iv["project"] == "p1"
+    assert iv["profile"]["values"][:2] == [20.0, 35.0] and not iv["blinded"]
+    FileWriteStore(str(root)).put_studies("t1", "p1", [{**StudyUpload(study_id="iv-250", route="iv_infusion", dose_mg=250,
+                                                                        infusion_time_min=60,
+                                                                        profile={"times": [1.0], "values": [9.0]}).model_dump(),
+                                                        "project": "p1"}])
+    again = c.get("/api/v1/projects/p1/studies", headers=H).json()["data"]["studies"]
+    assert [s["profile"]["values"] for s in again if s["study_id"] == "iv-250"] == [[9.0]]       # the upload, once
+    assert next(s for s in again if s["study_id"] == "iv-250").get("source", "upload") == "upload"
+    assert len(again) == len(listed)
+    cpf = c.get("/api/v1/projects/p1/compounds/Renaldrug/cpf", headers=H)
+    assert cpf.status_code == 200
+    view = cpf.json()["data"]
+    assert view["compound"] == "Renaldrug" and view["version"] == current_cpf(ws).version
+    assert {p["id"] for p in view["parameters"]} == {r.id for r in current_cpf(ws).parameters}
+    assert c.get("/api/v1/projects/p1/compounds/Otherdrug/cpf", headers=H).status_code == 404
+
+
 def test_every_canvas_route_answers_the_typed_page(setup, monkeypatch):
     """Phase 9b: the routes no other test reaches answer their response model (the conftest guard compares each typed
     answer with the handler's own value): the read-only view, a move's dry run, a fit set and removed, a structure

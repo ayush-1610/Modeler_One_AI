@@ -333,7 +333,9 @@ before the next starts.
     listed under the table with "Restore…" for the visit, since a file's row leaves the list once nothing is left.
   - **Missing compound values:** a missing row of /inputs carries no unit, so the unit is typed as the source states
     it, as in the row's own form (pre-filled only where the API gives one); the web supplies no unit. The names are the
-    rows' ids in words (`lib/words.ts`). A pKa and an elimination value are then settled under "Settle disagreements".
+    rows' ids in words (`lib/words.ts`). A pKa is then called acidic or basic under "Settle disagreements". (Corrected
+    by the final review, OWN-5: an elimination value is no longer taken for the placeholder and settled later; its
+    pathway is asked first, in the table, with the unit the API names: "Final review fixes: compound, products …".)
   - **Not-data layouts approved together:** offered whenever one or more layouts read a table as not data; each
     approval's note is the person's note followed by "approved with N other layouts that read a table as not data"
     (nothing added when there is only one, as on both seed projects). "Kept, not used by the model" is said only of
@@ -424,3 +426,43 @@ before the next starts.
   only read with the sheet form. The join reads both.
 - **A disagreement's subject:** the card's To do lists a subject's disagreements under one line ("Subject 001, period
   I: 11 disagreements"), open while three subjects or fewer have any; To do lists them flat, each naming its subject.
+
+### Final review fixes: compound, products and the pages downstream of Inputs (2026-11-15; OWN-5, OWN-10, OWN-13, OWN-8 outside the layout dialog and editor, owner-job gap 11; CHANGELOG "Fixed — final review, compound, products …")
+- **The elimination pathway (OWN-5):** offered are the pathways one value sets (`inputs.elimination_pathways`: of
+  `PATHWAY_TARGETS`, those S0 counts, one harvested process carries and whose registry storage unit a stated unit
+  converts to): the GFR fraction and the total hepatic plasma clearance. Left out, each for a reason a person can see in
+  the table's note: the total renal plasma clearance (the registry gives it no storage unit, so a value would always
+  wait to be typed again in PK-Sim's unit; it stays a target of a correction) and the pathways named by an enzyme
+  (CLspec, CLint, Km, Vmax: the enzyme and often a process type are chosen too; they come with the literature or the
+  client's files and are filed under Settle disagreements). A value is filed under the data plan's elimination item
+  (REQ-elim.pathway) or, on a pathway's own row, under the item that owns it (the GFR fraction's REQ-elim.renal); S0
+  counts the CPF ids, so both meet it.
+- **Not changed, for the owner (SME):** the S0 rule needs no change. The template's condition lists are read by YAML
+  split at every comma (`[system (HLM, hepatocytes, rCYP), …, fu,inc, …]` gives "system (HLM", "hepatocytes",
+  "rCYP)", "fu", "inc"), so `evidence.assess` flags each piece and grades a source that states only its system
+  (or "fu,inc" as one) as incomplete. Reading the list whole changes evidence grades: it needs the entries quoted in
+  `core_small_molecule.yaml` (locked, SME-governed, a ruleset version bump). Until then the page joins a bracket's
+  pieces when it shows them, and shows a piece of one without a stray bracket; the grade is the API's.
+- **Accept refused (OWN-5):** a numeric value is never accepted without its value in PK-Sim's unit. Where the unit does
+  not convert, the API names the unit (`EvidenceView.pksim_unit`, from the registry or the one harvested process
+  parameter that takes it) and the row asks for the value in it; where nothing names one (the placeholder, a kind of
+  parameter, a name the model does not take), the row files it under its pathway or parameter, or says why and links
+  to Compound. There is no Literature page any more; nothing links to it.
+- **A product's release (OWN-10, gap 11):** "release set" means the model holds a kept `form.<name>.type` under the
+  product's name (its card's or a sheet-form name), as the status line counts formulations; a release proposed under
+  another name is not matched to the product. "Needed" reads the readiness check "formulations of solid studies": a
+  formulation it names that matches the product, or a solid study with no formulation at all (any product may then be
+  the one). The formulation item opens a product card only when exactly one product is needed and not set; otherwise it
+  stays on Products and dissolution. **Not built:** a form to give a formulation's release by hand (type, t50, shape
+  with their source): with no dissolution data, the page says to add the dissolution file or ask the client. A done
+  card with that item open shows "To decide" on its chip; its confirmation stays Done.
+- **The Run page's studies (OWN-13):** `GET /studies` serves both lists (uploads first, then the catalog, each study
+  once) rather than the Run page reading `GET /inputs`: one read, the same blinding, and the list is what a campaign of
+  either path runs against. `source` tells them apart; the Run page's "Run campaign" (campaign:prepare, which stages
+  uploads) counts the uploads only, so a pipeline project still runs from Review & sign. `GET /compounds/{c}/cpf`
+  prefers the CPF Inputs assembles (a pipeline project could otherwise read the tenant-wide CPF of another project on
+  the same drug, the store's old fallback).
+- **The checks on Run and Review & sign (OWN-13):** said in the step bar's words with what to do and a link to the area
+  of Inputs (To do for the minimum compound data and the build); the relation to To do's count is said in a sentence,
+  not as a number (the count is the page's work model, which Run and Review & sign do not read). A link opens the area,
+  not the item's own row: the page has no URL for one item.

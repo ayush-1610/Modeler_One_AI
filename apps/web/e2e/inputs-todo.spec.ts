@@ -51,7 +51,7 @@ test("open P4 items are settled on the Model inputs page", async ({ page, reques
   await fu.getByRole("radio").first().check();
   await fu.getByLabel("reason for bind.fu").fill("equilibrium dialysis, human plasma");
   await fu.getByRole("button", { name: "Keep the selected value, reject the others" }).click();
-  await expect(page.getByText("bind.fu: one value kept")).toBeVisible();
+  await expect(page.getByText("Fraction unbound in plasma: one value kept")).toBeVisible();
   await expect(page.getByTestId("todo-conflict-bind.fu")).toHaveCount(0);
 
   // "elim" is the data plan's placeholder: file the value under the pathway; the refiled copy is held until checked
@@ -59,7 +59,7 @@ test("open P4 items are settled on the Model inputs page", async ({ page, reques
   await elim.locator("select").first().selectOption("elim.renal.gfr_fraction");
   await elim.locator("input[placeholder='why']").fill("renal filtration is the main route");
   await elim.getByRole("button", { name: "Correct" }).click();
-  await expect(page.getByText(/Filed as elim.renal.gfr_fraction/)).toBeVisible();
+  await expect(page.getByText(/Filed as GFR fraction \(renal filtration\)/)).toBeVisible();
   const held = page.getByTestId("todo-review-elim.renal.gfr_fraction");
   await held.locator("input[placeholder='why']").fill("fraction of GFR, from the review");
   await held.getByRole("button", { name: "Accept" }).click();

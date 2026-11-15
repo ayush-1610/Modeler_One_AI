@@ -33,28 +33,31 @@ const spaced = (text: string) => text.replace(/_/g, " ");
 // --- the model checks (the readiness report) and the step bar's line ---------------------------------------------------
 
 /** A readiness check in words, keyed by its raw name without the reference in brackets ("S0 completeness (MS-01
- *  §2.2)" is keyed "S0 completeness"); `what` says it in a sentence, `fix` where it is settled. */
-const CHECKS: Record<string, { label: string; waiting: string; fix: string }> = {
+ *  §2.2)" is keyed "S0 completeness"); `waiting` says what is open in a few words, `fix` what a person does and where,
+ *  `area` the area of Inputs where that is done (a link from the step bar, Run and Review & sign: final review OWN-13),
+ *  and `or` a second way, with its own area (gap 11: a tablet study with no product is not a dead end). */
+const CHECKS: Record<string, { label: string; waiting: string; fix: string; area: Tab; or?: { say: string; area: Tab } }> = {
   "assembly": { label: "Inputs put together", waiting: "the inputs could not be put together",
-                fix: "Put together from every source; a problem names its source." },
+                fix: "Put together from every source; a problem names its source.", area: "todo" },
   "S0 completeness": { label: "Minimum compound data", waiting: "compound values missing",
-                       fix: "Fill them in on Compound, or search the sources and the literature." },
+                       fix: "Fill them in under To do, “Fill in what's missing”, or on Compound.", area: "todo" },
   "every pathway placeable": { label: "Each elimination pathway maps to a PK-Sim process", waiting: "an elimination pathway has no PK-Sim process",
-                               fix: "Choose its process on Compound." },
+                               fix: "Choose its process on Compound.", area: "compound" },
   "expression profiles": { label: "Enzyme and transporter expression", waiting: "enzyme or transporter expression missing",
-                           fix: "Set on Populations and individuals." },
+                           fix: "Set on Populations and individuals.", area: "individuals" },
   "formulations of solid studies": { label: "A formulation for each tablet study", waiting: "a tablet study has no formulation",
-                                     fix: "Choose it on Products and dissolution." },
+                                     fix: "Use a product's dissolution profile as its release on Products and dissolution, or ask the client for the dissolution data.",
+                                     area: "formulations", or: { say: "ask the client", area: "todo" } },
   "multiple-dose regimens": { label: "Dosing of multiple-dose studies", waiting: "the dosing of a multiple-dose study is missing",
-                              fix: "Fill it in on its study." },
+                              fix: "Fill it in on its study, on Clinical studies.", area: "studies" },
   "demographics stated": { label: "Demographics of confirmed studies", waiting: "the demographics of a study are missing",
-                           fix: "Enter them on Populations and individuals, or ask the client." },
+                           fix: "Enter them on Populations and individuals, or ask the client.", area: "individuals" },
   "observed data to judge on": { label: "Observed data to compare the model with", waiting: "no observed data confirmed yet",
-                                 fix: "Confirm a study's data on Clinical studies, or add data." },
+                                 fix: "Confirm a study's data on Clinical studies, or add data.", area: "studies" },
   "observed data are real": { label: "Observed data are real, not test data", waiting: "some observed data are test data",
-                              fix: "Leave the test data out on Clinical studies." },
+                              fix: "Leave the test data out on Clinical studies.", area: "studies" },
   "every planned simulation builds": { label: "All planned simulations build", waiting: "the model can't be built yet",
-                                       fix: "Follows once the values above are in." },
+                                       fix: "Follows once the values above are in.", area: "todo" },
 };
 const checkKey = (raw: string) => raw.replace(/\s*\([^)]*\)\s*$/, "");
 
@@ -68,6 +71,14 @@ export function checkLabel(raw: string, detail: string[] = [], ok = true): strin
 export const checkFix = (raw: string) => CHECKS[checkKey(raw)]?.fix ?? "";
 /** A reason the step bar gives for Inputs (a raw check name, or the step's own sentence), in plain words. */
 export const stepReason = (raw: string) => CHECKS[checkKey(raw)]?.waiting ?? raw;
+/** Where on Inputs a reason the step bar gives is settled (`?tab=`), and the second way where there is one: null for a
+ *  reason that is not a model check (the step's own sentence). */
+export function stepWhere(raw: string): { area: Tab; name: string; fix: string; or?: { say: string; area: Tab; name: string } } | null {
+  const known = CHECKS[checkKey(raw)];
+  if (!known) return null;
+  return { area: known.area, name: AREA_NAME[known.area], fix: known.fix,
+           ...(known.or ? { or: { ...known.or, name: AREA_NAME[known.or.area] } } : {}) };
+}
 
 // --- the compound's and the studies' open items (the /inputs to-do) ----------------------------------------------------
 
@@ -83,8 +94,158 @@ export const PARAM_LABEL: Record<string, string> = {
   "phys.solubility.ref_ph": "pH of the reference solubility", "phys.pka.neutral": "Neutral compound (no pKa)",
   "elim.ehc_fraction": "Enterohepatic recycling (EHC continuous fraction)", "perm.cellular": "Cellular permeability",
   "dist.partition_method": "Partition coefficient method", "dist.permeability_method": "Cellular permeability method",
+  // the elimination pathways a value is filed under (modeler_project.inputs.PATHWAY_TARGETS; final review OWN-5)
+  "elim.hepatic.total.plasma_clearance": "Hepatic plasma clearance (total)", "elim.hepatic.total_cl": "Hepatic plasma clearance (total)",
+  "elim.renal.total.plasma_clearance": "Renal plasma clearance (total)",
 };
-export const paramLabel = (id: string) => PARAM_LABEL[id] ?? id;
+/** A model input of a family, named by what its id says (the enzyme, the formulation, the pKa group): never by the id. */
+const FAMILY_LABEL: [RegExp, (m: RegExpExecArray) => string][] = [
+  [/^phys\.pka\.(acid|base)\.(\d+)$/, (m) => `pKa, ${m[1] === "acid" ? "acidic" : "basic"}${Number(m[2]) > 0 ? ` (group ${Number(m[2]) + 1})` : ""}`],
+  [/^elim\.hepatic\.([^.]+)\.clspec$/, (m) => `Specific clearance by ${enzyme(m[1])} (CLspec)`],
+  [/^elim\.hepatic\.([^.]+)\.cl_intrinsic$/, (m) => `Intrinsic clearance by ${enzyme(m[1])} (CLint)`],
+  [/^elim\.hepatic\.([^.]+)\.km$/, (m) => `Km of ${enzyme(m[1])}`],
+  [/^elim\.hepatic\.([^.]+)\.vmax$/, (m) => `Vmax of ${enzyme(m[1])}`],
+  [/^elim\.fm\.([^.]+)$/, (m) => `Fraction metabolized by ${enzyme(m[1])} (fm)`],
+  [/^form\.(.+)\.type$/, (m) => `${m[1]}: release model`],
+  [/^form\.(.+)\.weibull\.(t50|shape|lag|suspension)$/, (m) => `${m[1]}: ${FORM_PART[m[2]]}`],
+];
+const enzyme = (name: string) => (name === "<enzyme>" ? "an enzyme" : name);
+/** A Weibull formulation's values (pbpk_domain.cpf.formulations.WEIBULL_PARAMETERS: PK-Sim's harvested names). */
+const FORM_PART: Record<string, string> = {
+  t50: "Dissolution time (50% dissolved)", shape: "Dissolution shape", lag: "Lag time", suspension: "Use as suspension",
+};
+export const paramLabel = (id: string) => {
+  if (PARAM_LABEL[id]) return PARAM_LABEL[id];
+  for (const [rule, say] of FAMILY_LABEL) { const m = rule.exec(id); if (m) return say(m); }
+  return id;
+};
+/** Every model input's id inside a sentence (a check's or a flag's own words), said by its label; a sentence that is
+ *  one id ("elim") is said by that id's label. */
+export const idWords = (text: string) => {
+  const lower = (label: string) => (/^[A-Z][a-z]/.test(label) ? label.charAt(0).toLowerCase() + label.slice(1) : label);
+  if (PARAM_LABEL[text.trim()]) return lower(PARAM_LABEL[text.trim()]);
+  return text.replace(/\b(?:phys|bind|elim|perm|dist)\.[A-Za-z0-9_<>]+(?:\.[A-Za-z0-9_<>]+)*/g, (id) => {
+    const label = paramLabel(id);
+    return label === id ? id : lower(label);
+  });
+};
+
+/** A formulation the model holds, in one line (final review OWN-8): "Test 10 mg · release Weibull · t50 18 min · shape
+ *  1.3 · lag 0 min", from its CPF values (`form.<name>.type`, `form.<name>.weibull.*`, as the Inputs rows give them). */
+export function formulationLine(name: string, values: Record<string, { value: unknown; unit: string | null }>): string {
+  const n = (key: string) => {
+    const v = values[key];
+    if (!v || v.value === null || v.value === undefined) return null;
+    return `${typeof v.value === "number" ? +v.value.toPrecision(3) : String(v.value)}${v.unit ? ` ${v.unit}` : ""}`;
+  };
+  const type = values.type?.value;
+  const parts = [name, type ? `release ${String(type)}` : "release not set"];
+  if (n("weibull.t50")) parts.push(`t50 ${n("weibull.t50")}`);
+  if (n("weibull.shape")) parts.push(`shape ${n("weibull.shape")}`);
+  if (n("weibull.lag")) parts.push(`lag ${n("weibull.lag")}`);
+  return parts.join(" · ");
+}
+
+/** A unit as a person writes it: PK-Sim's "Log Units" of a lipophilicity is a log ratio, written without a unit. */
+export const unitText = (unit: string | null | undefined) => (!unit || unit === "Log Units" ? "" : unit);
+
+/** Why a solid study has no formulation the model can use (the readiness check "formulations of solid studies", from
+ *  `pbpk_domain.cpf.formulations`), in words: "CL-01: a tablet or capsule study, and the model holds no formulation". */
+export function formulationProblem(text: string): string {
+  const said: [RegExp, (m: RegExpExecArray) => string][] = [
+    [/^(.+?): the study is a solid oral form but the CPF defines no formulation .*$/,
+     (m) => `${m[1]}: a tablet or capsule study, and the model holds no formulation yet`],
+    [/^(.+?): the CPF defines no formulation '(.+)' .*$/, (m) => `${m[1]}: the model holds no formulation “${m[2]}”`],
+    [/^(.+?): the study does not name its formulation and the CPF defines several: (.+)$/,
+     (m) => `${m[1]}: choose which formulation it used (${m[2]})`],
+    [/^(.+?): Weibull formulation '(.+)' needs (.+) \(the in-vitro dissolution fit\)$/,
+     (m) => `${m[1]}: formulation “${m[2]}” has no ${m[3].split(", ").map((k) => FORM_PART[k.split(".").pop() ?? ""] ?? k).join(", ").toLowerCase()} yet`],
+    [/^(.+?): formulation '(.+)' is of type '(.+)'; .*$/, (m) => `${m[1]}: formulation “${m[2]}” is a ${m[3]} release, which the model cannot build yet`],
+    [/^(.+?): particle formulation '(.+)' needs .*$/, (m) => `${m[1]}: formulation “${m[2]}” needs its particle thickness and radius`],
+    [/^(.+?): binned product '(.+)' needs .*$/, (m) => `${m[1]}: product “${m[2]}” needs its bins and their mass fractions`],
+    [/^(.+?): binned product '(.+)': a bin cannot itself be a binned product$/, (m) => `${m[1]}: a bin of product “${m[2]}” is itself a product of bins, which the model cannot build`],
+    [/^(.+?): study record: .*$/, (m) => `${m[1]}: its facts are not complete enough to build its simulation (see the study on Clinical studies)`],
+  ];
+  for (const [rule, say] of said) { const m = rule.exec(text); if (m) return say(m); }
+  return idWords(text);
+}
+
+/** An open compound item's own sentence (the /inputs to-do's `message`), in words: no evidence ids, no CPF ids, no
+ *  engine codes (what a held value's flags say is listed under its source). */
+export function todoMessage(kind: string, message: string): string {
+  const text = message.replace(/^ev-[0-9a-f]+: /, "");
+  if (kind === "review") {
+    const held = /^(\S+) = (.+?) is held until a person accepts or corrects it/.exec(text);
+    if (held?.[1] === "elim") return `${held[2]} is filed under no elimination pathway: it is used once it is filed under one (below).`;
+    if (held) return `${paramLabel(held[1])} = ${held[2].replace(/ Log Units$/, "")} waits for your check before it is used: why is said under its source.`;
+  }
+  if (kind === "correct") {
+    if (/^'elim' means /.test(text)) return "A value filed under no elimination pathway: file it under the pathway it belongs to. Until then it is kept out of the model.";
+    if (/is a template; give the concrete parameter$/.test(text)) return "Filed under a kind of parameter, not the parameter itself: choose the parameter it is.";
+  }
+  if (kind === "pka") {
+    const pka = /^pKa (\S+) — the conditions must say acid or base$/.exec(text);
+    if (pka) return `pKa ${pka[1]}: its source does not say whether it is acidic or basic.`;
+  }
+  return idWords(text).replace(/\(kept out of the CPF\)/g, "(kept out of the model)");
+}
+
+// --- why a value waits for a check (an evidence item's flags, modeler_project.evidence) -----------------------------
+
+/** A list of conditions as its template writes it: the data plan's template list is read split at every comma, so
+ *  "system (HLM, hepatocytes, rCYP)" arrives as "system (HLM" · "hepatocytes" · "rCYP)"; the pieces of one bracket are
+ *  one condition again. A piece whose bracket is not among the pieces given (the source stated another piece of it) is
+ *  closed or opened on its own: "system (HLM)", "rCYP", never a stray bracket. */
+export function bracketed(parts: string[]): string[] {
+  const out: string[] = [];
+  let depth = 0;
+  for (const part of parts) {
+    if (depth > 0 && out.length) out[out.length - 1] = `${out[out.length - 1]}, ${part.trim()}`;
+    else out.push(part.trim());
+    depth = Math.max(0, depth + (part.match(/\(/g)?.length ?? 0) - (part.match(/\)/g)?.length ?? 0));
+  }
+  return out.map((c) => {
+    const open = c.match(/\(/g)?.length ?? 0, shut = c.match(/\)/g)?.length ?? 0;
+    return open > shut ? `${c})` : shut > open ? c.replace(/\)\s*$/, "") : c;
+  });
+}
+const CONDITION = "condition_missing: ";
+/** One flag in a person's words (no engine codes, no ids). */
+function flagText(flag: string): string {
+  const said: [RegExp, (m: RegExpExecArray) => string][] = [
+    [/^needs_conversion: no storage unit known for elim; .*$/, () => "Filed under no elimination pathway: choose the pathway it belongs to"],
+    [/^needs_conversion: no storage unit known for (\S+); .*$/, (m) => `No unit is known for ${idWords(m[1])}: type its value in PK-Sim's unit`],
+    [/^needs_conversion: cannot convert '([^']*)' to (\S+) for .*$/, (m) => `Not converted: ${m[1] || "no unit"} does not convert to ${m[2]}`],
+    [/^needs_conversion: an absolute clearance needs the body weight .*$/, () => "Not converted: an absolute clearance needs the body weight to become ml/min/kg"],
+    [/^needs_conversion: (\S+) is dimensionless; the stated unit '([^']*)' is unexpected$/, (m) => `Not converted: ${idWords(m[1])} has no unit, but the source states ${m[2]}`],
+    [/^needs_conversion: CLint → CLspec is .*$/, () => "Not converted: an intrinsic clearance becomes a specific clearance only by scaling (system, protein, fu,inc), not by a unit change"],
+    [/^needs_conversion: (.*)$/, (m) => `Not converted to PK-Sim's unit: ${idWords(m[1])}`],
+    [/^value_not_in_quote$/, () => "The value is not in the quoted sentence"],
+    [/^species_mismatch: (.*)$/, (m) => `Measured in ${m[1]}, not in humans`],
+    [/^outside_physical_range (.*)$/, (m) => `Outside the physically possible range (${m[1]})`],
+    [/^conflict >(\S+)-fold with .*$/, (m) => `More than ${m[1]}-fold from another source's value`],
+    [/^unconfirmed: (.*)$/, (m) => `Not confirmed yet: ${m[1]}`],
+    [/^refiled: from ([^;]+);.*$/, (m) => `Filed under a new parameter (it was filed as ${idWords(m[1])}): check the converted value before you accept it`],
+    [/^(?:check|statement|source): (.*)$/, (m) => idWords(m[1])],
+  ];
+  for (const [rule, say] of said) {
+    const m = rule.exec(flag);
+    if (m) { const text = say(m); return text.charAt(0).toUpperCase() + text.slice(1); }
+  }
+  return spaced(flag);
+}
+/** Why a value waits for a check, one line each, in a person's words (final review OWN-5): the conditions its source does
+ *  not state are said once, each as the template writes it ("system (HLM, hepatocytes, rCYP)", not split at its commas). */
+export function flagLines(flags: string[]): string[] {
+  const conditions = bracketed(flags.filter((f) => f.startsWith(CONDITION)).map((f) => f.slice(CONDITION.length)));
+  const out: string[] = [];
+  let said = false;
+  for (const f of flags) {
+    if (!f.startsWith(CONDITION)) out.push(flagText(f));
+    else if (!said) { said = true; out.push(`The source does not state: ${conditions.join("; ")}`); }
+  }
+  return [...new Set(out)];
+}
 
 /** An open item of the /inputs to-do in words (its kind and target). */
 export function todoLabel(kind: string, target: string): string {
@@ -118,6 +279,24 @@ const TABLE_KIND: Record<string, string> = {
   not_data: "notes, not data", unknown: "table of unknown kind",
 };
 export const tableKindText = (kind: string | null | undefined) => (kind ? TABLE_KIND[kind] ?? spaced(kind) : "table");
+
+/** The values of a unit class (the intake's `UnitClass`, modeler_intake.fields), as a person names them. */
+const UNIT_CLASS_WORD: Record<string, string> = {
+  mass: "amounts", concentration: "concentrations", time: "times", percentage: "percentages", ratio: "ratios",
+  other: "values", none: "values",
+};
+/** Why the spot check drew a value it sampled (the draw's stratum, the intake rules' `spot_check.strata` as
+ *  "table_kind=pk_individual|unit_class=concentration|blq_form=BLQ|cross_file=yes"), in words (final review OWN-8): "picked
+ *  at random among the concentrations of individual PK tables, those written “BLQ”, read from another file". */
+export function spotGroupText(stratum: string): string {
+  const parts = Object.fromEntries(stratum.split("|").map((p) => p.split("=")).filter(([, v]) => v !== undefined)) as Record<string, string>;
+  const what = UNIT_CLASS_WORD[parts.unit_class ?? ""] ?? (parts.unit_class ? spaced(parts.unit_class) : "values");
+  const where = parts.table_kind === "fact" ? "of the facts read from the files"
+    : parts.table_kind ? `of ${tableKindText(parts.table_kind).replace(/ table$/, " tables")}` : "";
+  const more = [parts.blq_form ? `those written “${parts.blq_form.replace(/x/g, "…")}”` : "",
+                parts.cross_file === "yes" ? "read from another file than the study's own" : ""].filter(Boolean);
+  return `picked at random among the ${what}${where ? ` ${where}` : ""}${more.length ? `, ${more.join(", ")}` : ""}`;
+}
 
 /** Who suggested a table layout (a mapping's `origin`). */
 export const layoutOrigin = (origin: string) =>

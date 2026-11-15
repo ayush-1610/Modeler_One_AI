@@ -1156,7 +1156,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Compound Cpf */
+        /**
+         * Get Compound Cpf
+         * @description The compound's CPF: the one Inputs assembles for the project (the system of record every simulation of a pipeline
+         *     project is regenerated from; final review OWN-13), else the one stored for the campaign path.
+         */
         get: operations["get_compound_cpf_api_v1_projects__project_id__compounds__compound__cpf_get"];
         /** Put Cpf */
         put: operations["put_cpf_api_v1_projects__project_id__compounds__compound__cpf_put"];
@@ -2766,7 +2770,9 @@ export interface paths {
         };
         /**
          * List Studies
-         * @description The observed clinical studies uploaded for this project (what the campaign fits and validates against).
+         * @description The observed clinical studies of this project (what a campaign fits and validates against): those uploaded for the
+         *     campaign path, then the studies of the catalog Inputs assembles (what a signed plan stages; final review OWN-13: the
+         *     Run page listed none while Inputs had a study in the model), each once, an upload first.
          */
         get: operations["list_studies_api_v1_projects__project_id__studies_get"];
         put?: never;
@@ -3200,6 +3206,8 @@ export interface components {
             flags: string[];
             /** Id */
             id: string;
+            /** Pksim Unit */
+            pksim_unit: string | null;
             /** Proposed By */
             proposed_by: string;
             /** Provider */
@@ -7520,6 +7528,8 @@ export interface components {
             flags: string[];
             /** Id */
             id: string;
+            /** Pksim Unit */
+            pksim_unit: string | null;
             /** Proposed By */
             proposed_by: string;
             /** Provider */
@@ -12362,6 +12372,12 @@ export interface components {
             solver?: {
                 [key: string]: number;
             };
+            /**
+             * Source
+             * @default upload
+             * @enum {string}
+             */
+            source?: "upload" | "inputs";
             /** Special Population */
             special_population?: string | null;
             /** Study Id */

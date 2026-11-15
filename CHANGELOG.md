@@ -16,6 +16,86 @@ Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: compl
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
 
+### Fixed — final review, compound, products and the pages downstream of Inputs (OWN-5, OWN-10, OWN-13, OWN-8 outside the layout dialog and editor, owner-e2e gap 11) — science-adjacent
+- **OWN-5 (major): the minimum elimination pathway is filled on Inputs, by its pathway, never as the placeholder.**
+  To do's "Fill in what's missing" took a value for the data plan's abstract `elim`, stored it, and held it for good:
+  no pathway could be chosen, Accept was disabled with only a hover title pointing to a Literature page that no longer
+  exists, and Review & sign stayed closed on "S0 completeness".
+  - `modeler_project.inputs.elimination_pathways()` lists the pathways one value sets, read from existing code, never
+    written here: of `PATHWAY_TARGETS`, those that meet the S0 gate's elimination requirement (registry `s0`), that one
+    harvested PK-Sim process carries (`binding_candidates`) and whose registry storage unit a stated unit converts to;
+    today the GFR fraction (GlomerularFiltration, no unit) and the total hepatic plasma clearance (LiverClearance,
+    "Plasma clearance", ml/min/kg). GET /inputs: the to-do item about `elim` names them (`pathways`), and Compound has a
+    row to fill each. A pathway named by an enzyme (CLspec, CLint, Km, Vmax) needs its enzyme and is filed by correcting.
+  - To do's table and the `elim` row's "Add a value" on Compound ask for the pathway first (each with the unit the API
+    names, which the unit field then takes) and post the value under it; "Add" is refused with "Choose the elimination
+    pathway the value is for" until one is chosen.
+  - Settle disagreements: a value held under `elim` is filed under a chosen pathway there (`:correct`); a value whose
+    unit does not convert (an absolute clearance needs the body weight) is accepted with its value typed in PK-Sim's
+    unit, which the API now names (`EvidenceView.pksim_unit`: additive API change, OpenAPI and web types updated); a
+    value held under a kind of parameter (an enzyme's clearance with no enzyme named) or a name the model does not take
+    is filed under the parameter it is (its item now carries `suggestions`, as a value to correct does). Where none of
+    these applies, the row says in words why Accept is not offered, with a link to Compound; Accept is never offered
+    for `elim` itself.
+  - Why a value waits is said in words (`lib/words.ts` `flagLines`): no `needs_conversion`, `condition_missing`,
+    `value_not_in_quote` or ids; the conditions its source does not state are said once, a bracketed condition whole
+    ("system (HLM, hepatocytes, rCYP)"), a piece of one never with a stray bracket.
+  - **Not changed (SME):** the S0 rule (the readiness check "S0 completeness") needs no change: a value under a pathway
+    meets it. The data plan's template lists are read split at every comma, so the API flags "system (HLM",
+    "hepatocytes", "rCYP)" and "fu", "inc" one by one and grades a source that states only its system "incomplete";
+    reading them whole changes evidence grades and needs the template quoted (`core_small_molecule.yaml`, locked, SME):
+    for the owner, plan §5. The page joins the pieces only when it shows them.
+- **OWN-10 (major) and owner-e2e gap 11: a confirmed product says what is in the model, and a tablet study's missing
+  formulation is never a dead end.** Confirming Test 10 mg said "confirmed, in the model" while the model held no
+  formulation, and the empty "Formulations in the model" pointed back to confirming.
+  - A product's card says its release (`lib/inputsWork.ts` `releaseOf`): "In the model as the formulation …", or "Its
+    dissolution profile is kept; the formulation's release is not set yet", with "Use this profile as the release" as
+    its first action (one profile with a fit; several: choose under Dissolution; none: add the dissolution file or ask
+    the client). The card head says "release not set". Its Done line, the sheet form's confirmation and To do's Done row
+    say that confirming keeps the dissolution and does not set the release.
+  - Where a tablet study needs a formulation and one product's release is not set, To do's formulation item opens that
+    product's card at "Use this profile as the release", is the card's open work (its chip reads To decide) and says so;
+    otherwise it opens its row on Products and dissolution, which says what can be done in words with links (use a
+    product's profile on Products and dissolution, add the dissolution file, ask the client, correct a study read as a
+    tablet on Clinical studies) and why each study has none ("CL-01: a tablet or capsule study, and the model holds no
+    formulation yet"), no CPF ids.
+  - "Formulations in the model" names "Use this profile as the release" when empty, and shows each formulation in one
+    line ("Test 10 mg · release Weibull · t50 18 min · shape 1.3"), its values and sources folded under it.
+  - A profile's full name is said once on its card: elsewhere without the product's name and role (the f2 row, the
+    profile line beside the sheet form's drawing); the chart's own title is not repeated under the item that names it,
+    and its conditions read by their labels ("Stirring (rpm) 50 · Volume (mL) 900"), not "rpm 50 · volume ml 900".
+  - Gap 11: the step bar's "a tablet study has no formulation" (and every model check it lists) links to the area of
+    Inputs where it is done, with a second link "ask the client" to To do.
+- **OWN-13 (major): the pages downstream of Inputs agree with it.** The Run page said "No observed data yet" while
+  Inputs had a study in the model, its compound link said "No CPF", and Run and Review & sign listed "S0 completeness
+  (MS-01 §2.2)" with no link and no relation to To do's count.
+  - `GET /studies` lists the studies uploaded for the campaign path, then those of the catalog Inputs assembles (what a
+    signed plan stages), each once, an upload first, blinded studies redacted as before; `StudyRow.source`
+    ("upload" | "inputs") says which (additive API change, OpenAPI and web types updated). The Run page lists both with
+    where each comes from; its "Run campaign" (which stages uploads) still counts the uploads only.
+  - `GET /compounds/{compound}/cpf` answers the CPF Inputs assembles for the project when it has one (the system of
+    record), else the stored one; the compound page names each parameter in words, the CPF's ids under "Technical
+    detail".
+  - Run and Review & sign ("Inputs is not finished") say each model check in the step bar's words, what to do, and link
+    to the area of Inputs where it is done, and say how the checks stand to To do's count (items, not checks).
+- **OWN-8 (major), outside the layout dialog and the layout editor (another group's): no raw names on the owner's
+  path.** Compound rows by their label only (a family's member by what its id says: "pKa, basic", "Specific clearance
+  by CYP3A4 (CLspec)"), no CPF id line, "Log Units" not written; notices name parameters, not ids or evidence ids;
+  "The formulation of the tablet studies" has no `form.*` line; reused values name their parameters; the spot check's
+  "Why it is here" says its group in words ("picked at random among the concentrations of individual PK tables, those
+  written “BLQ”"), not the draw's key; Run and Review & sign use the step bar's words.
+- **Tests:** `packages/project-model/tests/test_inputs_view.py` (the pathways, their units and processes, the `elim`
+  item and rows, a value under a pathway meeting S0, `pksim_unit`, suggestions on a held template value; the empty rows
+  now include the pathways), `services/api/tests/test_plan_api.py` (the Run page's studies and the compound's CPF from
+  Inputs), `services/api/tests/test_read_api.py` (a project store for the CPF route); `apps/web/e2e/inputs-work.spec.ts`
+  (the words, `releaseOf` and the formulation item's link); e2e: `inputs-task-first` (the pathway asked first, the
+  value under it, S0 met), `inputs-fill` (the same on Compound's row, and the pathways' own rows), `client-data` (a
+  confirmed product's release not set, its profile named without the product), `model-inputs` (no "Log Units"; the
+  Run page lists the study, the compound page reads the CPF), `inputs-owner-job` (gap 11: the step bar's links; the
+  Run page and Review & sign), `inputs-todo` and `value-reuse` updated for the words.
+- **Impact:** what a person sees and can do on Inputs, Run and Review & sign; two additive API changes; no ruleset,
+  template, registry or acceptance change. Software test data on the stub engine only: nothing here is PBPK evidence.
+
 ### Fixed — final review, blinding, Part 11 records and the decisions list (INT-1, INT-2, INT-3, INT-6, INT-7, INT-8, INT-11, CODE-8 d, owner-e2e gaps 6 and 9) — science-adjacent
 - **INT-1 (blocker): a blinded study's reasons no longer show its values.** The decision list read who, when and why
   from `GET /audit` and printed a blinded study's reasons word for word ("… Cmax 41.2 ng/mL …"). The card's API now

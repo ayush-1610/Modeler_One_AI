@@ -58,8 +58,13 @@ test("client files are read cell by cell, sorted, and what the checklist did not
   await expect(product).toContainText("To confirm");
   await product.locator("[data-testid^='confirm-product:']").click();
   await expect(product).toContainText("Confirmed by");
-  const testProfile = page.locator("li[data-testid^='profile-']", { hasText: "Test 10 mg" });
+  // on its product's card a profile is named without the product (final review OWN-10): the card's title says it
+  const testCard = page.locator("[data-testid^='product-card-']", { has: page.locator(".card-title", { hasText: /^Test 10 mg$/ }) });
+  const testProfile = testCard.locator("li[data-testid^='profile-']").first();
   await expect(testProfile).toContainText("t50 18 min");
+  await expect(testProfile).not.toContainText("Test 10 mg");
+  // confirmed is not yet a formulation: the card says its release is not set, and offers to set it
+  await expect(testCard.locator("[data-testid^='card-release-product']").first()).toContainText("the formulation's release is not set yet");
   await testProfile.getByPlaceholder("formulation name").fill("Test10");
   await testProfile.getByRole("button", { name: "Use as release" }).click();
   await expect(page.getByText(/Problems|Error/)).toHaveCount(0);
@@ -84,7 +89,9 @@ test("client files are read cell by cell, sorted, and what the checklist did not
   await expect(page.locator(".evidence", { hasText: "CL-01" })).toContainText("client");
   await page.screenshot({ path: test.info().outputPath("client-data.png"), fullPage: true });
   await page.getByTestId("tab-formulations").click();
-  await expect(page.locator("li[data-testid^='profile-']", { hasText: "Raw 10 mg · OTHER · phosphate pH 6.8" })).toBeVisible();
+  // its own product's card, the profile named by what tells it apart (the card's title names the product)
+  const rawCard = page.locator("[data-testid^='product-card-']", { has: page.locator(".card-title", { hasText: /^Raw 10 mg$/ }) });
+  await expect(rawCard.locator("li[data-testid^='profile-']").first()).toContainText("phosphate pH 6.8");
   // the proposed release model flows in, held for the review; PK-Sim has confirmed the equation, so the value carries
   // the engine check rather than an "unconfirmed" flag
   const views = await request.get(`/api/v1/projects/${projectId}/evidence`, { headers: { Authorization: "Bearer dev" } });

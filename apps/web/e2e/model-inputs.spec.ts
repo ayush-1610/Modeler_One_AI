@@ -51,7 +51,9 @@ test("model inputs flow in from the evidence, are checked, and hand over to Revi
   await expect(page.getByTestId("check-every planned simulation builds (software)")).toHaveAttribute("data-ok", "true");
   await page.getByTestId("tab-compound").click();
   const logp = page.getByTestId("record-phys.logp");
-  await expect(logp).toContainText("Log Units");
+  await expect(logp).toContainText("-1.56");
+  await expect(logp).not.toContainText("Log Units");                   // a log ratio is written without a unit (OWN-8)
+  await expect(logp).not.toContainText("phys.logp");                   // named in words only
   await expect(logp).toContainText("regulatory review");
   await expect(page.getByTestId("record-elim.renal.gfr_fraction")).toContainText("GlomerularFiltration");
   await page.getByTestId("tab-studies").click();
@@ -61,4 +63,17 @@ test("model inputs flow in from the evidence, are checked, and hand over to Revi
   await page.screenshot({ path: test.info().outputPath("inputs.png"), fullPage: true });
   await page.getByTestId("inputs-next").click();
   await expect(page).toHaveURL(new RegExp(`/projects/${projectId}/plan`));
+
+  // downstream pages agree with Inputs (final review OWN-13): the Run page lists the study Inputs holds (it said "No
+  // observed data yet"), and the compound's page shows the values Inputs assembled, by name (it said "No CPF")
+  await page.goto(`/projects/${projectId}`);
+  await expect(page.getByTestId("overview-study-doe-iv-250")).toContainText("Inputs");
+  await expect(page.getByTestId("overview-study-doe-iv-250")).toContainText("IV infusion");
+  await expect(page.getByText("No observed data yet")).toHaveCount(0);
+  await page.getByTestId("overview-compound-Inputamide").click();
+  const cpf = page.getByTestId("cpf-parameters");
+  await expect(cpf).toContainText("Lipophilicity");
+  await expect(cpf).toContainText("GFR fraction (renal filtration)");
+  await expect(cpf).not.toContainText("phys.logp");
+  await expect(page.getByTestId("cpf-technical")).toContainText("phys.logp");          // the CPF's own names, folded
 });

@@ -24,7 +24,7 @@ from modeler_api.deps import get_project_store
 from modeler_api.memberships import archive_for
 from modeler_api.responses import answers, envelope
 from modeler_api.views.campaigns import CampaignPackage, Campaigns, Escalations
-from modeler_api.views.read import CpfView, Projects, ProjectSystem, Proposals, Studies
+from modeler_api.views.read import CpfView, Projects, ProjectSystem, Proposals, Studies, StudyRow
 from modeler_project import ProjectStore, Workspace
 from modeler_storage.filestore import FileReadStore, ReadStore
 from modeler_storage.records import CampaignRecord, ProjectRecord
@@ -68,10 +68,19 @@ def get_project(project_id: str, principal: PrincipalDep, store: StoreDep):
     return envelope(project)
 
 
+ProjectsDep = Annotated[ProjectStore, Depends(get_project_store)]
+
+
 @router.get("/projects/{project_id}/compounds/{compound}/cpf", **answers(CpfView))
-def get_compound_cpf(project_id: str, compound: str, principal: PrincipalDep, store: StoreDep):
+def get_compound_cpf(project_id: str, compound: str, principal: PrincipalDep, store: StoreDep, projects: ProjectsDep):
+    """The compound's CPF: the one Inputs assembles for the project (the system of record every simulation of a pipeline
+    project is regenerated from; final review OWN-13), else the one stored for the campaign path."""
     require_project(project_id, principal)
-    cpf = store.get_cpf(principal.tenant_id, project_id, compound)
+    from modeler_project.inputs import current_cpf
+
+    assembled = current_cpf(Workspace(projects, principal.tenant_id, project_id))
+    cpf = assembled if assembled is not None and assembled.compound == compound else None
+    cpf = cpf or store.get_cpf(principal.tenant_id, project_id, compound)
     if cpf is None:
         raise HTTPException(status_code=404, detail=f"no CPF for {compound} in project {project_id}")
     return envelope(project_cpf_view(cpf))
@@ -178,15 +187,33 @@ def download_campaign_artifact(campaign_id: str, artifact: str, principal: Princ
     return FileResponse(path, media_type=_ARTIFACTS[artifact], filename=f"{campaign_id}-{artifact}")
 
 
+def _from_inputs(row: dict[str, Any], project_id: str) -> dict[str, Any]:
+    """A study of the catalog Inputs assembles, as the study list shows it: the fields a study upload has (the profile
+    without its BLQ note), marked as the inputs' (`source`)."""
+    from modeler_api.studies import ObservedProfile, StudyUpload
+
+    out = {k: v for k, v in row.items() if k in StudyUpload.model_fields and k != "profile"}
+    profile = row.get("profile")
+    out["profile"] = {k: v for k, v in profile.items() if k in ObservedProfile.model_fields} if profile else None
+    # typed as the list types an upload (numbers as the study list gives them), so both read alike
+    return StudyRow.model_validate({**out, "project": project_id, "blinded": bool(row.get("blinded")),
+                                    "source": "inputs"}).model_dump(mode="json")
+
+
 @router.get("/projects/{project_id}/studies", **answers(Studies))
-def list_studies(project_id: str, principal: PrincipalDep, store: StoreDep,
-                 projects: Annotated[ProjectStore, Depends(get_project_store)]):
-    """The observed clinical studies uploaded for this project (what the campaign fits and validates against)."""
+def list_studies(project_id: str, principal: PrincipalDep, store: StoreDep, projects: ProjectsDep):
+    """The observed clinical studies of this project (what a campaign fits and validates against): those uploaded for the
+    campaign path, then the studies of the catalog Inputs assembles (what a signed plan stages; final review OWN-13: the
+    Run page listed none while Inputs had a study in the model), each once, an upload first."""
     require_project(project_id, principal)
     studies = store.list_studies(principal.tenant_id, project_id)
     from modeler_api.deps import blinded_studies
+    from modeler_project.inputs import catalog_rows
 
-    hidden = blinded_studies(Workspace(projects, principal.tenant_id, project_id))
+    ws = Workspace(projects, principal.tenant_id, project_id)
+    hidden = blinded_studies(ws)
+    uploaded = {str(s.get("study_id")) for s in studies}
+    studies += [_from_inputs(r, project_id) for r in catalog_rows(ws) if str(r.get("study_id")) not in uploaded]
     if hidden:  # D-15: a pipeline project's external studies, published at P4, keep their values out until the MAP is signed
         from modeler_project.blinding import redact_row
 

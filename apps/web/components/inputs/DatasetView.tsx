@@ -11,6 +11,7 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
 
 import type { Schema } from "@/lib/api";
+import { fieldLabel } from "@/lib/words";
 
 type Data = Schema<"DatasetPoints">;
 type Series = Schema<"SeriesPoints">;
@@ -256,7 +257,9 @@ type Profile = import("@/components/client/types").Profile;
 
 /** A dissolution profile on its product's card (build C): the mean % dissolved with its spread, PK-Sim's Weibull fit,
  *  the conditions, and the table of points. */
-export function ReleaseView({ p }: { p: Profile }) {
+/** A dissolution profile drawn with its fit. `title`: the name over the chart ("" where its name is said just above it);
+ *  its conditions are listed by their labels, without its product and role, which its name says (final review OWN-10). */
+export function ReleaseView({ p, title = p.label }: { p: Profile; title?: string }) {
   const [box, W] = useBoxWidth();
   const tMax = Math.max(...p.times_min, 1);
   const x = (t: number) => PAD.l + (t / tMax) * (W - PAD.l - PAD.r);
@@ -266,11 +269,12 @@ export function ReleaseView({ p }: { p: Profile }) {
     const t = (tMax * i) / 60, s = Math.max(t - fit.lag_min, 0);
     return `${x(t).toFixed(1)},${y(100 * (1 - Math.exp(-Math.LN2 * (s / (fit.t50_min as number)) ** (fit.shape as number)))).toFixed(1)}`;
   }).join(" ") : "";
-  const conditions = Object.entries(p.key ?? {}).filter(([, v]) => v !== null && v !== "" && v !== undefined);
+  const conditions = Object.entries(p.key ?? {})
+    .filter(([k, v]) => v !== null && v !== "" && v !== undefined && k !== "product" && k !== "role");
   return (
     <div className="dataset-view" data-testid="release-view">
       <figure className="profile-chart">
-        <div className="profile-chart-bar"><span className="muted">{p.label}</span></div>
+        {title && <div className="profile-chart-bar"><span className="muted">{title}</span></div>}
         <div className="chart-box" ref={box}>
         <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} role="img" aria-label={`release of ${p.label}`}>
           {[0, 25, 50, 75, 100].map((v) => (
@@ -303,7 +307,7 @@ export function ReleaseView({ p }: { p: Profile }) {
       </figure>
       {conditions.length > 0 && (
         <p className="muted m-0 fs-12" data-testid="release-conditions">
-          {conditions.map(([k, v]) => `${k.replace(/_/g, " ")} ${String(v)}`).join(" · ")}</p>
+          {conditions.map(([k, v]) => `${fieldLabel(k)} ${String(v)}`).join(" · ")}</p>
       )}
       {fit && (
         <p className="m-0 fs-13" data-testid="release-fit">Weibull fit: t50 {sig(fit.t50_min)} min

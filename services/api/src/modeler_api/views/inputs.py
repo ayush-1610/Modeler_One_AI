@@ -30,6 +30,10 @@ class EvidenceView(View):
     extraction: str                   # TEXT, TABLE, FIGURE_DIGITIZED or CELL (a client template read by code)
     proposed_by: str                  # who supplied it: "agent:<run>", a person's id, or the system reading a file
     decided_by: str | None            # who last accepted, corrected or excluded it
+    # the unit PK-Sim holds a value of its target in, for a value typed there by hand when the stated unit does not
+    # convert (`inputs.pksim_unit`): "" no unit (dimensionless, a fraction); None not named (a placeholder such as "elim",
+    # a template, an id the model does not place: filed under a concrete parameter first)
+    pksim_unit: str | None
 
 
 class AlternativeView(EvidenceView):

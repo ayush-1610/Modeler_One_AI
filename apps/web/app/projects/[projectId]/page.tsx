@@ -8,6 +8,7 @@ import { ApiProblem, Card, RiskChip, StatusChip } from "@/components/ui";
 import { getCampaigns, getProject, getStudies } from "@/lib/reads";
 import { Hero } from "@/components/kit";
 import { StepBlocked } from "@/components/kit/StepBlocked";
+import { valueWord } from "@/lib/words";
 
 function points(study: { profile?: { times: number[] } | null }) {
   return study.profile?.times?.length ?? 0;
@@ -30,12 +31,17 @@ export default async function ProjectPage({ params }: { params: Promise<{ projec
       </main>
     );
   }
+  // the project's observed studies: those uploaded for the campaign path, and those Inputs assembled from the confirmed
+  // data (what a signed plan stages; final review OWN-13: this list was empty while Inputs had a study in the model)
   const studies = liveStudies.data;
+  const uploaded = (studies ?? []).filter((s) => (s.source ?? "upload") === "upload");
   const campaigns = liveCampaigns.data;
   const questions = project.questions ?? [];
   const compound = project.compounds[0] ?? "";
   const question = questions[0];
-  const runnable = Boolean(question && compound && studies && studies.length > 0);
+  // "Run campaign" stages the uploaded studies (campaign:prepare); the studies of Inputs run once the plan is signed on
+  // Review & sign
+  const runnable = Boolean(question && compound && uploaded.length > 0);
 
   return (
     <main>
@@ -65,7 +71,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ projec
       {runnable && (
         <Card title="Run a modeling campaign" action={<span className="muted">MS-01 · S0 → S7</span>}>
           <p className="muted mt-0">
-            Generates the Model Analysis Plan from this project&apos;s CPF and {studies!.length} observed
+            Generates the Model Analysis Plan from this project&apos;s CPF and {uploaded.length} observed
             study(ies), records the Part 11 signature, then runs the stage loop on the OSP engine — building
             the model, simulating, scoring it against the acceptance tier, and either passing or stopping to
             ask you for a signed decision, on whatever page you are on.
@@ -77,12 +83,12 @@ export default async function ProjectPage({ params }: { params: Promise<{ projec
       <div className="cols-2">
         <Card title="Compounds">
           <table>
-            <thead><tr><th>Compound</th><th>Parameter framework</th></tr></thead>
+            <thead><tr><th>Compound</th><th>Its values</th></tr></thead>
             <tbody>
               {project.compounds.map((c) => (
                 <tr key={c}>
-                  <td><Link href={`/projects/${project.id}/compounds/${c}`}>{c}</Link></td>
-                  <td className="muted">parameter framework</td>
+                  <td><Link href={`/projects/${project.id}/compounds/${c}`} data-testid={`overview-compound-${c}`}>{c}</Link></td>
+                  <td className="muted">the parameter framework (CPF) the model is built from, as Inputs assembles it</td>
                 </tr>
               ))}
             </tbody>
@@ -91,16 +97,18 @@ export default async function ProjectPage({ params }: { params: Promise<{ projec
 
         <Card title="Observed studies" action={<Link className="btn" href={`/projects/${project.id}/inputs?tab=studies`}>Add data</Link>}>
           {studies && studies.length > 0 ? (
-            <table>
-              <thead><tr><th>Study</th><th>Route</th><th className="num">Dose</th><th className="num">Points</th></tr></thead>
+            <table data-testid="overview-studies">
+              <thead><tr><th>Study</th><th>Route</th><th className="num">Dose</th><th className="num">Points</th><th>From</th></tr></thead>
               <tbody>
                 {/* a summary: the first ten; the whole list, sortable and filtered, is on Inputs (audit item 11) */}
                 {studies.slice(0, 10).map((s) => (
-                  <tr key={s.study_id}>
-                    <td><code>{s.study_id}</code></td>
-                    <td>{s.route?.replace("_", " ") ?? "—"}</td>
+                  <tr key={s.study_id} data-testid={`overview-study-${s.study_id}`}>
+                    <td>{s.study_id}</td>
+                    <td>{s.route ? valueWord(s.route) : "—"}</td>
                     <td className="num">{s.dose_mg} mg</td>
-                    <td className="num">{points(s)}</td>
+                    <td className="num">{s.blinded ? <span className="muted">blinded</span> : points(s)}</td>
+                    <td>{s.source === "inputs" ? <Link href={`/projects/${project.id}/inputs?tab=studies`}>Inputs</Link>
+                      : <span className="muted">uploaded</span>}</td>
                   </tr>
                 ))}
               </tbody>

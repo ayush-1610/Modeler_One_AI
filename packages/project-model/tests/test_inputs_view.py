@@ -14,7 +14,17 @@ from modeler_project.dataset_register import propose_dataset, set_study_facts
 from modeler_project.datasets import HUMAN_POPULATIONS, DatasetError, ObservedDataset, Origin, Series, new_dataset_id
 from modeler_project.evidence import EvidenceItem, EvidenceState, SourceRef, SourceType, new_id
 from modeler_project.evidence_register import decide, propose
-from modeler_project.inputs import assemble, placement, set_choice, tab_of, todo
+from modeler_project.inputs import (
+    PATHWAY_TARGETS,
+    assemble,
+    elimination_pathways,
+    evidence_view,
+    pksim_unit,
+    placement,
+    set_choice,
+    tab_of,
+    todo,
+)
 from modeler_project.inputs_view import compound_rows, study_rows
 from modeler_project.requirements import RequirementMatrix, derive
 from modeler_project.review import review_rows
@@ -77,11 +87,15 @@ def test_the_inputs_page_has_a_row_to_fill_for_every_model_input_the_data_plan_o
     owned = {i for i in parameters.model_ids()
              if any(i == item.target or i.startswith(item.target + ".") for item in matrix.items)}
     empty = {k: r for k, r in rows.items() if r["state"] == "empty"}
-    assert set(empty) == owned - {r["id"] for r in before} and empty
+    # with the elimination pathways the builder places with one value (final review OWN-5): process parameters, not
+    # model ids, filed under the data plan's elimination item
+    pathways = {p["id"] for p in elimination_pathways()}
+    assert set(empty) == (owned | pathways) - {r["id"] for r in before} and empty
     assert {"perm.intestinal", "bind.partner", "elim.ehc_fraction"} <= set(empty)
     assert not {"alt.select", "perm.cellular", "dist.partition_method"} & set(rows)          # no item owns them
     for row in empty.values():
-        assert placement(row["id"]) == "model" and row["req_id"] is not None and row["tab"] == tab_of(row["id"])
+        assert placement(row["id"]) == ("process" if row["id"] in pathways else "model")
+        assert row["req_id"] is not None and row["tab"] == tab_of(row["id"])
         assert (row["value"], row["sources"], row["alternatives"], row["message"]) == (None, [], [], None)
     assert empty["perm.intestinal"]["req_id"] == "REQ-perm.intestinal"
     # the rows that were there are unchanged; nothing new is missing; the review table is the CPF's alone
@@ -93,6 +107,51 @@ def test_the_inputs_page_has_a_row_to_fill_for_every_model_input_the_data_plan_o
     assemble(ws, by="u")
     filled = {r["id"]: r for r in compound_rows(ws, todo(ws), empty=True)}
     assert filled["perm.intestinal"]["state"] == "kept"
+
+
+def test_the_minimum_elimination_pathway_is_asked_for_by_its_pathway_never_as_the_placeholder(ws):
+    """Final review OWN-5: the data plan's "elim" (at least one elimination pathway, S0) is filled by choosing a pathway
+    first. The pathways offered are the concrete ones the S0 gate counts that one harvested PK-Sim process carries, each
+    with the unit its value is stored in (the registry's), never made up; the to-do item about "elim" names them, the
+    Compound area has a row to fill each, and a value filed under one meets S0 (the placeholder itself is never placed)."""
+    from pbpk_domain.cpf.process_bindings import binding_candidates
+
+    offered = elimination_pathways()
+    assert [p["id"] for p in offered] == ["elim.renal.gfr_fraction", "elim.hepatic.total.plasma_clearance"]
+    for p in offered:
+        assert p["id"] in PATHWAY_TARGETS and not any(r.requirement == "elim" for r in parameters.unmet_s0([p["id"]]))
+        (candidate,) = binding_candidates(p["id"])                       # one harvested process takes it
+        assert (p["process"], p["parameter"]) == (candidate.process, candidate.parameter)
+        family = parameters.storage_family(p["id"])
+        assert p["unit"] == (family if isinstance(family, str) and family != "fraction" else None)
+    assert {p["id"]: p["unit"] for p in offered} == {"elim.renal.gfr_fraction": None,
+                                                    "elim.hepatic.total.plasma_clearance": "ml/min/kg"}
+    assemble(ws, by="u")
+    (missing,) = [t for t in todo(ws) if t["kind"] == "missing" and t["target"] == "elim"]
+    assert missing["pathways"] == offered
+    assert all("pathways" not in t for t in todo(ws) if t["target"] != "elim")
+    rows = {r["id"]: r for r in compound_rows(ws, todo(ws), empty=True)}
+    assert rows["elim"]["state"] == "missing"
+    assert rows["elim.hepatic.total.plasma_clearance"]["unit"] == "ml/min/kg"
+    assert rows["elim.hepatic.total.plasma_clearance"]["req_id"] == "REQ-elim.pathway"
+    # the unit PK-Sim holds a value in, for a value typed there by hand; none for the placeholder (filed first)
+    assert (pksim_unit("elim"), pksim_unit("elim.hepatic.total.plasma_clearance"), pksim_unit("phys.logp")) == (None, "ml/min/kg", "")
+    assert pksim_unit("elim.hepatic.<enzyme>.km") is None and pksim_unit("elim.renal.total.plasma_clearance") == "ml/min/kg"
+    # a value filed under a pathway, in its unit, flows into the CPF and meets S0: "elim" is no longer missing
+    cl = _propose(ws, "elim.hepatic.total.plasma_clearance", 3.2, "ml/min/kg")
+    assert evidence_view(cl)["pksim_unit"] == "ml/min/kg" and cl.value_pksim == pytest.approx(3.2)
+    assemble(ws, by="u")
+    assert not [t for t in todo(ws) if t["target"] == "elim"]
+    assert {r["id"]: r["state"] for r in compound_rows(ws, todo(ws), empty=True)}["elim.hepatic.total.plasma_clearance"] == "kept"
+    # a value held under a kind of parameter (no enzyme named) cannot be checked as it is: its item names the parameters
+    # it may be filed under, as a value to correct does; a value held under a parameter PK-Sim takes names none
+    _propose(ws, "elim.hepatic.<enzyme>.clspec", 0.8, "l/µmol/min")
+    _propose(ws, "bind.fu", 85, "fraction")                              # held: not a fraction as stated
+    assemble(ws, by="u")
+    held = {t["target"]: t for t in todo(ws) if t["kind"] == "review"}
+    assert held["elim.hepatic.<enzyme>.clspec"]["suggestions"]["targets"] == list(PATHWAY_TARGETS)
+    assert held["elim.hepatic.<enzyme>.clspec"]["items"][0]["pksim_unit"] is None
+    assert "suggestions" not in held["bind.fu"] and held["bind.fu"]["items"][0]["pksim_unit"] == ""
 
 
 def test_the_tabs_follow_pksims_building_blocks():

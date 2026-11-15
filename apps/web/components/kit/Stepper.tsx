@@ -4,7 +4,7 @@ import { Suspense } from "react";
 import { StepperSkeleton } from "@/components/kit/Skeleton";
 
 import { getSteps, STEP_ROUTES, type StepId, type StepState } from "@/lib/pipeline";
-import { stepReason } from "@/lib/words";
+import { stepReason, stepWhere } from "@/lib/words";
 
 const STATE_LABEL: Record<StepState, string> = {
   done: "done",
@@ -82,7 +82,18 @@ async function StepperBody({ projectId, current, waiting = true, sticky = true }
       </nav>
       {waiting && here && here.state === "needs_you" && here.reasons.length > 0 && (
         <p className="step-waiting" data-testid="step-waiting">
-          <strong>Waiting on you:</strong> {here.reasons.map(stepReason).join(" · ")}
+          <strong>Waiting on you:</strong>{" "}
+          {here.reasons.map((r, i) => {
+            // a model check opens the area of Inputs where it is settled, and its second way where it has one (OWN-13, gap 11)
+            const at = stepWhere(r);
+            const href = (area: string) => `/projects/${encodeURIComponent(projectId)}/inputs?tab=${area}`;
+            return (
+              <span key={r}>{i > 0 && " · "}
+                {at ? <Link href={href(at.area)} title={at.fix} data-testid={`step-waiting-go-${at.area}`}>{stepReason(r)}</Link> : stepReason(r)}
+                {at?.or && <> (on {at.name}, or <Link href={href(at.or.area)} data-testid={`step-waiting-or-${at.or.area}`}>{at.or.say}</Link>)</>}
+              </span>
+            );
+          })}
         </p>
       )}
     </div>
