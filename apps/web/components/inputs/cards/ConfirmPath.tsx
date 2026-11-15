@@ -70,7 +70,7 @@ export type CardEnv = {
 
 /** A card's own items in the one list of work: from its delivery card (facts, required items, checks, disagreements,
  *  links, other reasons) and from its sheet form (disagreements, sheets that do not say a fact). */
-const CARD_ITEMS = /^(fact|need|check|differ|same|hold|issue|draft):/;
+const CARD_ITEMS = /^(fact|need|individual|check|differ|same|hold|issue|draft):/;
 const cardItems = (s: Subject, work: WorkModel) => work.items.filter((i) => i.subjects.includes(s.key) && i.status !== "done" && CARD_ITEMS.test(i.id));
 
 const ref = (s: Subject) => (s.row ? `${s.row.subject_type}/${s.row.subject}` : null);

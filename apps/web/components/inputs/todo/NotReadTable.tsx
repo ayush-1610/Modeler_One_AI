@@ -30,7 +30,7 @@ import { announce } from "@/components/kit/LiveRegion";
 import { ReasonForm } from "@/components/kit/Reason";
 import { send } from "@/lib/api";
 import { useResource } from "@/lib/hooks";
-import { markedText, noLayoutReads, notReadRows, type LooseGroup, type NotReadRow, type WorkItem } from "@/lib/inputsWork";
+import { markedText, noLayoutReads, notReadRows, restoredText, type LooseGroup, type NotReadRow, type WorkItem } from "@/lib/inputsWork";
 import { findingsInline, placeText, plural, unreadWhy, whereIs } from "@/lib/words";
 
 import { useTodoVisit, type Marked } from "./visit";
@@ -94,7 +94,7 @@ export function MarkedNow({ projectId, entries, said, alone = false, titleId }: 
                       data-testid={`notread-undo-${m.id}`}>Restore…</button>
             ) : (
               <RestoreForm projectId={projectId} file={m.file} items={m.items} scope="outside" label={m.label} testId={`notread-undo-${m.id}`}
-                           onDone={() => { setRestoring(null); unmark(m.id, `Restored: ${m.label}. Its numbers count again.`); }}
+                           onDone={() => { setRestoring(null); unmark(m.id, restoredText(m.label)); }}
                            onCancel={() => setRestoring(null)} />
             )}
           </li>

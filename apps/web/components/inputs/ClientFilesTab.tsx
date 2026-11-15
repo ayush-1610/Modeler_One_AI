@@ -84,8 +84,9 @@ function needs(items: WorkItem[]): { item: WorkItem; text: string }[] {
  *  area is shown. */
 export type FilesShown = {
   open: ReadonlySet<string>; toggle: (id: string) => void; memory: SheetMemory;
-  /** a sheet a card asked to open in the reader (final review OWN-2 c) */
+  /** a sheet a card asked to open in the reader (final review OWN-2 c), and its forgetting once taken */
   ask?: SheetAsk | null;
+  asked?: () => void;
 };
 
 type Row = { id: string; name: string; sha: string; file: ClientFile | undefined; delivery: FileRow[] };
@@ -93,7 +94,7 @@ type Row = { id: string; name: string; sha: string; file: ClientFile | undefined
 /** One row per client file (and per delivered file no client file stands for): what it is (changed here, which files it
  *  again), the area its data land on, its one status and what it still needs from you. Its name opens everything about
  *  the file under the row. */
-function FilesTable({ projectId, client, rows, work, ai, aiOn, act, onRetag, onSaved, onOpen, onItem, shown: { open, toggle, memory, ask } }: {
+function FilesTable({ projectId, client, rows, work, ai, aiOn, act, onRetag, onSaved, onOpen, onItem, shown: { open, toggle, memory, ask, asked } }: {
   projectId: string; client: ClientView | null; rows: Row[]; work: WorkModel; ai: Map<string, ReadingItem>; aiOn: boolean;
   act: Act; onRetag: Retag; onSaved: (message: string) => Promise<void>;
   onOpen: (area: DataTab) => void; onItem: (item: WorkItem) => void; shown: FilesShown;
@@ -162,7 +163,7 @@ function FilesTable({ projectId, client, rows, work, ai, aiOn, act, onRetag, onS
                           </ul>
                         )}
                         {f && <AiReading projectId={projectId} sid={f.id} />}
-                        {f && client && <ClientFiles projectId={projectId} view={client} files={[f]} act={act} onSaved={onSaved} memory={memory} inRow ask={ask} />}
+                        {f && client && <ClientFiles projectId={projectId} view={client} files={[f]} act={act} onSaved={onSaved} memory={memory} inRow ask={ask} onAsked={asked} />}
                       </td>
                     </tr>
                   )}

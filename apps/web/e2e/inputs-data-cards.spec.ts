@@ -53,6 +53,8 @@ test("a delivery with four studies is reviewed one study at a time, each as data
   await expect(third.getByTestId("dataset-stats")).toContainText("123");                // 3 × 41
   // confirming the open one moves to the next to confirm
   await first.getByTestId("confirm-study:CL-1").click();
-  await expect(first).toContainText("Confirmed by");
+  // said once, on the card's head line: who confirmed it and how; the group inside does not repeat it (final review OWN-14)
+  await expect(page.getByTestId("card-loaded-study:CL-1")).toContainText(/Confirmed with the sheet form by dev-user on \d{1,2} \w{3} \d{4}, \d\d:\d\d\./);
+  await expect(first.getByTestId("group-confirmed-study:CL-1")).toHaveCount(0);
   await expect(page.getByTestId("group-study:CL-2").getByTestId("profile-chart")).toBeVisible();
 });

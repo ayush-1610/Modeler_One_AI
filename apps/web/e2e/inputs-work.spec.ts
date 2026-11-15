@@ -12,12 +12,12 @@ import { expect, test } from "@playwright/test";
 import {
   NEW, NO_TARGET, aboutText, analyteChoice, analyteChoices, areaHead, assignBody, buildWork, collisions, columnSummary, destinationKey,
   formulationsHeld, heldBy, inModel, layoutRows, linkPlaces, linkRows, linkTarget, linkWords, linkedPiece, looseGroups, markedText, nextText,
-  noLayoutReads, noSampleCells, normLabel, notReadRows, onDelivery, oneCheck, pairsMeet, prefixAlias, releaseAnchor, releaseOf, seriesKey,
+  foldChecks, noLayoutReads, noSampleCells, normLabel, notReadRows, onDelivery, pairsMeet, prefixAlias, releaseAnchor, releaseOf, restoredText, seriesKey,
   targetProblem, type WorkSources,
 } from "../lib/inputsWork";
 import {
-  alreadyDecidedText, bracketed, checkLabel, constantText, drawText, escapePattern, flagLines, formulationLine, formulationProblem, heldText,
-  individualNeeds, individualText, layoutFieldText, layoutFindingText, paramLabel, patternWords, placeText, rowRuleText, rowsLeftOut,
+  alreadyDecidedText, bracketed, checkGist, checkLabel, constantText, drawText, escapePattern, flagLines, formulationLine, formulationProblem, heldText,
+  individualNeeds, individualText, layoutFieldText, layoutFindingText, moveText, paramLabel, patternWords, placeText, redrawText, rowRuleText, rowsLeftOut,
   spotGroupText, stepReason, stepWhere, todoMessage, unitText, unreadWhy,
 } from "../lib/words";
 
@@ -195,8 +195,12 @@ test("what holds up a card signed on the delivery is counted: its facts, require
   // the values above the range; the layout its urine table waits for is counted once, with the layouts
   expect(row("fact:study:230-23").label).toBe("Study 230-23 · not stated: the route, the number of subjects, what the study is for");
   expect(row("fact:study:230-23").status).toBe("missing");
-  // it opens on the study's card, in Clinical studies (slice 3)
-  expect(row("fact:study:230-23").where).toEqual({ tab: "studies", anchor: "delivery-gap-route", subject: "study/st-8" });
+  // it opens on the study's card, in Clinical studies (slice 3), at the study's own route (CODE-1: every study whose
+  // route is not stated has a route row of its own)
+  expect(row("fact:study:230-23").where).toEqual({ tab: "studies", anchor: "delivery-gap-st-8-route", subject: "study/st-8" });
+  expect(row("fact:study:230-25").where.anchor).toBe("delivery-gap-st-16-route");
+  expect(row("need:study:230-23:REQ-sys.demographics").where.anchor).toBe("delivery-requirement-st-8-REQ-sys.demographics");
+  expect(row("need:study:230-25:REQ-sys.demographics").where.anchor).toBe("delivery-requirement-st-16-REQ-sys.demographics");
   expect(row("confirm:study:230-23").where).toEqual({ tab: "studies", anchor: "study-card-study:230-23", subject: "study/st-8" });
   expect(row("need:study:230-23:REQ-sys.demographics").label).toMatch(/^Study 230-23 · not in the files: Demographics of every study/);
   expect(row("check:study:230-23:ck-965b759af642").status).toBe("to_decide");
@@ -232,6 +236,40 @@ test("what holds up a card signed on the delivery is counted: its facts, require
   Object.assign(clean.cards!["product/pr-14"]!, { requirements: [], checks: [], spot_check: { state: "complete" } });
   expect(buildWork(clean).items.find((i) => i.id === "confirm:product:Comparamide tablet")!.detail)
     .toBe("from messy-delivery.xlsx · first the delivery clean-up; then the signature");
+});
+
+test("a study's individual is chosen before its spot check: its row comes first among the card's open work (round 3)", () => {
+  // the review's 230-23: demographics stated (entered on the card), the PK-Sim population and the sex not chosen yet
+  const sources = load("exampleamide");
+  const card = sources.cards!["study/st-8"]!;
+  card.requirements = card.requirements.map((r) => (r.req_id === "REQ-sys.demographics" ? { ...r, status: "found" } : r));
+  card.individual = { demographics: null, needs: ["individual_population", "individual_sex"], why: "",
+                      stated: ["age_mean", "age_min", "age_max", "weight_mean_kg", "percent_female"] };
+  const model = buildWork(sources);
+  const row = model.items.find((i) => i.id === "individual:study:230-23")!;
+  expect(row.label).toBe("Study 230-23 · choose the study's individual");
+  expect(row.detail).toBe("The study's individual needs the PK-Sim population and the sex simulated: give them with the demographics, before the spot check.");
+  expect(row.status).toBe("missing");
+  expect(row.open).toBe(true);
+  // it opens on the study's card, at the individual's line ("Choose the individual…"), the card's own place for it
+  expect(row.where).toEqual({ tab: "studies", anchor: "delivery-individual-st-8", subject: "study/st-8" });
+  // it is the card's own work, said before the spot check in the order the card is done
+  expect(onDelivery(model, "studies").find((x) => x.subject.label === "230-23")!.open.map((i) => i.id)).toContain(row.id);
+  expect(model.items.find((i) => i.id === "confirm:study:230-23")!.detail)
+    .toContain("first 3 items on its card (2 missing · 1 to decide) and the delivery clean-up; then the spot check and the signature");
+  // a spot check recorded already (the review's 230-23): choosing the individual draws it again, said on the row
+  card.spot_check = { state: "complete" };
+  expect(buildWork(sources).items.find((i) => i.id === row.id)!.detail)
+    .toBe("The study's individual needs the PK-Sim population and the sex simulated: give them with the demographics; the spot check is then drawn again.");
+  card.spot_check = { state: "none" };
+  // chosen (the card names the individual), or the demographics still to give (their own row asks for both at once): no row
+  card.individual = { ...card.individual, demographics: { population: "European_ICRP_2002", sex: "FEMALE", age_years: 32 }, needs: [] };
+  expect(buildWork(sources).items.some((i) => i.id.startsWith("individual:"))).toBe(false);
+  card.individual = { demographics: null, needs: ["individual_population", "individual_sex", "age_mean"], why: "", stated: [] };
+  expect(buildWork(sources).items.some((i) => i.id.startsWith("individual:"))).toBe(false);
+  card.individual = { demographics: null, needs: ["individual_population"], why: "", stated: ["age_mean"] };
+  card.requirements = card.requirements.map((r) => (r.req_id === "REQ-sys.demographics" ? { ...r, status: "missing" } : r));
+  expect(buildWork(sources).items.some((i) => i.id.startsWith("individual:"))).toBe(false);
 });
 
 test("two versions of one layout are two rows; the clean-up says why it is not counted when nothing it holds can be signed", () => {
@@ -728,6 +766,27 @@ test("the words of a layout: fields by their labels, a rule and a fact in a sent
   expect(layoutFieldText("relation.ddi_ratio.AUC_last")).toBe("AUC last ratio, with vs without the interacting drug");
   expect(layoutFieldText("link.study_id")).toBe("Study named for a link to another file");
   expect(layoutFieldText("percent_female")).toBe("Women (%)");
+  // every field of the intake vocabulary (GET /delivery/vocabulary, 2026-11-15) has a label: none is its id with spaces
+  // ("Temperature c", "Meal fat g", "Particle size d90 um"; gate-todo review)
+  const vocabulary = ["study_id", "treatment", "reference", "design", "crossover", "population", "special_population", "species", "n",
+    "n_evaluable", "age_mean", "age_min", "age_max", "weight_mean_kg", "height_mean_cm", "percent_female", "n_female", "child_pugh", "egfr",
+    "gestational_week", "ethnicity", "genotype", "co_medication", "route", "dose", "dose_unit", "salt_or_base", "infusion_time_min",
+    "dosing_interval_h", "n_doses", "food_state", "meal_type", "meal_kcal", "meal_fat_g", "formulation", "intended_use", "lloq", "matrix",
+    "subject", "period", "sequence", "occasion", "vessel", "analyte", "analyte_role", "molecular_weight", "product", "product_role", "batch",
+    "strength_mg", "dosage_form", "release", "particle_size_d10_um", "particle_size_d50_um", "particle_size_d90_um", "particle_size_method",
+    "polymorph", "salt_form", "apparatus", "medium", "surfactant", "rpm", "volume_ml", "temperature_c", "ph", "interval_start_h",
+    "interval_end_h", "cumulative", "component", "concentration", "percent_dissolved", "excretion.amount", "excretion.fraction",
+    "pk.AUC_last", "pk.CL/F", "composition.amount", "relation.test_vs_reference.Cmax", "link.protocol", "link.cross_reference"];
+  const named = vocabulary.map((f) => [f, layoutFieldText(f)]);
+  expect(named.filter(([, label]) => /_|\.\w|\s(um|c|g|kcal|h|min|ml|kg|cm|mg)$|^(Egfr|Co medication|Child pugh)$/.test(label))).toEqual([]);
+  expect(layoutFieldText("temperature_c")).toBe("Temperature (°C)");
+  expect(layoutFieldText("particle_size_d90_um")).toBe("Particle size d90 (µm)");
+  expect(layoutFieldText("meal_fat_g")).toBe("Meal fat (g)");
+  // what approving a version changes for another table of its layout, said before the approval (round 3)
+  expect(moveText({ from_version: 2, unread_before: 0, unread_after: 0, facts_lost: ["product_role"], facts_gained: [] }, 3))
+    .toBe("Once version 3 is approved, it is read with version 3 instead of version 2: no number left unread either way; it no longer reads the product's role.");
+  expect(moveText({ from_version: 1, unread_before: 24, unread_after: 0, facts_lost: [], facts_gained: ["batch", "lloq"] }, 3))
+    .toBe("Once version 3 is approved, it is read with version 3 instead of version 1: 24 numbers left unread now, none then; it then also reads the batch and the LLOQ.");
   expect(constantText({ field: "batch", cite: { near: "caption", line: 1 } })).toBe("The batch is read from its caption.");
   expect(constantText({ field: "ph", cite: { row: 2, column: 3 } })).toBe("The pH is read from the cell in row 2, column 3.");
   expect(rowRuleText({ column: 1, role: "arithmetic_mean", pattern: "Mean" }, patternWords("Mean"))).toBe("Rows whose column 1 reads “Mean” are arithmetic means.");
@@ -755,6 +814,10 @@ test("a batch of numbers marked as not data is said by file; a draft's own words
                      { file: "b.xlsx", groups: [group("“x”", 1)] }], 4, 1))
     .toBe("16 loose numbers in 2 files marked as not data: a.xlsx (15), b.xlsx (1). 4 loose numbers left. 1 file not marked: see its row.");
   expect(markedText([], 0, 2)).toBe("2 files not marked: see their rows.");
+  // a restore says what it did on the same line, which said the marking ("No loose number is left" no longer holds)
+  expect(restoredText("“Note: 2 samples were re-assayed on day 14” in OJ-101 plasma means.xlsx"))
+    .toBe("“Note: 2 samples were re-assayed on day 14” in OJ-101 plasma means.xlsx restored: back in To do, to decide again.");
+  expect(restoredText("12 like “vessel_1” … “vessel_12” in a.xlsx")).toBe("12 like “vessel_1” … “vessel_12” in a.xlsx restored: back in To do, to decide again.");
   expect(noSampleCells(["Cells say '12.3*', '>1000': mark them as 'no sample' or correct the file.", "n = 12 is read from B2"]))
     .toEqual(["12.3*", ">1000"]);
   expect(noSampleCells(["Cells say \"it's\", 'n\\\\a': mark them as 'no sample' or correct the file."])).toEqual(["it's", "n\\a"]);
@@ -788,6 +851,36 @@ test("a model check whose gap a To do group lists is not said again among the mo
   expect(model.checks.filter((c) => c.ok).every((c) => !c.said)).toBe(true);
 });
 
+test("the minimum compound data are said by a compound value held for a person's check, not only by a missing one (OWN-14)", () => {
+  // the review's exampleamide-pbpk: S0 fails on the elimination pathway, and To do lists it as a value found for it that
+  // waits for a person's check (the /inputs to-do's "review" of "elim"), not as "missing"
+  const sources = load("exampleamide");
+  const s0 = sources.inputs!.readiness!.content!.checks.find((c) => c.check.startsWith("S0 completeness"))!;
+  Object.assign(s0, { ok: false, detail: ["at least one elimination pathway (elim.* or elim.hepatic.total.plasma_clearance)"] });
+  sources.inputs!.todo = [
+    ...sources.inputs!.todo.filter((t) => t.kind !== "missing"),
+    { kind: "review", target: "elim", tab: "compound", message: "elim = 21.0 L/h is held until a person accepts or corrects it" },
+  ];
+  const model = buildWork(sources);
+  expect(model.items.find((i) => i.id === "todo:review:elim")?.status).toBe("to_decide");
+  expect(model.checks.find((c) => c.raw.startsWith("S0 completeness"))!.said).toBe(true);
+  // a value to correct says it the same way; a review on another area (a study's) does not
+  sources.inputs!.todo = sources.inputs!.todo.map((t) => (t.target === "elim" ? { ...t, kind: "correct" } : t));
+  expect(buildWork(sources).checks.find((c) => c.raw.startsWith("S0 completeness"))!.said).toBe(true);
+  sources.inputs!.todo = sources.inputs!.todo.map((t) => (t.target === "elim" ? { ...t, kind: "review", tab: "studies" } : t));
+  expect(buildWork(sources).checks.find((c) => c.raw.startsWith("S0 completeness"))!.said).toBe(false);
+  // an elimination pathway's process to choose settles its S0 gap as well (the to-do lists no "missing" for it then);
+  // another pathway's process does not
+  sources.inputs!.todo = sources.inputs!.todo.map((t) => (t.target === "elim"
+    ? { ...t, kind: "process", target: "elim.hepatic.CYP3A4", tab: "compound" } : t));
+  expect(buildWork(sources).checks.find((c) => c.raw.startsWith("S0 completeness"))!.said).toBe(true);
+  sources.inputs!.todo = sources.inputs!.todo.map((t) => (t.kind === "process" ? { ...t, target: "abs.transporter.Pgp" } : t));
+  expect(buildWork(sources).checks.find((c) => c.raw.startsWith("S0 completeness"))!.said).toBe(false);
+  // nothing of the compound listed: the check stays among the model checks
+  sources.inputs!.todo = sources.inputs!.todo.filter((t) => t.kind !== "process");
+  expect(buildWork(sources).checks.find((c) => c.raw.startsWith("S0 completeness"))!.said).toBe(false);
+});
+
 test("a study's individual in words: what it is, and what it still needs, never an id or a field name (OWN-6)", () => {
   expect(individualText({ population: "European_ICRP_2002", sex: "FEMALE", age_years: 32, age_min: 21, age_max: 45, weight_kg: 74 }))
     .toBe("European ICRP 2002 · female · 32 y (21 to 45) · 74 kg");
@@ -819,16 +912,44 @@ test("the spot check says why so many values are drawn, from the draw's own reas
   expect(drawText(["unit_class=concentration", "unit_class=concentration"])).toBe("2 values drawn: a random sample");
 });
 
-test("a values table whose rows all need one check decided in Checks stays one line naming it (OWN-9)", () => {
+test("saving a person's entry says before Save that the spot check is drawn again, and which ticks carry over (round 3)", () => {
+  const spot = { state: "complete", drawn: 117, always: 17, recorded_by: "dev-user", recorded_at: "2026-11-15T09:42:17.337Z" };
+  // the review's 230-23: recorded; the values always checked are drawn again with their ticks, the sample is drawn anew
+  expect(redrawText(spot)).toMatch(/^Saving this changes what the spot check was drawn from, so it is drawn again\. Of the 117 values ticked \(recorded by dev-user on 15 Nov 2026, \d\d:42\), the 17 always checked keep their ticks; the 100 drawn at random are drawn anew, and only those drawn again keep theirs\.$/);
+  expect(redrawText({ ...spot, drawn: 3, always: 0 })).toMatch(/Of the 3 values ticked \(.*\), all were drawn at random: they are drawn anew, and only those drawn again keep their ticks\.$/);
+  expect(redrawText({ ...spot, drawn: 2, always: 2 })).toMatch(/Of the 2 values ticked \(.*\), all are always checked and keep their ticks\.$/);
+  expect(redrawText({ ...spot, drawn: 18, always: 17 })).toMatch(/the 17 always checked keep their ticks; the 1 drawn at random is drawn anew, and keeps its tick only if drawn again\.$/);
+  // drawn, its ticks not recorded: they are not kept; none drawn, or stale already: nothing to say
+  expect(redrawText({ ...spot, state: "drawn", recorded_by: null, recorded_at: null }))
+    .toBe("Saving this changes what the spot check was drawn from, so it is drawn again: ticks not recorded yet are not kept.");
+  expect(redrawText({ ...spot, state: "none" })).toBeNull();
+  expect(redrawText({ ...spot, state: "stale" })).toBeNull();
+});
+
+test("a values table whose rows need only checks decided in Checks stays one line naming each with its count (OWN-9)", () => {
+  // the owner's 230-23 (review copy cut to seq 12): an arm's 76 concentrations name no analyte, and 6 of them also state
+  // more than one LLOQ in their profile, because of the same missing analyte; that check marks 3 values of another table
   const rows = Array.from({ length: 76 }, (_, i) => ({ id: `tx-1#${i}` }));
   const analyte = { id: "ck-1", values: rows.map((r) => r.id) };
-  const all = () => true;
-  expect(oneCheck(rows, all, [analyte], [])).toBe(analyte);
-  // a row also marked by another check, a row in a disagreement, or a check that is not listed in Checks: opened
-  expect(oneCheck(rows, all, [analyte, { id: "ck-2", values: ["tx-1#3"] }], [])).toBeNull();
-  expect(oneCheck(rows, all, [analyte], [{ values: ["tx-1#5", "tx-2#5"] }])).toBeNull();
-  expect(oneCheck(rows, all, [], [])).toBeNull();
-  // only the rows that need the person count: a table with none is folded anyway, and says nothing
-  expect(oneCheck(rows, () => false, [analyte], [])).toBeNull();
-  expect(oneCheck(rows, (id) => id === "tx-1#0", [{ id: "ck-3", values: ["tx-1#0"] }], [])).toEqual({ id: "ck-3", values: ["tx-1#0"] });
+  const lloq = { id: "ck-2", values: [...rows.slice(10, 16).map((r) => r.id), "tx-2#0", "tx-2#1", "tx-2#2"] };
+  const elsewhere = { id: "ck-9", values: ["tx-2#5"] };
+  const listed = () => true;
+  expect(foldChecks(rows, [lloq, analyte, elsewhere], listed, [])).toEqual([{ check: analyte, count: 76 }, { check: lloq, count: 6 }]);
+  expect(foldChecks(rows, [analyte], listed, [])).toEqual([{ check: analyte, count: 76 }]);
+  // a row in a disagreement, or a check that is not listed in Checks (a fact's, a required item's): the table opens
+  expect(foldChecks(rows, [analyte, lloq], listed, [{ values: ["tx-1#5", "tx-2#5"] }])).toBeNull();
+  expect(foldChecks(rows, [analyte, lloq], (c) => c !== lloq, [])).toBeNull();
+  // a disagreement or an unlisted check of another table's rows changes nothing here
+  expect(foldChecks(rows, [analyte, elsewhere], (c) => c !== elsewhere, [{ values: ["tx-2#5"] }])).toEqual([{ check: analyte, count: 76 }]);
+  // no row needs the person: nothing to fold under (the table is folded anyway, and says nothing)
+  expect(foldChecks(rows, [], listed, [])).toBeNull();
+  expect(foldChecks(rows, [elsewhere], listed, [])).toBeNull();
+  // a value named twice by one check counts once
+  expect(foldChecks(rows.slice(0, 2), [{ id: "ck-3", values: ["tx-1#0", "tx-1#0"] }], listed, [])).toEqual([{ check: { id: "ck-3", values: ["tx-1#0", "tx-1#0"] }, count: 1 }]);
+  // each check is named by what is wrong, from its own message
+  expect(checkGist("arm Reference, analyte not stated, matrix plasma: the profile states more than one LLOQ; PK-Sim takes one per observed dataset"))
+    .toEqual({ where: "arm Reference, analyte not stated, matrix plasma", gist: "the profile states more than one LLOQ" });
+  expect(checkGist("arm Test, analyte not stated, matrix plasma: concentrations name no analyte").gist).toBe("concentrations name no analyte");
+  expect(checkGist('concentration: values above the range (written ">x"): no number is kept').gist).toBe('values above the range (written ">x")');
+  expect(checkGist("doses with no stated basis (salt or free base)")).toEqual({ where: "", gist: "doses with no stated basis (salt or free base)" });
 });

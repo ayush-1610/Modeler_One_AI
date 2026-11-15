@@ -23,7 +23,7 @@ import { announce } from "@/components/kit/LiveRegion";
 import { send, type Schema } from "@/lib/api";
 import { useResource } from "@/lib/hooks";
 import {
-  constantText, findingsInline, layoutFieldText, layoutFindingText, layoutMadeBy, layoutRoleText, patternWords, placeText, rowRuleText, rowsLeftOut,
+  constantText, factsInText, findingsInline, layoutFieldText, layoutFindingText, layoutMadeBy, layoutRoleText, moveText, patternWords, placeText, rowRuleText, rowsLeftOut,
   tableKindText, valueWord, whenText, whereIs,
 } from "@/lib/words";
 
@@ -164,6 +164,8 @@ function tableWords(t: Table, m: Mapping): string[] {
       + ` read with version ${t.version}.`);
   }
   if (t.reads === null) out.push("Its file is not in the source cache: read the file again to check it.");
+  // a version waiting for approval that the pipeline would then read this table with (final review round 3)
+  if (t.moves) out.push(moveText(t.moves, m.version));
   return out;
 }
 
@@ -224,9 +226,12 @@ function MappingBody({ projectId, mappingId, version, at, onSaid, queue, startEd
     if (!data) return;
     writeMapping(client, projectId, data);
     const again = data.queued.length ? `${plural(data.queued.length, "file")} of this layout ${data.queued.length === 1 ? "is" : "are"} read again` : "";
-    // a table this version does not read stays with the version it is read with: said, not left to be found later
+    // a table this version does not read stays with the version it is read with: said, not left to be found later; and
+    // another table its approval moved to it, with what it no longer reads (as the dialog said before the approval)
     const stays = data.tables.filter((t) => t.reads === false).map((t) => `${t.file} stays with version ${t.version}: this version does not read it`);
-    const more = stays.length ? ` ${stays.join("; ")}.` : "";
+    const moved = m.tables.filter((t) => t.moves && !sameTable(t, shownAt)).map((t) => `${t.file} moves to it`
+      + (t.moves!.facts_lost.length ? ` and no longer reads ${factsInText(t.moves!.facts_lost)}` : ""));
+    const more = [...moved, ...stays].length ? ` ${[...moved, ...stays].join("; ")}.` : "";
     onSaid(`Version ${data.version} of the ${tableKindText(data.kind)} layout is approved${again ? `: ${again}` : ""}.${more}`, !last,
            `Approved: the ${tableKindText(data.kind)} layout, version ${data.version}${again ? ` (${again.replace("this layout", "it")})` : ""}${more ? `.${more.replace(/\.$/, "")}` : ""}`);
   }
@@ -404,6 +409,21 @@ function MappingBody({ projectId, mappingId, version, at, onSaid, queue, startEd
           )}
           {mode === "none" && (
             <div className="delivery-mapping-actions">
+              {/* what the approval changes for the layout's other tables, said before it is made (final review round 3:
+                  the pipeline reads each table with the approved version that leaves the fewest numbers unread) */}
+              {m.status === "proposed" && m.tables.some((t) => t.moves && !sameTable(t, shownAt)) && (
+                <div className="inline-issue warn" data-testid="mapping-approve-moves">
+                  <p className="m-0">Approving version {m.version} also changes how {plural(m.tables.filter((t) => t.moves && !sameTable(t, shownAt)).length, "other table")} of
+                    this layout {m.tables.filter((t) => t.moves && !sameTable(t, shownAt)).length === 1 ? "is" : "are"} read:</p>
+                  <ul className="plain-list">
+                    {m.tables.filter((t) => t.moves && !sameTable(t, shownAt)).map((t) => (
+                      <li key={`${t.file_sha256}/${t.region_id}`} data-testid={`mapping-move-${t.region_id}`}>
+                        <strong>{t.file}</strong> <span className="muted">{placeText(t.where)}</span>: {moveText(t.moves!, m.version)}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
               {m.status !== "approved" && (
                 <Why action={last ? `Approve version ${m.version}` : "Approve and next"} actionLabel={`Approve version ${m.version} of this layout${last ? "" : " and check the next"}`}
                      label="A note on the approval" busy={busy} onSubmit={approve} optional testId="mapping-approve" kind="layout approved"

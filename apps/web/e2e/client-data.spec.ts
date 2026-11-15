@@ -56,8 +56,11 @@ test("client files are read cell by cell, sorted, and what the checklist did not
   // the client's product is confirmed first, inline: its data load only then (plan 2026-11-03 §3.3)
   const product = page.locator("[data-testid^='group-product:']", { hasText: "Test 10 mg" });
   await expect(product).toContainText("To confirm");
-  await product.locator("[data-testid^='confirm-product:']").click();
-  await expect(product).toContainText("Confirmed by");
+  const productId = (await product.getAttribute("data-testid"))!.replace(/^group-/, "");
+  await product.getByTestId(`confirm-${productId}`).click();
+  // said once, on the card's head line: who confirmed it and how; the group inside does not repeat it (final review OWN-14)
+  await expect(page.getByTestId(`card-loaded-${productId}`)).toContainText(/Confirmed with the sheet form by dev-user on \d{1,2} \w{3} \d{4}, \d\d:\d\d\./);
+  await expect(product.getByTestId(`group-confirmed-${productId}`)).toHaveCount(0);
   // on its product's card a profile is named without the product (final review OWN-10): the card's title says it
   const testCard = page.locator("[data-testid^='product-card-']", { has: page.locator(".card-title", { hasText: /^Test 10 mg$/ }) });
   const testProfile = testCard.locator("li[data-testid^='profile-']").first();

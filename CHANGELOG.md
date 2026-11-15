@@ -82,6 +82,102 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
   words are corrected. A card's "Read this sheet" ask is spent once its file's row in Client files is closed (opened
   again, the row no longer reopens the reader with the ask's cells added again). "Restore…" under "Marked as not data
   just now" says what it restored in place of the last mark's line, and its Cancel no longer takes the entry off the list.
+### Fixed — final review round 3, cards and gate follow-ups (the five "Confirmed by" specs, OWN-9, OWN-14, the spot check made stale by the individual, the gate minors, the owner-job flake, CODE-1) — science-adjacent
+- **The five failing specs (round 2's regression).** `client-data.spec.ts`, `client-documents.spec.ts` (two tests),
+  `inputs-data-cards.spec.ts` and `studies-client-sheets.spec.ts` still looked for "Confirmed by" inside the sheet-form
+  group, which round 2 removed in favour of the card's one head line. Each now asserts that head line
+  (`card-loaded-<card>`: "Confirmed with the sheet form by dev-user on <date>, <time>.", who and how) and that the
+  group's own confirmed line (`group-confirmed-<group>`) is absent. All five pass.
+- **OWN-9 (the values tables fold in the owner's own state).** Round 2 folded a table only when one check marked every
+  row that needs the person; on the owner's 230-23 each 76-value table has every row marked by "concentrations name no
+  analyte" and 6 of them also by "the profile states more than one LLOQ" (caused by the same missing analyte), so
+  neither folded and the card stayed about 15,870 px. A table now stays folded when every row needing the person is
+  marked only by failed checks that each have their own row in Checks (`inputsWork.foldChecks`, replacing `oneCheck`):
+  one line names each check by what is wrong with its count, most first, each with a link to its row in Checks ("State
+  it…" where the row has that form, opening it; "Decide it…" otherwise), and "Show the 76 values" ("All 76 values marked
+  by 2 checks, each decided once in Checks: concentrations name no analyte (76) State it… · the profile states more than
+  one LLOQ (6) Decide it… · Show the 76 values"). A row in a disagreement, or marked by a failed check that has no row of
+  its own in Checks (a fact's, a required item's), still opens the table. Each check is named from its own message
+  (`words.checkGist`: the part after what it is about, up to its reason); two of one kind are told apart by what they
+  are about. Measured on the review copy cut to the owner's state (seq ≤ 12): the card of 230-23 is 4,902 px with its
+  tables folded (15,870 px in round 2), 10,441 px with one 76-value table shown; "State it…" puts the focus on that
+  check's analyte in Checks. Round 2's CHANGELOG and plan §5 said the 76-value tables folded: corrected there.
+- **OWN-14 (the minimum compound data said twice).** On the review's project To do listed the elimination pathway as
+  "An elimination pathway: check this value before it is used" (GET /inputs: a to-do of kind `review`, target `elim`)
+  while Model checks still said "Minimum compound data (1 missing)": the check was matched to To do only by the kind
+  `missing`. A model check is now said by any open To do row that is its gap (`CHECK_TODO` holds a test per check): for
+  S0 completeness a compound value missing, or a compound value held for a person's check (`review`, `correct`, `pka`,
+  `unit`, `conflict` on the compound, and an elimination pathway's `process`), which is how /inputs lists an S0 gap a
+  value was found for ("an open issue on a parameter is what settles its S0 gap: not listed twice").
+- **The spot check made stale by choosing the individual (round 2's regression, not recorded then).** The individual's
+  population and sex are ledger facts, in the subject's digest and the draw's seed, so choosing them after the spot
+  check was recorded made it stale and asked for 55 new ticks on the review's 230-23. The draw size and the digest and
+  seed rule are not changed (SME-governed); the page is made honest and the order sensible:
+  - choosing the individual is the card's own work, before the spot check: a study whose demographics are stated with
+    no PK-Sim population or sex chosen gets a row in To do and on its card ("Study 230-23 · choose the study's
+    individual", opening its "Choose the individual…" line, which takes the focus), counted with the card's other work,
+    so the confirm row reads "first … items on its card; then the spot check and the signature"; where a spot check is
+    drawn already the row says "the spot check is then drawn again". The spot check itself, not started or not recorded
+    yet, says "Choose the study's individual first: …" with "Choose the individual…", which opens that form;
+  - where a spot check is drawn or recorded, the individual's form (on the card and on Populations and individuals), the
+    facts form, "Enter another fact…" and "Correct" say before Save that saving draws the spot check again, and which
+    ticks carry over (`words.redrawText`): "Of the 117 values ticked (recorded by dev-user on 15 Nov 2026, 09:42), the 17
+    always checked keep their ticks; the 100 drawn at random are drawn anew, and only those drawn again keep theirs"
+    (ticks not recorded yet are not kept). The API says how many values of the draw are always checked
+    (`DeliverySpotState.always`, cheap: the draw's own list); how many of the random sample carry over is known only
+    once drawn, so no number is promised for them.
+  - Plan §5 records the owner question: should a person's own choices of the individual be part of the spot check's
+    digest and seed?
+- **The gate's minors (gate-todo review).**
+  - (a) The words were wrong: the silent cells' reasons are not memoised. Each GET /delivery executes a read table's
+    layout again on its grid; measured on the 9-file review projects it costs 7 to 23 ms of the 0.28 to 0.37 s the page
+    takes, so no memo was added. Round 2's CHANGELOG entry and plan §5 are corrected.
+  - (b) After a "Restore…" of notes marked in this visit, the line that said "… marked as not data. No loose number is
+    left." now says what the restore did ("“…” in <file> restored: back in To do, to decide again.";
+    `inputsWork.restoredText`).
+  - (c) A card's "Read this sheet: mark … as no sample…" is taken once: the file's row in Client files keeps the texts
+    while its reader is open, and the page forgets the ask, so closing and opening the row again shows its sheets, not
+    the reader with the texts added again.
+  - (d) Every field of the intake vocabulary has a label in the layout editor (temperature, meal energy and fat, eGFR,
+    Child-Pugh class, co-medication, particle size d10 and d90, and the others that showed as their id with spaces).
+  - (e) Approving a layout version could move another table of its layout to it and change what that table reads (on
+    the 9-file seed, Test moved to the version corrected for RLD and lost its product's role) without the dialog saying
+    so. The API now says it before the approval: `DeliveryMappingTable.moves` (`DeliveryTableMove`) is set when the
+    version shown waits for approval and the pipeline's own choice, asked through `intake_pipeline.choose_version`
+    (`_choose` made a module function, unchanged in what it does), would read that table with it, with the numbers left
+    unread before and after and the facts read once it loses or gains. The dialog lists those tables above "Approve"
+    ("Approving version 3 also changes how 1 other table of this layout is read: Dissolution Test pH 6.8.xlsx …: Once
+    version 3 is approved, it is read with version 3 instead of version 2: no number left unread either way; it no
+    longer reads the product's role."), each table's line says the same, and the approval's sentence names them ("…
+    Dissolution Test pH 6.8.xlsx moves to it and no longer reads the product's role"). Whether
+    the choice rule should keep a table's facts over its unread numbers stays the owner's question (plan §5).
+- **The owner-job flake.** `inputs-owner-job.spec.ts` once counted one decision fewer at arrival: its snapshot was taken
+  while the layout's row still read "Reading…" (not counted). It now waits for the API to finish reading and no mapping
+  to be waiting, for the row not to read "Reading…", and its counting helper waits while any "Reading…" is shown.
+- **CODE-1 (blocker): a link on one study card focused the same form on another open card.** The places on a delivery
+  card were not the subject's own (`delivery-gap-route`, `delivery-requirement-REQ-sys.demographics`, the HTML id
+  `delivery-enter-gap-route-control`, …), and the page looked them up in the whole document, so with two cards open a
+  fact's link on the lower card focused the upper card's Route: a fact saved there under the person's name went on the
+  wrong study. Every such place is now the subject's own (`inputsWork.cardPlace`: `delivery-gap-<subject>-<fact>`,
+  `delivery-enter-gap-…`, `delivery-after-route-…`, `delivery-requirement-…`, `delivery-dispose-…`,
+  `delivery-blocker-…`, `delivery-conflict-…`, `delivery-link-…`), so are the links that open them, and a link into a
+  card is looked up inside that card first.
+- **Why:** the final review's round-2 skeptics (cards-counts, gate-todo) and code finding CODE-1: five specs failed, two
+  findings were only partly fixed on the owner's own data, a round-2 change made a recorded spot check stale without
+  saying so, and a link could put a fact on the wrong study.
+- **Impact (science-adjacent):** a fact is entered on the study it is asked for; what a layout approval and a choice of
+  the individual change is said before they are made. No locked file, ruleset, requirement level, spot check size or
+  digest rule changed; the pipeline's choice of a version is the same function, now also asked by the API. API
+  (contract and web types updated): `DeliveryMappingTable.moves`, `DeliveryTableMove`, `DeliverySpotState.always`.
+  Tests: `test_delivery_api.py` (a version waiting for approval says which tables its approval moves and what changes,
+  and the approval does exactly that; the spot check's count of values always checked), `inputs-work.spec.ts`
+  (`foldChecks` with two overlapping checks, `checkGist`, the S0 check said by a `review` row and by an elimination
+  pathway's `process` row, the individual's row before the spot check, `redrawText`, the per-subject places,
+  `restoredText`, the field labels, `moveText`), `inputs-task-first.spec.ts` (two study cards open: each link lands on
+  its own card, no place or id on the page twice; the sheet ask taken once; the dialog says Test moves to version 3 and
+  loses its product's role, and it does), `delivery.spec.ts` and `inputs-owner-job.spec.ts` (the per-subject places;
+  the arrival counted once the reading ends), and the five specs above. Software test data on the stub engine: none of
+  it is PBPK evidence.
 
 ### Fixed — final review, round-1 remainders: blinding, the arm guard, link elsewhere (INT-3, INT-2 a and b, INT-4, INT-5, INT-1's over-masking, OWN-1; plan 2026-11-14 §5) — science-adjacent
 - **INT-3 (blocker): a blinded study's file is not drawn, served or suggested.** Round 1 withheld a blinded file's lines
@@ -234,9 +330,9 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
   set aside in the form, stored for RLD's table and approved; RLD's 24 numbers are read, as the e2e checks.
 - **OWN-2 b: "Show them" lists the numbers not read, and why.** `DeliveryRegion.silent_cells` (read-only, the first 50;
   the coverage's own locators, each with its text, null for a blinded study's file, and the reason code's reading
-  records, `CellUse.rule`, the table's layout executed again on each read of the page, not memoised as said before
-  round 3) is listed by reason ("Not a plain number (1): sheet PK_Summary, cell F7 “1,2”"; "No column or row of the
-  layout reads it (24): …"). No single cell is set aside (plan
+  records, `CellUse.rule`, the table's layout executed again on each read: not memoised, as this said until round 3
+  corrected it; 7 to 23 ms of a 0.28 to 0.37 s GET /delivery on the 9-file review projects) is listed by reason ("Not a
+  plain number (1): sheet PK_Summary, cell F7 “1,2”"; "No column or row of the layout reads it (24): …"). No single cell is set aside (plan
   §3 API 3 stays the owner's). Where every study and product read from the file is confirmed with the sheet form, the
   read table's whole "Not data…" is offered there (it loses nothing loaded or signed).
 - **OWN-2 c: a sheet-form draft's problems lead to the sheet.** Its own words "Cells say '12.3*', '>1000': mark them as
@@ -343,12 +439,15 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
   lede says why so many values are drawn, from the draw's own reasons ("117 values drawn: 4 key facts of the study, 13
   computed from other values are always checked; 100 are a random sample"). How many values are drawn is the intake
   rules' (`spot_check.size` 100, the owner's decision 6, and the always-checked list; SME-governed) and is not changed:
-  the question is recorded for the SME in plan §5.
+  the question is recorded for the SME in plan §5. *Corrected in round 3:* on the owner's own 230-23 the 76-value tables
+  did not fold (6 of their rows are also marked by a second check, more than one LLOQ in the profile, caused by the same
+  missing analyte); round 3 folds a table under several checks, each with its own row in Checks.
 - **OWN-14 (repetition).**
   - A model check whose gap a To do group already lists is not said again among the Model checks (`CheckLine.said`):
     the compound values missing, an elimination pathway's process, the tablet studies' formulation, a multiple-dose
     study's dosing, a study's demographics (the /inputs to-do's rows), and the observed data while studies wait to be
-    confirmed. Checks no group lists stay.
+    confirmed. Checks no group lists stay. *Corrected in round 3:* the compound values were matched only as `missing`
+    rows, so a value found for an S0 gap and held for a person's check (`review`) left the check said twice.
   - Ask the client says what each item is "needed (or useful) for" once, without the chip that said "needed" again.
   - A card confirmed with the sheet form says who confirmed it once, in its head line (the group's own "Confirmed by …:
     in the model." is not repeated inside it).
@@ -376,8 +475,10 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
   `inputs-owner-job.spec.ts` (one submission for the facts; the individual chosen and shown; the folded spot check
   shown again without a new draw; 15 decisions; one study, 3 datasets everywhere; To do no longer asks for the
   demographics after the signature and GET /inputs has them "entered"); `client-confirm.spec.ts` and
-  `inputs-sheets-on-arrival.spec.ts` read who confirmed a sheet-form card from its one head line. Software test data on
-  the stub engine: none of it is PBPK evidence.
+  `inputs-sheets-on-arrival.spec.ts` read who confirmed a sheet-form card from its one head line (*round 3:* five more
+  tests in four specs still looked for "Confirmed by" in the group and failed until round 3 updated them; and choosing
+  the individual after a recorded spot check made the spot check stale, not recorded here: see round 3). Software test
+  data on the stub engine: none of it is PBPK evidence.
 
 ### Fixed — final review, blinding, Part 11 records and the decisions list (INT-1, INT-2, INT-3, INT-6, INT-7, INT-8, INT-11, CODE-8 d, owner-e2e gaps 6 and 9) — science-adjacent
 - **INT-1 (blocker): a blinded study's reasons no longer show its values.** The decision list read who, when and why

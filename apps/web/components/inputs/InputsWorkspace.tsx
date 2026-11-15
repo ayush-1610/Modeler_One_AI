@@ -167,7 +167,7 @@ function Workspace({ projectId, initialTab, initialOnly, initialStatus, steps }:
   // a sheet a card asked to open in the reader, with the cells its own words name as no sample (final review OWN-2 c)
   const [sheetAsk, setSheetAsk] = useState<SheetAsk | null>(null);
   const shown: FilesShown = {
-    open: filesOpen, memory: { last: lastSheet, remember: rememberSheet }, ask: sheetAsk,
+    open: filesOpen, memory: { last: lastSheet, remember: rememberSheet }, ask: sheetAsk, asked: () => setSheetAsk(null),
     toggle: (id) => {
       setFilesOpen((was) => {
         const next = new Set(was);
@@ -320,12 +320,15 @@ function Workspace({ projectId, initialTab, initialOnly, initialStatus, steps }:
 
   const FOCUSABLE = "input:not([type=hidden]):not([disabled]), select:not([disabled]), textarea:not([disabled]), button:not([disabled]), a[href]";
   /** Bring an element of the area just opened into view (it is drawn once the area shows it, and its card once opened),
-   *  opening the folds around it, and mark it a moment; `fallback` when the element is not drawn there. */
-  function bringIntoView(testId: string, fallback?: string) {
+   *  opening the folds around it, and mark it a moment; `fallback` when the element is not drawn there. `within`: the
+   *  card it is on, looked in first, so a place on one card never lands on the same place of another (final review
+   *  CODE-1; the places on a delivery card are its subject's own, too). */
+  function bringIntoView(testId: string, fallback?: string, within?: string) {
     let tries = 0;
+    const at = (id: string) => (within ? document.querySelector<HTMLElement>(`[data-testid="${CSS.escape(within)}"] [data-testid="${CSS.escape(id)}"]`) : null)
+      ?? document.querySelector<HTMLElement>(`[data-testid="${CSS.escape(id)}"]`);
     const find = () => {
-      const el = document.querySelector<HTMLElement>(`[data-testid="${CSS.escape(testId)}"]`)
-        ?? (tries > 10 && fallback ? document.querySelector<HTMLElement>(`[data-testid="${CSS.escape(fallback)}"]`) : null);
+      const el = at(testId) ?? (tries > 10 && fallback ? at(fallback) : null);
       if (!el) { if (++tries < 30) window.setTimeout(find, 100); return; }
       for (let fold = el.closest("details"); fold; fold = fold.parentElement?.closest("details") ?? null) if (!fold.open) fold.open = true;
       // a card opens at its head (a study's: its row in the list), under the area bar, with the focus on the control that
@@ -355,7 +358,7 @@ function Workspace({ projectId, initialTab, initialOnly, initialStatus, steps }:
     setTab(s.area);
     setCardsOpen((was) => ({ ...was, [s.key]: true }));
     setCardFocus({ key: s.key, anchor, at: Date.now() });
-    bringIntoView(anchor ?? cardAnchor(s), cardAnchor(s));
+    bringIntoView(anchor ?? cardAnchor(s), cardAnchor(s), anchor ? cardAnchor(s) : undefined);
   }
   /** Open where a work item is settled: its area, its card (the study, product or compound it concerns, in its area) or
    *  its file's row. An item of the /inputs to-do on a study opens that study's row (its regimen) or its individual.
@@ -384,7 +387,7 @@ function Workspace({ projectId, initialTab, initialOnly, initialStatus, steps }:
       : card ? cardAnchor(card) : undefined;
     // a card to confirm opens at its head (its whole body is what is confirmed); an item on a card, at its place there
     if (card && item.id.startsWith("confirm:")) bringIntoView(cardAnchor(card));
-    else if (w.anchor) bringIntoView(w.anchor, fallback);
+    else if (w.anchor) bringIntoView(w.anchor, fallback, card ? cardAnchor(card) : undefined);
     else if (card) bringIntoView(cardAnchor(card));
   }
   // a link to an area (the delivery's line in Client files: `group` ""), or to a sheet-form group's card

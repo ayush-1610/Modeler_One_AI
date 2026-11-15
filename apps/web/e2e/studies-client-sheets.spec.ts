@@ -70,7 +70,9 @@ test("a client sheet is read and saved on the Studies tab, next to the reading a
   await page.getByTestId("source-peek-close").click();
   await shot(page, "2-study-to-confirm");
   await study.getByTestId("confirm-study:Smith2015").click();
-  await expect(study).toContainText("Confirmed by");
+  // said once, on the card's head line: who confirmed it and how; the group inside does not repeat it (final review OWN-14)
+  await expect(page.getByTestId("card-loaded-study:Smith2015")).toContainText(/Confirmed with the sheet form by dev-user on \d{1,2} \w{3} \d{4}, \d\d:\d\d\./);
+  await expect(study.getByTestId("group-confirmed-study:Smith2015")).toHaveCount(0);
   await expect(page.getByTestId("study-Smith2015")).toBeVisible();
   await shot(page, "3-studies-after-confirm");
 });

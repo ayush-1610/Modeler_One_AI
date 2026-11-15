@@ -409,6 +409,39 @@ export function drawText(reasons: (string | null)[]): string {
     + (sampled ? `; ${sampled} ${sampled === 1 ? "is" : "are"} a random sample` : "");
 }
 
+/** What saving a person's entry does to a spot check drawn already, said before Save (final review round 3): what a
+ *  person enters is part of what the spot check is drawn from (its subject's digest and its seed), so it is drawn
+ *  again. The values always checked are drawn again with their ticks (`DeliverySpotState.always`); the random sample is
+ *  drawn anew, and a value it draws again keeps its tick. How many of the sample carry over is known only once it is
+ *  drawn (the draw's rule is the intake rules', SME-governed, unchanged). Null when no spot check is drawn, or it is
+ *  stale already. "Saving this changes what the spot check was drawn from, so it is drawn again. Of the 117 values
+ *  ticked (recorded by dev-user on 15 Nov 2026, 09:42), the 17 always checked keep their ticks; the 100 drawn at random
+ *  are drawn anew, and only those drawn again keep theirs." */
+export function redrawText(spot: { state: string; drawn: number; always: number; recorded_by: string | null; recorded_at: string | null }): string | null {
+  if (spot.state === "none" || spot.state === "stale") return null;
+  const lead = "Saving this changes what the spot check was drawn from, so it is drawn again";
+  if (spot.recorded_by === null) return `${lead}: ticks not recorded yet are not kept.`;
+  const sampled = spot.drawn - spot.always;
+  const who = `recorded by ${spot.recorded_by}${spot.recorded_at ? ` on ${whenText(spot.recorded_at)}` : ""}`;
+  const kept = spot.always === 0 ? "" : sampled === 0 ? `${spot.always === 1 ? "it is" : "all are"} always checked and keep${spot.always === 1 ? "s its tick" : " their ticks"}`
+    : `the ${spot.always} always checked keep${spot.always === 1 ? "s its tick" : " their ticks"}`;
+  const anew = sampled === 0 ? "" : spot.always === 0 ? `all were drawn at random: they are drawn anew, and only those drawn again keep their ticks`
+    : sampled === 1 ? "the 1 drawn at random is drawn anew, and keeps its tick only if drawn again"
+    : `the ${sampled} drawn at random are drawn anew, and only those drawn again keep theirs`;
+  return `${lead}. Of the ${plural(spot.drawn, "value")} ticked (${who}), ${[kept, anew].filter(Boolean).join("; ")}.`;
+}
+
+/** A check's message in two parts (the intake checks write "<what it is about>: <what is wrong>[; why it matters]"):
+ *  `where` ("arm Reference, analyte not stated, matrix plasma") and `gist`, what is wrong in a few words ("the profile
+ *  states more than one LLOQ"), engine terms in a person's words. A message with no "what it is about" is its own gist. */
+export function checkGist(message: string): { where: string; gist: string } {
+  const at = message.indexOf(": ");
+  const where = at > 0 ? message.slice(0, at) : "";
+  const rest = at > 0 ? message.slice(at + 2) : message;
+  const gist = rest.split(/; |: /)[0].trim();
+  return { where: engineWords(where), gist: engineWords(gist || rest) };
+}
+
 /** What a study's simulated individual still needs (D-29; `DeliveryIndividual.needs` and `why`, the landing's held
  *  line), in words: "the study's individual needs the PK-Sim population and the sex: choose them with the demographics".
  *  The values are named by their field, never by their ids. */
@@ -492,6 +525,14 @@ const FIELD_LABEL: Record<string, string> = {
   product_role: "Role", strength_mg: "Strength (mg)", dosage_form: "Dosage form", release: "Release", batch: "Batch",
   particle_size_d50_um: "Particle size d50 (µm)", polymorph: "Polymorph", salt_form: "Salt form",
   apparatus: "Apparatus", medium: "Medium", ph: "pH", rpm: "Stirring (rpm)", volume_ml: "Volume (mL)",
+  // every other field of the intake vocabulary (`modeler_intake.fields`), so the layout editor names none by its id
+  // (gate-todo review); the unit is the one the field's name carries
+  reference: "Protocol or report", crossover: "Crossover", special_population: "Special population", species: "Species",
+  child_pugh: "Child-Pugh class", egfr: "eGFR", gestational_week: "Week of pregnancy", genotype: "Genotype",
+  co_medication: "Co-medication", salt_or_base: "Dose as salt or base", meal_type: "Meal", meal_kcal: "Meal energy (kcal)",
+  meal_fat_g: "Meal fat (g)", particle_size_d10_um: "Particle size d10 (µm)", particle_size_d90_um: "Particle size d90 (µm)",
+  particle_size_method: "Particle size method", surfactant: "Surfactant", temperature_c: "Temperature (°C)",
+  cumulative: "Cumulative", component: "Component",
 };
 export const fieldLabel = (field: string) => FIELD_LABEL[field] ?? `${spaced(field).charAt(0).toUpperCase()}${spaced(field).slice(1)}`;
 /** A fact's label inside a sentence: its first letter in lower case, a name in capitals kept ("PK-Sim population",
@@ -709,6 +750,25 @@ export function rowsLeftOut(first: number, last: number, shown: number[]): strin
   const one = runs.length === 1 && runs[0][0] === runs[0][1];
   const said = runs.map(([a, b]) => (a === b ? `${a}` : `${a} to ${b}`));
   return `${one ? "Row" : "Rows"} ${said.length > 1 ? `${said.slice(0, -1).join(", ")} and ${said[said.length - 1]}` : said[0]} not shown`;
+}
+
+/** What approving a layout version changes for one table of its layout (`DeliveryTableMove`: the pipeline would read it
+ *  with that version instead of the one it is read with now), in words: "Once version 3 is approved, it is read with
+ *  version 3 instead of version 2: no number left unread either way; it no longer reads the product's role." The facts
+ *  are named by their labels (an LLOQ read once for the table as "the LLOQ"). */
+export function moveText(m: { from_version: number; unread_before: number; unread_after: number; facts_lost: string[]; facts_gained: string[] },
+                         version: number): string {
+  const n = (k: number) => (k ? plural(k, "number") : "no number");
+  const numbers = m.unread_before === m.unread_after ? `${n(m.unread_before)} left unread either way`
+    : `${n(m.unread_before)} left unread now, ${m.unread_after ? plural(m.unread_after, "number") : "none"} then`;
+  return `Once version ${version} is approved, it is read with version ${version} instead of version ${m.from_version}: ${numbers}`
+    + (m.facts_lost.length ? `; it no longer reads ${factsInText(m.facts_lost)}` : "")
+    + (m.facts_gained.length ? `; it then also reads ${factsInText(m.facts_gained)}` : "") + ".";
+}
+/** Facts read once for a whole table, by field, in a sentence: "the product's role and the LLOQ". */
+export function factsInText(fields: string[]): string {
+  const named = fields.map((f) => (f === "lloq" ? "the LLOQ" : fieldInSentence(f)));
+  return named.length > 1 ? `${named.slice(0, -1).join(", ")} and ${named[named.length - 1]}` : named[0] ?? "";
 }
 
 /** Findings said inside a sentence ("does not read it: the product's role is not stated in its caption; …"): each in

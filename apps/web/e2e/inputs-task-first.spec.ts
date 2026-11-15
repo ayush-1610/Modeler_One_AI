@@ -430,6 +430,41 @@ test("Next opens its row whatever To do is narrowed to", async ({ page }) => {
   await page.unrouteAll({ behavior: "ignoreErrors" });
 });
 
+test("with two study cards open, a fact's link on one lands on that card's own form, never on the other's (CODE-1)", async ({ page, request }) => {
+  // 231-24 and 230-25 both lack their route: each card's facts, required items and blockers are its own places
+  const d = await read<Delivery>(request, "delivery");
+  const id = (label: string) => d.subjects.find((s) => s.subject_type === "study" && s.label === label)!.subject;
+  const [above, below] = [id("231-24"), id("230-25")];
+  await page.goto(`/projects/${projectId}/inputs?tab=studies`);
+  for (const subject of [above, below]) {
+    const toggle = page.getByTestId(`delivery-subject-open-${subject}`);
+    if ((await toggle.getAttribute("aria-expanded")) !== "true") await toggle.click();
+  }
+  const first = page.getByTestId(`delivery-card-${above}`);
+  const second = page.getByTestId(`delivery-card-${below}`);
+  await expect(first.getByTestId(`delivery-gap-${above}-route`)).toBeVisible();
+  await expect(second.getByTestId(`delivery-gap-${below}-route`)).toBeVisible();
+  // no place a link can open, and no id, is on the page twice
+  const twice = await page.evaluate(() => {
+    const seen = new Map<string, number>();
+    for (const el of document.querySelectorAll<HTMLElement>("[id], [data-testid]")) {
+      const keys = [el.id ? `id ${el.id}` : "",
+                    /^delivery-(gap|enter-gap|after-route|requirement|dispose|blocker|conflict|link)-/.test(el.dataset.testid ?? "") ? `testid ${el.dataset.testid}` : ""];
+      for (const k of keys.filter(Boolean)) seen.set(k, (seen.get(k) ?? 0) + 1);
+    }
+    return [...seen].filter(([, n]) => n > 1).map(([k]) => k);
+  });
+  expect(twice).toEqual([]);
+  // the lower card's "not stated: the route…" puts the focus on its own route, inside its own card
+  await second.getByTestId("card-todo-fact:study:230-25").click();
+  const focused = page.locator(":focus");
+  await expect(focused).toHaveAttribute("data-testid", `delivery-enter-gap-${below}-route-value`);
+  expect(await focused.evaluate((el, card) => Boolean(el.closest(`[data-testid="${card}"]`)), `delivery-card-${below}`)).toBe(true);
+  // and the upper card's own link stays on the upper card
+  await first.getByTestId("card-todo-fact:study:231-24").click();
+  await expect(page.locator(":focus")).toHaveAttribute("data-testid", `delivery-enter-gap-${above}-route-value`);
+});
+
 test("a sheet-form draft's problems lead to its sheet, with the cells its own words name read as no sample (OWN-2 c)", async ({ page, request }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   // 230-23's sheet-form path: the Fasting sheet of the messy workbook says "Cells say '12.3*', '>1000': mark them as 'no
@@ -453,6 +488,14 @@ test("a sheet-form draft's problems lead to its sheet, with the cells its own wo
   await expect(noSample).toHaveValue(/>1000/);
   expect(sent).toBe(0);
   await shot(page, "6b-sheet-from-draft");
+  // the ask is taken once: the file's row closed and opened again shows its sheets, not the reader with the texts again
+  const row = page.getByTestId("file-toggle-messy-delivery.xlsx");
+  await row.click();
+  await expect(noSample).toHaveCount(0);
+  await row.click();
+  await expect(page.getByTestId("client-file-messy-delivery.xlsx")).toBeVisible();
+  await expect(noSample).toHaveCount(0);
+  expect(sent).toBe(0);
 });
 
 test("on a phone the rows stack, nothing scrolls sideways, and the bulk bar stays in reach", async ({ page }) => {
@@ -629,6 +672,14 @@ test("a table the newest layout cannot read: its row says why and lists its numb
   await expect(dialog.getByTestId("mapping-sample")).toContainText("of Dissolution RLD pH 6.8.xlsx");
   await expect(dialog.getByTestId("mapping-status")).toHaveText("waits for approval");
   await expect.poll(async () => !(await read<Delivery>(request, "delivery")).running, { timeout: 120_000, intervals: [1000] }).toBe(true);
+  // before the approval, the dialog says what it changes for the layout's other table: the pipeline reads each table
+  // with the approved version that leaves the fewest numbers unread, so Test moves to version 3 too, and version 3 does
+  // not read its product's role from its caption (round 3: said before, not found after)
+  const moves = dialog.getByTestId(`mapping-move-${tst.region_id}`);
+  await expect(moves).toContainText("Dissolution Test pH 6.8.xlsx");
+  await expect(moves).toContainText("Once version 3 is approved, it is read with version 3 instead of version 2");
+  await expect(moves).toContainText("it no longer reads the product's role");
+  await expect(dialog.getByTestId(`mapping-table-${rld.region_id}`)).toContainText("instead of version 1: 24 numbers left unread now, none then");
   await dialog.getByTestId("mapping-approve-why").fill("checked against RLD's file");
   await dialog.getByTestId("mapping-approve-submit").click();
   await expect(dialog.getByTestId("mapping-said")).toContainText("Version 3 of the dissolution table layout is approved");
@@ -636,6 +687,8 @@ test("a table the newest layout cannot read: its row says why and lists its numb
     const r = await regionOf("Dissolution RLD pH 6.8.xlsx");
     return [r.mapping_version, r.silent];
   }, { timeout: 120_000, intervals: [1000] }).toEqual([3, 0]);
+  expect((await regionOf("Dissolution Test pH 6.8.xlsx")).mapping_version).toBe(3);         // as the dialog said
+  await expect(dialog.getByTestId("mapping-said")).toContainText("Dissolution Test pH 6.8.xlsx moves to it and no longer reads the product's role");
   // RLD's row leaves To do; the dialog stays, still saying what was done, until it is closed
   await expect(page.getByTestId(`notread-${file}`)).toHaveCount(0);
   await expect(dialog).toBeVisible();
