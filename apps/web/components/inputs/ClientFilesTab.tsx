@@ -110,7 +110,9 @@ function FilesTable({ projectId, client, rows, work, ai, aiOn, act, onRetag, onS
               const area = f ? fileArea(f) : null;
               const isOpen = open.has(r.id);
               const state = readState(r.delivery[0], ai.get(r.id), aiOn, f);
-              const todo = needs(work.byFile[r.id] ?? []);
+              // its open work, and the work shown in To do but not counted (its delivery names no study yet): listed too,
+              // so the values a person links for them to reach the model are never out of sight
+              const todo = needs(work.fileWork[r.id] ?? []);
               const gives = f ? gave(f) : "";
               return (
                 <Fragment key={r.id}>
@@ -137,7 +139,8 @@ function FilesTable({ projectId, client, rows, work, ai, aiOn, act, onRetag, onS
                           {todo.map((n) => (
                             <li key={n.item.id}>
                               <button type="button" className="link-btn" onClick={() => onItem(n.item)}
-                                      aria-label={`${n.text}: ${n.item.label}`}>{n.text}</button>
+                                      aria-label={`${n.text}: ${n.item.label}${n.item.open ? "" : ` (not counted now: ${n.item.why ?? ""})`}`}>{n.text}</button>
+                              {!n.item.open && <span className="muted fs-12" title={n.item.why}> · not counted now</span>}
                             </li>
                           ))}
                         </ul>
@@ -243,7 +246,7 @@ export function ClientFilesTab({ projectId, client, work, only, onOnly, run, act
           </p>
         </>
       )}
-      <DeliverySection projectId={projectId} work={work} focus={focus} onOpenGroup={onOpenGroup} />
+      <DeliverySection projectId={projectId} work={work} focus={focus} onOpenGroup={onOpenGroup} onItem={onItem} />
     </>
   );
 }

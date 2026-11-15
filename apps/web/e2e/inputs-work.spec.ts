@@ -10,7 +10,7 @@ import { join } from "node:path";
 import { expect, test } from "@playwright/test";
 
 import {
-  NEW, NO_TARGET, areaHead, assignBody, buildWork, collisions, columnSummary, destinationKey, layoutRows, linkRows, looseGroups, nextText,
+  NEW, NO_TARGET, areaHead, assignBody, buildWork, collisions, columnSummary, destinationKey, heldBy, layoutRows, linkRows, looseGroups, nextText,
   normLabel, notReadRows, onDelivery, prefixAlias, targetProblem, type WorkSources,
 } from "../lib/inputsWork";
 import { checkLabel, placeText, stepReason } from "../lib/words";
@@ -276,6 +276,82 @@ test("the link table: one row per file, suggested from its own labels, the alias
   expect(body.targets).toHaveLength(79);
   expect(destinationKey(reference.alias!.target)).not.toBe(destinationKey(test230.alias!.target));
   expect(destinationKey({ ...NO_TARGET, study: NEW, newStudy: "ABC-9" })).toBe(destinationKey({ ...NO_TARGET, study: NEW, newStudy: " abc-9 " }));
+});
+
+test("a workbook with one sheet per study: each table its own part, its own suggestion and its own arm check", () => {
+  const sources = batch();
+  const page = sources.delivery!;
+  const files = page.deliveries.flatMap((d) => d.files);
+  const ref = files.find((f) => f.name === "230-23 Fasting Reference.xlsx")!;
+  // the Reference file's values read again as a two-sheet workbook: Sheet1 titled "Study 230-23", Sheet2 "Study 777-01"
+  // (a study no file names yet), the same subjects and periods on both
+  const sha = "f".repeat(64);
+  const own = page.unassigned.filter((v) => v.file_sha256 === ref.sha256);
+  // where each value was read, as the API anchors it (the trimmed fixture leaves the anchors out): the table's cells, the
+  // facts on the same sheet
+  for (const v of own) v.anchor = `${ref.sha256}@workbook/1.0#s:'Sheet1'!${v.id.includes("#") ? "C5" : "A1"}`;
+  const sheet2 = (x: string | null) => x?.replace(/'Sheet1'/g, "'Sheet2'") ?? x;
+  const values = [
+    ...own.map((v) => ({ ...v, id: v.id.replace(/^tx-[0-9a-f]+/, "tx-aaaa").replace(/^f-/, "f-a"), file_sha256: sha, file: "two-studies.xlsx" })),
+    ...own.map((v) => ({ ...v, id: v.id.replace(/^tx-[0-9a-f]+/, "tx-bbbb").replace(/^f-/, "f-b"), file_sha256: sha, file: "two-studies.xlsx",
+                         anchor: sheet2(v.anchor) })),
+  ];
+  const region = ref.regions[0];
+  page.deliveries[0].files.push({ ...ref, sha256: sha, file_id: "fl-ffffffffffff", name: "two-studies.xlsx", legacy_sid: null,
+    regions: [{ ...region, region_id: "rg-a" }, { ...region, region_id: "rg-b", where: region.where.replace("Sheet1", "Sheet2") }],
+    outside: [{ where: "s:'Sheet1'!A1", text: "Study 230-23: plasma concentrations, Reference, 50 mg, fasting", region: "rg-a", counted: false },
+              { where: "s:'Sheet2'!A1", text: "Study 777-01: plasma concentrations, Reference, 50 mg, fasting", region: "rg-b", counted: false }] });
+  page.unassigned.push(...values);
+  const model = buildWork(sources);
+  const rows = linkRows(model.items.filter((i) => /^(link|alias):/.test(i.id)), page, model.subjects);
+  const two = rows.find((r) => r.file === "two-studies.xlsx")!;
+  // two parts, each table with the facts read on its sheet; the titles point to different places, so it starts split
+  expect(two.parts.map((p) => p.label)).toEqual(["individual PK table, 76 values · sheet Sheet1 · 3 facts", "individual PK table, 76 values · sheet Sheet2 · 3 facts"]);
+  expect(two.parts.map((p) => p.values.length)).toEqual([79, 79]);
+  expect(two.split).toBe(true);
+  expect(two.suggested).toBeNull();
+  expect(two.parts[0].suggested).toMatchObject({ why: "its title names study 230-23", target: { study: "st-8" } });
+  expect(two.parts[1].suggested).toBeNull();                       // 777-01 is no study yet: never made up
+  // a one-table file is one part, its facts with it, and not split
+  const reference = rows.find((r) => r.file === "230-23 Fasting Reference.xlsx")!;
+  expect(reference.parts.map((p) => p.label)).toEqual(["individual PK table, 76 values · sheet Sheet1 · 3 facts"]);
+  expect(reference.split).toBe(false);
+  // each part is checked on its own: Sheet1's table into 230-23 beside the Reference file's subjects, not beside its own sheet
+  const studies = page.subjects;
+  const to = { ...NO_TARGET, study: "st-8" };
+  expect(collisions([{ row: two.parts[0], target: to }], studies, { "st-8": [{ arm: "", analyte: "", pair: "001 · I", sha: ref.sha256 }] })[0])
+    .toMatchObject({ files: ["two-studies.xlsx, its individual PK table on sheet Sheet1"], keys: [`${sha}#tx-aaaa`] });
+  expect(collisions([{ row: two.parts[0], target: to }, { row: two.parts[1], target: to }], studies)).toEqual([]);   // one file's tables
+  expect(collisions([{ row: two.parts[0], target: to }], studies, { "st-8": [{ arm: "", analyte: "", pair: "001 · I", sha }] })).toEqual([]);
+  expect(heldBy({ tables: [{ file_sha256: ref.sha256, values: own.slice(0, 1) }] })).toEqual([{ arm: "", analyte: "", pair: "001 · I", sha: ref.sha256 }]);
+});
+
+test("the second file of a pair is told apart from the first one, already linked; a delivery whose files name no study stays in view", () => {
+  // the Reference file linked to 230-23 in a new arm "Reference": the Test file's Yes fills "Test", not the sheet form's "TEST"
+  const sources = batch();
+  const page = sources.delivery!;
+  const ref = page.deliveries.flatMap((d) => d.files).find((f) => f.name === "230-23 Fasting Reference.xlsx")!;
+  page.unassigned = page.unassigned.filter((v) => v.file_sha256 !== ref.sha256);
+  const st8 = page.subjects.find((s) => s.subject === "st-8")!;
+  st8.files.push(ref.sha256);
+  st8.arms.push({ id: "arm-21", label: "Reference" });
+  let model = buildWork(sources);
+  const test230 = linkRows(model.items.filter((i) => /^(link|alias):/.test(i.id)), page, model.subjects).find((r) => r.file === "230-23 Fasting Test.xlsx")!;
+  expect(test230.alias!.target).toMatchObject({ study: "st-8", arm: NEW, newArm: "Test" });
+
+  // a delivery of its own whose files name no study yet: its link row is in the link group, shown, not counted, with why
+  const alone = batch();
+  const tst = alone.delivery!.deliveries.flatMap((d) => d.files).find((f) => f.name === "230-23 Fasting Test.xlsx")!;
+  alone.delivery!.deliveries.push({ ...alone.delivery!.deliveries[0], id: "dl-2", files: [{ ...tst, delivery: "dl-2" }] });
+  alone.delivery!.deliveries[0].files = alone.delivery!.deliveries[0].files.filter((f) => f !== tst);
+  for (const v of alone.delivery!.unassigned.filter((x) => x.file_sha256 === tst.sha256)) v.delivery = "dl-2";
+  model = buildWork(alone);
+  const item = model.items.find((i) => i.ref === tst.sha256 && /^(link|alias):/.test(i.id))!;
+  expect([item.group, item.open, item.why]).toEqual(["link", false,
+    "Its files name no study or product yet: it holds up nothing until their values are linked to one."]);
+  const fileId = item.files[0];
+  expect(model.fileWork[fileId].map((i) => i.id)).toContain(item.id);
+  expect((model.byFile[fileId] ?? []).map((i) => i.id)).not.toContain(item.id);
 });
 
 test("numbers not read: loose numbers alike said once, by file; the layouts' queue with its not-data readings", () => {

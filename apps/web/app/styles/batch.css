@@ -23,7 +23,16 @@
 .batch-detail .delivery-sub { margin: 4px 0 0; }
 .batch-detail .plain-list { margin: 0; display: grid; gap: 4px; }
 
-/* the link table */
+/* the link table; a file whose tables go to different places says where each goes, and its editor has a set of choices
+ * per table */
+.link-parts-where { margin: 0; padding: 0; list-style: none; display: grid; gap: 2px; flex-basis: 100%; }
+.link-parts-where .chip { margin-left: 6px; }
+.link-checking { flex-basis: 100%; font-size: 12.5px; }
+.link-split { flex-basis: 100%; flex-wrap: wrap; }
+.link-split > .muted { flex-basis: 100%; padding-left: 26px; }
+.link-part { flex-basis: 100%; display: flex; flex-wrap: wrap; align-items: flex-end; gap: 6px 10px; min-width: 0; margin: 0; padding: 6px 0 2px;
+  border: 0; border-top: 1px solid var(--line-soft, var(--line)); }
+.link-part > legend { float: left; width: 100%; padding: 0; font-size: 13px; font-weight: 600; }
 .link-ask { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
 .link-ask-q { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 .link-clash { flex-basis: 100%; font-size: 12.5px; color: var(--warn-ink); }
@@ -67,8 +76,11 @@
 .batch .delivery-why > .muted { flex-basis: 100%; font-size: 13px; }
 .notread-marked { display: grid; gap: 4px; padding: 8px 10px; font-size: 13.5px; border-radius: var(--radius-sm); background: var(--raised); }
 
-/* the compound values to fill */
+/* the compound values to fill: sized here, not with the !important width utilities, so a phone can stack them */
 .mv-table { width: 100%; }
+.mv-table .mv-value { width: 110px; }
+.mv-table .mv-unit { width: 90px; }
+.mv-table .mv-quote { width: 100%; min-width: 0; }
 .mv-table th, .mv-table td { padding: 4px 6px; vertical-align: top; text-align: left; }
 .mv-table th[scope="row"] { font-weight: 500; }
 .mv-source { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 6px 8px; }
@@ -81,10 +93,14 @@
   .batch-detail, .link-editor { padding-left: 0; }
   .bulk-bar { bottom: 0; }
   .delivery-why > .reason { flex-basis: 100%; }
+  /* each value a card: its name, then value and unit side by side, then the sentence; the table is no wider than the box */
+  .mv-scroll { overflow-x: visible; border: 0; background: none; }
+  .mv-scroll .mv-table, .mv-table tbody { display: block; min-width: 0; width: 100%; }
   .mv-table thead { display: none; }
-  .mv-table tr { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 4px 8px; padding: 6px 0;
+  .mv-table tr { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 4px 8px; min-width: 0; padding: 8px 0;
     border-bottom: 1px solid var(--line-soft, var(--line)); }
   .mv-table th[scope="row"], .mv-table td:last-child { grid-column: 1 / -1; }
-  .mv-table th, .mv-table td { padding: 0; }
-  .mv-table input { width: 100%; }
+  .mv-table th, .mv-table td { display: block; min-width: 0; padding: 0; }
+  .mv-table .mv-value, .mv-table .mv-unit, .mv-table .mv-quote { width: 100%; min-width: 0; }
+  .link-part > legend { font-size: 12.5px; }
 }

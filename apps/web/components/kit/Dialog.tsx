@@ -14,7 +14,7 @@ const FOCUSABLE = [
   "textarea:not([disabled])", "[tabindex]:not([tabindex='-1'])",
 ].join(",");
 
-export function Dialog({ title, onClose, size, above, dismiss, testId, returnFocus, children }: {
+export function Dialog({ title, onClose, size, above, dismiss, testId, returnFocus, focusKey, children }: {
   title: ReactNode;
   /** What Escape does. Leave it out for a dialog that must be answered with its buttons. */
   onClose?: () => void;
@@ -28,6 +28,9 @@ export function Dialog({ title, onClose, size, above, dismiss, testId, returnFoc
   /** Where the focus goes when the dialog closes and the element that opened it is gone (a row a decision in the dialog
    *  settled, plan 2026-11-14 slice 4): the list's heading, say. Read when the dialog closes. */
   returnFocus?: () => HTMLElement | null;
+  /** What the dialog shows (a queue's item): when it changes and the focus is no longer inside (the button pressed went
+   *  with the item it settled), the focus goes back to the panel, so the title is read again and Tab and Escape work. */
+  focusKey?: string;
   children: ReactNode;
 }) {
   const titleId = useId();
@@ -45,6 +48,13 @@ export function Dialog({ title, onClose, size, above, dismiss, testId, returnFoc
       else fallback.current?.()?.focus();
     };
   }, []);
+
+  const shown = useRef(focusKey);
+  useEffect(() => {
+    if (shown.current === focusKey) return;
+    shown.current = focusKey;
+    if (panel.current && !panel.current.contains(document.activeElement)) panel.current.focus();
+  }, [focusKey]);
 
   // the page behind is held still while any dialog is open, counted so nested dialogs release it only when the last
   // one closes (kit.css: html[data-dialogs]); set and removed here, so it never outlives the dialog

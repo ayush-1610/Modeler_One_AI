@@ -94,7 +94,7 @@ export function MissingValues({ projectId, items, onOpen, heading }: {
     <div className="batch missing-values" data-testid="missing-values">
       <p className="muted fs-13 m-0">The compound values no source gives yet: type each with its unit as the source states it, and give the
         source once for all of them.</p>
-      <div className="table-scroll">
+      <div className="table-scroll mv-scroll">
         <table className="mv-table">
           <caption className="sr-only">The compound values no source gives yet</caption>
           <thead><tr><th>Value of</th><th>Value</th><th>Unit</th><th>The sentence that states it</th></tr></thead>
@@ -108,11 +108,12 @@ export function MissingValues({ projectId, items, onOpen, heading }: {
                             title="Open its row on Compound">{name}</button>
                     {problems[row.id] && <Problem text={problems[row.id]} testId={`mv-problem-${row.id}`} />}
                   </th>
-                  <td><input value={e.value} onChange={(x) => set(row.id, { value: x.target.value })} className="w-110" aria-label={`Value of ${name}`}
-                             data-testid={`mv-value-${row.id}`} /></td>
-                  <td><input value={e.unit} placeholder="as stated" onChange={(x) => set(row.id, { unit: x.target.value })} className="w-90"
+                  <td><input value={e.value} onChange={(x) => set(row.id, { value: x.target.value })} className="mv-value" placeholder="value"
+                             aria-label={`Value of ${name}`} data-testid={`mv-value-${row.id}`} /></td>
+                  <td><input value={e.unit} placeholder="as stated" onChange={(x) => set(row.id, { unit: x.target.value })} className="mv-unit"
                              aria-label={`Unit of ${name}`} data-testid={`mv-unit-${row.id}`} /></td>
-                  <td><input value={e.quote} onChange={(x) => set(row.id, { quote: x.target.value })} className="w-full" aria-label={`The sentence that states ${name}`}
+                  <td><input value={e.quote} onChange={(x) => set(row.id, { quote: x.target.value })} className="mv-quote"
+                             placeholder="the sentence that states it" aria-label={`The sentence that states ${name}`}
                              data-testid={`mv-quote-${row.id}`} /></td>
                 </tr>
               );

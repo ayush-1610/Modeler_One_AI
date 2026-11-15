@@ -272,22 +272,31 @@ export function InputsWorkspace({ projectId, initialTab, initialOnly, initialSta
   // a status-line count opens To do narrowed to its word; pressed again, To do shows every item
   const toggleStatus = (s: Exclude<StatusFilter, null>) => setStatus(tab === "todo" && status === s ? null : s);
 
-  /** Bring an element of the area just opened into view (it is drawn once the area shows it), and mark it a moment. */
+  /** Bring an element of the area just opened into view (it is drawn once the area shows it), and mark it a moment; a
+   *  folded group it sits in ("Blocks nothing") is unfolded first. */
   function bringIntoView(testId: string) {
     let tries = 0;
     const find = () => {
       const el = document.querySelector<HTMLElement>(`[data-testid="${CSS.escape(testId)}"]`);
       if (!el) { if (++tries < 30) window.setTimeout(find, 100); return; }
+      for (let fold = el.closest("details"); fold; fold = fold.parentElement?.closest("details") ?? null) fold.open = true;
       el.scrollIntoView({ block: "center", behavior: "smooth" });
       el.classList.add("just-opened");
       window.setTimeout(() => el.classList.remove("just-opened"), 1600);
     };
     window.setTimeout(find, 50);
   }
-  /** Open where a work item is settled: its area, its card (a sheet-form group, a delivery subject) or its file's row. */
+  /** Open where a work item is settled: its area, its card (a sheet-form group, a delivery subject) or its file's row.
+   *  The filters that would hide it there are dropped: To do narrowed to another status word, and "Only what needs me"
+   *  for an item that is not counted (a delivery whose files name no study yet, "Blocks nothing"). */
   function go(item: WorkItem) {
     const w = item.where;
-    setTab(w.tab);
+    const keepStatus = w.tab === "todo" && status === item.status ? status : null;
+    const keepOnly = only && item.open;
+    setChosen(w.tab);
+    setStatusState(keepStatus);
+    if (keepOnly !== only) setOnlyState(keepOnly);
+    sync(w.tab, keepOnly, keepStatus);
     const at = Date.now();
     if (w.subject) setSubjectFocus({ subject: w.subject, at });
     if (w.file && !filesOpen.has(w.file)) setFilesOpen((was) => new Set([...was, w.file!]));

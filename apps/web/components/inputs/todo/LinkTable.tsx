@@ -5,11 +5,15 @@
 // form per table and per fact), each with what it holds and where its values go: suggested from the file's own labels
 // (its tables' titles and the lines read with them, its name), or asked first when the sheet form read it under a name
 // that only starts with a delivery study's ("Same study as 230-23?": Yes fills that study and the arm that keeps the
-// file apart). A row opens on its editor (the fill round's link form: study and arm, product and batch, analyte, each an
-// existing one or a new one) and its values. Rows are picked and linked together from the bulk bar with one reason:
-// each where its row says, or all to one place; one `values:assign` per destination, every value of the files in it.
+// file apart). A file whose tables belong to different places (a workbook with one sheet per study) is split: each table,
+// with the facts read beside it, goes where it says, suggested from its own title; the row's editor splits any file, or
+// puts it back together. A row opens on its editor (the fill round's link form: study and arm, product and batch,
+// analyte, each an existing one or a new one) and its values. Rows are picked and linked together from the bulk bar with
+// one reason: each where its row says, or all to one place; one `values:assign` per destination.
 // Before anything is sent, two files that hold the same subject in the same period are refused one arm of one study
-// (§2.2.2), with "A new arm" for each offered right there. A refusal of the server is said on its row, in its words.
+// (§2.2.2), with "A new arm" for each offered right there, and so is a file whose subjects the study already holds in
+// that arm: what the study holds is read from its card (the page's cache when it has just read it, else the card once),
+// never taken as empty because the page has not read it. A refusal of the server is said on its row, in its words.
 // Each answer is the page, written into the cache (writes.ts): a link costs the request and the one card it changed.
 
 import { useQueryClient } from "@tanstack/react-query";
@@ -22,21 +26,25 @@ import { BulkBar } from "@/components/kit/BulkBar";
 import { focusAfter, nextRow } from "@/components/kit/focus";
 import { announce } from "@/components/kit/LiveRegion";
 import { ReasonForm } from "@/components/kit/Reason";
-import { send, type Schema } from "@/lib/api";
-import { useResource } from "@/lib/hooks";
+import { send } from "@/lib/api";
+import { fetchResource, useResource, useResources } from "@/lib/hooks";
 import {
-  NEW, NO_TARGET, assignBody, collisions, destinationKey, distinctWords, linkRows, normLabel, targetProblem, type Collision, type LinkRow,
-  type LinkTarget, type Subject, type WorkItem,
+  NEW, NO_TARGET, assignBody, collisions, destinationKey, distinctWords, heldBy, linkRows, normLabel, targetProblem, type Collision, type Held,
+  type LinkPart, type LinkPiece, type LinkRow, type LinkTarget, type Subject, type WorkItem,
 } from "@/lib/inputsWork";
 import { plural } from "@/lib/words";
 
 const DELIVERY = "/api/v1/projects/{project_id}/delivery" as const;
 const ASSIGN = "/api/v1/projects/{project_id}/delivery/values:assign" as const;
 const CARD = "/api/v1/projects/{project_id}/delivery/subjects/{type}/{subject}" as const;
-type Card = Schema<"DeliverySubject">;
+/** How long a card the page has just read stands for what the study holds when a link is sent (else it is read again). */
+const FRESH = 10_000;
+
+/** A piece of work going somewhere: a file (its row), or one of its tables when the file is split. */
+type Send = { row: LinkPiece; target: LinkTarget };
 
 /** Where a target sends the values, in words: "study 230-23 · arm Reference (new) · analyte Exampleamide". */
-function whereText(t: LinkTarget, page: Page, row: LinkRow): string {
+function whereText(t: LinkTarget, page: Page, row: Pick<LinkPiece, "own">): string {
   const name = (choice: string, fresh: string, list: { id: string; label: string }[]) =>
     (choice === NEW ? `${fresh.trim() || "…"} (new)` : list.find((x) => x.id === choice)?.label ?? choice);
   const study = page.subjects.find((s) => s.subject === t.study);
@@ -67,6 +75,15 @@ function made(t: LinkTarget, before: Page, after: Page): LinkTarget {
   return out;
 }
 
+/** A refusal of the collision guard, in words. */
+function clashText(c: Collision): string {
+  return `${c.files.length === 2 ? `${c.files[0]} and ${c.files[1]} both hold ${c.example}` : `${c.files[0]} holds ${c.example}, which study ${c.study} has in that arm already`}`
+    + `: in study ${c.study} each file needs its own arm`;
+}
+/** The studies a link would add individual values to (those it could mix with what they hold). */
+const studiesOf = (sends: Send[]) => [...new Set(sends.filter((s) => s.row.pairs.length && s.target.study && s.target.study !== NEW).map((s) => s.target.study))].sort();
+const rowOf = (key: string) => key.split("#")[0];
+
 export function LinkTable({ projectId, items, subjects, heading }: {
   projectId: string;
   /** the work model's link and alias items shown (To do's filters applied) */
@@ -80,6 +97,8 @@ export function LinkTable({ projectId, items, subjects, heading }: {
   const { decide, busy } = useDecide();
   const rows = useMemo(() => linkRows(items, page, subjects), [items, page, subjects]);
   const [targets, setTargets] = useState<Record<string, LinkTarget>>({});
+  const [partTargets, setPartTargets] = useState<Record<string, LinkTarget>>({});
+  const [splitAt, setSplitAt] = useState<Record<string, boolean>>({});
   const [answers, setAnswers] = useState<Record<string, "yes" | "no">>({});
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
   const [open, setOpen] = useState<string | null>(null);
@@ -87,7 +106,7 @@ export function LinkTable({ projectId, items, subjects, heading }: {
   const [bulk, setBulk] = useState<LinkTarget>(NO_TARGET);
   const [problems, setProblems] = useState<Record<string, string>>({});
   const [armNames, setArmNames] = useState<Record<string, string>>({});
-  if (!page?.enabled || !rows.length) return null;
+  const [checking, setChecking] = useState(false);
 
   // a row's target: what the person chose for it, else Yes to the alias question, else what its labels suggest
   const own = (r: LinkRow): LinkTarget | null => targets[r.sha] ?? (r.alias ? (answers[r.sha] === "yes" ? r.alias.target
@@ -95,53 +114,93 @@ export function LinkTable({ projectId, items, subjects, heading }: {
     : r.suggested?.target ?? null);
   const targetOf = (r: LinkRow) => own(r) ?? { ...NO_TARGET, analyte: r.own.analyte?.id ?? "" };
   const suggested = (r: LinkRow) => !targets[r.sha] && own(r) !== null;
+  const asking = (r: LinkRow) => Boolean(r.alias) && !answers[r.sha] && !targets[r.sha];
+  // a file's tables to different places: as its tables' titles say, or as the person set it in the editor
+  const isSplit = (r: LinkRow) => r.parts.length > 1 && (splitAt[r.sha] ?? r.split);
+  // a table's target: the person's for it, else the file's they chose, else its own title's, else the file's suggestion
+  const partTarget = (r: LinkRow, p: LinkPart): LinkTarget => partTargets[p.key] ?? targets[r.sha] ?? p.suggested?.target
+    ?? own(r) ?? { ...NO_TARGET, analyte: p.own.analyte?.id ?? "" };
+  const partSuggested = (r: LinkRow, p: LinkPart) => !partTargets[p.key] && !targets[r.sha] && Boolean(p.suggested);
+  const sendsOf = (r: LinkRow): Send[] => (isSplit(r) ? r.parts.map((p) => ({ row: p, target: partTarget(r, p) })) : [{ row: r, target: targetOf(r) }]);
+  const chosen = rows.filter((r) => picked.has(r.sha));
+  const bulkSends = (r: LinkRow): Send[] => (onePlace ? [{ row: r, target: bulk }] : sendsOf(r));
+
+  // what each study a row or the bulk bar sends individual values to holds already: its card, read while the row says
+  // where it goes (never taken as empty because the page has not read it yet)
+  const shown = [...rows.flatMap(sendsOf), ...(onePlace ? chosen.flatMap(bulkSends) : [])];
+  const ids = studiesOf(shown);
+  const cards = useResources(CARD, ids.map((subject) => ({ project_id: projectId, type: "study", subject })));
+  const held: Held = Object.fromEntries(ids.flatMap((id, n) => (cards[n]?.data ? [[id, heldBy(cards[n].data)]] : [])));
+  const reading = new Set(ids.filter((_, n) => !cards[n]?.data && !cards[n]?.problem));
+  if (!page?.enabled || !rows.length) return null;
+  const studies = page.subjects;
+  const label = (id: string) => studies.find((s) => s.subject === id)?.label ?? id;
+
   const setTarget = (r: LinkRow, t: LinkTarget) => {
     setTargets((was) => ({ ...was, [r.sha]: t }));
     setProblems((was) => Object.fromEntries(Object.entries(was).filter(([sha]) => sha !== r.sha)));
   };
-  const chosen = rows.filter((r) => picked.has(r.sha));
-  const effective = (r: LinkRow) => (onePlace ? bulk : targetOf(r));
-  const studies = page.subjects;
-
-  // what a study already holds, by arm and analyte (its card, when the page has read it): a file cannot join an arm
-  // that holds its subjects and periods already
-  const existing = (picks: { row: LinkRow; target: LinkTarget }[]) => {
-    const out: Record<string, { arm: string; analyte: string; pair: string }[]> = {};
-    for (const id of new Set(picks.map((p) => p.target.study).filter((s) => s && s !== NEW))) {
-      const card = client.getQueryData<Card>([CARD, { project_id: projectId, type: "study", subject: id }, {}]);
-      out[id] = (card?.tables ?? []).flatMap((t) => t.values).filter((v) => v.labels.subject)
-        .map((v) => ({ arm: v.entity.arm ?? "", analyte: v.entity.analyte ?? "", pair: `${v.labels.subject} · ${v.labels.period ?? ""}` }));
-    }
-    return out;
+  const setPart = (r: LinkRow, p: LinkPart, t: LinkTarget) => {
+    setPartTargets((was) => ({ ...was, [p.key]: t }));
+    setProblems((was) => Object.fromEntries(Object.entries(was).filter(([sha]) => sha !== r.sha)));
   };
-  const guard = (picks: { row: LinkRow; target: LinkTarget }[]): Collision[] => collisions(picks, studies, existing(picks));
+  const guard = (sends: Send[]): Collision[] => collisions(sends, studies, held);
 
-  /** Link the rows, one `values:assign` per destination; a name made by an earlier call of the batch is used by its id. */
-  async function link(list: LinkRow[], why: string, where: (r: LinkRow) => LinkTarget = effective) {
-    const groups = new Map<string, { target: LinkTarget; rows: LinkRow[] }>();
-    for (const r of list) {
-      const t = where(r), key = destinationKey(t);
-      groups.set(key, { target: t, rows: [...(groups.get(key)?.rows ?? []), r] });
+  /** Link the rows, one `values:assign` per destination; a name made by an earlier call of the batch is used by its id.
+   *  First what each study holds is read (its card, unless the page read it a moment ago) and the guard is run on it. */
+  async function link(list: LinkRow[], why: string, plan: (r: LinkRow) => Send[]) {
+    const sends = list.flatMap((r) => plan(r).map((s) => ({ ...s, of: r })));
+    const check = studiesOf(sends);
+    let now: Held = {};
+    if (check.length) {
+      setChecking(true);
+      try {
+        const read = await Promise.all(check.map((subject) => fetchResource(client, CARD, { project_id: projectId, type: "study", subject }, FRESH)));
+        now = Object.fromEntries(check.map((id, n) => [id, heldBy(read[n])]));
+      } catch (e) {
+        const text = `What study ${check.map(label).join(", ")} holds could not be read, so its arms are not checked: nothing was linked. Try again.`
+          + ` (${e instanceof Error ? e.message : String(e)})`;
+        setProblems((was) => ({ ...was, ...Object.fromEntries(list.map((r) => [r.sha, text])) }));
+        announce(text);
+        return;
+      } finally {
+        setChecking(false);
+      }
+    }
+    const clash = collisions(sends, studies, now);
+    if (clash.length) {
+      const said = Object.fromEntries(list.flatMap((r) => {
+        const c = clash.find((x) => x.keys.some((k) => rowOf(k) === r.sha));
+        return c ? [[r.sha, `${clashText(c)}. Nothing was linked.`]] : [];
+      }));
+      setProblems((was) => ({ ...was, ...said }));
+      announce(`Nothing was linked: ${clashText(clash[0])}.`);
+      return;
+    }
+    const groups = new Map<string, { target: LinkTarget; sends: typeof sends }>();
+    for (const s of sends) {
+      const key = destinationKey(s.target);
+      groups.set(key, { target: s.target, sends: [...(groups.get(key)?.sends ?? []), s] });
     }
     const order = rows.map((r) => `link-${r.fileId}`);
     let current = page!;
-    const done: LinkRow[] = [];
     const failed: Record<string, string> = {};
     for (const g of groups.values()) {
       const target = made(g.target, page!, current);
       const { data, problem } = await decide(() => send("post", ASSIGN, { project_id: projectId },
-        assignBody(target, g.rows.flatMap((r) => r.values.map((v) => v.id)), why)), { refresh: false });
+        assignBody(target, g.sends.flatMap((s) => s.row.values.map((v) => v.id)), why)), { refresh: false });
       if (data) {
         writePage(client, projectId, data);
         current = data;
-        done.push(...g.rows);
-      } else for (const r of g.rows) failed[r.sha] = problem ?? "It was not linked.";
+      } else for (const s of g.sends) failed[s.of.sha] = problem ?? "It was not linked.";
     }
-    setProblems((was) => ({ ...was, ...failed }));
+    const done = list.filter((r) => !failed[r.sha]);
+    setProblems((was) => ({ ...Object.fromEntries(Object.entries(was).filter(([sha]) => !done.some((r) => r.sha === sha))), ...failed }));
     setPicked((was) => new Set([...was].filter((s) => !done.some((r) => r.sha === s))));
     if (done.length) {
       const left = rows.length - done.length;
-      announce(`${done.map((r) => r.file).join(", ")} linked to ${[...new Set(done.map((r) => whereText(where(r), current, r)))].join("; ")}. `
+      const whereOf = (r: LinkRow) => [...new Set(plan(r).map((s) => whereText(s.target, current, s.row)))].join(" and ");
+      announce(`${done.map((r) => r.file).join(", ")} linked to ${[...new Set(done.map(whereOf))].join("; ")}. `
         + `${left ? `${plural(left, "file")} left to link.` : "Every file is linked."}${Object.keys(failed).length ? ` ${plural(Object.keys(failed).length, "file")} not linked: see its row.` : ""}`);
       const decided = done.map((r) => `link-${r.fileId}`);
       focusAfter(decided, nextRow(order, decided), [heading, "todo-title"]);
@@ -151,28 +210,35 @@ export function LinkTable({ projectId, items, subjects, heading }: {
   }
 
   // what the picked rows still need, and the arms that would mix two files' subjects
-  const picks = chosen.map((r) => ({ row: r, target: effective(r) }));
+  const picks = chosen.flatMap(bulkSends);
   const clash = guard(picks);
   const lacking = picks.map((p) => [p.row, targetProblem(p.target)] as const).filter(([, m]) => m);
-  const bulkMissing = lacking.length ? `${lacking[0][0].file}: ${lacking[0][1]}` : clash.length ? "Give each file its own arm first (above)" : null;
+  const bulkMissing = lacking.length ? `${lacking[0][0].name}: ${lacking[0][1]}` : clash.length ? "Give each file its own arm first (above)" : null;
   const reasons = (list: LinkRow[]) => [...new Set(list.flatMap((r) => [
     answers[r.sha] === "yes" && r.alias ? `the sheet form read it as ${r.sheet}, a part of study ${r.alias.study.label}` : "",
-    suggested(r) && r.suggested ? `${r.suggested.why.replace(/^its/, "the file's")}` : "",
+    !isSplit(r) && suggested(r) && r.suggested ? `${r.suggested.why.replace(/^its/, "the file's")}` : "",
+    ...(isSplit(r) ? r.parts.filter((p) => partSuggested(r, p)).map((p) => `${p.place || p.label}: ${p.suggested!.why.replace(/^its/, "the table's")}`) : []),
   ]).filter(Boolean))].slice(0, 3);
   const giveArms = (c: Collision[]) => {
     const keys = new Set(c.flatMap((x) => x.keys));
-    const clashing = picks.filter((p) => keys.has(p.row.sha));
-    setTargets((was) => {
-      const next = { ...was };
-      for (const p of clashing) {
-        const name = armNames[p.row.sha] ?? distinctWords(p.row.file, clashing.filter((x) => x !== p).map((x) => x.row.file));
-        next[p.row.sha] = { ...p.target, arm: NEW, newArm: name };
-      }
-      return next;
-    });
+    const clashing = picks.filter((p) => keys.has(p.row.key));
+    for (const p of clashing) {
+      const name = armNames[p.row.key] ?? distinctWords(p.row.name, clashing.filter((x) => x !== p).map((x) => x.row.name));
+      const t = { ...p.target, arm: NEW, newArm: name };
+      if (p.row.key === p.row.sha) setTargets((was) => ({ ...was, [p.row.sha]: t }));
+      else setPartTargets((was) => ({ ...was, [p.row.key]: t }));
+    }
     setOnePlace(false);
   };
   const allPicked = rows.every((r) => picked.has(r.sha));
+  const holdsText = (sends: Send[]) => {
+    const c = guard(sends)[0];
+    return c ? `${c.example} is in study ${c.study} in that arm already` : null;
+  };
+  const readingText = (sends: Send[]) => {
+    const waiting = studiesOf(sends).filter((id) => reading.has(id));
+    return waiting.length ? `checking what study ${waiting.map(label).join(", ")} holds…` : null;
+  };
 
   return (
     <div className="batch link-table" data-testid="link-table">
@@ -187,9 +253,12 @@ export function LinkTable({ projectId, items, subjects, heading }: {
       <ul className="batch-rows">
         {rows.map((r) => {
           const t = targetOf(r);
-          const asking = r.alias && !answers[r.sha] && !targets[r.sha];
+          const split = isSplit(r);
           const context = `${plural(r.values.length, "value")} of ${r.file}`;
-          const rowClash = guard([{ row: r, target: t }]);
+          const sends = sendsOf(r);
+          const rowClash = holdsText(sends);
+          const wait = readingText(sends);
+          const missing = sends.map((s) => [s, targetProblem(s.target)] as const).find(([, m]) => m);
           return (
             <li key={r.sha} className={`batch-row${open === r.sha ? " open" : ""}`} data-testid={`link-${r.fileId}`}>
               <div className="batch-line">
@@ -201,7 +270,7 @@ export function LinkTable({ projectId, items, subjects, heading }: {
                   {r.item.why && r.item.group !== "tidy" && <span className="chip neutral" title={r.item.why}>holds up nothing yet</span>}
                 </div>
                 <div className="batch-where" data-testid={`link-to-${r.fileId}`}>
-                  {asking ? (
+                  {asking(r) && !split ? (
                     <span className="link-ask">
                       <span>The sheet form read it as {r.sheet}.</span>{" "}
                       <span className="link-ask-q">
@@ -214,13 +283,27 @@ export function LinkTable({ projectId, items, subjects, heading }: {
                                 onClick={() => setAnswers((was) => ({ ...was, [r.sha]: "no" }))}>No</button>
                       </span>
                     </span>
+                  ) : split ? (
+                    <ul className="link-parts-where">
+                      {r.parts.map((p, n) => {
+                        const pt = partTarget(r, p);
+                        return (
+                          <li key={p.key} data-testid={`link-to-${r.fileId}-${n}`}>
+                            <span className="muted">{p.place || p.label}:</span>{" "}
+                            {targetProblem(pt) === "Pick a study or a product" ? <span className="muted">not chosen yet</span> : <span>→ {whereText(pt, page, p)}</span>}
+                            {partSuggested(r, p) && <span className="chip neutral" title={p.suggested!.why}>suggested</span>}
+                          </li>
+                        );
+                      })}
+                    </ul>
                   ) : own(r) ? (
                     <>
                       <span>→ {whereText(t, page, r)}</span>
                       {suggested(r) && <span className="chip neutral" title={r.suggested?.why ?? (answers[r.sha] === "yes" ? "you said it is the same study" : "the sheet form's name")}>suggested</span>}
                     </>
                   ) : <span className="muted">not chosen yet{r.sheet ? ` · the sheet form read it as ${r.sheet}` : ""}</span>}
-                  {rowClash.length > 0 && <span className="link-clash">{rowClash[0].example} is in study {rowClash[0].study} in that arm already: give it an arm of its own</span>}
+                  {wait && <span className="muted link-checking" data-testid={`link-checking-${r.fileId}`}>{wait}</span>}
+                  {rowClash && <span className="link-clash">{rowClash}: give it an arm of its own</span>}
                 </div>
                 <button type="button" className="btn small" aria-expanded={open === r.sha} aria-controls={`link-editor-${r.fileId}`}
                         aria-label={`${open === r.sha ? "Close" : "Choose"} where the ${context} go`} data-testid={`link-open-${r.fileId}`}
@@ -230,8 +313,14 @@ export function LinkTable({ projectId, items, subjects, heading }: {
               {open === r.sha && (
                 <div id={`link-editor-${r.fileId}`}>
                   <LinkEditor projectId={projectId} row={r} target={t} onTarget={(x) => setTarget(r, x)} subjects={page.subjects} analytes={page.analytes}
-                              busy={busy} missing={targetProblem(t) ?? (rowClash.length ? `${rowClash[0].example} is in study ${rowClash[0].study} in that arm already: choose another arm` : null)}
-                              suggestions={reasons([r])} onLink={(why) => link([r], why, targetOf)} problem={null} />
+                              busy={busy || checking}
+                              missing={missing ? (split ? `${missing[0].row.name}: ${missing[1]}` : missing[1])
+                                : rowClash ? `${rowClash}: choose another arm` : null}
+                              split={r.parts.length > 1 ? {
+                                on: split, set: (on) => setSplitAt((was) => ({ ...was, [r.sha]: on })),
+                                target: (p) => partTarget(r, p), onTarget: (p, x) => setPart(r, p, x),
+                              } : undefined}
+                              suggestions={reasons([r])} onLink={(why) => link([r], why, sendsOf)} problem={null} />
                 </div>
               )}
             </li>
@@ -249,24 +338,24 @@ export function LinkTable({ projectId, items, subjects, heading }: {
                           analytes={page.analytes} keyId="bulk" context={`for the ${plural(chosen.length, "picked file")}`} />
           ) : (
             <ul className="bulk-targets">
-              {picks.map((p) => <li key={p.row.sha}>{p.row.file} → {own(p.row) || targets[p.row.sha] ? whereText(p.target, page, p.row) : <em>not chosen yet</em>}</li>)}
+              {chosen.map((r) => (
+                <li key={r.sha}>{r.file} → {isSplit(r)
+                  ? r.parts.map((p) => `${p.place || p.label}: ${targetProblem(partTarget(r, p)) === "Pick a study or a product" ? "not chosen yet" : whereText(partTarget(r, p), page, p)}`).join("; ")
+                  : own(r) || targets[r.sha] ? whereText(targetOf(r), page, r) : <em>not chosen yet</em>}</li>
+              ))}
             </ul>
           )}
         </div>
+        {onePlace && readingText(picks) && <p className="muted m-0 link-checking">{readingText(picks)}</p>}
         {clash.length > 0 && (
           <div className="link-collision" role="alert" data-testid="link-collision">
-            {clash.map((c) => (
-              <p key={c.keys.join("|")} className="m-0">
-                {c.files.length === 2 ? `${c.files[0]} and ${c.files[1]} both hold ${c.example}` : `${c.files[0]} holds ${c.example}, which study ${c.study} has in that arm already`}:
-                {" "}in study {c.study} each file needs its own arm.
-              </p>
-            ))}
+            {clash.map((c) => <p key={c.keys.join("|")} className="m-0">{clashText(c)}.</p>)}
             <div className="row gap-6">
-              {picks.filter((p) => clash.some((c) => c.keys.includes(p.row.sha))).map((p, _i, all) => (
-                <label key={p.row.sha} className="delivery-pick">A new arm for {p.row.file}
-                  <input type="text" maxLength={80} data-testid={`link-collision-arm-${p.row.fileId}`}
-                         value={armNames[p.row.sha] ?? distinctWords(p.row.file, all.filter((x) => x !== p).map((x) => x.row.file))}
-                         onChange={(e) => setArmNames((was) => ({ ...was, [p.row.sha]: e.target.value }))} />
+              {picks.filter((p) => clash.some((c) => c.keys.includes(p.row.key))).map((p, _i, all) => (
+                <label key={p.row.key} className="delivery-pick">A new arm for {p.row.name}
+                  <input type="text" maxLength={80} data-testid={`link-collision-arm-${p.row.key === p.row.sha ? rows.find((r) => r.sha === p.row.sha)?.fileId : p.row.key.replace(/[^A-Za-z0-9-]/g, "-")}`}
+                         value={armNames[p.row.key] ?? distinctWords(p.row.name, all.filter((x) => x !== p).map((x) => x.row.name))}
+                         onChange={(e) => setArmNames((was) => ({ ...was, [p.row.key]: e.target.value }))} />
                 </label>
               ))}
               <button type="button" className="btn small" onClick={() => giveArms(clash)} data-testid="link-collision-apply">Give each its own arm</button>
@@ -275,7 +364,7 @@ export function LinkTable({ projectId, items, subjects, heading }: {
         )}
         <ReasonForm action={chosen.length > 1 ? `Link ${plural(chosen.length, "file")}` : "Link"} kind="link" testId="bulk-link"
                     actionLabel={`Link the values of ${plural(chosen.length, "picked file")}`} label="Why the picked files' values belong there"
-                    busy={busy} missing={bulkMissing} suggestions={reasons(chosen)} onSubmit={(why) => link(chosen, why)}
+                    busy={busy || checking} missing={bulkMissing} suggestions={reasons(chosen)} onSubmit={(why) => link(chosen, why, bulkSends)}
                     placeholder="reason, e.g. the file names say 230-23 (kept on the audit trail)" />
         {Object.keys(problems).length > 0 && (
           <ul className="bulk-problems" data-testid="bulk-link-problems">

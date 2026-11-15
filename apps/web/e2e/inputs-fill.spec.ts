@@ -36,13 +36,6 @@ async function project(request: APIRequestContext) {
   return projectId;
 }
 
-/** "Blocks nothing" unfolded, where it is: a delivery whose files name no study yet holds up no signature, so its values
- *  to link are listed there until one of them is linked. */
-async function unfold(page: Page) {
-  const fold = page.getByTestId("todo-group-tidy");
-  if (await fold.count() && !(await fold.evaluate((el) => (el as HTMLDetailsElement).open))) await fold.locator("summary").click();
-}
-
 /** A file's row in To do's link table, by the delivery's id of the file (plan 2026-11-14 slice 4: one row per file). */
 function keyOf(page: Delivery, file: string) {
   return page.deliveries.flatMap((d) => d.files).find((f) => f.name === file)!.file_id;
@@ -74,7 +67,10 @@ test("loose values are linked with new arms and an analyte, a table set aside is
   // analyte, with the reason ---
   await page.getByTestId("tab-todo").click();
   const links = page.getByTestId("link-table");
-  await unfold(page);
+  // a delivery whose files name no study yet holds up no signature: its values to link are shown with the rest of the
+  // link work, not counted and saying why, never folded away under "Blocks nothing"
+  await expect(page.getByTestId("todo-group-link").getByTestId("link-table")).toBeVisible();
+  await expect(page.getByTestId("todo-why-link")).toContainText("Its files name no study or product yet");
   const loose = keyOf(delivery, "loose-profile.csv");
   await links.getByTestId(`link-open-${loose}`).click();
   const group = links.getByTestId(`link-editor-${loose}`);
@@ -198,7 +194,6 @@ test("loose values are linked with new arms and an analyte, a table set aside is
   // --- its values, in To do's link table: a new study by a name that exists is refused in the server's words, on the
   // file's row; then that study, a new arm and the analyte named before ---
   await page.getByTestId("tab-todo").click();
-  await unfold(page);
   await expect(links).toBeVisible();
   delivery = await read();
   const later = keyOf(delivery, "odd-profile.csv");

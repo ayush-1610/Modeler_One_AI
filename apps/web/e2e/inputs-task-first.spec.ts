@@ -4,8 +4,11 @@
 // in one go, one call per destination; a file's loose numbers marked as not data in one go, restored, and two files' in
 // one batch with the last reason offered again; the compound values no source gives entered with one citation; the
 // layouts walked as a queue at their versions, and the "not data" readings approved together, each note naming the
-// others; after each decision the focus moves on and the change is said; a decision costs at most two requests; and on
-// a phone the rows stack, nothing scrolls sideways and the bulk bar stays reachable. Software test data, never a model.
+// others; after each decision the focus moves on and the change is said; a decision costs at most two requests; "Next"
+// opens its row whatever To do is narrowed to; on a phone the rows stack, nothing scrolls sideways (the compound values
+// included) and the bulk bar stays reachable; and a later workbook with one sheet per study, whose delivery names no
+// study yet, is in view with the rest of the link work, each table goes to its own place, and its first table is refused
+// the arm that already holds its subjects even before the page has read that study. Software test data, never a model.
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, readFileSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -16,6 +19,7 @@ import { expect, type APIRequestContext, type Page, test } from "@playwright/tes
 import { AUTH, finishStart } from "./fixtures/inputs";
 
 const REPO = resolve(__dirname, "../../..");
+const NEW = "__new__";
 
 type File = { file_id: string; name: string; sha256: string };
 type Delivery = {
@@ -238,17 +242,31 @@ test("the layouts' queue: walked at their versions, approved and on to the next;
   }
   await expect(dialog.getByTestId("mapping-columns")).toContainText("Amount (mg)");
   await dialog.getByTestId("mapping-approve-why").fill("the urine table's layout, checked against the file");
+  // the page's own reads of the cards (once it is idle) are done before the decision is counted
+  await expect(page.getByTestId("status-checking")).toHaveCount(0);
+  await page.waitForLoadState("networkidle");
   const sent = await requests(page, async () => {
     await dialog.getByTestId("mapping-approve-submit").click();
-    await expect(dialog.getByTestId("mapping-said")).toContainText("of the excretion table layout is approved");
+    await expect(dialog.getByTestId("mapping-said")).toContainText(at < total ? "Approved: the excretion table layout, version" : "of the excretion table layout is approved");
   }, 1000);
   // the approval and the page read once; the next layout's own read is the queue moving on (the page is read again
   // every 3 s while the layout's file is being read again: that is a reading, not the decision)
   expect(sent.filter((r) => !/mappings\/mp-[0-9a-f]+\?version=/.test(r)), sent.join("\n"))
     .toEqual([`POST delivery/mappings/${urine.mapping_id}:approve`, "GET delivery"]);
-  if (at < total) await expect(dialog.getByTestId("mapping-position")).toHaveText(`${at + 1} of ${total}`);
+  if (at < total) {
+    // on to the next layout: said of the one before, with where the queue is now; the focus back on the dialog (the
+    // button pressed went with its layout), so Tab stays inside and Escape closes it
+    await expect(dialog.getByTestId("mapping-position")).toHaveText(`${at + 1} of ${total}`);
+    await expect(dialog.getByTestId("mapping-said")).toContainText(`Now ${at + 1} of ${total}.`);
+    await expect(dialog.locator('[role="dialog"]')).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect.poll(() => dialog.evaluate((d) => d.contains(document.activeElement))).toBe(true);
+    await dialog.getByTestId("mapping-prev").click();
+    await expect(dialog.getByTestId("mapping-said")).toHaveCount(0);                   // the next move clears it
+    await dialog.getByTestId("mapping-next").click();
+  }
   await shot(page, "4-queue");
-  await dialog.getByTestId("mapping-close").click();
+  await page.keyboard.press("Escape");
   await expect(dialog).toHaveCount(0);
   const approved = (await read<{ status: string }>(request, `delivery/mappings/${urine.mapping_id}?version=${urine.version}`)).status;
   expect(approved).toBe("approved");
@@ -281,6 +299,28 @@ test("the layouts' queue: walked at their versions, approved and on to the next;
   await page.unrouteAll({ behavior: "ignoreErrors" });          // the page is still read while the urine file is read again
 });
 
+test("Next opens its row whatever To do is narrowed to", async ({ page }) => {
+  // with the sheet form's cards out of the way, Next is a table layout; To do narrowed to Missing hides the layouts
+  await page.route(/\/client-review$/, async (route) => {
+    const res = await route.fetch();
+    const body = await res.json();
+    body.data.groups = [];
+    await route.fulfill({ response: res, json: body });
+  });
+  await page.goto(`/projects/${projectId}/inputs?tab=todo&status=missing`);
+  await expect(page.getByTestId("layout-queue")).toHaveCount(0);
+  const next = page.getByTestId("inputs-next");
+  await expect(next).toHaveText(/^Next: Check \d+ table layouts?$/);
+  await next.click();
+  // the filter that hid it is dropped, and the row is brought into view
+  await expect(page).toHaveURL(/[?&]tab=todo(?![^#]*status=)/);
+  await expect(page.getByTestId("todo-filter-all")).toHaveAttribute("aria-pressed", "true");
+  const opened = page.getByTestId("layout-queue").locator(".just-opened");
+  await expect(opened).toHaveCount(1);
+  await expect(opened).toBeInViewport();
+  await page.unrouteAll({ behavior: "ignoreErrors" });
+});
+
 test("on a phone the rows stack, nothing scrolls sideways, and the bulk bar stays in reach", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`/projects/${projectId}/inputs?tab=todo`);
@@ -300,4 +340,87 @@ test("on a phone the rows stack, nothing scrolls sideways, and the bulk bar stay
   await expect(page.getByTestId("bulk-link-bar")).toBeInViewport();
   await expect(page.getByTestId("bulk-link-bar")).toContainText("2 files picked");
   await shot(page, "5-phone");
+  // the compound values to fill: each a card no wider than the box, value and unit side by side, the sentence under them
+  const mv = page.getByTestId("missing-values");
+  await mv.scrollIntoViewIfNeeded();
+  const box = await mv.locator(".mv-scroll").evaluate((el) => ({ sw: el.scrollWidth, cw: el.clientWidth, right: el.getBoundingClientRect().right }));
+  expect(box.sw, "the compound values do not scroll sideways").toBeLessThanOrEqual(box.cw + 1);
+  const row = mv.locator('[data-testid^="mv-row-"]').first();
+  const [value, unit, quote] = await Promise.all(["value", "unit", "quote"].map((k) => row.locator(`[data-testid^="mv-${k}-"]`).boundingBox()));
+  expect(unit!.x + unit!.width).toBeLessThanOrEqual(box.right + 1);
+  expect(Math.abs(unit!.y - value!.y)).toBeLessThan(2);
+  expect(quote!.y).toBeGreaterThan(value!.y + value!.height - 1);
+  expect(await sideways(page)).toBe(false);
+  await mv.screenshot({ path: test.info().outputPath("6-phone-missing.png") });
+});
+
+test("a workbook with one sheet per study: in view though it holds up nothing, each table to its own place, an arm that holds its subjects refused", async ({ page, request }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  // a later delivery: one workbook, Sheet1 "Study 230-23 … Reference …" (the subjects of the Reference file, linked to
+  // 230-23's Reference arm above), Sheet2 "Study 777-01 …" (no study of that name yet)
+  const deliveries = (await read<Delivery>(request, "delivery")).deliveries.length;
+  const dir = mkdtempSync(join(tmpdir(), "two-studies-"));
+  execFileSync("uv", ["run", "python", join(__dirname, "fixtures", "two_studies_workbook.py"), dir], { cwd: REPO });
+  const name = "two-studies-one-workbook.xlsx";
+  const form = new FormData();
+  form.append("files", new Blob([readFileSync(join(dir, name))]), name);
+  const up = await request.post(api("client-data"), { headers: AUTH, multipart: form });
+  expect(up.status(), await up.text()).toBe(201);
+  await expect.poll(async () => {
+    const d = await read<Delivery | null>(request, "delivery");
+    const c = await read<{ running: boolean } | null>(request, "client-data");
+    return Boolean(d && !d.running && d.deliveries.length === deliveries + 1 && c && !c.running);
+  }, { timeout: 300_000, intervals: [2000] }).toBe(true);
+  const delivery = await read<Delivery & { unassigned: { file: string | null }[] }>(request, "delivery");
+  files = delivery.deliveries.flatMap((d) => d.files);
+  const two = fid(name);
+  const study = delivery.subjects.find((s) => s.label === "230-23")!;
+
+  // its delivery names no study yet: it holds up nothing, and its row is shown with the rest of the link work, not
+  // folded away, saying why it is not counted; its file in Client files lists its values to link
+  await page.goto(`/projects/${projectId}/inputs?tab=todo`);
+  const table = page.getByTestId("todo-group-link").getByTestId("link-table");
+  await expect(table.getByTestId(`link-${two}`)).toBeVisible();
+  await expect(page.getByTestId("todo-why-link")).toContainText("1 not counted now: Its files name no study or product yet");
+  // each table where its own title says: Sheet1's to 230-23 (its Reference arm, named in the title), Sheet2's not chosen
+  await expect(table.getByTestId(`link-to-${two}-0`)).toContainText("sheet Sheet1: → study 230-23 · arm Reference");
+  await expect(table.getByTestId(`link-to-${two}-0`)).toContainText("suggested");
+  await expect(table.getByTestId(`link-to-${two}-1`)).toContainText("sheet Sheet2: not chosen yet");
+  await page.getByTestId("tab-files").click();
+  await expect(page.getByTestId(`file-needs-${name}`)).toContainText(/\d+ values to link · not counted now/);
+
+  // on a fresh page, sent before the page has read what 230-23 holds: the card is read first, and the arm refused
+  let assigns = 0;
+  page.on("request", (r) => { if (r.method() === "POST" && r.url().endsWith("/values:assign")) assigns += 1; });
+  await page.route(new RegExp(`/delivery/subjects/study/${study.subject}$`), async (route) => {
+    await new Promise((go) => setTimeout(go, 6000));
+    await route.continue();
+  });
+  await page.goto(`/projects/${projectId}/inputs?tab=todo`);
+  await table.getByTestId(`link-open-${two}`).click();
+  const editor = table.getByTestId(`link-editor-${two}`);
+  await expect(editor.getByTestId(`link-split-${two}`)).toBeChecked();
+  await expect(editor.getByTestId(`link-part-${two}-0`)).toContainText("individual PK table, 76 values · sheet Sheet1 · 3 facts");
+  await editor.getByTestId(`link-study-${two}-1`).selectOption(NEW);
+  await editor.getByTestId(`link-new-study-${two}-1`).fill("777-01");
+  await editor.getByTestId(`link-edit-${two}-why`).fill("each sheet's title names its study");
+  await expect(table.getByTestId(`link-checking-${two}`)).toContainText("checking what study 230-23 holds");
+  await editor.getByTestId(`link-edit-${two}-submit`).click();
+  await expect(table.getByTestId(`link-row-problem-${two}`)).toContainText(
+    "subject 001, period I, which study 230-23 has in that arm already: in study 230-23 each file needs its own arm. Nothing was linked.");
+  expect(assigns).toBe(0);
+  await page.unrouteAll({ behavior: "ignoreErrors" });
+  await shot(page, "7-refused");
+
+  // an arm of its own for Sheet1's table: one call per place, and the file is linked
+  await editor.getByTestId(`link-arm-${two}-0`).selectOption(NEW);
+  await editor.getByTestId(`link-new-arm-${two}-0`).fill("Reference repeat");
+  await expect(table.getByTestId(`link-row-problem-${two}`)).toHaveCount(0);
+  await editor.getByTestId(`link-edit-${two}-submit`).click();
+  await expect(table.getByTestId(`link-${two}`)).toHaveCount(0);
+  expect(assigns).toBe(2);
+  const after = await read<Delivery & { unassigned: { file: string | null }[] }>(request, "delivery");
+  expect(after.unassigned.filter((v) => v.file === name)).toHaveLength(0);
+  expect(after.subjects.find((s) => s.subject === study.subject)!.arms.map((a) => a.label)).toContain("Reference repeat");
+  expect(after.subjects.map((s) => s.label)).toContain("777-01");
 });

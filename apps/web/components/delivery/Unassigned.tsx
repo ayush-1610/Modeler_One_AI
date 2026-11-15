@@ -4,16 +4,18 @@
 // link table (components/inputs/todo/LinkTable.tsx), no longer a list of its own. A person links the file's values to a
 // study that exists or a new one they name (the ledger never makes a second one of the same name), with its arm, or to
 // a product with its batch, and states their analyte: each an existing one or a new one (plan §2.2.2: the Test and the
-// Reference file of one study land as two arms). A link replaces the earlier one whole, so the form starts from the arm,
-// batch and analyte the file gives its values and sends them again unless the person chooses others. The choice is the
-// row's own (the table's bulk bar reads it too); "Link" here sends this file alone. A name that exists already is refused
-// in the server's words. Until the values are linked, or their table is marked as not data, they block every
-// confirmation of the delivery.
+// Reference file of one study land as two arms). A file with more than one table can send each table (with the facts
+// read beside it) to its own place: "Each table to its own place", one set of choices per table, as each table was
+// linked before slice 4. A link replaces the earlier one whole, so the form starts from the arm, batch and analyte the
+// file (or table) gives its values and sends them again unless the person chooses others. The choice is the row's own
+// (the table's bulk bar reads it too); "Link" here sends this file alone. A name that exists already is refused in the
+// server's words. Until the values are linked, or their table is marked as not data, they block every confirmation of
+// the delivery.
 
 import { useState } from "react";
 
 import { type Schema } from "@/lib/api";
-import { NEW, type LinkRow, type LinkTarget } from "@/lib/inputsWork";
+import { NEW, type LinkPart, type LinkRow, type LinkTarget } from "@/lib/inputsWork";
 
 import { Problem, TUPLE_HEADS, TupleCells, Why, fieldText, plural, type SubjectRow } from "./shared";
 import { ValueSource } from "./ValueSource";
@@ -92,10 +94,16 @@ export function TargetFields({ row, target, onTarget, subjects, analytes, keyId,
   );
 }
 
-/** One file's row, expanded: where its values go, its values (the first few, then all), and "Link" for this file alone. */
-export function LinkEditor({ projectId, row, target, onTarget, subjects, analytes, busy, missing, suggestions, onLink, problem }: {
+/** A file's tables each to its own place: whether they are, and each table's choices. */
+export type Split = { on: boolean; set: (on: boolean) => void; target: (p: LinkPart) => LinkTarget; onTarget: (p: LinkPart, t: LinkTarget) => void };
+
+/** One file's row, expanded: where its values go (all of them, or each table's), its values (the first few, then all),
+ *  and "Link" for this file alone. */
+export function LinkEditor({ projectId, row, target, onTarget, subjects, analytes, busy, missing, suggestions, onLink, problem, split }: {
   projectId: string; row: LinkRow; target: LinkTarget; onTarget: (t: LinkTarget) => void; subjects: SubjectRow[]; analytes: Entity[];
   busy: boolean;
+  /** given for a file with more than one table */
+  split?: Split;
   /** what the link still needs (a study or product, a new one's name, an arm that keeps two files apart), in words */
   missing: string | null;
   suggestions: string[];
@@ -111,7 +119,22 @@ export function LinkEditor({ projectId, row, target, onTarget, subjects, analyte
       <Why action="Link" actionLabel={`Link the ${plural(row.values.length, "value")} of ${row.file}`} label={`Why the values of ${row.file} belong there`}
            busy={busy} onSubmit={onLink} missing={missing} suggestions={suggestions} kind="link" testId={`link-edit-${row.fileId}`}
            placeholder="reason, e.g. the file name says 230-23 (kept on the audit trail)">
-        <TargetFields row={row} target={target} onTarget={onTarget} subjects={subjects} analytes={analytes} keyId={row.fileId} context={context} />
+        {split && (
+          <label className="only-mine link-split">
+            <input type="checkbox" checked={split.on} onChange={(e) => split.set(e.target.checked)} data-testid={`link-split-${row.fileId}`}
+                   aria-describedby={`link-split-note-${row.fileId}`} />
+            Each table to its own place
+            <span id={`link-split-note-${row.fileId}`} className="muted fs-12">
+              {plural(row.parts.length, "part")}: {row.parts.map((p) => p.place || p.label).join(", ")}</span>
+          </label>
+        )}
+        {split?.on ? row.parts.map((p, n) => (
+          <fieldset key={p.key} className="link-part" data-testid={`link-part-${row.fileId}-${n}`}>
+            <legend>{p.label}</legend>
+            <TargetFields row={p} target={split.target(p)} onTarget={(t) => split.onTarget(p, t)} subjects={subjects} analytes={analytes}
+                          keyId={`${row.fileId}-${n}`} context={`for the ${plural(p.values.length, "value")} of ${p.name}`} />
+          </fieldset>
+        )) : <TargetFields row={row} target={target} onTarget={onTarget} subjects={subjects} analytes={analytes} keyId={row.fileId} context={context} />}
       </Why>
       <Problem text={problem} testId={`link-problem-${row.fileId}`} />
       <details className="link-values" onToggle={(e) => { if (!(e.currentTarget as HTMLDetailsElement).open) setSource(null); }}>

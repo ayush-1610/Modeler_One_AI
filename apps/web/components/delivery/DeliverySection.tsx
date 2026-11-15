@@ -15,7 +15,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { send } from "@/lib/api";
 import { useResource } from "@/lib/hooks";
-import type { Subject, WorkModel } from "@/lib/inputsWork";
+import type { Subject, WorkItem, WorkModel } from "@/lib/inputsWork";
 import {
   AREA_NAME, type Tab, engineWords, whereIs, layoutOrigin, plural as count, rulesText, stageText, whenText,
 } from "@/lib/words";
@@ -288,7 +288,7 @@ export function useDeliveryRefresh(projectId: string): Page | null {
   return read.data;
 }
 
-export function DeliverySection({ projectId, work, focus, onOpenGroup }: {
+export function DeliverySection({ projectId, work, focus, onOpenGroup, onItem }: {
   projectId: string;
   /** the one list of work (lib/inputsWork.ts): each subject's one card, for its standing */
   work?: WorkModel;
@@ -296,6 +296,8 @@ export function DeliverySection({ projectId, work, focus, onOpenGroup }: {
   focus?: { subject: string; at: number } | null;
   /** open a sheet-form card in its area (a template subject is confirmed there) */
   onOpenGroup?: (group: string, tab: Tab) => void;
+  /** open where a work item is settled (the workspace's own, which drops the filters that would hide it) */
+  onItem?: (item: WorkItem) => void;
 }) {
   // the page as the workspace reads it (`useDeliveryRefresh` polls it while a file is read): no second poll here
   const read = useResource("/api/v1/projects/{project_id}/delivery", { project_id: projectId });
@@ -329,6 +331,8 @@ export function DeliverySection({ projectId, work, focus, onOpenGroup }: {
   const unified = (s: SubjectRow) => subjects.find((u) => u.row?.subject === s.subject && u.row.subject_type === s.subject_type);
   const waits = work ? work.items.some((i) => i.open && i.pipeline === "delivery" && i.area === "files")
     : page.mappings.length > 0 || page.unassigned.length > 0;
+  // the first of that work in To do's order (unfolding "Blocks nothing" when it is there)
+  const first = work?.items.find((i) => i.pipeline === "delivery" && /^(layout|link|alias|notread):/.test(i.id) && i.status !== "done" && !i.blocked);
   const cleanUp = [page.mappings.length ? count(page.mappings.length, "table layout") + " to check" : "",
                    page.unassigned.length ? count(page.unassigned.length, "value") + " to link" : "",
                    t.silent_loss || t.outside_numeric ? "numbers not read" : ""].filter(Boolean);
@@ -362,7 +366,10 @@ export function DeliverySection({ projectId, work, focus, onOpenGroup }: {
           </details>
           {cleanUp.length > 0 && (
             <p className="muted fs-13 m-0" data-testid="delivery-in-todo">
-              {cleanUp.join(" · ")}: settled in <Link href="?tab=todo">To do</Link>, together, a file or a layout at a time.</p>
+              {cleanUp.join(" · ")}: settled in {first && onItem ? (
+                <button type="button" className="link-btn" onClick={() => onItem(first)} data-testid="delivery-in-todo-open"
+                        aria-label={`Open To do on the first of them: ${first.label}`}>To do</button>
+              ) : <Link href="?tab=todo">To do</Link>}, together, a file or a layout at a time.</p>
           )}
 
           <section className="delivery-block" data-testid="delivery-subjects">

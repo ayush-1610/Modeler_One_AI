@@ -145,6 +145,10 @@ export type WorkModel = {
   byArea: Record<Tab, number>;
   /** open items by client file id */
   byFile: Record<string, WorkItem[]>;
+  /** a file's own work a person can do now by client file id: the open items and those shown in their group but not
+   *  counted (a delivery whose files name no study yet, one that holds up only blinded studies); not the "Blocks nothing"
+   *  clean-up */
+  fileWork: Record<string, WorkItem[]>;
   next: WorkItem | null;
   ask: AskLine[];
   checks: CheckLine[];
@@ -280,8 +284,9 @@ export function buildWork(sources: WorkSources): WorkModel {
 
   // what of a delivery's clean-up holds up (SILENT_LOSS, OUTSIDE_NUMBERS and UNASSIGNED_VALUES gate every confirmation
   // of the delivery's subjects, contracts §11.10): its subjects signed on the delivery and not yet signed. When none is,
-  // the item is not counted and its row says why: only blinded studies wait (it counts once the plan is signed, so it
-  // stays in its group), every one is confirmed already, or the delivery's subjects are all confirmed with the sheet form
+  // the item is not counted and its row says why: only blinded studies wait (it counts once the plan is signed), or its
+  // files name no study or product yet (their values reach the model only once linked): both stay in their group, shown
+  // and not counted; every one is confirmed already, or the delivery's subjects are all confirmed with the sheet form
   // (both "Blocks nothing")
   const hold = (deliveryIds: string[]): { group?: "tidy"; subjects: string[]; why?: string } => {
     const mine = subjects.filter((s) => s.path === "delivery" && s.row!.deliveries.some((d) => deliveryIds.includes(d)));
@@ -293,9 +298,10 @@ export function buildWork(sources: WorkSources): WorkModel {
       return { subjects: [], why: `It holds up only ${which}: it counts once the plan is signed and the study can be confirmed.` };
     }
     if (mine.length) return { group: "tidy", subjects: [], why: "Every study and product it held up is confirmed." };
-    // a delivery whose files name no study or product yet (its values linked to none): nothing is held up until they are
+    // a delivery whose files name no study or product yet (its values linked to none): nothing is held up until they are,
+    // but nothing of it reaches the model either, so its work stays in its group, in view (not under "Blocks nothing")
     if (!subjects.some((s) => s.row?.deliveries.some((d) => deliveryIds.includes(d)))) {
-      return { group: "tidy", subjects: [], why: "Its files name no study or product yet: it holds up nothing until their values are linked to one." };
+      return { subjects: [], why: "Its files name no study or product yet: it holds up nothing until their values are linked to one." };
     }
     return { group: "tidy", subjects: [], why: "Its studies and products are confirmed with the sheet form: it holds up nothing." };
   };
@@ -535,12 +541,16 @@ export function buildWork(sources: WorkSources): WorkModel {
   // a file's own work (its layouts, links, numbers not read, the facts its sheets do not say), not its subjects' cards
   const byFile: Record<string, WorkItem[]> = {};
   for (const i of open.filter((x) => FILE_WORK.test(x.id))) for (const f of i.files) (byFile[f] ??= []).push(i);
+  const fileWork: Record<string, WorkItem[]> = {};
+  for (const i of items.filter((x) => FILE_WORK.test(x.id) && x.status !== "done" && !x.blocked && x.group !== "tidy")) {
+    for (const f of i.files) (fileWork[f] ??= []).push(i);
+  }
 
   const checks = (inputs?.readiness?.content?.checks ?? []).map((c) => ({
     raw: c.check, label: checkLabel(c.check, c.detail, c.ok), ok: c.ok, detail: c.detail, fix: checkFix(c.check),
   }));
   return {
-    items, subjects, counts, byArea, byFile, next: open[0] ?? null, ask: askLines(delivery), checks,
+    items, subjects, counts, byArea, byFile, fileWork, next: open[0] ?? null, ask: askLines(delivery), checks,
     inModel: inModel(inputs), ready: !open.length && !checking && Boolean(inputs?.readiness?.content?.ready), checking,
   };
 }
@@ -673,28 +683,54 @@ export const NO_TARGET: LinkTarget = {
   study: "", newStudy: "", arm: "", newArm: "", product: "", newProduct: "", batch: "", newBatch: "", analyte: "", newAnalyte: "",
 };
 
-export type LinkRow = {
-  item: WorkItem;
-  /** the delivery file's sha256, or "entered" for values a person entered */
+/** What can be linked as one: a file (its row) or one of its tables (a part, when its tables go to different places).
+ *  Two of them that hold the same subject in the same period cannot share one arm of one study (`collisions`). */
+export type LinkPiece = {
+  /** the row's sha256, or `${sha}#${part}` for a part */
+  key: string;
   sha: string;
+  /** in words: the file's name, or "the file, its table on sheet Sheet1" */
+  name: string;
+  values: Value[];
+  /** the subject and period of each individual value ("001 · I") */
+  pairs: string[];
+  /** the arm, batch and analyte it gives all its values (as read from it), if it gives one */
+  own: { arm: Entity | null; batch: Entity | null; analyte: Entity | null };
+};
+
+/** One table of a file whose values have no study or product, with the file's facts read on its sheet or page (when it
+ *  is the only table there), or the file's other facts: linked on its own when the file's tables go to different places
+ *  (a workbook with one sheet per study). */
+export type LinkPart = LinkPiece & {
+  /** "individual PK table, 76 values · sheet Sheet1 · 3 facts" */
+  label: string;
+  /** where it is in the file, in a few words ("sheet Sheet1"; "sheet Sheet1, cells A4 to M12" beside another table there) */
+  place: string;
+  goesTo: "study" | "product";
+  /** what its own title suggests (its table's caption and the lines read with it), and why; none for facts alone */
+  suggested: { target: LinkTarget; why: string } | null;
+};
+
+export type LinkRow = LinkPiece & {
+  item: WorkItem;
   /** the delivery's id of the file (the row's test ids), "entered" */
   fileId: string;
   file: string;
-  values: Value[];
   /** what the file holds, in a few words: "individual PK table, 76 values · dose 50 mg · fasted · LLOQ 0.5 ng/mL" */
   holds: string;
   /** where values like these belong: a dissolution or product table's to a product, the others to a study */
   goesTo: "study" | "product";
-  /** the arm, batch and analyte the file gives all its values (as read from it), if it gives one */
-  own: { arm: Entity | null; batch: Entity | null; analyte: Entity | null };
-  /** the subject and period of each individual value ("001 · I"): two files holding the same cannot share one arm */
-  pairs: string[];
+  /** its tables (each with the facts read beside it) and its other facts: more than one, they can go to different places */
+  parts: LinkPart[];
+  /** its tables' own titles point to different places (one names a study, another names another or none): each table is
+   *  given its own place to start with */
+  split: boolean;
   /** the name the sheet form read the file under */
   sheet: string | null;
   /** "Same study as 230-23?": the delivery study the sheet form's name only starts with, and what Yes fills the row with */
   alias: { study: SubjectRow; target: LinkTarget } | null;
-  /** the target the file's own labels suggest (its tables' titles and the lines read with them, its name) and why; none
-   *  while the alias question is open */
+  /** the target the file's own labels suggest for all of it (its tables' titles and the lines read with them, else its
+   *  name) and why; none while the alias question is open, or when its tables point to different places */
   suggested: { target: LinkTarget; why: string } | null;
   blinded: boolean;
 };
@@ -713,6 +749,12 @@ export function distinctWords(name: string, others: string[]): string {
   const rest = new Set(others.flatMap((o) => nameWords(o).map((w) => w.toLowerCase())));
   return nameWords(name).filter((w) => !rest.has(w.toLowerCase())).join(" ");
 }
+/** The names among `others` that share a word with `name` ("230-23 Fasting Reference.xlsx" with "230-23 Fasting
+ *  Test.xlsx", not with "messy-delivery.xlsx"): the files an arm's name is told apart from. */
+const alike = (name: string, others: string[]) => {
+  const mine = new Set(nameWords(name).map((w) => w.toLowerCase()));
+  return others.filter((o) => o !== name && nameWords(o).some((w) => mine.has(w.toLowerCase())));
+};
 const digits = (x: number) => String(Number(x.toPrecision(8)));
 
 /** A fact of a file in a few words ("dose 50 mg", "fasted", "LLOQ 0.5 ng/mL"); never a blinded study's value. */
@@ -729,65 +771,147 @@ function ownEntity(values: Value[], role: "arm" | "batch" | "analyte"): Entity |
   if (ids.length !== 1) return null;
   return { id: ids[0], label: values.find((v) => v.entity[role] === ids[0])?.labels[role] ?? ids[0] };
 }
+const ownOf = (values: Value[]) => ({ arm: ownEntity(values, "arm"), batch: ownEntity(values, "batch"), analyte: ownEntity(values, "analyte") });
+const pairsOf = (values: Value[]) => [...new Set(values.filter((v) => v.labels.subject).map((v) => `${v.labels.subject} · ${v.labels.period ?? ""}`))];
+const kindGoesTo = (kinds: Set<string | null>): "study" | "product" =>
+  (kinds.has("dissolution") || kinds.has("product_batch") || kinds.has("composition") ? "product" : "study");
+
+/** Where in its file a value was read (its anchor's locator: `s:'Sheet1'!C5`, `p:3/t:1/…`). */
+const locatorOf = (v: Value) => { const a = v.anchor ?? ""; return a.slice(a.indexOf("#") + 1); };
+/** The sheet or page a locator is on (`s:Sheet1`, `p:3`), or "" for a place with neither. */
+function sheetOf(where: string): string {
+  const sheet = /^s:'((?:[^']|'')+)'!/.exec(where);
+  if (sheet) return `s:${sheet[1]}`;
+  const page = /^p:(\d+)/.exec(where);
+  return page ? `p:${page[1]}` : "";
+}
+const letters = (l: string) => [...l].reduce((n, c) => n * 26 + c.charCodeAt(0) - 64, 0);
+/** Whether a sheet cell (`…!C5`) lies in a region's range (`…!A4:M12`). */
+function inRange(range: string, cell: string): boolean {
+  const r = /!([A-Z]{1,3})([0-9]+):([A-Z]{1,3})([0-9]+)$/.exec(range), c = /!([A-Z]{1,3})([0-9]+)$/.exec(cell);
+  if (!r || !c) return false;
+  const [col, row] = [letters(c[1]), Number(c[2])];
+  return col >= letters(r[1]) && col <= letters(r[3]) && row >= Number(r[2]) && row <= Number(r[4]);
+}
+
+/** A study's arm its title names ("…, Reference, 50 mg" names the arm Reference), as the target's arm. */
+const armIn = (title: string, study: SubjectRow) => study.arms.find((a) => namesLabel(title, a.label));
 
 /** One row per file whose values have no study or product, in the order of `items` (the work model's link and alias
  *  items), with what its own labels suggest. A file the sheet form read as "230-23-REF" asks "Same study as 230-23?"
- *  first: nothing is filled until it is answered, and Yes fills the study and the suggested arm (plan §2.1). The arm: an
- *  arm of the study its title names; else the words that set its name apart from the other files of the same study
- *  ("Reference" and "Test" of "230-23 Fasting Reference.xlsx" and "230-23 Fasting Test.xlsx"); else the sheet form's name
- *  past the study's ("REF" of 230-23-REF); the study's arm of that name, or a new one. */
+ *  first: nothing is filled until it is answered, and Yes fills the study and the suggested arm (plan §2.1). Each of the
+ *  file's tables is a part with its own title (its caption and the lines read with it): when the parts' titles point to
+ *  different places, the row starts with each part in its own place. The arm: an arm of the study its title names; else
+ *  the words that set its name apart from the other files of the same study, linked or not ("Reference" and "Test" of
+ *  "230-23 Fasting Reference.xlsx" and "230-23 Fasting Test.xlsx"); else the sheet form's name past the study's ("REF"
+ *  of 230-23-REF); the study's arm of that name, or a new one. */
 export function linkRows(items: WorkItem[], page: DeliveryPage | null, subjects: Subject[]): LinkRow[] {
   if (!page?.enabled) return [];
   const files = page.deliveries.flatMap((d) => d.files);
   const fileOf = (sha: string) => files.find((f) => f.sha256 === sha && !f.repeat) ?? files.find((f) => f.sha256 === sha);
   const studies = page.subjects.filter((s) => s.subject_type === "study");
   const products = page.subjects.filter((s) => s.subject_type === "product");
-  const sheetOf = (sha: string) => subjects.find((s) => !s.row && s.groups.some((g) => groupShas(g).includes(sha)))?.label ?? null;
+  const sheetRead = (sha: string) => subjects.find((s) => !s.row && s.groups.some((g) => groupShas(g).includes(sha)))?.label ?? null;
+  const fit = (text: string, among: SubjectRow[]) => among.filter((r) => namesLabel(text, r.label)).sort((a, b) => b.label.length - a.label.length)[0];
   const titles = new Map<string, string>();
   const rows: LinkRow[] = items.filter((i) => /^(link|alias):/.test(i.id) && i.ref).map((item) => {
     const sha = item.ref!;
     const values = page.unassigned.filter((v) => (v.file_sha256 ?? "entered") === sha);
     const f = sha === "entered" ? undefined : fileOf(sha);
     const file = f?.name ?? values[0]?.file ?? "values entered by a person";
-    const tables = new Map<string, { kind: string | null; n: number }>();
-    for (const v of values.filter((x) => x.id.includes("#"))) {
-      const id = v.id.split("#")[0];
-      tables.set(id, { kind: v.table_kind, n: (tables.get(id)?.n ?? 0) + 1 });
-    }
+    const tables = new Map<string, Value[]>();
+    for (const v of values.filter((x) => x.id.includes("#"))) tables.set(v.id.split("#")[0], [...(tables.get(v.id.split("#")[0]) ?? []), v]);
     const facts = values.filter((v) => !v.id.includes("#"));
-    const holds = [...[...tables.values()].map((t) => `${tableKindText(t.kind)}, ${plural(t.n, "value")}`),
+    const holds = [...[...tables.values()].map((t) => `${tableKindText(t[0].table_kind)}, ${plural(t.length, "value")}`),
                    ...facts.slice(0, 4).map(factWords), facts.length > 4 ? `${facts.length - 4} more facts` : ""].filter(Boolean).join(" · ");
-    const kinds = new Set([...tables.values()].map((t) => t.kind));
-    const goesTo: LinkRow["goesTo"] = kinds.has("dissolution") || kinds.has("product_batch") || kinds.has("composition") ? "product" : "study";
-    const own = { arm: ownEntity(values, "arm"), batch: ownEntity(values, "batch"), analyte: ownEntity(values, "analyte") };
-    const pairs = [...new Set(values.filter((v) => v.labels.subject).map((v) => `${v.labels.subject} · ${v.labels.period ?? ""}`))];
-    const sheet = sha === "entered" ? null : sheetOf(sha);
+    const goesTo = kindGoesTo(new Set([...tables.values()].map((t) => t[0].table_kind)));
+    const own = ownOf(values);
+    const sheet = sha === "entered" ? null : sheetRead(sha);
+
+    // its parts: each table where it was read (the region whose cells hold its first value), with the facts of its sheet
+    // or page when it is the only table there; the facts beside no table, or beside several, together
+    const regionOf = (vs: Value[]): Region | undefined => {
+      const at = locatorOf(vs[0]);
+      const here = (f?.regions ?? []).filter((r) => r.kind === "table" && sheetOf(r.where) === sheetOf(at));
+      const same = here.filter((r) => r.mapping_id && r.mapping_id === vs[0].mapping_id);
+      const pick = same.length ? same : here;
+      return pick.length > 1 ? pick.find((r) => inRange(r.where, at)) ?? pick[0] : pick[0];
+    };
+    const read = [...tables.entries()].map(([id, vs]) => ({ id, vs, region: regionOf(vs), on: sheetOf(locatorOf(vs[0])) }));
+    const besides = new Map<string, Value[]>(), loose: Value[] = [];
+    for (const v of facts) {
+      const on = read.filter((t) => t.on && t.on === sheetOf(locatorOf(v)));
+      if (on.length === 1) besides.set(on[0].id, [...(besides.get(on[0].id) ?? []), v]);
+      else loose.push(v);
+    }
+    const placeOf = (where: string, on: string) => {
+      const at = whereIs(where);
+      return read.filter((t) => t.on === on).length > 1 || !on ? at.place : on.startsWith("s:") ? `sheet ${at.name}` : at.name;
+    };
+    const partOf = (id: string, vs: Value[], title: string, place: string, label: string): LinkPart => {
+      const goes = kindGoesTo(new Set(vs.filter((v) => v.id.includes("#")).map((v) => v.table_kind)));
+      const found = title ? fit(title, goes === "product" ? products : studies) : undefined;
+      const base = { ...NO_TARGET, analyte: ownEntity(vs, "analyte")?.id ?? "" };
+      const arm = found?.subject_type === "study" ? armIn(title, found)?.id ?? ownEntity(vs, "arm")?.id ?? "" : "";
+      return {
+        key: `${sha}#${id}`, sha, name: `${file}, ${place ? `its ${label.split(",")[0]} on ${place}` : label}`, values: vs, pairs: pairsOf(vs),
+        own: ownOf(vs), label, place, goesTo: goes,
+        suggested: found ? {
+          why: `its title names ${KIND_WORD[found.subject_type].toLowerCase()} ${found.label}`,
+          target: found.subject_type === "product" ? { ...base, product: found.subject, batch: ownEntity(vs, "batch")?.id ?? "" } : { ...base, study: found.subject, arm },
+        } : null,
+      };
+    };
+    const parts: LinkPart[] = read.map((t) => {
+      const with_ = besides.get(t.id) ?? [];
+      // the table's own words: its caption and the lines read with it (none for a blinded file)
+      const title = t.region ? [t.region.caption ?? "", ...(f?.outside ?? []).filter((o) => o.region === t.region!.region_id).map((o) => o.text ?? "")].join("\n") : "";
+      const place = t.region ? placeOf(t.region.where, t.on) : "";
+      const label = [`${tableKindText(t.vs[0].table_kind)}, ${plural(t.vs.length, "value")}`, place, with_.length ? plural(with_.length, "fact") : ""]
+        .filter(Boolean).join(" · ");
+      return partOf(t.id, [...t.vs, ...with_], title, place, label);
+    });
+    if (loose.length) {
+      const on = [...new Set(loose.map((v) => sheetOf(locatorOf(v))))];
+      const place = on.length === 1 && on[0] ? (on[0].startsWith("s:") ? `sheet ${on[0].slice(2)}` : `page ${on[0].slice(2)}`) : "";
+      parts.push(partOf("facts", loose, "", place, [read.length ? `its other ${plural(loose.length, "fact")}` : plural(loose.length, "fact"), place].filter(Boolean).join(" · ")));
+    }
     // the file's own words: its tables' titles and the lines read with them (none for a blinded file), then its name
     const title = [...(f?.regions ?? []).map((r) => r.caption ?? ""), ...(f?.outside ?? []).filter((o) => o.region).map((o) => o.text ?? "")].join("\n");
     titles.set(sha, title);
-    const fit = (text: string, among: SubjectRow[]) => among.filter((r) => namesLabel(text, r.label)).sort((a, b) => b.label.length - a.label.length)[0];
-    const among = goesTo === "product" ? products : studies;
-    const inTitle = fit(title, among), inName = inTitle ? undefined : fit(file, among);
-    const found = inTitle ?? inName;
     const aliasRow = item.id.startsWith("alias:") && sheet ? prefixAlias(sheet, studies) : null;
     const base = { ...NO_TARGET, analyte: own.analyte?.id ?? "" };
-    const suggested = found && !aliasRow ? {
-      why: `${inTitle ? "its title" : "its file name"} names ${KIND_WORD[found.subject_type].toLowerCase()} ${found.label}`,
-      target: found.subject_type === "product" ? { ...base, product: found.subject, batch: own.batch?.id ?? "" }
-        : { ...base, study: found.subject, arm: own.arm?.id ?? "" },
+    // the tables say where they go: all the same place, or (no table's title names one) the file's name does; tables
+    // whose titles point to different places (or one does and another does not) start each in its own place
+    const tabled = parts.filter((p) => p.key !== `${sha}#facts`);
+    const said = tabled.map((p) => (p.suggested ? destinationKey(p.suggested.target) : ""));
+    const split = !aliasRow && tabled.length > 1 && new Set(said).size > 1;
+    const inName = said.every((k) => !k) ? fit(file, goesTo === "product" ? products : studies) : undefined;
+    const suggested = aliasRow || split ? null : tabled.length && said[0] ? {
+      why: `${tabled.length > 1 ? "its tables' titles name" : "its title names"} ${tabled[0].suggested!.why.replace(/^its title names /, "")}`,
+      target: { ...tabled[0].suggested!.target, analyte: own.analyte?.id ?? "" },
+    } : inName ? {
+      why: `its file name names ${KIND_WORD[inName.subject_type].toLowerCase()} ${inName.label}`,
+      target: inName.subject_type === "product" ? { ...base, product: inName.subject, batch: own.batch?.id ?? "" }
+        : { ...base, study: inName.subject, arm: own.arm?.id ?? "" },
     } : null;
-    return { item, sha, fileId: sha === "entered" ? "entered" : f?.file_id ?? `sha-${sha.slice(0, 12)}`, file, values, holds, goesTo,
-             own, pairs, sheet, alias: aliasRow ? { study: aliasRow, target: { ...base, study: aliasRow.subject } } : null, suggested,
-             blinded: values.some((v) => v.blinded) };
+    return { item, key: sha, sha, name: file, fileId: sha === "entered" ? "entered" : f?.file_id ?? `sha-${sha.slice(0, 12)}`, file, values, holds,
+             goesTo, own, pairs: pairsOf(values), parts, split, sheet,
+             alias: aliasRow ? { study: aliasRow, target: { ...base, study: aliasRow.subject } } : null, suggested, blinded: values.some((v) => v.blinded) };
   });
+  // the arm a row's study suggests: the arm its title names; else what sets its name apart from the study's other files,
+  // the ones to link here and the ones linked already (so the second file of a pair is told apart from the first, linked
+  // one, as the first was from it); else the sheet form's name past the study's
+  const named = (sha: string) => fileOf(sha)?.name;
   const studyOf = (r: LinkRow) => r.alias?.study.subject ?? (r.suggested?.target.study || null);
   for (const r of rows) {
     const study = studyOf(r);
     if (!study) continue;
     const row = studies.find((s) => s.subject === study)!;
-    const siblings = rows.filter((x) => x !== r && studyOf(x) === study);
-    let word = row.arms.find((a) => namesLabel(titles.get(r.sha) ?? "", a.label))?.label ?? "";
-    if (!word && siblings.length) word = distinctWords(r.file, siblings.map((x) => x.file));
+    const linked = row.files.filter((sha) => !rows.some((x) => x.sha === sha)).map(named).filter((n): n is string => Boolean(n));
+    const siblings = [...rows.filter((x) => x !== r && studyOf(x) === study).map((x) => x.file), ...alike(r.file, linked)];
+    let word = armIn(titles.get(r.sha) ?? "", row)?.label ?? "";
+    if (!word && siblings.length) word = distinctWords(r.file, siblings);
     if (!word && r.sheet && normLabel(r.sheet).startsWith(normLabel(row.label))) word = r.sheet.slice(row.label.length).replace(/^[-_ ]+/, "");
     if (!word || (!siblings.length && !r.alias)) continue;
     const known = row.arms.find((a) => normLabel(a.label) === normLabel(word));
@@ -828,13 +952,22 @@ export function destinationKey(t: LinkTarget): string {
 }
 
 export type Collision = { files: string[]; study: string; example: string; keys: string[] };
+/** What a study already holds, by its id: each individual value's arm ("" for none), analyte, pair and file. */
+export type Held = Record<string, { arm: string; analyte: string; pair: string; sha?: string | null }[]>;
 
-/** Two files linked to one study in the same arm (no arm counts as one), with the same analyte, that hold the same
- *  subject in the same period: refused before anything is sent, each file needs its own arm (plan §2.2.2). `existing`:
- *  what a study already holds, by its id (each value's arm, "" for none; its analyte; its pair), from its card when read. */
-export function collisions(picked: { row: LinkRow; target: LinkTarget }[], studies: SubjectRow[],
-                           existing: Record<string, { arm: string; analyte: string; pair: string }[]> = {}): Collision[] {
-  const groups = new Map<string, { row: LinkRow; target: LinkTarget; arm: string; analyte: string }[]>();
+/** The individual values of a study's card (`/delivery/subjects/study/{id}`), as `collisions` compares them. */
+export function heldBy(card: { tables: { file_sha256: string | null; values: Value[] }[] } | null | undefined): Held[string] {
+  return (card?.tables ?? []).flatMap((t) => t.values.filter((v) => v.labels.subject).map((v) => ({
+    arm: v.entity.arm ?? "", analyte: v.entity.analyte ?? "", pair: `${v.labels.subject} · ${v.labels.period ?? ""}`, sha: v.file_sha256 ?? t.file_sha256,
+  })));
+}
+
+/** Two files (or two files' tables) linked to one study in the same arm (no arm counts as one), with the same analyte,
+ *  that hold the same subject in the same period: refused before anything is sent, each needs its own arm (plan
+ *  §2.2.2). Tables of one file are not compared with each other (the file reads them together), nor with what the study
+ *  holds of that file. `existing`: what each study already holds (`heldBy` its card). */
+export function collisions(picked: { row: LinkPiece; target: LinkTarget }[], studies: SubjectRow[], existing: Held = {}): Collision[] {
+  const groups = new Map<string, { row: LinkPiece; target: LinkTarget; arm: string; analyte: string }[]>();
   for (const p of picked.filter((x) => x.target.study && x.row.pairs.length)) {
     const arm = choiceKey(p.target.arm, p.target.newArm);
     const analyte = choiceKey(p.target.analyte, p.target.newAnalyte) || p.row.own.analyte?.id || "";
@@ -848,13 +981,14 @@ export function collisions(picked: { row: LinkRow; target: LinkTarget }[], studi
     const study = t.study === NEW ? t.newStudy.trim() : studies.find((s) => s.subject === t.study)?.label ?? t.study;
     for (let i = 0; i < list.length; i += 1) {
       for (let j = i + 1; j < list.length; j += 1) {
+        if (list[i].row.sha === list[j].row.sha) continue;
         const shared = list[i].row.pairs.find((p) => list[j].row.pairs.includes(p));
-        if (shared) out.push({ files: [list[i].row.file, list[j].row.file], study, example: say(shared), keys: [list[i].row.sha, list[j].row.sha] });
+        if (shared) out.push({ files: [list[i].row.name, list[j].row.name], study, example: say(shared), keys: [list[i].row.key, list[j].row.key] });
       }
       const held = t.study === NEW ? [] : (existing[t.study] ?? [])
-        .filter((v) => v.arm === list[i].arm && (!v.analyte || !list[i].analyte || v.analyte === list[i].analyte));
+        .filter((v) => v.arm === list[i].arm && (!v.analyte || !list[i].analyte || v.analyte === list[i].analyte) && v.sha !== list[i].row.sha);
       const shared = list[i].row.pairs.find((p) => held.some((v) => v.pair === p));
-      if (shared) out.push({ files: [list[i].row.file], study, example: say(shared), keys: [list[i].row.sha] });
+      if (shared) out.push({ files: [list[i].row.name], study, example: say(shared), keys: [list[i].row.key] });
     }
   }
   return out;

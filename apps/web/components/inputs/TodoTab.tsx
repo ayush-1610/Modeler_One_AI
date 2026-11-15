@@ -120,10 +120,13 @@ function GroupList({ group, items, projectId, run, review, subjects, onOpen, fir
   const held = items.length - open.length;
   // the status word, once for the group (every row of a group has the same); amber only where a person decides or signs
   const status = (open[0] ?? items[0]).status;
-  // what holds up the signatures on the delivery, said once; so is a reason every row not counted shares
+  // what holds up the signatures on the delivery, said once; so is a reason every row not counted shares, and, when the
+  // rows are counted and not counted, each reason with how many it keeps out of the count (a delivery whose files name
+  // no study yet is shown with the rest of its kind of work, not under "Blocks nothing")
   const gates = [...new Set(items.map((i) => i.gate).filter(Boolean))];
   const whys = [...new Set(items.map((i) => i.why))];
   const shared = whys.length === 1 && whys[0] ? whys[0] : undefined;
+  const apart = shared ? [] : whys.filter((w): w is string => Boolean(w)).map((w) => [w, items.filter((i) => i.why === w).length] as const);
   const heading = `todo-group-${group}-title`;
   return (
     <section className="todo-group" data-testid={`todo-group-${group}`} aria-labelledby={heading}>
@@ -133,7 +136,8 @@ function GroupList({ group, items, projectId, run, review, subjects, onOpen, fir
       </h3>
       <p className="muted todo-group-lede">{GROUP_LEDE[group]}</p>
       {gates.map((g) => <p key={g} className="todo-gate" data-testid="todo-gate">Signing on the delivery waits for its clean-up: {g}.</p>)}
-      {shared && <p className="todo-gate">{shared}</p>}
+      {shared && <p className="todo-gate" data-testid={`todo-why-${group}`}>{shared}</p>}
+      {apart.map(([why, n]) => <p key={why} className="todo-gate" data-testid={`todo-why-${group}`}>{n} not counted now: {why}</p>)}
       <Batches items={items} projectId={projectId} subjects={subjects} heading={heading} onOpen={onOpen} />
       {rows.length > 0 && (
         <ul className="todo-lines">

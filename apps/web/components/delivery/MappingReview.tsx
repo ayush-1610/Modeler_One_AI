@@ -91,12 +91,22 @@ export function MappingReview({ projectId, mappingId, version, onClose, queue, r
 }) {
   const [said, setSaid] = useState<string | null>(null);
   const move = (delta: number) => { setSaid(null); queue?.go(delta); };
+  // what a decision did, said in the dialog (a live region that stays while the queue moves on); once the queue has moved
+  // on, as the one before ("Approved: …"), so it never reads as said of the layout now shown. The next move clears it.
+  function decided(text: string, next: boolean, past: string) {
+    const on = next && queue && queue.at < queue.total - 1;
+    setSaid(on ? `${past}. Now ${queue!.at + 2} of ${queue!.total}.` : text);
+    announce(text);
+    if (on) queue!.go(1);
+  }
+  const shown = `${mappingId}@${version ?? "latest"}`;
   return (
     <Dialog title={queue ? `Check how tables are read · ${queue.at + 1} of ${queue.total}` : "Review how this table is read"} size="wide"
-            onClose={onClose} testId="delivery-mapping-dialog" returnFocus={returnFocus}>
-      <MappingBody key={`${mappingId}@${version ?? "latest"}`} projectId={projectId} mappingId={mappingId} version={version} said={said}
-                   onSaid={(text, next) => { setSaid(text); announce(text); if (next && queue && queue.at < queue.total - 1) queue.go(1); }}
-                   queue={queue} />
+            onClose={onClose} testId="delivery-mapping-dialog" returnFocus={returnFocus} focusKey={shown}>
+      <div role="status" className="mapping-said-region">
+        {said && <p className="banner ok" data-testid="mapping-said">{said}</p>}
+      </div>
+      <MappingBody key={shown} projectId={projectId} mappingId={mappingId} version={version} onSaid={decided} queue={queue} />
       <div className="dialog-actions mapping-queue-bar">
         {queue && (
           <>
@@ -111,10 +121,10 @@ export function MappingReview({ projectId, mappingId, version, onClose, queue, r
   );
 }
 
-function MappingBody({ projectId, mappingId, version, said, onSaid, queue }: {
-  projectId: string; mappingId: string; version?: number; said: string | null;
-  /** a decision was made: what it did, and whether the queue moves on */
-  onSaid: (text: string, next: boolean) => void;
+function MappingBody({ projectId, mappingId, version, onSaid, queue }: {
+  projectId: string; mappingId: string; version?: number;
+  /** a decision was made: what it did, whether the queue moves on, and what it did said of the layout before */
+  onSaid: (text: string, next: boolean, past: string) => void;
   queue?: Queue;
 }) {
   const params = { project_id: projectId, mapping_id: mappingId };
@@ -132,8 +142,9 @@ function MappingBody({ projectId, mappingId, version, said, onSaid, queue }: {
     const { data } = await decide(() => send("post", APPROVE, params, { version: m.version, note }), { refresh: false });
     if (!data) return;
     writeMapping(client, projectId, data);
-    onSaid(`Version ${data.version} of the ${tableKindText(data.kind)} layout is approved${data.queued.length
-      ? `: ${plural(data.queued.length, "file")} of this layout ${data.queued.length === 1 ? "is" : "are"} read again` : ""}.`, !last);
+    const again = data.queued.length ? `${plural(data.queued.length, "file")} of this layout ${data.queued.length === 1 ? "is" : "are"} read again` : "";
+    onSaid(`Version ${data.version} of the ${tableKindText(data.kind)} layout is approved${again ? `: ${again}` : ""}.`, !last,
+           `Approved: the ${tableKindText(data.kind)} layout, version ${data.version}${again ? ` (${again.replace("this layout", "it")})` : ""}`);
   }
 
   async function reject(why: string) {
@@ -142,7 +153,7 @@ function MappingBody({ projectId, mappingId, version, said, onSaid, queue }: {
     if (!data) return;
     writeMapping(client, projectId, data);
     setMode("none");
-    onSaid(`Version ${data.version} of the ${tableKindText(data.kind)} layout is rejected: its table is read again without it.`, false);
+    onSaid(`Version ${data.version} of the ${tableKindText(data.kind)} layout is rejected: its table is read again without it.`, false, "");
   }
 
   async function edit(spec: Record<string, unknown>, why: string) {
@@ -158,7 +169,7 @@ function MappingBody({ projectId, mappingId, version, said, onSaid, queue }: {
     if (!data) return;
     writeMapping(client, projectId, data);
     setMode("none");
-    onSaid(`Version ${data.version} is stored and waits for approval; its table is read again with it.`, false);
+    onSaid(`Version ${data.version} is stored and waits for approval; its table is read again with it.`, false, "");
     queue?.stored(data.version);
   }
 
@@ -174,7 +185,6 @@ function MappingBody({ projectId, mappingId, version, said, onSaid, queue }: {
             {m.origin_detail ? ` (${m.origin_detail})` : ""} · {when(m.at)}
             {m.waiting && <> · <span className="chip medium" data-testid="mapping-waiting">its files are being read again</span></>}
           </p>
-          {said && <p className="banner ok" role="status" data-testid="mapping-said">{said}</p>}
           {m.not_data_reason && <p className="m-0">Read as not data: {m.not_data_reason}</p>}
           {m.questions.length > 0 && <ul className="flags">{m.questions.map((q) => <li key={q}>{q}</li>)}</ul>}
 

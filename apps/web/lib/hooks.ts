@@ -2,7 +2,9 @@
 // changes state with `useMutation`. A change that succeeds refreshes the resources on the page and the server-rendered
 // parts of it, the phase rail among them, so a page cannot show a status its own change made stale.
 
-import { keepPreviousData, useMutation as useQueryMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  keepPreviousData, useMutation as useQueryMutation, useQueries, useQuery, useQueryClient, type QueryClient,
+} from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useCallback } from "react";
 
@@ -86,6 +88,21 @@ export function useResources<R extends RouteFor<"get">>(
   });
   return results.map((r) => ({ data: (r.data as Data<R, "get"> | undefined) ?? null, problem: r.error?.message ?? null,
                                at: Math.max(r.dataUpdatedAt, r.errorUpdatedAt) }));
+}
+
+/** Read a route once, through the page's cache under the key `useResource` gives it: the cached answer while it is
+ *  younger than `staleTime` and not marked stale, else a new read (a check that must see what the server holds now,
+ *  before a decision is sent). Throws the API's reason when it refuses. */
+export function fetchResource<R extends RouteFor<"get">>(client: QueryClient, route: R, params: Params<R>, staleTime = 0): Promise<Data<R, "get">> {
+  return client.fetchQuery({
+    queryKey: [route, params, {}],
+    queryFn: async () => {
+      const env = await get(route, params);
+      if (env.errors?.length || env.data === null) throw new ApiProblem(env.errors?.[0]?.message ?? "no answer");
+      return env.data;
+    },
+    staleTime,
+  });
 }
 
 /** Read the page's resources again, after a refusal that says the server moved on (a run already going elsewhere). */

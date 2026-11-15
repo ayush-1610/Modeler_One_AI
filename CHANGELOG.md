@@ -89,8 +89,8 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
   - **Homes:** a layout, a file's values to link and its numbers not read open To do's row (`where` → To do) from the
     status line's "Next" and from the file's "Still needs you" in Client files; Client files keeps the
     per-file view (its tables one by one, "Not data…", "Restore…", "Read this table…", the layout chip), and the Delivery
-    section points to To do (`delivery-in-todo`). A delivery whose files name no study yet says so where its clean-up is
-    listed under "Blocks nothing" (it said its studies were confirmed with the sheet form).
+    section points to To do (`delivery-in-todo`). A delivery whose files name no study yet says so on its rows (it said its
+    studies were confirmed with the sheet form).
   - **Phone:** at 390 px a row's parts stack under its name, nothing scrolls sideways, and the bulk bar stays at the
     bottom of the window while its table is in view (`app/styles/batch.css`).
   - Tests: `e2e/inputs-task-first.spec.ts` (new, on the nine seed files: the link table with the alias asked, the
@@ -110,6 +110,43 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
   (the batch tables' rows are the work model's items). Each link and each "not data" is still one reasoned decision on
   the audit trail per file (a batch sends one request per file or destination, the reason the person gave); nothing is
   sent by a suggestion. Blinded values, captions and texts stay withheld in the rows ("withheld (blinded)").
+- **After its review (2026-11-15):**
+  - **The arm guard no longer depends on what the page happened to read.** A link first reads the card of each study it
+    adds individual values to (`fetchResource` in `lib/hooks.ts`, under the key the open card uses: no request when the
+    page read it in the last 10 s and nothing changed it since) and runs the guard on what the study holds; a card not
+    read is never taken as empty, and one that cannot be read refuses the link ("… could not be read, so its arms are not
+    checked: nothing was linked"). The rows read those cards while they say where they go (`useResources`), so the refusal
+    is said on the row as soon as it is known ("checking what study 230-23 holds…" meanwhile, `link-checking-<id>`).
+    Values of the same file are never compared with each other. Before, the Test file could be linked into the arm that
+    held the Reference file's subjects on a fresh page, mixing both files' subjects in one arm (72 disagreements).
+  - **A file's tables can go to different places again** (they could before slice 4, one form per table). Each table is
+    a part of its row, with the facts read on its sheet or page (`LinkPart`, `linkRows`); its suggestion comes from its
+    own caption and the lines read with it, not from all the file's titles joined. A file whose tables point to different
+    places (a workbook with one sheet per study) starts split, each table's place on its row ("sheet Sheet1: → study
+    230-23 · arm Reference · suggested", "sheet Sheet2: not chosen yet", `link-to-<id>-<n>`); its editor has "Each table
+    to its own place" (`link-split-<id>`) and one set of choices per table (`link-part-<id>-<n>`, `link-study-<id>-<n>`
+    …). One `values:assign` per destination; the guard compares each table.
+  - **Work that holds up nothing is no longer folded away when it is all that brings the values into the model.** A
+    delivery whose files name no study yet keeps its layouts, values to link and numbers not read in their own groups,
+    shown and not counted, the group saying why once ("1 not counted now: Its files name no study or product yet …",
+    `todo-why-<group>`); "Blocks nothing" keeps only the clean-up of deliveries whose studies are confirmed. A file's
+    "Still needs you" in Client files lists that work too ("158 values to link · not counted now"; `WorkModel.fileWork`),
+    and the Delivery section's "To do" opens the first of its clean-up (`delivery-in-todo-open`).
+  - **"Next" and every pointer open their row whatever To do is narrowed to:** going to an item drops a status filter
+    that is not its own and "Only what needs me" for an item not counted, and unfolds a folded group the row sits in.
+  - **The layouts' queue keeps the keyboard:** after "Approve and next" (and a move to a new layout once the button
+    pressed is gone) the focus is on the dialog again (`Dialog` `focusKey`), so Tab stays inside and Escape closes it. What
+    the decision did is said in the dialog's own live region, as the one before once the queue moved on ("Approved: the
+    individual PK table layout, version 1. Now 2 of 10."), and cleared by the next move.
+  - **Phone:** the compound values to fill are one card each below 600 px (name; value and unit side by side; the
+    sentence), sized by `mv-*` classes instead of the `!important` width utilities: nothing scrolls sideways.
+  - **Arms of one pair keep their names:** the second file of a pair is told apart from the files already linked to the
+    study as well ("Test" beside the linked "230-23 Fasting Reference.xlsx", not the sheet form's "TEST").
+  - Tests: `inputs-task-first.spec.ts` gains a two-sheet workbook delivered later (`fixtures/two_studies_workbook.py`): in
+    view though it holds up nothing, each table to its own place, Sheet1's table refused the Reference arm on a fresh page
+    while the study's card is still being read, then linked with two calls; "Next" from To do narrowed to Missing; the
+    focus and the banner in the queue; the phone layout of the compound values. `inputs-work.spec.ts` gains the parts, the
+    split, per-table guard and the linked sibling's arm; `inputs-fill.spec.ts` finds the link table in its group.
 
 ### Changed — the Inputs page counts from one list of work, in one vocabulary, with one status per file (plan 2026-11-14, slice 2)
 - **What:**
