@@ -16,6 +16,65 @@ Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: compl
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
 
+### Fixed — final review, linking values, arms, analytes and the sheet-form join (plan 2026-11-14 §5)
+Findings OWN-1, INT-4, OWN-11, INT-5, OWN-4, INT-9, OWN-3, INT-10 and the owner-job e2e's gaps 4 and 8.
+- **OWN-1 (blocker): a person's link survives a re-read of its table.** A layout corrected and approved, or a re-parse
+  that moves a value, writes a new extract (new value ids) that supersedes the earlier one, so an assignment by value
+  ids reached nothing and the file was back on the link list without a word. The pipeline's ledger stage now carries
+  each link over (`modeler_project/link_carry.py`, called after the run's recordings): an item recorded now (an extract,
+  a fact) whose earlier reading of the same table (same file and region id, or joined by the supersedes lines; for a
+  fact, the facts it supersedes) carries a later assignment than the item itself gets ONE `assignment` line with the
+  same study, arm, product, batch and analyte, by "code", its why "carried over from as-n after a re-read: <the
+  person's why>", and one `intake.assign` event (`carried_from`). Decided for the partial case: a link is carried only
+  when it covered the whole earlier table (each value but those a person set aside one by one); one that covered part of
+  it is not (which part it would cover now cannot be told): `GET /delivery` gains `relink` (where it went, who, when,
+  why, `whole`), and To do's link row comes back filled with the earlier destination and says why ("Linked before, in
+  part, to study 230-23 · arm Reference (by …). Its table was read again …"); a study left with no value is offered from
+  there. Nothing is carried into an item whose own reading names a study or product, nor from a reading a person marked
+  as not data.
+- **INT-4 (blocker): the arm guard cannot be bypassed.** The rule, the same in the web (`collisions`) and now in the API
+  (`intake_review.assign`, 409 `CONFLICT` naming the files, the subject, the period and the arm): two files (or a file
+  and what the study holds in that arm from another file) that hold the same subject in the same period with the same
+  analyte cannot share one arm; analytes are compared by name, an analyte left out ("as the file says") is the file's
+  own or matches any when the file states none, and a period left out matches any period. A stale page or a direct
+  call can no longer put Test and Reference in one arm.
+- **OWN-11 and gap 8: one analyte per name.** Each file's analyte is an entity of its own by design (the ledger resolves
+  an analyte inside its file and compares a study's analytes by name), so the delivery holds an-9 and an-17, both
+  "Exampleamide". Every picker (the link editor, the bulk bar, "State it…") now offers one option per name, the one the
+  study already uses (else the file's own), sends that id, and refuses a new analyte whose name exists ("An analyte named
+  Exampleamide exists already: pick it"); "State it…" starts on the study's one analyte. The bulk bar's empty choice
+  names what the picked files state ("as each file says (Exampleamide)") instead of "as the file says (none stated)".
+- **INT-5 (blocker): a link can be changed on the page.** A file's row in Client files lists the links in force on its
+  values (`DeliveryFile.links`: what each covers, where it went, who, when, why) with "Link elsewhere…": To do's link
+  form, the same collision guard (what the new study holds is read from its card first) and a reason, one
+  `values:assign` of that link's targets, which replaces it whole. Not offered for a blinded file.
+- **OWN-4, INT-9, gap 4: a linked file's sheet-form reading joins its study.** `DeliverySubjectRow.legacy_groups` also
+  names the client-review groups all of whose items were read from files a person linked to that subject, every value
+  of each (230-23-REF and 230-23-TEST on 230-23; the owner job's OJ-101-REF, OJ-101-TEST on OJ-101 and its "Study lab"
+  on OJ-102; a dissolution sheet on the product its file was linked to). The card joins them: no separate study row,
+  Missing row, individual row or Confirm, and no "Sheets not linked to a product yet" entry; their reading stays under
+  "How the files were read". A card keeps the key of its own name (no longer the first joined group's).
+- **OWN-3: "in the model, confirmed" only when it is.** `loaded_elsewhere` now lists the same source's datasets a person
+  accepted; `proposed_elsewhere` (new, on the page's rows and on the card) those only read with the sheet form. The card
+  says "read with the sheet form, not confirmed yet: whichever is confirmed first is what loads" for those.
+- **INT-10: a disagreement names whom it is about.** `DeliveryConflict.time_unit` (new); To do's row reads "the files
+  give different values for concentration at 1 h, subject 001, period I", and the card's To do lists them by subject.
+- **API contract (additive but for `loaded_elsewhere`'s meaning):** `DeliveryPage.relink`, `DeliveryFile.links`,
+  `proposed_elsewhere` on `DeliverySubjectRow` and `DeliverySubject`, `DeliveryConflict.time_unit`; values:assign's new
+  409. `docs/api/openapi.json` and `apps/web/lib/api-types.ts` regenerated.
+- **Tests:** API (T-47): a link survives a corrected layout with one audited line, a partial one comes back with where
+  it went; two files refused one arm whatever the page sent, a period or analyte left out matching any, a file's links
+  listed and replaced; a linked file's sheet-form group named on its study; loaded vs proposed. Web units
+  (`inputs-work.spec.ts`): the guard's rule, one analyte per name, the relink row, conflict labels, the join. e2e:
+  "Link elsewhere…" on the 9-file seed (`inputs-task-first.spec.ts`); the owner's job checks that no sheet-form card is
+  left beside OJ-101 and OJ-102 (`inputs-owner-job.spec.ts`).
+- **Why:** the final review found a person's links silently dropped, the arm guard bypassed, two analytes of one name,
+  no way to correct a link, and the same file asked and counted twice; each makes the page unusable for the owner's job.
+- **Impact:** the links a person makes now hold through layout corrections and can be changed; the same data is asked
+  and counted once. Known gaps, recorded in plan §5: the sheet form's path on a joined card is not pre-filled from the
+  delivery card's facts; "Link elsewhere…" is on Client files only (not on a card's Files and tables). Software test
+  data on the stub engine: none of it is PBPK evidence.
+
 ### Added — an end-to-end test of the owner's whole job on Inputs, on its own seed (plan 2026-11-14 §2.2.7)
 - **What:** `apps/web/e2e/inputs-owner-job.spec.ts` with its seed `apps/web/e2e/fixtures/owner_job.py`: four workbooks
   of the made-up study OJ-101 (its means, named by study and read with a layout signed off earlier; its Reference and

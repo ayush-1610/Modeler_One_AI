@@ -27,7 +27,8 @@ without a model:
               the prose stays `unread` with that reason
     ledger    `record_extraction` per table, `record_prose`, through ONE `Ledger` for the run (it remembers what it
               has just recorded); after a re-parse, `retire_regions` with the values `check_anchors` found again: an
-              extract whose table is gone is retired and listed as an anchor problem
+              extract whose table is gone is retired and listed as an anchor problem; then `link_carry.carry`: a
+              person's link to an earlier reading of a table this run read again is carried over to the new one
     compute   `derive`, `link_files`
     checks    routing, requirement status and checks for the studies and products the file touched (timed for G7 and
               so a failure shows on the run; the cards recompute on read)
@@ -84,7 +85,7 @@ from modeler_intake.mapping_spec import (
 from modeler_intake.source import check_anchors, paragraphs, parse_document, parser_for, region_grid
 from modeler_intake.source.regions import page_of, span_words, union_box
 from modeler_intake.source_model import AnchorProblem, Finding, Region, RegionGrid, SourceDocument
-from modeler_project import intake_files
+from modeler_project import intake_files, link_carry
 from modeler_project.brief import ProjectBrief
 from modeler_project.coverage import file_coverage, outcome_from, values_unassigned
 from modeler_project.intake_checks import run_checks
@@ -688,13 +689,16 @@ class _Runner:
         assert self.ledger is not None and self.doc is not None and self.file is not None
         context = self._context()
         values = facts = 0
+        items: list[str] = []                  # what this run recorded: a person's link on an earlier reading follows it
         for region_id, result in self.results.items():
             entry, _origin = self.mapped[region_id]
             recorded = self.ledger.record_extraction(region=self.regions[region_id], grid=self.grids[region_id],
                                                      mapping=entry, result=result, context=context)
             if recorded.extract is not None:
                 values += self.store.extract(recorded.extract).n
+                items.append(recorded.extract)
             facts += len(recorded.facts)
+            items += recorded.facts
         if self.prose_facts and self.prose_model is not None:
             facts += len(self.ledger.record_prose(facts=self.prose_facts, model=self.prose_model, context=context).facts)
         retired = 0
@@ -711,8 +715,13 @@ class _Runner:
                 where = anchor_text(gone.file_sha256, gone.parser, gone.parser_version, gone.locator[0]) if gone.n else ""
                 self.anchor_problems.append(AnchorProblem(id=change.target, anchor=where, problem="not_found"))
             self.count(anchors_unresolved=len(self.anchor_problems) - self.counters.anchors_unresolved)
+        # a table read again is a new extract (new value ids): a person's link to the earlier one is carried over to it
+        carried = link_carry.carry(self.store, items)
+        if carried:
+            self.ledger.refresh()
         self.count(values=values, facts=facts)
-        return f"{values} table values, {facts} facts" + (f"; {retired} extracts retired" if retired else "")
+        return (f"{values} table values, {facts} facts" + (f"; {retired} extracts retired" if retired else "")
+                + (f"; {len(carried)} links carried over" if carried else ""))
 
     def _compute(self) -> str:
         assert self.ledger is not None

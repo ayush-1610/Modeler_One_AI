@@ -150,6 +150,57 @@ test("the link table: asked first, two files refused one arm, given an arm each 
   expect(sent.length, sent.join("\n")).toBeLessThanOrEqual(2);
 });
 
+test("a link is changed from its file's row in Client files: the other arm refused, then linked elsewhere with a reason", async ({ page, request }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(`/projects/${projectId}/inputs?tab=files`);
+  // the Reference file, linked above to 230-23 · arm Reference: its row says where its values went, who and when
+  const ref = fid("230-23 Fasting Reference.xlsx");
+  const refRow = page.getByTestId("file-toggle-230-23 Fasting Reference.xlsx");
+  if ((await refRow.getAttribute("aria-expanded")) !== "true") await refRow.click();
+  const links = page.getByTestId(`delivery-file-links-${ref}`);
+  await expect(links).toContainText("79 values linked to study 230-23 · arm Reference");
+  await expect(links).toContainText("by dev-user on");
+  let assigns = 0;
+  page.on("request", (r) => { if (r.method() === "POST" && r.url().endsWith("/values:assign")) assigns += 1; });
+  await links.locator('[data-testid^="delivery-file-relink-"]').first().click();
+  const form = page.getByTestId(`delivery-file-relink-form-${ref}`);
+  const key = `elsewhere-${ref}`;
+  // into the arm the Test file holds: refused before anything is sent, in words
+  await expect(form.getByTestId(`link-study-${key}`)).toHaveValue(/st-/);
+  await form.getByTestId(`link-arm-${key}`).selectOption({ label: "Test" });
+  await form.getByTestId(`link-edit-${key}-why`).fill("checking the other arm");
+  await form.getByTestId(`link-edit-${key}-submit`).click();
+  await expect(form.getByTestId(`link-problem-${key}`)).toContainText(
+    "230-23 Fasting Reference.xlsx holds subject 001, period I, which study 230-23 has in that arm already");
+  expect(assigns).toBe(0);
+  await form.getByTestId(`delivery-file-relink-cancel-${ref}`).click();
+  await expect(form).toHaveCount(0);
+
+  // the IV file, linked above to a new study: linked elsewhere, to another new one, with a reason; the link is replaced
+  const iv = fid("Nichols2012 IV 50 mg 5 h infusion.xlsx");
+  const ivRow = page.getByTestId("file-toggle-Nichols2012 IV 50 mg 5 h infusion.xlsx");
+  if ((await ivRow.getAttribute("aria-expanded")) !== "true") await ivRow.click();
+  const ivLinks = page.getByTestId(`delivery-file-links-${iv}`);
+  await expect(ivLinks).toContainText("linked to study Nichols2012-IV");
+  await ivLinks.locator('[data-testid^="delivery-file-relink-"]').first().click();
+  const moved = page.getByTestId(`delivery-file-relink-form-${iv}`);
+  const ivKey = `elsewhere-${iv}`;
+  // linked there now: it asks for another place first
+  await moved.getByTestId(`link-edit-${ivKey}-why`).fill("the published study's own name");
+  await moved.getByTestId(`link-edit-${ivKey}-submit`).click();
+  await expect(moved.getByTestId(`link-edit-${ivKey}-missing`)).toContainText("It is linked there now: choose another place");
+  await moved.getByTestId(`link-study-${ivKey}`).selectOption(NEW);
+  await moved.getByTestId(`link-new-study-${ivKey}`).fill("Nichols 2012 IV");
+  await moved.getByTestId(`link-edit-${ivKey}-submit`).click();
+  await expect(moved).toHaveCount(0);
+  expect(assigns).toBe(1);
+  await expect(ivLinks).toContainText("linked to study Nichols 2012 IV");
+  const after = await read<Delivery>(request, "delivery");
+  expect(after.subjects.map((s) => s.label)).toContain("Nichols 2012 IV");
+  expect(after.subjects.map((s) => s.label)).not.toContain("Nichols2012-IV");          // no value left there: replaced whole
+  await shot(page, "2b-linked-elsewhere");
+});
+
 test("numbers not read: a file's loose numbers marked as not data in one go, restored, then two files' in one batch", async ({ page, request }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto(`/projects/${projectId}/inputs?tab=todo`);

@@ -65,7 +65,7 @@ from modeler_intake.mapping.validate import validate_spec
 from modeler_intake.mapping_spec import CellForm, Cite, Layout, MappingSpec, Role, RowRule
 from modeler_intake.source import region_grid
 from modeler_intake.source_model import RegionGrid, SourceDocument
-from modeler_project import ArtifactKind, Workspace, intake_files, intake_landing, intake_pipeline
+from modeler_project import ArtifactKind, Workspace, intake_files, intake_landing, intake_pipeline, link_carry
 from modeler_project import intake_review as review
 from modeler_project.brief import ProjectBrief
 from modeler_project.client_data import ClientDataError
@@ -80,6 +80,7 @@ from modeler_project.evidence import EvidenceState
 from modeler_project.inputs import current_cpf, refresh_inputs
 from modeler_project.intake_checks import SETTLED_BY_RECORD
 from modeler_project.intake_records import (
+    Assignment,
     FileCoverage,
     FileRecord,
     MappingDecision,
@@ -221,6 +222,7 @@ class _Scope:
         self._decisions: dict[tuple[str, int], list[MappingDecision]] = {}
         self._coverage: dict[str, FileCoverage | None] = {}
         self._blinded_files: set[str] | None = None
+        self._file_links: dict[str, list[link_carry.FileLink]] | None = None
 
     # --- blinding (D-15) -------------------------------------------------------------------------------------------------
 
@@ -243,6 +245,12 @@ class _Scope:
             self._blinded_files = {v.file_sha256 for v in self.reader.values(active=False)
                                    if v.file_sha256 and v.entity.study in self.hidden} if self.hidden else set()
         return self._blinded_files
+
+    def file_links(self) -> dict[str, list[link_carry.FileLink]]:
+        """The links in force on each file's active values (`link_carry.file_links`), computed once per request."""
+        if self._file_links is None:
+            self._file_links = link_carry.file_links(self.store, self.reader.values())
+        return self._file_links
 
     def card(self, subject_type: str, subject: str) -> Any:
         return review.card(self.ws, subject_type, subject, **self.card_args,  # type: ignore[arg-type]
@@ -556,6 +564,8 @@ def _file(scope: _Scope, record: FileRecord, decisions: Sequence[RegionDecision]
         "run": _run(run, blinded) if run is not None else None,
         "regions": _regions(scope, coverage, decisions, blinded) if detail else [],  # type: ignore[arg-type]
         "outside": _outside(coverage, decisions, blinded) if detail else [],  # type: ignore[arg-type]
+        "links": [] if record.repeat else [_link_view(scope, link.assignment, blinded=blinded, targets=list(link.targets),
+                                                      values=link.values) for link in scope.file_links().get(record.sha256, [])],
         "blinded": blinded}
 
 
@@ -610,7 +620,7 @@ def _empty_page(enabled: bool) -> dict[str, Any]:
             "totals": {"files": 0, "files_by_state": {}, "regions": 0, "regions_mapped": 0, "regions_excluded": 0,
                        "regions_unread": 0, "silent_loss": 0, "outside_numeric": 0, "values_unassigned": 0,
                        "anchors_unresolved": 0, "needs_ocr_pages": 0, "values": 0},
-            "subjects": [], "unassigned": [], "analytes": [], "mappings": [], "request": [], "rules": _rules()}
+            "subjects": [], "unassigned": [], "relink": [], "analytes": [], "mappings": [], "request": [], "rules": _rules()}
 
 
 def _request_lines(scope: _Scope) -> list[dict[str, Any]]:
@@ -670,10 +680,32 @@ def _page(scope: _Scope) -> dict[str, Any]:
                          "batches": children if row["subject_type"] == "product" else [],
                          "blinded": scope.blinded(row["subject_type"], row["subject"])})
     running = jobs.running(ws.store, ws.tenant_id, ws.project_id, "intake") or intake_pipeline.unfinished(ws)
+    unassigned = review.unassigned(ws, reader=reader)
     return {"enabled": True, "running": running, "agents": agent_jobs.agents_status("A4"), "deliveries": deliveries,
-            "totals": totals, "subjects": subjects, "unassigned": scope.rows(review.unassigned(ws, reader=reader)),
+            "totals": totals, "subjects": subjects, "unassigned": scope.rows(unassigned), "relink": _relinks(scope, unassigned),
             "analytes": [{"id": e.id, "label": e.label} for e in reader.entities("analyte")],
             "mappings": _waiting_mappings(scope), "request": _request_lines(scope), "rules": _rules()}
+
+
+def _link_view(scope: _Scope, a: Assignment, *, blinded: bool = False, **more: Any) -> dict[str, Any]:
+    """Where an assignment sent its values (entity ids followed through merges, with their labels), who, when and why:
+    the digits of the why masked for a blinded study or file."""
+    def follow(entity_id: str | None) -> str | None:
+        found = scope.reader.entity(entity_id) if entity_id else None
+        return found.id if found is not None else entity_id
+
+    ids = {"study": follow(a.study), "arm": follow(a.arm), "product": follow(a.product), "batch": follow(a.batch),
+           "analyte": follow(a.analyte)}
+    hidden = blinded or (ids["study"] is not None and scope.blinded("study", ids["study"]))
+    return {"assignment": a.id, **more, **ids, "labels": {role: label for role, i in ids.items() if i and (label := scope.label(i))},
+            "by": a.by, "at": a.at, "why": _mask(a.why) if hidden else a.why}
+
+
+def _relinks(scope: _Scope, unassigned: list[ValueState]) -> list[dict[str, Any]]:
+    """The links a re-read did not carry over to the tables and facts of these "study not stated" values (`link_carry`):
+    where each sent them, so the link row comes back pre-filled. A blinded study's why has its digits masked."""
+    return [_link_view(scope, w.assignment, targets=list(w.items), whole=w.whole)
+            for w in link_carry.waiting(scope.store, [v.id.split("#")[0] for v in unassigned])]
 
 
 def get_delivery(project_id: str, principal: Reader, store: StoreDep) -> dict[str, Any]:
@@ -807,12 +839,14 @@ def _subject_view(scope: _Scope, subject_type: str, subject: str, *, signature: 
     draw, record = scope.spot_check(subject_type, subject)
     wanted = [] if blinded or state == "stale" else _wanted(draw, record)
     checks = sorted(card.checks, key=lambda c: (c.id in card.overridden, _SEVERITY.get(c.severity, 9)))
-    elsewhere = [d.id for d in intake_landing.legacy_overlap(ws, subject_type, subject, reader=reader)  # type: ignore[arg-type]
+    elsewhere = [d for d in intake_landing.legacy_overlap(ws, subject_type, subject, reader=reader)  # type: ignore[arg-type]
                  if d.state is not EvidenceState.REJECTED]
     used = {(v.mapping.mapping_id, v.mapping.version) for v in values if v.mapping is not None}
     view = {
         "subject_type": subject_type, "subject": subject, "label": card.label, "blinded": blinded,
-        "confirm_on": review.confirm_on(ws, values), "loaded_elsewhere": elsewhere, "values": card.values,
+        "confirm_on": review.confirm_on(ws, values), "values": card.values,
+        "loaded_elsewhere": [d.id for d in elsewhere if d.state is EvidenceState.ACCEPTED],
+        "proposed_elsewhere": [d.id for d in elsewhere if d.state is not EvidenceState.ACCEPTED],
         "by_level": dict(card.by_level), "by_method": dict(card.by_method), "silent_loss": card.silent_loss,
         "coverage": [_summary(c) for c in card.coverage],
         "blockers": [_blocker(b) for b in scope.blockers(subject_type, subject, card=card)],
@@ -821,7 +855,8 @@ def _subject_view(scope: _Scope, subject_type: str, subject: str, *, signature: 
         "checks": [{"id": c.id, "code": c.code, "severity": c.severity, "message": None if blinded else c.message,
                     "values": list(c.values), "rule": c.rule, "overridden": c.id in card.overridden} for c in checks],
         "conflicts": [{"id": c.id, "field": c.field, "time": c.time, "kind": c.kind, "values": list(c.values),
-                       "labels": next((row["labels"] for row in scope.rows(reader.value(v) for v in c.values[:1])), {})}
+                       **next(({"labels": row["labels"], "time_unit": row["time_unit"]}
+                               for row in scope.rows(reader.value(v) for v in c.values[:1])), {"labels": {}, "time_unit": None})}
                       for c in card.conflicts],
         "links": [{"id": link.id, "link_fact": link.link_fact, "study": link.study, "study_label": scope.label(link.study),
                    "file_sha256": link.file_sha256, "file": scope.file_name(link.file_sha256) or link.file_sha256[:12],

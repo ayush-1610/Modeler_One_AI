@@ -10,8 +10,9 @@ import { join } from "node:path";
 import { expect, test } from "@playwright/test";
 
 import {
-  NEW, NO_TARGET, areaHead, assignBody, buildWork, collisions, columnSummary, destinationKey, heldBy, layoutRows, linkRows, looseGroups, nextText,
-  normLabel, notReadRows, onDelivery, prefixAlias, targetProblem, type WorkSources,
+  NEW, NO_TARGET, aboutText, analyteChoice, analyteChoices, areaHead, assignBody, buildWork, collisions, columnSummary, destinationKey, heldBy,
+  layoutRows, linkRows, linkTarget, linkWords, linkedPiece, looseGroups, nextText, normLabel, notReadRows, onDelivery, pairsMeet, prefixAlias,
+  targetProblem, type WorkSources,
 } from "../lib/inputsWork";
 import { checkLabel, placeText, stepReason } from "../lib/words";
 
@@ -389,4 +390,111 @@ test("numbers not read: loose numbers alike said once, by file; the layouts' que
     { column: 3, header: "0.5", role: "value", field: "concentration" }, { column: 4, header: "1", role: "value", field: "concentration" },
     { column: 5, header: "24", role: "value", field: "concentration" }, { column: 6, header: "Comment", role: "ignore", field: null },
   ])).toBe("subject ← 'Subject' · period ← 'Period' · concentration ← 3 columns '0.5' … '24' · 1 column not read");
+});
+
+// --- the final review's linking fixes (plan §5 "Final review fixes: linking") ----------------------------------------------
+
+test("the arm guard: an analyte or a period left out matches any, by name, in the batch and against what the study holds (INT-4)", () => {
+  const sources = batch();
+  const model = buildWork(sources);
+  const rows = linkRows(model.items.filter((i) => /^(link|alias):/.test(i.id)), sources.delivery, model.subjects);
+  const reference = rows.find((r) => r.file === "230-23 Fasting Reference.xlsx")!, test230 = rows.find((r) => r.file === "230-23 Fasting Test.xlsx")!;
+  const studies = sources.delivery!.subjects;
+  const same = { ...NO_TARGET, study: "st-8" };
+  const analytes = [{ id: "an-9", label: "Exampleamide" }, { id: "an-10", label: "Exampleamide-M1" }, { id: "an-17", label: "Exampleamide" }];
+  const bare = (r: typeof reference) => ({ ...r, own: { ...r.own, analyte: null } });
+  // "as the file says" with the file stating none beside a stated analyte: any analyte, so they collide (was missed)
+  expect(collisions([{ row: bare(reference), target: same }, { row: bare(test230), target: { ...same, analyte: "an-9" } }], studies, {}, analytes))
+    .toHaveLength(1);
+  // two ids of one name (an-9 from one file, an-17 from another): one analyte
+  expect(collisions([{ row: bare(reference), target: { ...same, analyte: "an-9" } }, { row: bare(test230), target: { ...same, analyte: "an-17" } }],
+                    studies, {}, analytes)).toHaveLength(1);
+  // another analyte by name (the metabolite): no collision
+  expect(collisions([{ row: bare(reference), target: { ...same, analyte: "an-10" } }, { row: bare(test230), target: { ...same, analyte: "an-17" } }],
+                    studies, {}, analytes)).toEqual([]);
+  // a period left out matches any period: the study's values of subject 001 with no period, beside period I
+  const held = { "st-8": [{ arm: "", analyte: "exampleamide", pair: "001 · ", sha: "a".repeat(64) }] };
+  expect(collisions([{ row: bare(reference), target: same }], studies, held, analytes)).toEqual([
+    { files: ["230-23 Fasting Reference.xlsx"], study: "230-23", example: "subject 001, period I", keys: [reference.sha] }]);
+  expect(collisions([{ row: bare(reference), target: { ...same, analyte: "an-10" } }], studies, held, analytes)).toEqual([]);
+  expect([pairsMeet("001 · ", "001 · II"), pairsMeet("001 · I", "001 · II"), pairsMeet("002 · ", "001 · "), pairsMeet("001 · I", "001 · I")])
+    .toEqual([true, false, false, true]);
+});
+
+test("one analyte per name in every picker, the one the study uses, and no new analyte of a name that exists (OWN-11)", () => {
+  const analytes = [{ id: "an-9", label: "Exampleamide" }, { id: "an-10", label: "Exampleamide-M1" }, { id: "an-17", label: "Exampleamide" }];
+  expect(analyteChoices(analytes).map((a) => a.id)).toEqual(["an-9", "an-10"]);
+  expect(analyteChoices(analytes, null, ["an-17"]).map((a) => a.id)).toEqual(["an-17", "an-10"]);
+  // the file's own first, as it reads it; the study's id of that name sent in its place
+  const own = { id: "an-2", label: "exampleamide" };
+  expect(analyteChoices([...analytes, own], own).map((a) => a.id)).toEqual(["an-2", "an-10"]);
+  const choices = analyteChoices([...analytes, own], own, ["an-9"]);
+  expect(choices.map((a) => a.id)).toEqual(["an-9", "an-10"]);
+  expect(analyteChoice("an-2", choices, analytes, own)).toBe("an-9");
+  expect(analyteChoice("an-17", choices, analytes)).toBe("an-9");
+  expect([analyteChoice("", choices, analytes), analyteChoice(NEW, choices, analytes)]).toEqual(["", NEW]);
+  expect(targetProblem({ ...NO_TARGET, study: "st-8", analyte: NEW, newAnalyte: " exampleamide " }, analytes))
+    .toBe("An analyte named Exampleamide exists already: pick it");
+  expect(targetProblem({ ...NO_TARGET, study: "st-8", analyte: NEW, newAnalyte: "M2" }, analytes)).toBeNull();
+});
+
+test("a link a re-read did not carry over comes back on its row, filled with where it went and saying why (OWN-1)", () => {
+  const sources = batch();
+  const page = sources.delivery!;
+  const ref = page.deliveries.flatMap((d) => d.files).find((f) => f.name === "230-23 Fasting Reference.xlsx")!;
+  const table = page.unassigned.find((v) => v.file_sha256 === ref.sha256 && v.id.includes("#"))!.id.split("#")[0];
+  const facts = page.unassigned.filter((v) => v.file_sha256 === ref.sha256 && !v.id.includes("#")).map((v) => v.id);
+  const was = { assignment: "as-1", study: "st-8", arm: "arm-21", product: null, batch: null, analyte: null, by: "dev-user",
+                at: "2026-11-15T09:25:00Z", why: "the file names say 230-23" };
+  page.relink = [{ ...was, targets: [table, ...facts], labels: { study: "230-23", arm: "Reference" }, whole: false }];
+  let model = buildWork(sources);
+  let row = linkRows(model.items.filter((i) => /^(link|alias):/.test(i.id)), page, model.subjects).find((r) => r.file === ref.name)!;
+  // not asked "Same study as 230-23?" again: the row is filled with the earlier link, and says it covered part of the table
+  expect(row.alias).toBeNull();
+  expect(row.suggested).toMatchObject({ why: "linked before to study 230-23 · arm Reference", target: { study: "st-8", arm: "arm-21" } });
+  expect(row.before!.note).toMatch(/^Linked before, in part, to study 230-23 · arm Reference \(by dev-user on .+\)\. Its table was read again/);
+  // whole, but made before links were carried over; and a study that has no value left is offered from the link itself
+  page.relink = [{ ...was, study: "st-99", arm: null, targets: [table, ...facts], labels: { study: "LOOSE-1" }, whole: true }];
+  model = buildWork(sources);
+  row = linkRows(model.items.filter((i) => /^(link|alias):/.test(i.id)), page, model.subjects).find((r) => r.file === ref.name)!;
+  expect(row.before!.note).toMatch(/^Linked before to study LOOSE-1 \(by dev-user on .+\)\. Its table was read again before links were carried over/);
+  expect(row.before!.subjects.map((s) => [s.subject, s.label])).toEqual([["st-99", "LOOSE-1"]]);
+  // a link's destination, as the page reads it back
+  expect(linkWords({ ...was, labels: { study: "230-23", arm: "Reference" } })).toBe("study 230-23 · arm Reference");
+  expect(linkTarget(was)).toEqual({ ...NO_TARGET, study: "st-8", arm: "arm-21" });
+  expect(linkedPiece(ref.sha256, ref.name, page.unassigned.filter((v) => v.file_sha256 === ref.sha256)).pairs).toContain("001 · I");
+});
+
+test("a disagreement says whom it is about and when, with its unit, and a card lists them by subject (INT-10)", () => {
+  const sources = load("exampleamide");
+  const card = sources.cards!["study/st-8"]!;
+  card.conflicts = [1, 2].map((t) => ({ id: `cx-${t}`, field: "concentration", kind: "value", time: t, time_unit: "h",
+                                         labels: { study: "230-23", subject: "001", period: "I" } }));
+  const model = buildWork(sources);
+  const differ = model.items.filter((i) => i.id.startsWith("differ:"));
+  expect(differ.map((i) => i.label)).toEqual([1, 2].map((t) => `Study 230-23: the files give different values for concentration at ${t} h, subject 001, period I`));
+  expect(new Set(differ.map((i) => i.about))).toEqual(new Set(["subject 001, period I"]));
+  expect(aboutText({ study: "230-23", arm: "Test", subject: "002" })).toBe("arm Test, subject 002");
+});
+
+test("a sheet-form group of a file linked to a study or product joins its card: not a card, a row or a sheet of its own (OWN-4, INT-9)", () => {
+  const sources = load("exampleamide");
+  const before = buildWork(sources);
+  expect(before.subjects.some((s) => s.key === "study:230-23-REF")).toBe(true);
+  expect(before.items.some((i) => i.id === "draft:draft|file-0773300f5a31|pH 6.8")).toBe(true);
+  // the API names them on the subjects whose files' values they were read from (`legacy_groups`), a sheet too
+  const page = sources.delivery!;
+  page.subjects.find((s) => s.subject === "st-8")!.legacy_groups = ["study:230-23-REF", "study:230-23-TEST"];
+  page.subjects.find((s) => s.subject === "pr-12")!.legacy_groups.push("sheet:file-0773300f5a31|pH 6.8");
+  const after = buildWork(sources);
+  const study = after.subjects.find((s) => s.row?.subject === "st-8")!;
+  expect(study.key).toBe("study:230-23");                                // known by its own name still
+  expect(study.groups.map((g) => g.id)).toEqual(["study:230-23-REF", "study:230-23-TEST", "study:230-23"]);
+  expect(study.aliases).toEqual(["230-23-REF", "230-23-TEST"]);
+  expect(after.subjects.some((s) => s.key === "study:230-23-REF" || s.key === "study:230-23-TEST")).toBe(false);
+  // no separate confirm, no facts asked again, no alias question for those groups; the sheet joins its product's card
+  expect(after.items.filter((i) => /230-23-(REF|TEST)/.test(i.id)).map((i) => i.id)).toEqual([]);
+  expect(after.items.some((i) => i.id === "draft:draft|file-0773300f5a31|pH 6.8")).toBe(false);
+  expect(after.subjects.find((s) => s.row?.subject === "pr-12")!.groups.map((g) => g.id)).toContain("sheet:file-0773300f5a31|pH 6.8");
+  expect(after.counts.missing).toBeLessThan(before.counts.missing);
 });

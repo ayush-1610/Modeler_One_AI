@@ -177,7 +177,8 @@ before the next starts.
   2026-11-14):
   - Arms, batches and analytes are stated in the per-file link form ("Values not linked to a study or product"), not
     yet in slice 4's Link table; a link is changed only by linking again through the API (no "link elsewhere" on a
-    card until slice 3 rewrites it).
+    card until slice 3 rewrites it). Slices 3 and 4 did not build it; the final review's linking fixes did, on a file's
+    row in Client files ("Link elsewhere…", below).
   - Who made a "not data" decision and when is read from the project's audit trail (`GET /audit`, its last 2,000
     events, only while such a decision is on screen), not from the page.
   - A note outside the tables that no longer counts is a person's "not data" decision, with "Restore…", when it sits
@@ -360,3 +361,32 @@ before the next starts.
     merge the card is a third place to mark a loose number as not data, beside To do and the file's view in Client files.
   - Not in this slice: the review bar (‹ Previous · Next › over the cards, with slice 3's cards), paging of a file's
     values (the first six, then all), per-cell "not data" (API 3).
+
+- Final review fixes: linking values, arms, analytes and the sheet-form join (2026-11-15; OWN-1, INT-4, OWN-11, INT-5,
+  OWN-4, INT-9, OWN-3, INT-10, the owner-job gaps 4 and 8; CHANGELOG "Fixed — final review, linking …"):
+  - **A link across a re-read** (`modeler_project/link_carry.py`, the pipeline's ledger stage): carried over only when
+    it covered the whole earlier reading of the table (each value but those a person set aside one by one), as one
+    audited `assignment` line by "code" naming the original ("carried over from as-n after a re-read: …"). A link that
+    covered part of the table is not carried (which part it would cover after the re-read cannot be told): the link row
+    comes back filled with its destination and says why (`DeliveryPage.relink`), and the person links it again. Nothing
+    is carried into a reading that names a study or product itself, nor from a reading a person marked as not data. A
+    link carried is the person's: the arm check is not run on it again. Links lost before this change come back the
+    same way (pre-filled, "read again before links were carried over").
+  - **The arm guard** is the API's too (409 on values:assign). For "as the file says" the API compares the analyte the
+    values carry now (after any earlier link), the web the file's own; both match any analyte when none is stated.
+  - **Analytes stay one entity per file** (the ledger resolves an analyte inside its file and compares a study's by
+    name, `ledger_view._entity_key`): not a ledger change. The pickers offer one per name, the one the study uses.
+  - **"Link elsewhere…"** is on a file's row in Client files, per link in force on its values, not on a card's Files
+    and tables (one home per decision); not offered for a blinded file (its values are withheld until the plan is
+    signed). A link elsewhere replaces the earlier one whole, with the arm, batch and analyte chosen in the form.
+  - **The join by linked file:** `legacy_groups` names a client-review group when every one of its items was read from
+    files a person linked on the delivery whose values all belong to that one subject (no value left with no subject);
+    a file that names its study itself joins by the exact label as before. A joined card keeps the key of its own name.
+    **Not built:** the sheet form's path on a joined card ("Confirm now with the sheet form") is not pre-filled from the
+    facts entered on the delivery card: the sheet form's offers (`study_offers`) do not read the delivery's person
+    entries, and the sheet form names the study otherwise (230-23-REF). API follow-up: offer a linked study's entered
+    facts to its joined sheets.
+  - **`loaded_elsewhere`** now means accepted (in the model); `proposed_elsewhere` lists the datasets of the same source
+    only read with the sheet form. The join reads both.
+  - **A disagreement's subject:** the card's To do lists a subject's disagreements under one line ("Subject 001, period
+    I: 11 disagreements"), open while three subjects or fewer have any; To do lists them flat, each naming its subject.

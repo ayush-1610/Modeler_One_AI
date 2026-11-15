@@ -10,8 +10,8 @@
 // the card is confirmed and signed (the DEV sign-in carries a fresh step-up); then the card says who signed, when and
 // what loaded, the status line's "In the model" rose, To do fell to what remains, and GET /inputs holds the study's data
 // for what comes after Inputs. At every step the status line, the area badges, To do's filter and its groups (and the
-// Clinical studies head) count the same open work. Software test data on the stub engine: it proves the review path,
-// never a model.
+// Clinical studies head) count the same open work; the sheet form's own reading of a file linked on the delivery joins the
+// card it was linked to (no second card). Software test data on the stub engine: it proves the review path, never a model.
 import { execFileSync } from "node:child_process";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -28,7 +28,7 @@ const AREAS = ["compound", "formulations", "studies", "individuals", "settings",
 type File = { file_id: string; name: string };
 type Delivery = {
   running: boolean; deliveries: { files: File[] }[];
-  subjects: { subject: string; label: string; subject_type: string; arms: { id: string; label: string }[] }[];
+  subjects: { subject: string; label: string; subject_type: string; arms: { id: string; label: string }[]; legacy_groups: string[] }[];
   unassigned: { file: string | null; level: string }[];
   mappings: { mapping_id: string; version: number; kind: string; status: string }[];
 };
@@ -218,7 +218,17 @@ test("the owner's job: files uploaded, layouts checked, values linked with arms,
   expect(linked.unassigned).toHaveLength(0);
   expect(linked.subjects.find((s) => s.subject === study)!.arms.map((a) => a.label).sort()).toEqual(["Reference", "Test"]);
   expect(linked.subjects.map((s) => s.label)).toContain("OJ-102");
+  // the sheet form read the linked files under names of its own (OJ-101-REF, OJ-101-TEST, and one for the file that names
+  // no study): each is named on the subject its file's values were linked to (review OWN-4, INT-9; this job's gap 4), so
+  // it joins that card: no card, no Confirm and no "not stated" row of its own
+  const joinedTo = (label: string) => linked.subjects.find((s) => s.label === label)!.legacy_groups;
+  expect(joinedTo(seed.study)).toEqual(expect.arrayContaining([`study:${seed.study}-REF`, `study:${seed.study}-TEST`]));
+  expect(joinedTo("OJ-102")).toHaveLength(1);
   await agreed(page);
+  for (const group of [...joinedTo(seed.study), ...joinedTo("OJ-102")]) {
+    await expect(page.getByTestId(`todo-confirm-${group}`)).toHaveCount(0);
+    await expect(page.locator(`[data-testid^="todo-row-draft:"]`, { hasText: group.replace(/^study:/, "") })).toHaveCount(0);
+  }
 
   // --- the number outside the tables: Next opens its file's row; marked as not data, with a reason ---
   await expect(next).toHaveText("Next: Numbers not read in 1 file");
@@ -245,6 +255,8 @@ test("the owner's job: files uploaded, layouts checked, values linked with arms,
   const card = page.getByTestId(`delivery-card-${study}`);
   await expect(card.getByTestId("delivery-enter-gap-route-value")).toBeFocused();     // at the fact To do named
   await agreed(page);
+  // two studies, not five: the arms' files and the file that named no study are read on the cards they were linked to
+  await expect(page.getByTestId("area-head-studies")).toContainText(/^2 studies\b/);
   const facts = card.getByTestId(`delivery-facts-form-${study}`);
   const row = (label: string) => facts.locator(".facts-row", { hasText: label });
   // the sheet form's answers are offered as chips the person still saves

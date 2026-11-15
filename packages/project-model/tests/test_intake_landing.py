@@ -368,7 +368,7 @@ def test_legacy_datasets_of_the_same_source_are_rejected_and_another_studys_tabl
     assert overlap == {*saved, from_name.id} and neighbour.id not in overlap and elsewhere.id not in overlap
     assert landing.legacy_overlap(ws, "product", reader.entities("product")[0].id, reader=reader) == []
     row = next(r for r in review.subjects(ws, reader=reader) if r["subject"] == study)
-    assert set(row["loaded_elsewhere"]) == overlap
+    assert set(row["proposed_elsewhere"]) == overlap and row["loaded_elsewhere"] == []     # none confirmed yet
 
     # an accepted one refuses the confirmation; rejecting it on the legacy card frees it
     decide_dataset(ws, saved[0], state=EvidenceState.ACCEPTED, reason="confirmed on the client-review card", by=BY)
