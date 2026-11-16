@@ -18,7 +18,7 @@ import { send } from "@/lib/api";
 import { useResource } from "@/lib/hooks";
 import type { WorkItem, WorkModel } from "@/lib/inputsWork";
 import {
-  AREA_NAME, type Tab, engineWords, whereIs, findingsInline, layoutOrigin, plural as count, rulesText, stageText, whenText,
+  AREA_NAME, type Tab, engineWords, whereIs, findingsInline, layoutOrigin, plural as count, regionKindText, rulesText, stageText, whenText,
 } from "@/lib/words";
 
 import { FileLinks } from "./LinkElsewhere";
@@ -115,7 +115,7 @@ function FileItem({ projectId, file, first, decide, busy, onMapping, inRow = fal
                   {shown.regions.map((r) => (
                     <tr key={r.region_id} data-testid={`delivery-region-${r.region_id}`}>
                       <td>{whereIs(r.where).place}</td>
-                      <td>{fieldText(r.kind)}{r.table_kind && r.table_kind !== "unknown" ? `, ${fieldText(r.table_kind)}` : ""}
+                      <td>{regionKindText(r.kind, r.table_kind)}
                         <div className="muted fs-12">{r.caption === null ? WITHHELD : r.caption}</div></td>
                       <td><ChipFor state={r.state} table={REGION_STATE} />
                         {!restorable(r) && r.reason && <div className="muted fs-12" title={r.reason} data-testid={`delivery-region-reason-${r.region_id}`}>{reasonWords(r)}</div>}

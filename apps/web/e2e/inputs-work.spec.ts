@@ -20,7 +20,8 @@ import {
   ASK_FORMULATION, NO_PRODUCT, alreadyDecidedText, bracketed, checkFix, checkGist, checkLabel, constantText, drawText, escapePattern, flagLines,
   formulationLine, formulationParts, formulationProblem, formulationWays, heldText, individualNeeds, individualText, inputsHref, layoutFieldText,
   layoutFindingText, moveText, paramLabel, patternWords, placeText, readinessText, redrawText, rowRuleText, rowsLeftOut, spotGroupText, stepReason,
-  stepWhere, todoMessage, unitText, unreadWhy, withheldWhy, anchorPlace, sourceNamed,
+  stepWhere, todoMessage, unitText, unreadWhy, withheldWhy, anchorPlace, sourceNamed, anchorCell, conditionsInWords, distinctNames, layoutFieldInText,
+  regionKindText, valueAbout,
 } from "../lib/words";
 import { afterAnswer, blindedStudies, changedRows } from "../lib/freshness";
 
@@ -1138,6 +1139,50 @@ test("a table is told apart by where it starts in its file, a sheet form's chart
   expect(sourceNamed(label, { locator: "PK_Summary!2:7" })).toBe(`${label} · sheet PK_Summary, rows 2 to 7`);
   expect(sourceNamed(label, { page: 3 })).toBe(`${label} · page 3`);
   expect(sourceNamed(label, null)).toBe(label);
+});
+
+test("a value is named by its field in words, its labels, conditions, statistic and file; two alike by their cell (round 5, A11Y-7)", () => {
+  // the owner's 230-23: four urine intervals of one excretion table, read with the same labels; only the interval tells
+  // them apart, and their field is the intake's `excretion.amount`
+  const sha = "d8ffbf082f542e9aac89d7780cad3e03a724ed5dd7f8360355ed03f50f2288b8";
+  const urine = [["0", "4", "C3"], ["4", "8", "C4"], ["8", "12", "C5"], ["12", "24", "C6"]].map(([from, to, cell]) => ({
+    field: "excretion.amount", time: null, time_unit: null, labels: { analyte: "Exampleamide", matrix: "urine" },
+    conditions: { interval_end_h: to, interval_start_h: from }, statistic: null, file: "messy-delivery.xlsx", method: "table",
+    anchor: `${sha}@workbook/1.0+openpyxl3.1.5#s:'Urine'!${cell}`,
+  }));
+  const names = urine.map((v) => valueAbout(v));
+  expect(names[0]).toBe("the amount excreted, analyte Exampleamide · matrix urine, interval 0 to 4 h, from messy-delivery.xlsx");
+  expect(new Set(names).size).toBe(4);
+  for (const n of names) expect(n).not.toMatch(/excretion\.amount|interval_start_h|_h\b/);
+  // a time with its unit, the statistic in words, the card's own label left to the card
+  const cmax = { field: "pk.Cmax", time: null, labels: { study: "230-23", analyte: "Exampleamide" }, conditions: {}, statistic: "arithmetic_mean",
+                 file: "messy-delivery.xlsx" };
+  expect(valueAbout(cmax, "study")).toBe("the Cmax (PK parameter), analyte Exampleamide, arithmetic mean, from messy-delivery.xlsx");
+  expect(valueAbout({ field: "concentration", time: 0.5, time_unit: "h", labels: { subject: "001" }, statistic: "individual", file: "a.xlsx" }))
+    .toBe("the concentration at 0.5 h, subject 001, individual, from a.xlsx");
+  expect(valueAbout({ field: "food_state", time: null, labels: {}, method: "person" })).toBe("the fasted or fed state, entered by a person");
+  // conditions in words, never the intake's ids: the interval in hours, a dissolution run's medium and pH
+  expect(conditionsInWords({ interval_start_h: "0", interval_end_h: "4" })).toBe("interval 0 to 4 h");
+  expect(conditionsInWords({ interval_start_h: "24" })).toBe("interval from 24 h");
+  expect(conditionsInWords({ medium: "phosphate buffer", ph: "6.8", rpm: "50" })).toBe("medium phosphate buffer · pH 6.8 · stirring (rpm) 50");
+  expect(conditionsInWords({})).toBe("");
+  expect(layoutFieldInText("excretion.amount")).toBe("amount excreted");
+  expect(layoutFieldInText("pk.AUC_last")).toBe("AUC last (PK parameter)");
+  // two names alike are told apart by where each value is in its file; a name of its own is kept as it is
+  const alike = [{ ...urine[0], conditions: {} }, { ...urine[1], conditions: {} }, { ...cmax, anchor: null }];
+  expect(distinctNames(alike.map((v) => valueAbout(v)), alike.map((v) => anchorCell(v.anchor)))).toEqual([
+    "the amount excreted, analyte Exampleamide · matrix urine, from messy-delivery.xlsx, sheet Urine, cell C3",
+    "the amount excreted, analyte Exampleamide · matrix urine, from messy-delivery.xlsx, sheet Urine, cell C4",
+    "the Cmax (PK parameter), study 230-23 · analyte Exampleamide, arithmetic mean, from messy-delivery.xlsx",
+  ]);
+  expect(anchorCell(`${sha}@pdfplumber/1.0+pdfplumber0.11.10#p:4/t:1/r:2/c:2@116.00`)).toBe("page 4, table 1");
+  expect(anchorCell(`${sha}@reader/1.0#zz:9`)).toBe("");
+  expect(anchorCell(null)).toBe("");
+  // a file's tables and texts, in the reading under its row: the table's kind once read, never "table, pk individual"
+  expect(regionKindText("table", "pk_individual")).toBe("individual PK table");
+  expect(regionKindText("table", "unknown")).toBe("table");
+  expect(regionKindText("prose", null)).toBe("text");
+  expect(regionKindText("table_like_text")).toBe("text laid out as a table");
 });
 
 test("a values table whose rows need only checks decided in Checks stays one line naming each with its count (OWN-9)", () => {

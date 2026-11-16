@@ -9,7 +9,7 @@ import { useCallback, useState } from "react";
 
 import { ReasonForm } from "@/components/kit/Reason";
 import type { Envelope, Schema } from "@/lib/api";
-import { alreadyDecidedText, whereIs } from "@/lib/words";
+import { alreadyDecidedText, conditionsInWords, layoutFieldText, whereIs } from "@/lib/words";
 import { useMutation, type After, type Outcome } from "@/lib/hooks";
 
 import { cardAfter, pageKey, writePage } from "./writes";
@@ -111,9 +111,14 @@ export function spreadText(v: Value): string {
 /** The labels a value is read with, as written in its file: "study 230-23 · analyte Exampleamide". */
 export const labelsText = (v: Value) => Object.entries(v.labels).map(([role, label]) => `${role} ${label}`).join(" · ");
 
-export const conditionsText = (v: Value) => Object.entries(v.conditions).map(([k, x]) => `${words(k)} ${x}`).join(" · ");
+/** The conditions a value is read under, in words ("interval 0 to 4 h"), never the intake's field ids. */
+export const conditionsText = (v: Value) => conditionsInWords(v.conditions);
 
+/** A kind or a state the API sends as an id, its underscores turned to spaces ("pk summary"). */
 export const fieldText = (field: string) => words(field);
+/** A value's field as a values table's Field column says it: the intake vocabulary's words ("Amount excreted",
+ *  "Cmax (PK parameter)"), never its id (`excretion.amount`; final review round 5, A11Y-7). */
+export const valueField = (field: string) => layoutFieldText(field);
 export const statisticText = (v: Value) => (v.statistic ? words(v.statistic) : "");
 /** How a value was read (`DeliveryValue.level`, the evidence levels in ascending order), in words. */
 const LEVEL: Record<string, string> = {

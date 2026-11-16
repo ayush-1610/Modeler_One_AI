@@ -13,9 +13,9 @@ import { Fragment, useState } from "react";
 import { send, type Schema } from "@/lib/api";
 import { useResource } from "@/lib/hooks";
 
-import { drawText, spotGroupText, whenText } from "@/lib/words";
+import { anchorCell, distinctNames, drawText, layoutFieldInText, spotGroupText, valueAbout, whenText } from "@/lib/words";
 
-import { Problem, TUPLE_HEADS, TupleCells, fieldText, num, plural, timeText, useDecide, valueText, type Subject } from "./shared";
+import { Problem, TUPLE_HEADS, TupleCells, num, plural, useDecide, valueField, valueText, type Subject } from "./shared";
 import { ValueSource } from "./ValueSource";
 import { spotAfter } from "./writes";
 
@@ -85,8 +85,13 @@ export function SpotCheck({ projectId, subject, first }: {
   const id = `${subject.subject_type}-${subject.subject}`;
   // the subject in words, on the buttons every card's spot check repeats (final review round 4, A11Y-7)
   const whose = `${subject.subject_type} ${subject.label}`;
-  const valueName = (v: SpotValue["value"]) => [`${fieldText(v.field)}${v.time !== null ? ` at ${timeText(v)}` : ""}`,
-    Object.entries(v.labels).map(([role, label]) => `${role} ${label}`).join(" · ")].filter(Boolean).join(", ");
+  // each value drawn named for its row's controls: its field in words, time, labels, conditions, statistic and file, with
+  // the spot check and its subject (the same value's Show in its values table names its table, not the spot check); two
+  // that still read alike by where each is in its file (final review round 5, A11Y-7: the urine intervals shared a name)
+  const drawnValues = spot?.values.map((row) => row.value) ?? [];
+  const names = distinctNames(drawnValues.map((v) => valueAbout(v, subject.subject_type)), drawnValues.map((v) => anchorCell(v.anchor)));
+  const nameOf = new Map(drawnValues.map((v, i) => [v.id, names[i]]));
+  const valueName = (v: SpotValue["value"]) => `${nameOf.get(v.id) ?? valueAbout(v, subject.subject_type)} (spot check of ${whose})`;
   const recorded = card.state === "complete" && card.recorded_by !== null;
   const folded = recorded && !unfolded;
 
@@ -172,7 +177,7 @@ export function SpotCheck({ projectId, subject, first }: {
                         <Fragment key={v.id}>
                           <tr data-testid={`spot-row-${v.id}`} className={row.ok === false || row.reason === FAILED ? "delivery-flagged" : undefined}>
                             <td>
-                              {fieldText(v.field)}
+                              {valueField(v.field)}
                               <div>
                                 {v.anchor ? (
                                   <button type="button" className="link-btn" aria-expanded={source === v.id} data-testid={`spot-source-${v.id}`}
@@ -187,13 +192,13 @@ export function SpotCheck({ projectId, subject, first }: {
                             <td>
                               {row.wanted ? (
                                 <fieldset className="delivery-tick">
-                                  <legend className="sr-only">{fieldText(v.field)}{v.time !== null ? ` at ${timeText(v)}` : ""}: does it match the file?</legend>
+                                  <legend className="sr-only">{valueName(v).replace(/^the /, "The ")}: does it match the file?</legend>
                                   <label><input type="radio" name={`spot-${id}-${v.id}`} checked={tick?.ok === true}
                                                 onChange={() => set(v.id, { ok: true })} data-testid={`spot-tick-${v.id}`} /> matches</label>
                                   <label><input type="radio" name={`spot-${id}-${v.id}`} checked={tick?.ok === false}
                                                 onChange={() => set(v.id, { ok: false })} data-testid={`spot-wrong-${v.id}`} /> does not match</label>
                                   {tick?.ok === false && (
-                                    <input type="text" aria-label={`What differs for ${fieldText(v.field)}`} placeholder="what differs" value={tick.note}
+                                    <input type="text" aria-label={`What differs for ${valueName(v)}`} placeholder="what differs" value={tick.note}
                                            onChange={(e) => set(v.id, { note: e.target.value })} data-testid={`spot-note-${v.id}`} />
                                   )}
                                 </fieldset>
@@ -205,7 +210,7 @@ export function SpotCheck({ projectId, subject, first }: {
                           </tr>
                           {row.inputs.length > 0 && (
                             <tr className="delivery-inputs"><td colSpan={8}>
-                              Computed from: {row.inputs.map((i) => `${fieldText(i.field)} ${valueText(i)}${i.unit ? ` ${i.unit}` : ""}${i.blinded || i.spread === null ? "" : ` ± ${num(i.spread)}${i.spread_kind ? ` ${i.spread_kind}` : ""}`}`).join("; ")}
+                              Computed from: {row.inputs.map((i) => `${layoutFieldInText(i.field)} ${valueText(i)}${i.unit ? ` ${i.unit}` : ""}${i.blinded || i.spread === null ? "" : ` ± ${num(i.spread)}${i.spread_kind ? ` ${i.spread_kind}` : ""}`}`).join("; ")}
                             </td></tr>
                           )}
                           {source === v.id && (

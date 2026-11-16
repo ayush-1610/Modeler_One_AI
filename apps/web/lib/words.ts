@@ -411,6 +411,11 @@ const TABLE_KIND: Record<string, string> = {
   not_data: "notes, not data", unknown: "table of unknown kind",
 };
 export const tableKindText = (kind: string | null | undefined) => (kind ? TABLE_KIND[kind] ?? spaced(kind) : "table");
+/** What a table or text of a file is (the source's `Region.kind`, with the table's kind once a layout read it), in words:
+ *  "individual PK table", "text", "figure"; never "table, pk individual" or "prose" (final review round 5). */
+const REGION_KIND: Record<string, string> = { table: "table", prose: "text", figure: "figure", table_like_text: "text laid out as a table" };
+export const regionKindText = (kind: string, tableKind?: string | null) =>
+  (tableKind && tableKind !== "unknown" ? tableKindText(tableKind) : REGION_KIND[kind] ?? spaced(kind));
 
 /** The values of a unit class (the intake's `UnitClass`, modeler_intake.fields), as a person names them. */
 const UNIT_CLASS_WORD: Record<string, string> = {
@@ -811,10 +816,63 @@ export function layoutFieldText(name: string): string {
   return words[name] ?? fieldLabel(name);
 }
 /** A field inside a sentence: "the product's role", "the batch", "the pH", "the Cmax (PK parameter)" (a name keeps its capitals). */
-const fieldInSentence = (name: string) => {
-  const t = layoutFieldText(name);
-  return `the ${/^[A-Z][a-z]/.test(t) && !/^(AUC|Cmax|Ctrough|CL|Vz)/.test(t) ? `${t.charAt(0).toLowerCase()}${t.slice(1)}` : t}`;
+const fieldInSentence = (name: string) => `the ${layoutFieldInText(name)}`;
+/** The fields whose label is no noun in a sentence ("the fasted or fed", "the women (%)"), as a sentence says them. */
+const IN_TEXT: Record<string, string> = {
+  food_state: "fasted or fed state", percent_female: "share of women (%)", age_min: "youngest age (years)", age_max: "oldest age (years)",
 };
+/** A field of the intake vocabulary inside a sentence, with no article: "concentration", "amount excreted", "pH",
+ *  "Cmax (PK parameter)" (a name keeps its capitals). */
+export function layoutFieldInText(name: string): string {
+  if (IN_TEXT[name]) return IN_TEXT[name];
+  const t = layoutFieldText(name);
+  return /^[A-Z][a-z]/.test(t) && !/^(AUC|Cmax|Ctrough|CL|Vz)/.test(t) ? `${t.charAt(0).toLowerCase()}${t.slice(1)}` : t;
+}
+
+// --- a value read from a file, named (final review round 5, A11Y-7) ------------------------------------------------------
+
+/** The conditions a value is read under (`DeliveryValue.conditions`: what tells a urine interval or a dissolution run
+ *  from the next), in words: "interval 0 to 4 h", "medium FaSSIF · pH 6.8"; never the intake's field ids. The interval's
+ *  hours are the unit its fields (`interval_start_h`, `interval_end_h`) are read in. */
+export function conditionsInWords(conditions: Record<string, string>): string {
+  const { interval_start_h: from, interval_end_h: to, ...rest } = conditions;
+  const parts = from !== undefined && to !== undefined ? [`interval ${from} to ${to} h`]
+    : [from !== undefined ? `interval from ${from} h` : "", to !== undefined ? `interval to ${to} h` : ""].filter(Boolean);
+  for (const [k, x] of Object.entries(rest)) parts.push(`${layoutFieldInText(k)} ${valueWord(x)}`);
+  return parts.join(" · ");
+}
+
+/** What a value read from a file is, as the names of the controls repeated on each of its rows say it (a values table's
+ *  Show and Correct, the spot check's source; final review round 5, A11Y-7): its field and time, its labels, the
+ *  conditions it is read under, its statistic and its file. "the amount excreted, analyte Exampleamide · matrix urine,
+ *  interval 0 to 4 h, from messy-delivery.xlsx": the four urine intervals of one table are four names. `own`: the label
+ *  role the control's subject is (a study's card says "(study 230-23)" itself), not said again. */
+export function valueAbout(v: {
+  field: string; time: number | null; time_unit?: string | null; labels: Record<string, string>;
+  conditions?: Record<string, string>; statistic?: string | null; file?: string | null; method?: string;
+}, own?: string): string {
+  const labels = Object.entries(v.labels).filter(([role]) => role !== own).map(([role, label]) => `${role} ${label}`).join(" · ");
+  const from = v.file ? `from ${v.file}` : v.method === "person" ? "entered by a person" : "";
+  return [`${fieldInSentence(v.field)}${v.time !== null ? ` at ${v.time}${v.time_unit ? ` ${v.time_unit}` : ""}` : ""}`,
+    labels, conditionsInWords(v.conditions ?? {}), v.statistic ? valueWord(v.statistic) : "", from].filter(Boolean).join(", ");
+}
+
+/** Where a value is in its file, from its anchor (`<sha256>@<reader>#<locator>`): "sheet Urine, cell C3", "page 4,
+ *  table 1"; "" when the anchor says nothing a person reads. */
+export function anchorCell(anchor: string | null | undefined): string {
+  const locator = (anchor ?? "").split("#")[1]?.split("@")[0] ?? "";
+  if (!locator) return "";
+  const at = whereIs(locator);
+  return at.place === locator ? "" : at.place;
+}
+
+/** Names two controls would share, each told apart by what tells their things apart (`apart[i]`: where each value is in
+ *  its file); a name no other control has is kept as it is. */
+export function distinctNames(names: string[], apart: string[]): string[] {
+  const count = new Map<string, number>();
+  for (const n of names) count.set(n, (count.get(n) ?? 0) + 1);
+  return names.map((n, i) => ((count.get(n) ?? 0) > 1 && apart[i] ? `${n}, ${apart[i]}` : n));
+}
 
 /** What a column holds (a column's role, `MappingSpec` Role), in words. */
 const ROLE_WORD: Record<string, string> = {

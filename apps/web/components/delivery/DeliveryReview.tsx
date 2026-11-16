@@ -14,15 +14,15 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { InlineIssue } from "@/components/kit";
-import { focusSoon } from "@/components/kit/focus";
+import { focusSoon, useFocusOnClose } from "@/components/kit/focus";
 import { SortHeader, TableFilter, TableMore } from "@/components/kit/SortableTable";
 import { send, type Schema } from "@/lib/api";
 import { useResource } from "@/lib/hooks";
 import { analyteChoices, cardPlace, foldChecks, normLabel } from "@/lib/inputsWork";
 import { numericKey, useTableView } from "@/lib/tableView";
 import {
-  DISPOSITION_WORD, anchorPlace, checkGist, engineWords, fieldInText, fieldLabel, heldText, individualNeeds, individualText, landingText, placeText, rulesText, tableKindText,
-  valueWord, whenText,
+  DISPOSITION_WORD, anchorCell, anchorPlace, checkGist, distinctNames, engineWords, fieldInText, fieldLabel, heldText, individualNeeds,
+  individualText, landingText, layoutFieldInText, placeText, rulesText, tableKindText, valueAbout, valueWord, whenText,
 } from "@/lib/words";
 
 import { ChangedSince, Decisions } from "./Decisions";
@@ -30,8 +30,8 @@ import { ConfirmDialog } from "./ConfirmDialog";
 import type { MappingOpen } from "./MappingReview";
 import { FactsForm, DemographicsForm, SpotRedraw, statedDemographics, type Suggestions } from "./FactsForm";
 import {
-  BLOCKER_LABEL, ChipFor, KIND_LABEL, MAPPING_STATE, Problem, TupleCells, WITHHELD, Why, fieldText, labelsText, levelText, plural,
-  pageAfter, statisticText, typed, useCardDecide, useDecide, valueText, when, type CardDecide, type Subject, type SubjectRow, type Value,
+  BLOCKER_LABEL, ChipFor, KIND_LABEL, MAPPING_STATE, Problem, TupleCells, WITHHELD, Why, conditionsText, labelsText, levelText, plural,
+  pageAfter, statisticText, typed, useCardDecide, useDecide, valueField, valueText, when, type CardDecide, type Subject, type SubjectRow, type Value,
 } from "./shared";
 import { SpotCheck } from "./SpotCheck";
 import { ValueSource } from "./ValueSource";
@@ -128,15 +128,22 @@ function Enter({ entry, busy, onSubmit, onCancel, testId, spot, about }: {
 }
 
 const VALUE_KEYS = {
-  field: (v: Value) => v.field,
+  field: (v: Value) => valueField(v.field),
   value: (v: Value) => (v.blinded ? null : numericKey(v.value)),
   time: (v: Value) => v.time,
   level: (v: Value) => v.level,
 };
-const valueWords = (v: Value) => [v.field, labelsText(v), statisticText(v), v.unit ?? "", v.level, v.blinded ? "" : v.verbatim ?? ""].join(" ");
-/** A value of a table, named for a button repeated on each row: its field, its time and whom it is about (final review
- *  A11Y-7: "Correct concentration at 1" was the same on every subject's row). */
-const valueName = (v: Value) => [`${fieldText(v.field)}${v.time !== null ? ` at ${v.time}` : ""}`, labelsText(v), statisticText(v)].filter(Boolean).join(", ");
+// what the table's filter finds a value by: its field in words (and its id), labels, conditions, statistic, unit, level
+const valueWords = (v: Value) => [v.field, valueField(v.field), labelsText(v), conditionsText(v), statisticText(v), v.unit ?? "", v.level,
+  v.blinded ? "" : v.verbatim ?? ""].join(" ");
+/** The values of a table, each named for the buttons repeated on its row (final review A11Y-7: "Correct concentration at 1"
+ *  was the same on every subject's row; round 5: the four urine intervals of 230-23 shared one name, and it spelled the
+ *  field's id): its field in words, its time, labels, conditions, statistic and file (`words.valueAbout`), and two that
+ *  still read alike by where each is in the file. */
+function valueNames(values: Value[]): Map<string, string> {
+  const names = distinctNames(values.map((v) => valueAbout(v)), values.map((v) => anchorCell(v.anchor)));
+  return new Map(values.map((v, i) => [v.id, names[i]]));
+}
 
 /** The checks a folded values table names, each by what is wrong ("the profile states more than one LLOQ"); two of the
  *  same kind are told apart by what they are about ("…, arm Test"). */
@@ -171,13 +178,16 @@ function ValueTable({ projectId, params, table, flagged, decide, busy, onMapping
     const labels = Object.fromEntries(Object.entries(v.labels).filter(([role]) => role !== params.type));
     return Object.keys(labels).length === Object.keys(v.labels).length ? v : { ...v, labels };
   }), [table.values, params.type]);
+  const named = useMemo(() => valueNames(rows), [rows]);
+  const valueName = (v: Value) => named.get(v.id) ?? valueAbout(v);
   const view = useTableView({ rows, keys: VALUE_KEYS, text: valueWords, keep: (v) => flagged.has(v.id), pageSize: 8 });
   const columns = 9;
   const title = table.kind === "facts" ? (table.file ? `Facts of ${table.file}` : "Entered by a person") : capitalized(tableKindText(table.table_kind));
   // the table named on its buttons: its kind, its file, where it starts there and its subject (two tables of one kind in
   // a file, two tables of a card, or one file on two cards)
   const at = table.kind === "table" ? anchorPlace(table.values.find((v) => v.anchor)?.anchor) : "";
-  const tableName = `the ${title.toLowerCase()}${table.file && table.kind === "table" ? ` in ${table.file}` : ""}${at ? `, ${at}` : ""} (${whose})`;
+  // (its first letter in lower case, a name in capitals kept: "the individual PK table", never "pk")
+  const tableName = `the ${title.charAt(0).toLowerCase()}${title.slice(1)}${table.file && table.kind === "table" ? ` in ${table.file}` : ""}${at ? `, ${at}` : ""} (${whose})`;
   return (
     <section className="delivery-table" data-testid={`delivery-table-${table.id}`}>
       <div className="delivery-block-head">
@@ -239,7 +249,7 @@ function ValueTable({ projectId, params, table, flagged, decide, busy, onMapping
             {view.visible.map((v) => (
               <Fragment key={v.id}>
                 <tr data-testid={`delivery-value-${v.id}`} className={[flagged.has(v.id) ? "delivery-flagged" : "", active(v) ? "" : "delivery-set-aside"].join(" ").trim() || undefined}>
-                  <td>{fieldText(v.field)}{flagged.has(v.id) && <div><span className="chip neutral" data-testid={`delivery-flag-${v.id}`}>{flagged.get(v.id)}</span></div>}</td>
+                  <td>{valueField(v.field)}{flagged.has(v.id) && <div><span className="chip neutral" data-testid={`delivery-flag-${v.id}`}>{flagged.get(v.id)}</span></div>}</td>
                   <TupleCells v={v} />
                   <td className="delivery-verbatim">{v.blinded ? "" : v.verbatim ?? ""}</td>
                   <td>{levelText(v.level)}{v.cross_file && <div className="muted fs-12">from another file</div>}
@@ -277,7 +287,7 @@ function ValueTable({ projectId, params, table, flagged, decide, busy, onMapping
           </tbody>
         </table>
       </div>
-      <TableMore view={view} noun="values" testId={`delivery-table-more-${table.id}`} />
+      <TableMore view={view} noun="values" testId={`delivery-table-more-${table.id}`} of={tableName} />
       </>}
     </section>
   );
@@ -426,7 +436,7 @@ function ConflictRow({ conflict, values, decide, busy, params, read, spot }: {
   spot: SpotState;
 }) {
   const [keep, setKeep] = useState("");
-  const where = [fieldText(conflict.field), conflict.time !== null ? `at ${conflict.time}` : "", Object.entries(conflict.labels).map(([r, l]) => `${r} ${l}`).join(" · ")].filter(Boolean).join(" · ");
+  const where = [layoutFieldInText(conflict.field), conflict.time !== null ? `at ${conflict.time}` : "", Object.entries(conflict.labels).map(([r, l]) => `${r} ${l}`).join(" · ")].filter(Boolean).join(" · ");
   return (
     <li className="delivery-check open" data-testid={cardPlace("conflict", params.subject, conflict.id)}>
       <div className="delivery-check-line">
@@ -531,10 +541,13 @@ function RequirementRow({ item, decide, busy, params, read, projectId, vocabular
   // the demographics form open, and what opened it: "individual" (choosing the individual) opens it on the individual's
   // population, "first" on its first field (the form moves the focus there itself once the field can take it)
   const [entering, setEntering] = useState<false | "first" | "individual">(false);
+  // the spot check's ask, passed on to the form: a press while the form is open moves the focus to it again (round 5)
+  const [asked, setAsked] = useState(0);
   const row = useRef<HTMLLIElement>(null);
   useEffect(() => {
     if (!start || read) return;
     setEntering("individual");
+    setAsked(start);
     row.current?.scrollIntoView({ block: "center", behavior: "smooth" });
   }, [start]); // eslint-disable-line react-hooks/exhaustive-deps
   // a disposition is the item's status ("ask_client"); `disposition` is the decision's id
@@ -545,7 +558,9 @@ function RequirementRow({ item, decide, busy, params, read, projectId, vocabular
   // the subject named on the item's form, which every card repeats (final review round 4, A11Y-7)
   const whose = `${params.type} ${subjectLabel}`;
   // closed (saved or cancelled), the form gives the focus back to the button that opens it, as it then reads
-  const close = () => { setEntering(false); focusSoon(`delivery-demographics-open-${params.subject}`, cardPlace("requirement", params.subject, item.req_id)); };
+  // once the form is drawn out (round 5: handed on in the same call, the focus could land on the closing form's own field)
+  const closing = useFocusOnClose(entering, `delivery-demographics-open-${params.subject}`, cardPlace("requirement", params.subject, item.req_id));
+  const close = () => { closing(); setEntering(false); };
   return (
     <li ref={row} className={open ? "delivery-check open" : "delivery-check"} data-testid={cardPlace("requirement", params.subject, item.req_id)}>
       <div className="delivery-check-line">
@@ -578,7 +593,7 @@ function RequirementRow({ item, decide, busy, params, read, projectId, vocabular
       {!read && (open || (demographics && individual !== null)) && entering && (
         <DemographicsForm projectId={projectId} params={params} vocabulary={vocabulary} options={options} onDone={close}
                           testId={`delivery-demographics-${params.subject}`} stated={stated} spot={spot} label={subjectLabel}
-                          focusOn={entering === "individual" ? "individual" : "first"} />
+                          focusOn={entering === "individual" ? "individual" : "first"} asked={asked} />
       )}
       {!read && open && !entering && (
         <Why action="Record it" actionLabel={`Record it: how ${item.label} is settled for ${whose}`}

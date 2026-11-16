@@ -14,7 +14,7 @@
 import type { ReactNode } from "react";
 
 import type { Schema } from "@/lib/api";
-import { engineWords, fieldLabel, placeText, tableKindText, valueWord, whenText, DISPOSITION_WORD } from "@/lib/words";
+import { engineWords, layoutFieldInText, layoutFieldText, placeText, tableKindText, valueWord, whenText, DISPOSITION_WORD } from "@/lib/words";
 
 import { num, plural, type Subject } from "./shared";
 
@@ -43,13 +43,13 @@ export function decisionText(d: Decision, subject: Subject): string {
     }
     case "entry": {
       const verb = d.supersedes ? "Corrected" : "Entered";
-      const field = `${fieldLabel(d.field ?? "a fact")}${timeOf(d)}`;
+      const field = `${layoutFieldText(d.field ?? "a fact")}${timeOf(d)}`;
       if (d.value === null) return `${verb} for ${field} (value withheld)`;
       const value = typeof d.value === "string" ? valueWord(d.value) : typeof d.value === "number" ? num(d.value) : String(d.value);
       return `${verb} ${value}${d.unit ? ` ${d.unit}` : ""} for ${field}`;
     }
     case "choice":
-      return `Kept the ${fieldLabel(d.field ?? "value").toLowerCase()}${timeOf(d)}${file ? ` of ${file}` : ""}; the files' other readings are not used`;
+      return `Kept the ${layoutFieldInText(d.field ?? "value")}${timeOf(d)}${file ? ` of ${file}` : ""}; the files' other readings are not used`;
     case "link":
       return `${file || "A file"} is ${d.confirmed ? "" : "not "}about this ${kind}`;
     case "assign": {

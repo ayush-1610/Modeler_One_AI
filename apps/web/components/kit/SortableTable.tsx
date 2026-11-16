@@ -41,8 +41,9 @@ export function TableFilter<T>({ view, placeholder, label, testId, children }: {
 /** Under the table (outside it, so a row count of the table stays the rows): how many are shown, how many need
  *  attention and are always shown, and "Show N more" / "Show all". Focus stays on a button while it is there; when the
  *  last page is shown and the buttons go, it moves to the count line, which stays (it is rendered whenever there were
- *  more rows to show). */
-export function TableMore<T>({ view, noun, testId }: { view: TableView<T>; noun: string; testId?: string }) {
+ *  more rows to show). `of`: the table in words, on the buttons' names, where a page shows several such tables ("Show 8
+ *  more values of the individual PK table in messy-delivery.xlsx…"; final review round 5, A11Y-7). */
+export function TableMore<T>({ view, noun, testId, of }: { view: TableView<T>; noun: string; testId?: string; of?: string }) {
   const here = useRef<HTMLParagraphElement>(null);
   // once there were more rows than shown, the count line stays: the place focus goes when the buttons go
   const [paged, setPaged] = useState(false);
@@ -66,10 +67,12 @@ export function TableMore<T>({ view, noun, testId }: { view: TableView<T>; noun:
       </span>
       {view.remaining > 0 && (
         <>
-          <button type="button" className="btn tiny" onClick={keepFocus(view.more, step >= view.remaining)} data-testid={testId && `${testId}-next`}>
+          <button type="button" className="btn tiny" onClick={keepFocus(view.more, step >= view.remaining)} data-testid={testId && `${testId}-next`}
+                  aria-label={of ? `Show ${step} more ${noun} of ${of}` : undefined}>
             Show {step} more</button>
           {view.remaining > step && (
-            <button type="button" className="btn tiny" onClick={keepFocus(view.all, true)} data-testid={testId && `${testId}-all`}>
+            <button type="button" className="btn tiny" onClick={keepFocus(view.all, true)} data-testid={testId && `${testId}-all`}
+                    aria-label={of ? `Show all ${view.matched} ${noun} of ${of}` : undefined}>
               Show all {view.matched}</button>
           )}
         </>

@@ -157,33 +157,52 @@ html:has(.area-bar) { scroll-padding-top: 76px; }
 /* the Client files area (plan 2026-11-14 slice 1): its head, then one row per file, which opens on its sheets */
 .files-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
 .files-head h2 { margin-right: auto; }
-.files-table td { vertical-align: top; }
+/* the files table's own rows and cells only (child combinators): an open file's detail holds tables of its own (its
+   sheets, its tables and texts), which these rules must not reach (final review round 5, OWN-16) */
+.files-table > tbody > tr > td { vertical-align: top; }
 .files-table .file-tag { margin: 0; }
 .files-name { display: inline-flex; gap: 6px; align-items: baseline; min-height: 28px; padding: 4px 0; border: 0; background: none; font: inherit;
   font-weight: 600; text-align: left; overflow-wrap: break-word; color: var(--ink); cursor: pointer; }
-.files-table td:first-child { min-width: 14ch; }
+.files-table > tbody > tr > td:first-child { min-width: 14ch; }
 .files-name:hover { color: var(--brand-ink); text-decoration: underline; }
 .files-caret { color: var(--ink-dim); font-size: 11px; }
-.files-table tr.open > td { border-bottom-color: transparent; }
-.files-table tr.files-detail > td { padding: 0 8px 12px 22px; background: var(--surface); }
+.files-table > tbody > tr.open > td { border-bottom-color: transparent; }
+.files-table > tbody > tr.files-detail > td { padding: 0 8px 12px 22px; background: var(--surface); }
 .files-detail .file-card { margin: 0; }
+/* an open file's own tables fit the file's box: the kit's `.table-scroll table { min-width: 560px }` is for a table in a
+   scroll box of its own, and it reached them through the files table's box, which kept the file's sheet table 560 px wide
+   on a phone and cut its long lines (final review round 5, OWN-16). A table in its own scroll box there (a values table,
+   the sheet grid) keeps its width and scrolls in that box */
+.files-table .files-detail table:not(.files-detail .table-scroll table, .sheet-grid table) { min-width: 0; }
 /* on a phone each file is a block, its parts one under the other with their column's name, so a file's name breaks
    between its words, never inside one, and no column is cut off (final review OWN-16). After the rules above and as
    specific as the kit's `.table-scroll table { min-width: 560px }`, which kept each block 560 px wide in a 358 px box
-   and cut its long lines (final review round 4) */
+   and cut its long lines (final review round 4); the files table's own rows only, never the tables of an open file
+   (round 5): those stay tables, each scrolling sideways in its own box when it is wider than the screen */
 @media (max-width: 600px) {
-  .files-table, .table-scroll table.files-table, .files-table tbody, .files-table tr, .files-table td,
-  .files-table td:first-child { display: block; width: 100%; min-width: 0; }
-  .files-table thead { display: none; }
-  .files-table tr:not(.files-detail) { padding: 8px 0; border-bottom: 1px solid var(--line-soft, var(--line)); }
-  .files-table tr:not(.files-detail) > td { padding: 2px 0; border: 0; }
-  .files-table td[data-label]::before { content: attr(data-label); display: block; font-size: 12px; font-weight: 600; color: var(--ink-dim); }
-  .files-table tr.files-detail > td { padding: 0 0 12px; }
+  .files-table, .table-scroll table.files-table, .files-table > tbody, .files-table > tbody > tr, .files-table > tbody > tr > td,
+  .files-table > tbody > tr > td:first-child { display: block; width: 100%; min-width: 0; }
+  .files-table > thead { display: none; }
+  .files-table > tbody > tr:not(.files-detail) { padding: 8px 0; border-bottom: 1px solid var(--line-soft, var(--line)); }
+  .files-table > tbody > tr:not(.files-detail) > td { padding: 2px 0; border: 0; }
+  .files-table > tbody > tr > td[data-label]::before { content: attr(data-label); display: block; font-size: 12px; font-weight: 600; color: var(--ink-dim); }
+  .files-table > tbody > tr.files-detail > td { padding: 0 0 12px; }
+  .files-table .files-detail table:not(.files-detail .table-scroll table, .sheet-grid table) { display: block; max-width: 100%; overflow-x: auto; }
 }
 .client-files h3 { margin: 4px 0 6px; font-size: 15px; color: var(--ink); }
 .file-card { scroll-margin-top: 80px; }
 /* on a phone a file's sheet table scrolls inside its card, never the page */
 @media (max-width: 900px) { .file-card > table { display: block; overflow-x: auto; } }
+/* on a phone each sheet of a file is a block, its parts under their column's name, as the files are above: its four
+   columns needed 550 px, so its state and its button were off the screen (final review round 5, OWN-16) */
+@media (max-width: 600px) {
+  .file-card > table.sheet-table, .sheet-table > tbody, .sheet-table > tbody > tr, .sheet-table > tbody > tr > td { display: block; width: 100%; min-width: 0; }
+  .sheet-table > thead { display: none; }
+  .sheet-table > tbody > tr { padding: 6px 0; border-bottom: 1px solid var(--line-soft, var(--line)); }
+  .sheet-table > tbody > tr > td { padding: 2px 0; border: 0; text-align: left; }
+  .sheet-table > tbody > tr > td[data-label]::before { content: attr(data-label); display: block; font-size: 12px; font-weight: 600; color: var(--ink-dim); }
+  .sheet-table .chip { white-space: normal; }
+}
 /* To do (plan 2026-11-14 slice 1): what is still missing to run, by area, full width; then the checks, folded */
 .todo-area + .todo-area { margin-top: 12px; }
 .todo-area h3 { margin: 0 0 6px; font-size: 14px; color: var(--ink); }

@@ -5,8 +5,11 @@
 // bar never over the row the focus is on, and in view on a phone; a refusal said beside the field it is about, again on
 // each press; each area under a heading of its own; repeated buttons named with what they are about, with every study
 // card open at once and on the client-data template's project too; the demographics form taking the focus however it
-// opens on a fresh page (round 4); Client files on a phone; a message cleared whichever way the area changes. The focus
-// after the signing step-up is checked where a study is signed, in delivery.spec.ts. Software test data, never a model.
+// opens on a fresh page (round 4), again each time it is asked for while open, and a save of several fields moving the
+// focus once (round 5); Client files on a phone, each file opened too (round 5); a message cleared whichever way the area
+// changes; with every values table, its pages, every list of more checks and a spot check open, no two controls named
+// alike and no field's id in a name (round 5). The focus after the signing step-up is checked where a study is signed,
+// in delivery.spec.ts. Software test data, never a model.
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, readFileSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -375,8 +378,54 @@ test("the demographics form takes the focus on its first field however it opens,
   await expect(first).toBeVisible();
   await first.focus();
   await page.keyboard.press("Enter");
-  await expect(card.getByTestId(`delivery-demographics-${choose}-individual_population`)).toBeFocused();
+  const individualField = card.getByTestId(`delivery-demographics-${choose}-individual_population`);
+  await expect(individualField).toBeFocused();
   expect(await focused(page)).not.toBe("BODY");
+  // pressed again while the form is open (the person went on to another field, then back to the link): the focus goes
+  // to the form again, every time, not only the first (final review round 5: it only scrolled)
+  for (let press = 0; press < 2; press += 1) {
+    await card.getByTestId(`delivery-demographics-${choose}-weight_mean_kg`).focus();
+    await first.focus();
+    await page.keyboard.press("Enter");
+    await expect(individualField).toBeFocused();
+  }
+  // the form opened by the row's own "Choose the individual…", then the spot check's link: the same
+  await card.getByTestId(`delivery-demographics-${choose}-reason`).getByRole("button", { name: "Cancel" }).click();
+  await expect(card.getByTestId(`delivery-demographics-open-${choose}`)).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(individualField).toBeFocused();
+  await first.focus();
+  await expect(first).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(individualField).toBeFocused();
+
+  // a save of several fields on Populations: the focus moves once, to where the work goes on (the study's "Choose the
+  // individual…"), never back to the population on each field written (round 5: the form was remounted three times)
+  await page.goto(`/projects/${projectId}/inputs?tab=individuals`);
+  const opener = page.getByTestId(`individual-enter-open-${enter}`);
+  await expect(opener).toBeEnabled();
+  await opener.click();
+  const form = `individual-enter-${enter}`;
+  await expect(page.getByTestId(`${form}-population`)).toBeFocused();
+  await page.getByTestId(`${form}-population`).selectOption({ index: 1 });
+  await page.getByTestId(`${form}-age_mean`).fill("34");
+  await page.getByTestId(`${form}-weight_mean_kg`).fill("70");
+  await page.getByTestId(`${form}-why`).fill("from the study report");
+  await page.getByTestId(`${form}-submit`).focus();
+  await page.evaluate(() => {
+    const moves: string[] = [];
+    (window as unknown as { focusMoves: string[] }).focusMoves = moves;
+    document.addEventListener("focusin", (e) => moves.push((e.target as HTMLElement).getAttribute("data-testid") ?? (e.target as HTMLElement).tagName), true);
+  });
+  let entered = 0;
+  page.on("request", (r) => { if (r.method() === "POST" && r.url().endsWith(`/delivery/subjects/study/${enter}:enter`)) entered += 1; });
+  await page.keyboard.press("Enter");
+  await expect(page.getByTestId(form)).toHaveCount(0, { timeout: 20_000 });
+  await expect(opener).toBeFocused();
+  await expect(opener).toHaveText("Choose the individual…");
+  expect(entered, "one entry per field").toBe(3);
+  await page.waitForTimeout(500);
+  expect(await page.evaluate(() => (window as unknown as { focusMoves: string[] }).focusMoves)).toEqual([`individual-enter-open-${enter}`]);
 });
 
 test("on a phone each file of Client files fits its box; a message of one area is cleared whichever way the area changes", async ({ page }) => {
@@ -399,6 +448,52 @@ test("on a phone each file of Client files fits its box; a message of one area i
   expect(fit.scroll, "the box scrolls sideways").toBeLessThanOrEqual(fit.box + 1);
   expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1)).toBe(false);
   await page.screenshot({ path: test.info().outputPath("phone-files.png"), fullPage: true });
+
+  // each file opened, with its reading's tables and texts shown: nothing of it passes the box, but inside a scroll box of
+  // its own that fits (a values table, the sheet grid), the box does not scroll sideways, nor does the page, and no line
+  // is clipped (final review round 5: the file's sheet table kept the kit's 560 px and the files' phone rules, so its long
+  // lines were cut whenever 7 of the 9 files was open)
+  const toggles = table.locator(":scope > tbody > tr > td .files-name");
+  const count = await toggles.count();
+  expect(count).toBe(9);
+  for (let i = 0; i < count; i += 1) {
+    const name = (await toggles.nth(i).textContent())!.replace(/^[▸▾]/, "");
+    await toggles.nth(i).click();
+    const detail = table.locator("tr.files-detail");
+    await expect(detail).toBeVisible();
+    await page.waitForLoadState("networkidle");
+    const reading = detail.getByRole("button", { name: /^Show its tables and texts/ });
+    if (await reading.count()) { await reading.first().click(); await page.waitForLoadState("networkidle"); }
+    const open = await detail.evaluate((det) => {
+      const box = det.closest(".table-scroll") as HTMLElement;
+      const right = box.getBoundingClientRect().right;
+      // a scroll box of its own inside the files box, that fits it: what is in it scrolls there, nothing is cut
+      const ownScroll = (el: Element) => {
+        for (let p = el.parentElement; p && p !== box; p = p.parentElement) {
+          if (/(auto|scroll)/.test(getComputedStyle(p).overflowX) && p.getBoundingClientRect().right <= right + 1) return true;
+        }
+        return false;
+      };
+      const past: string[] = [], clipped: string[] = [];
+      for (const el of det.querySelectorAll<HTMLElement>("*")) {
+        const r = el.getBoundingClientRect();
+        if (!r.width || ownScroll(el)) continue;
+        if (r.right > right + 1) past.push(`${el.tagName} “${(el.textContent ?? "").trim().slice(0, 40)}”`);
+        if (/(hidden|clip)/.test(getComputedStyle(el).overflowX) && el.scrollWidth > el.clientWidth + 1 && !el.classList.contains("sr-only")) {
+          clipped.push(`${el.tagName} “${(el.textContent ?? "").trim().slice(0, 40)}”`);
+        }
+      }
+      return { past, clipped, box: box.clientWidth, scroll: box.scrollWidth,
+               page: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1 };
+    });
+    expect(open.past, `${name}: past the box's edge`).toEqual([]);
+    expect(open.clipped, `${name}: lines clipped`).toEqual([]);
+    expect(open.scroll, `${name}: the box scrolls sideways`).toBeLessThanOrEqual(open.box + 1);
+    expect(open.page, `${name}: the page scrolls sideways`).toBe(false);
+    if (name === "Dissolution RLD pH 6.8.xlsx") await detail.screenshot({ path: test.info().outputPath("phone-file-open.png") });
+    await toggles.nth(i).click();
+    await expect(table.locator("tr.files-detail")).toHaveCount(0);
+  }
 
   // a message said in Client files (a refusal: the request is cut here, nothing is stored) is not carried to To do when
   // the status line's count opens it (final review round 4: only the area bar and a To do row cleared it)
@@ -456,4 +551,88 @@ test("the client-data template's project: with every study card open, no two con
     found.push(...(await repeated(page.locator(`#inputs-panel-${tab}`))).map((x) => `${tab}: ${x}`));
   }
   expect(found).toEqual([]);
+});
+
+/** The names Chromium gives the panel's buttons, links and form fields (its ARIA snapshot, not a guess from the markup),
+ *  each with how many controls carry it. */
+async function computedNames(panel: Locator): Promise<Map<string, number>> {
+  const out = new Map<string, number>();
+  const control = /^\s*- (button|link|combobox|textbox|searchbox|spinbutton|checkbox|radio|switch|listbox|slider)(?: "((?:[^"\\]|\\.)*)")?/;
+  for (const line of (await panel.ariaSnapshot()).split("\n")) {
+    const m = control.exec(line);
+    if (!m) continue;
+    const key = `${m[1]} “${m[2] ?? ""}”`;
+    out.set(key, (out.get(key) ?? 0) + 1);
+  }
+  return out;
+}
+/** The controls that repeat by design, each inside the table or the question that names it: a values table's sort
+ *  buttons (under the table's caption) and the spot check's two answers for each value (under the value's question). */
+const byDesign = (panel: Locator) => panel.evaluate((root) => {
+  const out: Record<string, number> = {};
+  const add = (key: string) => { out[key] = (out[key] ?? 0) + 1; };
+  for (const b of root.querySelectorAll<HTMLElement>("button.sort-th")) if (b.checkVisibility()) add(`button “${(b.textContent ?? "").trim()}”`);
+  for (const r of root.querySelectorAll<HTMLInputElement>(".delivery-tick input[type=radio]")) {
+    if (r.checkVisibility()) add(`radio “${(r.closest("label")?.textContent ?? "").trim()}”`);
+  }
+  return out;
+});
+// an id of the intake vocabulary in a name: a field ("excretion.amount", "interval_start_h"), a statistic or a table's kind;
+// a file's own name is left out of the test (a sheet's name is the client's, as written)
+const RAW_FIELD = new RegExp([
+  String.raw`\b(?:excretion|composition|pk|relation|link|phys|elim)\.[A-Za-z_]`,
+  String.raw`\b(?:interval_(?:start|end)_h|percent_(?:dissolved|female)|study_id|(?:product|analyte)_role|molecular_weight|food_state|dose_unit)\b`,
+  String.raw`\b(?:individual_(?:population|sex)|(?:age|weight|height)_[a-z_]+|n_(?:evaluable|female|doses)|(?:arithmetic|geometric)_mean)\b`,
+  String.raw`\bpk_(?:individual|summary|parameters)\b`,
+].join("|"));
+
+test("with every values table, its pages, every list of more checks and a spot check open, no two controls share a name and none spells a field's id", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const found: string[] = [];
+  const seen: Record<string, number> = {};
+  for (const tab of ["studies", "formulations"] as const) {
+    await page.goto(`/projects/${projectId}/inputs?tab=${tab}`);
+    const panel = page.locator(`#inputs-panel-${tab}`);
+    await expect(panel).toBeVisible();
+    await page.waitForLoadState("networkidle");
+    const closed = panel.locator('[aria-expanded="false"][data-testid^="delivery-subject-open-"], [aria-expanded="false"][data-testid^="toggle-"]');
+    for (let round = 0; round < 4 && await closed.count(); round += 1) {
+      for (let n = await closed.count(); n > 0; n -= 1) await closed.first().click();
+    }
+    await page.waitForLoadState("networkidle");
+    await expect(panel.locator('[data-testid^="delivery-card-reading-"]')).toHaveCount(0);
+    if (tab === "studies") {
+      // a spot check drawn, its values shown with their two answers; two of them answered "does not match", so their
+      // "what differs" fields are there too (final review round 5: its source buttons repeated, by field id)
+      const draw = panel.locator('[data-testid^="spot-draw-"]').filter({ hasText: "Start the spot check" }).first();
+      await expect(draw).toBeVisible();
+      await draw.click();
+      const spot = panel.locator('[data-testid^="spot-values-"]');
+      await expect(spot).toHaveCount(1);
+      expect(await spot.locator('[data-testid^="spot-source-"]').count(), "values drawn with a source").toBeGreaterThan(3);
+      for (const wrong of (await spot.locator('[data-testid^="spot-wrong-"]').all()).slice(0, 2)) await wrong.check();
+      await expect(spot.locator('[data-testid^="spot-note-"]')).toHaveCount(2);
+    }
+    // every folded values table shown, every closed one opened, every list of more checks opened: each table's pager
+    // ("Show 8 more", "Show all N") is there with them
+    for (const sel of ['[data-testid^="delivery-table-show-"]', '[data-testid^="delivery-table-toggle-"][aria-expanded="false"]',
+                       '[data-testid^="delivery-checks-more-"][aria-expanded="false"]']) {
+      for (let n = await panel.locator(sel).count(); n > 0; n -= 1) await panel.locator(sel).first().click();
+    }
+    await page.waitForLoadState("networkidle");
+    seen[`${tab} tables`] = await panel.locator("table.delivery-values").count();
+    seen[`${tab} pagers`] = await panel.locator('[data-testid^="delivery-table-more-"][data-testid$="-next"]').count();
+    const names = await computedNames(panel);
+    const designed = await byDesign(panel);
+    for (const [name, n] of names) {
+      if (n > 1 && designed[name] !== n) found.push(`${tab}: ${name} ×${n}`);
+      if (RAW_FIELD.test(name.replace(/[^\s“]+\.(?:xlsx|xls|csv|pdf|docx?)\b/g, ""))) found.push(`${tab}: a field's id in ${name}`);
+    }
+    // the repeats left by design are only these, each inside its own table or question
+    for (const name of Object.keys(designed)) expect(name).toMatch(/^(button “(Field|Value|Time|Read by)”|radio “(matches|does not match)”)$/);
+  }
+  expect(found).toEqual([]);
+  // the cards had values tables, paged ones among them, and a spot check (its table is one of them)
+  expect(seen["studies tables"], "values tables shown on Clinical studies").toBeGreaterThan(3);
+  expect(seen["studies pagers"], "values tables with more than a page").toBeGreaterThan(0);
 });

@@ -91,6 +91,59 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
   timestamps out; inputs-todo: the offers' budget above. Software test data (the made-up Exampleamide; the stub engine,
   a software fixture). No API change; no locked file; no SME rule.
 
+### Fixed — final review round 5, accessibility, phone and names (round 4's a11y-cards skeptic: OWN-16 with a file open, A11Y-7's remainder, the demographics form's focus; plan 2026-11-14 §5)
+- **Client files on a phone, with a file open (OWN-16).** The phone rules' descendant selectors (`.files-table tbody`,
+  `tr`, `td`, `td:first-child`) and the kit's `.table-scroll table { min-width: 560px }` reached the tables inside an open
+  file: its sheet table's cells were made blocks 560 px wide, the files box scrolled sideways to 573 px in 356 px and long
+  lines ("Dissolution of Reference product 50 mg (RLD), Batch No. B5.5…") were cut, whenever 7 of the 9 files of the
+  owner's project was open. The phone rules now reach only the files table's own rows (child combinators, inputs.css);
+  an open file's tables are no longer held at 560 px (one in a scroll box of its own there, the reading's tables and
+  texts or the sheet grid, keeps its width and scrolls in that box); on a phone each sheet of a file is a block with its
+  column's names, as the files are (its four columns needed 550 px: its state and button were off the screen), and a
+  PDF's page lines are read whole on a line of their own (a one-line quote kept about 20 letters); the reading's tables
+  and texts say what each is in words ("individual PK table", "text"; `words.regionKindText`), not "table, pk individual"
+  or "prose". Checked at 390 px on
+  copies of the owner's projects (b4e7, 9 files; eb47, 3), each file opened with its reading's tables and texts and its
+  first sheet's reader: nothing past the box but inside a scroll box of its own that fits, no sideways page scroll, no
+  line clipped. Impact: a file opened on a phone reads whole.
+- **No two controls named alike with the values tables, their pages, the lists of more checks and a spot check open, and
+  no field's id in a name (A11Y-7's remainder).** A value's Show and Correct, the spot check's source button, its
+  question and its "what differs" field are named by the value's field in words (the intake vocabulary's,
+  `words.layoutFieldText`: "the amount excreted", "the Cmax (PK parameter)", never `excretion.amount`), its time with its
+  unit, its labels, the conditions it is read under (`words.conditionsInWords`: "interval 0 to 4 h"; 230-23's four urine
+  intervals shared one name), its statistic and its file (`words.valueAbout`), and two that would still read alike by
+  where each is in its file (`words.distinctNames`, `anchorCell`). The spot check's are said as the spot check's ("…
+  (spot check of study 230-23)"), apart from the same value's Show in its table. A values table's pager names its table
+  ("Show 8 more values of the individual PK table in messy-delivery.xlsx, sheet Fasting from cell B4 (study 230-23)";
+  the kit's `TableMore` takes `of`), and a table's name keeps "PK" in capitals. The values tables' Field column, the spot
+  check's and the values to link in To do say the field in words too, and the conditions under a value's labels read
+  "interval 0 to 4 h", not "interval start h 0 · interval end h 4"; a table's filter finds a value by those words; a
+  card's list of decisions says a corrected or kept value's field so too ("Kept the amount excreted …"). With
+  every product card open on Products and dissolution, "Use as release" is named by its profile, "Confirm its data first"
+  and "Use this profile as the release" by their product. Left by design: a values table's sort buttons (Field, Value,
+  Time, Read by) and the spot check's two answers for each value, inside the table or the question that names them.
+  Impact: a screen reader's list of buttons and fields tells each one apart, in words.
+- **The demographics form's focus, every time (A11Y-5's remainders).** (a) The spot check's "Choose the individual…"
+  pressed while the form is open (opened by it, or by the row's own "Choose the individual…") only scrolled: the form
+  took the focus once per mount. Each ask now moves the focus to the individual's PK-Sim population again
+  (`DemographicsForm` `asked`), and what was typed stays. (b) A save of several fields on Populations remounted the form
+  after each field written (it was keyed by what is stated), so the focus jumped back to the population on each; and a
+  closing form handed the focus on in the same call as its close, so it could land on the closing form's own field and
+  fall to the page when the form went (230-23 on a copy of the owner's project, each time). The form is no longer keyed
+  (its openers wait for the card, it closes on its save, and a failed save keeps what was typed), and a form that closes
+  hands the focus on once it is drawn out (`kit/focus.ts` `useFocusOnClose`, on Populations and on the card's required
+  item). Impact: the focus moves once, to where the work goes on ("Choose the individual…").
+- **Records corrected in place:** round 4's entry below said no two controls shared a name and that each Client files
+  block fitted its box on a phone; plan §5 round 4 said only the tick radios and the sort buttons repeat by design (the
+  scan had not opened the values tables, their pages or a spot check).
+- No API change, no locked file, SME rule or boundary exception. Tests: `inputs-work.spec.ts` (`valueAbout`,
+  `conditionsInWords`, `distinctNames`, `anchorCell`, `layoutFieldInText`, `regionKindText`); `inputs-a11y.spec.ts`
+  (the spot check's link pressed again with the form open, from both openers; a save of three fields on Populations
+  moving the focus once, to "Choose the individual…"; every file of Client files opened at 390 px with its reading's
+  tables shown; a new scan of Chromium's computed names on Clinical studies and Products with every card, values table,
+  page, list of more checks and a spot check open, two of its answers "does not match": no repeat but the sort buttons
+  and the answers, no field's id). Software test data on the stub engine: none of it is PBPK evidence.
+
 ### Fixed — final review round 4, downstream and blinding (round 3's "add a product" regression, blinding scope b, the gap 11 deviation; plan 2026-11-14 §5) — science-adjacent
 - **Round 3's regression: the step bar and Review & sign named "add a product" whatever the project held.** On the
   owner's review project (exampleamide-pbpk-7bb1: four products, two with dissolution profiles, "release not set") the
@@ -154,7 +207,9 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
   first field a person fills, or, opened to choose the individual ("Choose the individual…" on a card, on Populations and
   on the spot check), on the individual's PK-Sim population; the openers say which. "Enter another fact…" puts the focus
   on its Fact field (the reason field also had `autoFocus` and, drawn later, took it); a value's "Correct" on its Value.
-  Impact: a keyboard or screen-reader user lands in the form they opened, on a fresh page too.
+  Impact: a keyboard or screen-reader user lands in the form they opened, on a fresh page too. *(Round 5: not when the
+  spot check's link was pressed again with the form open, and a save of several fields on Populations moved the focus
+  back to the population on each field written; both fixed in round 5, above.)*
 - **No two controls share a name, with every study card open and on the template project (A11Y-7).** Named with what
   tells them apart, the words on them first: a stated fact by its value, its labels, its file and its study ("Correct
   Analyte Exampleamide-M1, from messy-delivery.xlsx (study 230-23)": 230-23's two analytes had one name); a card's facts form
@@ -167,11 +222,15 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
   "Leave it out…" and its form by the dataset's source, a sheet-form item's peek and chart (Linear/Log) by its group and
   its file (`words.sourceNamed`), a card's "Read from <file>" link by its study; the Clinical studies chips ("All",
   "Used") by their list; a compound row's "Sources (n)" by its parameter. Scanned on the review copies (both projects,
-  every card open: none left). Impact: a screen reader's list of buttons and fields tells each one apart.
+  every card open: none left). Impact: a screen reader's list of buttons and fields tells each one apart. *(Corrected in
+  round 5: not all. With the values tables shown, their pages, the lists of more checks and a spot check open, a urine
+  interval's Show and Correct, the spot check's source buttons and the pagers still repeated, and their names spelled
+  the field's id; fixed in round 5, above.)*
 - **Client files on a phone, and the area's message (OWN-16).** The kit's `.table-scroll table { min-width: 560px }`
   outranked the phone rule's `.files-table { min-width: 0 }`, so each file's block was 560 px wide in a 358 px box and its
   long lines (the area proposal) were cut; the phone rule now comes after and is as specific (inputs.css), and each block
-  fits its box. A message said in one area is cleared on every change of area, by one rule on the area shown (a
+  fits its box *(corrected in round 5: with its files closed; a file opened still showed its sheet table 560 px wide with
+  its long lines cut, fixed in round 5, above)*. A message said in one area is cleared on every change of area, by one rule on the area shown (a
   status-line count opening To do kept it; the area bar and a To do row cleared it).
 - **The spot check said honestly before every card decision that draws it again (the cards skeptic's note 3).** Checked
   against the API's own rule (`intake_review._stale`: the subject's digest over its active values' id, value, unit and
