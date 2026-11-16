@@ -8,6 +8,7 @@ import { Card } from "@/components/ui";
 import { send, type Envelope, type Schema } from "@/lib/api";
 import { TAG_KINDS, TAG_LABELS, type TagKind } from "@/lib/fileTags";
 import type { After } from "@/lib/hooks";
+import { templateIssueText } from "@/lib/words";
 
 import { CleaningRecord } from "./CleaningRecord";
 import { SheetReader, type Study } from "./SheetReader";
@@ -240,7 +241,7 @@ function FileCard({ projectId, file, agents, running, agentReading, act, onRetag
         </table>
       )}
       {file.issues.length > 0 && (
-        <ul className="flags" aria-label="Problems found">{file.issues.map((i, k) => <li key={k}><code>{i.location}</code> {i.message}</li>)}</ul>
+        <ul className="flags" aria-label="Problems found">{file.issues.map((i, k) => <li key={k}>{templateIssueText(i.location, i.message)}</li>)}</ul>
       )}
       {file.brief_mismatches.length > 0 && (
         <div className="banner warn mt-6">

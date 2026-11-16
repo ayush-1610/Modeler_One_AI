@@ -425,6 +425,12 @@ def test_a_studys_card_shows_exceptions_first_and_each_decision_is_one_audited_l
     assert severities == sorted(severities, key=("fail", "warn", "info").index) and severities[0] == "fail"
     assert {c["code"] for c in card["checks"] if c["severity"] == "fail"} == {
         "LANDING_FIELD_MISSING", "ABOVE_RANGE", "REQUIRED_ITEM_UNDISPOSED"}
+    # the field a check names, and a unit check's unit, apart from its message: the page says them in words (round 6)
+    above = next(c for c in card["checks"] if c["code"] == "ABOVE_RANGE")
+    assert (above["field"], above["unit"]) == ("concentration", None) and above["message"].startswith("concentration: ")
+    assert "n" in {c["field"] for c in card["checks"] if c["code"] == "LANDING_FIELD_MISSING"}
+    unchecked = [c for c in card["checks"] if c["code"] == "UNIT_NOT_CHECKED"]
+    assert unchecked and all(c["message"].startswith(f"{c['field']}: values in {c['unit']!r}") for c in unchecked)
     assert [(r["req_id"], r["status"]) for r in card["requirements"]] == [
         ("REQ-sys.demographics", "missing"), ("REQ-obs.bioanalytical", "found")]
     assert card["conflicts"] == [] and card["links"] == [] and card["mappings"] == []
@@ -1322,6 +1328,7 @@ def test_a_blinded_studys_values_blq_counts_and_source_cells_are_withheld_on_eve
         assert row["field"] and row["anchor"] is not None or row["method"] == "person"      # its place and field stay
     assert any(row["time"] is not None and row["unit"] == "ng/mL" for row in rows)           # times and units stay
     assert all(c["message"] is None and c["values"] == [] for c in card["checks"])
+    assert all(c["field"] is None and c["unit"] is None for c in card["checks"])               # as its message (round 6)
     assert "BLQ_PRESENT" in {c["code"] for c in card["checks"]}                               # that a check ran is shown
     assert card["held"] is None and card["landing_problem"] is None
     assert "BLINDED" in [b["code"] for b in card["blockers"]]

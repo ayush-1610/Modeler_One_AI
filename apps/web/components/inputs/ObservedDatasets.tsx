@@ -11,7 +11,7 @@ import { narrow, send, upload, type Narrow, type Schema } from "@/lib/api";
 import type { DocumentView } from "@/lib/brief";
 import { useResource } from "@/lib/hooks";
 import { useTableView } from "@/lib/tableView";
-import { locatorText } from "@/lib/words";
+import { datasetHolds, datasetNames, datasetSource, lowerFirst, pkParamText, valueWord } from "@/lib/words";
 
 import { MODEL, SEARCH, datasetAfter, evidenceAfter } from "./after";
 import type { Run } from "./InputsTodo";
@@ -30,6 +30,12 @@ type View = Narrow<Pick<Schema<"EvidencePage">, "agents" | "running" | "datasets
 const ORIGIN_CHIP: Record<string, string> = {
   CLIENT: "low", LITERATURE: "low", FIGURE_DIGITIZED: "medium", OSP_LIBRARY: "low", SYNTHETIC: "high", ILLUSTRATIVE: "high",
 };
+/** Where a dataset comes from, in words (its `origin`). */
+const ORIGIN_WORD: Record<string, string> = {
+  CLIENT: "client", LITERATURE: "literature", FIGURE_DIGITIZED: "digitized figure", OSP_LIBRARY: "OSP library", SYNTHETIC: "synthetic",
+  ILLUSTRATIVE: "illustrative",
+};
+const originWord = (origin: string) => ORIGIN_WORD[origin] ?? origin.toLowerCase().replace(/_/g, " ");
 
 /** Where a dataset stands: in the model, left out with its reason, a digitized figure waiting for its overlay check, or
  *  the client's data waiting for a person to confirm its study (not in the model until then:
@@ -65,6 +71,7 @@ function DatasetList({ datasets, projectId, run, unpromised }: { datasets: Liste
     keep: (d) => Boolean(d.blinded) || standing(d)[1] === "overlay to check", pin: (d) => touched.has(d.id),
   });
   const touch = (id: string) => { if (!touched.has(id)) setTouched(new Set([...touched, id])); };
+  const names = namesOf(datasets);
   return (
     <>
       {datasets.length > 10 && (
@@ -79,7 +86,8 @@ function DatasetList({ datasets, projectId, run, unpromised }: { datasets: Liste
       )}
       <div className="paged-cards">
         {view.visible.map((d) => (
-          <div key={d.id} onInput={() => touch(d.id)}><DatasetCard d={d} projectId={projectId} run={run} unpromised={unpromisedOf(d, unpromised)} /></div>
+          <div key={d.id} onInput={() => touch(d.id)}><DatasetCard d={d} name={names.get(d.id) ?? d.id} projectId={projectId} run={run}
+                                                                unpromised={unpromisedOf(d, unpromised)} /></div>
         ))}
       </div>
       {view.visible.length === 0 && <p className="muted table-none">No dataset matches this filter.</p>}
@@ -88,20 +96,30 @@ function DatasetList({ datasets, projectId, run, unpromised }: { datasets: Liste
   );
 }
 
+/** Each dataset's name, for the controls repeated on its line or card (Show the points, Leave it out…, the reveal and the
+ *  overlay check): its study, what it holds (analyte, matrix, series) and where it was read from (`words.datasetNames`).
+ *  230-23's parent and metabolite, read from one sheet, were named alike (final review round 6). */
+const namesOf = (datasets: Listed[]) => {
+  const names = datasetNames(datasets);
+  return new Map(datasets.map((d, i) => [d.id, names[i]]));
+};
+
 /** What the client's reconciliation says of a dataset its data plan did not promise ("dataset CL-01 (ds-…): delivered,
  *  not promised by the data plan", by the dataset's id), if anything. */
 const unpromisedOf = (d: Listed, lines: string[]) => lines.find((u) => u.includes(`(${d.id})`)) ?? null;
 
 /** Leave a dataset out of the model, or take it back, with the reason: one small button, the reason asked only when it is
  *  pressed. */
-function LeaveOut({ d, projectId, run, onProblem }: { d: Listed; projectId: string; run: Run; onProblem: (p: string | null) => void }) {
+function LeaveOut({ d, name: which, projectId, run, onProblem }: {
+  d: Listed; projectId: string; run: Run; onProblem: (p: string | null) => void;
+  /** the dataset's name (`namesOf`): a study has a dataset per file it is read from (EX-101's sheet and its protocol,
+   *  final review round 4) and per analyte (230-23's parent and metabolite, round 6) */
+  name: string;
+}) {
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState("");
   const out = d.state === "REJECTED";
   const id = String(d.study.study_id);
-  // a study has a dataset per file it is read from (EX-101's sheet and its protocol): each named by its source too
-  // (final review round 4, A11Y-7)
-  const which = `${id} · ${sourceText(d)}`;
   if (!open) {
     return <button type="button" className="link-btn" onClick={() => setOpen(true)} data-testid={`dataset-leave-${d.id}`}
                    aria-label={out ? `Use it again… the dataset of ${which}` : `Leave it out… the dataset of ${which}`}>{out ? "Use it again…" : "Leave it out…"}</button>;
@@ -128,8 +146,8 @@ function LeaveOut({ d, projectId, run, onProblem }: { d: Listed; projectId: stri
  *  the audit trail keeps. Why it is blinded is said, in the words every withheld study is (round 5: "blinded until the MAP
  *  is signed" said nothing of why), the plan's or the split's part leading to the studies' roles on Review & sign.
  *  `onRevealed` receives the dataset with its values. */
-function Reveal({ d, projectId, onRevealed, onProblem, compact = false }: {
-  d: Listed; projectId: string; onRevealed: (d: Listed) => void; onProblem: (p: string | null) => void; compact?: boolean;
+function Reveal({ d, name, projectId, onRevealed, onProblem, compact = false }: {
+  d: Listed; name: string; projectId: string; onRevealed: (d: Listed) => void; onProblem: (p: string | null) => void; compact?: boolean;
 }) {
   const [reason, setReason] = useState("");
   return (
@@ -140,8 +158,8 @@ function Reveal({ d, projectId, onRevealed, onProblem, compact = false }: {
         : " The metadata above is what the split uses. To check this dataset now, give the reason; the access is recorded in the audit trail."}
       <div className="row mt-6">
         <input className="flex-1 minw-180" placeholder="why it must be seen now (required)" value={reason}
-               onChange={(e) => setReason(e.target.value)} aria-label={`why ${String(d.study.study_id)} must be seen now`} />
-        <button className="btn" disabled={!reason.trim()} onClick={async () => {
+               onChange={(e) => setReason(e.target.value)} aria-label={`why the dataset of ${name} must be seen now`} />
+        <button className="btn" disabled={!reason.trim()} aria-label={`Reveal for this check: the dataset of ${name}`} onClick={async () => {
           const env = await send("post", "/api/v1/projects/{project_id}/datasets/{dataset_id}:reveal",
                                  { project_id: projectId, dataset_id: d.id }, { reason });
           if (env.data) { onRevealed(env.data as Listed); onProblem(null); } else onProblem(env.errors?.[0]?.message ?? "not revealed");
@@ -155,7 +173,7 @@ function Reveal({ d, projectId, onRevealed, onProblem, compact = false }: {
 function DatasetNotes({ d }: { d: Listed }) {
   return (
     <>
-      {!d.blinded && d.reported.length > 0 && <div className="series">{d.reported.map((r) => `${r.parameter} ${r.value} ${r.unit}`).join(" · ")}</div>}
+      {!d.blinded && d.reported.length > 0 && <div className="series">{d.reported.map((r) => `${pkParamText(r.parameter)} ${r.value} ${r.unit}`).join(" · ")}</div>}
       {d.digitization && (
         <p className="muted m-4-0 fs-12">
           digitized from p.{d.digitization.page}{d.digitization.crop ? ", cropped to the figure" : ""}; resolution ±{(d.digitization.resolution.x / 2).toPrecision(2)} {d.time_unit},
@@ -168,15 +186,15 @@ function DatasetNotes({ d }: { d: Listed }) {
 }
 
 /** "The overlay matches the figure": a digitized figure's points count once a person has checked its overlay (D-27). */
-function Overlay({ d, projectId, run, onProblem, small = false }: {
-  d: Listed; projectId: string; run: Run; onProblem: (p: string | null) => void;
+function Overlay({ d, name, projectId, run, onProblem, small = false }: {
+  d: Listed; name: string; projectId: string; run: Run; onProblem: (p: string | null) => void;
   /** on a study's card, where the card's own confirmation is the one primary button */
   small?: boolean;
 }) {
   if (!d.digitization || d.digitization.overlay_approved_by || d.state === "REJECTED") return null;
   return (
     <button className={small ? "btn small" : "btn primary"} data-testid={`overlay-${d.id}`}
-            aria-label={`The overlay matches the figure: ${String(d.study.study_id)} · ${sourceText(d)}`}
+            aria-label={`The overlay matches the figure: ${name}`}
             onClick={async () => onProblem(await run(() => send("post", "/api/v1/projects/{project_id}/datasets/{dataset_id}:overlay",
                                                                 { project_id: projectId, dataset_id: d.id }),
                                                     `${String(d.study.study_id)}: the overlay is checked; the study is used.`, MODEL))}>
@@ -185,13 +203,12 @@ function Overlay({ d, projectId, run, onProblem, small = false }: {
   );
 }
 
-/** Where a dataset was read from: its source and the place in it, in words. */
-const sourceText = (d: Listed, page = true) => `${d.source.title || "source"}${d.source.locator ? ` · ${locatorText(d.source.locator)}` : ""}${page && d.source.page ? ` p.${d.source.page}` : ""}`;
-
 /** A dataset on its study's card: one line with where it stands, whether the data plan promised it, and Leave out; its
  *  points under "Show the points", with what the source reports and how a figure was digitized. Everything the dataset
  *  list offers is here too: a blinded dataset is revealed for a check, a digitized figure's overlay is checked. */
-function DatasetLine({ d: listed, projectId, run, unpromised }: { d: Listed; projectId: string; run: Run; unpromised: string | null }) {
+function DatasetLine({ d: listed, name, projectId, run, unpromised }: {
+  d: Listed; name: string; projectId: string; run: Run; unpromised: string | null;
+}) {
   const [problem, setProblem] = useState<string | null>(null);
   const [points, setPoints] = useState(false);
   const [revealed, setRevealed] = useState<Listed | null>(null);
@@ -202,24 +219,25 @@ function DatasetLine({ d: listed, projectId, run, unpromised }: { d: Listed; pro
   return (
     <li className="evidence dataset-line" data-testid={`dataset-${d.id}`}>
       <div className="dataset-line-head">
-        <span className={`chip ${ORIGIN_CHIP[d.origin] ?? "neutral"}`}>{d.origin.toLowerCase().replace("_", " ")}</span>
-        <span>{d.kind === "profile" ? "profile" : "PK parameters only"} · {sourceText(d, !/\.(xlsx?|csv)$/i.test(d.source.title ?? ""))}</span>
+        <span className={`chip ${ORIGIN_CHIP[d.origin] ?? "neutral"}`}>{originWord(d.origin)}</span>
+        <span>{datasetHolds(d)} · {datasetSource(d)}</span>
         <span className={`chip ${tone}`} data-testid={`dataset-state-${d.id}`}>{label}</span>
         {unpromised && <span className="chip neutral" data-testid={`dataset-unpromised-${d.id}`} title={unpromised}>not in the data plan</span>}
         {d.blinded && <span className="chip neutral" data-testid={`dataset-blinded-${d.id}`} aria-describedby={`blinded-why-line-${d.id}`}>blinded until
           the plan is signed</span>}
         {!d.blinded && more && (
           <button type="button" className="link-btn" aria-expanded={points} onClick={() => setPoints(!points)}
-                  aria-label={`${points ? "Hide" : "Show"} the ${d.series.length ? "points" : "details"} of ${String(s.study_id)} · ${sourceText(d)}`}>
+                  aria-label={`${points ? "Hide" : "Show"} the ${d.series.length ? "points" : "details"} of ${name}`}>
             {points ? "Hide" : "Show"} the {d.series.length ? "points" : "details"}</button>
         )}
-        <Overlay d={d} projectId={projectId} run={run} onProblem={setProblem} small />
-        <LeaveOut d={d} projectId={projectId} run={run} onProblem={setProblem} />
+        <Overlay d={d} name={name} projectId={projectId} run={run} onProblem={setProblem} small />
+        <LeaveOut d={d} name={name} projectId={projectId} run={run} onProblem={setProblem} />
       </div>
-      {d.blinded && <Reveal d={d} projectId={projectId} onRevealed={(x) => { setRevealed(x); setPoints(true); }} onProblem={setProblem} compact />}
+      {d.blinded && <Reveal d={d} name={name} projectId={projectId} onRevealed={(x) => { setRevealed(x); setPoints(true); }} onProblem={setProblem}
+                            compact />}
       {!d.blinded && points && d.series.map((series) => (
         <div key={series.name} className="series">
-          <span className="muted">{series.name} ({series.statistic?.replace("_", " ")}{series.n ? `, n ${series.n}` : ""}) · {d.time_unit} → {d.unit}:</span>{" "}
+          <span className="muted">{series.name} ({series.statistic ? valueWord(series.statistic) : ""}{series.n ? `, n ${series.n}` : ""}) · {d.time_unit} → {d.unit}:</span>{" "}
           {series.times.map((t, i) => `${+t.toPrecision(4)}: ${series.values[i] === null ? "<LLOQ" : +(series.values[i] as number).toPrecision(4)}`).join(" · ")}
         </div>
       ))}
@@ -234,7 +252,9 @@ function DatasetLine({ d: listed, projectId, run, unpromised }: { d: Listed; pro
   );
 }
 
-function DatasetCard({ d: listed, projectId, run, unpromised }: { d: Listed; projectId: string; run: Run; unpromised: string | null }) {
+function DatasetCard({ d: listed, name, projectId, run, unpromised }: {
+  d: Listed; name: string; projectId: string; run: Run; unpromised: string | null;
+}) {
   const [revealed, setRevealed] = useState<Listed | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const d = revealed ?? listed;
@@ -246,7 +266,7 @@ function DatasetCard({ d: listed, projectId, run, unpromised }: { d: Listed; pro
       <div className="spread">
         <div className="row">
           <strong>{String(s.study_id)}</strong>
-          <span className={`chip ${ORIGIN_CHIP[d.origin] ?? "neutral"}`}>{d.origin.toLowerCase().replace("_", " ")}</span>
+          <span className={`chip ${ORIGIN_CHIP[d.origin] ?? "neutral"}`}>{originWord(d.origin)}</span>
           <span className="chip neutral">{d.kind === "profile" ? "profile" : "PK parameters only"}</span>
           <span className={`chip ${tone}`} data-testid={`dataset-state-${d.id}`}>{label}</span>
           {unpromised && <span className="chip neutral" data-testid={`dataset-unpromised-${d.id}`} title={unpromised}>not in the data plan</span>}
@@ -254,21 +274,21 @@ function DatasetCard({ d: listed, projectId, run, unpromised }: { d: Listed; pro
         <span className="muted">{d.purpose.replace(/_/g, " ")}</span>
       </div>
       <p className="muted m-4-0 fs-13">
-        {String(s.route).replace("_", " ")} · {String(s.dose_mg)} mg · {String(s.formulation ?? "")} · {String(s.food_state ?? "fasted")} · n {String(s.n)}
-        {" · "}{sourceText(d)}
+        {datasetHolds(d)} · {lowerFirst(valueWord(String(s.route)))} · {String(s.dose_mg)} mg{s.formulation ? ` · ${lowerFirst(valueWord(String(s.formulation)))}` : ""}
+        {" · "}{lowerFirst(valueWord(String(s.food_state ?? "fasted")))} · n {String(s.n)} · {datasetSource(d)}
       </p>
-      {d.blinded && <Reveal d={d} projectId={projectId} onRevealed={setRevealed} onProblem={setProblem} />}
+      {d.blinded && <Reveal d={d} name={name} projectId={projectId} onRevealed={setRevealed} onProblem={setProblem} />}
       {!d.blinded && d.series.map((series) => (
         <div key={series.name} className="series">
-          <span className="muted">{series.name} ({series.statistic?.replace("_", " ")}{series.n ? `, n ${series.n}` : ""}) · {d.time_unit} → {d.unit}:</span>{" "}
+          <span className="muted">{series.name} ({series.statistic ? valueWord(series.statistic) : ""}{series.n ? `, n ${series.n}` : ""}) · {d.time_unit} → {d.unit}:</span>{" "}
           {series.times.map((t, i) => `${+t.toPrecision(4)}: ${series.values[i] === null ? "<LLOQ" : +(series.values[i] as number).toPrecision(4)}`).join(" · ")}
         </div>
       ))}
       <DatasetNotes d={d} />
       {out && d.decision_reason && <p className="muted m-0 fs-12">left out by {d.decided_by}: {d.decision_reason}</p>}
       <div className="row mt-6">
-        <Overlay d={d} projectId={projectId} run={run} onProblem={setProblem} />
-        <LeaveOut d={d} projectId={projectId} run={run} onProblem={setProblem} />
+        <Overlay d={d} name={name} projectId={projectId} run={run} onProblem={setProblem} />
+        <LeaveOut d={d} name={name} projectId={projectId} run={run} onProblem={setProblem} />
       </div>
       {problem && <InlineIssue severity="error">{problem}</InlineIssue>}
     </div>
@@ -302,9 +322,11 @@ export function StudyDatasets({ datasets, projectId, run, unpromised = [] }: {
   datasets: Listed[]; projectId: string; run: Run; unpromised?: string[];
 }) {
   if (!datasets.length) return null;
+  const names = namesOf(datasets);
   return (
     <ul className="dataset-lines" data-testid="study-datasets">
-      {datasets.map((d) => <DatasetLine key={d.id} d={d} projectId={projectId} run={run} unpromised={unpromisedOf(d, unpromised)} />)}
+      {datasets.map((d) => <DatasetLine key={d.id} d={d} name={names.get(d.id) ?? d.id} projectId={projectId} run={run}
+                                        unpromised={unpromisedOf(d, unpromised)} />)}
     </ul>
   );
 }

@@ -93,10 +93,11 @@ export const DATA_SHEETS = new Set(["PK_INDIVIDUAL", "PK_SUMMARY", "DISSOLUTION"
 // the sheets the reading agent reads (modeler_api.client_api.READABLE)
 export const READABLE = new Set(["PK_INDIVIDUAL", "PK_SUMMARY", "DISSOLUTION"]);
 
+// in the words a file's tables are named by (`words.tableKindText`: "individual PK table"; round 6: "PK, individual")
 export const CATEGORY_LABEL: Record<string, string> = {
-  PK_INDIVIDUAL: "PK, individual", PK_SUMMARY: "PK, mean", PK_PARAMETERS: "PK parameters", DISSOLUTION: "dissolution",
-  PRODUCT_INFO: "product info", STUDIES: "study list", DEMOGRAPHICS: "demographics", BIOANALYTICAL: "bioanalytical",
-  PHYSCHEM_INVITRO: "physchem / in vitro", URINE_FECES: "urine / feces", OTHER: "not sorted",
+  PK_INDIVIDUAL: "individual PK", PK_SUMMARY: "PK summary", PK_PARAMETERS: "PK parameters", DISSOLUTION: "dissolution",
+  PRODUCT_INFO: "product information", STUDIES: "study list", DEMOGRAPHICS: "demographics", BIOANALYTICAL: "bioanalytical",
+  PHYSCHEM_INVITRO: "physico-chemistry and in vitro", URINE_FECES: "urine and feces", OTHER: "not sorted",
 };
 
 /** Sheets read by a confirmed recipe, with the datasets each reading made. */

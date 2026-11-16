@@ -8,8 +8,10 @@
 // opens on a fresh page (round 4), again each time it is asked for while open, and a save of several fields moving the
 // focus once (round 5); Client files on a phone, each file opened too (round 5); a message cleared whichever way the area
 // changes; with every values table, its pages, every list of more checks and a spot check open, no two controls named
-// alike and no field's id in a name (round 5). The focus after the signing step-up is checked where a study is signed,
-// in delivery.spec.ts. Software test data, never a model.
+// alike and no field's id in a name (round 5), nor a raw id in the text or a name of any area, Client files' files open
+// with their tables and texts (round 6; names with ": " are read too: the snapshot quotes them); on a phone a file's tables
+// and texts are blocks with their state in view, and a PDF's page lines are read whole at a tablet's width (round 6). The
+// focus after the signing step-up is checked where a study is signed, in delivery.spec.ts. Software test data, never a model.
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, readFileSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -456,6 +458,7 @@ test("on a phone each file of Client files fits its box; a message of one area i
   const toggles = table.locator(":scope > tbody > tr > td .files-name");
   const count = await toggles.count();
   expect(count).toBe(9);
+  let statesSeen = 0;
   for (let i = 0; i < count; i += 1) {
     const name = (await toggles.nth(i).textContent())!.replace(/^[▸▾]/, "");
     await toggles.nth(i).click();
@@ -490,9 +493,59 @@ test("on a phone each file of Client files fits its box; a message of one area i
     expect(open.clipped, `${name}: lines clipped`).toEqual([]);
     expect(open.scroll, `${name}: the box scrolls sideways`).toBeLessThanOrEqual(open.box + 1);
     expect(open.page, `${name}: the page scrolls sideways`).toBe(false);
+    // its tables and texts, each a block under its column's names: no box of their own scrolls sideways, and each one's
+    // state and its layout's chip are in view (round 6: that table scrolled in its own box, "waits for approval" of
+    // messy-delivery.xlsx's layout half off the screen until it was scrolled)
+    const regions = await detail.evaluate((det) => [...det.querySelectorAll<HTMLElement>("table.delivery-regions")].map((t) => {
+      const box = (t.closest(".table-scroll") ?? t.parentElement) as HTMLElement;
+      const right = Math.min(box.getBoundingClientRect().right, document.documentElement.clientWidth);
+      const states = [...t.querySelectorAll<HTMLElement>("td[data-label='State'] .chip, td[data-label='Layout'] .delivery-chip-btn")];
+      return { scroll: box.scrollWidth - box.clientWidth, states: states.length,
+               off: states.filter((c) => c.getBoundingClientRect().right > right + 1).map((c) => (c.textContent ?? "").trim()) };
+    }));
+    for (const r of regions) {
+      expect(r.scroll, `${name}: its tables and texts scroll sideways`).toBeLessThanOrEqual(1);
+      expect(r.off, `${name}: a table's state off the screen`).toEqual([]);
+    }
+    statesSeen += regions.reduce((n, r) => n + r.states, 0);
     if (name === "Dissolution RLD pH 6.8.xlsx") await detail.screenshot({ path: test.info().outputPath("phone-file-open.png") });
     await toggles.nth(i).click();
     await expect(table.locator("tr.files-detail")).toHaveCount(0);
+  }
+  expect(statesSeen, "tables and texts with their state, read on a phone").toBeGreaterThan(0);
+
+  // a tablet (601 to 900 px) and a laptop, each file opened with its tables and texts: a page's line of a PDF is read
+  // whole, wrapping in its place (round 6: the one-line quote with an ellipsis was kept above a phone's width), and the
+  // tables and texts do not scroll sideways in their box (at 768 px their last column did)
+  for (const width of [768, 1024]) {
+    // opened afresh at that width, as a tablet opens it (a page left from a phone's width keeps its menu drawn over it)
+    await page.setViewportSize({ width, height: 1024 });
+    await page.goto(`/projects/${projectId}/inputs?tab=files`);
+    await expect(table).toBeVisible();
+    await page.waitForLoadState("networkidle");
+    let lines = 0;
+    for (let i = 0; i < count; i += 1) {
+      const name = (await toggles.nth(i).textContent())!.replace(/^[▸▾]/, "");
+      await toggles.nth(i).click();
+      const detail = table.locator("tr.files-detail");
+      await expect(detail).toBeVisible();
+      await page.waitForLoadState("networkidle");
+      const reading = detail.getByRole("button", { name: /^Show its tables and texts/ });
+      if (await reading.count()) { await reading.first().click(); await page.waitForLoadState("networkidle"); }
+      const seen = await detail.evaluate((det) => ({
+        lines: [...det.querySelectorAll<HTMLElement>(".doc-inventory li .muted")].map((l) => ({
+          text: (l.textContent ?? "").slice(0, 40), cut: l.scrollWidth > l.clientWidth + 1 || getComputedStyle(l).textOverflow === "ellipsis",
+        })),
+        scroll: [...det.querySelectorAll<HTMLElement>("table.delivery-regions")]
+          .map((t) => { const box = (t.closest(".table-scroll") ?? t.parentElement) as HTMLElement; return box.scrollWidth - box.clientWidth; }),
+      }));
+      lines += seen.lines.length;
+      expect(seen.lines.filter((l) => l.cut).map((l) => l.text), `${name} at ${width} px: a page's line cut`).toEqual([]);
+      for (const sideways of seen.scroll) expect(sideways, `${name} at ${width} px: its tables and texts scroll sideways`).toBeLessThanOrEqual(1);
+      await toggles.nth(i).click();
+      await expect(table.locator("tr.files-detail")).toHaveCount(0);
+    }
+    expect(lines, `a PDF's page lines at ${width} px`).toBeGreaterThan(0);
   }
 
   // a message said in Client files (a refusal: the request is cut here, nothing is stored) is not carried to To do when
@@ -557,11 +610,14 @@ test("the client-data template's project: with every study card open, no two con
  *  each with how many controls carry it. */
 async function computedNames(panel: Locator): Promise<Map<string, number>> {
   const out = new Map<string, number>();
-  const control = /^\s*- (button|link|combobox|textbox|searchbox|spinbutton|checkbox|radio|switch|listbox|slider)(?: "((?:[^"\\]|\\.)*)")?/;
+  // a line is `- button "name"`, or `- 'button "name: …"': …` when the name holds ": " (the snapshot is YAML: such a line
+  // is quoted, its ' doubled). Round 6: the scan read only the first, so every name with a colon went unchecked
+  const control = /^\s*- '?(button|link|combobox|textbox|searchbox|spinbutton|checkbox|radio|switch|listbox|slider)(?: "((?:[^"\\]|\\.)*)")?/;
   for (const line of (await panel.ariaSnapshot()).split("\n")) {
     const m = control.exec(line);
     if (!m) continue;
-    const key = `${m[1]} “${m[2] ?? ""}”`;
+    const name = /^\s*- '/.test(line) ? (m[2] ?? "").replace(/''/g, "'") : m[2] ?? "";
+    const key = `${m[1]} “${name}”`;
     out.set(key, (out.get(key) ?? 0) + 1);
   }
   return out;
@@ -585,8 +641,19 @@ const RAW_FIELD = new RegExp([
   String.raw`\b(?:individual_(?:population|sex)|(?:age|weight|height)_[a-z_]+|n_(?:evaluable|female|doses)|(?:arithmetic|geometric)_mean)\b`,
   String.raw`\bpk_(?:individual|summary|parameters)\b`,
 ].join("|"));
+/** What the page must never say in its text or names (round 6, found on the owner's project): a field's id (above), a
+ *  table's kind as its id's words ("pk individual", "pK summary"), a confirmation's id, the ledger, a cell's raw locator
+ *  ("PK_Summary!F7"), a PK parameter's id (`t_half`, `AUC_last`), a vocabulary entry's id (`ir_tablet`), a template's
+ *  numbered column as a label ("vessel vessel_1"). A file's name and a quote of a file's own words (“…”) are the client's. */
+const RAW_WORDS = new RegExp([
+  RAW_FIELD.source, String.raw`\bpK\b`, String.raw`\bpk (?:individual|summary|parameters)\b`, String.raw`\btable, pk\b`,
+  String.raw`\bcf-\d+\b`, String.raw`\bledger\b`, String.raw`\b[A-Za-z0-9_]+![A-Z]{1,3}\d+\b`, String.raw`\b(?:t_half|AUC_last|AUC_inf)\b`,
+  String.raw`\b(?:ir_tablet|ir_capsule|iv_bolus|iv_infusion|model_building|external_validation)\b`, String.raw`\bvessel vessel_`,
+  String.raw`\bintended_use\b`,
+].join("|"));
+const plainOf = (text: string) => text.replace(/“[^”]*”/g, "").replace(/[^\s“(]+\.(?:xlsx|xls|csv|pdf|docx?)\b/g, "");
 
-test("with every values table, its pages, every list of more checks and a spot check open, no two controls share a name and none spells a field's id", async ({ page }) => {
+test("with every values table, its pages, every list of more checks and a spot check open, no two controls share a name and no name or text spells an id", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   const found: string[] = [];
   const seen: Record<string, number> = {};
@@ -626,10 +693,50 @@ test("with every values table, its pages, every list of more checks and a spot c
     const designed = await byDesign(panel);
     for (const [name, n] of names) {
       if (n > 1 && designed[name] !== n) found.push(`${tab}: ${name} ×${n}`);
-      if (RAW_FIELD.test(name.replace(/[^\s“]+\.(?:xlsx|xls|csv|pdf|docx?)\b/g, ""))) found.push(`${tab}: a field's id in ${name}`);
+      if (RAW_WORDS.test(plainOf(name.replace(/^\w+ “|”$/g, "")))) found.push(`${tab}: a raw id in ${name}`);
+    }
+    // nor in what the page shows (round 6: the more checks' notes printed "pk.Cmax: values in 'ng/mL'…")
+    for (const line of (await panel.innerText()).split("\n")) {
+      if (RAW_WORDS.test(plainOf(line))) found.push(`${tab}: a raw id in the text “${line.trim().slice(0, 140)}”`);
     }
     // the repeats left by design are only these, each inside its own table or question
     for (const name of Object.keys(designed)) expect(name).toMatch(/^(button “(Field|Value|Time|Read by)”|radio “(matches|does not match)”)$/);
+  }
+  // Client files, every file opened with its reading's tables and texts, and the other areas: no raw id in a name or the
+  // text (round 6: "looks like a pk individual table", "PK_Summary!F7", "arithmetic_mean" in the template's problems)
+  await page.goto(`/projects/${projectId}/inputs?tab=files`);
+  const files = page.locator("#inputs-panel-files");
+  await expect(files.locator(".files-table")).toBeVisible();
+  await page.waitForLoadState("networkidle");
+  const fileToggles = files.locator(".files-table > tbody > tr > td .files-name");
+  for (let i = 0, n = await fileToggles.count(); i < n; i += 1) {
+    await fileToggles.nth(i).click();
+    const detail = files.locator("tr.files-detail");
+    await expect(detail).toBeVisible();
+    await page.waitForLoadState("networkidle");
+    const reading = detail.getByRole("button", { name: /^Show its tables and texts/ });
+    if (await reading.count()) { await reading.first().click(); await page.waitForLoadState("networkidle"); }
+    for (const [name] of await computedNames(detail)) {
+      if (RAW_WORDS.test(plainOf(name.replace(/^\w+ “|”$/g, "")))) found.push(`files: a raw id in ${name}`);
+    }
+    for (const line of (await detail.innerText()).split("\n")) {
+      if (RAW_WORDS.test(plainOf(line))) found.push(`files: a raw id in the text “${line.trim().slice(0, 140)}”`);
+    }
+    await fileToggles.nth(i).click();
+    await expect(files.locator("tr.files-detail")).toHaveCount(0);
+  }
+  for (const tab of ["todo", "compound", "individuals", "settings"]) {
+    await page.getByTestId(`tab-${tab}`).click();
+    const panel = page.locator(`#inputs-panel-${tab}`);
+    await expect(panel).toBeVisible();
+    await page.waitForLoadState("networkidle");
+    for (const [name, n] of await computedNames(panel)) {
+      if (n > 1) found.push(`${tab}: ${name} ×${n}`);
+      if (RAW_WORDS.test(plainOf(name.replace(/^\w+ “|”$/g, "")))) found.push(`${tab}: a raw id in ${name}`);
+    }
+    for (const line of (await panel.innerText()).split("\n")) {
+      if (RAW_WORDS.test(plainOf(line))) found.push(`${tab}: a raw id in the text “${line.trim().slice(0, 140)}”`);
+    }
   }
   expect(found).toEqual([]);
   // the cards had values tables, paged ones among them, and a spot check (its table is one of them)

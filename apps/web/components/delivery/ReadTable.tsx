@@ -16,8 +16,8 @@ import { send } from "@/lib/api";
 import { useResource } from "@/lib/hooks";
 
 import { LayoutEditor, columnsSent, type Finding } from "./LayoutEditor";
-import { whereIs } from "@/lib/words";
-import { Problem, WITHHELD, fieldText, useDecide, type FileRow, type Region } from "./shared";
+import { tableKindText, whereIs, withArticle } from "@/lib/words";
+import { Problem, WITHHELD, useDecide, type FileRow, type Region } from "./shared";
 import { writeMapping } from "./writes";
 
 const PROPOSE = "/api/v1/projects/{project_id}/delivery/mappings:propose" as const;
@@ -63,7 +63,7 @@ export function ReadTable({ projectId, file, region, onClose, onStored }: {
           <strong>{place.place}</strong> of {file.name}
           {region.caption ? <span className="muted"> · “{region.caption}”</span> : region.caption === null ? <span className="muted"> · {WITHHELD}</span> : null}
           <span className="muted"> · {region.state === "unread" ? "no layout reads it yet" : "its layout was rejected"}
-            {region.table_kind && region.table_kind !== "unknown" ? ` · looks like a ${fieldText(region.table_kind)} table` : ""}</span>
+            {region.table_kind && region.table_kind !== "unknown" ? ` · looks like ${withArticle(tableKindText(region.table_kind))}` : ""}</span>
         </p>
         <p className="muted m-0">Say what each column holds. Code checks the layout on this table before anything is stored, and
           says beside a column what does not fit. The layout then waits for approval like any other, and the file is read

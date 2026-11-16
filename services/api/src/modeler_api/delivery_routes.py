@@ -1091,7 +1091,8 @@ def _subject_view(scope: _Scope, subject_type: str, subject: str, *, signature: 
         # a check's message may quote a value or count the values below the LLOQ: not shown for a blinded subject
         "checks": [{"id": c.id, "code": c.code, "severity": c.severity, "message": None if blinded else c.message,
                     "values": list(c.values), "rule": c.rule, "overridden": c.id in card.overridden,
-                    "outside_draw": outside.get(c.id, 0), "computed": computed.get(c.id, 0)} for c in checks],
+                    "outside_draw": outside.get(c.id, 0), "computed": computed.get(c.id, 0),
+                    "field": None if blinded else c.field, "unit": None if blinded else c.unit} for c in checks],
         "conflicts": [{"id": c.id, "field": c.field, "time": c.time, "kind": c.kind, "values": list(c.values),
                        **next(({"labels": row["labels"], "time_unit": row["time_unit"]}
                                for row in scope.rows(reader.value(v) for v in c.values[:1])), {"labels": {}, "time_unit": None})}

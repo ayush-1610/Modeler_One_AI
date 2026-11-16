@@ -11,7 +11,7 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
 
 import type { Schema } from "@/lib/api";
-import { fieldLabel } from "@/lib/words";
+import { conditionsInWords, pkParamText, valueWord } from "@/lib/words";
 
 type Data = Schema<"DatasetPoints">;
 type Series = Schema<"SeriesPoints">;
@@ -142,7 +142,7 @@ function ProfileChart({ data, label }: { data: Data; label: string }) {
       <figcaption className="profile-legend">
         {many ? <span><i className="swatch bg-series-neutral" />{series.length} subjects, each a line</span>
           : series.map((s, i) => (
-            <span key={s.name || i}><i className="swatch" style={{ background: color(i) }} />{s.name || s.statistic.replace("_", " ")}
+            <span key={s.name || i}><i className="swatch" style={{ background: color(i) }} />{s.name || valueWord(s.statistic)}
               {s.error_kind !== "none" && s.error?.some((e) => e !== null) ? ` ± ${s.error_kind}` : ""}{s.n ? ` (n ${s.n})` : ""}</span>
           ))}
         {series.some((s) => s.values.some((v) => v === null)) && <span><i className="swatch blq" />below the LLOQ</span>}
@@ -169,7 +169,7 @@ function Stats({ data }: { data: Data }) {
                 const st = s.stats as Record<string, number | null>;
                 return (
                   <tr key={s.name || i}>
-                    <td>{s.name || s.statistic.replace("_", " ")}</td>
+                    <td>{s.name || valueWord(s.statistic)}</td>
                     <td className="num">{sig(st.c_max)}</td><td className="num">{sig(st.t_max)}</td>
                     <td className="num">{sig(st.auc_last)}</td><td className="num">{sig(st.t_half)}</td>
                     <td className="num">{sig(st.auc_inf)}</td>
@@ -187,8 +187,8 @@ function Stats({ data }: { data: Data }) {
           <thead><tr><th>Parameter</th><th className="num">Value</th><th>Unit</th><th>Statistic</th></tr></thead>
           <tbody>
             {data.reported.map((r, i) => (
-              <tr key={i}><td>{String(r.parameter)}</td><td className="num">{r.value === null ? "withheld" : sig(Number(r.value))}</td>
-                <td>{String(r.unit ?? "")}</td><td>{String(r.statistic ?? "").replace("_", " ")}</td></tr>
+              <tr key={i}><td>{pkParamText(String(r.parameter))}</td><td className="num">{r.value === null ? "withheld" : sig(Number(r.value))}</td>
+                <td>{String(r.unit ?? "")}</td><td>{valueWord(String(r.statistic ?? ""))}</td></tr>
             ))}
           </tbody>
         </table>
@@ -212,7 +212,7 @@ function Points({ data }: { data: Data }) {
       <div className="table-scroll">
         <table data-testid="dataset-points">
           <thead><tr><th className="num">time ({data.time_unit})</th>
-            {data.series.map((s, i) => <th key={s.name || i} className="num">{s.name || s.statistic.replace("_", " ")} ({data.unit})</th>)}</tr></thead>
+            {data.series.map((s, i) => <th key={s.name || i} className="num">{s.name || valueWord(s.statistic)} ({data.unit})</th>)}</tr></thead>
           <tbody>
             {times.map((t) => (
               <tr key={t}><td className="num">{sig(t, 4)}</td>{data.series.map((s, i) => <td key={i} className="num">{cell(s, t)}</td>)}</tr>
@@ -307,7 +307,7 @@ export function ReleaseView({ p, title = p.label }: { p: Profile; title?: string
       </figure>
       {conditions.length > 0 && (
         <p className="muted m-0 fs-12" data-testid="release-conditions">
-          {conditions.map(([k, v]) => `${fieldLabel(k)} ${String(v)}`).join(" · ")}</p>
+          {conditionsInWords(Object.fromEntries(conditions.map(([k, v]) => [k, String(v)])))}</p>
       )}
       {fit && (
         <p className="m-0 fs-13" data-testid="release-fit">Weibull fit: t50 {sig(fit.t50_min)} min

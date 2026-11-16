@@ -452,6 +452,12 @@ function Workspace({ projectId, initialTab, initialOnly, initialStatus, steps }:
     };
     window.setTimeout(find, 50);
   }
+  /** A study's individual on Populations and individuals, from its row in the studies table: its own row there, with the
+   *  focus on its first field, or, shared with other studies, the button that opens its form (final review round 6). */
+  const toIndividual = (studyId: string) => {
+    setTab("individuals");
+    bringIntoView(`individual-${studyId}`, `individual-change-${studyId}`);
+  };
   /** Open a card in its area and bring `anchor` in it into view (the card itself by default). */
   function openCard(s: Subject, anchor?: string) {
     setTab(s.area);
@@ -586,7 +592,8 @@ function Workspace({ projectId, initialTab, initialOnly, initialStatus, steps }:
     const lead = named ? "not in the model yet" : "no formulation in the model yet";
     if (way?.way === "use_profile") {
       return <span className="muted" data-testid={`formulation-none-${study}`}>{lead}:{" "}
-        <button type="button" className="link-btn" onClick={() => openRelease(first)} data-testid={`formulation-release-${study}`}>
+        <button type="button" className="link-btn" onClick={() => openRelease(first)} data-testid={`formulation-release-${study}`}
+                aria-label={first ? `${formulationWays(way).ways[0]?.say}: ${first}` : undefined}>
           {formulationWays(way).ways[0]?.say}</button>, above{card ? ` (${card.label}'s card)` : ""}</span>;
     }
     if (way?.way === "add_dissolution") {
@@ -846,7 +853,7 @@ function Workspace({ projectId, initialTab, initialOnly, initialStatus, steps }:
       {tab === "studies" && (
         <TabPanel prefix="inputs" id="studies">{areaLine("studies")}
           <StudiesTab studies={studies} todo={panelTodo("studies")} projectId={projectId} run={run} options={options}
-                      onIndividuals={() => setTab("individuals")} client={client.data ?? undefined} intent={intent} only={only} env={env}
+                      onIndividuals={toIndividual} client={client.data ?? undefined} intent={intent} only={only} env={env}
                       subjects={cardsFor("studies").filter((s) => s.kind === "study")} sheets={sheetsFor("studies")} /></TabPanel>
       )}
 

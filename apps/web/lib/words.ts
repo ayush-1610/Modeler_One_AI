@@ -29,6 +29,11 @@ export const AREAS: Tab[] = ["todo", "compound", "formulations", "studies", "ind
 
 export const plural = (n: number, word: string, many = `${word}s`) => `${n} ${n === 1 ? word : many}`;
 const spaced = (text: string) => text.replace(/_/g, " ");
+/** A noun with its indefinite article: "an individual PK table", "a PK summary table". */
+export const withArticle = (noun: string) => `${/^[aeiou]/i.test(noun) ? "an" : "a"} ${noun}`;
+/** A label inside a sentence: its first letter in lower case unless it starts a name in capitals ("PK summary table"
+ *  stays, never "pK summary table"; final review round 6). */
+export const lowerFirst = (label: string) => (/^[A-Z][a-z]/.test(label) ? label.charAt(0).toLowerCase() + label.slice(1) : label);
 
 // --- the model checks (the readiness report) and the step bar's line ---------------------------------------------------
 
@@ -539,12 +544,22 @@ export function locatorText(locator: string): string {
   }).join("; ");
 }
 
+/** A problem the client-data template's reading found (`ClientFile.issues`: a cell's locator and the reader's message),
+ *  in words: "sheet PK_Summary, cell F7: value “1,2” is not a plain number …", the template's statistic as a person says
+ *  it ("arithmetic mean", never `arithmetic_mean`); never the raw locator `PK_Summary!F7` (final review round 6). */
+export function templateIssueText(location: string, message: string): string {
+  const text = message.replace(/\b(arithmetic_mean|geometric_mean)\b/g, (m) => valueWord(m)).replace(/'([^']*)'/g, "“$1”");
+  const where = location ? locatorText(location) : "";
+  return where ? `${where}: ${text}` : text;
+}
+
 /** What the loading leaves out of the model (a card's `held`, as the landing writes it), in a person's words: the
  *  fields named by their labels, the engine's terms and check codes dropped ("product attributes (dosage_form,
  *  polymorph): kept in the ledger; only dissolution lands" → "Kept, not used by the model: dosage form, polymorph (only
  *  the dissolution is loaded)"). `own`: the card's own name, not said again at the start of a line. */
 export function heldText(line: string, own?: string): string {
-  const fields = (list: string) => list.split(",").map((f) => fieldInText(f.trim())).join(", ");
+  // a dotted field of the intake vocabulary (`excretion.amount`) by the layout's words ("amount excreted"; round 6)
+  const fields = (list: string) => list.split(",").map((f) => (f.includes(".") ? layoutFieldInText(f.trim()) : fieldInText(f.trim()))).join(", ");
   let text = own && line.startsWith(`${own}: `) ? line.slice(own.length + 2) : line;
   text = text
     .replace(/^demographics the individual does not carry \(([^)]+)\): kept in the ledger; .*$/,
@@ -640,6 +655,25 @@ export function checkGist(message: string): { where: string; gist: string } {
   return { where: engineWords(where), gist: engineWords(gist || rest) };
 }
 
+/** A check's message as the page says it (final review round 6): the intake field it names (`DeliveryCheck.field`, sent
+ *  apart by the API) in the intake vocabulary's words, never its id ("Cmax (PK parameter): values in “ng/mL”…", not
+ *  "pk.Cmax: values in 'ng/mL'…"), the unit it names (`DeliveryCheck.unit`) in quotes, and the engine's terms in a
+ *  person's words. Only the field and the unit the API names are replaced, where the message names them: at its start
+ *  ("<field>: …"), as the study record's need ("needs <field>,") or as a reported PK parameter ("reported <name>"). */
+export function checkText(check: { message: string; field?: string | null; unit?: string | null }): string {
+  let text = check.message;
+  const f = check.field;
+  if (f) {
+    const words = layoutFieldText(f);
+    const pk = f.startsWith("pk.") ? f.slice(3) : null;
+    if (text.startsWith(`${f}: `)) text = `${words.charAt(0).toUpperCase()}${words.slice(1)}: ${text.slice(f.length + 2)}`;
+    else if (text.includes(` needs ${f}, `)) text = text.replace(` needs ${f}, `, ` needs ${factText(f)}, `);
+    else if (pk && text.includes(`reported ${pk}`)) text = text.replace(`reported ${pk}`, `reported ${pkParamText(pk)}`);
+  }
+  if (check.unit) text = text.replace(`'${check.unit}'`, `“${check.unit}”`).replace(`"${check.unit}"`, `“${check.unit}”`);
+  return engineWords(text);
+}
+
 /** What a study's simulated individual still needs (D-29; `DeliveryIndividual.needs` and `why`, the landing's held
  *  line), in words: "the study's individual needs the PK-Sim population and the sex: choose them with the demographics".
  *  The values are named by their field, never by their ids. */
@@ -679,10 +713,25 @@ export const factText = (field: string) => FACT_WORD[field] ?? `the ${spaced(fie
  *  active value states: enter it; …"), in words: "the number of subjects is not stated; the route is not stated". `own`:
  *  the card's own name, not said again. A part the landing words otherwise is given with its engine terms replaced. */
 export function landingText(text: string, own?: string): string {
-  return text.split("; ").map((part) => {
-    const p = own && part.startsWith(`${own}: `) ? part.slice(own.length + 2) : part;
-    const need = /^the study record needs (\w+), which no active value states(?: \([^)]*\))?: enter it$/.exec(p);
-    return need ? `${factText(need[1])} is not stated` : engineWords(p);
+  // a study's arm is named "<study>-<arm>" ("230-26-Cohort 1"): its needs are said once for the arm ("arm Cohort 1: the
+  // number of subjects, the route and what the study is for are not stated"; final review round 6: the arm's prefix kept
+  // the field ids `n`, `intended_use` on the page)
+  const needs = new Map<string, string[]>();
+  const said: string[] = [];
+  for (const part of text.split("; ")) {
+    const need = /^(?:(.+?): )?the study record needs (\w+), which no active value states(?: \([^)]*\))?: enter it$/.exec(part);
+    if (!need) { said.push(engineWords(own && part.startsWith(`${own}: `) ? part.slice(own.length + 2) : part)); continue; }
+    const who = need[1] && need[1] !== own ? need[1] : "";
+    if (!needs.has(who)) { needs.set(who, []); said.push(`\u0000${who}`); }
+    needs.get(who)!.push(factText(need[2]));
+  }
+  return said.map((s) => {
+    if (!s.startsWith("\u0000")) return s;
+    const who = s.slice(1);
+    const list = needs.get(who)!;
+    const named = list.length > 1 ? `${list.slice(0, -1).join(", ")} and ${list[list.length - 1]}` : list[0];
+    const arm = own && who.startsWith(`${own}-`) ? `arm ${who.slice(own.length + 1)}` : who;
+    return `${arm ? `${arm}: ` : ""}${named} ${list.length > 1 ? "are" : "is"} not stated`;
   }).join("; ");
 }
 
@@ -696,6 +745,7 @@ export const stageText = (stage: string) => STAGE_WORD[stage] ?? spaced(stage);
 /** A stage's or a count's own text from the reader, its engine terms in a person's words ("silent loss 10" → "numbers not
  *  read 10"). Only these terms are replaced; the rest is shown as the reader wrote it. */
 export const engineWords = (text: string) => text
+  .replace(/kept in the ledger/g, "kept with the delivery")
   .replace(/silent loss/g, "numbers not read").replace(/outside numbers/g, "loose numbers")
   .replace(/unassigned values/g, "values not linked to a study").replace(/\bregions\b/g, "tables and texts").replace(/\bregion\b/g, "table or text");
 
@@ -816,6 +866,8 @@ const PK_WORD: Record<string, string> = {
   AUC_last: "AUC last", AUC_inf: "AUC inf", Cmax: "Cmax", tmax: "tmax", t_half: "half-life", Ctrough: "Ctrough",
   "CL/F": "CL/F", "Vz/F": "Vz/F",
 };
+/** A PK parameter by its name after `pk.` (a dataset's reported PK, `ReportedPK.parameter`): "half-life", "AUC last". */
+export const pkParamText = (name: string) => PK_WORD[name] ?? spaced(name);
 /** A field of the intake vocabulary as a layout names it (the layout form's field choices, a column's field), in words:
  *  "AUC last (PK parameter)", "Cmax ratio, test vs reference", never `pk.AUC_last` or `relation.test_vs_reference.Cmax`. */
 export function layoutFieldText(name: string): string {
@@ -870,7 +922,7 @@ export function valueAbout(v: {
   field: string; time: number | null; time_unit?: string | null; labels: Record<string, string>;
   conditions?: Record<string, string>; statistic?: string | null; file?: string | null; method?: string;
 }, own?: string): string {
-  const labels = Object.entries(v.labels).filter(([role]) => role !== own).map(([role, label]) => `${role} ${label}`).join(" · ");
+  const labels = Object.entries(v.labels).filter(([role]) => role !== own).map(([role, label]) => labelWord(role, label)).join(" · ");
   const from = v.file ? `from ${v.file}` : v.method === "person" ? "entered by a person" : "";
   return [`${fieldInSentence(v.field)}${v.time !== null ? ` at ${v.time}${v.time_unit ? ` ${v.time_unit}` : ""}` : ""}`,
     labels, conditionsInWords(v.conditions ?? {}), v.statistic ? valueWord(v.statistic) : "", from].filter(Boolean).join(", ");
@@ -891,6 +943,64 @@ export function distinctNames(names: string[], apart: string[]): string[] {
   const count = new Map<string, number>();
   for (const n of names) count.set(n, (count.get(n) ?? 0) + 1);
   return names.map((n, i) => ((count.get(n) ?? 0) > 1 && apart[i] ? `${n}, ${apart[i]}` : n));
+}
+
+/** A value's label in words: its role and the label as written, a template's numbered column ("vessel_1", the
+ *  client-data template's vessel columns) as its number ("vessel 1", never "vessel vessel_1"; final review round 6). */
+export function labelWord(role: string, label: string): string {
+  const numbered = new RegExp(`^${role.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}_(\\d+)$`).exec(label);
+  return `${role} ${numbered ? numbered[1] : label}`;
+}
+
+// --- an observed dataset, named (final review round 6) ------------------------------------------------------------------
+
+type DatasetLike = {
+  kind: string; analyte: string; matrix: string; quote?: string;
+  series: { statistic?: string; error_kind?: string | null }[];
+  source: { title?: string | null; doi?: string | null; locator?: string | null; page?: number | null };
+};
+
+/** What an observed dataset holds, in words: its analyte in its matrix and its series ("Exampleamide in plasma, 6
+ *  subjects and their arithmetic mean", "Exampleamide-M1 in plasma, arithmetic mean ± SE"); "PK parameters only" for one
+ *  of reported PK. A study's parent and its metabolite read from one sheet were two datasets named alike on its card
+ *  ("230-23 · messy-delivery.xlsx · Delivery confirmation cf-33 p.1", twice): this tells them apart. */
+export function datasetHolds(d: DatasetLike): string {
+  const what = `${d.analyte === "parent" ? "the parent drug" : d.analyte} in ${d.matrix}`;
+  if (d.kind !== "profile") return `${what}, PK parameters only`;
+  // a series states its statistic, else it is an arithmetic mean (the dataset's own default, `datasets.Series`)
+  const subjects = d.series.filter((s) => s.statistic === "individual").length;
+  const summaries = [...new Set(d.series.filter((s) => s.statistic !== "individual")
+    .map((s) => `${valueWord(s.statistic ?? "arithmetic_mean")}${s.error_kind && s.error_kind !== "none" ? ` ± ${s.error_kind}` : ""}`))];
+  const listed = summaries.length > 1 ? `${summaries.slice(0, -1).join(", ")} and ${summaries[summaries.length - 1]}` : summaries[0] ?? "";
+  const series = subjects && listed ? `${plural(subjects, "subject")} and their ${listed}` : subjects ? plural(subjects, "subject") : listed;
+  return series ? `${what}, ${series}` : what;
+}
+
+/** Where in its file an observed dataset starts, from its quote's sheet row ("[Fasting row 4] A4=…", the library's row
+ *  line): "sheet Fasting from row 4"; "" for any other quote. Only the place is read, never the quoted cells. */
+export function datasetPlace(quote: string | null | undefined): string {
+  const at = /^\[(.+?) row (\d+)\]/.exec(quote ?? "");
+  return at ? `sheet ${at[1]} from row ${at[2]}` : "";
+}
+
+const SPREADSHEET = /\.(xlsx?|xlsm|csv)$/i;
+
+/** Where an observed dataset was read from, in words: its file and the place in it. A dataset a card's signed
+ *  confirmation loaded names that confirmation in its locator ("Delivery confirmation cf-33"): the place in the file is
+ *  said instead (`datasetPlace`), never the confirmation's id. A spreadsheet's page (the reading's text page) is not said. */
+export function datasetSource(d: DatasetLike): string {
+  const title = d.source.title || (d.source.doi ? `doi ${d.source.doi}` : "its source");
+  const locator = d.source.locator ?? "";
+  const place = /^Delivery confirmation\b/.test(locator) ? datasetPlace(d.quote) : locator ? locatorText(locator) : "";
+  const page = d.source.page && !SPREADSHEET.test(title) ? `page ${d.source.page}` : "";
+  return [title, place, page].filter(Boolean).join(", ");
+}
+
+/** The name of each dataset of a list, for the controls repeated on its line ("Show the points", "Leave it out…"): its
+ *  study, what it holds and where it was read from; two that still read alike by their place in the file. */
+export function datasetNames(datasets: (DatasetLike & { study: Record<string, unknown> })[]): string[] {
+  return distinctNames(datasets.map((d) => `${String(d.study.study_id)} · ${datasetHolds(d)} · ${datasetSource(d)}`),
+                       datasets.map((d) => datasetPlace(d.quote)));
 }
 
 /** What a column holds (a column's role, `MappingSpec` Role), in words. */

@@ -989,7 +989,10 @@ before the next starts.
   (four per table, the interval left out of the name), the spot check's source buttons and the pagers ("Show 8 more",
   "Show all 42") repeated too, the names spelled `excretion.amount`, and with every product card open "Use as release"
   and "Confirm its data first" repeated; all fixed in round 5 (below), and the radios and the sort buttons are now the
-  only repeats, which a round-5 e2e scan of Chromium's names asserts.*
+  only repeats, which a round-5 e2e scan of Chromium's names asserts.* *Corrected in round 6: true only on the e2e seed
+  and the copies round 5 scanned, and the scan read only names without ": " (Chromium's snapshot quotes the others, and
+  its pattern skipped them). On the owner's project (7bb1) 230-23's two datasets were named and shown alike, the studies
+  table's "not stated" button repeated, and the formulation-way button did; fixed or recorded in round 6 (below).*
 - **Phone and message:** the phone rule for Client files comes after the desktop rules and is as specific as the kit's
   `.table-scroll table` *(corrected in round 5: its descendant selectors and the kit's width also reached an open file's
   own tables, which were cut on a phone; fixed in round 5, below)*; a message is cleared by one effect on the area
@@ -1166,7 +1169,9 @@ before the next starts.
   noun ("fasted or fed state", "share of women (%)") are in `layoutFieldInText`. The spot check's names end "(spot check
   of study …)", so they never equal the same value's Show in its values table. Pagers are named by their table (the kit's
   `TableMore` `of`; the other tables of the app have one per page and keep "Show 8 more"). **Left by design, and now
-  asserted to be the only repeats** (e2e scan of Chromium's computed names on Clinical studies and Products with every
+  asserted to be the only repeats** *(corrected in round 6: on the e2e seed only, and for names without ": ", which the
+  scan's pattern alone read; the owner's 7bb1 had three more, recorded and fixed under round 6 below)* (e2e scan of
+  Chromium's computed names on Clinical studies and Products with every
   card, values table, page, list of more checks and a spot check open): a values table's sort buttons (Field, Value,
   Time, Read by), under the table's caption, and the spot check's two answers per value ("matches", "does not match"),
   under the value's question (its fieldset's legend names the value). Found by the same scan and fixed: on Products with
@@ -1246,3 +1251,73 @@ before the next starts.
   line as not built).
 - No locked file, SME rule (which studies are blinded, requirement levels, the spot check, the MS-01 split) or boundary
   exception was touched. API changes are additive (`FormulationWayView.each`; `blinded_why` on a blinded dataset).
+
+### Final review fixes round 6: names and words on the owner's own project (2026-11-16; round 5's a11y-phone skeptic: the repeats on 7bb1, the raw field ids and kinds, the widths, the records; CHANGELOG "Fixed — final review round 6, names and words on the owner's own project")
+- **Scanned where the owner works, not only on the seed.** Every area of Inputs on copies of all eight review projects
+  (`exampleamide-pbpk` and its copies b4e7, 7bb1, 39c9; `clientamide-pbpk` and eb47, 1acd, 4701), every card, values
+  table, list of more checks and dataset's points open, every file of Client files open with its tables and texts: the
+  names Chromium computes and the text shown, against dotted and snake-case ids, check codes, raw table kinds, confirmation
+  and dataset ids and engine words (probe `r6names/pw/scan.js`, POSTs aborted). **The scan pattern itself was wrong:**
+  Chromium's ARIA snapshot is YAML and quotes a line whose name holds ": " (`- 'button "Accept as is: …"'`), and the
+  pattern of round 5's probes and of its e2e scan read only unquoted lines, so every name with a colon (most of round 5's
+  names) went unchecked. Both read them now.
+- **Repeats on 7bb1.** (a) 230-23's two observed datasets (the parent, six subjects and their mean ± SD; the metabolite
+  Exampleamide-M1, its mean ± SE; both from messy-delivery.xlsx, landed by one signed confirmation, whose id was their
+  locator) now say what each holds and where it starts in the sheet, visibly and in their names (`words.datasetHolds`,
+  `datasetSource`, `datasetPlace`, `datasetNames`): "Exampleamide in plasma, 6 subjects and their arithmetic mean ± SD ·
+  messy-delivery.xlsx, sheet Fasting from row 4" and "Exampleamide-M1 in plasma, arithmetic mean ± SE · …, sheet Fasting
+  from row 22"; the confirmation's id ("Delivery confirmation cf-33") and a spreadsheet's page ("p.1", "p.6") are never
+  said. The place is read from the dataset's quote's row prefix (`[Fasting row 4]`, the library's row line), never its
+  cells. Every dataset control repeated per line (Show or Hide the points, Leave it out…, its reason and button, the reveal,
+  the overlay check) carries that name, on a study's card and in "Other observed data". (b) The studies table's individual
+  button ("not stated" twice) is named by its study and says where it leads ("not stated: the individual of study 230-23,
+  on Populations and individuals") and lands on that study's row there, its first field focused (or, shared with other
+  studies, its "Change the individual of …" button). (c) The formulation-way button of Products ("confirm a product's
+  dissolution data, then use its profile as its release") is now named with its product (": Test 10 mg"); on 7bb1 both
+  rows (230-23, 231-24) lead to the same place, Test 10 mg's card at its release (`openRelease` of the study's own way,
+  whose first product is Test 10 mg for both), so the two names are alike by design; rows whose ways name other products
+  now differ.
+- **Raw field ids and kinds.** A check's field and, for a unit check, its unit are sent apart (`CheckResult.field`,
+  `.unit`, set where the message is made for the field-led checks: DUPLICATE_TIME, TIMES_NOT_INCREASING,
+  STATISTIC_MISSING, SPREAD_KIND_MISSING, NEGATIVE_VALUE, ABOVE_RANGE, UNIT_MISSING, UNIT_NOT_IN_TABLES, UNIT_NOT_CHECKED,
+  MARKED_VALUE, LANDING_FIELD_MISSING, NCA_MISMATCH; `DeliveryCheck.field`, `.unit`, null for a blinded subject as its
+  message is), and the page says them in the intake vocabulary's words (`words.checkText`): "Cmax (PK parameter): values
+  in “ng/mL”; …", "Particle size d50 (µm): …", "the study record needs the number of subjects". The message itself is
+  unchanged (it stays the API's record). Also: "looks like an individual PK table" (ReadTable, `tableKindText`); a
+  dissolution profile's conditions in `conditionsInWords`; the reported PK of a dataset ("half-life", "AUC last", never
+  `t_half`); a series' statistic and a study's route, dosage form and food state in words ("IR tablet", never
+  `ir_tablet`); "kept in the ledger" → "kept with the delivery" in a check; a dotted field the landing holds back ("Excretion
+  (amount excreted)"); an arm's missing facts ("arm Cohort 1: the number of subjects, the route and what the study is for
+  are not stated", never `n`, `intended_use`); the template's problems ("sheet PK_Summary, cell F7: …", "arithmetic mean",
+  never `PK_Summary!F7`, `arithmetic_mean`); a template's numbered column as a label ("vessel 1", never "vessel vessel_1");
+  a table's name keeps "PK" ("the PK summary table", never "the pK summary table", `words.lowerFirst`); a sheet's kind in
+  the tables' words ("individual PK", never "PK, individual"); a dataset's origin ("digitized figure", "OSP library");
+  the confirm dialog's "It cannot be signed yet" (it said "3 failed checks: ABOVE_RANGE, LANDING_FIELD_MISSING, …" and
+  the loading's problem with `n`, `intended_use`; now `shared.blockerDetail`: each failed check by what it says, a blinded
+  subject's by their count only, the facts not stated by their reasons; and `landingText`).
+- **Left by design, after the sweep** (all eight projects, every area, names with ": " read): a values table's sort
+  buttons (Field, Value, Time, Read by), under the table's caption (round 5's owner question stands: name them with their
+  table?); the spot check's two answers per value (not drawn in this sweep; round 5's e2e asserts them); the
+  formulation-way button on 7bb1 (one target, above); and one id on purpose, the signed record's fingerprint under "Confirm
+  and sign" ("fingerprint of the signed record 5a1b4ce0f709", was "record 5a1b…"): it is what a reviewer matches with the
+  audit trail (21 CFR Part 11). A file's own words stay as written and quoted: a sheet's name (`PK_Summary`), a note's text
+  (“particle_size_d10_um”, “vessel_1”, the template's header cells).
+- **Widths.** A PDF's page lines wrap in their place at every width (the one-line ellipsis applied above 600 px). The
+  reading's tables and texts are a block per table, its parts under their column's names, at 900 px and below (on a phone
+  the State chip and messy-delivery.xlsx's "waits for approval" sat half off the screen inside the table's own scroll
+  box; at 768 px its last column did); above, it fits. Two more, found by the same measure: the files table needs 626 px,
+  so from 601 px its box scrolled sideways with no file open (its rows are blocks up to 700 px now, were 600); and at 768
+  px a sheet's state chip and last cell kept their line ("blinded until the plan is signed") and set messy-delivery.xlsx's
+  open file 47 px wider than its box on 7bb1 (they wrap at 900 px and below). Measured (probes `widths.js`, `closed.js`)
+  at 360, 390, 601, 700, 768, 1024 and 1440 px on copies of 7bb1 and b4e7, every file open with its tables and texts: no
+  box or page scrolls sideways, every state chip in view, no line cut. **Deviation:** the item named a phone; the stacking
+  reaches 900 px, because at 768 px the table still scrolled sideways in its box (by 9 to 68 px on b4e7). A tablet's page
+  is long with every file's tables and texts stacked; accepted for no sideways scrolling.
+- **Found, not mine, left for the blinding group and the owner:** `GET /evidence` keeps a blinded dataset's `quote`
+  (`blinding.redact_dataset` withholds its series and reported values only), and a delivery-landed dataset's quote is
+  its first row verbatim ("[Fed row 4] A4=101 | B4=BLQ | C4=5.2 …"), values included. The page never shows a quote (round 6
+  reads only its "[sheet row n]" prefix), but the API serves it. Not changed here: it is outside this group's items, and
+  `/evidence`'s redaction is the blinding work's; **owner question:** withhold a blinded dataset's quote (and its note) too?
+- No locked file, SME rule (the spot check's draw size, digest and seed rule, requirement levels, the MS-01 split, which
+  studies are blinded) or boundary exception was touched. The API change is additive (`DeliveryCheck.field`, `.unit`;
+  snapshot and web types refreshed).

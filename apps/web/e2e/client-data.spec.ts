@@ -38,7 +38,9 @@ test("client files are read cell by cell, sorted, and what the checklist did not
   const filled = page.getByTestId("client-file-client-template-filled.xlsx");
   await expect(filled).toContainText("client-data template");
   await expect(filled).toContainText("1 dataset");
-  await expect(filled).toContainText("PK_Summary!F7");          // the decimal comma is named with its cell, not guessed
+  // the decimal comma is named with its cell, not guessed, in words (final review round 6: "PK_Summary!F7" as written)
+  await expect(filled).toContainText("sheet PK_Summary, cell F7: value: “1,2” is not a plain number");
+  await expect(filled).not.toContainText("PK_Summary!F7");
 
   const raw = page.getByTestId("client-file-client-raw.xlsx");
   await expect(raw.getByTestId("sheet-Diss pH 6.8")).toContainText("dissolution");

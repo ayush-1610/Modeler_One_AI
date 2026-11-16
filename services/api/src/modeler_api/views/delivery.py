@@ -424,6 +424,11 @@ class DeliveryCheck(View):
     # an SE) are computed again, so it is drawn again (0: none)
     outside_draw: int
     computed: int
+    # the intake field the message names and, for a unit check, the unit as written, apart from the message, so the page
+    # says them in its words (`words.checkText`: "Cmax (PK parameter)", never `pk.Cmax`; final review round 6); null for
+    # a blinded subject, as its message is
+    field: str | None = None
+    unit: str | None = None
 
 
 class DeliveryConflict(View):

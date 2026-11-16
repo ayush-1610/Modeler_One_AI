@@ -188,6 +188,16 @@ test("a delivery is reviewed by exception, spot-checked, signed and loaded once"
   await page.getByTestId("tab-studies").click();
   await open(study.subject);
   await expect(card.getByTestId(`delivery-gate-${study.subject}`)).toHaveCount(0);
+  // the confirm dialog opens while the study still waits for its facts and checks, and says what holds it in words: the
+  // failed checks by what each says, the study record's needs by their facts (final review round 6: "3 failed checks:
+  // ABOVE_RANGE, …" and "the study record needs n" were said as the API wrote them)
+  await card.getByTestId(`delivery-confirm-${study.subject}`).click();
+  const holding = page.getByTestId("delivery-confirm-dialog").getByTestId("delivery-confirm-blockers");
+  await expect(holding).toContainText(/\d+ checks? to decide: /);
+  await expect(holding).toContainText("values above the range");
+  await expect(holding).not.toContainText(/\b[A-Z]{2,}_[A-Z_]{2,}\b|needs n\b|\bintended_use\b|\bconcentration:/);
+  await page.getByTestId("delivery-confirm-cancel").click();
+  await expect(page.getByTestId("delivery-confirm-dialog")).toHaveCount(0);
 
   // --- the study's facts no file states, in one typed form with one reason: the route first (an oral study then also
   // needs its dosage form), then what the study record needs before it can be loaded ---
@@ -367,4 +377,20 @@ test("a delivery is reviewed by exception, spot-checked, signed and loaded once"
   const loaded = evidence.datasets.filter((d) => d.study.study_id === "230-23");
   expect(loaded.map((d) => d.state)).toEqual(["ACCEPTED", "ACCEPTED"]);
   for (const d of loaded) expect(d.decision_reason).toMatch(/^confirmed on Delivery \(cf-\d+, signature /);
+  // on the card they read apart, in what each line says and in its buttons' names: the analyte, its series and where in
+  // the sheet it starts, never the confirmation's id or a spreadsheet's page (final review round 6: both read "230-23 ·
+  // messy-delivery.xlsx · Delivery confirmation cf-33 p.1", and their "Show the points" and "Leave it out…" with them)
+  const lines = page.getByTestId("card-observed-study:230-23").getByTestId("study-datasets").locator(":scope > li");
+  await expect(lines).toHaveCount(2);
+  const said = await lines.locator(".dataset-line-head > span:nth-child(2)").allInnerTexts();
+  expect(new Set(said).size, said.join(" | ")).toBe(2);
+  expect(said.some((t) => /^\S+ in plasma, \d+ subjects and their arithmetic mean/.test(t)), said.join(" | ")).toBe(true);
+  expect(said.some((t) => /-M1 in plasma, arithmetic mean/.test(t)), said.join(" | ")).toBe(true);
+  for (const t of said) expect(t).toMatch(/^.+ · messy-delivery\.xlsx, sheet Fasting from row \d+$/);
+  for (const role of [/^Leave it out…/, /^(Show|Hide) the points/]) {
+    const names = await lines.getByRole("button", { name: role }).evaluateAll((els) => els.map((e) => e.getAttribute("aria-label") ?? ""));
+    expect(names).toHaveLength(2);
+    expect(new Set(names).size, names.join(" | ")).toBe(2);
+    for (const n of names) expect(n).not.toMatch(/cf-\d|confirmation|p\.\d/);
+  }
 });

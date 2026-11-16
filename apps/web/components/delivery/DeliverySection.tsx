@@ -114,14 +114,14 @@ function FileItem({ projectId, file, first, decide, busy, onMapping, inRow = fal
                 <tbody>
                   {shown.regions.map((r) => (
                     <tr key={r.region_id} data-testid={`delivery-region-${r.region_id}`}>
-                      <td>{whereIs(r.where).place}</td>
-                      <td>{regionKindText(r.kind, r.table_kind)}
+                      <td data-label="Where">{whereIs(r.where).place}</td>
+                      <td data-label="What">{regionKindText(r.kind, r.table_kind)}
                         <div className="muted fs-12">{r.caption === null ? WITHHELD : r.caption}</div></td>
-                      <td><ChipFor state={r.state} table={REGION_STATE} />
+                      <td data-label="State"><ChipFor state={r.state} table={REGION_STATE} />
                         {!restorable(r) && r.reason && <div className="muted fs-12" title={r.reason} data-testid={`delivery-region-reason-${r.region_id}`}>{reasonWords(r)}</div>}
                         {/* the person's decision in force, or else the restore that gave the region back (it stays its record) */}
                         <NotDataNote region={r} testId={`delivery-region-decision-${r.region_id}`} /></td>
-                      <td>
+                      <td data-label="Layout">
                         {r.mapping_id ? (
                           <button type="button" className="delivery-chip-btn"
                                   onClick={() => onMapping({ id: r.mapping_id as string, version: r.mapping_version ?? undefined,
@@ -136,7 +136,7 @@ function FileItem({ projectId, file, first, decide, busy, onMapping, inRow = fal
                             {findingsInline(r.newer.findings, r.newer.constants)}.</div>
                         )}
                       </td>
-                      <td className="num">{r.numeric_cells ? `${r.used} read · ${r.excluded} not data · ${r.silent} not read` : ""}</td>
+                      <td className="num" data-label="Numbers">{r.numeric_cells ? `${r.used} read · ${r.excluded} not data · ${r.silent} not read` : ""}</td>
                       <td>
                         {readable(r) && (
                           <button type="button" className="link-btn" onClick={() => setReading(r)} aria-label={`Read ${tableName(r.where, file.name)}`}

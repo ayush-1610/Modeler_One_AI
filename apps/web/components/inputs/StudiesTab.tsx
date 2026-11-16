@@ -16,7 +16,7 @@ import { send, type Schema } from "@/lib/api";
 import { useResource, useResources } from "@/lib/hooks";
 import { blindedWhy, normLabel, type Subject } from "@/lib/inputsWork";
 import { numericKey, ordinal, useTableView } from "@/lib/tableView";
-import { DESIGNS, DESIGN_TITLE, type Design, designOf, plural, valueWord } from "@/lib/words";
+import { DESIGNS, DESIGN_TITLE, type Design, designOf, lowerFirst, plural, valueWord } from "@/lib/words";
 
 import { SheetGroups } from "./ClientConfirm";
 import { type CardEnv, StatusChip, cardStatus, focused, viaSheet } from "./cards/ConfirmPath";
@@ -40,6 +40,11 @@ const ROLE: Record<string, string> = {
 };
 
 const fact = (s: StudyRow, key: string) => s.facts[key] as string | number | null | undefined;
+/** A study's individual, as its row in the studies table says it; the button opens it on Populations and individuals, at
+ *  the study's own row (final review round 6: two rows' "not stated" were one name, and said nothing of where it led). */
+const INDIVIDUAL: Record<StudyRow["demographics"], string> = {
+  entered: "entered", published: "published individual", default: "healthy adult default", missing: "not stated",
+};
 
 // the Role column sorts in the pipeline's order, not alphabetically
 const roleOrder = ordinal(["S1", "S2", "S3", "S5", "S6", "SUPPORTIVE"]);
@@ -63,7 +68,7 @@ const studyText = (s: StudyRow) => [s.study_id, s.purpose, s.origin, fact(s, "fo
 /** The studies table: sortable by its heads, filtered by text or by where a study stands, 20 rows at a time. A study
  *  that needs the person (blinded, its regimen missing) or whose row is being typed in is never paged or hidden by the text filter (a pressed chip narrows it too). */
 function StudiesTable({ studies, projectId, run, onIndividuals }: {
-  studies: StudyRow[]; projectId: string; run: Run; onIndividuals: () => void;
+  studies: StudyRow[]; projectId: string; run: Run; onIndividuals: (studyId: string) => void;
 }) {
   const [show, setShow] = useState<Show>("all");
   // a row the person has typed in (a regimen, a reason) stays shown, so its text is not lost; it is not counted as
@@ -101,14 +106,16 @@ function StudiesTable({ studies, projectId, run, onIndividuals }: {
                 <td><strong>{s.study_id}</strong>
                   <div className="muted fs-12">{(s.purpose ?? "").replace(/_/g, " ")} · {(s.origin ?? "").toLowerCase().replace("_", " ")}</div>
                   {s.blinded && <span className="chip medium" title="its values are hidden until the MAP is signed">blinded</span>}</td>
-                <td>{String(fact(s, "route") ?? "").replace("_", " ")} · {fact(s, "dose_mg")} {s.facts.dose_per_kg ? "mg/kg" : "mg"} ·{" "}
-                  {fact(s, "food_state")} · {fact(s, "formulation_name") ?? fact(s, "formulation")} · n {fact(s, "n")}
+                <td>{lowerFirst(valueWord(String(fact(s, "route") ?? "")))} · {fact(s, "dose_mg")} {s.facts.dose_per_kg ? "mg/kg" : "mg"} ·{" "}
+                  {lowerFirst(valueWord(String(fact(s, "food_state") ?? "")))} ·{" "}
+                  {fact(s, "formulation_name") ?? lowerFirst(valueWord(String(fact(s, "formulation") ?? "")))} · n {fact(s, "n")}
                   {!s.evaluable && !s.excluded && <div className="muted fs-12">no mean profile: not judged</div>}</td>
                 <td>{s.role ? <span className="chip neutral" title={s.role_source === "proposed"
                   ? "proposed by the MS-01 split; changed on Review & sign, with a reason" : "the plan's placement"}>
                   {s.role} · {ROLE[s.role] ?? s.role.toLowerCase()}</span> : <span className="muted">—</span>}</td>
-                <td><button type="button" className="link-btn" onClick={onIndividuals}>
-                  {{ entered: "entered", published: "published individual", default: "healthy adult default", missing: "not stated" }[s.demographics]}
+                <td><button type="button" className="link-btn" onClick={() => onIndividuals(s.study_id)} data-testid={`study-individual-${s.study_id}`}
+                            aria-label={`${INDIVIDUAL[s.demographics]}: the individual of study ${s.study_id}, on Populations and individuals`}>
+                  {INDIVIDUAL[s.demographics]}
                 </button></td>
                 <td><Regimen s={s} projectId={projectId} run={run} /></td>
                 <td>{s.excluded && <div className="muted fs-12">left out: {s.excluded}</div>}
@@ -187,7 +194,7 @@ function TypedTable({ projectId, run, options }: { projectId: string; run: Run; 
     && !times.some(Number.isNaN) && !values.some(Number.isNaN) && (example || f.title.trim() || f.link.trim())
     && (!system || (f.analyte && f.product));
   const pick = (k: keyof typeof f, values: string[]) => (
-    <select value={f[k]} onChange={set(k)} aria-label={k.replace("_", " ")}>{values.map((v) => <option key={v} value={v}>{v.replace(/_/g, " ")}</option>)}</select>
+    <select value={f[k]} onChange={set(k)} aria-label={k.replace("_", " ")}>{values.map((v) => <option key={v} value={v}>{valueWord(v)}</option>)}</select>
   );
   return (
     <div className="typed-table" data-testid="typed-table">
@@ -378,7 +385,7 @@ function StudyList({ subjects, studies, env, unpromised, only, onShow }: {
  *  whether each is blinded (D-15), its regimen and whether it is used; and the observed data on no study card. The
  *  client's files and their sheets are in Client files (plan 2026-11-14 slice 1). */
 export function StudiesTab({ studies, todo, projectId, run, options, onIndividuals, client, intent, only = false, env, subjects, sheets }: {
-  studies: StudyRow[]; todo: TodoItem[]; projectId: string; run: Run; options: Options; onIndividuals: () => void;
+  studies: StudyRow[]; todo: TodoItem[]; projectId: string; run: Run; options: Options; onIndividuals: (studyId: string) => void;
   client: ClientView | undefined;
   /** "Type a table in" or "Digitize a figure", chosen in the head's "Add data" */
   intent?: Intent | null;

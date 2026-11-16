@@ -16,6 +16,77 @@ Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: compl
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
 
+### Fixed — final review round 6, names and words on the owner's own project (round 5's a11y-phone skeptic: the repeats on 7bb1, raw field ids and kinds on the page, the widths, the records; plan 2026-11-14 §5)
+- **Checked on the owner's projects, and the names with a colon read at all.** Every area of Inputs was scanned on
+  copies of the eight review projects (every card, values table, list of more checks and dataset open, every file of
+  Client files open with its tables and texts), names and visible text both. Chromium's ARIA snapshot quotes a line whose
+  name holds ": ", and the pattern of round 5's e2e scan (and of its skeptic's probes) read only unquoted lines: every name
+  with a colon went unchecked. `inputs-a11y.spec.ts` reads both now. Impact: "no two controls share a name" is checked on
+  every name, not on the ones without a colon.
+- **230-23's two datasets read apart (7bb1).** The parent (six subjects and their mean ± SD) and the metabolite
+  Exampleamide-M1 (its mean ± SE), both loaded from messy-delivery.xlsx by one signed confirmation, were both shown and
+  named "230-23 · messy-delivery.xlsx · Delivery confirmation cf-33 p.1", with their "Show the points" and "Leave it out…".
+  A dataset now says what it holds and where it starts in its file (`words.datasetHolds`, `datasetSource`,
+  `datasetPlace`, `datasetNames`): "Exampleamide in plasma, 6 subjects and their arithmetic mean ± SD · messy-delivery.xlsx,
+  sheet Fasting from row 4" against "Exampleamide-M1 in plasma, arithmetic mean ± SE · …, sheet Fasting from row 22", on
+  a study's card and in "Other observed data"; every control repeated per dataset (the points, Leave it out… and its
+  reason, the reveal of a blinded one, the overlay check) carries that name. The confirmation's id and a spreadsheet's
+  page are not said; the place is read from the quote's "[sheet row n]" prefix only, never its cells. A dataset's origin,
+  route, dosage form and food state are in words too ("digitized figure", "IR tablet"). Impact: the owner and a screen
+  reader tell the parent from the metabolite.
+- **The studies table's individual (7bb1: "not stated" twice).** The button is named by its study and says where it leads
+  ("not stated: the individual of study 230-23, on Populations and individuals") and opens that study's own row there,
+  its first field focused (or, shared with other studies, its "Change the individual of …"). Impact: it leads to the work.
+- **The formulation way on Products.** Each study's "confirm a product's dissolution data, then use its profile as its
+  release" is named with its product; on 7bb1 both rows lead to Test 10 mg's card at its release, so their two names are
+  alike by design (plan §5).
+- **No field's id on the page.** The more checks' notes printed the API's message as written ("note pk.Cmax: values in
+  'ng/mL'; no unit table exists…", "excretion.amount: …", "particle_size_d50_um: …"). A check now carries the field its
+  message names and, for a unit check, its unit (`CheckResult.field`, `.unit`, set where the field-led checks are made;
+  `DeliveryCheck.field`, `.unit`, null for a blinded subject, as its message is; additive: OpenAPI snapshot and web types
+  refreshed), and the page writes them in the intake vocabulary's words (`words.checkText`): "Cmax (PK parameter): values
+  in “ng/mL”; …", "the study record needs the number of subjects". Found by the sweep and fixed: "looks like a pk
+  individual table" (now "an individual PK table"); a dissolution profile's conditions printed by `fieldLabel` (now
+  `conditionsInWords`); a dataset's reported PK as `t_half`, `AUC_last` (now "half-life", "AUC last"); a table named "the pK
+  summary table" in its layout button's name (`words.lowerFirst` keeps "PK"); "kept in the ledger" in a check; a dotted
+  field the landing holds back ("Excretion (excretion.amount)"); an arm's missing facts with the ids `n`, `intended_use`
+  ("230-26-Cohort 1: the study record needs n…", now "arm Cohort 1: the number of subjects, the route and what the study is
+  for are not stated"); the template's problems with raw locators and ids ("PK_Summary!F7 …", "arithmetic_mean"); a
+  template's numbered column as a label ("vessel vessel_1", now "vessel 1"); the studies table's protocol (`ir_tablet`); a
+  sheet's kind ("PK, individual", now "individual PK"); the confirm dialog's "It cannot be signed yet", which said the
+  API's detail as written ("3 failed checks: ABOVE_RANGE, LANDING_FIELD_MISSING, …") and the loading's problem with its
+  ids (now each check by what it says, the facts not stated by their reasons, `shared.blockerDetail`, and `landingText`;
+  the card's blocker hints too). The signed record's fingerprint stays, said as what it is
+  ("fingerprint of the signed record …"): a reviewer matches it with the audit trail. Impact: the page speaks one
+  vocabulary, the one its forms use.
+- **Widths.** A PDF's page lines wrap in place at every width (the one-line ellipsis stayed above 600 px). The reading's
+  tables and texts are one block per table, its parts under their column's names, at 900 px and below: on a phone their
+  state and messy-delivery.xlsx's "waits for approval" sat half off the screen in the table's own scroll box, and at 768 px
+  its last column did. Found by the same measure: from 601 to about 660 px the files table (626 px wide) scrolled sideways
+  in its box with no file open, so its rows are blocks up to 700 px; and at 768 px a sheet's state ("blinded until the plan
+  is signed", "read by code · 2 to give on its card") kept its line and set messy-delivery.xlsx's open file 47 px wider than
+  its box on 7bb1, so a sheet's chips and last cell wrap at 900 px and below. Measured at 360, 390, 601, 700, 768, 1024 and
+  1440 px on copies of 7bb1 and b4e7, every file open with its tables and texts: nothing scrolls sideways, every state in
+  view, no line cut. Impact: a file's reading is read whole on a phone and a tablet.
+- **Records corrected in place:** plan §5 round 4 ("the radios and the sort buttons are now the only repeats, which a
+  round-5 e2e scan asserts") and round 5 ("Left by design, and now asserted to be the only repeats"): true only on the e2e
+  seed, and for names without a colon. The round-5 entry below likewise.
+- Tests: `inputs-work.spec.ts` (`checkText`, the datasets' words and names on 230-23's two, `labelWord`, `lowerFirst`,
+  `withArticle`, `pkParamText`, `templateIssueText`, `landingText` for an arm, `heldText` for a dotted field, `checkField`
+  reading the API's field);
+  `inputs-a11y.spec.ts` (names with a colon read; no raw id in a name or in the text of Clinical studies, Products, To do,
+  Compound, Populations, Settings or Client files with every file open; on a phone the tables and texts as blocks with
+  their state in view; at 768 and 1024 px no PDF line cut and no tables-and-texts box scrolling sideways);
+  `delivery.spec.ts` (230-23's two loaded datasets read apart, visibly and in their names; the confirm dialog's blockers in
+  words while the study still waits); `inputs-workspace.spec.ts`
+  (the studies table's individual: its name, and the study's own row on Populations with the focus in it); specs that
+  asserted the old words assert the new truth: `blinding.spec.ts` (a blinded dataset says what it holds, "arithmetic
+  mean" among it, and shows no point until revealed), `client-data.spec.ts` (the template's cell "sheet PK_Summary, cell
+  F7", never "PK_Summary!F7"), `digitize.spec.ts` (a dataset's origin "digitized figure"); pytest
+  `test_a_check_names_its_field_and_its_unit_apart_from_its_message`, and the card's checks in
+  `test_delivery_api.py` (a field and a unit apart; none for a blinded subject). Software test data on the stub engine,
+  never PBPK evidence. No locked file, SME rule or boundary exception was touched.
+
 ### Fixed — final review round 5, what a decision makes stale (round 4's blinding regression after a signed confirmation, the same gap after a card decision and a sheet-form confirmation, the race in `put`, the timing failures, the offers' request budget; plan 2026-11-14 §5) — science-adjacent
 - **Regression fixed: a product blinded by a signature showed the blinded study's values in the same visit.** With the
   project's blinding on and no plan, signing a delivery study lands its dataset in the study catalog; the MS-01 split
@@ -142,7 +213,9 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
   moving the focus once, to "Choose the individual…"; every file of Client files opened at 390 px with its reading's
   tables shown; a new scan of Chromium's computed names on Clinical studies and Products with every card, values table,
   page, list of more checks and a spot check open, two of its answers "does not match": no repeat but the sort buttons
-  and the answers, no field's id). Software test data on the stub engine: none of it is PBPK evidence.
+  and the answers, no field's id). *(Corrected in round 6: on the e2e seed only, and the scan read only names without a
+  colon; the owner's 7bb1 had three more repeats and printed field ids in its more checks' notes, fixed in round 6.)*
+  Software test data on the stub engine: none of it is PBPK evidence.
 
 ### Fixed — final review round 5, the formulation lever's edges and the blinded reason everywhere (round 4's downstream-blinding skeptic; plan 2026-11-14 §5) — science-adjacent
 - **"add a product's dissolution data" lands on what adds them.** For a product with no card (one only the proposal or a

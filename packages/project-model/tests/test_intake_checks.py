@@ -544,6 +544,25 @@ def test_an_rpm_a_particle_size_and_an_auc_unit_are_not_checked_never_failed(boo
     assert not [r for r in results if r.severity == "fail" and {rpm, size, auc} & set(r.values)]
 
 
+def test_a_check_names_its_field_and_its_unit_apart_from_its_message(book):
+    """The intake field a check's message leads with, and a unit check's unit as written, are carried apart (`field`,
+    `unit`), so the page says them in its own words, never `pk.AUC_last` (final review round 6); the message is unchanged."""
+    ids = clean(book)
+    product = clean_product(book)
+    size = book.fact("particle_size_d50_um", 12.5, unit="µm", entity={"product": product["product"]})
+    auc = book.fact("pk.AUC_last", 120.0, unit="ng*h/mL", statistic="arithmetic_mean", entity=profile(ids))
+    _value(book, ids, -1.0)
+    reader = book.reader()
+    results = checks(reader, "product", product["product"]) + checks(reader, "study", ids["study"])
+    unchecked = {v: r for r in results if r.code == "UNIT_NOT_CHECKED" for v in r.values}
+    assert (unchecked[size].field, unchecked[size].unit) == ("particle_size_d50_um", "µm")
+    assert (unchecked[auc].field, unchecked[auc].unit) == ("pk.AUC_last", "ng*h/mL")
+    assert unchecked[auc].message.startswith("pk.AUC_last: values in 'ng*h/mL'")
+    negative = next(r for r in results if r.code == "NEGATIVE_VALUE")
+    assert (negative.field, negative.unit) == ("concentration", None) and negative.message.startswith("concentration: ")
+    assert all(r.field is None for r in results if r.code in ("BLQ_PRESENT", "REQUIRED_ITEM_UNDISPOSED"))
+
+
 def test_a_check_id_is_stable_across_runs_and_changes_with_its_values(book):
     ids = clean(book)
     _value(book, ids, -1.0)
