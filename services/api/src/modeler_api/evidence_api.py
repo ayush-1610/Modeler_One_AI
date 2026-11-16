@@ -17,7 +17,7 @@ from pydantic import BaseModel, Field
 from modeler_api import agent_jobs, jobs
 from modeler_api.compound_jobs import SOURCES_AGENT, CodeRunner, run_compound_job, run_research_job
 from modeler_api.config import SettingsDep
-from modeler_api.deps import Reader, StoreDep, Writer, blinded_why, redact, version_view, workspace_for
+from modeler_api.deps import Reader, StoreDep, Writer, blinded_sources, redact, version_view, workspace_for
 from modeler_api.reference_models import TEMPLATES, model_name, snapshot
 from modeler_api.responses import answers, envelope
 from modeler_api.views.evidence import (
@@ -32,6 +32,7 @@ from modeler_api.views.evidence import (
 )
 from modeler_intake.documents import DocumentError
 from modeler_project import ArtifactKind, Workspace
+from modeler_project.blinded_sources import BlindedSources
 from modeler_project.brief import ProjectBrief
 from modeler_project.dataset_register import (
     approve_overlay,
@@ -114,18 +115,20 @@ def _evidence_view(item: EvidenceItem) -> dict[str, Any]:
     return {**item.model_dump(mode="json"), "flags": list(dict.fromkeys([*item.flags, *review_flags(item)]))}
 
 
-def _dataset_view(ws: Workspace, dataset: ObservedDataset, hidden: set[str], why: dict[str, str]) -> dict[str, Any]:
-    """A dataset as the list shows it: its values withheld while its study is blinded (D-15), with why (`blinded_why`)."""
+def _dataset_view(ws: Workspace, dataset: ObservedDataset, hidden: BlindedSources) -> dict[str, Any]:
+    """A dataset as the list shows it: its values withheld while its study is blinded (D-15), with why. Blinded by the
+    rule every view of a study's values follows (`blinded_sources`: the project's list, or a study of its name the
+    delivery blinds; final review round 6: the list alone left the points of a study the delivery blinds on its card,
+    beside its sheet form's line saying they are withheld)."""
     content = redact(ws, ArtifactKind.DATASET, dataset.to_content(), hidden)
-    return {**content, "blinded_why": why.get(str(dataset.study.get("study_id")))} if content.get("blinded") else content
+    return {**content, "blinded_why": hidden.study_why(dataset.study.get("study_id"))} if content.get("blinded") else content
 
 
 def _view(ws: Workspace) -> dict[str, Any]:
     matrix_version, matrix = _matrix(ws)
     evidence = items(ws)
     observed = datasets(ws)
-    why = blinded_why(ws)
-    hidden = set(why)
+    hidden = blinded_sources(ws)
     rows = coverage(matrix, evidence, observed)
     register = ws.latest(ArtifactKind.EVIDENCE, REGISTER_LITERATURE)
     runs = [r for r in agent_jobs.project_runs(getattr(ws.store, "root", None), ws.tenant_id, ws.project_id)
@@ -135,8 +138,9 @@ def _view(ws: Workspace) -> dict[str, Any]:
         "evidence": [_evidence_view(e) for e in evidence],
         # D-15: external datasets' values are withheld until the MAP is signed (metadata kept for the split), each with why
         # its study is on the blinding list (round 5: the Every dataset line said only that it is blinded)
-        "datasets": [_dataset_view(ws, d, hidden, why) for d in observed],
-        "blinding": {"blinded": sorted(hidden)},
+        "datasets": [_dataset_view(ws, d, hidden) for d in observed],
+        "blinding": {"blinded": sorted({*hidden.listed, *(str(d.study.get("study_id")) for d in observed
+                                                          if hidden.withholds(d.study.get("study_id")))})},
         "coverage": [r.__dict__ | {"accepted": list(r.accepted), "proposed": list(r.proposed)} for r in rows],
         "blocking": [r.req_id for r in blocking(rows)],
         "access_requests": access_requests(ws),

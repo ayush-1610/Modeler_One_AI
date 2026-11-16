@@ -1,6 +1,7 @@
 // What a new answer makes of the page's other answers (final review round 5): which of two answers of the same read is
 // the newer when a decision's answer meets a read still on its way, which cards a new answer of the delivery page made
-// stale, and which studies the project's blinding withholds now. Pure functions on what the API answered, so they are
+// stale, which studies the project's blinding withholds now, and from which moment a change of the blinding is followed
+// (round 6). Pure functions on what the API answered, so they are
 // checked without a browser (e2e/inputs-work.spec.ts); `lib/hooks.ts`, `components/delivery/writes.ts` and the Inputs
 // workspace apply them.
 
@@ -60,4 +61,16 @@ export function changedRows(before: Page | undefined, after: Page): { changed: s
 export function blindedStudies(inputs: { studies: { study_id: string; blinded: boolean }[] } | null | undefined): string | null {
   if (!inputs) return null;
   return [...new Set(inputs.studies.filter((s) => s.blinded).map((s) => s.study_id))].sort().join("|");
+}
+
+/** A following of a change of the project's blinding: the moment it followed from, and the moment its reads were sent in. */
+export type Followed = { since: number; at: number };
+
+/** The moment a change of the project's blinding is followed from (final review round 6, `followBlinding`): `since`, the
+ *  moment the answer that shows it was read in (what was read or written in that moment or later holds the change); or,
+ *  when that answer was read by the last following (`last`: read between the moment it followed from and the moment its
+ *  reads were sent in), the last following's: the answer shows the change that following read everything again for, so
+ *  what it read is not read twice (round 5's gap a). An answer read before or after it is followed from its own. */
+export function followFrom(last: Followed | undefined, since: number): number {
+  return last && since >= last.since && since <= last.at ? last.since : since;
 }

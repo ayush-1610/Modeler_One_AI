@@ -15,6 +15,62 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Fixed — final review round 6, what a newly blinded study withholds elsewhere (round 5's blinding-fresh skeptic: the rule complete, once per route; one source for a study's withheld values; no signature offered on a blinded card; the records; plan 2026-11-14 §5) — science-adjacent
+- **A change of the blinding reads everything it changes, once (components/delivery/writes.ts `followBlinding`).** Round
+  5 read again only the cards whose delivery rows changed, while the API also withholds by file and by name on cards
+  whose rows stay the same: the why of a decision about a file that now holds a blinded study's values (and an entered
+  value with it, `delivery_routes._decisions`), the layout views' headers and findings, the source view's page, and,
+  through the inputs and the evidence, a study already in the model. On the skeptic's probe A2, after 230-23 was signed
+  and the split blinded it, unblinded 231-24's "Decisions made on this study" kept "41.7" in the same visit while the
+  API answered "••.•". Now one place decides what a blinding change reads, either way (blinded, no longer blinded, or
+  for another reason), whichever answer shows it (a delivery row, `followRows`; the studies the inputs say are blinded,
+  `blindingChanged`): every card of the project (at once where shown or counted, which the work model makes every card,
+  else when next shown), their spot checks, the layout views, the source view, the delivery page, the inputs, the
+  evidence, the client's files and their sheets, the sheet form's groups, the documents, their pages and their figures.
+  An answer read or written since the change (the decision's own answer and reads) is not read again: reads and writes
+  record the moment they were made in (one moment per task, `moment`, lib/hooks.ts; `put` records a written answer),
+  and a second answer that shows the same change (the inputs the first following read again, or the decision's own
+  read of them) is followed from the first one's moment (`followFrom`, lib/freshness.ts). So round 5's gap (a) is
+  closed: a signed landing the split blinds reads the client data, the sheet form, the documents, the evidence, the
+  inputs and the delivery once each. "Change the purpose…" on a blinded card is a blinding change: its own reads
+  (`PURPOSE_READS`) are folded into the rule and removed. With the blinding unchanged nothing more is read, so
+  delivery.spec's and client-confirm's exact request lists hold. The unused `askedAt` (lib/hooks.ts) is gone.
+  Impact: the Studies list, a study's dataset lines, every card and the client's files follow a card decision, a
+  signature, a facts form or a sheet-form confirmation that blinds or unblinds a study, in the same visit.
+- **One source for a study's withheld values, failing closed (`BlindedSources.withholds`, modeler_project
+  .blinded_sources).** On the owner's copy (7bb1), 231-24 was blinded by the delivery (its card's purpose) but not by the
+  project's list; the sheet form's card said "what the sheet form read of it is shown once the plan is signed" while its
+  dataset's line beside it offered "Show the points": `GET /evidence` redacted by the list only (`deps.blinded_why`),
+  the sheet form by the list and the delivery together. Every view of a study's values now asks the same rule (the
+  list's study ids, then a study of the same name the list or the delivery withholds: `blinding.study_key`, the name
+  rule the sheet form already used): the evidence's datasets (points, reported PK, and `blinded_why`, the list's reason
+  or the delivery's), the client review's dataset items, the inputs' Studies rows and catalog profiles, Review &
+  sign's studies, the Run page's studies, the artifact view and history, and the reveal's audit entry. Impact: the
+  evidence withholds 231-24's points on 7bb1 and says "it is entered for external validation on its card"; the Studies
+  list says it is blinded. This applies the existing blinding set: which studies are blinded is unchanged (the list's
+  rule, the delivery's rule, the MS-01 split; checked in-process on a copy of 7bb1: the list still empty, the delivery
+  still blinding 231-24 and 230-25). No API field added or removed (`study_rows` takes the rule).
+- **A blinded card offers no signature it cannot give.** A blinded study's or product's card showed "Confirm and sign…"
+  (in a fresh visit too), whose dialog named the blinding and disabled its sign button; the API refuses it (409
+  `BLINDED`, kept). Where the button was, the card now says "Signing waits until the plan is signed, because …" with
+  the card's reason (`signWaitsWords`, lib/inputsWork.ts, beside `blindedWords`). The card's withheld line says
+  "this product" on a product card (it said "this study").
+- **Records.** Round 5's CHANGELOG entry and plan §5 sub-heading, and inputs-blinded-follow.spec.ts's header, said the
+  page shows what the API withholds without a new visit; that held for the cards whose rows changed. Each is narrowed in
+  place and points here.
+- **Tests.** pytest `test_a_study_the_delivery_blinds_has_its_datasets_withheld_wherever_the_sheet_form_says_they_are`
+  (the Fed sheet read for model building, then 231-24 entered for external validation on its card: the evidence, the
+  client review, the inputs' Studies row and catalog, the Run page and the reveal's audit follow one rule; corrected back,
+  nothing is withheld; fails on 8f43eb5 at the evidence). e2e/inputs-blinded-follow.spec.ts: the signed-landing test now
+  checks that 231-24's card shows the masked why in the same visit and that each route is read once after Done; a new
+  test blinds an already-landed study by correcting its purpose on its card and checks its Studies row, its dataset's
+  line and its product in the same visit; every blinded product card checked offers no "Confirm and sign…" and says why
+  signing waits. e2e/inputs-blinded.spec.ts: a new test of 7bb1's state with the dataset still to confirm (its line
+  withholds the points and says why beside the sheet form's withheld reading; the study card says why signing waits);
+  7bb1 itself was checked in a browser on a copy of the review data (plan §5). e2e/inputs-work.spec.ts: `followFrom` and `signWaitsWords`. The two new follow tests
+  fail on round 5's web at their same-visit assertions; the whole e2e suite passes (146 of 146). Software test data (the
+  made-up Exampleamide; the stub engine, a software fixture). No locked file; no SME rule; no API contract change.
+
 
 ### Fixed — final review round 5, what a decision makes stale (round 4's blinding regression after a signed confirmation, the same gap after a card decision and a sheet-form confirmation, the race in `put`, the timing failures, the offers' request budget; plan 2026-11-14 §5) — science-adjacent
 - **Regression fixed: a product blinded by a signature showed the blinded study's values in the same visit.** With the
@@ -35,8 +91,13 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
   (`writeConfirmed`, compared with the page as the signature found it), the sheet form's saved sheet and read sheet
   (`SHEET`, `sheetReadAfter`) and the confirmations and dataset decisions that name a delivery subject
   (`confirmAfter`, `datasetAfter`). Impact: in a blinded project, the product's card says it is blinded, withholds the
-  study's values and offers no spot check in the same visit, and its signature waits (the dialog names the blinding),
-  as a new visit shows it. A decision that changes no other
+  study's values and offers no spot check in the same visit, and its signature waits (the dialog names the blinding;
+  round 6 offers no button there, the card says the wait and why), as a new visit shows it. *Narrowed in round 6:* this rule read again only the cards whose delivery rows changed, while
+  the API also withholds by file and by name: the why of a decision about the newly blinded study's file stayed readable
+  on another study's card (231-24's "41.7" beside the API's "••.•"), a layout's headers and a source page likewise, and
+  a study already in the model kept its Studies row and its points after a card decision blinded it, until a new visit;
+  and a signed landing the split blinds read the client data, the sheet form, the documents, the evidence and the
+  delivery twice (both rules fired). Round 6's `followBlinding` covers both (its entry above). A decision that changes no other
   row reads nothing more: delivery.spec's exact lists (`:enter`, `:dispose`, `:override`: the decision and the delivery
   page; Done: the client data, the sheet form, the delivery, the evidence and the inputs) and client-confirm's hold
   unchanged.
@@ -81,7 +142,9 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
 - **Records corrected in place.** Round 4's CHANGELOG entry and plan §5 said that no other card changes after a signed
   confirmation ("no other card changed in the API's answers, and by the code none can") and that the client data is
   unchanged by a study's sheet-form confirmation: both hold only with blinding off; each now says so where it stands.
-- **Tests.** e2e/inputs-blinded-follow.spec.ts (new): a study signed on the delivery that the split blinds when it lands
+- **Tests.** e2e/inputs-blinded-follow.spec.ts (new; its header claimed the page shows "what the API now withholds"
+  without a new visit, which held for the product's card, not for the other cards of the file: narrowed in round 6): a
+  study signed on the delivery that the split blinds when it lands
   blinds its product's card in the same visit (values withheld, the blinded notice, no spot check), as a new visit
   shows it; a study entered for external validation on its card's facts form does the same; a sheet read with the
   sheet form whose study the split blinds once it is confirmed is withheld in Client files in the same visit

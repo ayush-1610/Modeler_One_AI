@@ -18,7 +18,7 @@ import { focusSoon, useFocusOnClose } from "@/components/kit/focus";
 import { SortHeader, TableFilter, TableMore } from "@/components/kit/SortableTable";
 import { send, type Schema } from "@/lib/api";
 import { useResource } from "@/lib/hooks";
-import { analyteChoices, cardPlace, foldChecks, normLabel } from "@/lib/inputsWork";
+import { analyteChoices, cardPlace, foldChecks, normLabel, signWaitsWords } from "@/lib/inputsWork";
 import { numericKey, useTableView } from "@/lib/tableView";
 import {
   DISPOSITION_WORD, anchorCell, anchorPlace, checkGist, distinctNames, engineWords, fieldInText, fieldLabel, heldText, individualNeeds,
@@ -36,7 +36,7 @@ import {
 } from "./shared";
 import { SpotCheck } from "./SpotCheck";
 import { ValueSource } from "./ValueSource";
-import { PURPOSE_READS, cardKey } from "./writes";
+import { cardKey } from "./writes";
 
 type Check = Schema<"DeliveryCheck">;
 type Table = Schema<"DeliveryTable">;
@@ -713,7 +713,7 @@ function StatedFacts({ projectId, params, values: all, flagged, decide, busy, re
               <PurposeChange v={v} purposes={purposes} busy={busy} about={whose} testId={`purpose-${v.id}`}
                              onCancel={() => { setCorrecting(null); focusSoon(cardPlace("purpose", params.subject, "intended_use")); }}
                              onSubmit={async (body) => {
-                               const { data } = await decide(() => send("post", ENTER, params, body), PURPOSE_READS);
+                               const { data } = await decide(() => send("post", ENTER, params, body));
                                if (data) setCorrecting(null);
                                return Boolean(data);
                              }} />
@@ -849,7 +849,7 @@ export function DeliveryReview({ projectId, row, mode, gate, onMapping, todo, su
         {s.silent_loss ? ` · ${plural(s.silent_loss, "number")} in the delivery's files not read` : ""} · {rulesText(s.rules)}
       </p>
       {/* why, so a wrong match is seen (round 3: "the project's blinding list names it (study …)") */}
-      {s.blinded && <p className="delivery-withheld" data-testid={`delivery-blinded-${s.subject}`}>{WITHHELD}: this study is blinded until
+      {s.blinded && <p className="delivery-withheld" data-testid={`delivery-blinded-${s.subject}`}>{WITHHELD}: this {KIND_LABEL[s.subject_type].toLowerCase()} is blinded until
         the plan is signed{s.blinded_why ? <span data-testid={`delivery-blinded-why-${s.subject}`}>, because{" "}
           {/* the part that can be changed leads where it is changed (round 5): its purpose, below, or the plan's roles */}
           <BlindedReason why={s.blinded_why} projectId={projectId} whose={whose}
@@ -1013,7 +1013,12 @@ export function DeliveryReview({ projectId, row, mode, gate, onMapping, todo, su
               <ChangedSince subject={s} />
             </>
           ) : <p className="muted m-0">Not confirmed yet. Your signature binds what this card shows, and its values are then loaded into the model.</p>}
-          {s.confirm_on === "delivery" && !done && (
+          {/* a blinded card's signature is refused until the plan is signed (409 BLINDED): no button that cannot be used,
+              the wait and why where it would be (round 6; its dialog only said so once opened) */}
+          {s.confirm_on === "delivery" && !done && s.blinded && (
+            <p className="muted m-0" data-testid={`delivery-sign-waits-${s.subject}`}>{signWaitsWords(s.blinded_why)}</p>
+          )}
+          {s.confirm_on === "delivery" && !done && !s.blinded && (
             <div className="confirm-paths">
               <button type="button" className="btn primary" onClick={() => setConfirming(true)} data-testid={`delivery-confirm-${s.subject}`}
                       disabled={gated.length > 0 && !(c && c.current && !c.landed)}

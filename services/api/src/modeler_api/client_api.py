@@ -21,7 +21,6 @@ from modeler_api.deps import (
     StoreDep,
     Writer,
     blinded_sources,
-    blinded_studies,
     blinding_view,
     file_tag_view,
     redact,
@@ -681,7 +680,6 @@ def _withheld(group: dict[str, Any]) -> None:
 
 def _review(ws: Workspace) -> dict[str, Any]:
     found = review_groups(ws)
-    hidden = blinded_studies(ws)
     register = {p["id"]: p for p in profiles(ws)}
     blinding = blinding_view(ws)
     delivery = blinded_sources(ws)
@@ -692,7 +690,7 @@ def _review(ws: Workspace) -> dict[str, Any]:
         group["blinded_why"] = delivery.reason(group)     # why, in words: its card says it, so a wrong match is seen
         for item in group["items"]:
             if item["kind"] == "dataset" and (d := dataset(ws, item["id"])) is not None:
-                item["data"] = card_points(redact(ws, ArtifactKind.DATASET, d.to_content(), hidden))
+                item["data"] = card_points(redact(ws, ArtifactKind.DATASET, d.to_content(), delivery))
             elif item["kind"] == "profile" and item["id"] in register:
                 item["release"] = register[item["id"]]
             elif item["kind"] == "draft":

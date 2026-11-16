@@ -212,17 +212,17 @@ def list_studies(project_id: str, principal: PrincipalDep, store: StoreDep, proj
     Run page listed none while Inputs had a study in the model), each once, an upload first."""
     require_project(project_id, principal)
     studies = store.list_studies(principal.tenant_id, project_id)
-    from modeler_api.deps import blinded_studies
+    from modeler_api.deps import blinded_sources
     from modeler_project.inputs import catalog_rows
 
     ws = Workspace(projects, principal.tenant_id, project_id)
-    hidden = blinded_studies(ws)
+    hidden = blinded_sources(ws)          # one rule for a study's values: the list's and the delivery's (round 6)
     uploaded = {str(s.get("study_id")) for s in studies}
     studies += [_from_inputs(r, project_id) for r in catalog_rows(ws) if str(r.get("study_id")) not in uploaded]
     if hidden:  # D-15: a pipeline project's external studies, published at P4, keep their values out until the MAP is signed
         from modeler_project.blinding import redact_row
 
-        studies = [redact_row(s) if str(s.get("study_id")) in hidden else s for s in studies]
+        studies = [redact_row(s) if hidden.withholds(s.get("study_id")) else s for s in studies]
     return envelope({"studies": studies})
 
 

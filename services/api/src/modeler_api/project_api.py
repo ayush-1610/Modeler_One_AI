@@ -20,7 +20,7 @@ from modeler_api.deps import (  # noqa: F401 - re-exported: tests override proje
     Reader,
     StoreDep,
     Writer,
-    blinded_studies,
+    blinded_sources,
     blinding_view,
     get_project_store,
     hidden_paths,
@@ -198,7 +198,7 @@ def reveal_dataset(project_id: str, dataset_id: str, body: RevealRequest, princi
     if version is None:
         raise HTTPException(status_code=404, detail=f"no dataset {dataset_id}")
     dataset = ObservedDataset.from_content(version.content)
-    if str(dataset.study.get("study_id")) in blinded_studies(ws):
+    if blinded_sources(ws).withholds(dataset.study.get("study_id")):     # as the evidence withholds it (round 6)
         store.audit(ws.tenant_id).append(actor=principal.user_id, action="dataset.reveal", resource_type="dataset",
                                          resource_id=f"{project_id}/{dataset_id}@v{version.version}",
                                          after=version.sha256, reason=body.reason)

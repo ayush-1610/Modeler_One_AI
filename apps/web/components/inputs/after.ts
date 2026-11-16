@@ -6,15 +6,16 @@
 // checked against the API's answers before and after it, and against the code that answers (final review round 4). The step bar, drawn on the server, follows the readiness: the workspace
 // draws it again when the readiness the inputs answer with changes (`InputsWorkspace`), whatever changed it. A decision
 // on the delivery is written by `components/delivery/writes.ts`. Two rules follow what a decision changed beyond what it
-// names (final review round 5): a read of the delivery page is followed by the cards whose rows it changed
-// (`followPage`), and when the studies the project's blinding list withholds change, what it withholds is read again
-// (`blindingChanged`, which the workspace calls on every answer of the inputs).
+// names (final review rounds 5 and 6): a read of the delivery page is followed by the cards whose rows it changed
+// (`followPage`), and a change of the project's blinding, seen in a delivery row or in the studies the inputs say are
+// blinded (`blindingChanged`, which the workspace calls on every answer of the inputs), has everything of the project
+// the blinding changes read again, once (`followBlinding`, writes.ts: one place decides what it reads).
 
 import type { QueryClient } from "@tanstack/react-query";
 
-import { followPage, followPages } from "@/components/delivery/writes";
+import { followBlinding, followPage, followPages } from "@/components/delivery/writes";
 import type { Schema } from "@/lib/api";
-import { put, readAgain, type After, type Read } from "@/lib/hooks";
+import { moment, put, readAgain, readMoment, type After, type Read } from "@/lib/hooks";
 
 const P = "/api/v1/projects/{project_id}" as const;
 export const INPUTS = `${P}/inputs` as const;
@@ -208,20 +209,15 @@ function readSubjects(client: QueryClient, projectId: string, subjects: Schema<"
   return followPage(client, projectId, { answered: subjects.map((s) => `${s.subject_type}/${s.subject}`) });
 }
 
-/** What the project's blinding list withholds, read again when the studies it names change (final review round 5): the
- *  workspace compares them on every answer of the inputs (`lib/freshness.ts` `blindedStudies`), whatever changed them.
- *  A study's datasets put in the catalog (a sheet form's group confirmed, a dataset kept or left out, a study's facts or
- *  purpose, values brought in) can make the MS-01 split propose S5 or S6 for it, or for another study, before a plan:
- *  the client's files and sheets, the sheet form's groups, the evidence's datasets and the documents withhold or show
- *  them, and the delivery's studies of those names and the products that hold their values are blinded or not (its page
- *  read again and followed, `followPage`). Round 4 read the client's files again after a study's confirmation only when a
- *  product's profile was chosen, so the template's sheets of a study the split had just blinded stayed readable on the
- *  page. A read of one of them already on its way is sent again: when the change happened cannot be told from here, so
- *  only a read asked for after it was seen is current. */
+/** The studies the inputs say are blinded changed (final review round 5): the workspace compares them on every answer of
+ *  the inputs (`lib/freshness.ts` `blindedStudies`), whatever changed them. A study's datasets put in the catalog (a sheet
+ *  form's group confirmed, a dataset kept or left out, a study's facts or purpose, values brought in) can make the MS-01
+ *  split propose S5 or S6 for it, or for another study, before a plan, and a study the delivery blinds by its card is
+ *  blinded on the Studies list too (round 6: one rule for a study's values, `BlindedSources.withholds`). Round 4 read the
+ *  client's files again after a study's confirmation only when a product's profile was chosen, so the template's sheets
+ *  of a study the split had just blinded stayed readable on the page. The blinding's one rule follows it
+ *  (`followBlinding`), from the moment the inputs that show it were read in: what was read since holds the change, and
+ *  a change the delivery's rows showed first (its following read these inputs again) is not read twice. */
 export function blindingChanged(client: QueryClient, projectId: string): Promise<void> {
-  return Promise.all([
-    readAgain(client, [CLIENT_DATA, `${CLIENT_DATA}/{sid}/sheets/{sheet}`, CLIENT_REVIEW, EVIDENCE, DOCUMENTS,
-                       `${DOCUMENTS}/{sha256}/figures`]),
-    followPage(client, projectId),
-  ]).then(() => undefined);
+  return followBlinding(client, projectId, readMoment(key(INPUTS, projectId)) ?? moment());
 }

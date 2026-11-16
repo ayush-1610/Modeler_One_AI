@@ -14,7 +14,10 @@ proposal before a plan, a dataset entered for external validation). Withheld:
   its other figures and pages (an owner's decision, plan 2026-11-14 §5 round 3); `by` names the studies, so the page
   says why;
 - the sheets those values were read from (the delivery's anchors, the sheet form's readings that made a listed study's
-  datasets, a template's sheets a listed study's rows are on): not shown, read or previewed.
+  datasets, a template's sheets a listed study's rows are on): not shown, read or previewed;
+- the values of such a study wherever its id names it (`withholds`, by the same names: its datasets' points and
+  reported PK on the evidence and the client review, its catalog row's profile, the Studies list's chip), so no view
+  shows the points of a study another view says are withheld (final review round 6).
 """
 
 from __future__ import annotations
@@ -38,7 +41,8 @@ class BlindedSources:
     `by`: the blinded studies whose values each file holds (by sha256: a study's id as its dataset or card names it),
     what the page says a file is withheld for; `why`: why a group is withheld, in words, by its id or its name (as
     `groups` and `names` key it): the delivery's reason for the study it is joined to (`intake_review.blinded_why`), or
-    why the project's blinding list holds the study of its name (`blinding.external_why`; round 4)."""
+    why the project's blinding list holds the study of its name (`blinding.external_why`; round 4); `listed`: the
+    project's list, each study id with why it is on it (`blinding.listed_why`)."""
 
     groups: frozenset[str] = frozenset()
     names: frozenset[str] = frozenset()
@@ -46,6 +50,23 @@ class BlindedSources:
     sheets: Mapping[str, frozenset[str]] = field(default_factory=dict)
     by: Mapping[str, frozenset[str]] = field(default_factory=dict)
     why: Mapping[str, str] = field(default_factory=dict)
+    listed: Mapping[str, str] = field(default_factory=dict)
+
+    def withholds(self, study_id: Any) -> bool:
+        """Whether the values of the study of this id are withheld: the project's list holds it, or a study of its name is
+        withheld (`names`: the list's under another spelling, or one the delivery blinds; `blinding.study_key`: a
+        delivery study, a client-review group and a dataset of one name are one study for blinding). One rule for every
+        view of a study's values, its datasets, its catalog row and its sheet form's group alike (final review round 6:
+        the evidence redacted the list's studies only, so a study the delivery blinds kept its points on the card whose
+        sheet-form line said they were withheld)."""
+        return str(study_id) in self.listed or f"study:{blinding.study_key(study_id)}" in self.names
+
+    def study_why(self, study_id: Any) -> str | None:
+        """Why the study's values are withheld, in words (None for a study whose values are not): the list's reason for a
+        study it holds (`blinding.listed_why`), else the reason of the study of its name (`why`)."""
+        if not self.withholds(study_id):
+            return None
+        return self.listed.get(str(study_id)) or self.why.get(f"study:{blinding.study_key(study_id)}")
 
     def studies(self, sha256: str | None) -> list[str]:
         """The blinded studies a withheld file holds the values of, in order ([] for a file that is not withheld)."""
@@ -145,4 +166,4 @@ def blinded_sources(ws: Workspace, project: dict[str, Any] | None, model_risk: s
                     why.update({gid: reason for gid in row["legacy_groups"]})
     return BlindedSources(groups=frozenset(groups), names=frozenset(names), files=frozenset(files),
                           sheets={sha: frozenset(on) for sha, on in sheets.items()},
-                          by={sha: frozenset(found) for sha, found in by.items()}, why=why)
+                          by={sha: frozenset(found) for sha, found in by.items()}, why=why, listed=listed_why)
