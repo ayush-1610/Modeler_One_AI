@@ -12,8 +12,8 @@
 
 import type { Schema } from "./api";
 import {
-  AREA_NAME, type FormulationWay, STATUS_WORD, type Status, type Tab, UNREADABLE, askAt, checkFix, checkLabel, factText, formulationParts,
-  formulationWays, individualNeeds, layoutOrigin, placeText, plural,
+  AREA_NAME, type FormulationWay, STATUS_WORD, type Status, type Tab, UNREADABLE, anchorPart, askAt, checkFix, checkLabel, elsewhereText, factText,
+  formulationParts, formulationWays, individualNeeds, layoutOrigin, placeText, plural,
   tableKindText, todoLabel, whenText, whereIs,
 } from "./words";
 
@@ -158,8 +158,12 @@ export type Subject = {
   area: Tab; files: string[]; blinded: boolean; done: boolean;
 };
 
-/** A line of "Ask the client": `at`, its own anchor (the page's `?at=`), apart for each product a study names (round 6). */
-export type AskLine = { req: string; what: string; subjects: string[]; required: boolean; why: string; at: string };
+/** A line of "Ask the client": `at`, its own anchor (the page's `?at=`), apart for each product a study names (round 6);
+ *  `product`, the product a per-product line asks for; `studies`, the tablet studies a delivery's per-product line also asks
+ *  for, whose files name that product, and `also`, the anchors of their own lines it stands for (round 7: one line per
+ *  product, where "ask the client" lands). */
+export type AskLine = { req: string; what: string; subjects: string[]; required: boolean; why: string; at: string;
+                        product: string | null; studies: string[]; also: string[] };
 /** A model check (the readiness report) in words; `said`: an open check whose gap a To do group already lists (its
  *  rows, or the cards to confirm), so the Model checks group does not say it again (final review OWN-14). */
 export type CheckLine = { raw: string; label: string; ok: boolean; detail: string[]; fix: string; said: boolean };
@@ -468,12 +472,15 @@ export function buildWork(sources: WorkSources): WorkModel {
     const way = t.kind === "formulation" ? formulationWays(t.way) : null;
     const lever = t.kind === "formulation" && (t.way?.way === "use_profile" || t.way?.way === "add_dissolution") ? t.way : null;
     const product = lever ? productFor(subjects, lever.products[0]) : null;
+    // round 7: a study the readiness check passes, whose file names a product while the model would use another
+    // product's release for it, is why the item is open: said first
+    const elsewhere = (t.way?.each ?? []).filter((e) => e.uses && e.named).map((e) => `${e.study}: ${elsewhereText(e.named!, e.uses!)}.`);
     add({
       id: `todo:${t.kind}:${t.target}`, group: decide ? "disagree" : "missing", status: decide ? "to_decide" : "missing", area: tab,
       label: todoLabel(t.kind, t.target), pipeline: "inputs",
       where: product ? { tab: product.area, anchor: releaseAnchor(product), subject: product.row ? `${product.row.subject_type}/${product.row.subject}` : undefined }
         : { tab, anchor: `todo-${t.kind}-${t.target}` },
-      detail: way?.ways.length ? way.fix : undefined,
+      detail: way?.ways.length ? [...elsewhere, way.fix].join(" ") : undefined,
       blocked: blinded ? blindedText(subjects.find((s) => s.kind === "study" && normLabel(s.label) === normLabel(t.target)) ?? { row: null, groups: [] },
                                      ": its facts are set afterwards.") : undefined,
       files: [], subjects: product && lever!.products.length === 1 ? [product.key] : [], weight: 1, todo: t,
@@ -814,15 +821,21 @@ export function formulationsHeld(inputs: InputsLike | null): string[] {
 /** A product's release in the model (final review OWN-10): the formulation the model holds under the product's name (its
  *  card's, or another name the sheet form gave it), or null while its release is not set; and whether a tablet or capsule
  *  study needs it: the readiness check "formulations of solid studies" names this product's formulation as missing or
- *  incomplete, or says a solid study has no formulation at all (any product may then be the one). */
+ *  incomplete, or says a solid study has no formulation at all (any product may then be the one), or (round 7) a tablet
+ *  study whose file names this product would use another product's release (its way's `uses`). */
 export function releaseOf(s: Pick<Subject, "label" | "aliases">, inputs: InputsLike | null): { name: string | null; needed: boolean } {
   const names = new Set([s.label, ...s.aliases].map(normLabel));
   const name = formulationsHeld(inputs).find((n) => names.has(normLabel(n))) ?? null;
-  const parts = (inputs?.todo ?? []).filter((t) => t.kind === "formulation").flatMap(formulationParts);
+  const items = (inputs?.todo ?? []).filter((t) => t.kind === "formulation");
+  const parts = items.flatMap(formulationParts).filter((p) => !ELSEWHERE.test(p));
   const needed = parts.some((p) => /defines no formulation \(/.test(p)
-    || [...p.matchAll(/formulation '([^']+)'/g)].some((m) => names.has(normLabel(m[1]))));
+    || [...p.matchAll(/formulation '([^']+)'/g)].some((m) => names.has(normLabel(m[1]))))
+    || items.some((t) => (t.way?.each ?? []).some((e) => e.uses && e.named && names.has(normLabel(e.named))));
   return { name, needed };
 }
+/** The formulation item's problem of a study that would use another product's release (round 7, the API's
+ *  `formulation_way.elsewhere_problem`): the formulation it names is the one used, not one missing. */
+const ELSEWHERE = /^.+?: its file names .+, but the CPF's only formulation '.+' would be used \(the study names no formulation\)$/;
 /** Where a product's card says its release, and offers to set it. */
 export const releaseAnchor = (s: Pick<Subject, "key">) => `card-release-${s.key}`;
 
@@ -872,21 +885,33 @@ export function blindedParts(why: string): BlindedPart[] {
 /** What only the client can send, one line per requirement with the subjects it is asked for: the delivery's request and
  *  the formulation item's (`ask`: each tablet study whose way to its formulation offers "ask the client", so wherever the
  *  step bar, Review & sign or To do offers it, this list holds the study's line: rounds 4 and 5), one line per requirement
- *  and wording, each study named once whichever path asks it. */
+ *  and wording, each study named once whichever path asks it. A study's line for a product the delivery already asks for
+ *  (its per-product line, `REQ-form.release@<product>`) is that line: the study is named on it and its anchor leads there
+ *  (round 7: the same release was asked twice, in two wordings). */
 export function askLines(delivery: DeliveryPage | null, inputs: InputsLike | null = null): AskLine[] {
   const out = new Map<string, AskLine>();
   // the formulation item's lines anchor apart by the product a study names (`askAt`: round 6, a named study's line and
   // the line of the studies that name none shared one anchor); the delivery's by their requirement, as before
-  const lines: [RequestLike, string][] = [
-    ...(delivery?.enabled ? delivery.request : []).map((l): [RequestLike, string] => [l, `todo-ask-${l.req_id}`]),
-    ...(inputs?.todo ?? []).filter((t) => t.kind === "formulation").flatMap((t) => t.ask ?? [])
-      .map((l): [RequestLike, string] => [l, l.req_id === "REQ-form.release" ? askAt(l.product) : `todo-ask-${l.req_id}`]),
-  ];
-  for (const [line, at] of lines) {
+  const theirs = (delivery?.enabled ? delivery.request : []).map((l): [RequestLike, string, boolean] => [l, `todo-ask-${l.req_id}`, false]);
+  const ours = (inputs?.todo ?? []).filter((t) => t.kind === "formulation").flatMap((t) => t.ask ?? [])
+    .map((l): [RequestLike, string, boolean] => [l, l.req_id === "REQ-form.release" ? askAt(l.product) : `todo-ask-${l.req_id}`, true]);
+  for (const [line, at, inputsLine] of [...theirs, ...ours]) {
     const [what, subject] = line.what.split(" — ");
-    const key = `${line.req_id}|${what}`;
-    const known = out.get(key) ?? { req: line.req_id, what, subjects: [], required: line.required, why: line.why, at };
     const name = subject?.replace(/^(study|product) /, "");
+    // a study's line for a product the delivery asks for already: joined onto the delivery's per-product line
+    const joined = inputsLine && line.product
+      ? [...out.values()].find((l) => l.req.startsWith(`${line.req_id}@`) && l.product !== null
+        && (normLabel(l.product) === normLabel(line.product!) || l.req === `${line.req_id}@${anchorPart(line.product!)}`))
+      : undefined;
+    if (joined) {
+      if (name && !joined.studies.some((n) => normLabel(n) === normLabel(name))) joined.studies.push(name);
+      if (!joined.also.includes(at)) joined.also.push(at);
+      joined.required ||= line.required;
+      continue;
+    }
+    const key = `${line.req_id}|${what}`;
+    const known = out.get(key) ?? { req: line.req_id, what, subjects: [], required: line.required, why: line.why, at,
+                                     product: line.product ?? null, studies: [], also: [] };
     if (name && !known.subjects.some((n) => normLabel(n) === normLabel(name))) known.subjects.push(name);
     known.required ||= line.required;
     out.set(key, known);

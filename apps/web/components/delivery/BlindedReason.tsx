@@ -47,11 +47,12 @@ export function BlindedReason({ why, projectId, onPurpose, whose, testId }: {
                   aria-label={`${part.text}: the studies and their roles, on Review & sign`}>{part.text}</Link>
           : part.to === "plan"
             // Review & sign shows only that it opens once the inputs are ready: the part is said, with what it waits on (the
-            // step bar's "Waiting on you", the reasons Review & sign lists, with To do below it)
+            // step bar's "Waiting on you", the reasons Review & sign lists, with To do below it), as a clause of the same
+            // sentence (round 7: a bracket of its own, after the part's "(external validation)" and before a dataset line's
+            // reference, stacked them)
             ? <Fragment key={i}>{part.text}<span className="muted" data-testid={testId ? `${testId}-plan-waits` : "blinded-plan-waits"}>
-                {" "}(its role is decided on Review &amp; sign, which opens once the inputs are ready:{" "}
-                <Link href={inputsHref(projectId, { area: "todo", query: "at=step-waiting" })} prefetch={false}
-                      aria-label="what the inputs still wait on before Review & sign opens, on To do">what they still wait on</Link>)</span>
+                , a role decided on Review &amp; sign once the inputs are ready (<Link href={inputsHref(projectId, { area: "todo", query: "at=step-waiting" })}
+                  prefetch={false} aria-label="what the inputs still wait on before Review & sign opens, on To do">what they still wait on</Link>)</span>
               </Fragment>
             : <Fragment key={i}>{part.text}</Fragment>))}
     </span>

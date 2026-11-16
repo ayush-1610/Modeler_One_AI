@@ -27701,7 +27701,7 @@
       },
       "StudyWayView": {
         "additionalProperties": false,
-        "description": "One tablet study's own lever (`modeler_project.formulation_way.StudyWay`): `products` in the order a link opens\nthem, `ready` whether the first one's profile can be used now, `named` the product the study names, if any.",
+        "description": "One tablet study's own lever (`modeler_project.formulation_way.StudyWay`): `products` in the order a link opens\nthem, `ready` whether the first one's profile can be used now, `named` the product the study names, if any; `uses`\n(round 7, To do's item only) the formulation the model would use for it while that is another product's.",
         "properties": {
           "named": {
             "anyOf": [
@@ -27728,6 +27728,17 @@
           "study": {
             "title": "Study",
             "type": "string"
+          },
+          "uses": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uses"
           },
           "way": {
             "enum": [

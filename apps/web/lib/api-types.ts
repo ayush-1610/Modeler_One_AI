@@ -12734,7 +12734,8 @@ export interface components {
         /**
          * StudyWayView
          * @description One tablet study's own lever (`modeler_project.formulation_way.StudyWay`): `products` in the order a link opens
-         *     them, `ready` whether the first one's profile can be used now, `named` the product the study names, if any.
+         *     them, `ready` whether the first one's profile can be used now, `named` the product the study names, if any; `uses`
+         *     (round 7, To do's item only) the formulation the model would use for it while that is another product's.
          */
         StudyWayView: {
             /** Named */
@@ -12745,6 +12746,8 @@ export interface components {
             ready: boolean;
             /** Study */
             study: string;
+            /** Uses */
+            uses?: string | null;
             /**
              * Way
              * @enum {string}

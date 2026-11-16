@@ -1344,8 +1344,12 @@ before the next starts.
 - **Owner question (science, the model building):** the readiness check and the CPF read only the study record, which
   carries no product from the file. While the model holds exactly one formulation, a tablet study that names none in its
   record uses it (`resolve_formulation_name`, with a note): a study whose file names Test 10 mg is modelled with Brand 10
-  mg's release if Brand 10 mg's is the only formulation, with no problem raised. The page no longer leads there, but
-  nothing stops it (a person may use Brand 10 mg's profile from its own card for another reason). Should the assembly
+  mg's release if Brand 10 mg's is the only formulation, with no problem raised. *(Corrected in round 7: this said "The
+  page no longer leads there, but nothing stops it". It did lead there: with two studies, or a crossover's Test and
+  Reference arms, whose files name Test 10 mg and Brand 10 mg, the step bar's first lever is Brand 10 mg's profile, for
+  the Reference study, and once it is used the readiness check passes and the page showed the Test study settled, its
+  choice set to Brand 10 mg. Since round 7 the page keeps such a study open, its To do item, row note and ask line
+  included; the build is unchanged, see round 7's sub-heading.)* Should the assembly
   give such a study the formulation made from its named product's profile (or name the product as its formulation, so
   the check says it is missing)? That changes what is built: left for the owner. The same holds for a study the delivery
   names a product for but that a person's formulation choice names otherwise (the person's choice wins, as today).
@@ -1359,7 +1363,8 @@ before the next starts.
 - **The plan's part of a blinded reason (`BlindedReason`, `ReachContext`).** Linked to `/plan#review-studies` only while
   Review & sign can show "Studies and roles": the inputs ready and checked since they last changed (the page's GET
   /inputs readiness; the API's `inputs_ready`, and GET /plan then makes the default plan if there is none). Otherwise said,
-  with "(its role is decided on Review & sign, which opens once the inputs are ready: what they still wait on)", the link
+  with "(its role is decided on Review & sign, which opens once the inputs are ready: what they still wait on)" (round 7:
+  ", a role decided on Review & sign once the inputs are ready (what they still wait on)"), the link
   focusing the step bar's "Waiting on you" over To do (To do's model checks do not repeat a check a To do group lists,
   so they may show nothing open). **Deviation:** "the steps state" in the finding is read from the page's own readiness,
   which follows every change on the page; the server-drawn step bar is the same state at load.
@@ -1383,6 +1388,10 @@ before the next starts.
   states (the study's formulation, not the product's dosage_form or release) is "not applicable"
   (`study_requirements._is_solid`, as `requirements.derive` decides it), so the delivery asks nothing for Test 10 mg;
   the inputs' line asks for it. Changing which items apply is a requirement-level (SME) decision: not changed.
+  *(Corrected in round 7: where the item does apply, because the product's name, dosage form or release says it is solid
+  or the data plan lists it ("Test 10 mg tablet"), both asked, the delivery's "Release model of the product
+  (dissolution)" and the inputs' per-study line, in two wordings. Since round 7 the study joins the delivery's line, which
+  names it, and its "ask the client" lands there; see round 7's sub-heading.)*
 - **Checked:** pytest `test_client_api.py` (the API on a template naming Test 10 mg beside Brand 10 mg's confirmed
   profile; `file_products` on both paths and each case; `ready`; the named profile used again; `held_why`); the skeptic's
   way_edge5.py now gives use_profile Test 10 mg for case 1 and `ready` false for case 2; in-process against a live API
@@ -1464,3 +1473,76 @@ before the next starts.
 - No locked file, SME rule (the spot check's draw size, digest and seed rule, requirement levels, the MS-01 split, which
   studies are blinded) or boundary exception was touched. The API change is additive (`DeliveryCheck.field`, `.unit`;
   snapshot and web types refreshed).
+
+### Final review fixes round 7: a study whose file names another product than the model holds (2026-11-16; round 6's named-product skeptic; CHANGELOG "Fixed — final review round 7, a study whose file names another product than the model holds")
+- **The Test study stays open after the Reference study's lever (`formulation_way`, `inputs.todo`).** With two studies, or
+  a crossover's Test and Reference arms, whose files name Test 10 mg and Brand 10 mg, and only Brand 10 mg's usable
+  profile, the step bar's first lever is Brand 10 mg's profile for the Reference study. Used, it makes Brand 10 mg the
+  model's only formulation, which the build uses for every tablet study that names none (`resolve_formulation_name`), so
+  the readiness check passes. **Not changed (the owner's question, round 6's, still open):** the assembly, the CPF and
+  the readiness gate; the Test study would be built with Brand 10 mg's release. **Changed, on the page:** `formulation_way`
+  with the study catalog's rows (To do's call) gives each tablet study that names no formulation, while the model holds
+  exactly one formulation that is not the product its own file names (`file_products`), its own way as a study that names
+  its product, with `uses` (that formulation). A formulation is a product's by its name, or by the product of the profile
+  its release was made from (the release's evidence names it): "RLD" made from Brand 10 mg's profile is Brand 10 mg's.
+  To do's formulation item stays open for such a study (counted with the others; the item exists while the check
+  passes), its row and its problems say "CL-02: its file names Test 10 mg; the model would use Brand 10 mg's release (its
+  only formulation) until Test 10 mg's release is set", then what sets it; its ask line stays; its row on Products and
+  dissolution says the same with "add Test 10 mg's dissolution data" and "ask the client" (or, when Test 10 mg has a
+  usable profile, the step bar's words for it, "use a product's dissolution profile as its release", or "confirm a
+  product's dissolution data, then …" while its data wait, named with Test 10 mg); Test 10 mg's card says a tablet study needs its
+  release. **Deviations:** (1) the step bar and Review & sign read the readiness check only (`steps.inputs_step`
+  unchanged), so they no longer name the Test study once the check passes; To do, its counts, "Next" and the study's row
+  do. Naming it there would mean a step state the readiness does not give, which is the gate the owner decides. (2) A
+  formulation a person chooses for the study (`inputs/choices`, with why) settles it, as any recorded choice does,
+  whatever product it is. (3) With two formulations the readiness check asks each study to choose (unchanged); the
+  study's way (`choose`) now carries the product its file names (`named`), never a lever of its own: a choice among
+  formulations none of which is its product's is still offered (it is the person's recorded decision). (4) A study whose
+  file names two products is open while the formulation is neither's.
+- **A study's choice never starts on another product's formulation (`FormulationChoice`).** Where the study's own way
+  names a product (`named`), the choice starts with none chosen ("choose the formulation it used"), that product's
+  formulation first where the model holds one (by name); a study whose files name none starts as before, on the first.
+- **One line per product in "Ask the client" (`askLines`).** A study's line for a product the delivery already asks for
+  (its per-product line `REQ-form.release@<product>`, by the product's name or the line's own slug) joins that line,
+  which names the study ("Release model of the product (dissolution) · Test 10 mg tablet, the product study CL-04 used")
+  and carries the study line's anchor (`data-also`); the page's `at=` landing finds it there first, so every "ask the
+  client" of the study lands on the delivery's line. A product the delivery does not ask for (its item does not apply)
+  keeps the study's own line, as in round 6.
+- **Speed (measured).** `file_products` folded the ledger on every GET /inputs and GET /steps while a tablet study lacked
+  a formulation. What the ways read from the ledger (`_ledger_names`) is now kept per project with the size and
+  modification time of the four logs the fold reads (facts, entities, mappings, review; append-only; the extracts they
+  name are written once), read before the fold, and `file_products` also by the client files' record folders'
+  modification times (a version is a new file in its folder). On a copy of 7bb1, in process, median over 15 to 31 fresh
+  workspaces: before, GET /inputs 0.136 s and GET /steps 0.088 s, with file_products stubbed out 0.062 s and 0.017 s (it
+  added 0.074 s and 0.071 s; the skeptic measured about 0.16 s under load); after, 0.061 to 0.063 s and 0.017 to 0.018 s,
+  within the noise of the stubbed figures (again after the change below: 0.061 to 0.066 s and 0.018 s). The first request
+  after a write pays one fold (about 0.08 s). **Deviation:** kept between requests by the files' signatures rather than
+  per request on the inputs' version: the inputs' version does not change when a delivery is read, and each route calls
+  it once, so a per-request memo would not have saved the fold. Kept in the process with `functools.lru_cache` (64
+  readings each), as the codebase's other read caches are: a first version held them in module-level dicts, which
+  `tests/architecture/test_process_state.py` (C8: no job state at module level) refuses; the guard was not loosened. A
+  reading keyed by the signature of what it read is right in any process, so a second API worker only reads it once more.
+  The client files' signature reads the file store's folder layout (as `IntakeStore` does); a store with no files is read
+  each time.
+- **Words.** The plan part of a blinded reason, while Review & sign cannot show it, is a clause (", a role decided on
+  Review & sign once the inputs are ready (what they still wait on)"), and a dataset's line puts its reference after what
+  it qualifies ("Its values are blinded until the plan is signed (ICH M15), because …"): no two brackets in a row, before
+  or after the inputs are ready.
+- **Records corrected in place:** round 6's owner-question sentence ("The page no longer leads there") and its gap note on
+  the delivery's per-product item (both asked where the item applies), round 6's CHANGELOG impact and its plan-link words.
+- **Owner questions (unchanged, round 6's three):** (1) should the assembly tie a study to its named product's
+  formulation (round 7 keeps it open on the page only); (2) who may unblind a study by changing its purpose (`:enter`
+  still takes a Writer's change); (3) should the `request.xlsx` download list what "Ask the client" lists.
+- **Checked:** pytest `test_client_api.py` (both shapes through the API, the speed cache), with `test_inputs_api`,
+  `test_steps_api`, `test_plan_api`, `test_delivery_api`, `packages/project-model/tests` and `tests/architecture` (1232
+  passed);
+  `inputs-work.spec.ts` units (54); e2e on 8081/3081, one run each on the final code: 98 passed (delivery, inputs-work,
+  inputs-task-first, inputs-fill, inputs-owner-job, inputs-blinded, inputs-blinded-follow, inputs-a11y, client-confirm,
+  inputs-todo, blinding) and 23 passed (inputs-owner-job again with the last API change, inputs-data-cards,
+  inputs-workspace, model-inputs, review-sign, studies-client-sheets, inputs-files-by-area, inputs-frame, client-data,
+  client-data-guided, model-plan, published-model); lint, typecheck, OpenAPI snapshot (`StudyWayView.uses`, additive) and
+  web types; the 7bb1 copy's formulation item and step lever are as before (no formulation there, so no study is
+  "elsewhere"). The e2e harness's web build stopped several times on Next's security upgrade advisory before starting
+  (a retry passes); the upgrade is not this group's and was not run. A software fixture on the stub engine, not PBPK evidence.
+- No locked file, SME rule (the spot check, requirement levels, the MS-01 split, which studies are blinded), ruleset or
+  boundary exception was touched.

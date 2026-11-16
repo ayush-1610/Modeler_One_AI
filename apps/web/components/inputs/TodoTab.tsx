@@ -20,7 +20,7 @@ import { MappingReview } from "@/components/delivery/MappingReview";
 import { LiveRegion } from "@/components/kit/LiveRegion";
 import { STEP_ROUTES } from "@/lib/pipeline";
 import { GROUPS, GROUP_LEDE, GROUP_TITLE, INLINE_TODO, restoredText, type Group, type Subject, type WorkItem, type WorkModel } from "@/lib/inputsWork";
-import { STATUS_TONE, STATUS_WORD, type Status, plural } from "@/lib/words";
+import { STATUS_TONE, STATUS_WORD, type Status, askStudies, plural } from "@/lib/words";
 
 import { IssueCard } from "./ClientConfirm";
 import { ClientRequest } from "./ClientRequest";
@@ -253,9 +253,12 @@ export function TodoTab({ projectId, work, run, status, only, onStatus, onOnly, 
           {work.ask.length > 0 ? (
             <ul className="todo-lines">
               {work.ask.map((a) => (
-                <li key={`${a.req}|${a.what}`} className="todo-line" data-testid={a.at}>
+                // a product's line also stands for the studies whose own line for that product joined it (round 7): their
+                // anchors (`data-also`) land here
+                <li key={`${a.req}|${a.what}`} className="todo-line" data-testid={a.at} data-also={a.also.join(" ") || undefined}>
                   <div className="todo-line-head">
-                    <span>{a.what}{a.subjects.length > 0 && <span className="muted"> · {a.subjects.join(", ")}</span>}</span>
+                    <span>{a.what}{a.subjects.length > 0 && <span className="muted"> · {a.subjects.join(", ")}</span>}
+                      {a.studies.length > 0 && <span className="muted">, {askStudies(a.studies)}</span>}</span>
                   </div>
                   {/* said once: what it is needed (or useful) for (final review OWN-14) */}
                   <p className="todo-line-detail muted">{a.required ? "needed" : "useful"} for {a.why}</p>

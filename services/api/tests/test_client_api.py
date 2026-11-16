@@ -213,7 +213,7 @@ def test_the_lever_for_a_tablet_studys_formulation_follows_what_the_project_hold
         assert (item or {}).get("way") == inputs["formulation"]        # one reading for the step bar and To do
         lever = inputs["formulation"]
         if lever is not None:                                           # one study: its own way is the step bar's
-            assert lever["each"] == [{"study": "CL-1", "named": None, **{k: lever[k] for k in ("way", "products", "ready")}}]
+            assert lever["each"] == [{"study": "CL-1", "named": None, "uses": None, **{k: lever[k] for k in ("way", "products", "ready")}}]
             lever = {k: v for k, v in lever.items() if k != "each"}
         return lever, item, (item or {}).get("ask", [])
 
@@ -398,7 +398,7 @@ def test_a_study_whose_own_file_names_its_product_is_settled_by_that_product_onl
     assert item["way"] == inputs["formulation"]
     assert inputs["formulation"] == {"way": "add_dissolution", "products": ["Test 10 mg"], "studies": ["CL-02"], "ready": True,
                                      "each": [{"study": "CL-02", "way": "add_dissolution", "products": ["Test 10 mg"],
-                                               "ready": True, "named": "Test 10 mg"}]}
+                                               "ready": True, "named": "Test 10 mg", "uses": None}]}
     assert [(a["what"], a["product"]) for a in item["ask"]] == [(f"{named_product('Test 10 mg')} — study CL-02", "Test 10 mg")]
     assert not any(UNNAMED_PRODUCT in a["what"] for a in item["ask"])
     # a study whose file names no product is still asked in the unnamed words, its line naming no product
@@ -414,6 +414,144 @@ def test_a_study_whose_own_file_names_its_product_is_settled_by_that_product_onl
         ("CL-02", "add_dissolution", ["Test 10 mg"], "Test 10 mg"), ("CL-01", "use_profile", ["Brand 10 mg"], None)]
     assert (item["way"]["way"], item["way"]["studies"]) == ("use_profile", ["CL-01"])
     assert [(a["what"], a["product"]) for a in item["ask"]] == [(f"{named_product('Test 10 mg')} — study CL-02", "Test 10 mg")]
+
+
+def _be_template(c, rows: list[tuple[str, str | None, str, str]], dissolution: str | None) -> bytes:
+    """A filled client-data template of a bioequivalence project (software test data): each tablet study or arm of `rows`
+    (study, treatment, product, role) with its mean profile, and `dissolution`'s usable curve when given (only the reference
+    product's, as the skeptic's probe had it)."""
+    import math
+
+    wb = load_workbook(io.BytesIO(c.get("/api/v1/client-data/template.xlsx", headers=H).content))
+    header = [x.value.rstrip("*") for x in wb["Studies"][1]]
+    for study, treatment, product, role in rows:
+        values = {"study_id": study, "treatment": treatment, "design": "SD", "crossover": "yes" if treatment else None,
+                  "population": "healthy", "n": 12, "route": "oral", "dose": 10, "dose_unit": "mg", "formulation": "ir_tablet",
+                  "food_state": "fasted", "lloq": 0.5, "lloq_unit": "ng/ml", "product": product, "product_role": role}
+        wb["Studies"].append([values.get(h) for h in header])
+        for t, v in ((0.5, 20.0), (1, 41.0), (2, 30.5), (4, 12.0)):
+            wb["PK_Summary"].append([study, treatment, t, "h", "arithmetic_mean", v, None, None, 12, "ng/ml"])
+    if dissolution:
+        for t in (5, 10, 15, 20, 30, 45, 60):
+            fraction = 1 - math.exp(-math.log(2) * (t / 20.0) ** 1.3)
+            wb["Dissolution"].append([dissolution, "RLD", 10, "B1", "USP 2 paddle", 50, "phosphate", 6.8, 900, 37, None, t, "min",
+                                      *[round(100 * fraction + d, 2) for d in (-1.5, -1.2, -0.9, -0.6, -0.3, 0, 0, 0.3, 0.6, 0.9, 1.2, 1.5)]])
+    return _save(wb)
+
+
+@pytest.mark.req("T-48")
+@pytest.mark.parametrize("shape", ["two studies", "crossover"])
+def test_a_study_whose_file_names_another_product_than_the_models_only_formulation_stays_open(setup, shape):
+    """Round 7 (round 6's named-product skeptic): the common bioequivalence shape, two studies (or a crossover's Test and
+    Reference arms) whose files name Test 10 mg and Brand 10 mg, only Brand 10 mg with a usable profile. The step bar's
+    lever is Brand 10 mg's profile for the Reference study; once it is used, the model's only formulation would be used
+    for the Test study too (`resolve_formulation_name`), and the readiness check passes. Whether the build ties the study
+    to its product is the owner's question (unchanged), but To do's formulation item stays open for the Test study: its way
+    is Test 10 mg's dissolution data, it says the formulation the model would use (`uses`), and the client is still asked
+    for Test 10 mg's. A formulation is the product's whose profile its release was made from, whatever its name (the
+    crossover names it "RLD"). A choice a person records for the study settles it; with two formulations the readiness
+    check asks each study to choose, and each names the product its file names, so its choice lists that one first."""
+    from modeler_project.study_requirements import named_product
+
+    c, _ws = setup
+    if shape == "two studies":
+        rows = [("CL-01", None, "Brand 10 mg", "RLD"), ("CL-02", None, "Test 10 mg", "TEST")]
+        reference, test_study, release = "CL-01", "CL-02", "Brand 10 mg"
+    else:
+        rows = [("CL-02", "Test", "Test 10 mg", "TEST"), ("CL-02", "Reference", "Brand 10 mg", "RLD")]
+        reference, test_study, release = "CL-02-Reference", "CL-02-Test", "RLD"
+    up = c.post("/api/v1/projects/p1/client-data", headers=H, files=[("files", ("be.xlsx", _be_template(c, rows, "Brand 10 mg"), XLSX))])
+    assert up.status_code == 201, up.text
+    groups = c.get("/api/v1/projects/p1/client-review", headers=H).json()["data"]["groups"]
+    for g in (g["id"] for g in groups if g["kind"] in ("study", "product")):
+        assert c.post("/api/v1/projects/p1/client-review:confirm", headers=H, json={"group": g}).status_code == 200
+
+    def read() -> tuple[dict, dict | None, dict | None]:
+        assert c.post("/api/v1/projects/p1/inputs:assemble", headers=H).status_code == 200
+        page = c.get("/api/v1/projects/p1/inputs", headers=H).json()["data"]
+        step = next(s for s in c.get("/api/v1/projects/p1/steps", headers=H).json()["data"]["steps"] if s["step"] == "inputs")
+        check = next(x for x in page["readiness"]["content"]["checks"] if x["check"] == "formulations of solid studies")
+        return check, step["formulation"], next((t for t in page["todo"] if t["kind"] == "formulation"), None)
+
+    # the step bar's lever: Brand 10 mg's profile, for the Reference study only; the Test study adds Test 10 mg's data
+    check, lever, item = read()
+    assert not check["ok"]
+    assert (lever["way"], lever["products"], lever["studies"]) == ("use_profile", ["Brand 10 mg"], [reference])
+    assert {e["study"]: (e["way"], e["named"], e["uses"]) for e in lever["each"]} == {
+        reference: ("use_profile", "Brand 10 mg", None), test_study: ("add_dissolution", "Test 10 mg", None)}
+    # followed: Brand 10 mg's profile is the release of the model's only formulation
+    profile = next(p for p in c.get("/api/v1/projects/p1/client-data", headers=H).json()["data"]["dissolution"]["profiles"]
+                   if p["key"]["product"] == "Brand 10 mg")
+    assert c.post(f"/api/v1/projects/p1/dissolution/{profile['id']}:propose", headers=H, json={"formulation": release}).status_code == 201
+    check, lever, item = read()
+    # the readiness check and the step bar are the build's (unchanged: the owner's question): they pass
+    assert check["ok"] and lever is None
+    # To do's item stays open for the Test study alone: Test 10 mg's data, the formulation the model would use, the ask
+    assert item is not None
+    assert item["way"] == {"way": "add_dissolution", "products": ["Test 10 mg"], "studies": [test_study], "ready": True,
+                           "each": [{"study": test_study, "way": "add_dissolution", "products": ["Test 10 mg"], "ready": True,
+                                     "named": "Test 10 mg", "uses": release}]}
+    assert item["details"] == [(f"{test_study}: its file names Test 10 mg, but the CPF's only formulation '{release}' would be "
+                                "used (the study names no formulation)")]
+    assert [(a["what"], a["product"]) for a in item["ask"]] == [(f"{named_product('Test 10 mg')} — study {test_study}", "Test 10 mg")]
+
+    # Test 10 mg's dissolution arrives and is used: two formulations, so each study chooses; each names its file's product
+    diss = _be_template(c, [], "Test 10 mg")
+    up = c.post("/api/v1/projects/p1/client-data", headers=H, files=[("files", ("test-diss.xlsx", diss, XLSX))])
+    assert up.status_code == 201, up.text
+    product = next(g for g in c.get("/api/v1/projects/p1/client-review", headers=H).json()["data"]["groups"]
+                   if g["kind"] == "product" and g["state"] == "to_confirm")
+    assert c.post("/api/v1/projects/p1/client-review:confirm", headers=H, json={"group": product["id"]}).status_code == 200
+    profile = next(p for p in c.get("/api/v1/projects/p1/client-data", headers=H).json()["data"]["dissolution"]["profiles"]
+                   if p["key"]["product"] == "Test 10 mg")
+    assert c.post(f"/api/v1/projects/p1/dissolution/{profile['id']}:propose", headers=H,
+                  json={"formulation": "Test 10 mg"}).status_code == 201
+    check, lever, item = read()
+    assert not check["ok"] and lever["way"] == "choose"
+    assert {e["study"]: (e["way"], e["named"], e["uses"]) for e in item["way"]["each"]} == {
+        reference: ("choose", "Brand 10 mg", None), test_study: ("choose", "Test 10 mg", None)}
+    # the person chooses each study's own: nothing is open, and nothing is asked
+    for study, chosen in ((reference, release), (test_study, "Test 10 mg")):
+        put = c.put("/api/v1/projects/p1/inputs/choices", headers=H,
+                    json={"kind": "formulation", "key": study, "value": chosen, "reason": "the product its file names"})
+        assert put.status_code == 200, put.text
+    check, lever, item = read()
+    assert check["ok"] and lever is None and item is None
+
+
+@pytest.mark.req("T-48")
+def test_the_ledgers_names_are_read_again_only_when_the_ledger_changed(tmp_path, monkeypatch):
+    """Round 7 (speed): what the ways read from the ledger (its products with values, and the products a study's values
+    name) is folded once and kept while the ledger's logs are unchanged, and the products the client files' Studies rows
+    name are kept while their records are (round 6's `file_products` folded the ledger and read every file's record on
+    every GET /inputs and GET /steps); a write to any of them is read at the next call."""
+    from modeler_project import client_data, ledger_view
+    from modeler_project import formulation_way as fw
+
+    ws = Workspace(FileProjectStore(tmp_path), "t1", "p1")
+    folds, reads = [], []
+    real_build, real_submissions = ledger_view.LedgerView._build, client_data.submissions
+    monkeypatch.setattr(ledger_view.LedgerView, "_build", lambda self: folds.append(1) or real_build(self))
+    monkeypatch.setattr(client_data, "submissions", lambda w: reads.append(1) or real_submissions(w))
+    sheet = {"file": "be.xlsx", "sha256": "0" * 64, "template": True,
+             "studies": [{"row": 2, "values": {"study_id": "CL-03", "product": "Generic 5 mg"}}]}
+    ws.commit(ArtifactKind.CLIENT_SUBMISSION, "file-000000000000", sheet, actor="u1", reason="read")
+    ledger = _Ledger(ws)
+    study, test = ledger.entity("study", "CL-02"), ledger.entity("product", "Test 10 mg")
+    ledger.fact("product_role", "TEST", study=study, product=test)
+    expected = {fw._study("CL-03"): ("Generic 5 mg",), fw._study("CL-02"): ("Test 10 mg",)}
+    assert fw.file_products(ws) == expected and (len(folds), len(reads)) == (1, 1)
+    assert fw.file_products(ws) == expected and (len(folds), len(reads)) == (1, 1)
+    assert fw.products_here(ws)[0] == "Test 10 mg" and len(folds) == 1
+    # a write to the ledger: folded again
+    ledger.fact("product_role", "RLD", study=ledger.entity("study", "CL-01"), product=ledger.entity("product", "Brand 10 mg"))
+    assert fw.file_products(ws)[fw._study("CL-01")] == ("Brand 10 mg",) and len(folds) == 2
+    assert fw.products_here(ws)[:2] == ["Test 10 mg", "Brand 10 mg"] and len(folds) == 2
+    # a new version of a client file's record: read again
+    reads.clear()
+    sheet["studies"][0]["values"]["product"] = "Generic 10 mg"
+    ws.commit(ArtifactKind.CLIENT_SUBMISSION, "file-000000000000", sheet, actor="u1", reason="read again")
+    assert fw.file_products(ws)[fw._study("CL-03")] == ("Generic 10 mg",) and len(reads) == 1 and len(folds) == 2
 
 
 class _Ledger:
