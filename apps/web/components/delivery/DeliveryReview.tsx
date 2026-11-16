@@ -18,7 +18,7 @@ import { focusSoon, useFocusOnClose } from "@/components/kit/focus";
 import { SortHeader, TableFilter, TableMore } from "@/components/kit/SortableTable";
 import { send, type Schema } from "@/lib/api";
 import { useResource } from "@/lib/hooks";
-import { analyteChoices, cardPlace, foldChecks, normLabel, signWaitsWords } from "@/lib/inputsWork";
+import { analyteChoices, cardPlace, foldChecks, normLabel, SIGN_WAITS } from "@/lib/inputsWork";
 import { numericKey, useTableView } from "@/lib/tableView";
 import {
   DISPOSITION_WORD, anchorCell, anchorPlace, checkGist, checkText, distinctNames, fieldInText, fieldLabel, heldText,
@@ -827,6 +827,10 @@ export function DeliveryReview({ projectId, row, mode, gate, onMapping, todo, su
   const others = s.checks.filter((c) => !(c.severity === "fail" && !c.overridden));
   const c = s.confirmation;
   const done = Boolean(c && c.current && c.landed);
+  // a blinded card's signature waits until the plan is signed: said once, where "Confirm and sign…" would be (`signWaits`);
+  // a card confirmed with the sheet form has no such place, so its withheld line says it (`waitsHere`; round 7)
+  const signWaits = s.blinded && s.confirm_on === "delivery" && !done;
+  const waitsHere = s.blinded && !done && !signWaits;
   const levels = Object.entries(s.by_level).map(([level, n]) => `${n} ${levelText(level)}`).join(", ");
   const gated = s.blockers.filter((b) => GATE_CODES.has(b.code));
   const blockers = s.blockers.filter((b) => !GATE_CODES.has(b.code));
@@ -868,12 +872,13 @@ export function DeliveryReview({ projectId, row, mode, gate, onMapping, todo, su
           {/* the part that can be changed leads where it is changed (round 5): its purpose, below, or the plan's roles */}
           <BlindedReason why={s.blinded_why} projectId={projectId} whose={whose}
                          onPurpose={() => focusWhenDrawn(cardPlace("purpose", s.subject, "intended_use"))} /></span> : null}.
-        Its values, their spread and what is below the LLOQ are not shown, and it waits to be confirmed until then.</p>}
+        Its values, their spread and what is below the LLOQ are not shown{waitsHere ? ", and it waits to be confirmed until then" : ""}.</p>}
       {/* a product or the compound: why (the blinded study whose values it holds) is said once, on the card's head (round 6:
-          said here again, as "this study is blinded"); here what is withheld */}
+          said here again, as "this study is blinded"); here what is withheld. That its signature waits is said once, where
+          the button would be (`signWaits`, round 7), else here */}
       {s.blinded && s.subject_type !== "study" && <p className="delivery-withheld" data-testid={`delivery-blinded-${s.subject}`}>{WITHHELD}:
-        the values it holds of a blinded study, their spread and what is below the LLOQ are not shown until the plan is signed, and it
-        waits to be confirmed until then.</p>}
+        the values it holds of a blinded study, their spread and what is below the LLOQ are not shown until the plan is
+        signed{waitsHere ? ", and it waits to be confirmed until then" : ""}.</p>}
       {looking && s.confirm_on === "client-review" && <InlineIssue severity="note" testId={`delivery-confirm-on-${s.subject}`}>A filled
         client-data template: it is confirmed with the sheet form, on this card. What the delivery read is shown here for reference.</InlineIssue>}
       {/* the same source read with the sheet form: confirmed there (in the model), or only read there, not confirmed yet */}
@@ -1034,12 +1039,9 @@ export function DeliveryReview({ projectId, row, mode, gate, onMapping, todo, su
             </>
           ) : <p className="muted m-0">Not confirmed yet. Your signature binds what this card shows, and its values are then loaded into the model.</p>}
           {/* a blinded card's signature is refused until the plan is signed (409 BLINDED): no button that cannot be used,
-              the wait and why where it would be (round 6; its dialog only said so once opened). A product's or the
-              compound's why is said once, on its card's head (round 6), so here only the wait */}
-          {s.confirm_on === "delivery" && !done && s.blinded && (
-            <p className="muted m-0" data-testid={`delivery-sign-waits-${s.subject}`}>
-              {signWaitsWords(s.subject_type === "study" ? s.blinded_why : null)}</p>
-          )}
+              the wait where it would be (round 6; its dialog only said so once opened). Why is said once, on the card's
+              withheld line (a study) or head (a product, the compound), so here only the wait (round 7) */}
+          {signWaits && <p className="muted m-0" data-testid={`delivery-sign-waits-${s.subject}`}>{SIGN_WAITS}</p>}
           {s.confirm_on === "delivery" && !done && !s.blinded && (
             <div className="confirm-paths">
               <button type="button" className="btn primary" onClick={() => setConfirming(true)} data-testid={`delivery-confirm-${s.subject}`}

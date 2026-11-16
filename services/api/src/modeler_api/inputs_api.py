@@ -79,7 +79,8 @@ def _view(ws: Workspace) -> dict[str, Any]:
         records.append(row)
     open_items = todo(ws)
     # a study's values are withheld by the rule every view of them follows (the project's list and the delivery's, by
-    # name; final review round 6): its catalog row's profile, and its row on Studies says it is blinded
+    # name and by the sheet form's withheld groups; final review rounds 6 and 7): its catalog row's profile, and its row
+    # on Studies says it is blinded, and why
     hidden = blinded_sources(ws)
     return {
         "cpf": version_view(ws, cpf_version, with_content=False) | {"assembly": cpf_assembly(ws)} if cpf_version else None,
@@ -90,7 +91,7 @@ def _view(ws: Workspace) -> dict[str, Any]:
         "choices": choices(ws).model_dump(),
         "todo": open_items,
         "compound": compound_rows(ws, open_items, empty=True),
-        "studies": study_rows(ws, hidden.withholds),
+        "studies": study_rows(ws, hidden.withholds, hidden.study_why),
         "study_options": _study_options(ws),
         "selection_rule": f"source selection {rule().version} ({rule().status})",
         "published_models": [{"id": tid, "name": spec["name"]} for tid, spec in published_models(_drug(ws))],

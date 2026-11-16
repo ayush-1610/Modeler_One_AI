@@ -461,7 +461,10 @@ export function buildWork(sources: WorkSources): WorkModel {
     if (t.kind === "datasets" && toConfirmStudies) continue; // settled by confirming a study's data, below
     const decide = DECIDE.has(t.kind);
     const tab = (t.tab ?? "compound") as Tab;
-    const blinded = (t.kind === "regimen" || t.kind === "demographics") && blindedStudies.has(normLabel(t.target));
+    // a blinded study's demographics and regimen are asked like any other study's (final review round 7): they are its
+    // design, not its values, the plan needs them (the inputs' readiness asks every study in the model for them, D-29),
+    // and Populations and the Studies list take them, so they are counted and open; until round 6 To do said they "can't
+    // be acted on yet: its facts are set afterwards", which no plan could then be signed past
     // a tablet study's missing formulation (final review OWN-10, round 4): what gives it one as the project stands (`way`,
     // the step bar's too) says where the item opens: the card of the first product whose dissolution profile can give the
     // release (or whose dissolution data are to add), at its release; it is that card's own work when it is the only one
@@ -474,8 +477,6 @@ export function buildWork(sources: WorkSources): WorkModel {
       where: product ? { tab: product.area, anchor: releaseAnchor(product), subject: product.row ? `${product.row.subject_type}/${product.row.subject}` : undefined }
         : { tab, anchor: `todo-${t.kind}-${t.target}` },
       detail: way?.ways.length ? way.fix : undefined,
-      blocked: blinded ? blindedText(subjects.find((s) => s.kind === "study" && normLabel(s.label) === normLabel(t.target)) ?? { row: null, groups: [] },
-                                     ": its facts are set afterwards.") : undefined,
       files: [], subjects: product && lever!.products.length === 1 ? [product.key] : [], weight: 1, todo: t,
     });
   }
@@ -845,10 +846,21 @@ export const blindedWords = (why: string | null | undefined, after = "") =>
   `Blinded until the plan is signed${why ? `, because ${why}` : ""}${after}`;
 /** "Blinded until the plan is signed, because …" with what follows (`after`). */
 export const blindedText = (s: Pick<Subject, "row" | "groups">, after: string) => blindedWords(blindedWhy(s), after);
+/** Why a blinded study of the model is blinded, in words: the reason its card or its sheet-form group gives
+ *  (`blindedWhy`), else the reason the inputs give its row (`blinded_why`, the evidence's: a study no card or group
+ *  holds), so Populations says the reason the card and the list say (final review round 7). */
+export function studyBlindedWhy(subjects: readonly Subject[], study: { study_id: string; blinded_why?: string | null }): string | null {
+  const s = subjects.find((x) => x.kind === "study" && normLabel(x.label) === normLabel(study.study_id));
+  return (s ? blindedWhy(s) : null) ?? study.blinded_why ?? null;
+}
+/** What Populations says above a blinded study's individual (round 7): its values are withheld, with why, and its
+ *  individual is set now, as for any study (its design, not its values: the plan needs it, D-29). */
+export const individualBlindedWords = (why: string | null | undefined) =>
+  `Its values are blinded until the plan is signed${why ? `, because ${why}` : ""}. Its individual is set now: the plan needs it.`;
 /** What a blinded card says where "Confirm and sign…" would be (round 6): the API refuses its signature until the plan
- *  is signed (409 BLINDED), so no button is offered, and why is said (`blinded_why`), as wherever it is withheld. */
-export const signWaitsWords = (why: string | null | undefined) =>
-  `Signing waits until the plan is signed${why ? `, because ${why}` : ""}.`;
+ *  is signed (409 BLINDED), so no button is offered. Only the wait: why is said once on the card, on its withheld line (a
+ *  study) or its head (a product, the compound), and the withheld line no longer says the wait again (round 7). */
+export const SIGN_WAITS = "Signing waits until the plan is signed.";
 
 /** A part of a blinded reason, and where what it says is decided (round 5): `purpose`, the study's own purpose on its
  *  delivery card ("it is entered for external validation on its card": changed there); `plan`, the plan's studies and

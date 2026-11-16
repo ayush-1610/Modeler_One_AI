@@ -76,6 +76,9 @@ class InputStudyRow(View):
     role: str | None
     role_source: Literal["proposed", "plan"]
     blinded: bool
+    # why its values are withheld, in words (the reason the evidence gives its datasets); None when they are not. Left out
+    # where a study's row is listed without it (Review & sign's studies)
+    blinded_why: str | None = None
     excluded: str | None
     demographics: Literal["entered", "published", "default", "missing"]
     regimen_missing: bool

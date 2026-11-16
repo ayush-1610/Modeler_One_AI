@@ -1272,8 +1272,10 @@ before the next starts.
   say are blinded (`blindingChanged`, the workspace's comparison on every answer of the inputs). It reads `BLINDING`:
   the delivery page, every card of the project and its spot check, the layout views (`/delivery/mappings/{id}`), the
   source view (`/delivery/source`), the inputs, the evidence, the client data and its sheet views, the sheet form, the
-  documents, their pages and their figures; at once where shown or counted (the work model counts every card), else
-  when next shown; only the project's answers. Without a blinding change `followRows` reads the changed rows' cards only,
+  documents, their pages and their figures; at once where shown or counted, else when next shown; only the project's
+  answers. (Corrected in round 7: this said "the work model counts every card"; it reads only the cards still to sign,
+  unblinded, so a closed card is marked stale and read when shown. And `BLINDING` left out the reading tray, whose figure
+  suggestions are withheld by file too: added in round 7.) Without a blinding change `followRows` reads the changed rows' cards only,
   as before, and nothing else reads more.
 - **Once per route (round 5's gap a).** Reads record the moment they were asked in, and `put` the moment it wrote an
   answer (`moment()`, lib/hooks.ts: one per task, so a change's answer and every read it sends in the same go share it).
@@ -1293,7 +1295,10 @@ before the next starts.
   `deps.blinded_sources` (the list and the delivery's rule, matched by name). On 7bb1 the delivery blinds 231-24 (its
   card's purpose) and the list is empty, so the list-only redaction showed its points. `BlindedSources` now carries the
   list (`listed`) and answers `withholds(study_id)` / `study_why(study_id)`: the list's id, else a study of the same name
-  in `names` (the list's under another spelling, or one the delivery blinds). Used by `GET /evidence` (points, reported
+  in `names` (the list's under another spelling, or one the delivery blinds). (Corrected in round 7: by name only, so
+  "one source" did not hold for a sheet-form group joined to a blinded delivery study under another name, its
+  `legacy_groups`: the client review withheld it while its dataset's points stayed on the evidence, the inputs and the
+  Run page; round 6's skeptic's probe R. Closed in round 7.) Used by `GET /evidence` (points, reported
   PK, `blinded_why`, `blinding.blinded`), the client review's dataset items, `GET /inputs` (Studies rows' `blinded`, the
   catalog's profiles), Review & sign's studies, `GET /studies` (the Run page), the artifact view and history
   (`redact`, `hidden_paths`, only for datasets and the catalog) and the reveal's audit entry. It applies the existing
@@ -1301,7 +1306,7 @@ before the next starts.
   delivery blinding 231-24 and 230-25, as before; only 231-24's dataset is newly redacted). `/blinding`'s `blinded` stays
   the list (it describes the setting).
 - **No signature offered on a blinded card (item 3).** In place of "Confirm and sign…" (and "Confirm again…", "Finish
-  the loading…"), a blinded card says "Signing waits until the plan is signed, because …" (`signWaitsWords`); the API's
+  the loading…"), a blinded card says "Signing waits until the plan is signed, because …" (`signWaitsWords`; round 7: only the wait, `SIGN_WAITS`, why being on the withheld line); the API's
   409 `BLINDED` is unchanged. The card's withheld line names its kind ("this product").
 - **Runs.** pytest: the new test fails on 8f43eb5's API at the evidence (`blinded` missing) and passes now;
   tests/architecture and the API suites touched (test_delivery_api, test_client_api, test_evidence_api, test_inputs_api,
@@ -1461,6 +1466,87 @@ before the next starts.
   its first row verbatim ("[Fed row 4] A4=101 | B4=BLQ | C4=5.2 …"), values included. The page never shows a quote (round 6
   reads only its "[sheet row n]" prefix), but the API serves it. Not changed here: it is outside this group's items, and
   `/evidence`'s redaction is the blinding work's; **owner question:** withhold a blinded dataset's quote (and its note) too?
+  (Round 7: done, as the fail-closed rule asks; see "Final review fixes round 7: what a blinded study still shows".)
 - No locked file, SME rule (the spot check's draw size, digest and seed rule, requirement levels, the MS-01 split, which
   studies are blinded) or boundary exception was touched. The API change is additive (`DeliveryCheck.field`, `.unit`;
   snapshot and web types refreshed).
+
+### Final review fixes round 7: what a blinded study still shows (2026-11-16; round 6's blinding-follow skeptic: the joined groups, the reading tray, the 7bb1 To do/Populations disagreement, the repeats; the names-words fixer's quote; the timing failure; the records; CHANGELOG "Fixed — final review round 7, what a blinded study still shows")
+- **The joined groups (item 1).** `BlindedSources.withholds` matched the list's ids and same-name studies only. A
+  sheet-form group joined to a blinded delivery study under another name (`legacy_groups`: a linked file, an
+  overlapping dataset; 230-23-REF on 230-23) was withheld by the client review while its dataset's points stayed on the
+  evidence, the inputs and the Run page (probe R). `joined` now carries the datasets of every client-review group the
+  review withholds (`group`) and the study ids they name, each with the group's reason; `withholds` and `study_why`
+  include them, and `holds(content)` / `dataset_why` answer for one dataset (an aliased raw study id in a withheld group
+  is covered by its dataset id). Read lazily (the client review's groups without the documents' offers, about 25 ms on
+  the review copies), once per answer and only while something is withheld. **The set is unchanged:** the client review
+  already withheld these groups; `names` and `group()` are not touched, so the review's own set is the same. Checked on a
+  copy of the owner's exampleamide-pbpk (blinding on, 230-23 entered for external validation, as probe R): /evidence
+  withholds ds-9ea36be02e with "it is entered for external validation on its card"; the review copy of 7bb1 answers as
+  before. A software probe on copies of the review data, not PBPK evidence.
+- **The quote and note (item 2).** `blinding.redact_dataset` withholds a dataset's quote down to the place it names
+  ("[Fed row 4]"; any other quote left out), its note, its reported PK's spread and quotes, the digits of its decision's
+  reason, and a digitized figure's picked points (the calibration stays: without the points it gives nothing);
+  `WITHHELD_PATHS` hides the same fields from its version history. The client review blanks the quote and masks the note
+  of a withheld dataset item even in a group that is not withheld (a listed study in a group of a name a person linked to
+  it), and the source quote of the options that name it. Searched answers: the evidence, the client review, the inputs,
+  the client data, the delivery, the documents, the reading tray, the artifact and its history, the audit and the Run
+  page (pytest searches the study's values in each; a probe of the review copies found no quoted cell in any).
+  **Deviation (kept from round 6's gap e):** the datasets' write answers (`:study`, `:overlay`, POST datasets,
+  `:digitize`) return the dataset as stored to the person who made the change; redacting them needs a contract change
+  (their answer is the stored `ObservedDataset`, whose reported value is not nullable). The page uses none of those
+  answers.
+- **The reading tray (item 3).** `/reading-queue` is in `BLINDING`; inputs-blinded-follow's signed-landing test reads it
+  once after Done (0 times without it).
+- **Populations and To do (item 4). Deviation from the task's direction.** The task said to follow To do's words (a
+  blinded study's facts are set after the plan is signed) and show them in place of Populations' form. That was built and
+  turned back: the inputs' readiness asks the demographics (D-29) and a multiple-dose study's regimen of every study in
+  the model, blinded or not (`inputs.readiness`, `unstated_demographics`), and Review & sign opens only once the inputs
+  are ready, so with the form hidden a blinded study with no individual (any study the split proposes for S5 before a
+  plan, D-33, read from a source that states no demographics) leaves the owner no way to the plan, and the plan's
+  signature is what lifts the blinding. To do's words were slice 2's code, not a recorded decision (§2.2's rule 5 skips
+  only items a person cannot act on while blinded; these they can). So the page says the other one thing: a blinded
+  study's demographics and regimen are its design, not its values, and are asked now. To do counts them as missing and
+  open and opens Populations; Populations keeps the form, with one line above it: "Its values are blinded until the plan
+  is signed, because …. Its individual is set now: the plan needs it." (`individualBlindedWords`; the reason from
+  `studyBlindedWhy`: the card's or sheet-form group's, else `InputStudyRow.blinded_why`, added: the reason the evidence
+  gives the study's datasets, for a study no card or group holds); the Studies list's regimen form stays.
+  **Owner questions:** (1) is a blinded (external validation) study's individual set before the plan is signed, as the
+  readiness check and this round have it, or after? After would need the readiness check (and what the MAP pre-specifies
+  of an S5 study) to change: a science decision, not made here. (2) The API's `POST datasets/{id}:study` takes a blinded
+  study's facts (no blinding guard): right under (1)'s answer "before"; under "after" it should refuse (409 BLINDED) as a
+  blinded card's signature is refused. Not added (the task said to record it).
+- **Said once (item 5).** A study's sign-waits line says only the wait (`SIGN_WAITS`); the withheld line says the wait
+  only where no sign-waits line is (a card confirmed with the sheet form), so a product's card no longer says it twice;
+  the Clinical studies list's "Confirmed with" says "waits until the plan is signed"; a blinded product's or compound's
+  head names no path. **Beyond the item, the same rule:** under a blinded delivery card the sheet form's reading says
+  only that it is withheld too (it said the blinding, why and the wait again), and a dataset line on a card blinded for the card's
+  own reason does not repeat it (its reveal stays). A study's list row keeps its own chip and reason: the row is not the
+  card. To do's blocked lines keep theirs: To do is its own list.
+- **The timing failure (item 6).** Not reproduced by load: 3 of 3 passed under a 3-core CPU burner (`--repeat-each 3`,
+  7.6 to 7.8 s each). Its cause is in the round-6 skeptic's log: "Failed to proxy …/delivery: socket hang up" just before
+  it, so the page's first read of the delivery got the proxy's bare 500 and, with no retries, no card came (33.8 s). The
+  proxy reuses kept-alive connections the API (uvicorn, 5 s keep-alive) can close at the same moment. A GET answered by
+  the proxy's 5xx (not the API's JSON) is now sent once more, at once (`request`, lib/api.ts); writes never. The test now
+  fails the page's first delivery read as the proxy did: it fails without the retry (34.7 s, the same "not found") and
+  passes with it. No timeout raised. `e2e-462d6a0.log` did not exist when this round ran, so no failure in it was owned.
+- **Runs.** pytest: tests/architecture, packages/project-model and the API suites touched (test_delivery_api,
+  test_client_api, test_evidence_api, test_inputs_api, test_plan_api, test_project_api, test_read_api): 1265 passed. The
+  three new or extended blinding tests fail on 462d6a0's sources (run against its extracted source tree: the joined
+  group's at the evidence, `blinded` missing; 7bb1's and the landed dataset's at the quote, kept whole). On copies of the
+  8 review projects every view of the blinded set (round 6's skeptic's state probe) is the same as round 6's; on a copy
+  of exampleamide-pbpk with probe R's decision, and on 7bb1, no quoted cell of a blinded dataset is in any answer
+  searched (the evidence, the client review, the inputs, the reading tray, the client data, the delivery, the documents,
+  the audit, the dataset's artifact and history, the Run page). In a browser on a copy of 7bb1: To do lists "Demographics
+  of study 231-24" as open, Populations says why 231-24 is blinded above its form, the list's "Confirmed with" says
+  230-25 waits. e2e (stub engine, ports 8061/3061): the whole suite, 154 of 154 (inputs-blinded 7, inputs-blinded-follow
+  4, the unit checks in inputs-work 53, delivery, client-confirm, inputs-task-first, inputs-fill, inputs-owner-job,
+  inputs-a11y, inputs-todo among them). Software checks on copies of the review data and test data, not PBPK evidence.
+- **Gaps.** (a) Round 6's gaps (a) to (d) stand (a decision that starts a reading is followed at its end; another
+  person's change is seen at the next read; a sheet read for external validation with no delivery subject and not in the
+  catalog is not seen by either path; 7bb1's 231-24 in the model for model building while its card says external
+  validation is not flagged). (b) The datasets' write answers, above. (c) A person's leave-out reason on the audit trail
+  (`dataset.decide` events) is shown as written, digits and all; only intake decisions are masked there.
+- No locked file, SME rule (the spot check's draw size, digest and seed rule, requirement levels, the MS-01 split, which
+  studies are blinded) or boundary exception was touched. API contract: `InputStudyRow.blinded_why` (optional, additive);
+  the OpenAPI snapshot and web types refreshed.

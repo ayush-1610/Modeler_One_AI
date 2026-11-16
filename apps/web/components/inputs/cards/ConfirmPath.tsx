@@ -225,6 +225,12 @@ export function ConfirmPath({ subject: s, env, observed, files, onShow }: {
   const withheld = (reader: string) => (s.kind === "study"
     ? <>Withheld: the study is blinded until the plan is signed{because}, and {reader}&apos;s reading shows its values.</>
     : <>Withheld until the plan is signed: {reader}&apos;s reading shows the values it holds of a blinded study.</>);
+  // under a blinded delivery card, whose withheld line says the blinding (and a study's why) and whose sign-waits line
+  // says the wait, once on the card: only what the sheet form's reading is (round 7: the card said its reason and the
+  // wait again here)
+  const sheetWithheld = s.row?.blinded
+    ? <>The sheet form&apos;s reading is withheld too: it shows {s.kind === "study" ? "the study's values" : "the values it holds of a blinded study"}.</>
+    : <>{withheld("the sheet form")} It is read and confirmed once the plan is signed.</>;
   // the delivery card's facts (the card reads the same, under the same key), offered to the sheets' drafts
   const card = useResource(SUBJECT, { project_id: projectId, type: s.row?.subject_type ?? "study", subject: s.row?.subject ?? "" },
                            { enabled: Boolean(s.row) && !blinded && s.groups.some((g) => g.items.some((i) => i.kind === "draft")) });
@@ -263,8 +269,7 @@ export function ConfirmPath({ subject: s, env, observed, files, onShow }: {
                           <HowRead subject={s} title={sheet ? "the sheet form, to confirm it this way" : "the sheet form (for reference)"}
                                    open={reading} onOpen={setReading}>
                             {() => (blinded
-                              ? <p className="delivery-withheld m-0" data-testid={`how-read-withheld-${s.key}`}>{withheld("the sheet form")} It is
-                                  read and confirmed once the plan is signed.</p>
+                              ? <p className="delivery-withheld m-0" data-testid={`how-read-withheld-${s.key}`}>{sheetWithheld}</p>
                               : s.groups.map((g) => <GroupCard key={g.id} projectId={projectId} group={g} run={run} drawn={false}
                                                                mode={sheet && g.state === "to_confirm" ? "confirm" : "read"} alsoOnDelivery
                                                                known={known} />))}
@@ -329,9 +334,10 @@ export function CardHead({ subject: s, status, open, onToggle, children }: {
         until the plan is signed</span>}
       {why && <span className="muted fs-12" id={whyId} data-testid={`card-blinded-why-${s.key}`}>because {why}</span>}
       {children}
-      <span className="muted fs-13 card-path">{viaSheet(s) ? "Confirmed with the sheet form" : s.path === "delivery" ? "Confirm and sign"
-        : s.path === "sheet-form" ? "Confirm" : "not available yet"}
-        {" "}· {AREA_NAME[s.area as Tab]}</span>
+      {/* a blinded card still to confirm names no path it cannot use: its chip says it waits (round 7) */}
+      <span className="muted fs-13 card-path">{s.blinded && !s.done && !viaSheet(s) ? "" : `${viaSheet(s) ? "Confirmed with the sheet form"
+        : s.path === "delivery" ? "Confirm and sign" : s.path === "sheet-form" ? "Confirm" : "not available yet"} · `}
+        {AREA_NAME[s.area as Tab]}</span>
     </header>
   );
 }

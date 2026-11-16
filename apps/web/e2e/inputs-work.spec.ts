@@ -13,8 +13,8 @@ import {
   NEW, NO_TARGET, aboutText, askLines, blindedParts, blindedText, blindedWhy, blindedWords, analyteChoice, analyteChoices, areaHead, assignBody, buildWork, checkField, collisions,
   columnSummary, destinationKey, formulationsHeld, heldBy, inModel, layoutRows, linkCount, linkPlaces, linkRows, linkTarget, linkWords, linkedPiece,
   looseGroups, markedText, nextText, foldChecks, noLayoutReads, noSampleCells, normLabel, notReadRows, onDelivery, pairsMeet, prefixAlias,
-  productFor, releaseAnchor, releaseOf, restoredText, seriesKey, signWaitsWords,
-  targetProblem, type WorkSources,
+  productFor, releaseAnchor, releaseOf, restoredText, seriesKey, SIGN_WAITS, individualBlindedWords, studyBlindedWhy,
+  targetProblem, type Subject, type WorkSources,
 } from "../lib/inputsWork";
 import {
   ASK_FORMULATION, NO_PRODUCT, alreadyDecidedText, askAt, bracketed, checkFix, checkGist, checkLabel, constantText, drawText, escapePattern, flagLines,
@@ -1405,12 +1405,41 @@ test("round 6: a change of the blinding seen twice is followed once, from the fi
   expect(followFrom(last, 90)).toBe(90);
 });
 
-test("round 6: a blinded card says its signing waits, and why, where Confirm and sign would be", () => {
-  expect(signWaitsWords("it holds the values of a blinded study")).toBe(
-    "Signing waits until the plan is signed, because it holds the values of a blinded study.");
-  expect(signWaitsWords("it is entered for external validation on its card")).toBe(
-    "Signing waits until the plan is signed, because it is entered for external validation on its card.");
-  expect(signWaitsWords(null)).toBe("Signing waits until the plan is signed.");
+test("round 7: a blinded card says once that its signing waits, where Confirm and sign would be; why is said on its withheld line or head", () => {
+  // round 6 said the reason here too, beside the card's withheld line that says it
+  expect(SIGN_WAITS).toBe("Signing waits until the plan is signed.");
+});
+
+test("round 7: a blinded study's demographics are asked like any study's: To do counts them, Populations says why it is blinded", () => {
+  const card = { kind: "study", label: "231-24", row: { blinded_why: "it is entered for external validation on its card" }, groups: [] } as unknown as Subject;
+  const listed = "a dataset of it is entered for external validation";
+  // its card's (or sheet-form group's) reason first, as the card and the list say it; else the reason the inputs give its row
+  expect(studyBlindedWhy([card], { study_id: "231-24", blinded_why: listed })).toBe("it is entered for external validation on its card");
+  expect(studyBlindedWhy([card], { study_id: "abc-REF", blinded_why: listed })).toBe(listed);
+  expect(studyBlindedWhy([], { study_id: "abc-REF" })).toBeNull();
+  expect(individualBlindedWords(studyBlindedWhy([card], { study_id: "231-24" }))).toBe(
+    "Its values are blinded until the plan is signed, because it is entered for external validation on its card. Its individual is set "
+    + "now: the plan needs it.");
+  expect(individualBlindedWords(null)).toBe("Its values are blinded until the plan is signed. Its individual is set now: the plan needs it.");
+  // To do: a blinded study's demographics in the model are missing and open, counted with the rest (round 6 said they
+  // "can't be acted on yet", while the inputs' readiness asks them of every study in the model: no plan past it)
+  const sources = copy(load("exampleamide"));
+  for (const s of sources.delivery!.subjects) if (s.label === "231-24") Object.assign(s, { blinded: true, blinded_why: "it is entered for external validation on its card" });
+  const before = buildWork(sources);
+  const rows = (sources.inputs!.studies as unknown as Record<string, unknown>[]);
+  rows.push({ ...(rows[0] ?? {}), study_id: "231-24", blinded: true, blinded_why: "it is entered for external validation on its card" },
+            { ...(rows[0] ?? {}), study_id: "abc-REF", blinded: true, blinded_why: listed });
+  (sources.inputs!.todo as unknown as Record<string, unknown>[]).push(
+    { kind: "demographics", target: "231-24", tab: "individuals", message: "231-24: give the demographics, or choose the healthy adult default" },
+    { kind: "regimen", target: "abc-REF", tab: "studies", message: "abc-REF: a multiple-dose study needs its number of doses and dosing interval" });
+  const work = buildWork(sources);
+  for (const id of ["todo:demographics:231-24", "todo:regimen:abc-REF"]) {
+    const item = work.items.find((i) => i.id === id)!;
+    expect(item.blocked, id).toBeUndefined();
+    expect(item.open, id).toBe(true);
+    expect(item.status, id).toBe("missing");
+  }
+  expect(work.counts.missing).toBe(before.counts.missing + 2);
 });
 
 test("round 6: a check says the field and unit the API names apart in words, never the field's id", () => {

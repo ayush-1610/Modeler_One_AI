@@ -367,8 +367,11 @@ function StudyList({ subjects, studies, env, unpromised, only, onShow }: {
                   {waiting && <span className="muted" data-testid={`study-datasets-waiting-${s.key}`}> · {waiting}</span>}</span>;
               } },
               { key: "status", label: "Status", render: (s) => <StatusChip status={cardStatus(s, env.work)} testId={`study-status-${s.key}`} /> },
-              { key: "confirm", label: "Confirmed with", render: (s) => <span className="muted fs-13">{viaSheet(s) ? "the sheet form"
-                : s.path === "delivery" ? "Confirm and sign" : s.path === "sheet-form" ? "Confirm" : "not available yet"}</span> },
+              // a blinded study still to confirm: neither path can be used until the plan is signed (409 BLINDED), as its
+              // card says (round 7: this said "Confirm and sign" while its card said signing waits)
+              { key: "confirm", label: "Confirmed with", render: (s) => <span className="muted fs-13" data-testid={`study-confirm-with-${s.key}`}>
+                {viaSheet(s) ? "the sheet form" : s.blinded && !s.done ? "waits until the plan is signed"
+                  : s.path === "delivery" ? "Confirm and sign" : s.path === "sheet-form" ? "Confirm" : "not available yet"}</span> },
               { key: "role", label: "Role", render: (s) => { const r = inModel(s)?.role; return r ? <span className="fs-13">{r} · {ROLE[r] ?? r.toLowerCase()}</span> : <span className="muted">—</span>; } },
               { key: "open", label: "", render: (s) => (
                 <button type="button" className="btn small" aria-expanded={isOpen(s)} aria-label={`${isOpen(s) ? "Close" : "Open"} the card of ${s.label}`}

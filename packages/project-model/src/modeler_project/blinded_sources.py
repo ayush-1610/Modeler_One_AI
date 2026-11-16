@@ -15,21 +15,25 @@ proposal before a plan, a dataset entered for external validation). Withheld:
   says why;
 - the sheets those values were read from (the delivery's anchors, the sheet form's readings that made a listed study's
   datasets, a template's sheets a listed study's rows are on): not shown, read or previewed;
-- the values of such a study wherever its id names it (`withholds`, by the same names: its datasets' points and
-  reported PK on the evidence and the client review, its catalog row's profile, the Studies list's chip), so no view
-  shows the points of a study another view says are withheld (final review round 6).
+- the values of such a study wherever its id names it (`withholds`: the list's ids, the studies of the same names, and
+  the datasets of every client-review group withheld here and the study ids they name, `joined`: its datasets' points,
+  reported PK, quotes and notes on the evidence and the client review, its catalog row's profile, the Studies list's
+  chip), so no view shows the points of a study the client review says are withheld (final review round 6 matched by
+  name only, so a group joined to a blinded delivery study under another name, `legacy_groups`, kept its dataset's
+  points on the evidence; round 7).
 """
 
 from __future__ import annotations
 
 from collections.abc import Collection, Mapping
 from dataclasses import dataclass, field
+from functools import cached_property
 from typing import Any
 
 from modeler_project import blinding, intake_decisions
 from modeler_project import intake_review as delivery_review
 from modeler_project.client_data import submissions
-from modeler_project.dataset_register import datasets
+from modeler_project.dataset_register import dataset, datasets
 from modeler_project.ledger_view import LedgerView
 from modeler_project.workspace import Workspace
 
@@ -42,7 +46,8 @@ class BlindedSources:
     what the page says a file is withheld for; `why`: why a group is withheld, in words, by its id or its name (as
     `groups` and `names` key it): the delivery's reason for the study it is joined to (`intake_review.blinded_why`), or
     why the project's blinding list holds the study of its name (`blinding.external_why`; round 4); `listed`: the
-    project's list, each study id with why it is on it (`blinding.listed_why`)."""
+    project's list, each study id with why it is on it (`blinding.listed_why`); `ws`: the project, read for `joined`
+    only when a view asks about a study's values."""
 
     groups: frozenset[str] = frozenset()
     names: frozenset[str] = frozenset()
@@ -51,22 +56,64 @@ class BlindedSources:
     by: Mapping[str, frozenset[str]] = field(default_factory=dict)
     why: Mapping[str, str] = field(default_factory=dict)
     listed: Mapping[str, str] = field(default_factory=dict)
+    ws: Workspace | None = field(default=None, compare=False, repr=False)
+
+    @cached_property
+    def joined(self) -> Mapping[str, str]:
+        """The datasets of every client-review group withheld here (`group`) and the study ids they name, as
+        "dataset:<id>" and "study:<study id as written>", each with the group's reason (`reason`). A group is joined to a
+        blinded delivery study by its `legacy_groups` (a file linked to it, a dataset overlapping it: "230-23-REF" on
+        230-23), or holds a study under a name a person linked to the group's (`client_review._canonical`): neither is
+        the study's name, so `names` alone left their datasets' points on the evidence while the client review withheld
+        them (final review round 7). Read once, and only when a view asks about a study's values while something is
+        withheld; the client review's groups without the documents' offers."""
+        if not self or self.ws is None:
+            return {}
+        from modeler_project.client_review import groups as review_groups  # read only when something is withheld
+
+        out: dict[str, str] = {}
+        for group in review_groups(self.ws, offers=False):
+            if not self.group(group):
+                continue
+            reason = self.reason(group) or ""
+            for item in group["items"]:
+                if item["kind"] == "dataset" and (found := dataset(self.ws, str(item["id"]))) is not None:
+                    out.setdefault(f"dataset:{found.id}", reason)
+                    out.setdefault(f"study:{found.study.get('study_id')}", reason)
+        return out
 
     def withholds(self, study_id: Any) -> bool:
-        """Whether the values of the study of this id are withheld: the project's list holds it, or a study of its name is
+        """Whether the values of the study of this id are withheld: the project's list holds it, a study of its name is
         withheld (`names`: the list's under another spelling, or one the delivery blinds; `blinding.study_key`: a
-        delivery study, a client-review group and a dataset of one name are one study for blinding). One rule for every
-        view of a study's values, its datasets, its catalog row and its sheet form's group alike (final review round 6:
-        the evidence redacted the list's studies only, so a study the delivery blinds kept its points on the card whose
-        sheet-form line said they were withheld)."""
-        return str(study_id) in self.listed or f"study:{blinding.study_key(study_id)}" in self.names
+        delivery study, a client-review group and a dataset of one name are one study for blinding), or a dataset of a
+        withheld client-review group names it (`joined`: a group joined to a blinded study under another name). One rule
+        for every view of a study's values, its datasets, its catalog row and its sheet form's group alike (final review
+        round 6: the evidence redacted the list's studies only, so a study the delivery blinds kept its points on the card
+        whose sheet-form line said they were withheld; round 7: the joined groups)."""
+        if not self:
+            return False
+        return (str(study_id) in self.listed or f"study:{blinding.study_key(study_id)}" in self.names
+                or f"study:{study_id}" in self.joined)
 
     def study_why(self, study_id: Any) -> str | None:
         """Why the study's values are withheld, in words (None for a study whose values are not): the list's reason for a
-        study it holds (`blinding.listed_why`), else the reason of the study of its name (`why`)."""
+        study it holds (`blinding.listed_why`), else the reason of the study of its name (`why`), else its group's."""
         if not self.withholds(study_id):
             return None
-        return self.listed.get(str(study_id)) or self.why.get(f"study:{blinding.study_key(study_id)}")
+        return (self.listed.get(str(study_id)) or self.why.get(f"study:{blinding.study_key(study_id)}")
+                or self.joined.get(f"study:{study_id}"))
+
+    def holds(self, content: Mapping[str, Any]) -> bool:
+        """Whether a dataset's values are withheld (its content, or its id and study): its study's (`withholds`), or it
+        is an item of a withheld client-review group (`joined`)."""
+        return bool(self) and (f"dataset:{content.get('id')}" in self.joined
+                               or self.withholds((content.get("study") or {}).get("study_id")))
+
+    def dataset_why(self, content: Mapping[str, Any]) -> str | None:
+        """Why a dataset's values are withheld, in words (None for one whose values are not)."""
+        if not self.holds(content):
+            return None
+        return self.study_why((content.get("study") or {}).get("study_id")) or self.joined.get(f"dataset:{content.get('id')}")
 
     def studies(self, sha256: str | None) -> list[str]:
         """The blinded studies a withheld file holds the values of, in order ([] for a file that is not withheld)."""
@@ -166,4 +213,4 @@ def blinded_sources(ws: Workspace, project: dict[str, Any] | None, model_risk: s
                     why.update({gid: reason for gid in row["legacy_groups"]})
     return BlindedSources(groups=frozenset(groups), names=frozenset(names), files=frozenset(files),
                           sheets={sha: frozenset(on) for sha, on in sheets.items()},
-                          by={sha: frozenset(found) for sha, found in by.items()}, why=why, listed=listed_why)
+                          by={sha: frozenset(found) for sha, found in by.items()}, why=why, listed=listed_why, ws=ws)

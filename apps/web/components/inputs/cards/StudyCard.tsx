@@ -7,7 +7,7 @@
 
 import type { ReactNode } from "react";
 
-import { cardAnchor, normLabel, type Subject } from "@/lib/inputsWork";
+import { blindedWhy, cardAnchor, normLabel, type Subject } from "@/lib/inputsWork";
 import { sourceNamed } from "@/lib/words";
 
 import { DatasetView } from "../DatasetView";
@@ -47,12 +47,15 @@ function Observed({ subject: s, env, unpromised }: { subject: Subject; env: Card
   const delivery = s.path === "delivery" && !viaSheet(s);
   const drawn = delivery ? s.groups.flatMap((g) => g.items.filter((i) => i.kind !== "draft" && i.data).map((i) => ({ g, i }))) : [];
   const datasets = useStudyDatasets(env.projectId, studyNames(s));
+  // why the card says the study is blinded, on its visible withheld line (the delivery's, or the sheet form's group's):
+  // a dataset blinded for the same reason does not say it again (round 7: one sentence per fact on a card)
+  const said = !s.blinded ? null : delivery ? (s.row?.blinded ? s.row.blinded_why ?? null : null) : blindedWhy(s);
   if (!delivery && !datasets?.length) return null;
   return (
     <section className="delivery-block card-section" data-testid={`card-observed-${s.key}`}>
       <div className="delivery-block-head"><h3>Observed data</h3></div>
       {drawn.map(({ g, i }) => <DatasetView key={i.id} data={i.data!} label={sourceNamed(`${g.title}: ${i.label}`, i.source)} />)}
-      {datasets && <StudyDatasets datasets={datasets} projectId={env.projectId} run={env.run} unpromised={unpromised} />}
+      {datasets && <StudyDatasets datasets={datasets} projectId={env.projectId} run={env.run} unpromised={unpromised} said={said} />}
       {!drawn.length && delivery && (
         <p className="muted m-0 fs-13">Its profile is drawn here once it is in the model; the values read from its files are under
           Files and tables.</p>

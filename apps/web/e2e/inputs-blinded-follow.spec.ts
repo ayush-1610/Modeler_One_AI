@@ -8,8 +8,9 @@
 // of a study the split had just blinded stayed readable. Round 5 read again only the cards whose delivery rows changed,
 // while the API also withholds by file and by name: the why of a decision about the newly blinded study's file stayed
 // readable on another study's card, and a study already in the model kept its row on the Studies list and its points.
-// Round 6 has one rule read everything of the project the blinding changes, once. What is not covered here: a change
-// another person makes is seen at the next read, and a decision that starts a reading is followed at its end.
+// Round 6 has one rule read every answer of the project the blinding changes, once (round 7 adds the reading tray, whose
+// figure suggestions are withheld by file too). What is not covered here: a change another person makes is seen at the
+// next read, and a decision that starts a reading is followed at its end.
 // Software test data (the made-up Exampleamide, its literature studies and a published table of the reading evaluation
 // set), never a model; the stub engine is a software fixture.
 import { execFileSync } from "node:child_process";
@@ -214,7 +215,8 @@ test("a study signed on the delivery that the split blinds when it lands: its pr
   // blinded studies both show it (round 5 read the client data, the sheet form, the documents, the evidence and the
   // delivery twice)
   const count = (path: string) => reads.filter((r) => r === path).length;
-  for (const path of ["delivery", "inputs"]) expect(count(path), `${path}: ${reads.join(", ")}`).toBe(1);
+  // the reading tray too (round 7: its figure suggestions are withheld by file), which every area reads
+  for (const path of ["delivery", "inputs", "reading-queue"]) expect(count(path), `${path}: ${reads.join(", ")}`).toBe(1);
   for (const path of ["client-data", "client-review", "documents", "evidence"]) expect(count(path), `${path}: ${reads.join(", ")}`).toBeLessThanOrEqual(1);
   const cards = reads.filter((r) => r.startsWith("delivery/subjects/") && !r.endsWith("/spot-check"));
   expect(cards.length, cards.join(", ")).toBe(new Set(cards).size);
@@ -270,8 +272,21 @@ test("a study entered for external validation on its card: the product that hold
   const { projectId, api } = await start(request);
   const { study, product, productCard } = await workbookWithProduct(request, projectId, api);
   await page.setViewportSize({ width: 1440, height: 900 });
+  // round 7: the page's first read of the delivery fails at the web server's proxy, as it did once under load (a bare 500,
+  // "socket hang up": the API had closed the kept-alive connection the proxy reused). With no retries, no card came; a
+  // read the proxy could not complete is now sent once more
+  let failed = 0;
+  await page.route((url) => url.pathname === `${api}/delivery`, async (route) => {
+    if (route.request().method() === "GET" && failed++ === 0) {
+      await route.fulfill({ status: 500, contentType: "text/plain", body: "Internal Server Error" });
+      return;
+    }
+    await route.continue();
+  });
   await page.goto(`/projects/${projectId}/inputs?tab=formulations`);
   await expectProduct(await openCard(page, product.subject), product.subject, false);
+  expect(failed).toBeGreaterThan(1);
+  await page.unroute((url) => url.pathname === `${api}/delivery`);
   // what 230-23 is for, entered on its card's facts form: external validation
   await page.getByTestId("tab-studies").click();
   const card = await openCard(page, study.subject);

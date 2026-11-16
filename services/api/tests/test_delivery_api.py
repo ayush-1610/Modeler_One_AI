@@ -2778,9 +2778,10 @@ def test_a_link_that_covered_part_of_a_table_is_not_carried_and_the_page_says_wh
     assert again.status_code == 200 and again.json()["data"]["relink"] == [] and again.json()["data"]["unassigned"] == []
 
 
-def _arm_workbook(arm: str, *, period: bool, title: str | None = None) -> bytes:
+def _arm_workbook(arm: str, *, period: bool, title: str | None = None, scale: float = 10.0) -> bytes:
     """A BE arm's workbook as a CRO sends it (the times across the top), under a title the rules do not read as a study
-    id: subjects 001 to 004, with their period ("I", "II") when `period`. `title`: another title."""
+    id: subjects 001 to 004, with their period ("I", "II") when `period`. `title`: another title. `scale`: the first
+    subject's concentration at 1 h (another gives values no other number of an answer is)."""
     book = Workbook()
     sheet = book.active
     sheet.title = "Sheet1"
@@ -2790,7 +2791,7 @@ def _arm_workbook(arm: str, *, period: bool, title: str | None = None) -> bytes:
     sheet.append(["Time (hr)"])
     sheet.append(["Subject No.", *(["Period"] if period else []), *times])
     for i in range(1, 5):
-        sheet.append([f"{i:03d}", *(["I" if i % 2 else "II"] if period else []), *(round(10.0 * i / float(t), 2) for t in times)])
+        sheet.append([f"{i:03d}", *(["I" if i % 2 else "II"] if period else []), *(round(scale * i / float(t), 2) for t in times)])
     raw = io.BytesIO()
     book.save(raw)
     return raw.getvalue()
@@ -3389,6 +3390,7 @@ def test_a_study_the_delivery_blinds_has_its_datasets_withheld_wherever_the_shee
     workbook = synthetic.messy_workbook()
     p.deliver(workbook)
     sid = client_data.submission_id(_sha(workbook.data))
+    before = "".join(p.get(route).text for route in ("evidence", "client-review", "inputs"))   # numbers no reading gave
     answers = {"n": 6, "route": "oral", "formulation": "ir_tablet", "food_state": "fed", "dose": 100, "purpose": "model_building"}
     assert p.post("client-review:finish", {"file": sid, "sheet": "Fed", "answers": answers}).status_code == 200
     (read,) = [d for d in all_datasets(p.ws) if d.study.get("study_id") == "231-24"]
@@ -3420,6 +3422,15 @@ def test_a_study_the_delivery_blinds_has_its_datasets_withheld_wherever_the_shee
     assert line()["blinded"] is True
     run = p.client.get("/api/v1/projects/p1/studies", headers=_auth("t")).json()["data"]["studies"]
     assert next(s for s in run if s["study_id"] == "231-24")["blinded"] is True
+    # round 7: nor its quote (the Fed sheet's first row, values and all) or its note, only the place it names; no answer
+    # that carries the dataset holds one of 231-24's values (230-23 stays open: a number it shares too is no leak)
+    assert "=" in read.quote and line()["quote"] == read.quote.split("]")[0] + "]" and line()["note"] == ""
+    shown = {s.pattern for s in _secrets(p.ws, "230-23")}
+    secrets = [s for s in _secrets(p.ws, "231-24") if s.pattern not in shown and not s.search(before)]
+    for route in ("evidence", "client-review", "inputs", f"artifacts/dataset/{read.id}", f"artifacts/dataset/{read.id}/history"):
+        answer = p.get(route)
+        assert answer.status_code == 200 and _leaks(secrets, answer.text) == [], route
+    assert _leaks(secrets, p.client.get("/api/v1/projects/p1/studies", headers=_auth("t")).text) == []
     # its reveal for a check: its values, with the reason on the audit chain, as for a study the list holds
     revealed = p.post(f"datasets/{read.id}:reveal", {"reason": "check the transcription"})
     assert revealed.status_code == 200 and any(v is not None for s in revealed.json()["data"]["series"] for v in s["values"])
@@ -3431,6 +3442,109 @@ def test_a_study_the_delivery_blinds_has_its_datasets_withheld_wherever_the_shee
     assert corrected.status_code == 200 and corrected.json()["data"]["blinded"] is False, corrected.text
     assert not line().get("blinded") and any(v is not None for s in line()["series"] for v in s["values"])
     assert next(r for r in p.get("inputs").json()["data"]["studies"] if r["study_id"] == "231-24")["blinded"] is False
+
+
+@pytest.mark.req("T-47", "F-402")
+def test_a_sheet_form_group_joined_to_a_blinded_study_under_another_name_has_its_datasets_withheld_everywhere(project):
+    """Final review round 7 (round 6's skeptic, probe R on the owner's copy): a group the sheet form read under another
+    name (abc-REF) and joined to a delivery study (ABC-1) by its linked file, `legacy_groups`, is withheld by the client
+    review once the delivery blinds ABC-1; the evidence matched by name only, so the group's dataset kept its points
+    there, on the card whose line said they were withheld. Now every view of its values withholds it, with the
+    delivery's reason: the evidence (points, quote, note), the inputs' Studies row and catalog, the Run page, its
+    artifact and history; its card's purpose corrected, nothing is withheld."""
+    p = project(blinding=True)
+    ref = _arm_workbook("Reference", period=False, scale=13.73)
+    p.deliver(("abc-reference.xlsx", ref))
+    linked = p.post("delivery/values:assign", {"targets": _all_targets(p.page()["unassigned"]), "new_study": "ABC-1",
+                                               "why": "the title names study ABC-1"})
+    assert linked.status_code == 200, linked.text
+    sheet = {"file": client_data.submission_id(_sha(ref)), "sheet": "Sheet1"}
+    answers = {"n": 4, "route": "oral", "formulation": "ir_tablet", "food_state": "fasted", "dose": 50, "purpose": "model_building"}
+    assert p.post("client-review:finish", {**sheet, "answers": answers}).status_code == 200
+    (read,) = [d for d in all_datasets(p.ws) if d.study.get("study_id") == "abc-REF"]
+    assert next(s for s in p.page()["subjects"] if s["label"] == "ABC-1")["legacy_groups"] == ["study:abc-REF"]
+    secrets = sorted({repr(v) for s in read.series for v in s.values if v is not None and v > 5})
+    assert len(secrets) > 6 and all("." in s for s in secrets)
+
+    def line() -> dict[str, Any]:
+        return next(d for d in p.get("evidence").json()["data"]["datasets"] if d["id"] == read.id)
+
+    assert not line().get("blinded") and "=" in line()["quote"]
+    entered = p.post(f"{p.subject('ABC-1')}:enter", {"field": "intended_use", "value": "external_validation",
+                                                      "why": "the protocol keeps it for external validation"})
+    assert entered.status_code == 200 and entered.json()["data"]["blinded"] is True, entered.text
+    why = "it is entered for external validation on its card"
+    group = next(g for g in p.get("client-review").json()["data"]["groups"] if g["id"] == "study:abc-REF")
+    assert (group["blinded"], group["blinded_why"]) == (True, why)
+    assert "abc-REF" not in p.get("blinding").json()["data"]["external"]       # the set is the delivery's, unchanged
+    # the evidence agrees with the client review: its points, quote and note withheld, with the same reason
+    withheld = line()
+    assert (withheld["blinded"], withheld["blinded_why"]) == (True, why)
+    assert all(v is None for s in withheld["series"] for v in s["values"])
+    assert withheld["quote"] == read.quote.split("]")[0] + "]" and withheld["note"] == ""
+    assert "abc-REF" in p.get("evidence").json()["data"]["blinding"]["blinded"]
+    # in the model: its catalog row has no profile, its Studies row and the Run page say blinded
+    decide_dataset(p.ws, read.id, state=EvidenceState.ACCEPTED, reason="confirmed before the card said external", by="u1")
+    refresh_inputs(p.ws, by="u1")
+    inputs = p.get("inputs").json()["data"]
+    studies = {r["study_id"]: r for r in inputs["studies"]}
+    assert (studies["abc-REF"]["blinded"], studies["abc-REF"]["blinded_why"]) == (True, why)   # Populations says why too
+    (row,) = [r for r in inputs["catalog"]["content"]["studies"] if r["study_id"] == "abc-REF"]
+    assert row["blinded"] is True and "profile" not in row
+    run = p.client.get("/api/v1/projects/p1/studies", headers=_auth("t"))
+    assert next(s for s in run.json()["data"]["studies"] if s["study_id"] == "abc-REF")["blinded"] is True
+    # no answer that carries it holds one of its values
+    for route in ("evidence", "client-review", "inputs", "client-data", "delivery", f"artifacts/dataset/{read.id}",
+                  f"artifacts/dataset/{read.id}/history"):
+        answer = p.get(route)
+        assert answer.status_code == 200 and [s for s in secrets if s in answer.text] == [], route
+    assert [s for s in secrets if s in run.text] == []
+    # its reveal is audited, as for any blinded dataset
+    assert p.post(f"datasets/{read.id}:reveal", {"reason": "check the transcription"}).status_code == 200
+    assert [e.reason for e in p.events("dataset.reveal")] == ["check the transcription"]
+    # the card's purpose corrected: nothing is withheld
+    (purpose,) = [v for v in LedgerView(p.ws).values(field="intended_use") if v.method == "person"]
+    corrected = p.post(f"{p.subject('ABC-1')}:enter", {"supersedes": purpose.id, "value": "model_building",
+                                                        "why": "entered on the wrong study"})
+    assert corrected.status_code == 200 and corrected.json()["data"]["blinded"] is False, corrected.text
+    assert not line().get("blinded") and any(v is not None for s in line()["series"] for v in s["values"])
+    shown = next(r for r in p.get("inputs").json()["data"]["studies"] if r["study_id"] == "abc-REF")
+    assert (shown["blinded"], shown["blinded_why"]) == (False, None)
+
+
+@pytest.mark.req("T-47", "F-402")
+def test_a_landed_datasets_quote_note_and_reported_quotes_are_withheld_once_its_study_is_blinded(project, monkeypatch):
+    """Final review round 7 (round 6's names-words fixer): a dataset the delivery landed quotes its sheet's first row
+    verbatim, values and all ("[Fasting row 4] A4=001 | … | C4=12.1 …"), its reported PK quote their values ("31.2
+    (4.1)") and its note and decision name the signed confirmation; the evidence withheld the series and the reported
+    values only. Once the study split puts 230-23 in S5 (blinded, as on the owner's copy), every answer that carries the
+    dataset gives its place in the file ("[Fasting row 4]", all the page reads), no note, the reason's digits masked, and
+    none of the study's values."""
+    p = project(blinding=True)
+    path = _ready(p)
+    before = "".join(p.get(route).text for route in ("evidence", "client-review", "inputs"))   # numbers no landing gave
+    assert p.post(f"{path}:confirm").status_code == 200
+    landed = [d for d in all_datasets(p.ws) if d.study.get("study_id") == "230-23"]
+    assert landed and all("=" in d.quote for d in landed) and all(d.note for d in landed)
+    from modeler_project import roles
+
+    monkeypatch.setattr(roles, "proposed_roles", lambda ws: {"230-23": "S5"})     # the split's proposal, before a plan
+    assert "230-23" in p.get("blinding").json()["data"]["blinded"]
+    shown = {s.pattern for s in _secrets(p.ws, "231-24")}         # 231-24 stays open: a number it shares is no leak
+    secrets = [s for s in _secrets(p.ws, "230-23") if s.pattern not in shown and not s.search(before)]
+    lines = {d["id"]: d for d in p.get("evidence").json()["data"]["datasets"]}
+    for found in landed:
+        d = lines[found.id]
+        assert d["blinded"] is True and d["quote"] == found.quote.split("]")[0] + "]" and d["note"] == ""
+        assert all((r["value"], r["variability"], r["quote"]) == (None, "", "") for r in d["reported"])
+        assert not any(ch.isdigit() for ch in d["decision_reason"])
+    routes = ["evidence", "client-review", "inputs", *(f"artifacts/dataset/{d.id}" for d in landed),
+              *(f"artifacts/dataset/{d.id}/history" for d in landed)]
+    for route in routes:
+        answer = p.get(route)
+        assert answer.status_code == 200 and _leaks(secrets, answer.text) == [], route
+        assert not any(r.quote and r.quote in answer.text for d in landed for r in d.reported), route
+    assert _leaks(secrets, p.client.get("/api/v1/projects/p1/studies", headers=_auth("t")).text) == []
 
 
 @pytest.mark.req("T-47", "F-402", "F-404")
