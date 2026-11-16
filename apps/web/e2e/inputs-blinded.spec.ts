@@ -236,11 +236,21 @@ test("a blinded product says why on its card head, Populations says why, and the
   expect((await read<{ subjects: Row[] }>("delivery")).subjects.filter((s) => s.blinded).map((s) => s.label).sort())
     .toEqual([product.label, "230-23"].sort());
 
-  // the product's card head: the chip and, beside it, why
+  // the product's card head: the chip and, beside it, why, naming the study whose values it holds (round 6)
   await page.goto(`/projects/${projectId}/inputs?tab=formulations`);
   const productCard = page.locator("[data-testid^='product-card-']", { has: page.locator(".card-title", { hasText: product.label }) });
-  await expect(productCard.locator("[data-testid^='card-blinded-why-']")).toHaveText("because it holds the values of a blinded study");
+  await expect(productCard.locator("[data-testid^='card-blinded-why-']")).toHaveText("because it holds the values of study 230-23, which is blinded");
   await expect(productCard.locator("[data-testid^='card-blinded-product']")).toHaveText("blinded until the plan is signed");
+  // opened, the card says why once (on its head): its body says what is withheld, never "this study is blinded" (round 6)
+  const productToggle = productCard.locator("button.card-toggle").first();
+  if ((await productToggle.getAttribute("aria-expanded")) !== "true") await productToggle.click();
+  await expect(productCard.getByTestId(`delivery-blinded-${product.subject}`)).toHaveText(
+    "withheld (blinded): the values it holds of a blinded study, their spread and what is below the LLOQ are not shown until the plan is "
+    + "signed, and it waits to be confirmed until then.");
+  expect((await productCard.innerText()).match(/because it holds the values of study 230-23/g)).toHaveLength(1);
+  await expect(productCard).not.toContainText("this study is blinded");
+  await expect(productCard).not.toContainText("the study is blinded");
+  await page.screenshot({ path: test.info().outputPath("6a-product-card-why-once.png"), fullPage: true });
   // Populations and individuals: the study's line says why, as everywhere it is withheld
   await page.getByTestId("tab-individuals").click();
   await expect(page.getByTestId("individual-blinded-study:230-23")).toHaveText(
@@ -250,9 +260,32 @@ test("a blinded product says why on its card head, Populations says why, and the
   await page.getByTestId("tab-studies").click();
   const toggle = page.getByTestId(`delivery-subject-open-${study.subject}`);
   if ((await toggle.getAttribute("aria-expanded")) !== "true") await toggle.click();
-  await page.getByTestId(`delivery-blinded-why-${study.subject}`).getByRole("button", { name: /^it is entered for external validation on its card/ }).click();
-  await expect(page.getByTestId(`delivery-purpose-${study.subject}-intended_use`)).toBeFocused();
+  await page.getByTestId(`delivery-blinded-why-${study.subject}`)
+    .getByRole("button", { name: "it is entered for external validation on its card: open the purpose of study 230-23 on its card, to change it" }).click();
+  const purpose = page.getByTestId(`delivery-purpose-${study.subject}-intended_use`);
+  await expect(purpose).toBeFocused();
+  await expect(purpose).toHaveText("Change the purpose…");
   await expect(page.locator("body")).not.toContainText("25.2");
+
+  // Round 6 (an owner question): through the card a person with the Writer role could unblind a study, while the API's
+  // PUT /blinding is the MIDD lead's (modeler-reviewer). Until the owner decides, "Change the purpose…" is offered only to a
+  // person whose roles may set the blinding; to anyone else the reason still leads to the purpose, which says who changes
+  // it. The DEV sign-in holds every role, so the page is given a curator's roles (GET /me) for this check.
+  await page.route("**/api/v1/me", async (route) => {
+    const response = await route.fetch();
+    const body = await response.json();
+    body.data.roles = ["modeler-viewer", "modeler-curator"];
+    await route.fulfill({ response, json: body });
+  });
+  await page.reload();
+  const toggleAgain = page.getByTestId(`delivery-subject-open-${study.subject}`);
+  if ((await toggleAgain.getAttribute("aria-expanded")) !== "true") await toggleAgain.click();
+  await page.getByTestId(`delivery-blinded-why-${study.subject}`)
+    .getByRole("button", { name: "it is entered for external validation on its card: open the purpose of study 230-23 on its card" }).click();
+  await expect(purpose).toBeFocused();
+  await expect(purpose).toHaveText("it blinds the study; a reviewer (the MIDD lead) can change it");
+  await expect(page.getByRole("button", { name: /^Change the purpose…/ })).toHaveCount(0);
+  await page.screenshot({ path: test.info().outputPath("6b-purpose-for-a-curator.png"), fullPage: true });
 });
 
 // Round 5: a dataset blinded by the project's list says why on its line (round 4 left "blinded until the MAP is signed"
@@ -279,5 +312,67 @@ test("a blinded dataset says why, and the plan's part of the reason leads to whe
   await page.screenshot({ path: test.info().outputPath("7-dataset-why.png"), fullPage: true });
   await link.click();
   await expect(page).toHaveURL(new RegExp(`/projects/${projectId}/plan#review-studies$`));
+  await expect(page.locator("#review-studies")).toBeVisible();
+});
+
+// Round 6 (round 5's skeptic, probe F): Review & sign shows its studies and roles only once the inputs are ready (the plan
+// is made from them); before, it shows only that it opens then. So a split's reason links there only while it can be
+// shown; before, it is said, with where the role is decided and a link to what the inputs still wait on (To do's model
+// checks). A tablet study with no formulation holds the inputs back; once it is set aside, the same reason links to the
+// plan's studies and roles. Software test data (the made-up Splitamide), never a model.
+test("before the inputs are ready, the split's reason says where its role is decided and what Review & sign waits on", async ({ page, request }) => {
+  const projectId = await projectWithInputs(request, "Splitamide", [
+    { study_id: "iv-100", route: "iv_infusion", dose_mg: 100 }, { study_id: "po-10", route: "oral", dose_mg: 10 },
+    { study_id: "po-50", route: "oral", dose_mg: 50 }, { study_id: "po-100", route: "oral", dose_mg: 100 },
+  ]);
+  const api = `/api/v1/projects/${projectId}`;
+  // a tablet study with no formulation: the inputs are not ready, and there is no plan
+  const tablet = await request.post(`${api}/datasets`, { headers: AUTH, data: {
+    study: { study_id: "po-tab", reference: "Doe 2019", n: 12, route: "oral", dose_mg: 20, formulation: "ir_tablet", food_state: "fasted", n_timepoints: 5 },
+    time_unit: "h", unit: "µmol/l", origin: "LITERATURE", source: { doi: "10.1/review", locator: "Table 4" },
+    series: [{ name: "mean", statistic: "arithmetic_mean", times: [0.5, 1, 2, 4, 8], values: [20, 35, 21, 9, 2], n: 12 }],
+    demographics_choice: "healthy_adult_default" } });
+  expect(tablet.ok(), await tablet.text()).toBeTruthy();
+  const tabletId = (await tablet.json()).data.id as string;
+  expect((await request.post(`${api}/datasets/${tabletId}:decide`, { headers: AUTH, data: { state: "ACCEPTED", reason: "checked" } })).ok()).toBeTruthy();
+  const assembled = (await (await request.post(`${api}/inputs:assemble`, { headers: AUTH })).json()).data;
+  expect(assembled.readiness.content.ready).toBe(false);
+  const on = await request.put(`${api}/blinding`, { headers: AUTH, data: { on: true, reason: "ICH M15 §4.1 for this project" } });
+  expect(on.ok(), await on.text()).toBeTruthy();
+  expect((await request.get(`${api}/plan`, { headers: AUTH })).status()).toBe(409);
+  type Dataset = { id: string; study: { study_id: string }; blinded?: boolean; blinded_why?: string | null };
+  const blindedNow = async () => ((await (await request.get(`${api}/evidence`, { headers: AUTH })).json()).data.datasets as Dataset[])
+    .find((d) => d.blinded && d.study.study_id !== "po-tab")!;
+  const before = await blindedNow();
+  expect(before.blinded_why).toMatch(/^the study split proposes it for S5 \(external validation\), before a plan$/);
+
+  await page.goto(`/projects/${projectId}/inputs?tab=studies`);
+  const why = page.getByTestId(`blinded-why-${before.id}`).first();
+  await expect(why).toHaveText("Its values are blinded until the plan is signed, because the study split proposes it for S5 (external "
+                               + "validation), before a plan (its role is decided on Review & sign, which opens once the inputs are ready: "
+                               + "what they still wait on) (ICH M15).");
+  await expect(why.getByRole("link", { name: /^the study split/ })).toHaveCount(0);
+  await page.screenshot({ path: test.info().outputPath("8-split-why-before-ready.png"), fullPage: true });
+  // its link: what the inputs wait on (the step bar's "Waiting on you", what Review & sign lists), focused, over To do:
+  // the tablet study's formulation among them
+  await why.getByRole("link", { name: "what the inputs still wait on before Review & sign opens, on To do" }).click();
+  await expect(page).toHaveURL(/\?tab=todo&at=step-waiting/);
+  const waiting = page.getByTestId("step-waiting");
+  await expect(waiting).toBeFocused();
+  await expect(waiting).toContainText("a tablet study has no formulation");
+  await expect(page.getByTestId("tab-todo")).toHaveAttribute("aria-selected", "true");
+
+  // the tablet study set aside, the inputs are ready: the same reason leads to the plan's studies and roles
+  expect((await request.post(`${api}/datasets/${tabletId}:decide`, { headers: AUTH, data: { state: "REJECTED", reason: "not this project's" } })).ok()).toBeTruthy();
+  expect((await (await request.post(`${api}/inputs:assemble`, { headers: AUTH })).json()).data.readiness.content.ready).toBe(true);
+  const after = await blindedNow();
+  expect(after.blinded_why).toMatch(/^the study split proposes it for S5 \(external validation\), before a plan$/);
+  await page.goto(`/projects/${projectId}/inputs?tab=studies`);
+  const whyNow = page.getByTestId(`blinded-why-${after.id}`).first();
+  await expect(whyNow).toHaveText("Its values are blinded until the plan is signed, because the study split proposes it for S5 (external "
+                                  + "validation), before a plan (ICH M15).");
+  const link = whyNow.getByRole("link", { name: /^the study split proposes it for S5 \(external validation\), before a plan/ });
+  await expect(link).toHaveAttribute("href", `/projects/${projectId}/plan#review-studies`);
+  await link.click();
   await expect(page.locator("#review-studies")).toBeVisible();
 });

@@ -12,7 +12,7 @@
 
 import type { Schema } from "./api";
 import {
-  AREA_NAME, type FormulationWay, STATUS_WORD, type Status, type Tab, UNREADABLE, checkFix, checkLabel, factText, formulationParts,
+  AREA_NAME, type FormulationWay, STATUS_WORD, type Status, type Tab, UNREADABLE, askAt, checkFix, checkLabel, factText, formulationParts,
   formulationWays, individualNeeds, layoutOrigin, placeText, plural,
   tableKindText, todoLabel, whenText, whereIs,
 } from "./words";
@@ -25,7 +25,7 @@ type ReviewGroup = Schema<"ReviewGroup">;
 type ReviewItem = Schema<"ReviewItem">;
 
 /** A line of what the client is asked for (the delivery's `request`, and the formulation item's `ask`). */
-export type RequestLike = { req_id: string; what: string; why: string; required: boolean };
+export type RequestLike = { req_id: string; what: string; why: string; required: boolean; product?: string | null };
 /** An open item of the /inputs to-do (components/inputs/InputsTodo.tsx `TodoItem`), as far as the work model reads it;
  *  the formulation item carries what gives a tablet study its formulation as the project stands (`way`) and what the client
  *  is asked for each study whose way offers the client (`ask`: rounds 4 and 5, "add a product" and "add a product's
@@ -158,7 +158,8 @@ export type Subject = {
   area: Tab; files: string[]; blinded: boolean; done: boolean;
 };
 
-export type AskLine = { req: string; what: string; subjects: string[]; required: boolean; why: string };
+/** A line of "Ask the client": `at`, its own anchor (the page's `?at=`), apart for each product a study names (round 6). */
+export type AskLine = { req: string; what: string; subjects: string[]; required: boolean; why: string; at: string };
 /** A model check (the readiness report) in words; `said`: an open check whose gap a To do group already lists (its
  *  rows, or the cards to confirm), so the Model checks group does not say it again (final review OWN-14). */
 export type CheckLine = { raw: string; label: string; ok: boolean; detail: string[]; fix: string; said: boolean };
@@ -869,12 +870,17 @@ export function blindedParts(why: string): BlindedPart[] {
  *  and wording, each study named once whichever path asks it. */
 export function askLines(delivery: DeliveryPage | null, inputs: InputsLike | null = null): AskLine[] {
   const out = new Map<string, AskLine>();
-  const lines: RequestLike[] = [...(delivery?.enabled ? delivery.request : []),
-                                ...(inputs?.todo ?? []).filter((t) => t.kind === "formulation").flatMap((t) => t.ask ?? [])];
-  for (const line of lines) {
+  // the formulation item's lines anchor apart by the product a study names (`askAt`: round 6, a named study's line and
+  // the line of the studies that name none shared one anchor); the delivery's by their requirement, as before
+  const lines: [RequestLike, string][] = [
+    ...(delivery?.enabled ? delivery.request : []).map((l): [RequestLike, string] => [l, `todo-ask-${l.req_id}`]),
+    ...(inputs?.todo ?? []).filter((t) => t.kind === "formulation").flatMap((t) => t.ask ?? [])
+      .map((l): [RequestLike, string] => [l, l.req_id === "REQ-form.release" ? askAt(l.product) : `todo-ask-${l.req_id}`]),
+  ];
+  for (const [line, at] of lines) {
     const [what, subject] = line.what.split(" — ");
     const key = `${line.req_id}|${what}`;
-    const known = out.get(key) ?? { req: line.req_id, what, subjects: [], required: line.required, why: line.why };
+    const known = out.get(key) ?? { req: line.req_id, what, subjects: [], required: line.required, why: line.why, at };
     const name = subject?.replace(/^(study|product) /, "");
     if (name && !known.subjects.some((n) => normLabel(n) === normLabel(name))) known.subjects.push(name);
     known.required ||= line.required;

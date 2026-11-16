@@ -16,6 +16,83 @@ Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: compl
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
 
+### Fixed — final review round 6, the product a study's own file names, and the plan link (round 5's downstream-why skeptic; plan 2026-11-14 §5) — science-adjacent
+- **A study whose own file names its product is settled by that product only (`modeler_project.formulation_way`).** The
+  usual way a study names its product is its own client data: the client template's Studies.product (with
+  product_role), read with the sheet form, and the delivery's values of the study that name a product (what Test 10 mg's
+  card shows as "Role Test · study CL-02"). Neither sets the study record's `formulation_name` (only a person's
+  formulation choice does), so round 5 read such a study as naming none: on the skeptic's probe B (CL-02's file names
+  Test 10 mg, only Brand 10 mg, the reference, has a usable and confirmed profile) the step bar, To do and CL-02's row
+  said "use a product's dissolution profile as its release … (Brand 10 mg's card)", and following it would have modelled
+  CL-02 with the reference's release. `file_products` now reads the product from both paths, by the study's id as the
+  readiness check says it (an arm's row or value by `<study>-<arm>`, as its dataset is named; `ledger_entities.label_key`
+  compares ids), and `formulation_way` treats the study as one that names its product: that product's profile when one
+  can give a release, else that product's dissolution data (`add_dissolution`), never another product's profile. Names
+  are compared as the cards compare them ("Product TEST 10 MG" is Test 10 mg) and said as the product is named where it
+  has a card or a profile; a file that names no product names none (no link is made up), and a name no product here has
+  is the study's all the same. CL-02's row says "no formulation in the model yet (its file names Test 10 mg), and no
+  dissolution profile of Test 10 mg can give it", and the step bar's "add a product's dissolution data" opens Test 10
+  mg's card at "Add its dissolution file…".
+- **The client is asked for the named product's data, on a line of its own.** For such a study To do's formulation item
+  asks "The formulation or dissolution data of Test 10 mg, the product the study used — study CL-02" (its line now
+  carries the product), never "(no file names the product)" (probe D: on a study whose file named its product that was
+  the only formulation line of "Ask the client"). Each line of "Ask the client" has its own anchor (round 5's named line
+  and the line of the studies that name none shared `todo-ask-REQ-form.release`): a named product's line is
+  `todo-ask-REQ-form.release~<product>` (`askAt`, lib/words.ts), the others keep theirs. The step bar's, Review & sign's
+  and To do's "ask the client" lands on the line of the study whose product the link opens first, each study's row on
+  its own line, a product card's on its product's line (else the delivery's line of that product, else the line of the
+  studies that name none).
+- **A study's own `ready` is its first product's.** For a study that names none, `ready` came from the first profile in
+  order, which could be a confirmed profile of no product listed before another, unconfirmed product (round 5's way_edge5
+  case 2: `ready` true, while the lead said false); it now follows the first product listed.
+- **A study that names its product may use its product's profile again.** A study whose record names Test 10 mg, whose
+  profile was made the release of a formulation of another name, was told "Test 10 mg … has no dissolution profile that
+  can give a release" (round 5's code excluded that profile for every study, while §5 said it was still offered). It is
+  now offered (used under the study's name, it gives the formulation the study names); a study that names none is still
+  not offered a profile that is a release already.
+- **The plan's part of a blinded reason links only where Review & sign can show it.** "the study split proposes it for
+  S5 (external validation), before a plan" and "the plan places it in …" linked to Review & sign's "Studies and roles"
+  (`/plan#review-studies`) whatever the inputs' state; before the inputs are ready Review & sign shows only "Review & sign
+  opens when the inputs are ready" (probe F: no such section). The link is now given only while the inputs are ready and
+  checked since they last changed (the plan is made from them; the page's own readiness); otherwise the part is said,
+  followed by "(its role is decided on Review & sign, which opens once the inputs are ready: what they still wait on)",
+  whose link brings the step bar's "Waiting on you" (what Review & sign waits on) into focus over To do.
+- **A blinded product's card says why once, and names the study.** Its head said "because it holds the values of a
+  blinded study" and its body said "withheld (blinded): this study is blinded until the plan is signed, because it holds
+  the values of a blinded study". The reason now names the study (`intake_review.held_why`: "it holds the values of
+  study 230-23, which is blinded", several "studies … which are blinded"), said once on the head; the body of a product
+  (or the compound) says what is withheld ("the values it holds of a blinded study, their spread and what is below the
+  LLOQ are not shown until the plan is signed …"), and the sheet form's and the delivery's withheld readings on such a
+  card no longer say "the study is blinded".
+- **"Change the purpose…" only for a person who may set the blinding (owner question, recorded).** Through the card's
+  `:enter` a person with the Writer role could unblind a study, while `PUT /blinding` needs the reviewer role
+  (modeler-reviewer, the MIDD lead). Until the owner decides, the page offers "Change the purpose…" only to a person
+  whose roles (`GET /me`, read once for the visit) allow `PUT /blinding`; to anyone else the reason still leads to the
+  purpose, which says "it blinds the study; a reviewer (the MIDD lead) can change it". The API is unchanged.
+- **Corrected notes:** round 5's §5 deviation said a named study whose profile is a release under another name "is still
+  offered that profile" (its code gave add_dissolution; now it is offered); round 5's entry below said each tablet
+  study's row "says that study's own way" (a study whose file named its product said another product's profile) and that
+  the plan's part of a reason links to the roles (whatever the inputs' state); both are corrected in place.
+- **Why:** the owner uses the page next. A study whose file names its product is the common case; the page led it to
+  the reference product's release, asked the client as though no file named its product, sent "ask the client" to
+  another study's line, and linked a reason to a section Review & sign does not show before the inputs are ready.
+- **Impact:** science-adjacent: which product's profile is offered for a study (never another product's than the one its
+  file names); the model building itself is unchanged (the readiness check and the CPF read the study record as before,
+  see §5's open question). API: no contract change (the formulation item's `ask` lines, untyped, now carry the named
+  product; a blinded product's `blinded_why` names the study). No ruleset, template, requirement level, locked file or
+  boundary exception changed; which studies are blinded is unchanged.
+- **Tests:** `test_client_api.py` (a template naming Test 10 mg beside Brand 10 mg's confirmed profile, through the API;
+  `file_products` on both paths: named in the sheet form, on the delivery, in both and agreeing though spelled apart, an
+  arm's row and value, a name that matches no product, a study whose files name none; a study's `ready` from its first
+  product; a named study's profile used again; `held_why`), `inputs-work.spec.ts` (each ask line's own anchor, where
+  "ask the client" lands for the lead and for each study, the named words; round 5's checks updated to the anchors),
+  e2e `inputs-owner-job` (a fourth test on probe B's shape: the API's way and ask, the step bar, To do, the named line
+  focused from the step bar and Review & sign, Test 10 mg's card from "add a product's dissolution data", CL-02's row and
+  the card's ask link), `inputs-blinded` (a product's reason names its study once; "Change the purpose…" for a reviewer,
+  the note for a curator's roles; a new fifth test: before the inputs are ready the split's reason is said with what they
+  wait on, and links to the roles once they are ready). Software test data on the stub engine: none of it is PBPK
+  evidence.
+
 ### Fixed — final review round 5, what a decision makes stale (round 4's blinding regression after a signed confirmation, the same gap after a card decision and a sheet-form confirmation, the race in `put`, the timing failures, the offers' request budget; plan 2026-11-14 §5) — science-adjacent
 - **Regression fixed: a product blinded by a signature showed the blinded study's values in the same visit.** With the
   project's blinding on and no plan, signing a delivery study lands its dataset in the study catalog; the MS-01 split
@@ -164,7 +241,8 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
   is carried (`FormulationWayView.each`: `study`, `way`, `products`, `ready`, `named`); the step bar names the first of
   use a profile, add dissolution data, add a product, choose that a study has, for the studies it settles; Products and
   dissolution's row of each tablet study says that study's own way (it said the step bar's), and a study that names a
-  formulation the model lacks is listed with it. A study whose named product has no profile reads "Ref 5 mg, the product
+  formulation the model lacks is listed with it. (Corrected in round 6: a study whose own file named its product, the
+  usual way, was read as naming none, and its row still said another product's profile.) A study whose named product has no profile reads "Ref 5 mg, the product
   the study names, has no dissolution profile that can give a release".
 - **The blinded reason where it was still missing.** Populations and individuals ("Enter once the study is confirmed →
   Blinded until the plan is signed, because …"), a product's card head (the reason beside the chip,
@@ -181,7 +259,9 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
   place that fact is shown. Changed, the study is no longer blinded by it, and the delivery page, the sheet form's
   groups, the client's files, the documents and the inputs are read again. A reason that is the plan's or the split's
   ("the plan places it in S5 …", "the study split proposes it for S5 …, before a plan") links to Review & sign's
-  "Studies and roles", where roles are decided (`blindedParts`); other reasons are said as text.
+  "Studies and roles", where roles are decided (`blindedParts`); other reasons are said as text. (Corrected in round 6:
+  it linked whatever the inputs' state, while before they are ready Review & sign has no such section; and a person with
+  the Writer role could change the purpose, which the page now offers only to a reviewer until the owner decides.)
 - **"Ask the client" holds the study's line wherever "ask the client" is offered for its formulation.** To do's
   formulation item asks for each study whose own way offers the client (add a product, or round 5 add a product's
   dissolution data), not only while no product is here at all; a study that names its product is asked for that

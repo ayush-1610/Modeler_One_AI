@@ -11,7 +11,7 @@
 // every table are settled with their file, in Client files, never here. A blinded study's values are withheld by the API
 // (D-15).
 
-import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Fragment, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { InlineIssue } from "@/components/kit";
 import { focusSoon, useFocusOnClose } from "@/components/kit/focus";
@@ -25,7 +25,7 @@ import {
   individualText, landingText, layoutFieldInText, placeText, rulesText, tableKindText, valueAbout, valueWord, whenText,
 } from "@/lib/words";
 
-import { BlindedReason, focusWhenDrawn } from "./BlindedReason";
+import { BlindedReason, ReachContext, focusWhenDrawn } from "./BlindedReason";
 import { ChangedSince, Decisions } from "./Decisions";
 import { ConfirmDialog } from "./ConfirmDialog";
 import type { MappingOpen } from "./MappingReview";
@@ -656,6 +656,10 @@ function StatedFacts({ projectId, params, values: all, flagged, decide, busy, re
 }) {
   const [source, setSource] = useState<string | null>(null);
   const [correcting, setCorrecting] = useState<string | null>(null);
+  // the purpose that blinds a study is changed by a person whose roles may set the blinding (round 6: through ":enter" a
+  // Writer could unblind a study the API's PUT /blinding keeps to the MIDD lead; until the owner decides, the page offers
+  // the change as the blinding is offered)
+  const mayUnblind = useContext(ReachContext).purpose;
   // each fact once: two files that state the same value of the same thing (its analyte, matrix, arm…) are one row; the
   // subject's own name (its id, its label) is the card's title, not said again
   const own = params.type === "study" ? "study_id" : params.type;
@@ -704,12 +708,16 @@ function StatedFacts({ projectId, params, values: all, flagged, decide, busy, re
             {/* a blinded study's purpose is what blinds it: changed here, on any card that shows it (round 5: the reason
                 "it is entered for external validation on its card" led nowhere it could be changed). Its value stays
                 withheld; the new one is chosen */}
-            {v.blinded && v.field === "intended_use" && purposes.length > 0 && (
+            {v.blinded && v.field === "intended_use" && purposes.length > 0 && (mayUnblind ? (
               <button type="button" className="link-btn" onClick={() => setCorrecting(correcting === v.id ? null : v.id)} aria-expanded={correcting === v.id}
                       data-testid={v.id === firstPurpose ? cardPlace("purpose", params.subject, "intended_use") : `delivery-purpose-change-${v.id}`}
                       aria-label={`Change the purpose… of ${whose}`}>Change the purpose…</button>
-            )}
-            {correcting === v.id && v.blinded && v.field === "intended_use" && (
+            ) : (
+              // where the reason's link lands for a person who may not change it: who may, said
+              <span className="muted fs-12" tabIndex={-1} data-testid={v.id === firstPurpose ? cardPlace("purpose", params.subject, "intended_use")
+                : `delivery-purpose-change-${v.id}`}>it blinds the study; a reviewer (the MIDD lead) can change it</span>
+            ))}
+            {correcting === v.id && mayUnblind && v.blinded && v.field === "intended_use" && (
               <PurposeChange v={v} purposes={purposes} busy={busy} about={whose} testId={`purpose-${v.id}`}
                              onCancel={() => { setCorrecting(null); focusSoon(cardPlace("purpose", params.subject, "intended_use")); }}
                              onSubmit={async (body) => {
@@ -849,12 +857,17 @@ export function DeliveryReview({ projectId, row, mode, gate, onMapping, todo, su
         {s.silent_loss ? ` · ${plural(s.silent_loss, "number")} in the delivery's files not read` : ""} · {rulesText(s.rules)}
       </p>
       {/* why, so a wrong match is seen (round 3: "the project's blinding list names it (study …)") */}
-      {s.blinded && <p className="delivery-withheld" data-testid={`delivery-blinded-${s.subject}`}>{WITHHELD}: this study is blinded until
-        the plan is signed{s.blinded_why ? <span data-testid={`delivery-blinded-why-${s.subject}`}>, because{" "}
+      {s.blinded && s.subject_type === "study" && <p className="delivery-withheld" data-testid={`delivery-blinded-${s.subject}`}>{WITHHELD}:
+        this study is blinded until the plan is signed{s.blinded_why ? <span data-testid={`delivery-blinded-why-${s.subject}`}>, because{" "}
           {/* the part that can be changed leads where it is changed (round 5): its purpose, below, or the plan's roles */}
           <BlindedReason why={s.blinded_why} projectId={projectId} whose={whose}
                          onPurpose={() => focusWhenDrawn(cardPlace("purpose", s.subject, "intended_use"))} /></span> : null}.
         Its values, their spread and what is below the LLOQ are not shown, and it waits to be confirmed until then.</p>}
+      {/* a product or the compound: why (the blinded study whose values it holds) is said once, on the card's head (round 6:
+          said here again, as "this study is blinded"); here what is withheld */}
+      {s.blinded && s.subject_type !== "study" && <p className="delivery-withheld" data-testid={`delivery-blinded-${s.subject}`}>{WITHHELD}:
+        the values it holds of a blinded study, their spread and what is below the LLOQ are not shown until the plan is signed, and it
+        waits to be confirmed until then.</p>}
       {looking && s.confirm_on === "client-review" && <InlineIssue severity="note" testId={`delivery-confirm-on-${s.subject}`}>A filled
         client-data template: it is confirmed with the sheet form, on this card. What the delivery read is shown here for reference.</InlineIssue>}
       {/* the same source read with the sheet form: confirmed there (in the model), or only read there, not confirmed yet */}

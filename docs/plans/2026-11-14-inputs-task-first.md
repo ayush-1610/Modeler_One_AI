@@ -1210,9 +1210,12 @@ before the next starts.
   first of use a profile, add dissolution data, add a product, choose that a study has, for the studies it settles; a
   study with another way says its own on its row of Products and dissolution and, where its way offers the client, on
   "Ask the client". A study that names a product whose profile was already used as the release of a formulation of
-  another name is still offered that profile (its own name is the formulation the model lacks: the profile is used again
-  under it, or the study's formulation corrected). Checked by `test_formulation_way_is_read_for_each_study` with the
-  skeptic's seeds (way_edge.py's monkeypatched profiles and confirmations).
+  another name is offered that profile (`use_profile`: used again under the name the study names, it gives the
+  formulation the study names), while a study that names none is not offered a profile that is a release already
+  (corrected in place in round 6: this note said so, but round 5's code excluded that profile for every study, so such a
+  study was told its product "has no dissolution profile that can give a release"; round 6 made the code match). Checked by `test_formulation_way_is_read_for_each_study` with the
+  skeptic's seeds (way_edge.py's monkeypatched profiles and confirmations). (Round 6: a study whose own file names its
+  product, the usual way, was read here as naming none; see round 6's sub-heading.)
 - **The blinded reason everywhere, in one sentence (`blindedWords`).** Populations and individuals' line, a product's card
   head (beside its chip, and its description), and the dataset lines (the Every dataset list's and a study card's: the
   dataset's `blinded_why` on `GET /evidence`, the study's reason on the project's list). The compound is never blinded.
@@ -1222,7 +1225,8 @@ before the next starts.
   delivery's reading is opened first; e2e on the round-4 template case), where a blinded study's purpose fact offers
   "Change the purpose…" (the value stays withheld; a purpose chosen from the five, with a reason, through `:enter`; the
   API's `PURPOSE_DIFFERS` check unchanged). "the plan places it in …" and "the study split proposes it for …" link to
-  Review & sign's "Studies and roles" (`#review-studies`), where a study's role is decided. "a dataset of it is entered for
+  Review & sign's "Studies and roles" (`#review-studies`), where a study's role is decided (round 6: only while Review &
+  sign can show that section, the inputs ready; round 5 linked whatever their state). "a dataset of it is entered for
   external validation" and "it holds the values of a blinded study" stay text: a dataset's purpose is not changed on the
   page (it is read again with another), and a product's is its study's.
 - **The ask follows the way.** To do's formulation item asks for each study whose own way is add a product or add a
@@ -1234,7 +1238,8 @@ before the next starts.
 - **Owner questions:** (1) a curator can now change a blinded study's purpose from the page (the API took it before
   through `:enter`, with the reason on the audit trail), and a purpose changed from external validation unblinds the
   study at once; should that need the reviewer role, as turning blinding on or off does (`PUT /blinding`), or a
-  signature? Left as the API had it (a curator, with a reason). (2) round 4's 7bb1 question (231-24 loaded for building,
+  signature? Left as the API had it (a curator, with a reason; round 6: until the owner decides, the page offers it only
+  to a person whose roles allow `PUT /blinding`, the API unchanged). (2) round 4's 7bb1 question (231-24 loaded for building,
   entered for external validation on its card) now has a lever on the card; whether to flag the state itself stays open.
 - **Checked:** in-process on a copy of the review data, exampleamide-pbpk-7bb1 gives the same lever as round 4 (use a
   profile, Test 10 mg then Brand 10 mg, `ready` false) with each of its two tablet studies' own, and 231-24's group says
@@ -1246,3 +1251,72 @@ before the next starts.
   line as not built).
 - No locked file, SME rule (which studies are blinded, requirement levels, the spot check, the MS-01 split) or boundary
   exception was touched. API changes are additive (`FormulationWayView.each`; `blinded_why` on a blinded dataset).
+
+### Final review fixes round 6: the product a study's own file names, and the plan link (2026-11-16; round 5's downstream-why skeptic; CHANGELOG "Fixed — final review round 6, the product a study's own file names, and the plan link")
+- **A study whose own file names its product (`formulation_way.file_products`).** The client template's Studies.product
+  (the sheet form keeps its rows) and the delivery's values of a study that name a product are read by the study's id as
+  the readiness check says it (`<study>-<arm>` for an arm's row or value, as its dataset is named; a value of the whole
+  study counts for each of its arms; ids compared by `ledger_entities.label_key`). Such a study is one that names its
+  product: that product's profile, else its dissolution data, never another product's profile; the client is asked for
+  that product's data ("The formulation or dissolution data of Test 10 mg, the product the study used — study CL-02",
+  the line carrying the product). **Deviations:** (1) both paths are read whether or not the file's study or values are
+  confirmed: the file names the product either way, and the study is in the model through one of them. (2) A study whose
+  files name two products (the sheet form one, the delivery another, or two arms' products for a study-level dataset) is
+  settled by either one's profile, the first named first, and the client is asked for "Test 10 mg or Brand 10 mg"; the
+  disagreement itself is not flagged here (the client review's conflicts are where names are reconciled). (3) A name
+  no product here has is kept as the study's (its dissolution data are added, or the client asked), spelled as the file
+  spells it; a name that matches a card's or a profile's product (`_key`: case, spacing, a leading "Product") is said as
+  that product is named.
+- **Owner question (science, the model building):** the readiness check and the CPF read only the study record, which
+  carries no product from the file. While the model holds exactly one formulation, a tablet study that names none in its
+  record uses it (`resolve_formulation_name`, with a note): a study whose file names Test 10 mg is modelled with Brand 10
+  mg's release if Brand 10 mg's is the only formulation, with no problem raised. The page no longer leads there, but
+  nothing stops it (a person may use Brand 10 mg's profile from its own card for another reason). Should the assembly
+  give such a study the formulation made from its named product's profile (or name the product as its formulation, so
+  the check says it is missing)? That changes what is built: left for the owner. The same holds for a study the delivery
+  names a product for but that a person's formulation choice names otherwise (the person's choice wins, as today).
+- **"Ask the client": one anchor per line.** `askAt`: `todo-ask-REQ-form.release~<product>` for a named product's line,
+  `todo-ask-REQ-form.release` for the line of the studies that name none, the delivery's lines by their requirement as
+  before (a per-product line keeps its `@<product>`). The step bar's, Review & sign's and To do's "ask the client" lands
+  on the line of the study whose product the link opens first (`formulationWays`); a study's row on its own; a product
+  card's on its product's line, else the delivery's line of that product, else the line of the studies that name none
+  (after a second), else the group.
+- **`StudyWay.ready`** follows the first product listed (round 5 took it from the first profile, possibly of no product).
+- **The plan's part of a blinded reason (`BlindedReason`, `ReachContext`).** Linked to `/plan#review-studies` only while
+  Review & sign can show "Studies and roles": the inputs ready and checked since they last changed (the page's GET
+  /inputs readiness; the API's `inputs_ready`, and GET /plan then makes the default plan if there is none). Otherwise said,
+  with "(its role is decided on Review & sign, which opens once the inputs are ready: what they still wait on)", the link
+  focusing the step bar's "Waiting on you" over To do (To do's model checks do not repeat a check a To do group lists,
+  so they may show nothing open). **Deviation:** "the steps state" in the finding is read from the page's own readiness,
+  which follows every change on the page; the server-drawn step bar is the same state at load.
+- **A blinded product's card** says why once, on its head, naming the study (`intake_review.held_why`, also the sheet
+  form's group reason in `blinded_sources`); its body says what is withheld, never "this study is blinded". A study card
+  keeps the reason on its withheld line (its head is the list row).
+- **Owner question (open, recorded in round 5): who may unblind a study by changing its purpose.** Until the owner
+  decides, the page offers "Change the purpose…" only to a person whose roles allow `PUT /blinding` (modeler-reviewer,
+  `GET /me` read once for the visit with the page; `BLINDING_ROLES`); to anyone else the purpose says "it blinds the
+  study; a reviewer (the MIDD lead) can change it", where the reason's link lands. **The API is unchanged:** `:enter` on
+  `intended_use` still takes a Writer's change with a reason, so a Writer can still unblind a study through the API
+  itself; closing that needs a role check on `:enter` for a blinded study's purpose, or a signature (the owner's call).
+  The e2e cannot sign in as a Writer (the DEV sign-in holds every role, `auth.py` is locked), so it gives the page a
+  curator's roles through `GET /me` (Playwright `page.route`).
+- **Corrected finding:** the downloadable client request (`request.xlsx`) is built from the data plan's client items
+  (`requirements.client_request`), not from "Ask the client", so it never held "(no file names the product)": its
+  formulation line is the data plan's "Release model of the product (dissolution)" (product column empty while the
+  proposal names none). **Gap / owner question:** the download does not list what "Ask the client" lists from the
+  delivery and the inputs (each study's or product's line); should it?
+- **Gap (unchanged, rules):** the delivery's per-product release item for a product whose dosage form only its study
+  states (the study's formulation, not the product's dosage_form or release) is "not applicable"
+  (`study_requirements._is_solid`, as `requirements.derive` decides it), so the delivery asks nothing for Test 10 mg;
+  the inputs' line asks for it. Changing which items apply is a requirement-level (SME) decision: not changed.
+- **Checked:** pytest `test_client_api.py` (the API on a template naming Test 10 mg beside Brand 10 mg's confirmed
+  profile; `file_products` on both paths and each case; `ready`; the named profile used again; `held_why`); the skeptic's
+  way_edge5.py now gives use_profile Test 10 mg for case 1 and `ready` false for case 2; in-process against a live API
+  (probes B and D: add_dissolution Test 10 mg, named, the named ask line with its product); `inputs-work.spec.ts` units;
+  e2e `inputs-owner-job` (the fourth test), `inputs-blinded` (five tests) and the specs that cover the changed components.
+  A software fixture on the stub engine, not PBPK evidence.
+- **Records corrected in place:** round 5's §5 deviation on a named study's reused profile, its bullet on the plan link
+  and its owner question (1); round 5's CHANGELOG entry (each row "says that study's own way"; the plan link; the purpose).
+- No locked file, SME rule (which studies are blinded, requirement levels, the spot check, the MS-01 split), ruleset or
+  boundary exception was touched. No API contract change (untyped `ask` lines carry their product; a blinded product's
+  `blinded_why` names its study).

@@ -1994,6 +1994,21 @@ def is_blinded(reader: LedgerReader, subject_type: SubjectType, subject: str, hi
     return any(v.entity.study in hidden for v in _values(reader, subject_type, subject, spread_facts=True))
 
 
+def held_why(reader: LedgerReader, subject_type: SubjectType, subject: str, hidden: Collection[str]) -> str:
+    """Why a product or the compound is blinded, in words: the blinded studies whose values it holds, by their labels
+    ("it holds the values of study 230-23, which is blinded"; round 6: "it holds the values of a blinded study" named none
+    on a product's card). A study's label is shown wherever its values are withheld."""
+    subject = _subject(reader, subject_type, subject)
+    labels = sorted({(entity.label if (entity := reader.entity(v.entity.study)) is not None else v.entity.study)
+                     for v in _values(reader, subject_type, subject, spread_facts=True)
+                     if v.entity.study is not None and v.entity.study in hidden})
+    if not labels:
+        return "it holds the values of a blinded study"
+    if len(labels) == 1:
+        return f"it holds the values of study {labels[0]}, which is blinded"
+    return f"it holds the values of studies {', '.join(labels[:-1])} and {labels[-1]}, which are blinded"
+
+
 def withheld(value: ValueState) -> ValueState:
     """A value without what D-15 withholds: its value, verbatim, spread, interval, LLOQ and ULOQ (None, ""), and
     whether it is below the LLOQ (so no count of such values can be made). Its place, field, unit, time, labels and

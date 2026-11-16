@@ -271,12 +271,13 @@ class _Scope:
 
     def blinded_why(self, subject_type: str, subject: str) -> str | None:
         """Why the subject is blinded, in words (`intake_review.blinded_why`; a product or the compound: it holds a
-        blinded study's values), or None when it is not: the card says it, so a wrong match is seen (round 3)."""
+        blinded study's values, round 6 naming the study, `intake_review.held_why`), or None when it is not: the card says
+        it, so a wrong match is seen (round 3)."""
         if not self.blinded(subject_type, subject):
             return None
         if subject_type == "study":
             return self.hidden_why.get(subject) or self.hidden_why.get(intake_landing.resolve_subject(self.reader, "study", subject))
-        return "it holds the values of a blinded study"
+        return review.held_why(self.reader, subject_type, subject, self.hidden)  # type: ignore[arg-type]
 
     def rows(self, values: Iterable[ValueState | None]) -> list[dict[str, Any]]:
         """Values as an answer shows them: the ONLY way a value leaves this module."""
