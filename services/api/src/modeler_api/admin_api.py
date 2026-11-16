@@ -126,7 +126,7 @@ def overview(principal: Admin, settings: SettingsDep, priced_as: PricedAs = DEFA
     month, limits = _limit_rows(settings, priced_as)
     return envelope({"companies": companies, "total": _usage(runs, priced_as), "priced_as": priced_as,
                      "system": {"deployment": runtime_env().deployment_kind, "store": True,
-                                "agents": agent_jobs.agents_status()},
+                                "agents": agent_jobs.agents_status(admin=True)},
                      "month": month, "warnings": [row for row in limits if row["level"] != "ok"]})
 
 
@@ -319,12 +319,12 @@ def _agents_page(settings: Settings) -> dict[str, Any]:
         rows.append({"agent": agent, "label": label, "provider": provider, "provider_label": ps.AGENT_PROVIDERS[provider],
                      "model": setting.get("model", ""), "effort": setting.get("effort", ""),
                      "fallback": setting.get("fallback", ""), "set_by": setting.get("by"), "set_at": setting.get("at"),
-                     "reason": setting.get("reason"), "runs_on": agent_jobs.agents_status(agent)})
+                     "reason": setting.get("reason"), "runs_on": agent_jobs.agents_status(agent, admin=True)})
     return envelope({
         "agents": rows,
         "providers": [{"id": p, "label": label, "needs_model": p in ps.KEY_PROVIDERS, "has_active_key": p in active}
                       for p, label in ps.AGENT_PROVIDERS.items()],
-        "environment": agent_jobs.agents_status(),
+        "environment": agent_jobs.agents_status(admin=True),
         "efforts": list(ps.EFFORTS), "claude_models": list(agent_jobs.CLAUDE_MODELS),
         "history": [{k: h[k] for k in ("agent", "provider", "model", "by", "at", "reason")}
                     for h in reversed(doc["history"][-50:])],

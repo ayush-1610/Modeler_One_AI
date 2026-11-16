@@ -758,8 +758,9 @@ def test_a_numeric_condition_written_as_text_is_held_back_and_never_written(ws, 
     assert {r["values"]["medium"] for r in rows} == {"HCl buffer"} and len(rows) == 2
     held = [text for text in plan.held if "not a number" in text]
     assert len(held) == 2 and all(text.endswith("not landed") for text in held)
-    assert any("rpm is written '50 rpm'" in text and "phosphate buffer" in text for text in held)
-    assert any("volume_ml is written '900 mL'" in text and "acetate buffer" in text for text in held)
+    assert any("stirring (rpm) is written '50 rpm'" in text and "phosphate buffer, pH 6.8" in text for text in held)
+    assert any("volume (mL) is written '900 mL'" in text and "acetate buffer" in text for text in held)
+    assert not any("volume_ml" in text or " ph " in text for text in held)   # never a condition's id (round 7)
     # the owner of the client file's rows checks their types before it writes: nothing is stored, nothing is rebuilt
     versions = len(ws.versions(ArtifactKind.CLIENT_SUBMISSION, sid))
     for name, value in (("rpm", "50 rpm"), ("volume_ml", "900 mL"), ("ph", "pH 6.8"), ("mean", "40"), ("n", 6.5),

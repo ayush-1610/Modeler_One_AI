@@ -13,6 +13,7 @@ import { CleaningRecord, type CleaningLine } from "@/components/client/CleaningR
 import { PeekButton, type PeekSource } from "@/components/kit/SourcePeek";
 import { send, type Schema } from "@/lib/api";
 import { noSampleCells } from "@/lib/inputsWork";
+import { sheetNoteText } from "@/lib/words";
 
 import { sheetReadAfter } from "./after";
 import { DatasetView } from "./DatasetView";
@@ -76,7 +77,7 @@ export function DraftItem({ projectId, item, run, known = {} }: {
       {draft.notes.length > 0 && (
         <details className="draft-notes">
           <summary>What {draft.by && draft.by !== "code" ? "the reading agent" : "code"} read in the sheet</summary>
-          <ul>{draft.notes.map((n) => <li key={n}>{n}</li>)}</ul>
+          <ul>{draft.notes.map((n) => <li key={n}>{sheetNoteText(n)}</li>)}</ul>
         </details>
       )}
       <CleaningRecord lines={draft.cleaning} testId={`cleaning-${draft.sheet}`} />

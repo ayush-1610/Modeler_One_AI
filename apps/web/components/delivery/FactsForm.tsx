@@ -19,7 +19,7 @@ import { focusSoon } from "@/components/kit/focus";
 import { send, type Schema } from "@/lib/api";
 import { moment, useResource } from "@/lib/hooks";
 import { cardPlace, checkField } from "@/lib/inputsWork";
-import { engineWords, fieldLabel, redrawText, valueWord, type RedrawWhy } from "@/lib/words";
+import { checkText, fieldLabel, redrawText, valueWord, type RedrawWhy } from "@/lib/words";
 
 import { Problem, Why, useCardDecide, useDecide, type Page, type Value } from "./shared";
 import { answeredBy, cardAfter, followPage, pageKey } from "./writes";
@@ -101,7 +101,7 @@ function AcceptAsIs({ params, check, whose, spot }: {
 }) {
   const [acting, setActing] = useState(false);
   const { decide, busy, problem } = useCardDecide(params.project_id);
-  const message = engineWords(check.message ?? "the check");
+  const message = check.message !== null ? checkText({ ...check, message: check.message }) : "the check";
   if (!acting) {
     return <button type="button" className="link-btn" onClick={() => setActing(true)} data-testid={`delivery-override-open-${check.id}`}
                    aria-label={`Accept as is: ${message} (${whose})`}>Accept as is…</button>;
@@ -251,7 +251,7 @@ export function FactsForm({ params, gaps, checks, options, suggestions = {}, rea
                   {r.written ? <div>as written in its file: “{r.written}”</div> : null}
                   {r.checks.filter((c) => c.code !== ENTER_ONLY || !r.field).map((c) => (
                     <div key={c.id} className="facts-check" data-testid={r.anchor === `delivery-check-${c.id}` ? undefined : `delivery-check-${c.id}`}
-                         data-code={c.code}>{engineWords(c.message ?? "a check failed")}
+                         data-code={c.code}>{c.message !== null ? checkText({ ...c, message: c.message }) : "a check failed"}
                       {c.code !== ENTER_ONLY && <> <AcceptAsIs params={params} check={c} whose={whose} spot={spot} /></>}</div>
                   ))}
                 </div>

@@ -195,6 +195,42 @@ CONDITION_FIELDS: tuple[str, ...] = ("medium", "ph", "apparatus", "rpm", "volume
 LABEL_FIELDS: tuple[str, ...] = ("subject", "period", "sequence", "occasion", "vessel", "matrix")
 LEGACY_FACT_NAMES: Mapping[str, str] = MappingProxyType({"weight_mean_kg": "weight_mean", "percent_female": "female_percent"})
 
+# A condition as a message names it, in a person's words (the page's labels for the same fields, lib/words.ts
+# FIELD_LABEL): a message said "no apparatus, medium, ph stated" and "volume_ml is written '900 mL'" (final review round 7)
+CONDITION_WORDS: Mapping[str, str] = MappingProxyType({
+    "medium": "medium", "ph": "pH", "apparatus": "apparatus", "rpm": "stirring (rpm)", "volume_ml": "volume (mL)",
+    "temperature_c": "temperature (°C)", "surfactant": "surfactant", "interval_start_h": "interval start (h)",
+    "interval_end_h": "interval end (h)", "cumulative": "cumulative", "component": "component",
+})
+
+
+def condition_word(name: str) -> str:
+    """A condition's name in words: "pH", "volume (mL)"; any other name with its underscores as spaces."""
+    return CONDITION_WORDS.get(name, name.replace("_", " "))
+
+
+def condition_text(name: str, value: object) -> str:
+    """A condition with its value, as a person writes it: "pH 6.8", "50 rpm", "volume 900 mL", "37 °C", "medium
+    FaSSIF". A number is written in its shortest form; a text that is no number as it is written, after the condition's
+    name unless it says its unit itself ("50 rpm", "pH 6.8" as a file writes them)."""
+    shown = f"{value:g}" if isinstance(value, float) else str(value).strip()
+    try:
+        float(shown.replace(",", "."))
+    except ValueError:
+        said = {"ph": "ph", "rpm": "rpm", "volume_ml": "ml", "temperature_c": "°c"}.get(name)
+        if said and said in shown.lower():
+            return re.sub(r"\bph\b", "pH", shown, flags=re.IGNORECASE) if name == "ph" else shown
+        return f"{condition_word(name)} {shown}"
+    written = {"ph": f"pH {shown}", "rpm": f"{shown} rpm", "volume_ml": f"volume {shown} mL", "temperature_c": f"{shown} °C",
+               "interval_start_h": f"interval from {shown} h", "interval_end_h": f"interval to {shown} h"}
+    return written.get(name, f"{condition_word(name)} {shown}")
+
+
+def either(names: list[str]) -> str:
+    """Names said as one choice: "a", "a or b", "a, b or c"."""
+    return names[0] if len(names) == 1 else f"{', '.join(names[:-1])} or {names[-1]}" if names else ""
+
+
 # The mass table: document_reading._MG_PER, never retyped
 MASS_UNITS: Mapping[str, float] = MappingProxyType(_MG_PER)
 # The five choice fields whose cues are document_reading's (supports_choice); every other choice field has its own

@@ -90,7 +90,9 @@ test("client files are read cell by cell, sorted, and what the checklist did not
 
   // the client's study arrived without the checklist promising it; the client dataset is among every dataset
   await page.getByTestId("tab-studies").click();
-  await expect(page.locator("[data-testid^='dataset-unpromised-']").first()).toHaveAttribute("title", /CL-01 .*delivered, not promised/);
+  // its hover says so without the dataset's id (round 7: "dataset CL-01 (ds-5d48c2722b): delivered, …")
+  await expect(page.locator("[data-testid^='dataset-unpromised-']").first())
+    .toHaveAttribute("title", /^Dataset CL-01: delivered, not promised by the data plan$/);
   await expect(page.locator(".evidence", { hasText: "CL-01" })).toContainText("client");
   await page.screenshot({ path: test.info().outputPath("client-data.png"), fullPage: true });
   await page.getByTestId("tab-formulations").click();

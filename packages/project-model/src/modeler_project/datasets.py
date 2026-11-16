@@ -10,6 +10,7 @@ illustrative data can run the pipeline but can never produce a pass outside an e
 
 from __future__ import annotations
 
+import re
 import uuid
 from datetime import UTC, datetime
 from typing import Any, Literal
@@ -24,6 +25,12 @@ from pbpk_domain.units import UnitError, is_molar, minutes_per, umol_per_l_per
 
 Origin = DataOrigin  # the six origins of the real-data rule, shared with the campaign path (pbpk_domain.data_origin)
 NCA_TOLERANCE = 0.20  # reported vs recomputed NCA [SME]
+# An AUC unit as concentration x time: "ng*h/mL", "ng/mL*h", "h*ng/mL", "µg·h/L" (the time token one of the time table's).
+# One reading for this check and the intake checks' (`intake_checks._factor`); final review round 7: this check read
+# only "ng/mL*h" and flagged "ng*h/mL", the unit the client files write, as not comparable.
+_TIME = r"(?:s|sec|min|minutes?|h|hrs?|hours?|d|days?)"
+_AUC_UNIT = re.compile(rf"^\s*(?:(?P<t1>{_TIME})\s*[*·×]\s*(?P<c1>.+)|(?P<a>[^*·×]+?)\s*[*·×]\s*(?P<t2>{_TIME})\s*(?P<b>/.*)?)$",
+                       re.IGNORECASE)
 # The PK-Sim human population databases a person may give a study's individual (D-29), harvested from the engine
 # (services/engine-worker/golden/catalog.json `populations.Human`; a test keeps them equal). Pregnant and Preterm are
 # left out: they need gestational inputs a study's Demographics does not carry.
@@ -137,6 +144,17 @@ class DatasetError(ValueError):
     pass
 
 
+def auc_unit_parts(unit: str) -> tuple[str, str] | None:
+    """An AUC unit read as its concentration and its time unit: "ng*h/mL", "ng/mL*h" and "h*ng/mL" are ("ng/mL", "h");
+    None when it is no concentration times a time."""
+    match = _AUC_UNIT.match(unit)
+    if match is None:
+        return None
+    if match["t1"]:
+        return match["c1"].strip(), match["t1"]
+    return (match["a"] + (match["b"] or "")).strip(), match["t2"]
+
+
 def _nca_check(dataset: ObservedDataset, mol_weight: float | None) -> list[str]:
     flags = []
     reported = {r.parameter: r for r in dataset.reported}
@@ -155,7 +173,9 @@ def _nca_check(dataset: ObservedDataset, mol_weight: float | None) -> list[str]:
         try:
             # put the reported value in the dataset's concentration (and time) units before comparing; between two
             # mass (or two molar) units the molecular weight cancels, so any placeholder serves
-            conc_unit, _, time_unit = rep.unit.partition("*") if "*" in rep.unit else (rep.unit, "", "")
+            parts = auc_unit_parts(rep.unit) if unit_power else None
+            conc_unit, time_unit = parts or ((rep.unit.partition("*")[0], rep.unit.partition("*")[2]) if "*" in rep.unit
+                                             else (rep.unit, ""))
             mw = mol_weight if mol_weight else (1.0 if is_molar(conc_unit.strip()) == is_molar(dataset.unit) else None)
             factor = umol_per_l_per(conc_unit.strip(), mw) / umol_per_l_per(dataset.unit, mw)
             if unit_power and time_unit.strip():

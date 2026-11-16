@@ -1162,7 +1162,9 @@ before the next starts.
   an open file's tables are no longer held at the kit's 560 px (`:not(.files-detail .table-scroll table, .sheet-grid
   table)`), and on a phone each is a block that scrolls itself if it must. A table in a scroll box of its own inside the
   file (the reading's tables and texts, the sheet grid) keeps its kit width and scrolls in that box, as every values table
-  does on a phone: that is the kit's phone answer, kept (its columns are the file's tables' columns). Two extra steps the
+  does on a phone: that is the kit's phone answer, kept (its columns are the file's tables' columns). *Corrected in round
+  7: since round 6 the reading's tables and texts do not scroll: at 900 px and below each is a block, its parts under
+  their column's names (round 6, "Widths", below); only the sheet grid keeps its width and scrolls in its box.* Two extra steps the
   item did not name, found by the same measure: a file's sheet table is a block per sheet on a phone (`sheet-table`, its
   cells named by `data-label`), because even fitting its box it scrolled its state and its button out of sight; and a
   PDF's page lines are read whole on a phone (they were a one-line quote of about 20 letters). Measured at 390 px on
@@ -1198,8 +1200,11 @@ before the next starts.
 - **Also fixed, seen in the phone screenshots:** the reading's tables and texts named a table by its ids' words ("table,
   pk individual", "prose"); now `words.regionKindText` ("individual PK table", "text").
 - **Left, not changed:** on a phone the reading's tables and texts and the sheet grid scroll sideways inside their own
-  box (nothing is cut; their columns are the file's). The values tables' sort buttons have no table in their names (a
-  screen reader says the table they are in); **owner question:** name them too ("Sort the values of … by Field")?
+  box (nothing is cut; their columns are the file's). *Corrected in round 7: since round 6 only the sheet grid does; the
+  reading's tables and texts are a block per table at 900 px and below.* The values tables' sort buttons have no table in
+  their names (a screen reader says the table they are in); **owner question:** name them too ("Sort the values of … by
+  Field")? *(Decided in round 7, left by design and no longer an owner question: each sits in its own table's header,
+  see round 7's names and words below.)*
 - No API change, no locked file, SME rule (draw size, digest and seed rule, requirement levels, the MS-01 split, which
   studies are blinded) or boundary exception was touched.
 
@@ -1437,10 +1442,16 @@ before the next starts.
   the tables' words ("individual PK", never "PK, individual"); a dataset's origin ("digitized figure", "OSP library");
   the confirm dialog's "It cannot be signed yet" (it said "3 failed checks: ABOVE_RANGE, LANDING_FIELD_MISSING, …" and
   the loading's problem with `n`, `intended_use`; now `shared.blockerDetail`: each failed check by what it says, a blinded
-  subject's by their count only, the facts not stated by their reasons; and `landingText`).
+  subject's by their count only, the facts not stated by their reasons; and `landingText`). *Corrected in round 7: this
+  held for the field the API names at a message's start, not for every id: the sweep's patterns did not match an id
+  with a capital ("AUC_last"), a one-word id ("ph") or a role code ("TEST"), and it read the card's check row but not To
+  do or the card's to-do list, which still built a check's line from the raw message. The owner's 7bb1 still showed a
+  dataset's flag "reported AUC_last unit 'ng*h/mL' not comparable …" and "no apparatus, medium, ph stated"; b4e7 and 39c9
+  "ph '6.8' is taken from the file name" and "Test 10 mg · TEST · …"; To do "concentration: values above the range…".
+  Fixed and recorded under round 7's names and words below.*
 - **Left by design, after the sweep** (all eight projects, every area, names with ": " read): a values table's sort
   buttons (Field, Value, Time, Read by), under the table's caption (round 5's owner question stands: name them with their
-  table?); the spot check's two answers per value (not drawn in this sweep; round 5's e2e asserts them); the
+  table? *Decided in round 7: no, left by design; see round 7 below*); the spot check's two answers per value (not drawn in this sweep; round 5's e2e asserts them); the
   formulation-way button on 7bb1 (one target, above); and one id on purpose, the signed record's fingerprint under "Confirm
   and sign" ("fingerprint of the signed record 5a1b4ce0f709", was "record 5a1b…"): it is what a reviewer matches with the
   audit trail (21 CFR Part 11). A file's own words stay as written and quoted: a sheet's name (`PK_Summary`), a note's text
@@ -1464,3 +1475,60 @@ before the next starts.
 - No locked file, SME rule (the spot check's draw size, digest and seed rule, requirement levels, the MS-01 split, which
   studies are blinded) or boundary exception was touched. The API change is additive (`DeliveryCheck.field`, `.unit`;
   snapshot and web types refreshed).
+
+### Final review fixes round 7: raw words in checks, notes and labels (2026-11-16; round 6's names-words skeptic, on the owner's 7bb1 and on b4e7, 39c9 and exampleamide-pbpk; CHANGELOG "Fixed — final review round 7, raw words in checks, notes and labels")
+- **Where each id is now said in words.** (a) A dataset's flags: the page words each flag the dataset check writes
+  (`words.datasetFlagText`). **Deviation:** the item offered the API sending the parts apart or the message written in
+  words where it is made; the flags are a stored record (`ObservedDataset.flags`) that other code matches by prefix
+  (`cross_file:`, `nca_mismatch`), and 7bb1's is stored, so the page words them by their fixed shape, and an unknown flag
+  has its field ids worded. (b) "ph" and the other condition ids: written in words where the messages are made
+  (`modeler_intake.fields.CONDITION_WORDS`, `condition_text`; `intake_checks`, `intake_landing`), and the page words a
+  message written before (`fieldIdsInWords`, never inside a quote). Checks are made on read, so 7bb1 and exampleamide-pbpk
+  show "no apparatus, medium or pH stated", "pH 6.8" at once; a check's id never depends on its message. (c) The sheet
+  form's note: by its field's label where it is made (`sheet_form`), and `words.sheetNoteText` for the notes kept with a
+  reading (b4e7 and 39c9 keep "ph '6.8' …"), on the sheet-form card, the sheet reader and a draft's notes. (d) To do and a
+  card's to-do list: `checkText` on the field and unit the API sends; a disagreement's field by `layoutFieldInText`. (e)
+  N_MISSING carries `field` and its article ("an arithmetic mean"); the spreads' check likewise. (f) A profile's role code:
+  `words.profileText` (the role in words, or left out where the product's name says it; the label itself stays the
+  register's, `ProfileKey.label`, stored with the profile and naming it in the problems), on the sheet form's items and
+  differences, the chart, "Use as release" and the formulation field, the dissolution notes; a link row's facts by
+  `factWords` ("test product", "strength 50 mg"). (g) The agents' hover: words on a project's pages, the setting's name
+  in the admin console and in the server's log at its start (`agent_jobs.log_agents_status`; a log-once set was tried and
+  refused by `tests/architecture/test_process_state.py`, module state being per process, so the log is at start).
+- **Science-adjacent, beyond the words:** the dataset check read an AUC unit only as "ng/mL*h" and flagged "ng*h/mL", the
+  delivery's own unit, as not comparable, so 230-23's reported AUC was never compared with its profile's NCA while the
+  intake check (`_factor`) did compare it. One reading now (`datasets.auc_unit_parts`, used by both); `NCA_TOLERANCE` [SME]
+  is unchanged. A dataset checked before keeps its stored flag until it is checked again (its next revision or landing):
+  on 7bb1, 230-23's parent still says, in words, that its AUC was not compared. **Owner question:** re-check stored
+  datasets' flags on read, or leave each record as it was checked?
+- **Found by this round's sweep and fixed:** a file's reason for its kind named its cell by a raw locator ("Diss pH
+  6.8!D1", where `file_tags` writes it and `tagWhyText` for a reason kept before); a dataset's "not in the data plan"
+  hover named its id (`unpromisedText`); another project's offered values said "elim (…)" (`idWords`); a card's "checks to
+  decide" hover named a layout's id, "mapping mp-9c55440c25bd v1" (`engineWords`).
+- **Cancel.** Each "Leave it out…" form's Cancel is named by its dataset ("Cancel: the dataset of …"), as its reason and
+  button are; `delivery.spec.ts` opens both of 230-23's forms on the seed and asserts the six names apart.
+- **Left by design, decided here (no longer an owner question):** a values table's sort buttons (Field, Value, Time, Read
+  by) keep their one-word names. Each is a column header's button inside its own table, under the table's caption (the
+  table names its subject and file), so a screen reader announces the table and the column with it: the purpose is
+  determined by its context (WCAG 2.4.6 with 1.3.1, as "Sort" buttons in a data grid's header are), and naming each with
+  its table would repeat the caption at every column. Also left, as before: the spot check's two answers per value; the
+  formulation-way button on 7bb1 (one target); the signed record's fingerprint and, in a hover, the intake rules' digest
+  (both the audit trail's match, 21 CFR Part 11); a client's own words as written (a sheet named "PK_Summary", quoted
+  cells and headers). Seen, not ids and not changed: the reading's stage hovers on Client files ("0 by cache, 1 by rule,
+  0 left for the table mapper") use the reading's own stage words.
+- **The scan.** The e2e scan (`inputs-a11y.spec.ts`) and the probe (`r7words/pw/scan.js`, POSTs aborted) look wider:
+  any id with an underscore and a lower-case part (a client's "PK_Summary" passes: its part after "_" starts with a
+  capital), any dotted model input, "ph", a role code in capitals, a dataset's, a layout's or a hash's id, a check code,
+  an environment variable, "a" before a vowel, a raw locator; names, visible text and hover texts (`title`); every
+  dataset's points and its "Leave it out…" form open. **What it found on the review copies** (all eight, every area, every
+  card, values table, list of more checks, dataset and form open, every file of Client files open with its tables and
+  texts), after this round's fixes: no raw id, role code, "ph", locator or variable; what remains is by design (the
+  fingerprint, the rules' digest, the client's "PK_Summary"), and the only repeated names are the sort buttons and 7bb1's
+  two formulation-way buttons. Before the fixes, on the same copies: the items above, plus the four found by the sweep.
+  On the e2e seeds the wider scan passes (Clinical studies, Products, To do, Compound, Populations, Settings, Client files
+  with every file open).
+- **Records corrected in place:** round 5's two notes on the reading's tables and texts on a phone (only the sheet grid
+  scrolls since round 6); round 6's "No field's id on the page", "the page speaks one vocabulary", the sweep and the e2e's
+  "no raw id" (CHANGELOG and §5), narrowed to the check row's leading field and to the patterns the sweep had.
+- No API schema change (messages' words only); no locked file, SME rule (the spot check's draw size, digest and seed rule,
+  requirement levels, the MS-01 split, which studies are blinded, `NCA_TOLERANCE`) or boundary exception was touched.

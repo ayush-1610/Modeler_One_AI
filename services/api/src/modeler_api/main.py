@@ -12,6 +12,7 @@ from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from modeler_api import agent_jobs
 from modeler_api.admin_api import router as admin_router
 from modeler_api.archive_api import router as archive_router
 from modeler_api.brief_api import router as brief_router
@@ -43,6 +44,8 @@ async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
     runtime.check_production()
     check_auth(get_settings(), runtime)
     check_part11(get_settings(), runtime)
+    # why the agents are off, by the setting to change, in the server's log (a project's pages say it in words)
+    agent_jobs.log_agents_status()
     yield
 
 

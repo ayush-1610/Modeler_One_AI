@@ -15,6 +15,86 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Fixed — final review round 7, raw words in checks, notes and labels (round 6's names-words skeptic, on the owner's 7bb1 and on b4e7, 39c9 and exampleamide-pbpk; plan 2026-11-14 §5) — science-adjacent
+- **A dataset's flags in words, and an AUC unit the client files write is read (7bb1, 230-23's parent dataset).** After
+  "Show the points" the page printed the flag as the dataset keeps it: "reported AUC_last unit 'ng*h/mL' not comparable
+  (state it as concentration*time, e.g. ng/ml*h)". The page now says each flag the dataset check writes in words
+  (`words.datasetFlagText`: "The reported AUC last, in “ng*h/mL”, is not compared with the profile: its unit is not read
+  as a concentration times a time …", an NCA difference, a join across files, a mean with no number of subjects, a
+  digitized figure not checked yet); a flag it does not know has its field ids worded (`fieldIdsInWords`). The flags stay
+  the stored record (other code matches their prefixes), so the page words them rather than the API rewriting them. The
+  flag was also wrong: `datasets._nca_check` read an AUC unit only as "ng/mL*h", so "ng*h/mL" (the delivery's own unit,
+  which the intake checks already read) was never compared with the profile's NCA. One reading now,
+  `datasets.auc_unit_parts`, shared with `intake_checks._factor` ("ng*h/mL", "ng/mL*h", "h*ng/mL", "µg·h/L"). Impact:
+  a dataset checked from now on compares its reported AUC in that unit (an NCA difference over the tolerance is flagged as
+  before; the tolerance, `NCA_TOLERANCE`, is unchanged); a dataset checked before keeps its stored flag until it is checked
+  again (7bb1's 230-23 does), said in words.
+- **"pH", never "ph", and a run's conditions as a person writes them (7bb1 Products, To do; exampleamide-pbpk).**
+  DISSOLUTION_METHOD_INCOMPLETE said "a run with no batch or conditions: no apparatus, medium, ph stated" and "batch
+  L2301, medium phosphate buffer, ph 6.8: no apparatus stated"; DISSOLUTION_RUNS_NOT_KEYED and the landing's held lines
+  named "temperature_c", "volume_ml is written '900 mL'". `modeler_intake.fields` has the conditions' words
+  (`CONDITION_WORDS`, `condition_word`, `condition_text`, `either`: "pH 6.8", "50 rpm", "volume 900 mL", "37 °C", "no
+  apparatus, medium or pH stated"), used where these messages are made (`intake_checks._describe_run`,
+  `_dissolution_method_incomplete`, `_dissolution_runs_not_keyed`; `intake_landing._run_words` and the held line). A check's
+  id never depends on its message, so no decision recorded on a check is lost. The page words a message written before
+  (`checkText` → `fieldIdsInWords`: a dotted field, a known snake-case field and "ph", never inside a quote).
+- **The sheet form's notes by their field's label (b4e7, 39c9 Products).** "ph '6.8' is taken from the file name: check
+  it." is now "pH '6.8' …" where it is made (`sheet_form._constants`, the page's labels for ph, rpm, volume_ml,
+  strength_mg and n); a note kept with a reading before is worded on the page (`words.sheetNoteText`, on the sheet-form
+  card, in the sheet reader and in a draft's notes).
+- **To do and a card's to-do list say a check as its row does.** Their line was built from the raw message
+  (`inputsWork.buildWork`: "Study 230-23: concentration: values above the range…" beside the row's "Concentration: …"; a
+  failing UNIT_MISSING, STATISTIC_MISSING or NEGATIVE_VALUE on a `pk.*` or `excretion.amount` field would have shown its
+  dotted id). They use `checkText` with the field and unit the API sends apart; a disagreement names its field in words
+  (`layoutFieldInText`, was its id with "_" as spaces). The card's facts form said its checks with the engine's words
+  only ("the study record needs n, …" where a fact has no field); it uses `checkText` too, and so does its "Accept as is"
+  name.
+- **N_MISSING names its field and its article.** "concentration: a arithmetic mean series with no n, …" (39c9) carries
+  `field` now, so the page says "Concentration: an arithmetic mean series with no number of subjects (n), …"; the spreads'
+  check says "beside an arithmetic mean", "(no number of subjects)" and "no error is loaded; they are kept as written"
+  (was "stays in the ledger").
+- **A product's role in words (7bb1, b4e7, 39c9 Products).** A dissolution profile's label (`ProfileKey.label`, kept with
+  the profile) read "Test 10 mg · TEST · phosphate pH 6.8 …" under the sheet form's "To confirm", over its chart and in its
+  "Use as release" names. The page says the role in words or leaves it out where the product's name says it
+  (`words.profileText`, `roleText`: "Test 10 mg · phosphate pH 6.8 …", "Exampleamide 10 mg · reference product · …");
+  a file's facts in a link row say "test product", "strength 50 mg", "pH 6.8" (`inputsWork.factWords`, was "product role
+  TEST").
+- **Why the agents are off, in words (Client files' hover).** "agents are off (MODELER_LLM_PROVIDER not set)" is now "no
+  AI model is set up on this server" on a project's pages (`agent_jobs.agents_status`; a configuration error, "the AI
+  model set up on this server cannot be used: the admin console says why"); the admin console keeps the setting's name
+  (`admin=True`) and the server's log says it at the API's start (`agent_jobs.log_agents_status`, called from the
+  lifespan; no state kept between requests).
+- **Found by round 7's sweep and fixed:** a file's reason for its kind named its cell by the raw locator ("header “%
+  dissolved mean”, Diss pH 6.8!D1"; now "cell D1", where `file_tags.from_triage` writes it, and `words.tagWhyText` for a
+  reason kept before); a dataset's "not in the data plan" hover named its id ("dataset CL-01 (ds-5d48c2722b): …";
+  `words.unpromisedText`); another project's offered values named "elim (…)" (`idWords`: "an elimination pathway (…)"); a
+  card's "checks to decide" hover named a layout's id ("values read by mapping mp-9c55440c25bd v1, …"; `engineWords`:
+  "values read with a table layout no person has approved yet").
+- **"Cancel" named by its dataset.** With both of 230-23's "Leave it out…" forms open, their two "Cancel" read alike; each
+  is "Cancel: the dataset of …" now, as its form's other controls are.
+- **The values tables' sort buttons, decided:** left by design (each sits in its own table's header, which a screen
+  reader announces with it, WCAG 2.4.6 and 1.3.1); round 5's owner question is closed (plan §5).
+- **The e2e scan and the probe look wider.** `inputs-a11y.spec.ts`'s RAW_WORDS now also refuse any id with an underscore
+  and a lower-case part ("AUC_last", "volume_ml"; a client's sheet named "PK_Summary" is its own), any other dotted model
+  input, "ph", a role code in capitals ("TEST", "REF"), a dataset's or a layout's id, a check code, "a" before a vowel; it
+  reads the hover texts (`title`) of every area and file too, and opens every dataset's points and its "Leave it out…"
+  form. A signed record's fingerprint and the intake rules' digest stay, on purpose (the audit trail's match).
+- **Records corrected in place:** plan §5 round 5 ("A table in a scroll box of its own inside the file … keeps its kit
+  width", "Left, not changed: on a phone the reading's tables and texts and the sheet grid scroll sideways"): since round 6
+  only the sheet grid does. Round 6's "No field's id on the page", "the page speaks one vocabulary" and the e2e's "no raw
+  id", here and in §5, narrowed to what they covered.
+- Tests: pytest `test_an_auc_unit_written_as_the_client_files_write_it_is_compared` (test_datasets.py),
+  `test_a_condition_is_said_in_words_never_by_its_field_id` (test_intake_contracts.py),
+  `test_a_dissolution_run_and_a_series_with_no_n_are_said_in_words` (test_intake_checks.py), the sheet form's note
+  (test_sheet_form.py), the landing's held lines (test_intake_landing.py), the file kind's cell (test_file_tags.py), the
+  agents' words (test_admin_platform.py); `inputs-work.spec.ts` (round 7: the dataset flags, the notes, the profile's role,
+  the condition ids, the To do lines of four failing checks, the link row's facts, the file kind's reason, the unpromised
+  hover, the reuse line; the product's dissolution checks now assert "pH"); `inputs-a11y.spec.ts` (the wider scan);
+  `delivery.spec.ts` (230-23's two "Leave it out…" forms open, their Cancel, button and reason named apart);
+  `client-data.spec.ts` (the unpromised hover now asserted without the dataset's id). Software
+  test data on the stub engine, never PBPK evidence. No API schema change; no locked file, SME rule or boundary exception
+  was touched.
+
 ### Fixed — merging final review round 6 (the three round-6 branches together)
 - **A blinded product's card said its reason twice.** Round 6's blinding group put "Signing waits until the plan is
   signed, because …" where a blinded card's "Confirm and sign…" was; the named-product group said a product's reason
@@ -182,7 +262,9 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
 - **The formulation way on Products.** Each study's "confirm a product's dissolution data, then use its profile as its
   release" is named with its product; on 7bb1 both rows lead to Test 10 mg's card at its release, so their two names are
   alike by design (plan §5).
-- **No field's id on the page.** The more checks' notes printed the API's message as written ("note pk.Cmax: values in
+- **No field's id in a check's row** *(narrowed in round 7: first written "on the page"; it held for the field a check's
+  message starts with, on the card's check row, not for To do and the card's to-do list, a dataset's flags, a dissolution
+  run's conditions, the sheet form's notes or a profile's role code; see round 7's names and words above)*. The more checks' notes printed the API's message as written ("note pk.Cmax: values in
   'ng/mL'; no unit table exists…", "excretion.amount: …", "particle_size_d50_um: …"). A check now carries the field its
   message names and, for a unit check, its unit (`CheckResult.field`, `.unit`, set where the field-led checks are made;
   `DeliveryCheck.field`, `.unit`, null for a blinded subject, as its message is; additive: OpenAPI snapshot and web types
@@ -200,7 +282,8 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
   ids (now each check by what it says, the facts not stated by their reasons, `shared.blockerDetail`, and `landingText`;
   the card's blocker hints too). The signed record's fingerprint stays, said as what it is
   ("fingerprint of the signed record …"): a reviewer matches it with the audit trail. Impact: the page speaks one
-  vocabulary, the one its forms use.
+  vocabulary, the one its forms use, where this sweep looked (its patterns missed an id with a capital, "AUC_last", a
+  one-word id, "ph", and a role code, "TEST": corrected in round 7).
 - **Widths.** A PDF's page lines wrap in place at every width (the one-line ellipsis stayed above 600 px). The reading's
   tables and texts are one block per table, its parts under their column's names, at 900 px and below: on a phone their
   state and messy-delivery.xlsx's "waits for approval" sat half off the screen in the table's own scroll box, and at 768 px
@@ -216,7 +299,7 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
 - Tests: `inputs-work.spec.ts` (`checkText`, the datasets' words and names on 230-23's two, `labelWord`, `lowerFirst`,
   `withArticle`, `pkParamText`, `templateIssueText`, `landingText` for an arm, `heldText` for a dotted field, `checkField`
   reading the API's field);
-  `inputs-a11y.spec.ts` (names with a colon read; no raw id in a name or in the text of Clinical studies, Products, To do,
+  `inputs-a11y.spec.ts` (names with a colon read; no raw id, as its round-6 patterns knew them, in a name or in the text of Clinical studies, Products, To do,
   Compound, Populations, Settings or Client files with every file open; on a phone the tables and texts as blocks with
   their state in view; at 768 and 1024 px no PDF line cut and no tables-and-texts box scrolling sideways);
   `delivery.spec.ts` (230-23's two loaded datasets read apart, visibly and in their names; the confirm dialog's blockers in

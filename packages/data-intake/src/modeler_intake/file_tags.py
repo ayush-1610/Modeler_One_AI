@@ -105,7 +105,10 @@ def from_triage(rows: list[dict[str, Any]]) -> TagHint | None:
     category = SheetCategory(row["category"])
     why = f"sheet “{row['sheet']}” holds {_SHEET_WORDS[category]}"
     if row.get("evidence_quote"):
-        why += f" (header “{row['evidence_quote'][:_QUOTE]}”, {row['evidence_cell']})"
+        # the cell in a person's words, its sheet named just before ("cell D1", never the locator "Diss pH 6.8!D1";
+        # final review round 7)
+        cell = str(row.get("evidence_cell") or "").rpartition("!")[2].replace("$", "")
+        why += f" (header “{row['evidence_quote'][:_QUOTE]}”{f', cell {cell}' if cell else ''})"
     share = f"{counts[0][1]} of {len(tagged)} data sheets" if len(tagged) > 1 else ""
     return TagHint(kind, f"{why}; {share}" if share else why)
 

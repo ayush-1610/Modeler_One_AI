@@ -14,6 +14,7 @@ never needs to load.
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Literal
@@ -22,6 +23,8 @@ from fastapi import HTTPException
 
 from modeler_api import jobs, platform_settings
 from modeler_api.config import get_settings
+
+_log = logging.getLogger(__name__)
 
 # --- the configured model ------------------------------------------------------------------------------------------
 
@@ -50,17 +53,36 @@ def require_chat_model(off: str, agent: str | None = None) -> Any:
     return model
 
 
-def agents_status(agent: str | None = None) -> dict[str, Any]:
-    """Whether `agent` (or, without one, the server's environment) has a model, without exposing any key."""
+#: why the agents are off, as a project's pages say it (final review round 7: a hover title on Client files read "agents
+#: are off (MODELER_LLM_PROVIDER not set)"); the setting's name and a configuration error go to the server's log and the
+#: admin console, which name what to set
+AGENTS_OFF = "no AI model is set up on this server"
+AGENTS_MISCONFIGURED = "the AI model set up on this server cannot be used: the admin console says why"
+
+
+def log_agents_status() -> None:
+    """Say in the server's log, at its start, why the agents are off, by the setting to change (a project's pages say it
+    in words, `agents_status`). Once per start: no state is kept between requests."""
+    model, problem = chat_model()
+    if problem:
+        _log.warning("agents off: %s", problem)
+    elif model is None:
+        _log.info("agents off: MODELER_LLM_PROVIDER not set")
+
+
+def agents_status(agent: str | None = None, *, admin: bool = False) -> dict[str, Any]:
+    """Whether `agent` (or, without one, the server's environment) has a model, without exposing any key. A project's
+    pages get why in words (`AGENTS_OFF`, `AGENTS_MISCONFIGURED`); the admin console (`admin`) gets the configuration's
+    own words, which name the setting to change; the server's log says it at the start (`log_agents_status`)."""
     model, problem = chat_model(agent)
     if problem:
-        return {"enabled": False, "problem": problem}
+        return {"enabled": False, "problem": problem if admin else AGENTS_MISCONFIGURED}
     if model is None:
         settings = get_settings()
         setting = platform_settings.AgentSettings(settings.read_root).current(agent) if agent and settings.read_root else None
         if setting and setting["provider"] == "off":
             return {"enabled": False, "problem": f"off in the admin console ({setting['reason']})"}
-        return {"enabled": False, "problem": "agents are off (MODELER_LLM_PROVIDER not set)"}
+        return {"enabled": False, "problem": "agents are off (MODELER_LLM_PROVIDER not set)" if admin else AGENTS_OFF}
     return {"enabled": True, "provider": model.provider, "model": model.model}
 
 

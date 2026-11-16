@@ -468,6 +468,11 @@ def _is_plain_number(text: str) -> bool:
         return False
 
 
+# a fact taken from the file name, by the label the page gives its field (apps/web lib/words.ts FIELD_LABEL)
+_NOTE_LABEL = {"ph": "pH", "rpm": "Stirring (rpm)", "volume_ml": "Volume (mL)", "strength_mg": "Strength (mg)",
+               "n": "Number of subjects"}
+
+
 def _constants(form: SheetForm, grid: SheetGrid, header_region: range, names: str, *, drug: str,
                products: list[dict[str, str]], evidence: list[Evidence], notes: list[str]) -> None:
     title = " ".join(t for _r, t in _texts(grid, header_region))
@@ -482,7 +487,9 @@ def _constants(form: SheetForm, grid: SheetGrid, header_region: range, names: st
             return value
         match = pattern.search(names)
         if match:
-            notes.append(f"{key} {match.group(group)!r} is taken from the file name: check it.")
+            # the fact by its label on the page ("pH '6.8'", never the field's id "ph '6.8'": final review round 7)
+            notes.append(f"{_NOTE_LABEL.get(key, key.capitalize())} {match.group(group)!r} is taken from the file name: "
+                         "check it.")
             return match.group(group)
         return None
 

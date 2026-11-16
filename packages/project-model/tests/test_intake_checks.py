@@ -563,6 +563,27 @@ def test_a_check_names_its_field_and_its_unit_apart_from_its_message(book):
     assert all(r.field is None for r in results if r.code in ("BLQ_PRESENT", "REQUIRED_ITEM_UNDISPOSED"))
 
 
+def test_a_dissolution_run_and_a_series_with_no_n_are_said_in_words(book):
+    """Final review round 7: a run's conditions were said by their ids ("medium phosphate buffer, ph 6.8: no apparatus
+    stated"; "no apparatus, medium, ph stated"), and N_MISSING named its field without sending it ("concentration: a
+    arithmetic mean series …"). Now "pH 6.8", "50 rpm", "volume 900 mL", "no apparatus, medium or pH stated"; N_MISSING carries
+    its field and its article. The check's id is unchanged (it never depends on the message)."""
+    product = clean_product(book, conditions={"medium": "phosphate buffer", "ph": "6.8", "rpm": "50", "volume_ml": "900"})
+    bare = clean_product(book, conditions={}, batch="L2302")
+    found = {r.message for p in (product, bare) for r in checks(book.reader(), "product", p["product"])
+             if r.code == "DISSOLUTION_METHOD_INCOMPLETE"}
+    assert found == {"batch L2301, medium phosphate buffer, pH 6.8, 50 rpm, volume 900 mL: no apparatus stated",
+                     "batch L2302: no apparatus, medium or pH stated"}
+    assert not any(" ph " in m or "volume_ml" in m for m in found)
+    ids = clean(book, skip=("mean", "n"))
+    for time, value, sd in _MEAN:
+        _value(book, ids, value, time, statistic="arithmetic_mean", spread=sd, spread_kind="SD", entity=profile(ids))
+    (n_missing,) = [r for r in checks(book.reader(), "study", ids["study"]) if r.code == "N_MISSING"]
+    assert n_missing.field == "concentration"
+    assert n_missing.message == ("concentration: an arithmetic mean series with no number of subjects (n), at its points or "
+                                 "for its arm")
+
+
 def test_a_check_id_is_stable_across_runs_and_changes_with_its_values(book):
     ids = clean(book)
     _value(book, ids, -1.0)
@@ -629,7 +650,7 @@ def test_dissolution_runs_written_alike_share_a_key_and_only_conditions_that_dif
                   spread=2.0, spread_kind="SD", n=12, conditions={**_METHOD, "temperature_c": "25", "surfactant": "none"},
                   entity={"product": ids["product"], "batch": ids["batch"]})
     (found,) = [r for r in checks(book.reader(), "product", ids["product"]) if r.code == "DISSOLUTION_RUNS_NOT_KEYED"]
-    assert "differ in surfactant, temperature_c," in found.message
+    assert "differ in surfactant, temperature (°C)," in found.message and "temperature_c" not in found.message
 
 
 def test_a_check_about_something_missing_changes_its_id_when_new_data_arrives(book):

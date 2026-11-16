@@ -647,11 +647,25 @@ const RAW_FIELD = new RegExp([
  *  numbered column as a label ("vessel vessel_1"). A file's name and a quote of a file's own words (“…”) are the client's. */
 const RAW_WORDS = new RegExp([
   RAW_FIELD.source, String.raw`\bpK\b`, String.raw`\bpk (?:individual|summary|parameters)\b`, String.raw`\btable, pk\b`,
-  String.raw`\bcf-\d+\b`, String.raw`\bledger\b`, String.raw`\b[A-Za-z0-9_]+![A-Z]{1,3}\d+\b`, String.raw`\b(?:t_half|AUC_last|AUC_inf)\b`,
+  String.raw`\bcf-\d+\b`, String.raw`\bledger\b`, String.raw`[A-Za-z0-9_')]!\$?[A-Z]{1,3}\$?\d+\b`, String.raw`\b(?:t_half|AUC_last|AUC_inf)\b`,
   String.raw`\b(?:ir_tablet|ir_capsule|iv_bolus|iv_infusion|model_building|external_validation)\b`, String.raw`\bvessel vessel_`,
   String.raw`\bintended_use\b`,
+  // round 7 (round 6's skeptic, on the owner's project): any id with an underscore and a lower-case part ("AUC_last",
+  // "volume_ml", "vessel_1"; a sheet the client named "PK_Summary" is its own name, as written), any other dotted model
+  // input ("bind.fu"), a condition's id "ph" ("no apparatus, medium, ph stated"), a product role's code ("Test 10 mg ·
+  // TEST · …"), a dataset's, a layout's or a hash's id, an environment variable ("MODELER_LLM_PROVIDER not set"), "a" before
+  // a vowel ("a arithmetic mean series")
+  String.raw`\b[A-Za-z][A-Za-z0-9]*_[a-z0-9][A-Za-z0-9_]*\b`, String.raw`\b(?:bind|perm|dist|form)\.[A-Za-z_]`, String.raw`\bph\b`,
+  String.raw`(?<![\w-])(?:TEST|REF|REFERENCE|SOLUTION|OTHER)(?![\w-])`, String.raw`\b(?:ds|mp)-[0-9a-f]{6,}\b`,
+  String.raw`\b[A-Z][A-Z0-9]*_[A-Z0-9_]+\b`, String.raw`\ba (?:arithmetic|geometric|individual|apparatus|interval|analyte)\b`,
 ].join("|"));
-const plainOf = (text: string) => text.replace(/“[^”]*”/g, "").replace(/[^\s“(]+\.(?:xlsx|xls|csv|pdf|docx?)\b/g, "");
+/** What is the client's own, and so left out of the test: a file's name, a quote of a file's words (“…”), a signed
+ *  record's fingerprint and the intake rules' digest (kept on purpose: the audit trail's match, 21 CFR Part 11). */
+const plainOf = (text: string) => text.replace(/“[^”]*”/g, "").replace(/[^\s“(]+\.(?:xlsx|xls|csv|pdf|docx?)\b/g, "")
+  .replace(/fingerprint of the signed record [0-9a-f]+/g, "").replace(/\(sha256 [0-9a-f]{64}\)/g, "");
+/** The hover texts of a part of the page (a chip's or a line's `title`): read as its text is (round 7: "agents are off
+ *  (MODELER_LLM_PROVIDER not set)" on Client files, "dataset CL-01 (ds-5d48c2722b): …" on a dataset's chip). */
+const titlesOf = (part: Locator) => part.evaluate((root) => [...root.querySelectorAll("[title]")].map((e) => e.getAttribute("title") ?? ""));
 
 test("with every values table, its pages, every list of more checks and a spot check open, no two controls share a name and no name or text spells an id", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -686,6 +700,15 @@ test("with every values table, its pages, every list of more checks and a spot c
                        '[data-testid^="delivery-checks-more-"][aria-expanded="false"]']) {
       for (let n = await panel.locator(sel).count(); n > 0; n -= 1) await panel.locator(sel).first().click();
     }
+    // every observed dataset's points shown (its notes and flags with them) and its "Leave it out…" form open: with two
+    // datasets of one study open, their "Cancel" read alike (round 7)
+    for (let n = await panel.getByRole("button", { name: /^Show the points/ }).count(); n > 0; n -= 1) {
+      await panel.getByRole("button", { name: /^Show the points/ }).first().click();
+    }
+    const leave = panel.locator('[data-testid^="dataset-leave-"]:not([data-testid^="dataset-leave-cancel-"])');
+    seen[`${tab} leave`] = await leave.count();
+    for (let n = seen[`${tab} leave`]; n > 0; n -= 1) await leave.first().click();
+    await expect(panel.locator('[data-testid^="dataset-leave-cancel-"]')).toHaveCount(seen[`${tab} leave`]);
     await page.waitForLoadState("networkidle");
     seen[`${tab} tables`] = await panel.locator("table.delivery-values").count();
     seen[`${tab} pagers`] = await panel.locator('[data-testid^="delivery-table-more-"][data-testid$="-next"]').count();
@@ -696,7 +719,7 @@ test("with every values table, its pages, every list of more checks and a spot c
       if (RAW_WORDS.test(plainOf(name.replace(/^\w+ “|”$/g, "")))) found.push(`${tab}: a raw id in ${name}`);
     }
     // nor in what the page shows (round 6: the more checks' notes printed "pk.Cmax: values in 'ng/mL'…")
-    for (const line of (await panel.innerText()).split("\n")) {
+    for (const line of [...(await panel.innerText()).split("\n"), ...await titlesOf(panel)]) {
       if (RAW_WORDS.test(plainOf(line))) found.push(`${tab}: a raw id in the text “${line.trim().slice(0, 140)}”`);
     }
     // the repeats left by design are only these, each inside its own table or question
@@ -719,11 +742,14 @@ test("with every values table, its pages, every list of more checks and a spot c
     for (const [name] of await computedNames(detail)) {
       if (RAW_WORDS.test(plainOf(name.replace(/^\w+ “|”$/g, "")))) found.push(`files: a raw id in ${name}`);
     }
-    for (const line of (await detail.innerText()).split("\n")) {
+    for (const line of [...(await detail.innerText()).split("\n"), ...await titlesOf(detail)]) {
       if (RAW_WORDS.test(plainOf(line))) found.push(`files: a raw id in the text “${line.trim().slice(0, 140)}”`);
     }
     await fileToggles.nth(i).click();
     await expect(files.locator("tr.files-detail")).toHaveCount(0);
+  }
+  for (const line of await titlesOf(files)) {
+    if (RAW_WORDS.test(plainOf(line))) found.push(`files: a raw id in a hover text “${line.trim().slice(0, 140)}”`);
   }
   for (const tab of ["todo", "compound", "individuals", "settings"]) {
     await page.getByTestId(`tab-${tab}`).click();
@@ -734,7 +760,7 @@ test("with every values table, its pages, every list of more checks and a spot c
       if (n > 1) found.push(`${tab}: ${name} ×${n}`);
       if (RAW_WORDS.test(plainOf(name.replace(/^\w+ “|”$/g, "")))) found.push(`${tab}: a raw id in ${name}`);
     }
-    for (const line of (await panel.innerText()).split("\n")) {
+    for (const line of [...(await panel.innerText()).split("\n"), ...await titlesOf(panel)]) {
       if (RAW_WORDS.test(plainOf(line))) found.push(`${tab}: a raw id in the text “${line.trim().slice(0, 140)}”`);
     }
   }
@@ -742,4 +768,5 @@ test("with every values table, its pages, every list of more checks and a spot c
   // the cards had values tables, paged ones among them, and a spot check (its table is one of them)
   expect(seen["studies tables"], "values tables shown on Clinical studies").toBeGreaterThan(3);
   expect(seen["studies pagers"], "values tables with more than a page").toBeGreaterThan(0);
+  expect(seen["studies leave"], "observed datasets with their Leave it out… form open").toBeGreaterThan(0);
 });

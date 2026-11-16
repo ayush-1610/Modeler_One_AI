@@ -8,7 +8,7 @@ import { Card } from "@/components/ui";
 import { send, type Envelope, type Schema } from "@/lib/api";
 import { TAG_KINDS, TAG_LABELS, type TagKind } from "@/lib/fileTags";
 import type { After } from "@/lib/hooks";
-import { templateIssueText } from "@/lib/words";
+import { tagWhyText, templateIssueText } from "@/lib/words";
 
 import { CleaningRecord } from "./CleaningRecord";
 import { SheetReader, type Study } from "./SheetReader";
@@ -45,7 +45,7 @@ export function FileTagLine({ file, onRetag }: { file: ClientFile; onRetag: Reta
       </label>
       {proposal && (
         <div className="tag-proposal" data-testid={`tag-proposal-${file.file}`}>
-          <span>Its content reads as <strong>{TAG_LABELS[proposal.kind].toLowerCase()}</strong>: {proposal.why}.</span>
+          <span>Its content reads as <strong>{TAG_LABELS[proposal.kind].toLowerCase()}</strong>: {tagWhyText(proposal.why)}.</span>
           <span className="row gap-8">
             <button type="button" className="btn" onClick={() => void retag(proposal.kind)}
                     aria-label={`Use it: “${TAG_LABELS[proposal.kind].toLowerCase()}” for ${file.file}`}>Use it</button>

@@ -15,7 +15,7 @@ import type { Profile } from "@/components/client/types";
 import { BlindedReason } from "@/components/delivery/BlindedReason";
 import { PeekButton, type PeekSource } from "@/components/kit/SourcePeek";
 import { send, type Schema } from "@/lib/api";
-import { sourceNamed, valueWord, whenText } from "@/lib/words";
+import { profileText, sheetNoteText, sourceNamed, valueWord, whenText } from "@/lib/words";
 
 import { confirmAfter, reviewAfter } from "./after";
 import { DatasetView, ReleaseView } from "./DatasetView";
@@ -44,7 +44,7 @@ function src(s: Record<string, unknown> | null | undefined): PeekSource | null {
 }
 
 function itemLabel(label: string, target?: string | null) {
-  return LABEL[target ?? label] ?? label;
+  return LABEL[target ?? label] ?? profileText(label);
 }
 
 /** A conflict, a difference or a question on a group, settled by selecting one option: on its card, and in To do with the
@@ -61,16 +61,18 @@ export function IssueCard({ projectId, group, issue, run, read = false }: {
   const confirmed = group.state === "confirmed";
   const chosen = issue.options.find((o) => o.id === issue.selected);
   const params = { project_id: projectId };
+  // a profile's difference names it by its label: its product's role in words (final review round 7)
+  const text = profileText(issue.text);
 
   if (settled) {
     // "explained" or "different things": every file keeps its own value, so none is set aside
     const keepsEach = chosen !== undefined && chosen.value === null;
     const others = issue.options.filter((o) => o.id !== issue.selected && o.value !== null);
     return (
-      <section className="issue settled" aria-label={`${kind}: ${issue.text}`} data-testid={`issue-${issue.id}`}>
+      <section className="issue settled" aria-label={`${kind}: ${text}`} data-testid={`issue-${issue.id}`}>
         <div className="issue-head">
           <span className="chip low">Done</span>
-          <span className="issue-text">{issue.text}</span>
+          <span className="issue-text">{text}</span>
         </div>
         <div className="issue-final">
           <strong data-testid={`issue-final-${issue.id}`}>{chosen ? chosen.label : `${issue.answered}`}</strong>
@@ -86,7 +88,7 @@ export function IssueCard({ projectId, group, issue, run, read = false }: {
           </ul>
         )}
         {!confirmed && !read && (
-          <button type="button" className="link-btn" data-testid={`issue-change-${issue.id}`} aria-label={`Change: ${issue.text}`}
+          <button type="button" className="link-btn" data-testid={`issue-change-${issue.id}`} aria-label={`Change: ${text}`}
                   onClick={() => void run(() => send("post", "/api/v1/projects/{project_id}/client-review:reopen", params,
                                                      { group: group.id, issue: issue.id }), "", reviewAfter(projectId))}>
             Change
@@ -98,10 +100,10 @@ export function IssueCard({ projectId, group, issue, run, read = false }: {
 
   const ready = issue.answer ? Number(answer) > 0 : Boolean(option);
   return (
-    <section className={`issue ${tone}`} aria-label={`${kind}: ${issue.text}`} data-testid={`issue-${issue.id}`}>
+    <section className={`issue ${tone}`} aria-label={`${kind}: ${text}`} data-testid={`issue-${issue.id}`}>
       <div className="issue-head">
         <span className={`chip issue-chip ${tone}`}>{kind}</span>
-        <span className="issue-text">{issue.text}</span>
+        <span className="issue-text">{text}</span>
       </div>
       {read ? (
         <p className="muted m-0 fs-13">{issue.options.map((o) => o.label).join(" · ")}</p>
@@ -127,7 +129,7 @@ export function IssueCard({ projectId, group, issue, run, read = false }: {
       )}
       {!read && (
         <button type="button" className="btn small" disabled={!ready} data-testid={`issue-confirm-${issue.id}`}
-                aria-label={`Confirm the selection: ${issue.text}`}
+                aria-label={`Confirm the selection: ${text}`}
                 onClick={() => void run(() => send("post", "/api/v1/projects/{project_id}/client-review:select", params,
                   issue.answer ? { group: group.id, issue: issue.id, answer: Number(answer) }
                     : { group: group.id, issue: issue.id, option }), "", reviewAfter(projectId))}>
@@ -229,7 +231,7 @@ export function GroupCard({ projectId, group, run, mode = "confirm", alsoOnDeliv
 
       {(group.notes ?? []).length > 0 && (
         <ul className="confirm-notes" data-testid={`notes-${group.id}`}>
-          {(group.notes ?? []).map((n) => <li key={n}>{n}</li>)}
+          {(group.notes ?? []).map((n) => <li key={n}>{sheetNoteText(n)}</li>)}
         </ul>
       )}
 
