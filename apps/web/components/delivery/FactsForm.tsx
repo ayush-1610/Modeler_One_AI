@@ -17,12 +17,12 @@ import { useEffect, useRef, useState } from "react";
 import { focusSoon } from "@/components/kit/focus";
 
 import { send, type Schema } from "@/lib/api";
-import { readAgain, useResource } from "@/lib/hooks";
+import { useResource } from "@/lib/hooks";
 import { cardPlace, checkField } from "@/lib/inputsWork";
 import { engineWords, fieldLabel, redrawText, valueWord, type RedrawWhy } from "@/lib/words";
 
-import { Problem, Why, useCardDecide, useDecide, type Value } from "./shared";
-import { cardAfter } from "./writes";
+import { Problem, Why, useCardDecide, useDecide, type Page, type Value } from "./shared";
+import { answeredBy, cardAfter, followPage, pageKey } from "./writes";
 
 type Gap = Schema<"DeliveryGap">;
 type SpotState = Schema<"DeliverySpotState">;
@@ -34,7 +34,6 @@ export type Suggestions = Record<string, { value: string; from: string }[]>;
 
 const ENTER = "/api/v1/projects/{project_id}/delivery/subjects/{type}/{subject}:enter" as const;
 const OVERRIDE = "/api/v1/projects/{project_id}/delivery/subjects/{type}/{subject}:override" as const;
-const DELIVERY = "/api/v1/projects/{project_id}/delivery" as const;
 // the check that names a fact the study record needs is settled only by entering it (the landing cannot load the study
 // without it); the others (no dose, no matrix stated) may also be accepted as is, with the reason
 const ENTER_ONLY = "LANDING_FIELD_MISSING";
@@ -159,19 +158,22 @@ const typedValue = (field: string, text: string): string | number => {
 
 /** Enter every filled fact with one reason, one `:enter` each. Each answer is the card, written into the page; the
  *  delivery page (the subject's row: its values and how they were read) is read again once, after the last (final
- *  review CODE-4: nothing else on the page changed). */
+ *  review CODE-4), and followed against the page the first entry found (`followPage`): a fact can change another
+ *  subject's row (round 5: a study entered for external validation is blinded with every product that holds its values,
+ *  whose cards are read again then). */
 function useEnterAll(params: Params) {
   const { decide, busy, problem } = useDecide();
   const client = useQueryClient();
   const enter = async (entries: Schema<"DeliveryEntry">[]): Promise<boolean> => {
     let ok = true;
-    let entered = false;
+    const before = client.getQueryData<Page>(pageKey(params.project_id));
+    const answered = new Set<string>();
     for (const body of entries) {
-      const { data } = await decide(() => send("post", ENTER, params, body), cardAfter(params.project_id, []));
+      const { data } = await decide(() => send("post", ENTER, params, body), cardAfter(params.project_id, { page: false }));
       if (!data) { ok = false; break; }
-      entered = true;
+      answered.add(answeredBy(data));
     }
-    if (entered) await readAgain(client, [DELIVERY]);
+    if (answered.size) await followPage(client, params.project_id, { answered: [...answered], before });
     return ok;
   };
   return { enter, busy, problem };

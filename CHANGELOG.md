@@ -16,6 +16,80 @@ Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: compl
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
 
+### Fixed — final review round 5, what a decision makes stale (round 4's blinding regression after a signed confirmation, the same gap after a card decision and a sheet-form confirmation, the race in `put`, the timing failures, the offers' request budget; plan 2026-11-14 §5) — science-adjacent
+- **Regression fixed: a product blinded by a signature showed the blinded study's values in the same visit.** With the
+  project's blinding on and no plan, signing a delivery study lands its dataset in the study catalog; the MS-01 split
+  can then propose S5 for it, and the API blinds the study and every product that holds its values. Round 4's signed
+  confirmation stopped reading the other cards again, so the product's card kept showing the study's values (12.1,
+  30.4, 25.2 …) and offered "Start the spot check" and "Confirm and sign…", which the API refuses, while its own head
+  chip, from the re-read delivery row, said "blinded". The same gap existed after a card decision that blinds a study
+  (`:enter` intended use external validation), whose After read only the delivery page. Fixed with one rule for every
+  answer of the delivery page a decision brings (`followRows` / `followPage`, components/delivery/writes.ts; the pure
+  comparison `changedRows`, lib/freshness.ts): each subject's row is compared before and after, whole (its values and
+  how they were read, files, arms and batches, confirmation, what of the same source is in the model, where it is
+  confirmed, its name, and whether and why it is blinded); the cards whose rows changed are read again, at once where
+  they are shown or counted, else when next shown, except the card the decision's own answer wrote; and when a
+  subject's blinding changed, what the delivery's blinding also withholds is read again (the client's files and their
+  sheets, the sheet form's groups, the documents and their figures). Applied to the page written from a decision's
+  answer (`writePage`), the card decisions (`cardAfter`, the facts form's entries), the signed confirmation
+  (`writeConfirmed`, compared with the page as the signature found it), the sheet form's saved sheet and read sheet
+  (`SHEET`, `sheetReadAfter`) and the confirmations and dataset decisions that name a delivery subject
+  (`confirmAfter`, `datasetAfter`). Impact: in a blinded project, the product's card says it is blinded, withholds the
+  study's values and offers no spot check in the same visit, and its signature waits (the dialog names the blinding),
+  as a new visit shows it. A decision that changes no other
+  row reads nothing more: delivery.spec's exact lists (`:enter`, `:dispose`, `:override`: the decision and the delivery
+  page; Done: the client data, the sheet form, the delivery, the evidence and the inputs) and client-confirm's hold
+  unchanged.
+- **The sheet-form path can change what is blinded too, so it follows the same way.** A sheet form's confirmation
+  assembles the inputs again (`client_api._act` → `refresh_inputs`), its study's datasets join the catalog
+  (`inputs.usable_dataset`: a client dataset counts once its study is confirmed), and the MS-01 split, run on the new
+  catalog before a plan (`roles.proposed_roles`), can propose S5 for that study or another: measured on the API (five
+  literature studies, the filled template, blinding on), confirming CL-01 made the split propose S5 for it, and the
+  template's PK_Summary and Studies sheets, its sheet-form group, its inputs row and its delivery study became blinded.
+  Round 4 read the client data again after a study's confirmation only when a product's profile was chosen, so a sheet
+  read with the sheet form whose study the split had just blinded stayed readable in Client files (a template's sheets
+  are not listed there; a raw workbook's are). The workspace now compares the studies the inputs name as blinded
+  (`blindedStudies`, lib/freshness.ts) on every answer of the inputs, whatever changed them (a group confirmed, a
+  dataset kept or left out, a study's facts, values brought in), and when they change reads again what the list
+  withholds: the client's files and sheets, the sheet form, the evidence, the documents, and the delivery page, followed
+  by the rule above (`blindingChanged`, components/inputs/after.ts). With blinding off, the set never changes and nothing
+  more is read.
+- **The race in `put` (lib/hooks.ts).** Round 4's `put` called off every read of the same answer still on its way when
+  a decision's answer was written; a read sent after the server had handled the decision (an end-of-reading refresh)
+  could be the newer, and was lost to the older answer. The reads of the page now record when each was asked for and
+  when its request went out, and each decision when it was sent (kept with its answer); `afterAnswer` (lib/freshness.ts)
+  decides: a read asked for before the decision was sent is called off (the answer holds what it was asked for: round
+  4's RLD fix, kept); one asked for since that has not gone out is left to land; one that went out since may have been
+  answered before the decision or after it, so it is called off and the answer read once more, after both. A change's
+  follow-up reads skip an answer read since the change was answered (`readAgain`'s `since`).
+- **Timing failures.** inputs-task-first ':606' failed once at ':691' (Dissolution Test's layout version 2, not 3,
+  right after RLD's approval): the test polled the API until RLD's table was read with version 3, then read Test's once;
+  the intake job reads the queued files one after the other, so Test's reading could still be under way. The test now
+  polls both (a test-side race; the page and the API were right). ':213' ("numbers not read … marked as not data": a
+  loose number still on the raw file's row after the bulk submit) matches round 4's root cause (a read of the delivery
+  page sent before the decision, here the refusal's re-read of the template's file, overwrote the decision's written
+  page), which round 4's `put` fixed and this round keeps. Neither reproduced on 04c95b7 under a 3-core CPU burner
+  (inputs-task-first with `--repeat-each 3`: 33 of 33); runs after the fix: plan §5. One more seen in this round's
+  run: inputs-blinded's last check failed on the audit answer's own timestamp (`04:56:35.605…` holds "35.6", the
+  withheld value it looks for); it now leaves the timestamps out of what it searches.
+- **The offers' request budget is checked (inputs-todo).** Another project of the drug now offers two literature values
+  (`fixtures/literature_value.py` takes values): filing the placeholder under its pathway costs the decision, the inputs
+  and the offers (one offer goes), and adding the permeability with its source on its row the decision, the inputs, the
+  evidence and the offers (the last offer goes). Before, the spec only allowed the offers' read when another spec's
+  project happened to offer one.
+- **Records corrected in place.** Round 4's CHANGELOG entry and plan §5 said that no other card changes after a signed
+  confirmation ("no other card changed in the API's answers, and by the code none can") and that the client data is
+  unchanged by a study's sheet-form confirmation: both hold only with blinding off; each now says so where it stands.
+- **Tests.** e2e/inputs-blinded-follow.spec.ts (new): a study signed on the delivery that the split blinds when it lands
+  blinds its product's card in the same visit (values withheld, the blinded notice, no spot check), as a new visit
+  shows it; a study entered for external validation on its card's facts form does the same; a sheet read with the
+  sheet form whose study the split blinds once it is confirmed is withheld in Client files in the same visit
+  (`fixtures/blind_split.py` proposes five literature studies so the split has roles to give before a plan). Each fails
+  on round 4's page and passes on this round's (plan §5). e2e/inputs-work.spec.ts: `afterAnswer`, `changedRows` and
+  `blindedStudies` on the exampleamide fixture. inputs-task-first ':606' polls both tables; inputs-blinded leaves the
+  timestamps out; inputs-todo: the offers' budget above. Software test data (the made-up Exampleamide; the stub engine,
+  a software fixture). No API change; no locked file; no SME rule.
+
 ### Fixed — final review round 4, downstream and blinding (round 3's "add a product" regression, blinding scope b, the gap 11 deviation; plan 2026-11-14 §5) — science-adjacent
 - **Round 3's regression: the step bar and Review & sign named "add a product" whatever the project held.** On the
   owner's review project (exampleamide-pbpk-7bb1: four products, two with dissolution profiles, "release not set") the
@@ -152,8 +226,10 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
   it was last brought up to date, it reads again what a reading changes, the cards and layouts, the sheet form, the
   client's files, the inputs; not the page itself, which is current), so a reading that starts and ends between two
   reads is followed too; every answer a decision writes calls off the read of the same key still on its way (`put` in
-  `lib/hooks.ts`, used by `writes.ts` and `after.ts`). The layout dialog's own end-of-reading signal is removed (the
-  page follows the same reading). Impact: the row leaves To do at the page's next read after the reading ends.
+  `lib/hooks.ts`, used by `writes.ts` and `after.ts`; round 5 calls off only a read asked for before the decision was
+  sent, and reads once more after one sent since, which could be the newer). The layout dialog's own end-of-reading
+  signal is removed (the page follows the same reading). Impact: the row leaves To do at the page's next read after the
+  reading ends.
   Reproduced before the fix only as the API race (the page-level failure did not show in six runs under a 3-core
   burner); after it, the reduced spec passed 5 of 5 under a 4-core burner and the whole spec file 5 of 5 under load
   (plan §5 lists each run).
@@ -171,7 +247,10 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
   - *The sheet form's confirmation* (`confirmAfter`, now given the group): the inputs, and the evidence when the group
     loads datasets or values; the client data only when a product's profile was chosen between two files (its
     profiles are put together again); the delivery and a card where a subject reads the same source, as before. The
-    API showed the client data unchanged by a study's or a product's confirmation (round 3 read it every time). Study
+    API showed the client data unchanged by a study's or a product's confirmation (round 3 read it every time)
+    *[corrected in round 5: with blinding off; with blinding on and no plan, a study's confirmation puts its datasets
+    in the catalog and the MS-01 split can blind it, its sheets in the client data with it, and the page now reads the
+    client data again when the studies the inputs name as blinded change]*. Study
     CL-01 measured: the confirmation, the delivery, the inputs and the evidence, and the step bar drawn again (it read
     the client data too, and about twenty prefetches followed); product Test 10 mg: the confirmation and the inputs.
   - *The signed confirmation* (`writeConfirmed`): the delivery page, the inputs, the sheet form, the client data, and
@@ -179,6 +258,10 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
     reads, the evidence unchanged by the API's word). The other cards are no longer marked stale: a card names the
     sheet form's datasets of its source, never the delivery's, and no other card changed in the API's answers; round 3
     marked them all, so the cards To do counts were read again after the dialog closed (one more in delivery.spec).
+    *[Corrected in round 5: "no other card changed" held only with blinding off. With blinding on and no plan, the
+    landing puts the study's dataset in the catalog, the MS-01 split can propose S5 for it, and the API then blinds the
+    study and every product that holds its values: this change left such a product's card showing the study's values
+    in the same visit (a regression); round 5 reads again the cards whose delivery rows changed.]*
 - **The step bar's links and Inputs' own links are not prefetched** (`prefetch={false}`: the step bar, its "Waiting on
   you" links, Inputs' "Next", "Finish Start", "Go to Review & sign", the reading tray's and Client files' links, the
   delivery section's "To do"). Every time the step bar was drawn again (a readiness change, a confirmation), Next

@@ -684,11 +684,13 @@ test("a table the newest layout cannot read: its row says why and lists its numb
   await dialog.getByTestId("mapping-approve-why").fill("checked against RLD's file");
   await dialog.getByTestId("mapping-approve-submit").click();
   await expect(dialog.getByTestId("mapping-said")).toContainText("Version 3 of the dissolution table layout is approved");
+  // both files are read again, one after the other, in the order they were queued: RLD's can be read with version 3
+  // before Test's is (final review round 5: the API was polled for RLD's alone, then Test's read once, and under load
+  // Test's reading had not ended yet, so it still said version 2); Test moves to version 3 as the dialog said
   await expect.poll(async () => {
-    const r = await regionOf("Dissolution RLD pH 6.8.xlsx");
-    return [r.mapping_version, r.silent];
-  }, { timeout: 120_000, intervals: [1000] }).toEqual([3, 0]);
-  expect((await regionOf("Dissolution Test pH 6.8.xlsx")).mapping_version).toBe(3);         // as the dialog said
+    const [r, t] = [await regionOf("Dissolution RLD pH 6.8.xlsx"), await regionOf("Dissolution Test pH 6.8.xlsx")];
+    return [r.mapping_version, r.silent, t.mapping_version];
+  }, { timeout: 120_000, intervals: [1000] }).toEqual([3, 0, 3]);
   await expect(dialog.getByTestId("mapping-said")).toContainText("Dissolution Test pH 6.8.xlsx moves to it and no longer reads the product's role");
   // RLD's row leaves To do; the dialog stays, still saying what was done, until it is closed
   await expect(page.getByTestId(`notread-${file}`)).toHaveCount(0);

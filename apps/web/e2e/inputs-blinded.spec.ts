@@ -121,11 +121,12 @@ test("a study the delivery blinds shows no value, reason digit, page line or she
   await page.screenshot({ path: test.info().outputPath("3-digitizer-withheld.png"), fullPage: true });
   expect(raws).toEqual([]);
 
-  // the APIs the page reads give none of it either
-  const review = await request.get(`${api}/client-review`, { headers: AUTH });
-  expect(await review.text()).not.toContain("35.6");
-  const trail = await request.get(`${api}/audit?limit=2000`, { headers: AUTH });
-  expect(await trail.text()).not.toContain("35.6");
+  // the APIs the page reads give none of it either: what they say, not when they said it (final review round 5: an
+  // answer sent at hh:mm:35.6… failed this once on its own timestamp)
+  const said = async (path: string) => (await (await request.get(`${api}/${path}`, { headers: AUTH })).text())
+    .replace(/\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?(\+00:00|Z)?/g, "<time>");
+  expect(await said("client-review")).not.toContain("35.6");
+  expect(await said("audit?limit=2000")).not.toContain("35.6");
 });
 
 // Round 4 (round 3's skeptic, blinding scope b): a study confirmed with the sheet form (a filled client-data template's)

@@ -1009,7 +1009,8 @@ before the next starts.
   together leaves it saying "reading". The page polls the delivery page while it reads, and reads again what a reading
   changes (the cards and layouts, the sheet form, the client's files, the inputs, the reading queue) when the page, not
   reading, names other runs than when it was last brought up to date (`useDeliveryRefresh`, `readMark`); not when a flag
-  turns. Every answer a decision writes into the cache calls off a read of the same key still on its way (`put`). No
+  turns. Every answer a decision writes into the cache calls off a read of the same key still on its way (`put`; round
+  5: only a read asked for before the decision was sent, and the answer is read once more after one sent since). No
   part of this depends on how long a request takes. Root cause and the evidence: CHANGELOG.
 - **The flake, runs.** Before the fix, under a 3-core CPU burner with other agents' work on the 4 CPUs: the whole spec
   once and its corrected-layout test five times on its own (with `beforeAll`): all six passed; the page-level failure
@@ -1036,7 +1037,11 @@ before the next starts.
   form, the client data and the evidence (5; 4 for a product, whose landing leaves the evidence as it was); no other
   card any more (round 3 marked every other card stale, and the work model read again the cards it counts; no other
   card changed in the API's answers, and by the code none can: a card names the sheet form's datasets of its source,
-  and a landing makes only the delivery's).
+  and a landing makes only the delivery's). *[Corrected in round 5: this holds only with blinding off. With blinding on
+  and no plan, the landing puts the study's dataset in the catalog, the MS-01 split can propose S5 for it, and the API
+  blinds the study and every product that holds its values (`intake_review.is_blinded`): the product's card changes,
+  and this round left it showing the study's values in the same visit. Likewise "a study's confirmation leaves the
+  client data as it was" holds only with blinding off. Round 5's sub-heading below says how both are followed now.]*
 - **Prefetch.** The step bar's links, its "Waiting on you" links and Inputs' own links are not prefetched; measured, the
   prefetch bought nothing (CHANGELOG). Known gap: the sidebar's four links (Projects, Start from proposal, the library,
   the history), shared by every page, are still prefetched again after each step-bar redraw (8 requests, each a partial
@@ -1051,3 +1056,70 @@ before the next starts.
   is shown at the API by the new test and on the page by the corrected-layout test's runs; no spec holds a read back
   to force it. The one 404 every measured visit logged is the browser's own request for `/favicon.ico`, which the app
   does not serve; nothing of the page.
+
+### Final review fixes round 5: what a decision makes stale (2026-11-16; round 4's blinding regression after a signed confirmation, the card decision and the sheet-form path with it, the race in `put`, the timing failures, the offers' budget; CHANGELOG "Fixed — final review round 5, what a decision makes stale")
+- **The rule, as built.** Every answer of the delivery page a decision brings is compared, subject by subject, with the
+  page as the decision found it (`changedRows`, lib/freshness.ts: the whole row, so whatever a card shows of it, its
+  blinding and why included); the cards of the subjects whose rows changed are read again, at once where they are
+  shown or counted (the work model counts every card, so in practice at once), else when next shown; the card the
+  decision's own answer wrote is left out (it is current); when a subject's blinding changed, what the delivery's
+  blinding also withholds is read again (client data and its sheet views, the sheet form, the documents and their
+  figures). Where it applies: `writePage` (the page is the answer), `cardAfter` and the facts form (the page compared
+  with what it was when the decision was sent), `writeConfirmed` (with the page as the signature found it), the sheet
+  form's saved and read sheets (`SHEET`, `sheetReadAfter`) and the confirmations and dataset decisions that name a
+  delivery subject (`readSubjects`). Not applied to the decisions that start a reading (a layout approved, rejected or
+  edited, "Read again"): the delivery's end-of-reading refresh reads every card again when the reading ends
+  (`useDeliveryRefresh`), and comparing the rows mid-reading would read the cards twice. A second rule follows the
+  project's blinding list wherever it changes: the workspace compares the studies the inputs name as blinded
+  (`blindedStudies`) on every answer of the inputs, and when they change reads again the client data, the sheet form,
+  the evidence, the documents and the delivery page (followed by the first rule).
+- **The sheet-form path, read from the code (the skeptic's question).** It can change what is blinded. A sheet form's
+  confirmation (`client_api.confirm_review_group` → `_act`) assembles the inputs again (`refresh_inputs`); its study's
+  datasets become usable (`inputs.usable_dataset`: a client dataset counts once its study is confirmed) and join the
+  study catalog; before a plan the MS-01 split runs on that catalog (`roles.proposed_roles`), and `blinding.external_why`
+  lists every study it proposes for S5 or S6. `blinded_sources` then withholds that study's sheets and files
+  (client-data's `blinded`, `blinded_sheets`), its sheet-form group, its catalog row, and the delivery's study of that
+  name with the products that hold its values. The split is global: confirming one study can move another (measured: a
+  study at the lowest oral dose took S2 from the literature's po-10, which went to S5). A rename at confirmation
+  (`rename_study`, arms or a link) only renames into the group's own name, and a group whose name is blinded cannot be
+  confirmed (409 BLINDED), so a rename alone does not put a dataset under a blinded name. Measured on the API (scratch
+  copy of the API tests; five literature studies, the filled template, blinding on): confirming CL-01 made the split
+  propose S5 for it; client-data's template file went from `blinded_sheets` [] to ["PK_Summary", "Studies"], the group
+  `study:CL-01` and the delivery's CL-01 were blinded, and the inputs listed CL-01 as blinded. Round 4 read the client
+  data again after a study's confirmation only when a product's profile was chosen. The second rule above covers it.
+- **The race in `put`, as built.** The reads of the page record when each was asked for and when its request went out
+  (`useResources` reads wait their turn behind the page's own), and each decision when it was sent (kept with its
+  answer). A read of the same answer on its way when the answer is written: asked for before the decision was sent,
+  called off (round 4's RLD fix: the answer holds what it was asked for); asked for since and not sent yet, left to land
+  (it goes out after the answer); sent since, called off and the answer read once more (the server may have answered it
+  before the decision or after it: keeping either could keep the older; the skeptic's suggestion, keeping a read sent
+  after the decision, has the same hole when the server answers that read first, so the page reads once more instead).
+  Unit checks: `afterAnswer` in e2e/inputs-work.spec.ts.
+- **Runs.** The new spec (e2e/inputs-blinded-follow.spec.ts) against round 4's page (04c95b7's build and API on my
+  ports): all three tests fail at their same-visit assertion (the product card shows no blinded notice twice; the sheet
+  has no "blinded until the plan is signed"); with this round's page all three pass. The affected specs through the
+  harness (client-confirm, client-data-guided, client-data, delivery, inputs-a11y, inputs-blinded,
+  inputs-blinded-follow, inputs-data-cards, inputs-fill, inputs-owner-job, inputs-sheets-on-arrival,
+  inputs-task-first, inputs-todo, inputs-work, inputs-workspace, members, studies-client-sheets, value-reuse): 81 of
+  82; the one failure was inputs-blinded's last check finding "35.6" in the audit answer's own timestamp
+  (`04:56:35.605…`), not in what it says, now compared with the timestamps left out. delivery.spec's exact request
+  lists and client-confirm's hold unchanged.
+- **Timing failures (item 3).** The round-4-merged run (e2e-04c95b7.log) had none: 128 of 128. Seen once in round 4,
+  both before its request-budget fix was merged: inputs-task-first ':606' at ':691' (Dissolution Test's version 2) and
+  ':213' (a loose number still on the raw file's row after the bulk submit). On 04c95b7, under a 3-core CPU burner,
+  inputs-task-first with `--repeat-each 3`: 33 of 33 passed, neither reproduced. ':691' is a test-side race, read from
+  the code: the test polled until RLD's table was read with version 3 and then read Test's once, but the intake job
+  reads the queued files one after the other (`intake_pipeline_jobs._drain`), so Test's reading could still be under
+  way; it now polls both. ':213' matches round 4's root cause: with the template's row first in the batch, its refusal
+  (409) read the delivery page again, and that read, sent before the raw file's decision, could land after the
+  decision's written page and put back the loose number; round 4's `put` calls it off, and round 5's keeps doing so
+  (asked for before the decision).
+- **The offers' budget (item 4).** inputs-todo now seeds another project of the drug with two literature values and
+  checks both branches that take an offer away: "File under this pathway" (the decision, the inputs, the offers) and
+  Add on a Compound row (the decision, the inputs, the evidence, the offers), each with the offer gone or shrunk after.
+- **Deviations and gaps.** (a) In the rare case where blinding changes, the two rules can read the same route twice (a
+  signed landing that the split blinds: the delivery's row rule and the inputs' list rule both read the client data,
+  the sheet form and the documents); correctness first, the duplicate costs a few reads only then. (b) A decision that
+  starts a reading follows its cards at the reading's end, not at once (above). (c) A change by someone else between a
+  card decision and its page read is not told apart from the decision's own (the answered card is not read again);
+  the next read of that card shows it, as any concurrent change.

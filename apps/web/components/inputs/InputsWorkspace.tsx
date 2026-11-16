@@ -13,13 +13,14 @@ import { Banner, PageShell } from "@/components/kit";
 import { TabPanel, Tabs } from "@/components/kit/Tabs";
 import { narrow, send, type Envelope, type Narrow, type Schema } from "@/lib/api";
 import { TAG_LABELS } from "@/lib/fileTags";
+import { blindedStudies } from "@/lib/freshness";
 import { HeldReads, readAgain, useMutation, useResource, type After } from "@/lib/hooks";
 import { areaHead, cardAnchor, type InputsLike, nextText, productFor, releaseAnchor, releaseOf, type Subject, type WorkItem } from "@/lib/inputsWork";
 import { type ArtifactView, STEP_ROUTES } from "@/lib/pipeline";
 import { AREA_NAME, ASK_FORMULATION, formulationWays, inputsHref, STATUS_MEANS, plural as count, valueWord } from "@/lib/words";
 
 import { AddDataMenu } from "./AddDataMenu";
-import { DOCUMENTS, FILES, SEARCH, inputsAfter, valuesAfter, valuesArrived } from "./after";
+import { DOCUMENTS, FILES, SEARCH, blindingChanged, inputsAfter, valuesAfter, valuesArrived } from "./after";
 import { SheetGroups } from "./ClientConfirm";
 import { ClientFilesTab, type FilesShown } from "./ClientFilesTab";
 import { type CardEnv, type CardFocus, focused } from "./cards/ConfirmPath";
@@ -330,6 +331,17 @@ function Workspace({ projectId, initialTab, initialOnly, initialStatus, steps }:
     if (said.current !== null && said.current !== says) router.refresh();
     said.current = says;
   }, [says]); // eslint-disable-line react-hooks/exhaustive-deps
+  // what the project's blinding list withholds follows the studies it names (final review round 5): an answer of the
+  // inputs that names other blinded studies than the one before it, whatever changed them (a study's group confirmed, a
+  // dataset kept or left out, values brought in: the MS-01 split proposes its roles again before a plan), has the
+  // client's files, the sheet form, the evidence, the documents and the delivery read again (`blindingChanged`)
+  const blinded = blindedStudies(view);
+  const blindedWas = useRef<string | null>(null);
+  useEffect(() => {
+    if (blinded === null) return;
+    if (blindedWas.current !== null && blindedWas.current !== blinded) void blindingChanged(queries, projectId);
+    blindedWas.current = blinded;
+  }, [blinded]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const head = { tone: "inputs" as const, steps, eyebrow: "Step 2 of 4", title: "Inputs", noReveal: true, slim: true,
                  lede: "Fill in what the model needs and confirm the client's data." };

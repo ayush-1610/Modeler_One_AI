@@ -4,11 +4,19 @@
 // `regions:exclude` and `regions:restore` answer the delivery page; a layout's decisions answer the layout, and its files
 // are read again; a decision on a card (`:enter`, `:override`, `:dispose`, `:choose`, `:link`) answers the card, and the
 // spot check its draw.
+//
+// One rule follows every answer of the delivery page a decision brings (`followRows`, final review round 5): the cards
+// of the subjects whose rows it changed are read again, now where they are shown or counted, else when next shown, and
+// what the delivery's blinding withholds elsewhere with them when a subject's blinding changed. A decision can change
+// rows other than its own subject's: in a project whose blinding is on, a study the MS-01 split proposes for S5 once its
+// signature lands its dataset, or one entered for external validation, is blinded with every product that holds its
+// values (round 4 left such a product's card showing the study's values).
 
 import type { QueryClient, QueryKey } from "@tanstack/react-query";
 
 import type { Schema } from "@/lib/api";
-import { put, type After, type Read } from "@/lib/hooks";
+import { changedRows } from "@/lib/freshness";
+import { now, put, readAgain, type After, type Read } from "@/lib/hooks";
 
 const DELIVERY = "/api/v1/projects/{project_id}/delivery" as const;
 const CARD = "/api/v1/projects/{project_id}/delivery/subjects/{type}/{subject}" as const;
@@ -16,32 +24,67 @@ const SPOT = "/api/v1/projects/{project_id}/delivery/subjects/{type}/{subject}/s
 const MAPPING = "/api/v1/projects/{project_id}/delivery/mappings/{mapping_id}" as const;
 type Page = Schema<"DeliveryPage">;
 type Mapping = Schema<"DeliveryMapping">;
-type SubjectRow = Schema<"DeliverySubjectRow">;
 type Subject = Schema<"DeliverySubject">;
 type Spot = Schema<"DeliverySpotCheck">;
 
 export const pageKey = (projectId: string): QueryKey => [DELIVERY, { project_id: projectId }, {}];
 export const cardKey = (projectId: string, type: string, subject: string): QueryKey => [CARD, { project_id: projectId, type, subject }, {}];
 const ref = (s: { subject_type?: string; type?: string; subject: string }) => `${s.subject_type ?? s.type}/${s.subject}`;
-const cardRef = (key: QueryKey) => (key[0] === CARD ? ref(key[1] as { type: string; subject: string }) : null);
-const own = (s: SubjectRow) => JSON.stringify([s.values, s.by_level, s.arms, s.batches, s.confirmation, s.files, s.label]);
+/** A card of the project's, by its reference (null: not a card, or another project's). */
+const cardOf = (key: QueryKey, projectId: string) => {
+  const params = key[1] as { project_id?: string; type: string; subject: string } | undefined;
+  return key[0] === CARD && params?.project_id === projectId ? ref(params) : null;
+};
 
-/** The subjects whose own row a decision changed (their values, how they were read, their arms or batches, files or
- *  confirmation), as `${type}/${subject}`: what their cards show changed with it. */
-export function changedSubjects(before: Page | undefined, after: Page): string[] {
-  const was = new Map((before?.subjects ?? []).map((s) => [ref(s), own(s)] as const));
-  return after.subjects.filter((s) => was.get(ref(s)) !== own(s)).map(ref);
+/** What the delivery's blinding also withholds (`modeler_project.blinded_sources`): the client's files and their sheets,
+ *  the sheet form's groups, the documents' pages and the figures suggested from them. */
+const WITHHELD: readonly Read[] = [
+  "/api/v1/projects/{project_id}/client-data", "/api/v1/projects/{project_id}/client-data/{sid}/sheets/{sheet}",
+  "/api/v1/projects/{project_id}/client-review", "/api/v1/projects/{project_id}/documents",
+  "/api/v1/projects/{project_id}/documents/{sha256}/figures",
+];
+
+/** Follow a new answer of the delivery page (`after`, against `before`, the page as it was before the decision): the
+ *  cards of the subjects whose rows changed are read again, at once where they are shown or counted, else when next
+ *  shown (`changedRows`, lib/freshness.ts), except `answered`, the cards the decision's own answer wrote (current). When a
+ *  subject's blinding changed, what the delivery's blinding withholds elsewhere is read again too (`since`: a read of it
+ *  asked for since the decision holds it already, and is not read again). A decision that changes no other row reads
+ *  nothing more. */
+export function followRows(client: QueryClient, projectId: string, before: Page | undefined, after: Page,
+                           { answered = [], since }: { answered?: readonly string[]; since?: number } = {}) {
+  const { changed, blinding } = changedRows(before, after);
+  const stale = new Set(changed.filter((r) => !answered.includes(r)));
+  if (stale.size) void client.invalidateQueries({ predicate: (q) => stale.has(cardOf(q.queryKey, projectId) ?? "") });
+  if (blinding) void readAgain(client, WITHHELD, since);
 }
 
-/** Write the delivery page a decision answered. The cards of the subjects it changed are read again; every other card
- *  only changed in the delivery-wide clean-up (which the page says itself), so it is marked stale and read again when it
- *  is next shown. */
+/** Read the delivery page again after a decision whose answer is not the page, and follow it (`followRows`): `before`,
+ *  the page as the decision found it (default: as the page holds it now); `answered`, the cards the decision's answer
+ *  wrote. Waited for by the decision (its `After`), as its reads are. */
+export async function followPage(client: QueryClient, projectId: string,
+                                 { answered = [], before, since }: { answered?: readonly string[]; before?: Page; since?: number } = {}) {
+  const was = before ?? client.getQueryData<Page>(pageKey(projectId));
+  const asked = since ?? now();
+  await client.invalidateQueries({ queryKey: pageKey(projectId), exact: true });
+  const page = client.getQueryData<Page>(pageKey(projectId));
+  if (page && page !== was) followRows(client, projectId, was, page, { answered, since: asked });
+}
+
+/** `followPage` for every project whose delivery page the page holds (a change named by its route, not its project). */
+export function followPages(client: QueryClient): Promise<void> {
+  const projects = client.getQueryCache().findAll({ predicate: (q) => q.queryKey[0] === DELIVERY })
+    .map((q) => (q.queryKey[1] as { project_id: string }).project_id);
+  return Promise.all([...new Set(projects)].map((p) => followPage(client, p))).then(() => undefined);
+}
+
+/** Write the delivery page a decision answered. The cards of the subjects whose rows it changed are read again
+ *  (`followRows`); every other card only changed in the delivery-wide clean-up (which the page says itself), so it is
+ *  marked stale and read again when it is next shown. */
 export function writePage(client: QueryClient, projectId: string, page: Page) {
   const before = client.getQueryData<Page>(pageKey(projectId));
   put(client, pageKey(projectId), page);
-  const changed = new Set(changedSubjects(before, page));
-  void client.invalidateQueries({ predicate: (q) => q.queryKey[0] === CARD && !changed.has(cardRef(q.queryKey) ?? ""), refetchType: "none" });
-  void client.invalidateQueries({ predicate: (q) => changed.has(cardRef(q.queryKey) ?? "") });
+  void client.invalidateQueries({ predicate: (q) => cardOf(q.queryKey, projectId) !== null, refetchType: "none" });
+  followRows(client, projectId, before, page);
 }
 
 /** The newest version a layout's answer knows of: the answer is the layout's latest when it is that version. */
@@ -77,11 +120,22 @@ export function readPage(client: QueryClient, projectId: string) {
 
 /** A decision on a subject's card (`:enter`, `:override`, `:dispose`, `:choose`, `:link`): the answer is the card, written
  *  under the key every part of the page reads it by (its own area, the work model's counts, Populations and
- *  individuals); `reads`: the delivery page, read again once, since the subject's row there (how many values it has and
- *  how they were read) follows the card. Nothing else on the page changed. */
-export function cardAfter(projectId: string, reads: readonly Read[] = [DELIVERY]): After<Subject> {
-  return { write: (card, client) => put(client, cardKey(projectId, card.subject_type, card.subject), card), reads };
+ *  individuals); the delivery page is read again once, since the subject's row there (how many values it has and how
+ *  they were read) follows the card, and followed (`followPage`): a decision on one card can change another's row (a
+ *  study entered for external validation blinds the products that hold its values; a link merges two studies).
+ *  `before`: the page as the decision found it; `page` false: the delivery page is read once after several decisions
+ *  (the facts form's), by its caller. */
+export function cardAfter(projectId: string, { before, page = true }: { before?: Page; page?: boolean } = {}): After<Subject> {
+  return {
+    write: (card, client) => {
+      put(client, cardKey(projectId, card.subject_type, card.subject), card);
+      if (page) return followPage(client, projectId, { answered: [ref(card)], before });
+    },
+  };
 }
+
+/** The reference a decision's answer (a card) is followed by: what `followPage` leaves out as `answered`. */
+export const answeredBy = (card: { subject_type: string; subject: string }) => ref(card);
 
 /** The spot check's draw or record: the answer is the draw (written where "Show the values to check" reads it); the
  *  subject's card says how far the spot check is and whether it still holds the signature, so that one card is read
@@ -93,18 +147,25 @@ export function spotAfter(projectId: string, type: string, subject: string): Aft
   };
 }
 
-/** What a signed confirmation changed, once its dialog has said what loaded: the card (its answer); the delivery page
- *  (the subject's row); the model inputs; the sheet form's groups of the same source (loaded now); the client's files
- *  and their dissolution profiles; the evidence when the landing put datasets or values in it (a product's lands its
- *  dissolution records only) — each measured by the API's answers before and after (final review round 4). No other
- *  card changes: a card names the sheet form's datasets of its source (`loaded_elsewhere`), never the delivery's, and a
- *  landing makes only the delivery's (round 3 marked them all stale, and the cards To do counts were read again). The
- *  step bar follows the readiness (the workspace draws it again when the readiness changes). */
-export function writeConfirmed(client: QueryClient, projectId: string, card: Subject): Promise<void> {
-  put(client, cardKey(projectId, card.subject_type, card.subject), card);
+/** What a signed confirmation changed, once its dialog has said what loaded: the card (its answer); the model inputs;
+ *  the sheet form's groups of the same source (loaded now); the client's files and their dissolution profiles; the
+ *  evidence when the landing put datasets or values in it (a product's lands its dissolution records only) — each
+ *  measured by the API's answers before and after (final review round 4); and the delivery page, followed
+ *  (`followPage`). With blinding off, only the subject's own row changes, so nothing more is read (a card names the
+ *  sheet form's datasets of its source, `loaded_elsewhere`, never the delivery's, and a landing makes only the
+ *  delivery's). With blinding on and no plan, the landing puts the study's dataset in the catalog, the MS-01 split can
+ *  propose S5 for it, and the study is then blinded with every product that holds its values: their rows say so, and
+ *  their cards are read again (final review round 5: round 4's "no other card changes" held only with blinding off).
+ *  `before`: the page as the signature found it (the dialog's). `sent`: when the signature was sent. The step bar
+ *  follows the readiness (the workspace draws it again when the readiness changes). */
+export function writeConfirmed(client: QueryClient, projectId: string, card: Subject,
+                               { before, sent }: { before?: Page; sent?: number } = {}): Promise<void> {
+  put(client, cardKey(projectId, card.subject_type, card.subject), card, sent);
+  const since = now();
   const landed = card.confirmation?.landed;
   const evidence = !landed || landed.datasets.length > 0 || landed.evidence.length > 0;
-  const reads = new Set<string>([DELIVERY, "/api/v1/projects/{project_id}/inputs", "/api/v1/projects/{project_id}/client-review",
+  const reads = new Set<string>(["/api/v1/projects/{project_id}/inputs", "/api/v1/projects/{project_id}/client-review",
                                  "/api/v1/projects/{project_id}/client-data", ...(evidence ? ["/api/v1/projects/{project_id}/evidence"] : [])]);
-  return client.invalidateQueries({ predicate: (q) => reads.has(q.queryKey[0] as string) });
+  return Promise.all([client.invalidateQueries({ predicate: (q) => reads.has(q.queryKey[0] as string) }),
+                      followPage(client, projectId, { answered: [ref(card)], before, since })]).then(() => undefined);
 }

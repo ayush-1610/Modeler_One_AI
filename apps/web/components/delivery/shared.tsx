@@ -12,7 +12,7 @@ import type { Envelope, Schema } from "@/lib/api";
 import { alreadyDecidedText, whereIs } from "@/lib/words";
 import { useMutation, type After, type Outcome } from "@/lib/hooks";
 
-import { cardAfter, writePage } from "./writes";
+import { cardAfter, pageKey, writePage } from "./writes";
 
 export type Page = Schema<"DeliveryPage">;
 export type FileRow = Schema<"DeliveryFile">;
@@ -167,12 +167,16 @@ export function useDecide() {
 }
 
 /** A decision on a subject's card (`:enter`, `:override`, `:dispose`, `:choose`, `:link`): its answer, the card, is
- *  written into the page and the delivery page is read again once (`writes.ts` `cardAfter`), so it costs two requests. */
+ *  written into the page and the delivery page is read again once (`writes.ts` `cardAfter`), so it costs two requests;
+ *  more only when it changed another subject's row (a study blinded with the products that hold its values), whose card
+ *  is read again then. The page is compared with what it was when the decision was sent. */
 export type CardDecide = (call: () => Promise<Envelope<Subject>>) => Promise<Decided<Subject>>;
 
 export function useCardDecide(projectId: string) {
   const { decide, busy, problem, clear } = useDecide();
-  const onCard: CardDecide = useCallback((call) => decide(call, cardAfter(projectId)), [decide, projectId]);
+  const client = useQueryClient();
+  const onCard: CardDecide = useCallback(
+    (call) => decide(call, cardAfter(projectId, { before: client.getQueryData<Page>(pageKey(projectId)) })), [decide, client, projectId]);
   return { decide: onCard, busy, problem, clear };
 }
 

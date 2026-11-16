@@ -8,14 +8,17 @@
 // client opens the step-up, then sends the confirmation once more. No password is typed on this page.
 
 import { useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { Dialog } from "@/components/kit/Dialog";
 import { send } from "@/lib/api";
+import { now } from "@/lib/hooks";
 import { engineWords, tableKindText } from "@/lib/words";
 
-import { BLOCKER_LABEL, KIND_LABEL, Problem, WITHHELD, levelText, plural, useDecide, type Blocker, type Subject } from "./shared";
-import { writeConfirmed } from "./writes";
+import {
+  BLOCKER_LABEL, KIND_LABEL, Problem, WITHHELD, levelText, plural, useDecide, type Blocker, type Page, type Subject,
+} from "./shared";
+import { pageKey, writeConfirmed } from "./writes";
 
 // what holds a signature, in the card's words (the delivery's clean-up is one of them)
 const BLOCKER_WORD: Record<string, string> = {
@@ -38,6 +41,8 @@ export function ConfirmDialog({ projectId, subject, onClose }: { projectId: stri
   const client = useQueryClient();
   const [signed, setSigned] = useState<Subject | null>(null);
   const [refusedFor, setRefusedFor] = useState<Blocker[]>([]);
+  // the delivery page as the signature found it, and when the signature was sent: what Done compares the page with
+  const signing = useRef<{ before?: Page; sent: number } | null>(null);
   const counts = coverageCounts(subject);
   const blockers = refusedFor.length ? refusedFor : subject.blockers;
   const blocked = subject.blockers.length > 0 || subject.landing_problem !== null;
@@ -51,6 +56,7 @@ export function ConfirmDialog({ projectId, subject, onClose }: { projectId: stri
     // landing marks confirmed) can answer before the delivery's page, the card then reads for a moment as one the sheet
     // form confirmed, and its delivery view, this dialog with it, leaves the page before the person has read it
     let named: Blocker[] = [];
+    signing.current = { before: client.getQueryData<Page>(pageKey(projectId)), sent: now() };
     const { data } = await decide(async () => {
       const env = await send("post", CONFIRM, { project_id: projectId, type: subject.subject_type, subject: subject.subject });
       named = (env.errors[0]?.detail?.blockers as Blocker[] | undefined) ?? [];
@@ -60,7 +66,7 @@ export function ConfirmDialog({ projectId, subject, onClose }: { projectId: stri
     if (data) setSigned(data);
   }
   const close = () => {
-    if (signed) void writeConfirmed(client, projectId, signed);
+    if (signed) void writeConfirmed(client, projectId, signed, signing.current ?? {});
     onClose();
   };
 

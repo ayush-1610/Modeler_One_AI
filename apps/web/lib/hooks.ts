@@ -5,12 +5,13 @@
 // what it changed, not every read on the page (plan 2026-11-14 §2.1 "fewer refetches"; final review OWN-7, CODE-4).
 
 import {
-  keepPreviousData, useMutation as useQueryMutation, useQueries, useQuery, useQueryClient, type QueryClient, type QueryKey,
+  hashKey, keepPreviousData, useMutation as useQueryMutation, useQueries, useQuery, useQueryClient, type QueryClient, type QueryKey,
 } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { createContext, createElement, useCallback, useContext, useState, type ReactNode } from "react";
 
 import { get, type Data, type Envelope, type Params, type RouteFor } from "@/lib/api";
+import { afterAnswer, type ReadOnItsWay } from "@/lib/freshness";
 
 /** What the API said when it refused a call, or why it could not be reached. */
 class ApiProblem extends Error {}
@@ -45,6 +46,29 @@ function useFreshness(otherwise = 0): number | ((query: Answered) => number) {
   return from === null ? otherwise : (query: Answered) => (query.state.dataUpdatedAt >= from ? Infinity : 0);
 }
 
+// --- when each read was asked for ---------------------------------------------------------------------------------------
+
+/** One clock for reads and decisions (monotonic, so a clock change never orders them wrongly). */
+export const now = () => performance.now();
+
+// The latest read of each answer (by its key's hash): when it was asked for and when its request went out, with a token
+// that tells it from a read that replaced it. Written by the reads of this file (`useResource`, `useResources`,
+// `fetchResource`), the only reads of the page's cache.
+const reads = new Map<string, ReadOnItsWay & { token: object }>();
+
+/** Mark a read of `key` asked for now; `out()` when its request goes out (a read of `useResources` may wait its turn). */
+function asking(key: QueryKey): { out: () => void } {
+  const hash = hashKey(key);
+  const token = {};
+  reads.set(hash, { asked: now(), sent: null, token });
+  return { out: () => { const r = reads.get(hash); if (r?.token === token) r.sent = now(); } };
+}
+
+/** When the latest read of the answer under `queryHash` was asked for (null: never by this page). */
+export function askedAt(queryHash: string): number | null {
+  return reads.get(queryHash)?.asked ?? null;
+}
+
 type ResourceOptions<D, T> = {
   query?: Record<string, string | undefined>;
   /** The page's view of the answer, e.g. `(d) => narrow<BriefView>(d)` where stored content is typed by the page. */
@@ -66,7 +90,8 @@ export function useResource<R extends RouteFor<"get">, T = Data<R, "get">>(
   const staleTime = useFreshness();
   const result = useQuery<Data<R, "get">, ApiProblem, T>({
     queryKey: [route, params, query ?? {}],
-    queryFn: async () => {
+    queryFn: async ({ queryKey }) => {
+      asking(queryKey).out();
       const env = await get(route, params, query);
       if (env.errors?.length || env.data === null) throw new ApiProblem(env.errors?.[0]?.message ?? "no answer");
       return env.data;
@@ -106,11 +131,15 @@ export function useResources<R extends RouteFor<"get">>(
   const results = useQueries({
     queries: list.map((params) => ({
       queryKey: [route, params, {}],
-      queryFn: () => fewAtATime(limit, async () => {
-        const env = await get(route, params);
-        if (env.errors?.length || env.data === null) throw new ApiProblem(env.errors?.[0]?.message ?? "no answer");
-        return env.data;
-      }),
+      queryFn: ({ queryKey }: { queryKey: QueryKey }) => {
+        const read = asking(queryKey);
+        return fewAtATime(limit, async () => {
+          read.out();
+          const env = await get(route, params);
+          if (env.errors?.length || env.data === null) throw new ApiProblem(env.errors?.[0]?.message ?? "no answer");
+          return env.data;
+        });
+      },
       enabled, staleTime: fresh,
     })),
   });
@@ -124,7 +153,8 @@ export function useResources<R extends RouteFor<"get">>(
 export function fetchResource<R extends RouteFor<"get">>(client: QueryClient, route: R, params: Params<R>, staleTime = 0): Promise<Data<R, "get">> {
   return client.fetchQuery({
     queryKey: [route, params, {}],
-    queryFn: async () => {
+    queryFn: async ({ queryKey }) => {
+      asking(queryKey).out();
       const env = await get(route, params);
       if (env.errors?.length || env.data === null) throw new ApiProblem(env.errors?.[0]?.message ?? "no answer");
       return env.data;
@@ -138,20 +168,39 @@ export function fetchResource<R extends RouteFor<"get">>(client: QueryClient, ro
 /** A read of the page, by its route: every answer of the route (whatever its parameters) is meant. */
 export type Read = RouteFor<"get">;
 
-/** Write an answer under its key, what the server holds now. A read of the same key still on its way (sent before the
- *  change: a poll, the page's idle reads, the end of a reading) is called off first: answered after the change, it
- *  would put back what the page showed before it (final review round 4: an approval's answer was overwritten by a read
- *  of the layout sent just before it, and the page stopped following the reading it had started). */
-export function put<T>(client: QueryClient, key: QueryKey, data: T): void {
-  void client.cancelQueries({ queryKey: key, exact: true });
+// When each decision was sent, kept with its answer (the object the API answered with, as `run` returns it), and the
+// decision whose answer its `After` is writing now: what `put` compares a read on its way with.
+const decidedAt = new WeakMap<object, number>();
+let writing: number | null = null;
+
+/** Write an answer under its key, what the server holds now. A read of the same key still on its way is settled by
+ *  when it was asked for (`afterAnswer`, lib/freshness.ts): one asked for before the decision was sent (a poll, the
+ *  page's idle reads, the end of a reading) is called off, so it cannot put back what the page showed before (final
+ *  review round 4: an approval's answer was overwritten by a read of the layout sent just before it, and the page
+ *  stopped following the reading it had started); one asked for since and not sent yet goes out after the answer and is
+ *  left to land; one sent since may have been answered before the decision or after it, so it is called off and the
+ *  answer read once more (final review round 5: round 4 called it off and kept the decision's answer, which could be the
+ *  older). `sent`: when the decision was sent, where the answer's own record of it is not at hand. */
+export function put<T>(client: QueryClient, key: QueryKey, data: T, sent?: number): void {
+  const query = client.getQueryCache().find({ queryKey: key, exact: true });
+  // a read on its way that this file did not ask for (none, today) is taken as asked for before the decision
+  const read = query && query.state.fetchStatus !== "idle" ? reads.get(query.queryHash) ?? { asked: -Infinity, sent: -Infinity } : null;
+  const decided = sent ?? (typeof data === "object" && data !== null ? decidedAt.get(data) : undefined) ?? writing;
+  const step = afterAnswer(read, decided ?? null);
+  if (step === "cancel" || step === "again") void client.cancelQueries({ queryKey: key, exact: true });
   client.setQueryData(key, data);
+  if (step === "again") void client.invalidateQueries({ queryKey: key, exact: true });
 }
 
-/** Mark every answer of `routes` stale: those shown are read again (once each), the others when next shown. */
-export function readAgain(client: QueryClient, routes: readonly Read[]): Promise<void> {
+/** Mark every answer of `routes` stale: those shown are read again (once each), the others when next shown. `since`
+ *  (the time a change was answered): an answer read since then, or on its way since then, already holds the change, so
+ *  it is not read again (one that failed is). */
+export function readAgain(client: QueryClient, routes: readonly Read[], since?: number): Promise<void> {
   if (!routes.length) return Promise.resolve();
   const named = new Set<string>(routes);
-  return client.invalidateQueries({ predicate: (q) => named.has(q.queryKey[0] as string) });
+  const current = (hash: string, failed: boolean) => since !== undefined && !failed && (reads.get(hash)?.asked ?? -1) >= since;
+  return client.invalidateQueries({ predicate: (q) => named.has(q.queryKey[0] as string)
+                                                    && !current(q.queryHash, q.state.status === "error") });
 }
 
 /** What a change made stale, said where the change is made. `write`: the answer, written into the page's cache (what
@@ -159,7 +208,9 @@ export function readAgain(client: QueryClient, routes: readonly Read[]): Promise
  *  route it changed (one card of many). `server`: the parts of the page drawn on the server show what it changed (a page
  *  drawn on the server, a step bar the change moves), so they are drawn again. A dry run that changes nothing says `{}`. */
 export type After<T = unknown> = {
-  write?: (data: T, client: QueryClient) => void;
+  /** may answer a promise: what it reads after the answer is written (the delivery page, then the cards whose rows it
+   *  changed), waited for as `reads` are */
+  write?: (data: T, client: QueryClient) => void | Promise<void>;
   reads?: readonly Read[];
   keys?: readonly QueryKey[];
   server?: boolean;
@@ -168,23 +219,32 @@ export type After<T = unknown> = {
 /** The outcome of a change: the answer's data, or the API's reason it refused. */
 export type Outcome<T> = { data: T | null; problem: string | null };
 
-type Change = { call: () => Promise<Envelope<unknown>>; after: After<never> };
+type Change = { call: () => Promise<Envelope<unknown>>; after: After<never>; sent?: number };
 
 /** Change state through the API. `run(() => send(...), after)` answers the outcome; when the change succeeds, what it
- *  made stale (`after`) is written and read again before `run` returns. */
+ *  made stale (`after`) is written and read again before `run` returns. When the change was sent is kept with its
+ *  answer, so a read of the same answer still on its way is told apart from it (`put`). */
 export function useMutation() {
   const client = useQueryClient();
   const router = useRouter();
   const { mutateAsync, isPending } = useQueryMutation<unknown, ApiProblem, Change>({
-    mutationFn: async ({ call }) => {
-      const env = await call();
+    mutationFn: async (change) => {
+      change.sent = now();
+      const env = await change.call();
       if (env.errors?.length) throw new ApiProblem(env.errors[0].message);
+      if (typeof env.data === "object" && env.data !== null) decidedAt.set(env.data, change.sent);
       return env.data;
     },
-    onSuccess: async (data, { after }) => {
-      (after as After<unknown>).write?.(data, client);
+    onSuccess: async (data, { after, sent }) => {
+      let follows: void | Promise<void>;
+      writing = sent ?? null;
+      try {
+        follows = (after as After<unknown>).write?.(data, client);
+      } finally {
+        writing = null;
+      }
       if (after.server) router.refresh();
-      await Promise.all([readAgain(client, after.reads ?? []),
+      await Promise.all([follows, readAgain(client, after.reads ?? []),
                          ...(after.keys ?? []).map((queryKey) => client.invalidateQueries({ queryKey, exact: true }))]);
     },
   });
