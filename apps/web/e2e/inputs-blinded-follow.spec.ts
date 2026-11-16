@@ -157,8 +157,8 @@ async function expectProduct(card: Locator, subject: string, blinded: boolean) {
     await expect(card.getByRole("button", { name: "Start the spot check" })).toHaveCount(0);
     // round 6: no "Confirm and sign…" the API refuses (409 BLINDED); where it was, the wait and why
     await expect(card.getByTestId(`delivery-confirm-${subject}`)).toHaveCount(0);
-    await expect(card.getByTestId(`delivery-sign-waits-${subject}`)).toHaveText(
-      "Signing waits until the plan is signed, because it holds the values of a blinded study.");
+    // the why ("it holds the values of study 230-23, which is blinded") is said once, on the card's head
+    await expect(card.getByTestId(`delivery-sign-waits-${subject}`)).toHaveText("Signing waits until the plan is signed.");
   } else {
     await expect(card.getByTestId(`delivery-blinded-${subject}`)).toHaveCount(0);
     await expect(card).toContainText("25.2");

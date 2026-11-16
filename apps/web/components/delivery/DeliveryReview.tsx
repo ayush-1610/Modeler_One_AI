@@ -1034,9 +1034,11 @@ export function DeliveryReview({ projectId, row, mode, gate, onMapping, todo, su
             </>
           ) : <p className="muted m-0">Not confirmed yet. Your signature binds what this card shows, and its values are then loaded into the model.</p>}
           {/* a blinded card's signature is refused until the plan is signed (409 BLINDED): no button that cannot be used,
-              the wait and why where it would be (round 6; its dialog only said so once opened) */}
+              the wait and why where it would be (round 6; its dialog only said so once opened). A product's or the
+              compound's why is said once, on its card's head (round 6), so here only the wait */}
           {s.confirm_on === "delivery" && !done && s.blinded && (
-            <p className="muted m-0" data-testid={`delivery-sign-waits-${s.subject}`}>{signWaitsWords(s.blinded_why)}</p>
+            <p className="muted m-0" data-testid={`delivery-sign-waits-${s.subject}`}>
+              {signWaitsWords(s.subject_type === "study" ? s.blinded_why : null)}</p>
           )}
           {s.confirm_on === "delivery" && !done && !s.blinded && (
             <div className="confirm-paths">

@@ -29,7 +29,7 @@ test("the published Dapagliflozin model's values and studies are taken as a sour
   await expect(page.getByTestId("study-boulton-2013-14c-dapagliflozin-iv")).toBeVisible();
   // the 40 dataset cards are shown ten at a time (audit item 11): the Boulton card is found with the list's filter
   await page.getByTestId("datasets-filter").fill("boulton-2013-14c-dapagliflozin-iv");
-  await expect(page.locator(".evidence", { hasText: "boulton-2013-14c-dapagliflozin-iv" })).toContainText("osp library");
+  await expect(page.locator(".evidence", { hasText: "boulton-2013-14c-dapagliflozin-iv" })).toContainText("OSP library");
   await page.screenshot({ path: test.info().outputPath("published-model.png"), fullPage: true });
 
   // taken twice, it adds nothing

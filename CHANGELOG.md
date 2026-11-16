@@ -15,6 +15,15 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Fixed — merging final review round 6 (the three round-6 branches together)
+- **A blinded product's card said its reason twice.** Round 6's blinding group put "Signing waits until the plan is
+  signed, because …" where a blinded card's "Confirm and sign…" was; the named-product group said a product's reason
+  once, on its card's head ("because it holds the values of study 230-23, which is blinded"). Together, a product's card
+  said it twice. A product's or the compound's sign-waits line now says only "Signing waits until the plan is signed.";
+  a study's still says why. Impact: words only; the API's refusal (409 BLINDED) is unchanged. Found by the full e2e on
+  the merged head (inputs-blinded's "says why once" and inputs-blinded-follow's product checks); both specs now assert
+  the merged words, and published-model asserts the library's name as the page writes it ("OSP library").
+
 ### Fixed — final review round 6, what a newly blinded study withholds elsewhere (round 5's blinding-fresh skeptic: the rule complete, once per route; one source for a study's withheld values; no signature offered on a blinded card; the records; plan 2026-11-14 §5) — science-adjacent
 - **A change of the blinding reads everything it changes, once (components/delivery/writes.ts `followBlinding`).** Round
   5 read again only the cards whose delivery rows changed, while the API also withholds by file and by name on cards
