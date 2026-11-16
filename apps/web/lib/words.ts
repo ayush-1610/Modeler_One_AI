@@ -36,15 +36,18 @@ const spaced = (text: string) => text.replace(/_/g, " ");
  *  data plan's REQ-form.release: `study_requirements.unnamed_product_items` when no product is here). */
 export const ASK_FORMULATION = "todo-ask-REQ-form.release";
 /** Another way to settle a check than its area: what the link says, the area it opens and what it opens there
- *  (`query`, added to the area's URL: `add=product` opens the form that adds a product, `at=<place>` brings a place of
- *  the area into view). */
+ *  (`query`, added to the area's URL: `add=product` opens the form that adds a product, `release=<product>` the
+ *  product's card at its release, `at=<place>` brings a place of the area into view). */
 export type Way = { say: string; area: Tab; query?: string };
+/** A way with the name of its area, and what it is (the page's tests name the link by it): `release` uses a product's
+ *  dissolution profile as its release, `dissolution` adds a product's dissolution data, `add` adds a product, `ask` asks
+ *  the client, `choose` chooses the formulation a study used. */
+export type WayLink = Way & { id: "release" | "dissolution" | "add" | "ask" | "choose"; name: string };
 /** A readiness check in words, keyed by its raw name without the reference in brackets ("S0 completeness (MS-01
  *  §2.2)" is keyed "S0 completeness"); `waiting` says what is open in a few words, `fix` what a person does and where,
- *  `area` the area of Inputs where that is done (a link from the step bar, Run and Review & sign: final review OWN-13),
- *  `add` the form that adds what is missing and `or` a second way, each with its own area (gap 11: a tablet study with
- *  no product is not a dead end; round 3: "add a product" is named, and "ask the client" opens the line that asks). */
-const CHECKS: Record<string, { label: string; waiting: string; fix: string; area: Tab; add?: Way; or?: Way }> = {
+ *  `area` the area of Inputs where that is done (a link from the step bar, Run and Review & sign: final review OWN-13).
+ *  A tablet study's formulation has more ways than its area, which follow what the project holds (`formulationWays`). */
+const CHECKS: Record<string, { label: string; waiting: string; fix: string; area: Tab }> = {
   "assembly": { label: "Inputs put together", waiting: "the inputs could not be put together",
                 fix: "Put together from every source; a problem names its source.", area: "todo" },
   "S0 completeness": { label: "Minimum compound data", waiting: "compound values missing",
@@ -54,9 +57,8 @@ const CHECKS: Record<string, { label: string; waiting: string; fix: string; area
   "expression profiles": { label: "Enzyme and transporter expression", waiting: "enzyme or transporter expression missing",
                            fix: "Set on Populations and individuals.", area: "individuals" },
   "formulations of solid studies": { label: "A formulation for each tablet study", waiting: "a tablet study has no formulation",
-                                     fix: "On Products and dissolution, use a product's dissolution profile as its release. With no product there, add the product the study used (“Add a product”) and its dissolution data, or ask the client for them.",
-                                     area: "formulations", add: { say: "add a product", area: "formulations", query: "add=product" },
-                                     or: { say: "ask the client", area: "todo", query: `at=${ASK_FORMULATION}` } },
+                                     fix: "To do's formulation item says what each tablet study lacks; it is settled on Products and dissolution.",
+                                     area: "formulations" },
   "multiple-dose regimens": { label: "Dosing of multiple-dose studies", waiting: "the dosing of a multiple-dose study is missing",
                               fix: "Fill it in on its study, on Clinical studies.", area: "studies" },
   "demographics stated": { label: "Demographics of confirmed studies", waiting: "the demographics of a study are missing",
@@ -76,10 +78,87 @@ export function checkLabel(raw: string, detail: string[] = [], ok = true): strin
   if (!known) return spaced(raw);
   return !ok && checkKey(raw) === "S0 completeness" && detail.length ? `${known.label} (${detail.length} missing)` : known.label;
 }
-/** Where an open check is settled, in a sentence. */
-export const checkFix = (raw: string) => CHECKS[checkKey(raw)]?.fix ?? "";
+/** What gives a tablet study its formulation as the project stands (the API's `FormulationWayView`, on the Inputs step
+ *  and on To do's formulation item: `modeler_project.formulation_way`): use a product's dissolution profile as its release
+ *  (`products`: those whose profile can), add a product's dissolution data (`products`: those here), add a product (none
+ *  is here) or choose the formulation a study used (several are in the model). */
+export type FormulationWay = {
+  way: "use_profile" | "add_dissolution" | "add_product" | "choose"; products: string[]; studies: string[];
+  /** use_profile: the first product's profile can be used now; false: its product's dissolution data are confirmed first */
+  ready?: boolean;
+};
+const FORMULATIONS = "formulations of solid studies";
+/** Names said as one choice: "A", "A or B", "A, B or C". */
+const either = (names: string[]) => (names.length < 2 ? names.join("") : `${names.slice(0, -1).join(", ")} or ${names[names.length - 1]}`);
+/** Names said together: "A", "A and B", "A, B and C". */
+const both = (names: string[]) => (names.length < 2 ? names.join("") : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`);
+/** What no product here says of a tablet study's formulation (round 3, owner-job gap 11): the lever is the product, added
+ *  on Products and dissolution, or the client, asked under "Ask the client". */
+export const NO_PRODUCT = "No product is here to give it a release: add the product the study used (“Add a product”, on Products and "
+  + "dissolution) with its dissolution data, or ask the client for them (“Ask the client”, on To do).";
+/** The ways to give a tablet study its formulation, as the project stands (final review round 4: "add a product" was
+ *  named whatever the project held, and opened an empty form where products with dissolution profiles were here): what
+ *  the step bar says is open (`waiting`), the situation in a few words (`situation`, said before the ways where they are
+ *  links), a sentence where no link can be (`fix`) and the ways, each a link. One source for the step bar, Review & sign
+ *  and Run, To do's formulation item and Products and dissolution. Without a way (none fits: a formulation not complete,
+ *  of a type the builder does not place), only the area. */
+export function formulationWays(w: FormulationWay | null | undefined): { waiting: string; situation: string; fix: string; ways: WayLink[] } {
+  const link = (id: WayLink["id"], say: string, area: Tab, query?: string): WayLink => ({ id, say, area, query, name: AREA_NAME[area] });
+  const ask = link("ask", "ask the client", "todo", `at=${ASK_FORMULATION}`);
+  const products = w?.products ?? [];
+  const card = `release=${encodeURIComponent(products[0] ?? "")}`;
+  const waiting = CHECKS[FORMULATIONS].waiting;
+  switch (w?.way) {
+    case "use_profile":
+      // its product's dissolution data not confirmed yet: confirmed first, then the profile is used (the API refuses it
+      // before), said as the order it is done in
+      if (w.ready === false && products.length) {
+        return {
+          waiting,
+          situation: products.length === 1 ? `the dissolution profile of ${products[0]} is here, its data to confirm first`
+            : `the dissolution profiles of ${both(products)} are here, their data to confirm first`,
+          fix: `Confirm the dissolution data of ${products[0]} on its card (“Confirm”), then use its profile as its release (“Use this profile `
+            + `as the release”), on Products and dissolution${products.length > 1 ? ` (or the profile of ${either(products.slice(1))})` : ""}.`,
+          ways: [link("release", "confirm a product's dissolution data, then use its profile as its release", "formulations", card)],
+        };
+      }
+      return {
+        waiting,
+        situation: products.length === 1 ? `the dissolution profile of ${products[0]} is here`
+          : products.length ? `the dissolution profiles of ${both(products)} are here` : "a dissolution profile is here",
+        fix: products.length === 1
+          ? `Use the dissolution profile of ${products[0]} as its release: “Use this profile as the release” on its card, on Products and dissolution.`
+          : products.length
+            ? `Use a product's dissolution profile as its release: “Use this profile as the release” on its card, on Products and dissolution (${either(products)}).`
+            : "Use a dissolution profile as its release: “Use as release” under the profiles of no product, on Products and dissolution.",
+        ways: [link("release", "use a product's dissolution profile as its release", "formulations", card)],
+      };
+    case "add_dissolution":
+      return {
+        waiting, situation: "no product here has a dissolution profile that can give a release",
+        fix: `No product here has a dissolution profile that can give a release: add the dissolution file of ${either(products) || "the product"} `
+          + "(Add data), or ask the client for it (“Ask the client”, on To do).",
+        ways: [link("dissolution", "add a product's dissolution data", "formulations", card), ask],
+      };
+    case "add_product":
+      return { waiting, situation: "no product is here", fix: NO_PRODUCT, ways: [link("add", "add a product", "formulations", "add=product"), ask] };
+    case "choose":
+      return {
+        waiting: "a tablet study does not say which formulation it used", situation: "several formulations are in the model",
+        fix: "Several formulations are in the model and a tablet study names none: choose the one it used, on Products and dissolution.",
+        ways: [link("choose", "choose the formulation it used", "formulations",
+                    w.studies[0] ? `at=${encodeURIComponent(`formulation-${w.studies[0]}`)}` : undefined)],
+      };
+    default:
+      return { waiting, situation: "", fix: CHECKS[FORMULATIONS].fix, ways: [] };
+  }
+}
+/** Where an open check is settled, in a sentence (a tablet study's formulation: as the project stands, `formulationWays`). */
+export const checkFix = (raw: string, formulation?: FormulationWay | null) =>
+  checkKey(raw) === FORMULATIONS ? formulationWays(formulation).fix : CHECKS[checkKey(raw)]?.fix ?? "";
 /** A reason the step bar gives for Inputs (a raw check name, or the step's own sentence), in plain words. */
-export const stepReason = (raw: string) => CHECKS[checkKey(raw)]?.waiting ?? raw;
+export const stepReason = (raw: string, formulation?: FormulationWay | null) =>
+  checkKey(raw) === FORMULATIONS ? formulationWays(formulation).waiting : CHECKS[checkKey(raw)]?.waiting ?? raw;
 /** Why the plan cannot read the inputs yet (`modeler_project.inputs.inputs_ready`, the plan route's 409), in words: each
  *  failing check in the step bar's words, never its raw name or its reference (final review round 3, OWN-8: Review &
  *  sign printed "S0 completeness (MS-01 §2.2); formulations of solid studies; …" under the list that names them). */
@@ -95,14 +174,16 @@ export function readinessText(raw: string): string {
   if (/^the inputs have no CPF or no study$/i.test(text)) return "The inputs hold no compound values or no study yet.";
   return text;
 }
-/** Where on Inputs a reason the step bar gives is settled (`?tab=`), the form that adds what is missing and the second
- *  way where there are: null for a reason that is not a model check (the step's own sentence). */
-export function stepWhere(raw: string): { area: Tab; name: string; fix: string; add?: Way & { name: string }; or?: Way & { name: string } } | null {
+/** Where on Inputs a reason the step bar gives is settled (`?tab=`), with the other ways where there are (a tablet
+ *  study's formulation: those that fit what the project holds, `formulation` as the API reads it, `formulationWays`):
+ *  null for a reason that is not a model check (the step's own sentence). */
+export function stepWhere(raw: string, formulation?: FormulationWay | null): {
+  area: Tab; name: string; waiting: string; situation: string; fix: string; ways: WayLink[];
+} | null {
   const known = CHECKS[checkKey(raw)];
   if (!known) return null;
-  return { area: known.area, name: AREA_NAME[known.area], fix: known.fix,
-           ...(known.add ? { add: { ...known.add, name: AREA_NAME[known.add.area] } } : {}),
-           ...(known.or ? { or: { ...known.or, name: AREA_NAME[known.or.area] } } : {}) };
+  if (checkKey(raw) === FORMULATIONS) return { area: known.area, name: AREA_NAME[known.area], ...formulationWays(formulation) };
+  return { area: known.area, name: AREA_NAME[known.area], waiting: known.waiting, situation: "", fix: known.fix, ways: [] };
 }
 /** The URL of an area of Inputs, or of another way to settle a check there (`?tab=<area>&<query>`). */
 export const inputsHref = (projectId: string, way: Pick<Way, "area" | "query">) =>

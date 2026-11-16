@@ -24,6 +24,7 @@ from modeler_project.brief import (
     risk_check,
 )
 from modeler_project.feasibility import scope_gates
+from modeler_project.formulation_way import FormulationWay, formulation_way
 from modeler_project.map_artifact import latest_map
 from modeler_project.workspace import Workspace
 from pbpk_domain.acceptance import loosest_internal_target
@@ -43,10 +44,13 @@ class Step(BaseModel):
     label: str
     state: StepState
     reasons: tuple[str, ...] = ()
+    # Inputs, while a tablet study has no formulation: what gives it one as the project stands (`formulation_way`), so
+    # the step bar and Review & sign name that lever, not one that does not fit (final review round 4)
+    formulation: FormulationWay | None = None
 
 
-def _step(step: StepId, state: StepState, *reasons: str) -> Step:
-    return Step(step=step, label=STEP_LABELS[step], state=state, reasons=tuple(reasons))
+def _step(step: StepId, state: StepState, *reasons: str, formulation: FormulationWay | None = None) -> Step:
+    return Step(step=step, label=STEP_LABELS[step], state=state, reasons=tuple(reasons), formulation=formulation)
 
 
 # What a person wrote or kept (an agent's or a document's value waits on them where Start asks for a person's word)
@@ -148,8 +152,10 @@ def inputs_step(ws: Workspace) -> Step:
         return _step("inputs", "needs_you", "The inputs changed since they were last checked: check them again")
     content = version.content
     if not content.get("ready"):
-        failing = [c["check"] for c in content.get("checks", []) if not c.get("ok")]
-        return _step("inputs", "needs_you", *(failing or ["The inputs are not ready to run"]))
+        failing = [c for c in content.get("checks", []) if not c.get("ok")]
+        solid = next((c for c in failing if c["check"] == "formulations of solid studies"), None)
+        return _step("inputs", "needs_you", *([c["check"] for c in failing] or ["The inputs are not ready to run"]),
+                     formulation=formulation_way(ws, solid.get("detail", [])) if solid else None)
     return _step("inputs", "done")
 
 

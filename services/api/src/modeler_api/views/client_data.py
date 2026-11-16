@@ -310,6 +310,10 @@ class ReviewGroup(View):
     # a study or product the delivery blinds (D-15): its facts' values withheld, the digits of its items, options and
     # notes masked, a draft's answers and offers left out; it is not finished or confirmed until the MAP is signed
     blinded: bool
+    # why, in words (round 4): the delivery's reason for the study it is joined to ("it is entered for external validation
+    # on its card"), or why the project's blinding list holds the study of its name ("the project's blinding list names
+    # it (study X): the plan places it in S5 (external validation)"); None when it is not blinded
+    blinded_why: str | None = None
 
 
 class ClientReviewPage(View):

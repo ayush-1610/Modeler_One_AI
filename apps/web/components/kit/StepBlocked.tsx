@@ -43,16 +43,15 @@ export function StepBlocked({ projectId, step, title, detail, fallback, testId }
           {waiting.reasons.length > 0 && (
             <ul data-testid="step-blocked-reasons">
               {waiting.reasons.map((r) => {
-                const at = waiting.step === "inputs" ? stepWhere(r) : null;
+                const at = waiting.step === "inputs" ? stepWhere(r, waiting.formulation) : null;
                 return (
                   <li key={r} data-testid={at ? `step-blocked-check-${at.area}` : undefined}>
-                    {at ? <><Link href={inputsHref(projectId, at)}>{capital(stepReason(r))}</Link>: {at.fix}
-                      {/* its other ways, as the step bar says them: "(add a product on Products and dissolution, or ask the
-                          client on To do)", each opening its form or its line (round 3, gap 11) */}
-                      {(at.add || at.or) && <> (
-                        {at.add && <><Link href={inputsHref(projectId, at.add)} data-testid="step-blocked-add">{at.add.say}</Link> on {at.add.name}</>}
-                        {at.add && at.or && ", or "}
-                        {at.or && <><Link href={inputsHref(projectId, at.or)} data-testid="step-blocked-or">{at.or.say}</Link> on {at.or.name}</>})</>}</>
+                    {/* a check with other ways says the situation, then each way as a link where it is done ("no product is
+                        here; add a product on Products and dissolution, or ask the client on To do"), the lever that fits
+                        what the project holds (round 4: lib/words.ts `formulationWays`); else what to do, in a sentence */}
+                    {at ? <><Link href={inputsHref(projectId, at)}>{capital(at.waiting)}</Link>: {at.ways.length ? <>{at.situation}; {at.ways.map((w, j) => (
+                      <span key={w.id}>{j > 0 && ", or "}<Link href={inputsHref(projectId, w)} data-testid={`step-blocked-${w.id === "ask" ? "or" : w.id}`}>{w.say}</Link> on {w.name}</span>
+                    ))}.</> : at.fix}</>
                       : capital(stepReason(r))}
                   </li>
                 );

@@ -8069,6 +8069,27 @@ export interface components {
          */
         FormulationKind: "solution" | "suspension" | "ir_tablet" | "ir_capsule" | "mr" | "other";
         /**
+         * FormulationWayView
+         * @description What gives a tablet study its formulation as the project stands (`modeler_project.formulation_way`): use a
+         *     product's dissolution profile as its release (`products`: those whose profile can), add a product's dissolution data
+         *     (`products`: those here), add a product (none is here), or choose the formulation a study used (several are in the
+         *     model). `studies`: the tablet studies it is for; `ready`: the first product's profile can be used now (its product's
+         *     dissolution data confirmed), else they are confirmed first.
+         */
+        FormulationWayView: {
+            /** Products */
+            products: string[];
+            /** Ready */
+            ready: boolean;
+            /** Studies */
+            studies: string[];
+            /**
+             * Way
+             * @enum {string}
+             */
+            way: "use_profile" | "add_dissolution" | "add_product" | "choose";
+        };
+        /**
          * GiveProjects
          * @description `to`: who receives them (someone who has signed in to the company); `from_`: whose projects they are, or empty
          *     for every project of the company (those made before memberships were kept, or outside the web, included).
@@ -11188,6 +11209,8 @@ export interface components {
         ReviewGroup: {
             /** Blinded */
             blinded: boolean;
+            /** Blinded Why */
+            blinded_why?: string | null;
             /** Confirmed At */
             confirmed_at: string | null;
             /** Confirmed By */
@@ -12179,9 +12202,11 @@ export interface components {
         Statistic: "individual" | "mean_sd" | "mean";
         /**
          * StepRow
-         * @description One step of the redesigned flow (Start, Inputs, Review & sign, Run) and what it waits on.
+         * @description One step of the redesigned flow (Start, Inputs, Review & sign, Run) and what it waits on; Inputs, while a tablet
+         *     study has no formulation, with the lever that gives it one (the step bar and Review & sign name it: round 4).
          */
         StepRow: {
+            formulation?: components["schemas"]["FormulationWayView"] | null;
             /** Label */
             label: string;
             /** Reasons */

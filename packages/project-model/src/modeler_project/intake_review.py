@@ -1850,7 +1850,9 @@ def blinded_why(ws: Workspace, project: dict[str, Any] | None, model_risk: str |
     the Delivery landed is one of `blinding.blinded_studies` (the plan put it in S5 or S6, or it was entered for external
     validation: "the project's blinding list holds a dataset loaded from it"), and every study the sheet form read as
     one of those: the study of the same name, or one of whose client-review groups (`legacy_groups`) is (final review
-    INT-2: one rule for both readers of the same data; "the project's blinding list names it"). A name is matched
+    INT-2: one rule for both readers of the same data; "the project's blinding list names it"). A reason that is the
+    list's ends with why the list holds the study (`blinding.listed_why`: ": the plan places it in S5 (external
+    validation)"; round 4). A name is matched
     whole on its key (`blinding.study_key`: case, spaces and punctuation aside), never as a prefix or a part: "Study 1"
     on the list does not blind "Study 10" (round 3: the card says why, so a wrong match is seen). Empty when blinding is
     off or a MAP is signed."""
@@ -1863,8 +1865,10 @@ def blinded_why(ws: Workspace, project: dict[str, Any] | None, model_risk: str |
         use = read_choice("intended_use", str(value.value)) or str(value.value)
         if value.entity.study and use in blinding.EXTERNAL_PURPOSES:
             out.setdefault(value.entity.study, f"it is entered for {use_words(use)} on its card")
-    hidden = blinding.blinded_studies(ws, project, model_risk)
-    if hidden:
+    # the project's list, each study with why it is on it (round 4: the reason names the list's own, so a person sees why
+    # the list holds the study, not only that it does)
+    reasons = blinding.listed_why(ws, project, model_risk)
+    if reasons:
         by_confirmation = {c.id: c for c in confirmations(ws) if c.subject_type == "study"}
         for line in _lines(store, "landed"):
             done = Landed.model_validate(line.body)
@@ -1874,19 +1878,20 @@ def blinded_why(ws: Workspace, project: dict[str, Any] | None, model_risk: str |
                 continue
             for dataset_id in done.datasets:
                 found = dataset_of(ws, dataset_id)
-                if found is not None and str(found.study.get("study_id")) in hidden:
-                    out.setdefault(entity.id, f"the project's blinding list holds a dataset loaded from it (study {found.study.get('study_id')})")
-        listed = {blinding.study_key(s): str(s) for s in sorted(hidden, key=str)}
+                sid = str(found.study.get("study_id")) if found is not None else ""
+                if found is not None and sid in reasons:
+                    out.setdefault(entity.id, f"the project's blinding list holds a dataset loaded from it (study {sid}): {reasons[sid]}")
+        listed = {blinding.study_key(s): str(s) for s in sorted(reasons, key=str)}
         for row in subjects(ws, reader=reader):
             if row["subject_type"] != "study" or row["subject"] in out:
                 continue
             if (name := listed.get(blinding.study_key(row["label"]))) is not None:
-                out[row["subject"]] = f"the project's blinding list names it (study {name})"
+                out[row["subject"]] = f"the project's blinding list names it (study {name}): {reasons[name]}"
                 continue
             read_as = [g.partition(":")[2] for g in row["legacy_groups"] if g.startswith("study:")]
             if (match := next((n for n in read_as if blinding.study_key(n) in listed), None)) is not None:
-                out[row["subject"]] = (f"the project's blinding list names it: the sheet form read it as study "
-                                       f"{listed[blinding.study_key(match)]}")
+                name = listed[blinding.study_key(match)]
+                out[row["subject"]] = f"the project's blinding list names it (the sheet form read it as study {name}): {reasons[name]}"
     return out
 
 

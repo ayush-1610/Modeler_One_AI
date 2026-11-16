@@ -12,8 +12,8 @@
 
 import type { Schema } from "./api";
 import {
-  AREA_NAME, STATUS_WORD, type Status, type Tab, UNREADABLE, checkFix, checkLabel, factText, formulationParts, individualNeeds, layoutOrigin,
-  placeText, plural,
+  AREA_NAME, type FormulationWay, STATUS_WORD, type Status, type Tab, UNREADABLE, checkFix, checkLabel, factText, formulationParts,
+  formulationWays, individualNeeds, layoutOrigin, placeText, plural,
   tableKindText, todoLabel, whenText, whereIs,
 } from "./words";
 
@@ -24,8 +24,15 @@ type ReviewPage = Schema<"ClientReviewPage">;
 type ReviewGroup = Schema<"ReviewGroup">;
 type ReviewItem = Schema<"ReviewItem">;
 
-/** An open item of the /inputs to-do (components/inputs/InputsTodo.tsx `TodoItem`), as far as the work model reads it. */
-export type TodoLike = { kind: string; target: string; message: string; tab?: string; dataset_id?: string | null; details?: string[] };
+/** A line of what the client is asked for (the delivery's `request`, and the formulation item's `ask`). */
+export type RequestLike = { req_id: string; what: string; why: string; required: boolean };
+/** An open item of the /inputs to-do (components/inputs/InputsTodo.tsx `TodoItem`), as far as the work model reads it;
+ *  the formulation item carries what gives a tablet study its formulation as the project stands (`way`) and, with no
+ *  product here at all, what the client is asked for each such study (`ask`: round 4). */
+export type TodoLike = {
+  kind: string; target: string; message: string; tab?: string; dataset_id?: string | null; details?: string[];
+  way?: FormulationWay | null; ask?: RequestLike[];
+};
 /** The /inputs page, as far as the work model reads it. */
 export type InputsLike = {
   todo: TodoLike[];
@@ -445,11 +452,6 @@ export function buildWork(sources: WorkSources): WorkModel {
 
   // 4–5 · the /inputs to-do: what no source gives (missing), and the choices on the compound's values
   const toConfirmStudies = subjects.some((s) => s.kind === "study" && !s.done);
-  // the one product whose release a tablet study needs (final review OWN-10): the formulation item opens its card, where
-  // "Use this profile as the release" is the card's first action, and the card counts it as open work
-  const releaseNeeded = subjects.filter((s) => s.kind === "product" && !releaseOf(s, inputs).name && releaseOf(s, inputs).needed);
-  // no product of the client's here: the product comes first, or the client is asked (round 3, owner-job gap 11)
-  const noProduct = !subjects.some((s) => s.kind === "product");
   for (const t of inputs?.todo ?? []) {
     if (t.kind === "confirm") continue;                      // a group to confirm is its subject's card, below
     if (t.kind === "check") continue;                        // the software build is a model check
@@ -457,16 +459,21 @@ export function buildWork(sources: WorkSources): WorkModel {
     const decide = DECIDE.has(t.kind);
     const tab = (t.tab ?? "compound") as Tab;
     const blinded = (t.kind === "regimen" || t.kind === "demographics") && blindedStudies.has(normLabel(t.target));
-    const product = t.kind === "formulation" && releaseNeeded.length === 1 ? releaseNeeded[0] : null;
+    // a tablet study's missing formulation (final review OWN-10, round 4): what gives it one as the project stands (`way`,
+    // the step bar's too) says where the item opens: the card of the first product whose dissolution profile can give the
+    // release (or whose dissolution data are to add), at its release; it is that card's own work when it is the only one
+    const way = t.kind === "formulation" ? formulationWays(t.way) : null;
+    const lever = t.kind === "formulation" && (t.way?.way === "use_profile" || t.way?.way === "add_dissolution") ? t.way : null;
+    const product = lever ? productFor(subjects, lever.products[0]) : null;
     add({
       id: `todo:${t.kind}:${t.target}`, group: decide ? "disagree" : "missing", status: decide ? "to_decide" : "missing", area: tab,
       label: todoLabel(t.kind, t.target), pipeline: "inputs",
       where: product ? { tab: product.area, anchor: releaseAnchor(product), subject: product.row ? `${product.row.subject_type}/${product.row.subject}` : undefined }
         : { tab, anchor: `todo-${t.kind}-${t.target}` },
-      detail: product ? `Use the dissolution profile of ${product.label} as its release, on its card.`
-        : t.kind === "formulation" && noProduct ? NO_PRODUCT : undefined,
-      blocked: blinded ? "Blinded until the plan is signed: its facts are set afterwards." : undefined,
-      files: [], subjects: product ? [product.key] : [], weight: 1, todo: t,
+      detail: way?.ways.length ? way.fix : undefined,
+      blocked: blinded ? blindedText(subjects.find((s) => s.kind === "study" && normLabel(s.label) === normLabel(t.target)) ?? { row: null, groups: [] },
+                                     ": its facts are set afterwards.") : undefined,
+      files: [], subjects: product && lever!.products.length === 1 ? [product.key] : [], weight: 1, todo: t,
     });
   }
 
@@ -485,14 +492,14 @@ export function buildWork(sources: WorkSources): WorkModel {
               files: s.files, subjects: [s.key], weight: 1, issue: { group: g.id, issue: issue.id } });
       }
       if (s.path === "delivery") continue;
-      for (const i of g.items.filter((x) => x.kind === "draft")) draftItem(add, g, i, `${KIND_WORD[s.kind]} ${s.label}`, [s.key], s.blinded, fileOf, also);
+      for (const i of g.items.filter((x) => x.kind === "draft")) draftItem(add, g, i, `${KIND_WORD[s.kind]} ${s.label}`, [s.key], s.blinded ? blindedText(s, ".") : undefined, fileOf, also);
     }
   }
   // a sheet whose study or product is not stated yet: its card asks for it, and its data join that card once read. A
   // sheet whose file a person linked to a study or product on the delivery is that card's (joined above): not asked again
   const joinedSheets = new Set(subjects.flatMap((s) => s.groups.map((g) => g.id)));
   for (const g of (review?.groups ?? []).filter((x) => x.kind === "sheet" && x.state === "to_confirm" && !joinedSheets.has(x.id))) {
-    for (const i of g.items.filter((x) => x.kind === "draft")) draftItem(add, g, i, g.title, [], false, fileOf);
+    for (const i of g.items.filter((x) => x.kind === "draft")) draftItem(add, g, i, g.title, [], undefined, fileOf);
   }
 
   // what holds up a delivery subject's signature on its own card (plan §2 rule 1, "each card's blockers"; §2.1: rows
@@ -651,25 +658,26 @@ export function buildWork(sources: WorkSources): WorkModel {
   const listed = items.filter((i) => i.status !== "done" && i.todo).map((i) => i.todo as TodoLike);
   const said = (raw: string) => listed.some((t) => CHECK_TODO[checkKeyOf(raw)]?.(t) ?? false)
     || (checkKeyOf(raw) === "observed data to judge on" && toConfirmStudies);
+  const formulation = (inputs?.todo ?? []).find((t) => t.kind === "formulation");
   const checks = (inputs?.readiness?.content?.checks ?? []).map((c) => ({
-    raw: c.check, label: checkLabel(c.check, c.detail, c.ok), ok: c.ok, detail: c.detail, fix: checkFix(c.check),
+    raw: c.check, label: checkLabel(c.check, c.detail, c.ok), ok: c.ok, detail: c.detail, fix: checkFix(c.check, formulation?.way),
     said: !c.ok && said(c.check),
   }));
   return {
-    items, subjects, counts, byArea, byFile, fileWork, next: open[0] ?? null, ask: askLines(delivery), checks,
+    items, subjects, counts, byArea, byFile, fileWork, next: open[0] ?? null, ask: askLines(delivery, inputs), checks,
     inModel: inModel(inputs, delivery), ready: !open.length && !checking && Boolean(inputs?.readiness?.content?.ready), checking,
   };
 }
 
 function draftItem(add: (i: Omit<WorkItem, "open">) => void, g: ReviewGroup, i: ReviewItem, name: string, subjects: string[],
-                   blinded: boolean, fileOf: (sha: string) => string, detail?: string) {
+                   blinded: string | undefined, fileOf: (sha: string) => string, detail?: string) {
   const draft = i.draft as { sid?: string; needs?: string[]; labels?: Record<string, string> } | null | undefined;
   const needs = (draft?.needs ?? []).map((n) => draft?.labels?.[n] ?? n.replace(/_/g, " "));
   const sha = (i.source as { doc_sha256?: string | null } | null | undefined)?.doc_sha256;
   add({ id: `draft:${i.id}`, group: "missing", status: "missing", area: g.tab as Tab, pipeline: "sheet-form",
         label: g.kind === "sheet" ? `${i.label}: ${needs.length ? `not stated: ${needs.join(", ")}` : "to read"}`
           : `${name} · ${i.label}: ${needs.length ? `not stated: ${needs.join(", ")}` : "to read"}`,
-        where: { tab: g.tab as Tab, anchor: `group-${g.id}` }, blocked: blinded ? "Blinded until the plan is signed." : undefined, detail,
+        where: { tab: g.tab as Tab, anchor: `group-${g.id}` }, blocked: blinded, detail,
         files: draft?.sid ? [draft.sid] : sha ? [fileOf(sha)] : [], subjects, weight: 1 });
 }
 
@@ -815,25 +823,38 @@ export function releaseOf(s: Pick<Subject, "label" | "aliases">, inputs: InputsL
 /** Where a product's card says its release, and offers to set it. */
 export const releaseAnchor = (s: Pick<Subject, "key">) => `card-release-${s.key}`;
 
-/** What the formulation item says when no product of the client's is here (round 3, owner-job gap 11): the lever is the
- *  product, added on Products and dissolution, or the client, asked under "Ask the client". */
-export const NO_PRODUCT = "No product is here to give it a release: add the product the study used (“Add a product”, on Products and "
-  + "dissolution) with its dissolution data, or ask the client for them (“Ask the client”, on To do).";
+/** A product's names as two readers give them, as the join compares them: its card's, the other names it was read under
+ *  and its sheet-form groups' titles (what a dissolution profile's product is matched to, `ProductCard.productOf`). */
+export const productNames = (s: Pick<Subject, "label" | "aliases" | "groups">) =>
+  new Set([s.label, ...s.aliases, ...s.groups.map((g) => g.title.replace(/^Product /, ""))].map(normLabel));
+/** The card of the product of this name (the API names a product as its reader gave it), if it has one. */
+export const productFor = (subjects: Subject[], name: string | null | undefined): Subject | null =>
+  (name ? subjects.find((s) => s.kind === "product" && productNames(s).has(normLabel(name))) ?? null : null);
 
-/** Why a subject waits until the plan is signed, in words: the delivery says why it is blinded (`blinded_why`: "the
- *  project's blinding list names it (study X)"), so a wrong match is seen on its row too (round 3). */
-export const blindedText = (s: Pick<Subject, "row">, after: string) =>
-  `Blinded until the plan is signed${s.row?.blinded_why ? `, because ${s.row.blinded_why}` : ""}${after}`;
+/** Why a subject waits until the plan is signed, in words (`blinded_why`): the delivery's reason for its card, else the
+ *  reason the sheet form's group of it is withheld (the delivery's, or the project's blinding list's: "the plan holds it
+ *  back for external validation"), so a wrong match is seen wherever it is withheld (rounds 3 and 4). */
+export const blindedWhy = (s: Pick<Subject, "row" | "groups">): string | null =>
+  s.row?.blinded_why ?? s.groups.find((g) => g.blinded && g.blinded_why)?.blinded_why ?? null;
+/** "Blinded until the plan is signed, because …" with what follows (`after`). */
+export const blindedText = (s: Pick<Subject, "row" | "groups">, after: string) => {
+  const why = blindedWhy(s);
+  return `Blinded until the plan is signed${why ? `, because ${why}` : ""}${after}`;
+};
 
-/** What only the client can send, one line per requirement with the subjects it is asked for. */
-export function askLines(delivery: DeliveryPage | null): AskLine[] {
+/** What only the client can send, one line per requirement with the subjects it is asked for: the delivery's request and
+ *  the formulation item's (`ask`: a tablet study the sheet form loaded, with no product here at all: round 4), one line per
+ *  requirement and wording, each study named once whichever path asks it. */
+export function askLines(delivery: DeliveryPage | null, inputs: InputsLike | null = null): AskLine[] {
   const out = new Map<string, AskLine>();
-  for (const line of delivery?.enabled ? delivery.request : []) {
+  const lines: RequestLike[] = [...(delivery?.enabled ? delivery.request : []),
+                                ...(inputs?.todo ?? []).filter((t) => t.kind === "formulation").flatMap((t) => t.ask ?? [])];
+  for (const line of lines) {
     const [what, subject] = line.what.split(" — ");
     const key = `${line.req_id}|${what}`;
     const known = out.get(key) ?? { req: line.req_id, what, subjects: [], required: line.required, why: line.why };
     const name = subject?.replace(/^(study|product) /, "");
-    if (name && !known.subjects.includes(name)) known.subjects.push(name);
+    if (name && !known.subjects.some((n) => normLabel(n) === normLabel(name))) known.subjects.push(name);
     known.required ||= line.required;
     out.set(key, known);
   }

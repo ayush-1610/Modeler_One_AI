@@ -6,7 +6,7 @@
 // report's page lines (no peek) and the workbook's blinded sheet; the digitizer neither offers nor draws the report, and
 // its original is not served. Software test data (the made-up Exampleamide), never a model.
 import { execFileSync } from "node:child_process";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -74,6 +74,9 @@ test("a study the delivery blinds shows no value, reason digit, page line or she
   const howRead = body.locator('[data-testid^="how-read-"]').first();
   await howRead.locator("summary").click();
   await expect(body.locator('[data-testid^="how-read-withheld-"]')).toContainText("Withheld: the study is blinded until the plan is signed");
+  // the reading's withheld line says why too, and so does the list's chip (round 4: wherever it is withheld)
+  await expect(body.locator('[data-testid^="how-read-withheld-"]')).toContainText(", because it is entered for external validation on its card,");
+  await expect(page.locator('[data-testid^="study-blinded-why-"]').filter({ hasText: "entered for external validation" })).toHaveCount(2);
   await expect(page.locator("body")).not.toContainText("35.6");
   await page.screenshot({ path: test.info().outputPath("1-blinded-card.png"), fullPage: true });
 
@@ -123,4 +126,48 @@ test("a study the delivery blinds shows no value, reason digit, page line or she
   expect(await review.text()).not.toContain("35.6");
   const trail = await request.get(`${api}/audit?limit=2000`, { headers: AUTH });
   expect(await trail.text()).not.toContain("35.6");
+});
+
+// Round 4 (round 3's skeptic, blinding scope b): a study confirmed with the sheet form (a filled client-data template's)
+// that is blinded says why on its card's visible withheld line and in the list, not only in the closed "How the files
+// were read" fold: the group's own reason (`blinded_why`), from the delivery's card where the study has one.
+test("a template study blinded on its delivery card says why on its sheet-form card and in the list", async ({ page, request }) => {
+  const dir = mkdtempSync(join(tmpdir(), "blinded-template-"));
+  execFileSync("uv", ["run", "python", join(__dirname, "fixtures", "client_workbooks.py"), dir], { cwd: REPO });
+  const started = await request.post("/api/v1/projects:initiate", { headers: AUTH, multipart: {
+    drug_name: "Clientamide", extract: "false",
+    files: { name: "proposal.md", mimeType: "text/markdown", buffer: Buffer.from("# Proposal\nOral 10 mg tablet.") } } });
+  const projectId = (await started.json()).data.project_id as string;
+  await finishStart(request, projectId);
+  const api = `/api/v1/projects/${projectId}`;
+  expect((await request.post(`${api}/requirements:derive`, { headers: AUTH })).ok()).toBeTruthy();
+  const up = await request.post(`${api}/client-data`, { headers: AUTH, multipart: {
+    files: { name: "client-template-filled.xlsx", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+             buffer: readFileSync(join(dir, "client-template-filled.xlsx")) } } });
+  expect(up.status(), await up.text()).toBe(201);
+  const on = await request.put(`${api}/blinding`, { headers: AUTH, data: { on: true, reason: "external validation is blinded until the MAP is signed" } });
+  expect(on.ok(), await on.text()).toBeTruthy();
+  // the delivery holds the template's study too (confirmed with the sheet form): entered for external validation there
+  let study: { subject: string; label: string; confirm_on: string } | undefined;
+  for (let i = 0; i < 60 && !study; i++) {
+    const page_ = (await (await request.get(`${api}/delivery`, { headers: AUTH })).json()).data as
+      { running: boolean; subjects: { subject: string; label: string; confirm_on: string; subject_type: string }[] };
+    study = page_.running ? undefined : page_.subjects.find((s) => s.subject_type === "study" && s.label === "CL-01");
+    if (!study) await page.waitForTimeout(1000);
+  }
+  expect(study?.confirm_on).toBe("client-review");
+  const entered = await request.post(`${api}/delivery/subjects/study/${study!.subject}:enter`, { headers: AUTH,
+    data: { field: "intended_use", value: "external_validation", why: "kept for external validation" } });
+  expect(entered.ok(), await entered.text()).toBeTruthy();
+  const group = ((await (await request.get(`${api}/client-review`, { headers: AUTH })).json()).data.groups as
+    { id: string; blinded: boolean; blinded_why: string | null }[]).find((g) => g.id === "study:CL-01")!;
+  expect(group).toMatchObject({ blinded: true, blinded_why: "it is entered for external validation on its card" });
+
+  await page.goto(`/projects/${projectId}/inputs?tab=studies`);
+  await expect(page.getByTestId("study-blinded-why-study:CL-01")).toHaveText("because it is entered for external validation on its card");
+  const toggle = page.getByTestId("toggle-study:CL-01");
+  if ((await toggle.getAttribute("aria-expanded")) !== "true") await toggle.click();
+  await expect(page.getByTestId("group-withheld-study:CL-01")).toContainText(
+    "Withheld: study CL-01 is blinded until the plan is signed, because it is entered for external validation on its card.");
+  await page.screenshot({ path: test.info().outputPath("4-template-study-withheld-why.png"), fullPage: true });
 });

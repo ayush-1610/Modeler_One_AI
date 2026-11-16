@@ -36,13 +36,16 @@ class BlindedSources:
     """What is withheld now. `groups`: client-review group ids; `names`: "<kind>:<study_key>" of a blinded study or
     product (a group of that name is withheld); `files`: sha256s; `sheets`: the sheets of each workbook (by sha256);
     `by`: the blinded studies whose values each file holds (by sha256: a study's id as its dataset or card names it),
-    what the page says a file is withheld for."""
+    what the page says a file is withheld for; `why`: why a group is withheld, in words, by its id or its name (as
+    `groups` and `names` key it): the delivery's reason for the study it is joined to (`intake_review.blinded_why`), or
+    why the project's blinding list holds the study of its name (`blinding.external_why`; round 4)."""
 
     groups: frozenset[str] = frozenset()
     names: frozenset[str] = frozenset()
     files: frozenset[str] = frozenset()
     sheets: Mapping[str, frozenset[str]] = field(default_factory=dict)
     by: Mapping[str, frozenset[str]] = field(default_factory=dict)
+    why: Mapping[str, str] = field(default_factory=dict)
 
     def studies(self, sha256: str | None) -> list[str]:
         """The blinded studies a withheld file holds the values of, in order ([] for a file that is not withheld)."""
@@ -52,6 +55,14 @@ class BlindedSources:
         gid = str(group["id"])
         kind, _sep, name = gid.partition(":")
         return gid in self.groups or f"{kind}:{blinding.study_key(name)}" in self.names
+
+    def reason(self, group: Mapping[str, Any]) -> str | None:
+        """Why a withheld group is withheld, in words (None for a group that is not)."""
+        if not self.group(group):
+            return None
+        gid = str(group["id"])
+        kind, _sep, name = gid.partition(":")
+        return self.why.get(gid) or self.why.get(f"{kind}:{blinding.study_key(name)}")
 
     def sheet(self, sha256: str, sheet: str) -> bool:
         return sheet in self.sheets.get(sha256, ())
@@ -78,12 +89,17 @@ def blinded_sources(ws: Workspace, project: dict[str, Any] | None, model_risk: s
                     delivery: bool) -> BlindedSources:
     """What D-15 withholds now (empty when blinding is off or a MAP is signed). `delivery`: the intake pipeline runs
     (its rule joins the project's)."""
-    listed = blinding.blinded_studies(ws, project, model_risk)
-    hidden = delivery_review.blinded_subjects(ws, project, model_risk) if delivery else set()
+    listed_why = blinding.listed_why(ws, project, model_risk)
+    hidden_why = delivery_review.blinded_why(ws, project, model_risk) if delivery else {}
+    listed, hidden = set(listed_why), set(hidden_why)
     if not listed and not hidden:
         return BlindedSources()
     groups: set[str] = set()
     names = {f"study:{blinding.study_key(s)}" for s in listed}
+    # why each is withheld (round 4: the sheet form's card says it, as the delivery's does): the list's reason by the
+    # study's name, the delivery's (which names the list's where it is the list's) by its name and its joined groups
+    why = {f"study:{blinding.study_key(s)}": f"the project's blinding list names it (study {s}): {listed_why[s]}"
+           for s in sorted(listed, key=str)}
     files: set[str] = set()
     sheets: dict[str, set[str]] = {}
     by: dict[str, set[str]] = {}
@@ -119,8 +135,14 @@ def blinded_sources(ws: Workspace, project: dict[str, Any] | None, model_risk: s
                 by.setdefault(value.file_sha256, set()).add(entity.label if entity is not None else value.entity.study)
         for row in delivery_review.subjects(ws, reader=reader):
             if row["subject_type"] != "compound" and delivery_review.is_blinded(reader, row["subject_type"], row["subject"], hidden):
-                names.add(f"{row['subject_type']}:{blinding.study_key(row['label'])}")
+                name = f"{row['subject_type']}:{blinding.study_key(row['label'])}"
+                names.add(name)
                 groups.update(row["legacy_groups"])
+                reason = (hidden_why.get(row["subject"]) if row["subject_type"] == "study"
+                          else "it holds the values of a blinded study")
+                if reason:
+                    why[name] = reason
+                    why.update({gid: reason for gid in row["legacy_groups"]})
     return BlindedSources(groups=frozenset(groups), names=frozenset(names), files=frozenset(files),
                           sheets={sha: frozenset(on) for sha, on in sheets.items()},
-                          by={sha: frozenset(found) for sha, found in by.items()})
+                          by={sha: frozenset(found) for sha, found in by.items()}, why=why)

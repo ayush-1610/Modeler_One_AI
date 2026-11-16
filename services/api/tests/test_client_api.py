@@ -184,6 +184,90 @@ def test_dissolution_profiles_are_shown_and_a_fit_is_proposed_as_a_release_model
     assert bad.status_code == 422 and "no dots" in bad.json()["detail"]
 
 
+@pytest.mark.req("T-48")
+def test_the_lever_for_a_tablet_studys_formulation_follows_what_the_project_holds(setup):
+    """Final review round 4: the step bar named "add a product" whatever the project held. What gives a tablet study its
+    formulation is read from the project (`formulation_way`) and carried by the Inputs step and To do's formulation item:
+    no product here (add one, or ask the client: the item carries the client request's line for the study the sheet form
+    loaded), a product with no profile (its dissolution data), a profile that can give the release (use it), and none once
+    the release is set."""
+    from modeler_project.study_requirements import UNNAMED_PRODUCT
+
+    c, _ws = setup
+    wb = load_workbook(io.BytesIO(c.get("/api/v1/client-data/template.xlsx", headers=H).content))
+    header = [x.value.rstrip("*") for x in wb["Studies"][1]]
+    values = {"study_id": "CL-1", "design": "SD", "population": "healthy", "n": 12, "route": "oral", "dose": 10,
+              "dose_unit": "mg", "formulation": "ir_tablet", "food_state": "fasted"}
+    wb["Studies"].append([values.get(h) for h in header])
+    for t, v in ((0.5, 20.0), (1, 41.0), (2, 30.5), (4, 12.0)):
+        wb["PK_Summary"].append(["CL-1", None, t, "h", "arithmetic_mean", v, None, None, 12, "ng/ml"])
+    assert c.post("/api/v1/projects/p1/client-data", headers=H, files=[("files", ("client.xlsx", _save(wb), XLSX))]).status_code == 201
+    study = next(g for g in c.get("/api/v1/projects/p1/client-review", headers=H).json()["data"]["groups"] if g["id"] == "study:CL-1")
+    assert c.post("/api/v1/projects/p1/client-review:confirm", headers=H, json={"group": study["id"]}).status_code == 200
+
+    def way() -> tuple[dict | None, dict | None, list[dict]]:
+        assert c.post("/api/v1/projects/p1/inputs:assemble", headers=H).status_code == 200
+        inputs = next(s for s in c.get("/api/v1/projects/p1/steps", headers=H).json()["data"]["steps"] if s["step"] == "inputs")
+        item = next((t for t in c.get("/api/v1/projects/p1/inputs", headers=H).json()["data"]["todo"] if t["kind"] == "formulation"), None)
+        assert (item or {}).get("way") == inputs["formulation"]        # one reading for the step bar and To do
+        return inputs["formulation"], item, (item or {}).get("ask", [])
+
+    # no product here at all: add one, or ask the client, who is asked for the product of the study the sheet form loaded
+    lever, item, ask = way()
+    assert lever == {"way": "add_product", "products": [], "studies": ["CL-1"], "ready": True}
+    assert [(a["req_id"], a["what"], a["why"], a["required"]) for a in ask] == [
+        ("REQ-form.release", f"{UNNAMED_PRODUCT} — study CL-1", "the model itself", True)]
+    # a product the proposal names, with no dissolution data: its dissolution data, or the client; nothing asked twice
+    edit = {"changes": [{"path": "products[0].name", "status": "EDITED", "value": "Tab 10", "note": "the proposal"}], "reason": "product"}
+    assert c.put("/api/v1/projects/p1/brief", headers=H, json=edit).status_code == 200
+    lever, item, ask = way()
+    assert lever == {"way": "add_dissolution", "products": ["Tab 10"], "studies": ["CL-1"], "ready": True} and ask == []
+    # its dissolution profile is here and can give the release: use it (the profile's product first)
+    import numpy as np
+
+    from pbpk_domain.dissolution import weibull_fraction
+
+    diss = load_workbook(io.BytesIO(c.get("/api/v1/client-data/template.xlsx", headers=H).content))
+    times = (5, 10, 15, 20, 30, 45, 60)
+    for t, f in zip(times, weibull_fraction(np.array(times), 25.0, 1.1), strict=True):
+        diss["Dissolution"].append(["Tab 10", "TEST", 10, "B7", "USP 2 paddle", 50, "FaSSIF", 6.5, 500, 37, None, t, "min",
+                                    *[round(100 * float(f) + d, 2) for d in np.linspace(-1, 1, 12)]])
+    view = c.post("/api/v1/projects/p1/client-data", headers=H, files=[("files", ("diss.xlsx", _save(diss), XLSX))]).json()["data"]
+    lever, item, ask = way()
+    # its product's dissolution data are confirmed first (the profile is used only then): not ready
+    assert lever == {"way": "use_profile", "products": ["Tab 10"], "studies": ["CL-1"], "ready": False} and ask == []
+    product = next(g for g in c.get("/api/v1/projects/p1/client-review", headers=H).json()["data"]["groups"] if g["kind"] == "product")
+    assert c.post("/api/v1/projects/p1/client-review:confirm", headers=H, json={"group": product["id"]}).status_code == 200
+    lever, item, ask = way()
+    assert lever == {"way": "use_profile", "products": ["Tab 10"], "studies": ["CL-1"], "ready": True}
+    # once its fit is the release, the study has its formulation: no lever, no item
+    profile = view["dissolution"]["profiles"][0]
+    assert c.post(f"/api/v1/projects/p1/dissolution/{profile['id']}:propose", headers=H, json={"formulation": "Tab10"}).status_code == 201
+    lever, item, _ask = way()
+    assert lever is None and item is None
+
+
+def test_formulation_way_reads_each_problem_of_the_readiness_check(tmp_path):
+    """Round 4: the readiness check's problems name the lever: a study naming its formulation puts that product first;
+    several formulations and a study naming none is a choice; a formulation not complete has no lever."""
+    from modeler_project.formulation_way import formulation_way
+
+    ws = Workspace(FileProjectStore(tmp_path), "t1", "p1")
+    none = "CL-1: the study is a solid oral form but the CPF defines no formulation (form.{name}.type)"
+    named = "CL-2: the CPF defines no formulation 'Brand 5 mg' (form.Brand 5 mg.type)"
+    several = "CL-3: the study does not name its formulation and the CPF defines several: A, B"
+    weibull = "CL-4: Weibull formulation 'A' needs form.A.weibull.t50 (the in-vitro dissolution fit)"
+    assert formulation_way(ws, [none, named]).model_dump() == {"way": "add_product", "products": (), "studies": ("CL-1", "CL-2"), "ready": True}
+    assert formulation_way(ws, [several, weibull]).model_dump() == {"way": "choose", "products": (), "studies": ("CL-3",), "ready": True}
+    assert formulation_way(ws, [weibull]) is None
+    assert formulation_way(ws, []) is None
+    brief = empty_brief("Exampleamide", by="u1").to_content()
+    brief["groups"]["products"] = [{"name": {"value": "Test 5 mg", "status": "EDITED"}}, {"name": {"value": "Brand 5 mg", "status": "EDITED"}}]
+    ws.commit(ArtifactKind.BRIEF, "main", brief, actor="u1", reason="products")
+    assert formulation_way(ws, [none, named]).model_dump() == {"way": "add_dissolution", "products": ("Brand 5 mg", "Test 5 mg"),
+                                                              "studies": ("CL-1", "CL-2"), "ready": True}
+
+
 def _be_workbook() -> bytes:
     wb = Workbook()
     ws = wb.active

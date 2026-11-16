@@ -158,22 +158,45 @@ def unnamed_product_items(reader: LedgerReader, study: str, *, brief: ProjectBri
         return ()
     if release_here() if callable(release_here) else release_here:
         return ()
+    out: list[RequirementStatus] = []
+    for template, raw in _per_product_items(brief, matrix, rules):
+        base = dict(req_id=raw["id"], template=template, label=UNNAMED_PRODUCT, scope="study", subject=study,
+                    criticality=str(raw.get("criticality", "")), applies="yes")
+        disposition = _disposition(dispositions, reader, study, raw["id"])
+        out.append(RequirementStatus(**base, status=disposition.disposition, disposition=disposition.id)
+                   if disposition is not None else RequirementStatus(**base, status="missing"))
+    return tuple(out)
+
+
+def _per_product_items(brief: ProjectBrief | None, matrix: RequirementMatrix | None,
+                       rules: IntakeRules) -> list[tuple[str, dict[str, Any]]]:
+    """The per-product items (`per: solid_product`) of the core template and the templates the project's applications
+    select, each once with its template: what a tablet study with no product asks for (`unnamed_product_items`)."""
     codes = application_codes(_applications(brief, matrix))
     scoped = set(rules.routing.item_scope.get("product", ()))
-    out: dict[str, RequirementStatus] = {}
+    out: dict[str, tuple[str, dict[str, Any]]] = {}
     for template in load_templates():
         scope = template.get("applies_to")
         if template["id"] != rules.routing.core and not (scope != "all" and codes & set(scope or ())):
             continue
         for raw in template["items"]:
-            if raw["id"] not in scoped or raw.get("per") != "solid_product" or raw["id"] in out:
-                continue
-            base = dict(req_id=raw["id"], template=template["id"], label=UNNAMED_PRODUCT, scope="study", subject=study,
-                        criticality=str(raw.get("criticality", "")), applies="yes")
-            disposition = _disposition(dispositions, reader, study, raw["id"])
-            out[raw["id"]] = (RequirementStatus(**base, status=disposition.disposition, disposition=disposition.id)
-                              if disposition is not None else RequirementStatus(**base, status="missing"))
-    return tuple(out.values())
+            if raw["id"] in scoped and raw.get("per") == "solid_product" and raw["id"] not in out:
+                out[raw["id"]] = (template["id"], raw)
+    return list(out.values())
+
+
+def unnamed_product_request(studies: Sequence[str], *, brief: ProjectBrief | None, matrix: RequirementMatrix | None,
+                            rules: IntakeRules | None = None) -> list[RequestLine]:
+    """The client request's lines of `unnamed_product_items` for tablet studies read from the model's inputs, not from the
+    ledger (round 4, the owner-job gap 11's deviation): a solid oral study confirmed with the sheet form only, while no
+    product is here at all (`formulation_way` "add_product"), asks the client for its product's release as a delivery
+    study does ("The formulation or dissolution data of the product the study used (no file names the product) — study
+    X"). The same item, label and wording as the delivery's, so the page joins a study asked on both paths into one line."""
+    rules = rules or load_rules()
+    statuses = [RequirementStatus(req_id=raw["id"], template=template, label=UNNAMED_PRODUCT, scope="study", subject=study,
+                                  criticality=str(raw.get("criticality", "")), applies="yes", status="missing")
+                for study in studies for template, raw in _per_product_items(brief, matrix, rules)]
+    return request_lines(statuses, labels={study: study for study in studies})
 
 
 def request_lines(statuses: Iterable[RequirementStatus], *, labels: Mapping[str, str]) -> list[RequestLine]:

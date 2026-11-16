@@ -14,7 +14,7 @@ import { SortHeader, TableFilter, TableMore } from "@/components/kit/SortableTab
 import { SUBJECT } from "@/components/delivery/DeliveryReview";
 import { send, type Schema } from "@/lib/api";
 import { useResource, useResources } from "@/lib/hooks";
-import { normLabel, type Subject } from "@/lib/inputsWork";
+import { blindedWhy, normLabel, type Subject } from "@/lib/inputsWork";
 import { numericKey, ordinal, useTableView } from "@/lib/tableView";
 import { DESIGNS, DESIGN_TITLE, type Design, designOf, plural, valueWord } from "@/lib/words";
 
@@ -345,6 +345,8 @@ function StudyList({ subjects, studies, env, unpromised, only, onShow }: {
                   <strong className="card-title">{s.label}</strong>
                   {s.aliases.length > 0 && <div className="muted fs-12">also read as {s.aliases.join(", ")}</div>}
                   {s.blinded && <span className="chip neutral">blinded until the plan is signed</span>}
+                  {/* why, from the card's reason (round 4): a wrong name match is seen in the list too */}
+                  {s.blinded && blindedWhy(s) && <div className="muted fs-12" data-testid={`study-blinded-why-${s.key}`}>because {blindedWhy(s)}</div>}
                 </>
               ) },
               { key: "given", label: "How it is given", render: (s) => <span className="fs-13">{givenText(facts(s))}</span> },

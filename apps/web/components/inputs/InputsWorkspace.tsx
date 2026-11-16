@@ -12,12 +12,11 @@ import type { View as ClientView } from "@/components/client/types";
 import { Banner, PageShell } from "@/components/kit";
 import { TabPanel, Tabs } from "@/components/kit/Tabs";
 import { narrow, send, type Envelope, type Narrow, type Schema } from "@/lib/api";
-import type { BriefView } from "@/lib/brief";
 import { TAG_LABELS } from "@/lib/fileTags";
 import { HeldReads, readAgain, useMutation, useResource, type After } from "@/lib/hooks";
-import { areaHead, cardAnchor, type InputsLike, nextText, releaseOf, type Subject, type WorkItem } from "@/lib/inputsWork";
+import { areaHead, cardAnchor, type InputsLike, nextText, productFor, releaseAnchor, releaseOf, type Subject, type WorkItem } from "@/lib/inputsWork";
 import { type ArtifactView, STEP_ROUTES } from "@/lib/pipeline";
-import { AREA_NAME, ASK_FORMULATION, STATUS_MEANS, plural as count, valueWord } from "@/lib/words";
+import { AREA_NAME, ASK_FORMULATION, formulationWays, inputsHref, STATUS_MEANS, plural as count, valueWord } from "@/lib/words";
 
 import { AddDataMenu } from "./AddDataMenu";
 import { DOCUMENTS, FILES, MODEL, SEARCH, inputsAfter } from "./after";
@@ -150,12 +149,15 @@ export function InputsWorkspace(props: WorkspaceProps) {
   return <HeldReads><Workspace {...props} /></HeldReads>;
 }
 
-/** The step bar's say on Inputs, from the readiness the inputs answer with: its state and what it waits on
- *  (`modeler_project.steps.inputs_step`). */
-function stepSays(readiness: View["readiness"]): string | null {
+/** The step bar's say on Inputs, from the readiness the inputs answer with: its state, what it waits on
+ *  (`modeler_project.steps.inputs_step`) and the lever it names for a tablet study's formulation (round 4: a product or a
+ *  dissolution profile added changes it without changing the checks). */
+function stepSays(view: View): string | null {
+  const readiness = view.readiness;
   if (!readiness) return null;
   const failing = (readiness.content?.checks ?? []).filter((c) => !c.ok).map((c) => c.check);
-  return JSON.stringify([readiness.status, Boolean(readiness.content?.ready), failing]);
+  const way = (view.todo as TodoItem[]).find((t) => t.kind === "formulation")?.way ?? null;
+  return JSON.stringify([readiness.status, Boolean(readiness.content?.ready), failing, way]);
 }
 
 function Workspace({ projectId, initialTab, initialOnly, initialStatus, steps }: WorkspaceProps) {
@@ -197,8 +199,6 @@ function Workspace({ projectId, initialTab, initialOnly, initialStatus, steps }:
     },
   };
   const review = useResource("/api/v1/projects/{project_id}/client-review", { project_id: projectId });
-  // the products the proposal names (Products and dissolution lists them; one read with that list)
-  const proposal = useResource("/api/v1/projects/{project_id}/brief", { project_id: projectId }, { select: (d) => narrow<BriefView>(d) });
   const literature = useResource("/api/v1/projects/{project_id}/literature-run", { project_id: projectId },
     { poll: (d) => d.running, interval: 5000 });
   const queries = useQueryClient();
@@ -241,7 +241,9 @@ function Workspace({ projectId, initialTab, initialOnly, initialStatus, steps }:
     if (!urlAt || !shownNow) return;
     let tries = 0, timer = 0;
     const find = () => {
+      // a line of "Ask the client" is found by its requirement too when it is a product's ("todo-ask-REQ-form.release@<product>")
       const el = document.querySelector<HTMLElement>(`[data-testid="${CSS.escape(urlAt)}"]`)
+        ?? (urlAt.startsWith("todo-ask-") ? document.querySelector<HTMLElement>(`[data-testid^="${CSS.escape(`${urlAt}@`)}"]`) : null)
         ?? (urlAt.startsWith("todo-ask-") && tries > 10 ? document.querySelector<HTMLElement>('[data-testid="todo-group-ask"]') : null);
       if (!el) { if (++tries < 30) timer = window.setTimeout(find, 100); return; }
       el.scrollIntoView({ block: "center" });
@@ -253,6 +255,19 @@ function Workspace({ projectId, initialTab, initialOnly, initialStatus, steps }:
     timer = window.setTimeout(find, 50);
     return () => window.clearTimeout(timer);
   }, [urlAt, shownNow]);
+  // `release=<product>` (round 4: the step bar's "use a product's dissolution profile as its release" and "add a product's
+  // dissolution data") opens that product's card at its release ("Use this profile as the release", focused, or what to
+  // add); a product with no card (one the proposal names, a profile of no product) opens Products and dissolution where
+  // it is listed
+  const urlRelease = url.get("release");
+  useEffect(() => {
+    if (urlRelease === null || !shownNow) return;
+    const card = productFor(model.subjects, urlRelease);
+    setOnlyState(false);
+    if (card) { openCard(card, releaseAnchor(card)); return; }
+    setChosen("formulations");
+    bringIntoView("dissolution-unlinked", "inputs-products");
+  }, [urlRelease, shownNow]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const run: Run = async <T,>(fn: () => Promise<Envelope<T>>, ok: string, after: After<T>) => {
     const { problem } = await mutation.run(fn, after);
@@ -298,7 +313,7 @@ function Workspace({ projectId, initialTab, initialOnly, initialStatus, steps }:
   // the step bar is drawn on the server from the readiness: drawn again when what it says on Inputs changes (a change
   // assembled the inputs again, a reading or the literature brought values in), not after every decision (final review
   // OWN-7: a decision on a card leaves it as it was)
-  const says = view ? stepSays(view.readiness) : null;
+  const says = view ? stepSays(view) : null;
   const said = useRef<string | null>(null);
   useEffect(() => {
     if (says === null) return;
@@ -430,7 +445,9 @@ function Workspace({ projectId, initialTab, initialOnly, initialStatus, steps }:
     const group = item.issue?.group ?? (w.anchor?.startsWith("group-") ? w.anchor.slice("group-".length) : undefined);
     const card = w.tab !== "files" && w.tab !== "todo"
       ? model.subjects.find((s) => (w.subject && s.row && `${s.row.subject_type}/${s.row.subject}` === w.subject) || (group && s.groups.some((g) => g.id === group))
-                                   || ((item.id.startsWith("confirm:") || item.todo?.kind === "formulation") && item.subjects[0] === s.key))
+                                   || ((item.id.startsWith("confirm:") || item.todo?.kind === "formulation") && item.subjects[0] === s.key)
+                                   // the formulation item opens the card of the product whose release it names (round 4)
+                                   || (item.todo?.kind === "formulation" && w.anchor === releaseAnchor(s)))
       : undefined;
     if (card) {
       setCardsOpen((was) => ({ ...was, [card.key]: true }));
@@ -507,8 +524,15 @@ function Workspace({ projectId, initialTab, initialOnly, initialStatus, steps }:
   const dissolution = client.data?.dissolution;
   const profileLabel = (id: string) => dissolution?.profiles.find((p) => p.id === id)?.label ?? id;
   const products = cardsFor("formulations").filter((s) => s.kind === "product");
-  // a product is here when the client's files hold one or the proposal names one (whatever "Only what needs me" shows)
-  const anyProduct = model.subjects.some((s) => s.kind === "product") || (proposal.data?.brief.groups.products ?? []).length > 0;
+  // what gives a tablet study its formulation as the project stands (round 4: the API's, the step bar's and To do's lever):
+  // a product's dissolution profile here, products without one, or no product at all
+  const formulationWay = todo.find((t) => t.kind === "formulation")?.way ?? null;
+  const releaseCard = productFor(model.subjects, formulationWay?.products[0]);
+  const openRelease = () => {
+    if (only) setOnly(false);
+    if (releaseCard) openCard(releaseCard, releaseAnchor(releaseCard));
+    else bringIntoView("dissolution-unlinked", "inputs-products");
+  };
   const profilesOf = (s: Subject) => (dissolution?.profiles ?? []).filter(productOf(s));
   const unlinkedProfiles = (dissolution?.profiles ?? []).filter((p) => !model.subjects.some((s) => s.kind === "product" && productOf(s)(p)));
   // up to three cards are all open; past three, the first to confirm is (the owner, 2026-11-05: "one by one")
@@ -668,16 +692,27 @@ function Workspace({ projectId, initialTab, initialOnly, initialStatus, steps }:
                       <td><strong>{s.study_id}</strong> <span className="muted">{valueWord(String(s.facts.formulation))}</span></td>
                       <td>{s.facts.formulation_name ? String(s.facts.formulation_name)
                         : formulations.length ? <FormulationChoice study={s.study_id} options={formulations} projectId={projectId} run={run} />
-                          // what can give it its formulation here, as it stands (round 3, owner-job gap 11): a product's
-                          // dissolution profile above; with none, the product first, or the client
-                          : (dissolution?.profiles ?? []).length
-                            ? <span className="muted">no formulation in the model yet: use a product&apos;s dissolution profile as its release, above</span>
-                            : <span className="muted" data-testid={`formulation-none-${s.study_id}`}>no formulation in the model yet, and no
-                              {anyProduct ? " dissolution data for a product here: add the product's dissolution file (Add data)" : " product here: "}
-                              {!anyProduct && <button type="button" className="link-btn" onClick={() => { if (only) setOnly(false); setAddProduct(Date.now()); }}
-                                                      data-testid={`formulation-add-product-${s.study_id}`}>add the product it used</button>}
-                              {!anyProduct && " (“Add a product”, above) with its dissolution data"}, or{" "}
-                              <a href={`?tab=todo&at=${ASK_FORMULATION}`}>ask the client</a></span>}</td>
+                          // what can give it its formulation here, as the project stands (round 4: the step bar's lever, the
+                          // API's `way`): a product's dissolution profile above; products without one, their dissolution
+                          // data; no product at all, the product first; or the client
+                          : formulationWay?.way === "use_profile"
+                            ? <span className="muted" data-testid={`formulation-none-${s.study_id}`}>no formulation in the model yet:{" "}
+                              <button type="button" className="link-btn" onClick={openRelease} data-testid={`formulation-release-${s.study_id}`}>
+                                {formulationWays(formulationWay).ways[0]?.say}</button>, above{releaseCard ? ` (${releaseCard.label}'s card)` : ""}</span>
+                            : formulationWay?.way === "add_dissolution"
+                              ? <span className="muted" data-testid={`formulation-none-${s.study_id}`}>no formulation in the model yet, and no
+                                product here has a dissolution profile that can give it:{" "}
+                                <button type="button" className="link-btn" onClick={openRelease} data-testid={`formulation-dissolution-${s.study_id}`}>add
+                                  a product&apos;s dissolution data</button> (its dissolution file, Add data), or{" "}
+                                <Link href={inputsHref(projectId, { area: "todo", query: `at=${ASK_FORMULATION}` })}>ask the client</Link></span>
+                              : formulationWay?.way === "add_product"
+                                ? <span className="muted" data-testid={`formulation-none-${s.study_id}`}>no formulation in the model yet, and no
+                                  product here:{" "}
+                                  <button type="button" className="link-btn" onClick={() => { if (only) setOnly(false); setAddProduct(Date.now()); }}
+                                          data-testid={`formulation-add-product-${s.study_id}`}>add the product it used</button>
+                                  {" (“Add a product”, above) with its dissolution data, or "}
+                                  <Link href={inputsHref(projectId, { area: "todo", query: `at=${ASK_FORMULATION}` })}>ask the client</Link></span>
+                                : <span className="muted" data-testid={`formulation-none-${s.study_id}`}>no formulation in the model yet</span>}</td>
                     </tr>
                   ))}
                 </tbody>

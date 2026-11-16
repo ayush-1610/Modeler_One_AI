@@ -161,11 +161,30 @@ function ReleaseLine({ subject, profiles, release, env }: {
       is set from a dissolution profile&apos;s fit (under Formulations in the model, below the cards).</p>;
   }
   const kept = subject.done && profiles.length > 0;
+  // a profile's fit is used as a release only once a person confirmed its product's dissolution data (the API refuses it
+  // before: `client_review.product_confirmed`); the card says so first and takes the person to that Confirm (round 4: the
+  // step bar's "use a product's dissolution profile as its release" lands here)
+  const groupOf = (p: Profile) => subject.groups.find((g) => g.kind === "product" && g.items.some((i) => i.id === p.id));
+  const first = can.length === 1 ? groupOf(can[0]) : undefined;
+  const waiting = can.length === 1 && first?.state !== "confirmed";
+  const toConfirm = () => {
+    const at = (first && document.querySelector<HTMLElement>(`[data-testid="${CSS.escape(`confirm-${first.id}`)}"]`))
+      || document.querySelector<HTMLElement>(`[data-testid="${CSS.escape(`confirm-sheet-${subject.key}`)}"]`);
+    at?.scrollIntoView({ block: "center", behavior: "smooth" });
+    at?.focus({ preventScroll: true });
+  };
   return (
     <section className="card-section card-release" data-testid={id} id={id}>
       <p className="m-0 fs-13"><strong>{kept ? "Its dissolution profile is kept; the formulation's release is not set yet"
         : "The formulation's release is not set yet"}</strong>{release.needed ? ": a tablet or capsule study needs it." : "."}</p>
-      {can.length === 1 ? (
+      {waiting ? (
+        <div className="row gap-6 items-center" data-testid={`${id}-confirm-first`}>
+          <button type="button" className="btn" onClick={toConfirm} data-testid={`${id}-to-confirm`}>Confirm its data first</button>
+          <span className="muted fs-13">its dissolution profile (t50 {sig(can[0].fit?.t50_min)} min · shape {sig(can[0].fit?.shape)}) becomes the
+            release of the formulation “{subject.label}” once you have confirmed the product&apos;s data on this card (&ldquo;Confirm&rdquo;,
+            below); then &ldquo;Use this profile as the release&rdquo; is offered here</span>
+        </div>
+      ) : can.length === 1 ? (
         <div className="row gap-6 items-center">
           <button type="button" className="btn primary" data-testid={`${id}-use`}
                   onClick={async () => setProblem(await proposeRelease(env.projectId, env.run, can[0], subject.label))}>
