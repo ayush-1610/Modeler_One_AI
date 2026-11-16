@@ -8,7 +8,7 @@ import { send } from "@/lib/api";
 import { useResource } from "@/lib/hooks";
 import { idWords } from "@/lib/words";
 
-import { MODEL } from "./after";
+import { REUSED } from "./after";
 import type { Run } from "./InputsTodo";
 
 export function ValueReuse({ projectId, run }: { projectId: string; run: Run }) {
@@ -28,7 +28,7 @@ export function ValueReuse({ projectId, run }: { projectId: string; run: Run }) 
             <button type="button" className="btn small" data-testid={`reuse-use-${o.project_id}`}
                     onClick={() => void run(() => send("post", "/api/v1/projects/{project_id}/value-reuse",
                                                        { project_id: projectId }, { project_id: o.project_id }),
-                                            `${o.values} value${o.values === 1 ? "" : "s"} from ${o.name} proposed here, with their sources.`, MODEL)}>
+                                            `${o.values} value${o.values === 1 ? "" : "s"} from ${o.name} proposed here, with their sources.`, REUSED)}>
               Use them</button>
           </li>
         ))}

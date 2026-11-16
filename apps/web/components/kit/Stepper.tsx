@@ -22,7 +22,12 @@ const STATE_LABEL: Record<StepState, string> = {
  *
  *  The steps stream in (audit item 9): the page's head paints at once and the bar's place is held by a skeleton of its
  *  size until /steps answers. A page starts that read with its own (`preloadSteps`), so the two run side by side and the
- *  bar shares the page's answer (lib/pipeline.ts getSteps is cache()d for the request). */
+ *  bar shares the page's answer (lib/pipeline.ts getSteps is cache()d for the request).
+ *
+ *  Its links are not prefetched: the bar is drawn again whenever what a step waits on changes (on Inputs, when the
+ *  readiness does), and Next prefetched every page each of its links leads to every time, about twenty requests after a
+ *  confirmation (final review round 4). Measured without them, Review & sign still shows its skeleton about 0.1 s after
+ *  the click and its page within 0.4 s, as with them. */
 export function Stepper(props: StepperProps) {
   return (
     <Suspense fallback={<StepperSkeleton />}>
@@ -67,7 +72,7 @@ async function StepperBody({ projectId, current, waiting = true, sticky = true }
                   </span>
                 </span>
               ) : (
-                <Link href={STEP_ROUTES[s.step](projectId)} aria-current={current === s.step ? "step" : undefined}
+                <Link href={STEP_ROUTES[s.step](projectId)} prefetch={false} aria-current={current === s.step ? "step" : undefined}
                       title={s.reasons.length ? s.reasons.map(stepReason).join("\n") : `${s.label}: ${STATE_LABEL[s.state]}`}>
                   <span className="step-n" aria-hidden>{s.state === "done" ? "✓" : i + 1}</span>
                   <span className="step-text">
@@ -89,9 +94,9 @@ async function StepperBody({ projectId, current, waiting = true, sticky = true }
             const at = stepWhere(r);
             return (
               <span key={r}>{i > 0 && " · "}
-                {at ? <Link href={inputsHref(projectId, at)} title={at.fix} data-testid={`step-waiting-go-${at.area}`}>{stepReason(r)}</Link> : stepReason(r)}
-                {at?.or && <> ({at.add ? <><Link href={inputsHref(projectId, at.add)} data-testid="step-waiting-add">{at.add.say}</Link> on {at.add.name}</>
-                  : <>on {at.name}</>}, or <Link href={inputsHref(projectId, at.or)} data-testid={`step-waiting-or-${at.or.area}`}>{at.or.say}</Link>)</>}
+                {at ? <Link href={inputsHref(projectId, at)} prefetch={false} title={at.fix} data-testid={`step-waiting-go-${at.area}`}>{stepReason(r)}</Link> : stepReason(r)}
+                {at?.or && <> ({at.add ? <><Link href={inputsHref(projectId, at.add)} prefetch={false} data-testid="step-waiting-add">{at.add.say}</Link> on {at.add.name}</>
+                  : <>on {at.name}</>}, or <Link href={inputsHref(projectId, at.or)} prefetch={false} data-testid={`step-waiting-or-${at.or.area}`}>{at.or.say}</Link>)</>}
               </span>
             );
           })}

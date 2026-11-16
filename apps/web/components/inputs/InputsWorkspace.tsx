@@ -20,7 +20,7 @@ import { type ArtifactView, STEP_ROUTES } from "@/lib/pipeline";
 import { AREA_NAME, ASK_FORMULATION, STATUS_MEANS, plural as count, valueWord } from "@/lib/words";
 
 import { AddDataMenu } from "./AddDataMenu";
-import { DOCUMENTS, FILES, MODEL, SEARCH, inputsAfter } from "./after";
+import { DOCUMENTS, FILES, SEARCH, inputsAfter, valuesAfter, valuesArrived } from "./after";
 import { SheetGroups } from "./ClientConfirm";
 import { ClientFilesTab, type FilesShown } from "./ClientFilesTab";
 import { type CardEnv, type CardFocus, focused } from "./cards/ConfirmPath";
@@ -274,7 +274,8 @@ function Workspace({ projectId, initialTab, initialOnly, initialStatus, steps }:
       searching.current = false;
       setNotice({ ok: true, text: `The literature agent finished: ${plural(literature.data.proposed, "value")} proposed, in the rows below.` });
       // what it proposed is in the model's inputs and the evidence, its sources in the documents
-      void readAgain(queries, [...MODEL.reads!, DOCUMENTS]);
+      void valuesArrived(queries, projectId);
+      void readAgain(queries, [DOCUMENTS]);
     }
   }, [running]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -343,7 +344,7 @@ function Workspace({ projectId, initialTab, initialOnly, initialStatus, steps }:
   // ranked below the client and the literature (D-32), and the person checks them at the review like any other
   async function take(templateId: string) {
     const { data, problem } = await mutation.run(() => send("post", "/api/v1/projects/{project_id}/evidence:published-model",
-                                                            { project_id: projectId }, { template_id: templateId }), MODEL);
+                                                            { project_id: projectId }, { template_id: templateId }), valuesAfter(projectId));
     setNotice(problem ? { ok: false, text: problem } : data ? { ok: true, text:
       `The published OSP ${data.model} model: ${data.values} values and ${data.datasets} datasets added`
       + (data.already ? `, ${data.already} already here` : "") + (data.skipped.length ? `; ${data.skipped.length} not taken (not plasma data of the drug)` : "")
@@ -591,7 +592,7 @@ function Workspace({ projectId, initialTab, initialOnly, initialStatus, steps }:
                       text={`${counts.missing} missing, ${counts.to_confirm} to confirm, ${counts.to_decide} to decide`} />
         </div>
         {next && ("href" in next
-          ? <Link className="btn primary status-next" href={next.href} data-testid="inputs-next">{next.text}</Link>
+          ? <Link className="btn primary status-next" href={next.href} prefetch={false} data-testid="inputs-next">{next.text}</Link>
           : <button type="button" className="btn primary status-next" data-testid="inputs-next" onClick={next.go} title={next.text}>{next.text}</button>)}
       </div>
       <div className="area-bar" data-testid="area-bar">

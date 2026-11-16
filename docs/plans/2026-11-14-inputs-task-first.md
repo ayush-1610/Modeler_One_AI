@@ -647,8 +647,10 @@ before the next starts.
   decision (CHANGELOG): every key a dialog can read is written by the same rule, from the answer itself, never from what
   the cache happens to hold.
 - **§2.1 "a decision click costs at most 2 requests", as built.** A decision on a delivery card, a selection in the sheet
-  form, a choice, a value accepted or rejected on Compound: the decision and one read (the delivery page; the inputs'
-  to-do; nothing, when the answer is the page). A spot check's record: the record and its card. Facts entered together:
+  form, a choice: the decision and one read (the delivery page; the inputs' to-do; nothing, when the answer is the page).
+  *Corrected in round 4:* a value accepted or rejected on Compound cost the decision and two reads in round 3 (the
+  inputs and the other projects' offers), and pKa Save, Correct and "Keep the selected value" three (the inputs, the
+  evidence, the offers); round 4 brings each to the decision and the inputs (round-4 sub-heading below). A spot check's record: the record and its card. Facts entered together:
   one `:enter` each and one read. Compound values entered in To do (or on Compound): one `POST /evidence` each, then the
   inputs (and, where Compound shows them, the evidence and the other projects' offers) and the step bar, drawn again when
   the readiness it says changed. **Deviation:** a confirmation costs more, because it loads data and every view of the
@@ -656,7 +658,9 @@ before the next starts.
   card where one of its subjects reads the same source (3 to 5 reads); the signed confirmation, when its dialog closes,
   the delivery, the inputs, the sheet form, the client data and the evidence (up to 5), the other cards marked stale. So
   do the background events that are not decisions (an AI reading or the literature search ending). Next's prefetch of a
-  page a link leads to is not counted (it reads none of this page's data; none was seen in the measured flows).
+  page a link leads to is not counted (it reads none of this page's data). *Corrected in round 4:* prefetches did
+  appear: about twenty followed every step-bar redraw (25 measured after a study's sheet-form confirmation); round 4
+  turns them off on the step bar and Inputs' own links, and measures what each confirmation reads again.
 - **The step bar follows the readiness (replaces slice 4's "redrawn only after the compound values are entered").** It
   is drawn on the server, so `InputsWorkspace` draws it again when what it says about Inputs changes (the readiness's
   state and failing checks in the inputs' answer), whatever changed it, and only then. Known gap: Review & sign's own
@@ -668,7 +672,10 @@ before the next starts.
   when it stops waiting the page and the cards shown are read again. Before round 3, every part of the page read the
   page again when it was drawn, which hid that the first signal alone can miss a reading that ends just as the page is
   read (seen once in three runs of inputs-task-first's corrected-layout test). Known gap: a decision whose reading ends
-  after its dialog is closed relies on the first signal alone.
+  after its dialog is closed relies on the first signal alone. *Superseded in round 4:* both signals caught a flag's
+  turn, and both could miss it (the API said "not reading" beside data read before the reading ended; a read of the
+  layout sent before the approval overwrote its answer); the page now follows the runs the delivery page names, and the
+  API reads the runs first (round-4 sub-heading below). The dialog's signal is removed.
 - **The visit holds its reads (CODE-4).** Inside `HeldReads` (Inputs) an answer read during the visit stays fresh until
   a change marks it stale, so an area shown again reads nothing; what was read before the visit is read once when shown.
   Consequence, owner's note: another reviewer's change is shown after this person's next decision on it (a 409 says it
@@ -863,4 +870,55 @@ before the next starts.
 - **Seen once, not this group's:** in one run inputs-task-first's "a table the newest layout cannot read" timed out
   waiting for RLD's row to leave To do after its corrected layout was approved and read (the page still showed version
   1's 24 numbers; the API had RLD on version 3 with none); it passed on the rerun. A timing gap in when the page reads
-  the delivery again after a re-read, for the speed group.
+  the delivery again after a re-read, for the speed group. *Found and fixed in round 4* ("Final review fixes round 4:
+  request budget and the RLD flake" below).
+
+### Final review fixes round 4: request budget and the RLD flake (2026-11-16; OWN-7's remainder, round 3's risk (a), the corrected-layout row in To do; CHANGELOG "Fixed — final review round 4, request budget and the RLD flake")
+- **How a reading is followed, as built (replaces round 3's "two signals").** The API reads a project's runs before
+  anything a run writes (`_Scope.refresh`), so the delivery page's `running` and a layout's `waiting` describe the moment
+  before its data was read: "not reading" means the rows are current, and a reading that ends while the answer is put
+  together leaves it saying "reading". The page polls the delivery page while it reads, and reads again what a reading
+  changes (the cards and layouts, the sheet form, the client's files, the inputs, the reading queue) when the page, not
+  reading, names other runs than when it was last brought up to date (`useDeliveryRefresh`, `readMark`); not when a flag
+  turns. Every answer a decision writes into the cache calls off a read of the same key still on its way (`put`). No
+  part of this depends on how long a request takes. Root cause and the evidence: CHANGELOG.
+- **The flake, runs.** Before the fix, under a 3-core CPU burner with other agents' work on the 4 CPUs: the whole spec
+  once and its corrected-layout test five times on its own (with `beforeAll`): all six passed; the page-level failure
+  did not show, but its cause did, deterministically, as an API test (`test_a_reading_that_ends_while_an_answer_is_put_together_leaves_it_saying_reading`,
+  which fails on the old code with `running: false` beside version 1's coverage), and the round-3 failure snapshots show
+  its signature (the dialog current; the delivery page after the approval, with the old coverage and no "Reading…").
+  After the fix, under a 4-core burner: the corrected-layout test on its own 5 of 5 (22.3, 22.3, 22.5, 23.8, 20.2 s).
+  The whole spec file five times in one run (`--repeat-each 5`, each with its own project) under a 3-core burner: 55 of
+  55 passed; the corrected-layout test 23.3, 25.7, 23.4, 35.4 and 31.5 s. The full e2e suite once on an idle-ish machine:
+  118 passed; the 2 that failed were this round's new request assertions (client-confirm counted the delivery page,
+  which its study reads; delivery counted a card the work model read again after the signed confirmation), both
+  corrected (the first in the assertion, the second in the code: no other card is marked stale) and passed on rerun.
+- **§2.1's budget, measured after (copies of the review projects; stub engine, a software fixture).** pKa Save on
+  Compound (exampleamide-pbpk-7bb1, another project offering values): the decision and the inputs (round 3: the inputs,
+  the offers, the evidence). Accept, Reject, Exclude, "Keep the selected value": the decision and the inputs. Correct and
+  "File under this pathway": the decision and the inputs, and the offers only when another project offers values (a
+  value newly held can take one away). Add (a value with its source): the inputs and the evidence, and the offers
+  likewise. A product confirmed with the sheet form (exampleamide-pbpk-b4e7, Test 10 mg): the confirmation and the
+  inputs (round 3: and the client data). **Deviations kept, each read measured as changed by the API's answers:** a
+  study confirmed with the sheet form (b4e7, CL-01): the confirmation, the delivery page (a delivery subject reads the
+  same source; its card too where it is shown), the inputs and the evidence, and the step bar drawn again once (its
+  readiness changed) — 3 reads and a render, followed by 8 prefetches of the sidebar's links; round 3 also read the client data,
+  and 25 prefetches followed. The signed confirmation, when its dialog closes: the delivery page, the inputs, the sheet
+  form, the client data and the evidence (5; 4 for a product, whose landing leaves the evidence as it was); no other
+  card any more (round 3 marked every other card stale, and the work model read again the cards it counts; no other
+  card changed in the API's answers, and by the code none can: a card names the sheet form's datasets of its source,
+  and a landing makes only the delivery's).
+- **Prefetch.** The step bar's links, its "Waiting on you" links and Inputs' own links are not prefetched; measured, the
+  prefetch bought nothing (CHANGELOG). Known gap: the sidebar's four links (Projects, Start from proposal, the library,
+  the history), shared by every page, are still prefetched again after each step-bar redraw (8 requests, each a partial
+  render of the page up to its loading skeleton). **Owner question:** turn their prefetch off app-wide too, or draw
+  Inputs' step bar from a read of `/steps` in the browser (one request in place of the server render and every
+  prefetch). Left as is in this round: the sidebar is not Inputs', and the cost comes only when the readiness changes.
+- **Round 3's risk (a), the sheet's view.** Read again after the sheet form saves (`SHEET`), so "Read again" in the
+  same visit offers to replace the earlier reading whatever the delivery does (client-data-guided checks it with the
+  delivery never seen reading). The skeptic's probe (sheet-again.js) on my server: "This sheet was read before" and
+  the replace option in the same visit and in a fresh one.
+- **Not covered by an e2e:** the marker rule's own case (a reading that starts and ends between two reads of the page)
+  is shown at the API by the new test and on the page by the corrected-layout test's runs; no spec holds a read back
+  to force it. The one 404 every measured visit logged is the browser's own request for `/favicon.ico`, which the app
+  does not serve; nothing of the page.

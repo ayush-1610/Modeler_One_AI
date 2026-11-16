@@ -201,7 +201,7 @@ export function ReadingStatus({ projectId, onOpen }: { projectId: string; onOpen
         ? `The reading agent is off on this server: ${plural(waiting, "file")} ${waiting === 1 ? "waits" : "wait"} to be read.`
         : waiting > 0 ? `The agent is reading the client's files: ${trayLine(data.counts)}.`
           : `The agent has read the client's files: ${trayLine(data.counts)}.`}{" "}
-      <Link href={`/projects/${encodeURIComponent(projectId)}/inputs?tab=files`} onClick={onOpen}>See each file on Inputs</Link>
+      <Link href={`/projects/${encodeURIComponent(projectId)}/inputs?tab=files`} prefetch={false} onClick={onOpen}>See each file on Inputs</Link>
     </p>
   );
 }

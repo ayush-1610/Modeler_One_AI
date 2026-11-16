@@ -229,7 +229,7 @@ export function ClientFilesTab({ projectId, client, work, only, onOnly, run, act
                  aria-label={`Add the client's ${AREA_FILES[area]}`}
                  onChange={(e) => { void addClientFiles(projectId, run, e.target.files, area); e.target.value = ""; }} />
         </span>
-        <Link href={`/projects/${encodeURIComponent(projectId)}/library`}>The files in the Document Library</Link>
+        <Link href={`/projects/${encodeURIComponent(projectId)}/library`} prefetch={false}>The files in the Document Library</Link>
       </div>
       <div className="area-head-row">
         <p className="area-head" data-testid="area-head-files">{areaHead(work, "files", rows.length)}</p>

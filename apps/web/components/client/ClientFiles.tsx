@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-import { FILES, RELEASE } from "@/components/inputs/after";
+import { FILES, releaseAfter } from "@/components/inputs/after";
 import { PeekButton } from "@/components/kit/SourcePeek";
 import { Card } from "@/components/ui";
 import { send, type Envelope, type Schema } from "@/lib/api";
@@ -323,7 +323,7 @@ export function Dissolution({ projectId, d, act }: {
         <tbody>
           {d.profiles.map((p) => (
             <ProfileRow key={p.id} p={p} onPropose={(formulation) =>
-              act(() => send("post", "/api/v1/projects/{project_id}/dissolution/{profile_id}:propose", { project_id: projectId, profile_id: p.id }, { formulation }), RELEASE)} />
+              act(() => send("post", "/api/v1/projects/{project_id}/dissolution/{profile_id}:propose", { project_id: projectId, profile_id: p.id }, { formulation }), releaseAfter(projectId))} />
           ))}
         </tbody>
       </table>

@@ -239,12 +239,20 @@ class _Scope:
 
     def refresh(self) -> None:
         """After a write: fold the ledger again, and read again which studies are blinded (an entered purpose, a
-        landed dataset or a signed MAP changes it)."""
+        landed dataset or a signed MAP changes it).
+
+        The runs are read first, before anything a run writes (the ledger, the coverage): what is being read is read
+        before what was read, so an answer that says no file is being read holds at least what the last reading wrote,
+        never data from before a reading beside a flag from after it. A reading that ends while the answer is put
+        together leaves it saying "reading", and the page reads it again (final review round 4: To do kept a table's row
+        that the reading had cleared, because the delivery page said "not reading" over coverage read before the end)."""
+        runs = intake_pipeline.runs(self.ws)
+        self._runs: dict[str, RunRecord] | None = {run.sha256: run for run in runs}
+        self.unfinished = any(run.state in _WAITING for run in runs)
         self.reader.refresh()
         self.hidden_why = review.blinded_why(self.ws, self._project, self._risk)
         self.hidden = set(self.hidden_why)
         self._names: dict[str, str] | None = None
-        self._runs: dict[str, RunRecord] | None = None
         self._entries: dict[tuple[str, int], MappingEntry] | None = None
         self._decisions: dict[tuple[str, int], list[MappingDecision]] = {}
         self._coverage: dict[str, FileCoverage | None] = {}
@@ -803,7 +811,8 @@ def _page(scope: _Scope) -> dict[str, Any]:
                          "batches": children if row["subject_type"] == "product" else [],
                          "blinded": scope.blinded(row["subject_type"], row["subject"]),
                          "blinded_why": scope.blinded_why(row["subject_type"], row["subject"])})
-    running = jobs.running(ws.store, ws.tenant_id, ws.project_id, "intake") or intake_pipeline.unfinished(ws)
+    # the runs as they stood before any of the above was read (`_Scope.refresh`): "not running" means all of it is current
+    running = scope.unfinished or jobs.running(ws.store, ws.tenant_id, ws.project_id, "intake")
     unassigned = review.unassigned(ws, reader=reader)
     return {"enabled": True, "running": running, "agents": agent_jobs.agents_status("A4"), "deliveries": deliveries,
             "totals": totals, "subjects": subjects, "unassigned": scope.rows(unassigned), "relink": _relinks(scope, unassigned),

@@ -10,7 +10,7 @@ import { PeekButton } from "@/components/kit/SourcePeek";
 
 import { formulationLine, paramLabel, unitText } from "@/lib/words";
 
-import { MODEL, evidenceAfter, inputsAfter } from "./after";
+import { evidenceAfter, inputsAfter, valuesAfter } from "./after";
 import { Decide, type Ev, fmt, PathwayPick, type Pathway, type Run, Source, TodoAction, TodoCard, type TodoItem, Value } from "./InputsTodo";
 
 export type Row = Schema<"CompoundRow">;
@@ -121,7 +121,7 @@ function AddValue({ row, name, projectId, run, pathways = [] }: {
                   req_id: row.req_id as string, target, value: numeric || entry.kind === "neutral" ? Number(value) : value,
                   unit: typed ? unit || null : null, source_type: type, title, quote,
                   ...(link.startsWith("10.") ? { doi: link } : link ? { url: link } : {}),
-                }), done, MODEL)}>
+                }), done, valuesAfter(projectId))}>
           Add
         </button>
         {/* why it cannot be added yet, in text, not only in a hover (final review OWN-16) */}
@@ -182,7 +182,7 @@ function ChooseProcess({ row, projectId, run }: { row: Row; projectId: string; r
       <button className="btn" disabled={!reason.trim()}
               onClick={() => void run(() => send("put", "/api/v1/projects/{project_id}/inputs/choices", { project_id: projectId },
                                                  { kind: "process", key: row.id.split(".").slice(0, -1).join("."), value, reason }),
-                                      `${paramLabel(row.id)}: carried by the PK-Sim process ${value}.`, inputsAfter(projectId, []))}>Choose</button>
+                                      `${paramLabel(row.id)}: carried by the PK-Sim process ${value}.`, inputsAfter(projectId))}>Choose</button>
     </div>
   );
 }

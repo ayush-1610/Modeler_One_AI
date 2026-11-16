@@ -4,12 +4,25 @@
 // are test entries, never a model.
 import { expect, type Page, test } from "@playwright/test";
 
-import { finishStart } from "./fixtures/inputs";
+import { SIDEBAR_PREFETCH, finishStart, requestsDuring } from "./fixtures/inputs";
 
 const AUTH = { Authorization: "Bearer dev" };
 
 async function shot(page: Page, name: string) {
   await page.screenshot({ path: test.info().outputPath(`${name}.png`), fullPage: true });
+}
+
+/** A decision on Compound costs the decision and the inputs read again (final review round 4; round 3 read the evidence
+ *  and the other projects' offers too): the evidence is the decision's answer, written; the offers change only when a
+ *  value is newly held here, and only by losing one, so they are read again then and only when one is shown (`also`).
+ *  The step bar is drawn again at most once, when the readiness changed, and no link of the page is prefetched again. */
+function onlyTheInputs(sent: string[], post: RegExp, also: string[] = []) {
+  const said = sent.join("\n");
+  expect(sent.filter((s) => s.startsWith("POST")), said).toHaveLength(1);
+  expect(sent.find((s) => s.startsWith("POST")), said).toMatch(post);
+  expect(sent.filter((s) => s.startsWith("GET")).sort(), said).toEqual(["GET inputs", ...also].sort());
+  expect(sent.filter((s) => s.startsWith("server render")).length, said).toBeLessThanOrEqual(1);
+  expect(sent.filter((s) => s.startsWith("prefetch") && !SIDEBAR_PREFETCH.test(s)), said).toEqual([]);
 }
 
 test("open P4 items are settled on the Model inputs page", async ({ page, request }) => {
@@ -50,27 +63,42 @@ test("open P4 items are settled on the Model inputs page", async ({ page, reques
   const fu = page.getByTestId("todo-conflict-bind.fu");
   await fu.getByRole("radio").first().check();
   await fu.getByLabel("reason for bind.fu").fill("equilibrium dialysis, human plasma");
-  await fu.getByRole("button", { name: "Keep the selected value, reject the others" }).click();
-  await expect(page.getByText("Fraction unbound in plasma: one value kept")).toBeVisible();
+  await page.waitForLoadState("networkidle");
+  const kept = await requestsDuring(page, projectId, async () => {
+    await fu.getByRole("button", { name: "Keep the selected value, reject the others" }).click();
+    await expect(page.getByText("Fraction unbound in plasma: one value kept")).toBeVisible();
+  });
+  onlyTheInputs(kept, /^POST evidence\/ev-[0-9a-f]+:choose$/);
+  // another project of the drug (another spec's) may offer values: a value newly held here may take one of them away
+  const offered = (await page.locator('[data-testid^="reuse-use-"]').count()) > 0;
   await expect(page.getByTestId("todo-conflict-bind.fu")).toHaveCount(0);
 
   // "elim" is the data plan's placeholder: file the value under the pathway; the refiled copy is held until checked
   const elim = page.getByTestId("todo-correct-elim");
   await elim.locator("select").first().selectOption("elim.renal.gfr_fraction");
   await elim.locator("input[placeholder='why']").fill("renal filtration is the main route");
-  await elim.getByRole("button", { name: "Correct" }).click();
-  await expect(page.getByText(/Filed as GFR fraction \(renal filtration\)/)).toBeVisible();
+  const refiled = await requestsDuring(page, projectId, async () => {
+    await elim.getByRole("button", { name: "Correct" }).click();
+    await expect(page.getByText(/Filed as GFR fraction \(renal filtration\)/)).toBeVisible();
+  });
+  onlyTheInputs(refiled, /^POST evidence\/ev-[0-9a-f]+:correct$/, offered ? ["GET value-reuse"] : []);
   const held = page.getByTestId("todo-review-elim.renal.gfr_fraction");
   await held.locator("input[placeholder='why']").fill("fraction of GFR, from the review");
-  await held.getByRole("button", { name: "Accept" }).click();
-  await expect(page.getByTestId("todo-review-elim.renal.gfr_fraction")).toHaveCount(0);
+  const accepted = await requestsDuring(page, projectId, async () => {
+    await held.getByRole("button", { name: "Accept" }).click();
+    await expect(page.getByTestId("todo-review-elim.renal.gfr_fraction")).toHaveCount(0);
+  });
+  onlyTheInputs(accepted, /^POST evidence\/ev-[0-9a-f]+:decide$/);
 
   // the pKa says neither acid nor base
   const pka = page.getByTestId("todo-pka-phys.pka");
   await pka.locator("select").selectOption("base");
   await pka.locator("input[placeholder='why']").fill("tertiary amine");
-  await pka.getByRole("button", { name: "Save" }).click();
-  await expect(page.getByTestId("todo-pka-phys.pka")).toHaveCount(0);
+  const saved = await requestsDuring(page, projectId, async () => {
+    await pka.getByRole("button", { name: "Save" }).click();
+    await expect(page.getByTestId("todo-pka-phys.pka")).toHaveCount(0);
+  });
+  onlyTheInputs(saved, /^POST evidence\/ev-[0-9a-f]+:correct$/);               // its acid or base: no value newly held
 
   // what is left: values nobody has proposed yet, and data to judge the model on (opened from the side list)
   await expect(page.getByTestId("todo-missing-phys.mw")).toBeVisible();

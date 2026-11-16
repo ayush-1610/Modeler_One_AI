@@ -78,9 +78,25 @@ test("an ER tablet's BE, dissolution and literature files are read sheet by shee
   await expect(reader.getByTestId("read-result")).toContainText("75 values · 7 series · 11 times");
   await expect(reader.getByTestId("read-result")).toContainText("ready to save");
   await shot(page, "2-reader-be");
+  // the save says its sheet was read: "Read again" in the same visit offers to replace that reading, so a second save
+  // cannot add the same datasets twice. Said by the save itself (final review round 4), not left to the delivery's
+  // refresh at the end of its reading: here the delivery is never seen reading
+  await page.route(/\/api\/v1\/projects\/[^/]+\/delivery$/, async (route) => {
+    const response = await route.fetch();
+    const body = await response.json();
+    if (body.data) body.data.running = false;
+    await route.fulfill({ response, json: body });
+  });
   await reader.getByRole("button", { name: "Save these data" }).click();
   await expect(page.getByText(/Sheet1: 1 dataset\(s\) for 230-23-REF saved/)).toBeVisible();
   await expect(reference.getByTestId("sheet-Sheet1")).toContainText("read ✓");
+  await reference.getByRole("button", { name: "Read again: Sheet1" }).click();
+  const again = page.getByTestId("reader-Sheet1");
+  await expect(again.getByText("This sheet was read before (1 dataset(s)).")).toBeVisible();
+  await expect(again.getByLabel("replace the earlier reading")).toBeChecked();
+  await again.getByRole("button", { name: "Close" }).click();
+  await expect(page.getByTestId("reader-Sheet1")).toHaveCount(0);
+  await page.unroute(/\/api\/v1\/projects\/[^/]+\/delivery$/);
 
   // the test arm: the same layout, taken over from the last sheet (of another file); its own study id
   await openFile(page, "230-23 Fasting Test.xlsx");

@@ -235,7 +235,7 @@ export function TodoTab({ projectId, work, run, status, only, onStatus, onOnly, 
           <h3 className="mt-0">Everything the model needs is here</h3>
           <p className="m-0-0-8">Every value the model needs has a source, and every planned simulation builds.</p>
           {/* the page's one primary is the status line's "Next" */}
-          <Link className="btn" href={STEP_ROUTES.review(projectId)}>Go to Review &amp; sign</Link>
+          <Link className="btn" href={STEP_ROUTES.review(projectId)} prefetch={false}>Go to Review &amp; sign</Link>
         </div>
       ) : (
         <p className="muted" data-testid="todo-nothing">Nothing needs you here now.{openChecks.length ? " The model checks below say what is left." : ""}</p>

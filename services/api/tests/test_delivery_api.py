@@ -31,7 +31,7 @@ from openpyxl import Workbook
 from pydantic import BaseModel
 
 from modeler_agents.evals.scripted import Scripted
-from modeler_api import admin_api, agent_jobs, client_api, delivery_routes, jobs, project_api
+from modeler_api import admin_api, agent_jobs, client_api, delivery_routes, intake_pipeline_jobs, jobs, project_api
 from modeler_api.auth import get_verifier
 from modeler_api.main import app
 from modeler_api.views.common import View
@@ -371,6 +371,39 @@ def test_the_page_says_running_while_a_run_waits(project):
     assert seen[-1]["deliveries"][0]["files"][0]["state"] == "read"
     waiting = [f for page in seen for d in page["deliveries"] for f in d["files"] if f["state"] == "waiting"]
     assert all(f["run"]["state"] in ("queued", "running") and f["reason"] for f in waiting)
+
+
+@pytest.mark.req("T-47", "F-404", "T-05")
+def test_a_reading_that_ends_while_an_answer_is_put_together_leaves_it_saying_reading(project, monkeypatch):
+    """The runs are read before what a run writes (final review round 4): a reading that ends while the delivery page or
+    a layout is put together leaves the answer saying the file is being read, so the page reads it again. It never says
+    "not reading" beside the coverage from before the reading (To do kept a table's row the reading had cleared)."""
+    p = project()
+    p.deliver(("loose-profile.csv", LOOSE))
+    record = intake_landing.file_records(IntakeStore(p.ws))[_sha(LOOSE)]
+    (row,) = p.page()["mappings"]
+    monkeypatch.setattr(intake_pipeline_jobs, "kick", lambda *args, **kwargs: False)     # no job: the test ends the run
+    original = IntakeStore.coverage
+    ended: list[str] = []
+
+    def coverage(self: IntakeStore, sha256: str):
+        found = original(self, sha256)                     # the coverage, read before the reading ends ...
+        if not ended:                                      # ... and the reading ends right after, mid-answer
+            ended.append(sha256)
+            intake_pipeline.run_file(p.ws, intake_pipeline.take(p.ws))
+        return found
+
+    monkeypatch.setattr(IntakeStore, "coverage", coverage)
+    for path, flag in (("delivery", "running"), (f"delivery/mappings/{row['mapping_id']}", "waiting")):
+        ended.clear()
+        (queued,) = intake_pipeline.enqueue(p.ws, [record], by="u1", again=True)
+        mid = p.get(path).json()["data"]
+        assert ended and mid[flag] is True, path                                            # read again: it was reading
+        assert intake_pipeline.runs(p.ws)[-1].run_id == queued.run_id and intake_pipeline.runs(p.ws)[-1].state == "done"
+        after = p.get(path).json()["data"]
+        assert after[flag] is False, path                                                   # and now it is all current
+    files = p.page()["deliveries"][0]["files"]
+    assert [(f["state"], f["run"]["state"]) for f in files] == [("read", "done")]
 
 
 # --- a study: reviewed, spot-checked, signed and landed -----------------------------------------------------------------
