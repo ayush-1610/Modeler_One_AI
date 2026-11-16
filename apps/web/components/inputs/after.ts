@@ -5,10 +5,14 @@
 // shown and marked stale elsewhere (read when next shown). What a decision on Compound and a confirmation read again was
 // checked against the API's answers before and after it, and against the code that answers (final review round 4). The step bar, drawn on the server, follows the readiness: the workspace
 // draws it again when the readiness the inputs answer with changes (`InputsWorkspace`), whatever changed it. A decision
-// on the delivery is written by `components/delivery/writes.ts`.
+// on the delivery is written by `components/delivery/writes.ts`. Two rules follow what a decision changed beyond what it
+// names (final review round 5): a read of the delivery page is followed by the cards whose rows it changed
+// (`followPage`), and when the studies the project's blinding list withholds change, what it withholds is read again
+// (`blindingChanged`, which the workspace calls on every answer of the inputs).
 
 import type { QueryClient } from "@tanstack/react-query";
 
+import { followPage, followPages } from "@/components/delivery/writes";
 import type { Schema } from "@/lib/api";
 import { put, readAgain, type After, type Read } from "@/lib/hooks";
 
@@ -109,7 +113,7 @@ export function datasetAfter(projectId: string, dataset: string): After<Evidence
     write: (page, client) => {
       put(client, key(EVIDENCE, projectId), page);
       const delivery = client.getQueryData<Schema<"DeliveryPage">>(key(DELIVERY, projectId));
-      readSubjects(client, projectId, (delivery?.subjects ?? []).filter((s) => [
+      return readSubjects(client, projectId, (delivery?.subjects ?? []).filter((s) => [
         ...s.loaded_elsewhere, ...s.proposed_elsewhere, ...(s.confirmation?.landed_datasets ?? [])].includes(dataset)));
     },
     reads: [INPUTS, CLIENT_REVIEW],
@@ -126,11 +130,15 @@ export const SEARCH: After = { reads: [LITERATURE] };
 export const FILES: After = { reads: [CLIENT_DATA, CLIENT_REVIEW, DELIVERY, READING, DOCUMENTS] };
 
 /** A sheet read with the sheet form and saved (`client-data/{sid}:map`): the file says which of its sheets are read, the
- *  sheet form has its group to confirm (one more in the inputs' to-do), and the delivery joins it to its subjects. The
- *  sheet's own view says it was read before (`read_before`), which is what offers to replace that reading when it is read
- *  again: without it, a second save in the same visit would add the same datasets twice (final review round 4: it was
- *  current only because the delivery's end-of-reading refresh reads every route under the client data again). */
-export const SHEET: After = { reads: [CLIENT_DATA, `${CLIENT_DATA}/{sid}/sheets/{sheet}`, CLIENT_REVIEW, INPUTS, DELIVERY] };
+ *  sheet form has its group to confirm (one more in the inputs' to-do), and the delivery joins it to its subjects: its
+ *  page is read again and followed (`followPages`: a subject joined to the group says so on its card, and a sheet read
+ *  for external validation in a project whose blinding is on blinds the delivery's study of that name with the products
+ *  that hold its values). The sheet's own view says it was read before (`read_before`), which is what offers to replace
+ *  that reading when it is read again: without it, a second save in the same visit would add the same datasets twice
+ *  (final review round 4: it was current only because the delivery's end-of-reading refresh reads every route under the
+ *  client data again). */
+export const SHEET: After = { write: (_answer, client) => followPages(client),
+                              reads: [CLIENT_DATA, `${CLIENT_DATA}/{sid}/sheets/{sheet}`, CLIENT_REVIEW, INPUTS] };
 
 /** The AI reading asked for again: the reading queue and the files it reads. */
 export const READ_AGAIN: After = { reads: [READING, CLIENT_DATA] };
@@ -162,9 +170,10 @@ export function reviewAfter(projectId: string): After<ReviewPage> {
 }
 
 /** A sheet read into the sheet form (`client-review:finish`, answered with the groups, written): its group is one more
- *  to confirm in the inputs' to-do, and the delivery joins the groups of a source it reads to its subjects. */
+ *  to confirm in the inputs' to-do, and the delivery joins the groups of a source it reads to its subjects (its page read
+ *  again and followed, as `SHEET`'s). */
 export function sheetReadAfter(projectId: string): After<ReviewPage> {
-  return { write: writeReview(projectId), reads: [INPUTS, DELIVERY] };
+  return { write: (page, client) => { writeReview(projectId)(page, client); return followPage(client, projectId); }, reads: [INPUTS] };
 }
 
 /** A sheet form's group confirmed (`client-review:confirm`, answered with the groups, written): what it holds is in the
@@ -183,17 +192,36 @@ export function confirmAfter(projectId: string, group: Schema<"ReviewGroup">): A
     write: (page, client) => {
       writeReview(projectId)(page, client);
       const delivery = client.getQueryData<Schema<"DeliveryPage">>(key(DELIVERY, projectId));
-      readSubjects(client, projectId, (delivery?.subjects ?? []).filter((s) => s.legacy_groups.includes(group.id)));
+      return readSubjects(client, projectId, (delivery?.subjects ?? []).filter((s) => s.legacy_groups.includes(group.id)));
     },
     reads: [INPUTS, ...(loads ? [EVIDENCE] : []), ...(profiles ? [CLIENT_DATA] : [])],
   };
 }
 
-/** The delivery page and the cards of `subjects` read again (none: nothing is read). */
-function readSubjects(client: QueryClient, projectId: string, subjects: Schema<"DeliverySubjectRow">[]) {
+/** The cards of `subjects` read again, and the delivery page with them, followed (`followPage`: another subject's row
+ *  it changed has its card read again too); none: nothing is read. */
+function readSubjects(client: QueryClient, projectId: string, subjects: Schema<"DeliverySubjectRow">[]): Promise<void> | undefined {
   if (!subjects.length) return;
-  void client.invalidateQueries({ queryKey: key(DELIVERY, projectId), exact: true });
   for (const s of subjects) {
     void client.invalidateQueries({ queryKey: [CARD, { project_id: projectId, type: s.subject_type, subject: s.subject }, {}], exact: true });
   }
+  return followPage(client, projectId, { answered: subjects.map((s) => `${s.subject_type}/${s.subject}`) });
+}
+
+/** What the project's blinding list withholds, read again when the studies it names change (final review round 5): the
+ *  workspace compares them on every answer of the inputs (`lib/freshness.ts` `blindedStudies`), whatever changed them.
+ *  A study's datasets put in the catalog (a sheet form's group confirmed, a dataset kept or left out, a study's facts or
+ *  purpose, values brought in) can make the MS-01 split propose S5 or S6 for it, or for another study, before a plan:
+ *  the client's files and sheets, the sheet form's groups, the evidence's datasets and the documents withhold or show
+ *  them, and the delivery's studies of those names and the products that hold their values are blinded or not (its page
+ *  read again and followed, `followPage`). Round 4 read the client's files again after a study's confirmation only when a
+ *  product's profile was chosen, so the template's sheets of a study the split had just blinded stayed readable on the
+ *  page. A read of one of them already on its way is sent again: when the change happened cannot be told from here, so
+ *  only a read asked for after it was seen is current. */
+export function blindingChanged(client: QueryClient, projectId: string): Promise<void> {
+  return Promise.all([
+    readAgain(client, [CLIENT_DATA, `${CLIENT_DATA}/{sid}/sheets/{sheet}`, CLIENT_REVIEW, EVIDENCE, DOCUMENTS,
+                       `${DOCUMENTS}/{sha256}/figures`]),
+    followPage(client, projectId),
+  ]).then(() => undefined);
 }

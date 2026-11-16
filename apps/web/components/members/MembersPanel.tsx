@@ -12,7 +12,7 @@ import { useMutation, useResource, type After } from "@/lib/hooks";
 
 /** A member added or removed: the answer is the members' page, written; nothing else on the page changed. */
 const membersAfter = (projectId: string): After<Schema<"MembersPage">> => ({
-  write: (page, client) => client.setQueryData(["/api/v1/projects/{project_id}/members", { project_id: projectId }, {}], page),
+  write: (page, client) => { client.setQueryData(["/api/v1/projects/{project_id}/members", { project_id: projectId }, {}], page); },
 });
 
 export function MembersPanel({ projectId }: { projectId: string }) {

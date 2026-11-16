@@ -22,6 +22,7 @@ import {
   layoutFindingText, moveText, paramLabel, patternWords, placeText, readinessText, redrawText, rowRuleText, rowsLeftOut, spotGroupText, stepReason,
   stepWhere, todoMessage, unitText, unreadWhy, withheldWhy, anchorPlace, sourceNamed,
 } from "../lib/words";
+import { afterAnswer, blindedStudies, changedRows } from "../lib/freshness";
 
 const load = (name: string): WorkSources => JSON.parse(readFileSync(join(__dirname, "fixtures", "inputs-work", `${name}.json`), "utf8"));
 const copy = <T,>(x: T): T => JSON.parse(JSON.stringify(x));
@@ -1165,4 +1166,65 @@ test("a values table whose rows need only checks decided in Checks stays one lin
   expect(checkGist("arm Test, analyte not stated, matrix plasma: concentrations name no analyte").gist).toBe("concentrations name no analyte");
   expect(checkGist('concentration: values above the range (written ">x"): no number is kept').gist).toBe('values above the range (written ">x")');
   expect(checkGist("doses with no stated basis (salt or free base)")).toEqual({ where: "", gist: "doses with no stated basis (salt or free base)" });
+});
+
+test("round 5: a read on its way when a decision's answer is written is told apart by when it was asked for", () => {
+  // the decision sent at 100: a read asked for before it (a poll, the end of a reading) is called off, the answer holds
+  // what it was asked for; one asked for since and not yet out goes out after the answer and is left; one sent since may
+  // have been answered before the decision or after it, so it is called off and the answer read once more (round 4 kept
+  // the decision's answer, which could be the older)
+  expect(afterAnswer(null, 100)).toBe("none");
+  expect(afterAnswer({ asked: 90, sent: 91 }, 100)).toBe("cancel");
+  expect(afterAnswer({ asked: 90, sent: null }, 100)).toBe("cancel");          // waiting its turn since before: the answer covers it
+  expect(afterAnswer({ asked: 100, sent: null }, 100)).toBe("keep");
+  expect(afterAnswer({ asked: 120, sent: 150 }, 100)).toBe("again");
+  expect(afterAnswer({ asked: 100, sent: 100 }, 100)).toBe("again");
+  // a decision whose time is not known: a read that went out cannot be told apart either
+  expect(afterAnswer({ asked: 90, sent: 91 }, null)).toBe("again");
+  expect(afterAnswer({ asked: 90, sent: null }, null)).toBe("keep");
+});
+
+test("round 5: the delivery rows a new answer changed, and whether a subject's blinding did", () => {
+  const before = copy(load("exampleamide").delivery!);
+  const ref = (label: string) => { const s = before.subjects.find((x) => x.label === label)!; return `${s.subject_type}/${s.subject}`; };
+  // nothing read before: no card was drawn from it, nothing to follow
+  expect(changedRows(undefined, before)).toEqual({ changed: [], blinding: false });
+  expect(changedRows(before, copy(before))).toEqual({ changed: [], blinding: false });
+  // a study signed: only its own row changes (the decision's answer is its card)
+  const signed = copy(before);
+  signed.subjects.find((s) => s.label === "230-23")!.values += 1;
+  expect(changedRows(before, signed)).toEqual({ changed: [ref("230-23")], blinding: false });
+  // the landing has the MS-01 split propose S5 for it: the study and the product that holds its values are blinded
+  const landed = copy(signed);
+  for (const label of ["230-23", "Exampleamide IR tablet"]) {
+    const row = landed.subjects.find((s) => s.label === label)!;
+    row.blinded = true;
+    row.blinded_why = label === "230-23" ? "the study split proposes it for S5 (external validation), before a plan"
+      : "it holds the values of a blinded study";
+  }
+  expect(changedRows(before, landed)).toEqual({ changed: [ref("230-23"), ref("Exampleamide IR tablet")], blinding: true });
+  // a row whose reason alone changed is a change of its blinding too; any other field a card shows is a change of the row
+  const why = copy(landed);
+  why.subjects.find((s) => s.label === "230-23")!.blinded_why = "the plan places it in S5 (external validation)";
+  expect(changedRows(landed, why)).toEqual({ changed: [ref("230-23")], blinding: true });
+  const joined = copy(before);
+  const cl = joined.subjects.find((s) => s.label === "CL-01")!;
+  cl.legacy_groups = [...cl.legacy_groups, "sheet:CL-01 sheet 2"];          // a sheet the sheet form read joins its card
+  expect(changedRows(before, joined)).toEqual({ changed: [ref("CL-01")], blinding: false });
+  // a new subject is a change (no card of it is held yet); a blinded new one changes what is withheld elsewhere
+  const more = copy(before);
+  more.subjects.push({ ...copy(before.subjects[0]), subject: "st-99", label: "NEW-1", blinded: true,
+                       blinded_why: "it is entered for external validation on its card" });
+  expect(changedRows(before, more)).toEqual({ changed: [`${before.subjects[0].subject_type}/st-99`], blinding: true });
+});
+
+test("round 5: the studies the blinding list withholds, as the inputs name them, in one string", () => {
+  expect(blindedStudies(null)).toBeNull();
+  expect(blindedStudies({ studies: [] })).toBe("");
+  const studies = [{ study_id: "po-50", blinded: true }, { study_id: "iv-250", blinded: false }, { study_id: "iv-500", blinded: true }];
+  expect(blindedStudies({ studies })).toBe("iv-500|po-50");
+  // a sheet form's study the split proposes for S5 once it is confirmed: one more name, so what the list withholds is read again
+  expect(blindedStudies({ studies: [...studies, { study_id: "CL-01", blinded: true }] })).toBe("CL-01|iv-500|po-50");
+  // the order of the rows or a left-out duplicate changes nothing
+  expect(blindedStudies({ studies: [...studies].reverse().concat({ study_id: "po-50", blinded: true }) })).toBe("iv-500|po-50");
 });

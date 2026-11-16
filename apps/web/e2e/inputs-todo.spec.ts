@@ -1,12 +1,25 @@
 // T-49: what keeps P4 from ready is listed on the Model inputs page with what settles it, and settled there: one of
 // two values more than 2-fold apart kept (values within 10 % are one value, D-32), a placeholder target corrected, a pKa
 // called acidic or basic, the refiled value checked. Reproduces the evidence of a real project (2026-10-06); the values
-// are test entries, never a model.
+// are test entries, never a model. Another project of the drug offers two literature values (final review round 5):
+// filing the placeholder under its pathway, and adding a value with its source on Compound, each takes one of them
+// away, and the offers are read again then, and only then.
+import { execFileSync } from "node:child_process";
+import { join, resolve } from "node:path";
+
 import { expect, type Page, test } from "@playwright/test";
 
 import { SIDEBAR_PREFETCH, finishStart, requestsDuring } from "./fixtures/inputs";
 
 const AUTH = { Authorization: "Bearer dev" };
+const REPO = resolve(__dirname, "../../..");
+// what the other project's literature found: the refiled value here, and the permeability added here, each from the
+// same source with the same quote (value-reuse offers a value until this project holds it: `value_reuse.offered`)
+const OFFERED = [
+  { target: "elim.renal.gfr_fraction", value: 0.45, quote: "elim 0.45", doi: "10.2147/DDDT.S80886", title: "Desvenlafaxine review" },
+  { target: "perm.intestinal", value: 0.000015, unit: "cm/s", quote: "an intestinal permeability of 1.5e-5 cm/s", doi: "10.1/desv-perm",
+    title: "Desvenlafaxine permeability" },
+];
 
 async function shot(page: Page, name: string) {
   await page.screenshot({ path: test.info().outputPath(`${name}.png`), fullPage: true });
@@ -26,6 +39,13 @@ function onlyTheInputs(sent: string[], post: RegExp, also: string[] = []) {
 }
 
 test("open P4 items are settled on the Model inputs page", async ({ page, request }) => {
+  // the person's other project of the drug, whose literature found two values this one does not hold yet
+  const proposal = { name: "proposal.md", mimeType: "text/markdown", buffer: Buffer.from("# Proposal\nER tablet 50 mg.") };
+  const made = await request.post("/api/v1/projects:initiate", { headers: AUTH,
+    multipart: { drug_name: "desvenlafaxine", extract: "false", files: proposal } });
+  const other = (await made.json()).data.project_id as string;
+  execFileSync("uv", ["run", "python", join(__dirname, "fixtures", "literature_value.py"), join(process.env.E2E_DATA_DIR!, "read-root"),
+                      other, JSON.stringify(OFFERED)], { cwd: REPO });
   const started = await request.post("/api/v1/projects:initiate", {
     headers: AUTH,
     multipart: { drug_name: "desvenlafaxine", extract: "false",
@@ -59,6 +79,8 @@ test("open P4 items are settled on the Model inputs page", async ({ page, reques
   await page.getByTestId("tab-compound").click();                 // each item is settled in its area
 
   await expect(page.getByTestId("todo-conflict-phys.logp")).toHaveCount(0);
+  const offer = page.getByTestId(`reuse-${other}`);
+  await expect(offer).toContainText("2 values");
   // two fu values more than 2-fold apart: keep one, the other is rejected with the reason
   const fu = page.getByTestId("todo-conflict-bind.fu");
   await fu.getByRole("radio").first().check();
@@ -68,20 +90,20 @@ test("open P4 items are settled on the Model inputs page", async ({ page, reques
     await fu.getByRole("button", { name: "Keep the selected value, reject the others" }).click();
     await expect(page.getByText("Fraction unbound in plasma: one value kept")).toBeVisible();
   });
-  onlyTheInputs(kept, /^POST evidence\/ev-[0-9a-f]+:choose$/);
-  // another project of the drug (another spec's) may offer values: a value newly held here may take one of them away
-  const offered = (await page.locator('[data-testid^="reuse-use-"]').count()) > 0;
+  onlyTheInputs(kept, /^POST evidence\/ev-[0-9a-f]+:choose$/);           // a value held already: the offers stay as they were
   await expect(page.getByTestId("todo-conflict-bind.fu")).toHaveCount(0);
 
-  // "elim" is the data plan's placeholder: file the value under the pathway; the refiled copy is held until checked
+  // "elim" is the data plan's placeholder: file the value under the pathway; the refiled copy is held until checked. It
+  // is a value newly held here, the one the other project offers: the offers are read again, and lose it
   const elim = page.getByTestId("todo-correct-elim");
   await elim.locator("select").first().selectOption("elim.renal.gfr_fraction");
   await elim.locator("input[placeholder='why']").fill("renal filtration is the main route");
   const refiled = await requestsDuring(page, projectId, async () => {
     await elim.getByRole("button", { name: "Correct" }).click();
     await expect(page.getByText(/Filed as GFR fraction \(renal filtration\)/)).toBeVisible();
+    await expect(offer).toContainText("1 value");
   });
-  onlyTheInputs(refiled, /^POST evidence\/ev-[0-9a-f]+:correct$/, offered ? ["GET value-reuse"] : []);
+  onlyTheInputs(refiled, /^POST evidence\/ev-[0-9a-f]+:correct$/, ["GET value-reuse"]);
   const held = page.getByTestId("todo-review-elim.renal.gfr_fraction");
   await held.locator("input[placeholder='why']").fill("fraction of GFR, from the review");
   const accepted = await requestsDuring(page, projectId, async () => {
@@ -99,6 +121,25 @@ test("open P4 items are settled on the Model inputs page", async ({ page, reques
     await expect(page.getByTestId("todo-pka-phys.pka")).toHaveCount(0);
   });
   onlyTheInputs(saved, /^POST evidence\/ev-[0-9a-f]+:correct$/);               // its acid or base: no value newly held
+
+  // a value added with its source on its row (the permeability the other project found, from the same paper and
+  // sentence): newly held here, so the inputs, the evidence and the offers are read again, and the last offer goes
+  const block = page.getByTestId("block-Permeability and absorption");
+  const folded = (await block.getByTestId("record-perm.intestinal").count()) === 0;
+  if (folded) await block.getByTestId("fill-toggle-Permeability and absorption").click();
+  const perm = block.getByTestId("record-perm.intestinal");
+  await perm.getByTestId("add-open-perm.intestinal").click();
+  const form = perm.getByTestId("add-perm.intestinal");
+  await form.getByLabel("value for perm.intestinal").fill("0.000015");
+  await form.getByLabel("unit for perm.intestinal").fill("cm/s");
+  await form.getByLabel("link for perm.intestinal").fill("10.1/desv-perm");
+  await form.getByLabel("quote for perm.intestinal").fill("an intestinal permeability of 1.5e-5 cm/s");
+  const added = await requestsDuring(page, projectId, async () => {
+    await form.getByRole("button", { name: "Add" }).click();
+    await expect(page.getByTestId("record-perm.intestinal")).not.toContainText("no value yet");
+    await expect(offer).toHaveCount(0);
+  });
+  onlyTheInputs(added, /^POST evidence$/, ["GET evidence", "GET value-reuse"]);
 
   // what is left: values nobody has proposed yet, and data to judge the model on (opened from the side list)
   await expect(page.getByTestId("todo-missing-phys.mw")).toBeVisible();
