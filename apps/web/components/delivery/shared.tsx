@@ -10,7 +10,7 @@ import { useCallback, useState } from "react";
 import { ReasonForm } from "@/components/kit/Reason";
 import type { Envelope, Schema } from "@/lib/api";
 import { alreadyDecidedText, whereIs } from "@/lib/words";
-import { useMutation, type After, type Outcome } from "@/lib/hooks";
+import { useMutation, type After, type Outcome, type Read } from "@/lib/hooks";
 
 import { cardAfter, writePage } from "./writes";
 
@@ -168,11 +168,12 @@ export function useDecide() {
 
 /** A decision on a subject's card (`:enter`, `:override`, `:dispose`, `:choose`, `:link`): its answer, the card, is
  *  written into the page and the delivery page is read again once (`writes.ts` `cardAfter`), so it costs two requests. */
-export type CardDecide = (call: () => Promise<Envelope<Subject>>) => Promise<Decided<Subject>>;
+/** A decision on a card: its answer is the card; `reads`, what else it changed (the delivery page by default). */
+export type CardDecide = (call: () => Promise<Envelope<Subject>>, reads?: readonly Read[]) => Promise<Decided<Subject>>;
 
 export function useCardDecide(projectId: string) {
   const { decide, busy, problem, clear } = useDecide();
-  const onCard: CardDecide = useCallback((call) => decide(call, cardAfter(projectId)), [decide, projectId]);
+  const onCard: CardDecide = useCallback((call, reads) => decide(call, cardAfter(projectId, reads)), [decide, projectId]);
   return { decide: onCard, busy, problem, clear };
 }
 

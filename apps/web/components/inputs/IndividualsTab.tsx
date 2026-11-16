@@ -19,7 +19,7 @@ import { EmptyState } from "@/components/kit";
 import { focusSoon } from "@/components/kit/focus";
 import { send } from "@/lib/api";
 import { useResource } from "@/lib/hooks";
-import { normLabel, type Subject, type WorkItem } from "@/lib/inputsWork";
+import { blindedText, normLabel, type Subject, type WorkItem } from "@/lib/inputsWork";
 import { fieldInText, individualNeeds, individualText, plural } from "@/lib/words";
 
 import { MODEL } from "./after";
@@ -235,7 +235,8 @@ function Pending({ s, projectId, vocabulary, options, onOpen }: {
           {onOpen ? <button type="button" className="link-btn" onClick={() => onOpen(null, s)}
                             aria-label={`Enter once the study is confirmed: open the card of ${s.label}`}>Enter once the study is confirmed →</button>
             : "Enter once the study is confirmed."}
-          {s.blinded && <span className="muted"> Blinded until the plan is signed.</span>}
+          {/* why, as everywhere it is withheld (round 5: this line said only that it is) */}
+          {s.blinded && <span className="muted" data-testid={`individual-blinded-${s.key}`}> {blindedText(s, ".")}</span>}
         </p>
       )}
     </div>

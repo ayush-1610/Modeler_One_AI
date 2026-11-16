@@ -210,18 +210,24 @@ def test_the_lever_for_a_tablet_studys_formulation_follows_what_the_project_hold
         inputs = next(s for s in c.get("/api/v1/projects/p1/steps", headers=H).json()["data"]["steps"] if s["step"] == "inputs")
         item = next((t for t in c.get("/api/v1/projects/p1/inputs", headers=H).json()["data"]["todo"] if t["kind"] == "formulation"), None)
         assert (item or {}).get("way") == inputs["formulation"]        # one reading for the step bar and To do
-        return inputs["formulation"], item, (item or {}).get("ask", [])
+        lever = inputs["formulation"]
+        if lever is not None:                                           # one study: its own way is the step bar's
+            assert lever["each"] == [{"study": "CL-1", "named": None, **{k: lever[k] for k in ("way", "products", "ready")}}]
+            lever = {k: v for k, v in lever.items() if k != "each"}
+        return lever, item, (item or {}).get("ask", [])
 
+    asked = [("REQ-form.release", f"{UNNAMED_PRODUCT} — study CL-1", "the model itself", True)]
     # no product here at all: add one, or ask the client, who is asked for the product of the study the sheet form loaded
     lever, item, ask = way()
     assert lever == {"way": "add_product", "products": [], "studies": ["CL-1"], "ready": True}
-    assert [(a["req_id"], a["what"], a["why"], a["required"]) for a in ask] == [
-        ("REQ-form.release", f"{UNNAMED_PRODUCT} — study CL-1", "the model itself", True)]
-    # a product the proposal names, with no dissolution data: its dissolution data, or the client; nothing asked twice
+    assert [(a["req_id"], a["what"], a["why"], a["required"]) for a in ask] == asked
+    # a product the proposal names, with no dissolution data: its dissolution data, or the client, who is asked the same
+    # line (round 5: the line follows the way that offers "ask the client", not only "no product at all")
     edit = {"changes": [{"path": "products[0].name", "status": "EDITED", "value": "Tab 10", "note": "the proposal"}], "reason": "product"}
     assert c.put("/api/v1/projects/p1/brief", headers=H, json=edit).status_code == 200
     lever, item, ask = way()
-    assert lever == {"way": "add_dissolution", "products": ["Tab 10"], "studies": ["CL-1"], "ready": True} and ask == []
+    assert lever == {"way": "add_dissolution", "products": ["Tab 10"], "studies": ["CL-1"], "ready": True}
+    assert [(a["req_id"], a["what"], a["why"], a["required"]) for a in ask] == asked
     # its dissolution profile is here and can give the release: use it (the profile's product first)
     import numpy as np
 
@@ -245,6 +251,10 @@ def test_the_lever_for_a_tablet_studys_formulation_follows_what_the_project_hold
     assert c.post(f"/api/v1/projects/p1/dissolution/{profile['id']}:propose", headers=H, json={"formulation": "Tab10"}).status_code == 201
     lever, item, _ask = way()
     assert lever is None and item is None
+    # and that profile is the release of the formulation made from it: never offered again (round 5)
+    from modeler_project.formulation_way import _released
+
+    assert _released(_ws) == ({profile["id"]}, {"tab10"})
 
 
 def test_formulation_way_reads_each_problem_of_the_readiness_check(tmp_path):
@@ -257,15 +267,91 @@ def test_formulation_way_reads_each_problem_of_the_readiness_check(tmp_path):
     named = "CL-2: the CPF defines no formulation 'Brand 5 mg' (form.Brand 5 mg.type)"
     several = "CL-3: the study does not name its formulation and the CPF defines several: A, B"
     weibull = "CL-4: Weibull formulation 'A' needs form.A.weibull.t50 (the in-vitro dissolution fit)"
-    assert formulation_way(ws, [none, named]).model_dump() == {"way": "add_product", "products": (), "studies": ("CL-1", "CL-2"), "ready": True}
-    assert formulation_way(ws, [several, weibull]).model_dump() == {"way": "choose", "products": (), "studies": ("CL-3",), "ready": True}
+    lead = lambda w: {k: v for k, v in w.model_dump().items() if k != "each"}  # the step bar's fields
+    ways = lambda w: [(e.study, e.way, e.products) for e in w.each]  # each study's own
+    # no product here: CL-1 adds one; CL-2 names Brand 5 mg, which only Brand 5 mg's dissolution data settle (round 5:
+    # it was "add a product" for both); the step bar names the lever done first, for the study it settles
+    way = formulation_way(ws, [none, named])
+    assert lead(way) == {"way": "add_dissolution", "products": ("Brand 5 mg",), "studies": ("CL-2",), "ready": True}
+    assert ways(way) == [("CL-1", "add_product", ()), ("CL-2", "add_dissolution", ("Brand 5 mg",))]
+    assert lead(formulation_way(ws, [none])) == {"way": "add_product", "products": (), "studies": ("CL-1",), "ready": True}
+    assert lead(formulation_way(ws, [several, weibull])) == {"way": "choose", "products": (), "studies": ("CL-3",), "ready": True}
     assert formulation_way(ws, [weibull]) is None
     assert formulation_way(ws, []) is None
     brief = empty_brief("Exampleamide", by="u1").to_content()
     brief["groups"]["products"] = [{"name": {"value": "Test 5 mg", "status": "EDITED"}}, {"name": {"value": "Brand 5 mg", "status": "EDITED"}}]
     ws.commit(ArtifactKind.BRIEF, "main", brief, actor="u1", reason="products")
-    assert formulation_way(ws, [none, named]).model_dump() == {"way": "add_dissolution", "products": ("Brand 5 mg", "Test 5 mg"),
-                                                              "studies": ("CL-1", "CL-2"), "ready": True}
+    # products here, none with a profile: each study's dissolution data, the product a study names first
+    way = formulation_way(ws, [none, named])
+    assert lead(way) == {"way": "add_dissolution", "products": ("Brand 5 mg", "Test 5 mg"), "studies": ("CL-1", "CL-2"), "ready": True}
+    assert ways(way) == [("CL-1", "add_dissolution", ("Test 5 mg", "Brand 5 mg")), ("CL-2", "add_dissolution", ("Brand 5 mg",))]
+
+
+def _profile(pid: str, product: str | None, *, usable: bool = True) -> dict:
+    """A dissolution profile as the register keeps it, as far as `formulation_way` reads it (software test data)."""
+    return {"id": pid, "key": {"product": product}, "release_model": "Weibull" if usable else "Table",
+            "fit": {"t50_min": 18.0} if usable else None}
+
+
+@pytest.mark.req("T-48")
+def test_formulation_way_is_read_for_each_study(tmp_path, monkeypatch):
+    """Round 5 (round 4's skeptic, way_edge.py): a study that names its product is settled by that product's profile or
+    its dissolution data, never by another product's profile; a profile that is a release already is not offered again;
+    the products a study names come first, then those whose data are confirmed, then the register's order; and a study
+    whose way asks the client is asked."""
+    from modeler_project import client_review
+    from modeler_project import formulation_way as fw
+
+    ws = Workspace(FileProjectStore(tmp_path), "t1", "p1")
+    none = "CL-1: the study is a solid oral form but the CPF defines no formulation (form.{name}.type)"
+    named = "CL-2: the CPF defines no formulation 'Test 10 mg' (form.Test 10 mg.type)"
+    profiles: list[dict] = []
+    confirmed: set[str] = set()
+    released: tuple[set[str], set[str]] = (set(), set())
+    monkeypatch.setattr(fw, "_profiles", lambda _ws: profiles)
+    monkeypatch.setattr(client_review, "confirmed_profiles", lambda _ws: confirmed)
+    monkeypatch.setattr(fw, "_released", lambda _ws: released)
+    lead = lambda w: {k: v for k, v in w.model_dump().items() if k != "each"}  # the step bar's fields
+    ways = lambda w: [(e.study, e.way, e.products, e.ready) for e in w.each]  # each study's own
+
+    # (a) the study names Test 10 mg and only Brand 10 mg's profile can give a release: Test 10 mg's dissolution data, not
+    # Brand 10 mg's profile (round 4 offered "use Brand 10 mg's profile", which would not settle the study)
+    profiles[:] = [_profile("d1", "Brand 10 mg")]
+    confirmed |= {"d1"}
+    way = fw.formulation_way(ws, [named])
+    assert lead(way) == {"way": "add_dissolution", "products": ("Test 10 mg",), "studies": ("CL-2",), "ready": True}
+    assert ways(way) == [("CL-2", "add_dissolution", ("Test 10 mg",), True)]
+    assert way.each[0].named == "Test 10 mg"
+    # (b) Test 10 mg's profile is here too, still to confirm, and Brand 10 mg's is confirmed: the named product comes first
+    # all the same (round 4 put the confirmed other product first), not ready
+    profiles[:] = [_profile("d1", "Brand 10 mg"), _profile("d2", "Test 10 mg")]
+    way = fw.formulation_way(ws, [named])
+    assert lead(way) == {"way": "use_profile", "products": ("Test 10 mg",), "studies": ("CL-2",), "ready": False}
+    # with a study that names none: it may use either profile, the confirmed one first; the step bar names the study's
+    # product first, as the docstring orders them
+    way = fw.formulation_way(ws, [none, named])
+    assert ways(way) == [("CL-1", "use_profile", ("Brand 10 mg", "Test 10 mg"), True), ("CL-2", "use_profile", ("Test 10 mg",), False)]
+    assert lead(way) == {"way": "use_profile", "products": ("Test 10 mg", "Brand 10 mg"), "studies": ("CL-1", "CL-2"), "ready": False}
+    # a study naming none, alone: the confirmed product first, whatever the register's order
+    assert lead(fw.formulation_way(ws, [none]))["products"] == ("Brand 10 mg", "Test 10 mg")
+    assert lead(fw.formulation_way(ws, [none]))["ready"] is True
+    # a profile a formulation was made from is that formulation's release already: not offered again; a profile that is
+    # a table cannot give one
+    released = ({"d1"}, set())
+    profiles[:] = [_profile("d1", "Brand 10 mg"), _profile("d2", "Test 10 mg", usable=False)]
+    way = fw.formulation_way(ws, [none])
+    assert lead(way) == {"way": "add_dissolution", "products": ("Brand 10 mg", "Test 10 mg"), "studies": ("CL-1",), "ready": True}
+    # nor is a profile of a product whose formulation the model holds
+    released = (set(), {"brand 10 mg"})
+    profiles[:] = [_profile("d1", "Brand 10 mg"), _profile("d3", "Ref 10 mg")]
+    assert lead(fw.formulation_way(ws, [none]))["products"] == ("Ref 10 mg",)
+
+    # the client is asked for each study whose way offers it (`inputs.todo`'s `ask`): a study that names its product, for
+    # that product's data
+    from modeler_project.study_requirements import UNNAMED_PRODUCT, named_product, unnamed_product_request
+
+    lines = unnamed_product_request(["CL-1", "CL-2"], named={"CL-2": "Test 10 mg"}, brief=None, matrix=None)
+    assert [line.what for line in lines] == [f"{UNNAMED_PRODUCT} — study CL-1", f"{named_product('Test 10 mg')} — study CL-2"]
 
 
 def _be_workbook() -> bytes:

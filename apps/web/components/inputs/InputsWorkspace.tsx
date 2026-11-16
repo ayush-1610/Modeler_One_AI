@@ -14,11 +14,13 @@ import { TabPanel, Tabs } from "@/components/kit/Tabs";
 import { narrow, send, type Envelope, type Narrow, type Schema } from "@/lib/api";
 import { TAG_LABELS } from "@/lib/fileTags";
 import { HeldReads, readAgain, useMutation, useResource, type After } from "@/lib/hooks";
-import { areaHead, cardAnchor, type InputsLike, nextText, productFor, releaseAnchor, releaseOf, type Subject, type WorkItem } from "@/lib/inputsWork";
+import { areaHead, cardAnchor, type InputsLike, nextText, normLabel, productFor, releaseAnchor, releaseOf, type Subject,
+         type WorkItem } from "@/lib/inputsWork";
 import { type ArtifactView, STEP_ROUTES } from "@/lib/pipeline";
-import { AREA_NAME, ASK_FORMULATION, formulationWays, inputsHref, STATUS_MEANS, plural as count, valueWord } from "@/lib/words";
+import { AREA_NAME, ASK_FORMULATION, type FormulationWay, formulationWays, inputsHref, STATUS_MEANS, plural as count, studyWay,
+         valueWord } from "@/lib/words";
 
-import { AddDataMenu } from "./AddDataMenu";
+import { AddDataMenu, type AddDataOpen } from "./AddDataMenu";
 import { DOCUMENTS, FILES, SEARCH, inputsAfter, valuesAfter, valuesArrived } from "./after";
 import { SheetGroups } from "./ClientConfirm";
 import { ClientFilesTab, type FilesShown } from "./ClientFilesTab";
@@ -265,17 +267,23 @@ function Workspace({ projectId, initialTab, initialOnly, initialStatus, steps }:
     return () => window.clearTimeout(timer);
   }, [urlAt, shownNow]);
   // `release=<product>` (round 4: the step bar's "use a product's dissolution profile as its release" and "add a product's
-  // dissolution data") opens that product's card at its release ("Use this profile as the release", focused, or what to
-  // add); a product with no card (one the proposal names, a profile of no product) opens Products and dissolution where
-  // it is listed
+  // dissolution data") opens that product's card at its release ("Use this profile as the release", focused, or "Add its
+  // dissolution file…"); a product with no card opens what settles it: a profile of it listed under the profiles of no
+  // product, else (one only the proposal or a study names: round 5, it landed on the proposal's "Change") "Add data" on
+  // "Formulation and dissolution files…", focused
   const urlRelease = url.get("release");
+  const [addOpen, setAddOpen] = useState<AddDataOpen | null>(null);
   useEffect(() => {
     if (urlRelease === null || !shownNow) return;
     const card = productFor(model.subjects, urlRelease);
     setOnlyState(false);
     if (card) { openCard(card, releaseAnchor(card)); return; }
-    setChosen("formulations");
-    bringIntoView("dissolution-unlinked", "inputs-products");
+    // the URL is written again (without `release`), so the same link followed again lands again
+    setTab("formulations");
+    const listed = (client.data?.dissolution?.profiles ?? []).some((p) => !model.subjects.some((s) => s.kind === "product" && productOf(s)(p))
+                                                                     && normLabel(String(p.key.product ?? "")) === normLabel(urlRelease));
+    if (listed) bringIntoView("dissolution-unlinked", "inputs-products");
+    else setAddOpen({ at: Date.now(), area: "formulations", product: urlRelease || undefined });
   }, [urlRelease, shownNow]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const run: Run = async <T,>(fn: () => Promise<Envelope<T>>, ok: string, after: After<T>) => {
@@ -390,6 +398,9 @@ function Workspace({ projectId, initialTab, initialOnly, initialStatus, steps }:
     setChosen(t); sync(t, only, t === "todo" ? status : null); if (t !== "todo") setStatusState(null);
   };
   const setOnly = (o: boolean) => { setOnlyState(o); sync(tab, o, status); };
+  // "Add data" opened on "Formulation and dissolution files…", for a product (round 5: a product's dissolution data are
+  // added there, whoever asks: a card's release line, a tablet study's row)
+  const addDissolution = (product?: string) => setAddOpen({ at: Date.now(), area: "formulations", product: product || undefined });
   const setStatus = (s: StatusFilter) => { setStatusState(s); setChosen("todo"); sync("todo", only, s); };
   // a status-line count opens To do narrowed to its word; pressed again, To do shows every item
   const toggleStatus = (s: Exclude<StatusFilter, null>) => setStatus(tab === "todo" && status === s ? null : s);
@@ -515,7 +526,7 @@ function Workspace({ projectId, initialTab, initialOnly, initialStatus, steps }:
   // what every card needs from the page
   const fileNames = new Map(files.map((f) => [f.id, f.file] as const));
   const env: CardEnv = {
-    projectId, work: model, run, onGo: go, onTodo: () => setTab("todo"), focus: cardFocus,
+    projectId, work: model, run, onGo: go, onTodo: () => setTab("todo"), focus: cardFocus, onAddData: addDissolution,
     fileName: (id) => fileNames.get(id) ?? null,
     onFile: (id) => { setTab("files"); if (!filesOpen.has(id)) setFilesOpen((was) => new Set([...was, id])); bringIntoView(`inputs-file-${fileNames.get(id) ?? ""}`); },
   };
@@ -533,16 +544,54 @@ function Workspace({ projectId, initialTab, initialOnly, initialStatus, steps }:
   const profileLabel = (id: string) => dissolution?.profiles.find((p) => p.id === id)?.label ?? id;
   const products = cardsFor("formulations").filter((s) => s.kind === "product");
   // what gives a tablet study its formulation as the project stands (round 4: the API's, the step bar's and To do's lever):
-  // a product's dissolution profile here, products without one, or no product at all
+  // a product's dissolution profile here, products without one, or no product at all; each study's own (round 5)
   const formulationWay = todo.find((t) => t.kind === "formulation")?.way ?? null;
-  const releaseCard = productFor(model.subjects, formulationWay?.products[0]);
-  const openRelease = () => {
-    if (only) setOnly(false);
-    if (releaseCard) openCard(releaseCard, releaseAnchor(releaseCard));
-    else bringIntoView("dissolution-unlinked", "inputs-products");
-  };
   const profilesOf = (s: Subject) => (dissolution?.profiles ?? []).filter(productOf(s));
   const unlinkedProfiles = (dissolution?.profiles ?? []).filter((p) => !model.subjects.some((s) => s.kind === "product" && productOf(s)(p)));
+  // where a study's way lands, as the step bar's link does (`release=`): the first product's card at its release, a profile
+  // of no card under the profiles of no product, else "Add data" on the dissolution files, for that product
+  const openRelease = (product: string | undefined) => {
+    if (only) setOnly(false);
+    const card = productFor(model.subjects, product);
+    if (card) openCard(card, releaseAnchor(card));
+    else if (unlinkedProfiles.some((p) => normLabel(String(p.key.product ?? "")) === normLabel(product ?? ""))) {
+      bringIntoView("dissolution-unlinked", "inputs-products");
+    } else addDissolution(product);
+  };
+  // the solid studies, each with its own way to a formulation (round 5: the row said the step bar's lever, which may be
+  // another study's): one that names its formulation is listed while the model lacks it
+  const ownWay = (study: string) => (formulationWay?.each?.some((e) => normLabel(e.study) === normLabel(study)) ? studyWay(formulationWay, study) : null);
+  const solidRows = used.filter((s) => SOLID.includes(String(s.facts.formulation)))
+    .map((s) => ({ s, own: s.facts.formulation_name ? ownWay(s.study_id) : studyWay(formulationWay, s.study_id) }))
+    .filter(({ s, own }) => !only || !s.facts.formulation_name || own);
+  const askHref = inputsHref(projectId, { area: "todo", query: `at=${ASK_FORMULATION}` });
+  /** What gives a tablet study its formulation here, as the project stands (round 4: the step bar's lever, the API's
+   *  `way`; round 5: the study's own): a product's dissolution profile above; a product without one, its dissolution data;
+   *  no product at all, the product first; or the client. `named`: the study names the product (said after its name). */
+  const studyLever = (study: string, way: FormulationWay | null, named = false) => {
+    const first = way?.products[0];
+    const card = productFor(model.subjects, first);
+    const lead = named ? "not in the model yet" : "no formulation in the model yet";
+    if (way?.way === "use_profile") {
+      return <span className="muted" data-testid={`formulation-none-${study}`}>{lead}:{" "}
+        <button type="button" className="link-btn" onClick={() => openRelease(first)} data-testid={`formulation-release-${study}`}>
+          {formulationWays(way).ways[0]?.say}</button>, above{card ? ` (${card.label}'s card)` : ""}</span>;
+    }
+    if (way?.way === "add_dissolution") {
+      return <span className="muted" data-testid={`formulation-none-${study}`}>{lead}, and{" "}
+        {named || way.each?.[0]?.named ? `no dissolution profile of ${first} can give it` : "no product here has a dissolution profile that can give it"}:{" "}
+        <button type="button" className="link-btn" onClick={() => openRelease(first)} data-testid={`formulation-dissolution-${study}`}
+                aria-label={first ? `add a product's dissolution data: ${first}` : undefined}>add a product&apos;s dissolution data</button>
+        {" (its dissolution file, Add data), or "}<Link href={askHref} prefetch={false}>ask the client</Link></span>;
+    }
+    if (way?.way === "add_product") {
+      return <span className="muted" data-testid={`formulation-none-${study}`}>{lead}, and no product here:{" "}
+        <button type="button" className="link-btn" onClick={() => { if (only) setOnly(false); setAddProduct(Date.now()); }}
+                data-testid={`formulation-add-product-${study}`}>add the product it used</button>
+        {" (“Add a product”, above) with its dissolution data, or "}<Link href={askHref} prefetch={false}>ask the client</Link></span>;
+    }
+    return <span className="muted" data-testid={`formulation-none-${study}`}>{lead}</span>;
+  };
   // up to three cards are all open; past three, the first to confirm is (the owner, 2026-11-05: "one by one")
   const opens = (list: Subject[], s: Subject) => list.length <= ONE_BY_ONE || s.key === list.find((x) => !x.done && !x.blinded)?.key;
   // Simulation settings: shown behind "Change…", or by themselves while one needs the person
@@ -566,7 +615,7 @@ function Workspace({ projectId, initialTab, initialOnly, initialStatus, steps }:
     <OpenSheetContext.Provider value={openSheet}>
     <PageShell {...head} before={toAreas}
       actions={(
-        <AddDataMenu projectId={projectId} run={run}
+        <AddDataMenu projectId={projectId} run={run} open={addOpen}
                      onTemplate={() => void downloadTemplate(client.data?.template).then((p) => { if (p) setNotice({ ok: false, text: p }); })}
                      onDigitize={() => startStudies("digitize")} onTypeTable={() => startStudies("type")}
                      onFindObserved={client.data?.agents.enabled ? () => {
@@ -690,37 +739,19 @@ function Workspace({ projectId, initialTab, initialOnly, initialStatus, steps }:
                      fields={["name", "role", "dosage_form", "strength", "release", "attributes"]}
                      title="Products named in the proposal"
                      lede="Each product becomes its own formulation. Add its dissolution data; for a test against a reference, add the study that compares them." />}
-          {used.some((s) => SOLID.includes(String(s.facts.formulation)) && (!only || !s.facts.formulation_name)) && (
+          {solidRows.length > 0 && (
             <section className="card">
               <h3 className="mt-0">The formulation of each solid study</h3>
               <table>
                 <tbody>
-                  {used.filter((s) => SOLID.includes(String(s.facts.formulation)) && (!only || !s.facts.formulation_name)).map((s) => (
+                  {solidRows.map(({ s, own }) => (
                     <tr key={s.study_id} data-testid={`formulation-${s.study_id}`}>
                       <td><strong>{s.study_id}</strong> <span className="muted">{valueWord(String(s.facts.formulation))}</span></td>
-                      <td>{s.facts.formulation_name ? String(s.facts.formulation_name)
+                      <td>{s.facts.formulation_name
+                        // a study that names its formulation: the name, and while the model lacks it, what gives it (round 5)
+                        ? <>{String(s.facts.formulation_name)}{own && <> {studyLever(s.study_id, own, true)}</>}</>
                         : formulations.length ? <FormulationChoice study={s.study_id} options={formulations} projectId={projectId} run={run} />
-                          // what can give it its formulation here, as the project stands (round 4: the step bar's lever, the
-                          // API's `way`): a product's dissolution profile above; products without one, their dissolution
-                          // data; no product at all, the product first; or the client
-                          : formulationWay?.way === "use_profile"
-                            ? <span className="muted" data-testid={`formulation-none-${s.study_id}`}>no formulation in the model yet:{" "}
-                              <button type="button" className="link-btn" onClick={openRelease} data-testid={`formulation-release-${s.study_id}`}>
-                                {formulationWays(formulationWay).ways[0]?.say}</button>, above{releaseCard ? ` (${releaseCard.label}'s card)` : ""}</span>
-                            : formulationWay?.way === "add_dissolution"
-                              ? <span className="muted" data-testid={`formulation-none-${s.study_id}`}>no formulation in the model yet, and no
-                                product here has a dissolution profile that can give it:{" "}
-                                <button type="button" className="link-btn" onClick={openRelease} data-testid={`formulation-dissolution-${s.study_id}`}>add
-                                  a product&apos;s dissolution data</button> (its dissolution file, Add data), or{" "}
-                                <Link href={inputsHref(projectId, { area: "todo", query: `at=${ASK_FORMULATION}` })}>ask the client</Link></span>
-                              : formulationWay?.way === "add_product"
-                                ? <span className="muted" data-testid={`formulation-none-${s.study_id}`}>no formulation in the model yet, and no
-                                  product here:{" "}
-                                  <button type="button" className="link-btn" onClick={() => { if (only) setOnly(false); setAddProduct(Date.now()); }}
-                                          data-testid={`formulation-add-product-${s.study_id}`}>add the product it used</button>
-                                  {" (“Add a product”, above) with its dissolution data, or "}
-                                  <Link href={inputsHref(projectId, { area: "todo", query: `at=${ASK_FORMULATION}` })}>ask the client</Link></span>
-                                : <span className="muted" data-testid={`formulation-none-${s.study_id}`}>no formulation in the model yet</span>}</td>
+                          : studyLever(s.study_id, own)}</td>
                     </tr>
                   ))}
                 </tbody>

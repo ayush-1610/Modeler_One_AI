@@ -113,6 +113,11 @@ def blinded_studies(ws: Workspace) -> set[str]:
     return blind.blinded_studies(ws, project_record(ws), model_risk(ws))
 
 
+def blinded_why(ws: Workspace) -> dict[str, str]:
+    """`blinded_studies`, each with why it is on the project's blinding list, in words (`blinding.listed_why`)."""
+    return blind.listed_why(ws, project_record(ws), model_risk(ws))
+
+
 def blinded_sources(ws: Workspace) -> BlindedSources:
     """What D-15 withholds of the client's files now, the delivery's rule and the project's list together (one rule
     for the client files, the client review, the documents' pages, their originals and the digitizer; final review

@@ -225,6 +225,8 @@ def test_external_values_are_blinded_until_the_map_is_signed(setup):
     shown = next(d for d in evidence["datasets"] if d["study"]["study_id"] == "iv-250")
     assert hidden["blinded"] and set(hidden["series"][0]["values"]) == {None} and hidden["series"][0]["times"]
     assert shown["series"][0]["values"][0] == 20.0 and "blinded" not in shown
+    # with why its study is on the blinding list (round 5: the Every dataset line said only that it was blinded)
+    assert hidden["blinded_why"] == "the plan places it in S5 (external validation)" and "blinded_why" not in shown
     artifact = c.get(f"/api/v1/projects/p1/artifacts/dataset/{hidden['id']}", headers=H).json()["data"]["content"]
     assert set(artifact["series"][0]["values"]) == {None}
     catalog = c.get("/api/v1/projects/p1/inputs", headers=H).json()["data"]["catalog"]["content"]["studies"]

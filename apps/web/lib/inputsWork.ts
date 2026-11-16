@@ -27,8 +27,9 @@ type ReviewItem = Schema<"ReviewItem">;
 /** A line of what the client is asked for (the delivery's `request`, and the formulation item's `ask`). */
 export type RequestLike = { req_id: string; what: string; why: string; required: boolean };
 /** An open item of the /inputs to-do (components/inputs/InputsTodo.tsx `TodoItem`), as far as the work model reads it;
- *  the formulation item carries what gives a tablet study its formulation as the project stands (`way`) and, with no
- *  product here at all, what the client is asked for each such study (`ask`: round 4). */
+ *  the formulation item carries what gives a tablet study its formulation as the project stands (`way`) and what the client
+ *  is asked for each study whose way offers the client (`ask`: rounds 4 and 5, "add a product" and "add a product's
+ *  dissolution data"). */
 export type TodoLike = {
   kind: string; target: string; message: string; tab?: string; dataset_id?: string | null; details?: string[];
   way?: FormulationWay | null; ask?: RequestLike[];
@@ -836,15 +837,36 @@ export const productFor = (subjects: Subject[], name: string | null | undefined)
  *  back for external validation"), so a wrong match is seen wherever it is withheld (rounds 3 and 4). */
 export const blindedWhy = (s: Pick<Subject, "row" | "groups">): string | null =>
   s.row?.blinded_why ?? s.groups.find((g) => g.blinded && g.blinded_why)?.blinded_why ?? null;
+/** "Blinded until the plan is signed, because …" with what follows (`after`), from a reason (`blindedWhy`, a dataset's
+ *  `blinded_why`): one sentence wherever a study, its card or a dataset of it is withheld (round 5). */
+export const blindedWords = (why: string | null | undefined, after = "") =>
+  `Blinded until the plan is signed${why ? `, because ${why}` : ""}${after}`;
 /** "Blinded until the plan is signed, because …" with what follows (`after`). */
-export const blindedText = (s: Pick<Subject, "row" | "groups">, after: string) => {
-  const why = blindedWhy(s);
-  return `Blinded until the plan is signed${why ? `, because ${why}` : ""}${after}`;
-};
+export const blindedText = (s: Pick<Subject, "row" | "groups">, after: string) => blindedWords(blindedWhy(s), after);
+
+/** A part of a blinded reason, and where what it says is decided (round 5): `purpose`, the study's own purpose on its
+ *  delivery card ("it is entered for external validation on its card": changed there); `plan`, the plan's studies and
+ *  roles ("the plan places it in S5 …", "the study split proposes it for S5 …": Review & sign). Other parts are said. */
+export type BlindedPart = { text: string; to?: "purpose" | "plan" };
+const DECIDED: [RegExp, BlindedPart["to"]][] = [
+  [/it is entered for [^:;]+? on its card/, "purpose"],
+  [/the plan places it in [^:;]+?\([^)]*\)/, "plan"],
+  [/the study split proposes it for [^:;]+?\([^)]*\), before a plan/, "plan"],
+];
+/** A blinded reason (the API's words) in parts, each saying where it is decided where it can be changed. */
+export function blindedParts(why: string): BlindedPart[] {
+  const found = DECIDED.map(([rule, to]) => ({ m: rule.exec(why), to })).filter((x) => x.m)
+    .sort((a, b) => a.m!.index - b.m!.index)[0];
+  if (!found) return why ? [{ text: why }] : [];
+  const { m, to } = found;
+  return [...(m!.index ? [{ text: why.slice(0, m!.index) }] : []), { text: m![0], to },
+          ...blindedParts(why.slice(m!.index + m![0].length))];
+}
 
 /** What only the client can send, one line per requirement with the subjects it is asked for: the delivery's request and
- *  the formulation item's (`ask`: a tablet study the sheet form loaded, with no product here at all: round 4), one line per
- *  requirement and wording, each study named once whichever path asks it. */
+ *  the formulation item's (`ask`: each tablet study whose way to its formulation offers "ask the client", so wherever the
+ *  step bar, Review & sign or To do offers it, this list holds the study's line: rounds 4 and 5), one line per requirement
+ *  and wording, each study named once whichever path asks it. */
 export function askLines(delivery: DeliveryPage | null, inputs: InputsLike | null = null): AskLine[] {
   const out = new Map<string, AskLine>();
   const lines: RequestLike[] = [...(delivery?.enabled ? delivery.request : []),

@@ -596,8 +596,10 @@ test("products with dissolution profiles here: every page names the profile as t
   expect((await request.post(`${api}/inputs:assemble`, { headers: AUTH })).ok()).toBeTruthy();
   const steps = (await (await request.get(`${api}/steps`, { headers: AUTH })).json()).data.steps as { step: string; formulation: unknown }[];
   // the products' dissolution data are still to confirm: the profile is used once they are (`ready` false)
+  // (round 5: with each study's own way; CL-01 names no product, so either product's profile can give its release)
   expect(steps.find((s) => s.step === "inputs")!.formulation)
-    .toEqual({ way: "use_profile", products: ["Test 10 mg", "Brand 10 mg"], studies: ["CL-01"], ready: false });
+    .toEqual({ way: "use_profile", products: ["Test 10 mg", "Brand 10 mg"], studies: ["CL-01"], ready: false,
+               each: [{ study: "CL-01", way: "use_profile", products: ["Test 10 mg", "Brand 10 mg"], ready: false, named: null }] });
 
   // Review & sign: the situation and the lever, in the order they are done; no "add a product"
   await page.goto(`/projects/${projectId}/plan`);
@@ -662,4 +664,96 @@ test("products with dissolution profiles here: every page names the profile as t
   await expect(testCard.locator("[data-testid^='card-release-']").first()).toContainText("In the model as the formulation “Test 10 mg”");
   await expect(page.getByTestId("step-waiting")).not.toContainText("a tablet study has no formulation");
   await shot(page, "r4-3-release-set");
+});
+
+// Round 5 (round 4's downstream-blinding skeptic): a tablet study confirmed with the sheet form only, in a project whose
+// proposal names a product with no dissolution data. "add a product's dissolution data" lands on what adds them, "Add
+// data" opened on "Formulation and dissolution files…" for that product, focused (it landed on the proposal's "Change");
+// once the product has a card (its dissolution read as a table, which no Weibull fit can be the release of), on the card's
+// "Add its dissolution file…". "ask the client" lands on the study's line of "Ask the client", the study named once (round
+// 4 asked only while no product was here at all). e2e/fixtures/study_only_workbooks.py; software test data on the stub
+// engine, never a model.
+test("a product with no dissolution profile: the lever lands on what adds its data, and the study is asked of the client", async ({ page, request }) => {
+  test.setTimeout(6 * 60_000);
+  const dir = mkdtempSync(join(tmpdir(), "owner-dissolution-"));
+  execFileSync("uv", ["run", "python", join(__dirname, "fixtures", "study_only_workbooks.py"), dir], { cwd: REPO });
+  const started = await request.post("/api/v1/projects:initiate", { headers: AUTH, multipart: {
+    drug_name: "Dissolamide", extract: "false",
+    files: { name: "proposal.md", mimeType: "text/markdown", buffer: Buffer.from("# Proposal\nOral 10 mg tablet.") } } });
+  const projectId = (await started.json()).data.project_id as string;
+  await finishStart(request, projectId);
+  const api = `/api/v1/projects/${projectId}`;
+  expect((await request.post(`${api}/requirements:derive`, { headers: AUTH })).ok()).toBeTruthy();
+  const up = await request.post(`${api}/client-data`, { headers: AUTH, multipart: {
+    files: { name: "study-only.xlsx", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+             buffer: readFileSync(join(dir, "study-only.xlsx")) } } });
+  expect(up.status(), await up.text()).toBe(201);
+  const confirmed = await request.post(`${api}/client-review:confirm`, { headers: AUTH, data: { group: "study:CL-01" } });
+  expect(confirmed.ok(), await confirmed.text()).toBeTruthy();
+  // the proposal names the product, Tab 10; no file gives its dissolution
+  const named = await request.put(`${api}/brief`, { headers: AUTH, data: {
+    changes: [{ path: "products[0].name", status: "EDITED", value: "Tab 10", note: "the proposal" }], reason: "the proposal's product" } });
+  expect(named.ok(), await named.text()).toBeTruthy();
+  expect((await request.post(`${api}/inputs:assemble`, { headers: AUTH })).ok()).toBeTruthy();
+  const item = ((await (await request.get(`${api}/inputs`, { headers: AUTH })).json()).data.todo as
+    { kind: string; way: { way: string; products: string[] }; ask: { what: string }[] }[]).find((t) => t.kind === "formulation")!;
+  expect(item.way).toMatchObject({ way: "add_dissolution", products: ["Tab 10"] });
+  // the inputs ask for the study themselves, whatever the delivery asks (the pipeline set to legacy has no delivery)
+  expect(item.ask.map((a) => a.what)).toEqual(["The formulation or dissolution data of the product the study used (no file names the product) — study CL-01"]);
+
+  await page.goto(`/projects/${projectId}/inputs?tab=todo`);
+  const stepBar = page.getByTestId("step-waiting");
+  await expect(stepBar).toContainText("a tablet study has no formulation (add a product's dissolution data on Products and dissolution, or ask the client)");
+  // "ask the client": the study's own line, focused, the study named once (the delivery asks it too: one line)
+  await stepBar.getByTestId("step-waiting-or-todo").click();
+  await expect(page).toHaveURL(/\?tab=todo&at=todo-ask-REQ-form\.release/);
+  const asked = page.getByTestId("todo-group-ask").getByTestId("todo-ask-REQ-form.release");
+  await expect(asked).toBeFocused();
+  await expect(asked).toContainText("The formulation or dissolution data of the product the study used (no file names the product) · CL-01");
+  expect((await asked.innerText()).match(/CL-01/g)).toHaveLength(1);
+  await expect(page.getByTestId("todo-group-ask")).not.toContainText("Nothing the client alone holds is missing");
+
+  // "add a product's dissolution data": Tab 10 has no card, so "Add data" opens on the dissolution files, for Tab 10, focused
+  await page.getByTestId("step-waiting").getByTestId("step-waiting-dissolution").click();
+  await expect(page.getByTestId("tab-formulations")).toHaveAttribute("aria-selected", "true");
+  const files = page.getByTestId("inputs-add-data-panel").getByTestId("add-files-formulations");
+  await expect(files).toBeFocused();
+  await expect(files).toHaveText("Formulation and dissolution files… · the dissolution data of Tab 10");
+  // the view as it is (a full-page shot resizes the page, which closes the menu)
+  await page.screenshot({ path: test.info().outputPath("r5-1-add-data-for-the-proposals-product.png") });
+  await expect(files).toBeFocused();
+  // closed with Escape, the focus goes back to "Add data"; opened by its own button, it names no product
+  await page.keyboard.press("Escape");
+  await expect(files).toBeHidden();
+  await expect(page.getByTestId("inputs-add-data")).toBeFocused();
+  await page.getByTestId("inputs-add-data").click();
+  await expect(files).toHaveText("Formulation and dissolution files…");
+  await page.keyboard.press("Escape");
+  // the study's row says its own way and lands on the same control
+  const row = page.getByTestId("formulation-none-CL-01");
+  await expect(row).toContainText("no formulation in the model yet, and no product here has a dissolution profile that can give it");
+  await row.getByTestId("formulation-dissolution-CL-01").click();
+  await expect(files).toBeFocused();
+  // the control adds the data: Tab 10's dissolution file, read as a table (it plateaus below complete release)
+  await page.getByTestId("client-upload-formulations").setInputFiles(join(dir, "plateau.xlsx"));
+  await expect(page.getByTestId("inputs-notice")).toContainText("1 file stored", { timeout: 60_000 });
+  const card = page.locator("[data-testid^='product-card-']", { has: page.locator(".card-title", { hasText: /^Tab 10$/ }) });
+  await expect(card).toBeVisible({ timeout: 60_000 });
+
+  // now Tab 10 has a card: the link lands on its release line, "Add its dissolution file…" focused, which opens the same
+  await page.goto(`/projects/${projectId}/inputs?tab=todo`);
+  await expect(page.getByTestId("step-waiting")).toContainText("add a product's dissolution data");
+  await page.getByTestId("step-waiting").getByTestId("step-waiting-dissolution").click();
+  const addFile = card.locator("[data-testid^='card-release-'][data-testid$='-add-file']");
+  await expect(addFile).toBeFocused();
+  await expect(card.locator("[data-testid^='card-release-'][data-testid$='-add']")).toContainText("no dissolution profile with a fit is here");
+  await shot(page, "r5-2-card-add-its-dissolution-file");
+  await addFile.click();
+  await expect(files).toBeFocused();
+  await expect(files).toHaveText("Formulation and dissolution files… · the dissolution data of Tab 10");
+  await page.screenshot({ path: test.info().outputPath("r5-3-add-data-from-the-card.png") });
+  await page.keyboard.press("Escape");
+  // "ask the client" still holds the study's line (no profile here can give its release)
+  await page.getByTestId("tab-todo").click();
+  await expect(page.getByTestId("todo-group-ask").getByTestId("todo-ask-REQ-form.release")).toContainText("CL-01");
 });

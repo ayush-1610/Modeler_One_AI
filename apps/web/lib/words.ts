@@ -86,7 +86,20 @@ export type FormulationWay = {
   way: "use_profile" | "add_dissolution" | "add_product" | "choose"; products: string[]; studies: string[];
   /** use_profile: the first product's profile can be used now; false: its product's dissolution data are confirmed first */
   ready?: boolean;
+  /** each study's own way (round 5): a study that names its product is settled by that product only (`named`) */
+  each?: StudyWay[];
 };
+/** One tablet study's own way (the API's `StudyWayView`). */
+export type StudyWay = { study: string; way: FormulationWay["way"]; products: string[]; ready: boolean; named?: string | null };
+/** A study's own way, said as the step bar says one (`formulationWays` takes it): its entry of `each`, else the step bar's
+ *  way when it is for that study, else none (round 5: Products and dissolution's row of each tablet study said the step
+ *  bar's lever, which may be another study's). */
+export function studyWay(w: FormulationWay | null | undefined, study: string): FormulationWay | null {
+  const key = study.trim().toLowerCase();
+  const own = w?.each?.find((e) => e.study.trim().toLowerCase() === key);
+  if (own) return { way: own.way, products: own.products, studies: [own.study], ready: own.ready, each: [own] };
+  return w && (!w.each?.length || w.studies.some((s) => s.trim().toLowerCase() === key)) ? w : null;
+}
 const FORMULATIONS = "formulations of solid studies";
 /** Names said as one choice: "A", "A or B", "A, B or C". */
 const either = (names: string[]) => (names.length < 2 ? names.join("") : `${names.slice(0, -1).join(", ")} or ${names[names.length - 1]}`);
@@ -133,13 +146,19 @@ export function formulationWays(w: FormulationWay | null | undefined): { waiting
             : "Use a dissolution profile as its release: “Use as release” under the profiles of no product, on Products and dissolution.",
         ways: [link("release", "use a product's dissolution profile as its release", "formulations", card)],
       };
-    case "add_dissolution":
+    case "add_dissolution": {
+      // the studies name the product they used (round 5): only its profile gives their release, whatever else is here
+      const mine = (w.each ?? []).filter((e) => e.way === "add_dissolution");
+      const named = mine.length > 0 && mine.every((e) => e.named);
+      const situation = named ? `${either(products)}, the product ${mine.length === 1 ? "the study names" : "the studies name"}, has no `
+        + "dissolution profile that can give a release" : "no product here has a dissolution profile that can give a release";
       return {
-        waiting, situation: "no product here has a dissolution profile that can give a release",
-        fix: `No product here has a dissolution profile that can give a release: add the dissolution file of ${either(products) || "the product"} `
-          + "(Add data), or ask the client for it (“Ask the client”, on To do).",
+        waiting, situation,
+        fix: `${situation.charAt(0).toUpperCase()}${situation.slice(1)}: add the dissolution file of ${either(products) || "the product"} (Add data), or ask the client for it `
+          + "(“Ask the client”, on To do).",
         ways: [link("dissolution", "add a product's dissolution data", "formulations", card), ask],
       };
+    }
     case "add_product":
       return { waiting, situation: "no product is here", fix: NO_PRODUCT, ways: [link("add", "add a product", "formulations", "add=product"), ask] };
     case "choose":

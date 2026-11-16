@@ -12,12 +12,13 @@
 // action is "Use this profile as the release", and a tablet study that needs it makes that the card's open work. A
 // profile is named in full once (its line in Dissolution); elsewhere on the card by what tells it from the others.
 
+import Link from "next/link";
 import { useState } from "react";
 
 import type { Comparison, Profile } from "@/components/client/types";
 import { send } from "@/lib/api";
 import { cardAnchor, normLabel, releaseAnchor, type Subject } from "@/lib/inputsWork";
-import { valueWord } from "@/lib/words";
+import { ASK_FORMULATION, inputsHref, valueWord } from "@/lib/words";
 
 import { releaseAfter } from "../after";
 import { ReleaseView } from "../DatasetView";
@@ -196,8 +197,18 @@ function ReleaseLine({ subject, profiles, release, env }: {
         <p className="muted m-0 fs-13">Choose the profile that best represents release in the body under Dissolution, below, and use it as the
           release.</p>
       ) : (
-        <p className="muted m-0 fs-13">No dissolution profile with a fit is here: add the product&apos;s dissolution file (Add data), or ask the
-          client for it (To do, “Ask the client”).</p>
+        // what to do, as controls (round 5: said in words only, the step bar's "add a product's dissolution data" landed on
+        // nothing to press): its dissolution file, added with Add data, or the client, asked under To do
+        <div className="row gap-6 items-center" data-testid={`${id}-add`}>
+          {env.onAddData && (
+            <button type="button" className="btn" onClick={() => env.onAddData?.(subject.label)} data-testid={`${id}-add-file`}
+                    aria-label={`Add its dissolution file… (product ${subject.label})`}>Add its dissolution file…</button>
+          )}
+          <span className="muted fs-13">no dissolution profile with a fit is here{env.onAddData ? "" : ": add the product's dissolution file (Add data)"};
+            or{" "}
+            <Link href={inputsHref(env.projectId, { area: "todo", query: `at=${ASK_FORMULATION}` })} prefetch={false}
+                  aria-label={`ask the client for the dissolution data of ${subject.label}`}>ask the client</Link> for it</span>
+        </div>
       )}
       {problem && <p className="inline-issue error" role="alert">{problem}</p>}
     </section>

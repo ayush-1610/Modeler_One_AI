@@ -10,7 +10,7 @@ import { join } from "node:path";
 import { expect, test } from "@playwright/test";
 
 import {
-  NEW, NO_TARGET, aboutText, askLines, blindedText, blindedWhy, analyteChoice, analyteChoices, areaHead, assignBody, buildWork, checkField, collisions,
+  NEW, NO_TARGET, aboutText, askLines, blindedParts, blindedText, blindedWhy, blindedWords, analyteChoice, analyteChoices, areaHead, assignBody, buildWork, checkField, collisions,
   columnSummary, destinationKey, formulationsHeld, heldBy, inModel, layoutRows, linkCount, linkPlaces, linkRows, linkTarget, linkWords, linkedPiece,
   looseGroups, markedText, nextText, foldChecks, noLayoutReads, noSampleCells, normLabel, notReadRows, onDelivery, pairsMeet, prefixAlias,
   productFor, releaseAnchor, releaseOf, restoredText, seriesKey,
@@ -20,7 +20,7 @@ import {
   ASK_FORMULATION, NO_PRODUCT, alreadyDecidedText, bracketed, checkFix, checkGist, checkLabel, constantText, drawText, escapePattern, flagLines,
   formulationLine, formulationParts, formulationProblem, formulationWays, heldText, individualNeeds, individualText, inputsHref, layoutFieldText,
   layoutFindingText, moveText, paramLabel, patternWords, placeText, readinessText, redrawText, rowRuleText, rowsLeftOut, spotGroupText, stepReason,
-  stepWhere, todoMessage, unitText, unreadWhy, withheldWhy, anchorPlace, sourceNamed,
+  stepWhere, studyWay, todoMessage, unitText, unreadWhy, withheldWhy, anchorPlace, sourceNamed,
 } from "../lib/words";
 
 const load = (name: string): WorkSources => JSON.parse(readFileSync(join(__dirname, "fixtures", "inputs-work", `${name}.json`), "utf8"));
@@ -902,6 +902,82 @@ test("round 4: a tablet study confirmed with the sheet form only, with no produc
   expect(buildWork(sources).ask.find((a) => a.req === "REQ-form.release")!.subjects).toEqual(["OJ-9", "cl-1"]);
   // without the item's ask (a product is here), only the delivery's lines
   expect(askLines(null, null)).toEqual([]);
+});
+
+test("round 5: wherever 'ask the client' is offered for a study's formulation, 'Ask the client' holds its line, once", () => {
+  // a proposal names a product with no dissolution data (add_dissolution): the inputs ask for the study the sheet form
+  // loaded as for one with no product (round 4 asked only with no product at all); a study that names its product is
+  // asked for that product's data; the delivery asks the same study on its path: one line, the study named once
+  const unnamed = (study: string) => ({ req_id: "REQ-form.release", what: `The formulation or dissolution data of the product the study used (no file names the product) — study ${study}`,
+                                        why: "the model itself", required: true, product: null, sheet: "" });
+  const named = { req_id: "REQ-form.release", what: "The formulation or dissolution data of Test 10 mg, the product the study used — study CL-2",
+                  why: "the model itself", required: true, product: null, sheet: "" };
+  const way = { way: "add_dissolution" as const, products: ["Tab 10", "Test 10 mg"], studies: ["CL-1", "CL-2", "CL-3"], ready: true,
+                each: [{ study: "CL-1", way: "add_dissolution" as const, products: ["Tab 10"], ready: true, named: null },
+                       { study: "CL-2", way: "add_dissolution" as const, products: ["Test 10 mg"], ready: true, named: "Test 10 mg" },
+                       { study: "CL-3", way: "add_product" as const, products: [], ready: true, named: null }] };
+  const sources = copy(load("clientamide"));
+  sources.inputs!.todo.push({ kind: "formulation", target: "form.*", tab: "formulations", message: "", way,
+                              ask: [unnamed("CL-1"), named, unnamed("CL-3")] });
+  sources.delivery!.request = [unnamed("CL-1")];
+  const asked = askLines(sources.delivery, sources.inputs).filter((a) => a.req === "REQ-form.release");
+  expect(asked.map((a) => [a.what, a.subjects])).toEqual([
+    ["The formulation or dissolution data of the product the study used (no file names the product)", ["CL-1", "CL-3"]],
+    ["The formulation or dissolution data of Test 10 mg, the product the study used", ["CL-2"]],
+  ]);
+  // the rule: each study whose own way offers "ask the client" is named on a line of "Ask the client", once
+  const offers = way.each.filter((e) => formulationWays(studyWay(way, e.study)).ways.some((w) => w.id === "ask")).map((e) => e.study);
+  expect(offers).toEqual(["CL-1", "CL-2", "CL-3"]);
+  const named_ = asked.flatMap((a) => a.subjects);
+  for (const study of offers) expect(named_.filter((n) => normLabel(n) === normLabel(study))).toHaveLength(1);
+  expect(buildWork(sources).ask.filter((a) => a.req === "REQ-form.release").flatMap((a) => a.subjects).sort()).toEqual(["CL-1", "CL-2", "CL-3"]);
+});
+
+test("round 5: each study's own way, and the words of a study that names its product", () => {
+  const way = { way: "use_profile" as const, products: ["Test 10 mg", "Brand 10 mg"], studies: ["CL-1", "CL-2"], ready: false,
+                each: [{ study: "CL-1", way: "use_profile" as const, products: ["Brand 10 mg", "Test 10 mg"], ready: true, named: null },
+                       { study: "CL-2", way: "use_profile" as const, products: ["Test 10 mg"], ready: false, named: "Test 10 mg" },
+                       { study: "CL-4", way: "add_dissolution" as const, products: ["Ref 5 mg"], ready: true, named: "Ref 5 mg" }] };
+  // a study's own: its products, its readiness; the step bar's for a study it settles when the API gave no `each`
+  expect(studyWay(way, "cl-1")).toMatchObject({ way: "use_profile", products: ["Brand 10 mg", "Test 10 mg"], studies: ["CL-1"], ready: true });
+  expect(formulationWays(studyWay(way, "CL-1")).ways[0].query).toBe("release=Brand%2010%20mg");
+  expect(formulationWays(studyWay(way, "CL-2")).ways[0].say).toBe("confirm a product's dissolution data, then use its profile as its release");
+  expect(studyWay(way, "CL-9")).toBeNull();
+  expect(studyWay({ ...way, each: undefined }, "CL-9")).toMatchObject({ way: "use_profile" });
+  // a study that names its product, with no profile of it: that product's data, never "no product here has a profile"
+  const ref = formulationWays(studyWay(way, "CL-4"));
+  expect(ref.situation).toBe("Ref 5 mg, the product the study names, has no dissolution profile that can give a release");
+  expect(ref.fix).toBe("Ref 5 mg, the product the study names, has no dissolution profile that can give a release: add the dissolution file "
+                       + "of Ref 5 mg (Add data), or ask the client for it (“Ask the client”, on To do).");
+  expect(ref.ways.map((w) => [w.id, w.query])).toEqual([["dissolution", "release=Ref%205%20mg"], ["ask", `at=${ASK_FORMULATION}`]]);
+  // studies naming none: as before
+  expect(formulationWays({ way: "add_dissolution", products: ["Tab 10"], studies: ["CL-1"],
+                           each: [{ study: "CL-1", way: "add_dissolution", products: ["Tab 10"], ready: true, named: null }] }).situation)
+    .toBe("no product here has a dissolution profile that can give a release");
+});
+
+test("round 5: why a study or dataset is blinded, in one sentence, its changeable part leading where it is changed", () => {
+  expect(blindedWords("the plan places it in S5 (external validation)", ".")).toBe(
+    "Blinded until the plan is signed, because the plan places it in S5 (external validation).");
+  expect(blindedWords(null, ".")).toBe("Blinded until the plan is signed.");
+  expect(blindedText({ row: null, groups: [] }, ": it is confirmed afterwards.")).toBe("Blinded until the plan is signed: it is confirmed afterwards.");
+  // the card's own purpose: changed on its delivery card
+  expect(blindedParts("it is entered for external validation on its card")).toEqual([
+    { text: "it is entered for external validation on its card", to: "purpose" }]);
+  // the plan and the split: their roles on Review & sign; the list's own words before them said as they are
+  expect(blindedParts("the project's blinding list names it (study STUDY-1): the plan places it in S5 (external validation)")).toEqual([
+    { text: "the project's blinding list names it (study STUDY-1): " }, { text: "the plan places it in S5 (external validation)", to: "plan" }]);
+  expect(blindedParts("the study split proposes it for S6 (the application), before a plan")).toEqual([
+    { text: "the study split proposes it for S6 (the application), before a plan", to: "plan" }]);
+  // a dataset's purpose, a product holding a blinded study's values: said, not linked
+  for (const why of ["the project's blinding list holds a dataset loaded from it (study X): a dataset of it is entered for external validation",
+                     "it holds the values of a blinded study"]) {
+    expect(blindedParts(why)).toEqual([{ text: why }]);
+  }
+  expect(blindedParts("")).toEqual([]);
+  // every part together is the reason, word for word
+  const why = "the project's blinding list names it (the sheet form read it as study 231-24): the plan places it in S5 (external validation)";
+  expect(blindedParts(why).map((p) => p.text).join("")).toBe(why);
 });
 
 // --- the final review's gate, layouts and To do fixes (plan §5 "Final review fixes: the gate, layouts and To do") --------

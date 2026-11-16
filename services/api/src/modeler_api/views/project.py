@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from pydantic import Field
+
 from modeler_api.views.common import ApprovalView, ChangeView, PhaseId, Ref, VersionView, View
 from modeler_project.artifacts import ArtifactStatus
 from modeler_project.formulation_way import FormulationLever
@@ -21,17 +23,30 @@ class StaleArtifacts(View):
     stale: list[StaleArtifact]
 
 
+class StudyWayView(View):
+    """One tablet study's own lever (`modeler_project.formulation_way.StudyWay`): `products` in the order a link opens
+    them, `ready` whether the first one's profile can be used now, `named` the product the study names, if any."""
+
+    study: str
+    way: FormulationLever
+    products: list[str]
+    ready: bool
+    named: str | None = None
+
+
 class FormulationWayView(View):
     """What gives a tablet study its formulation as the project stands (`modeler_project.formulation_way`): use a
     product's dissolution profile as its release (`products`: those whose profile can), add a product's dissolution data
-    (`products`: those here), add a product (none is here), or choose the formulation a study used (several are in the
-    model). `studies`: the tablet studies it is for; `ready`: the first product's profile can be used now (its product's
-    dissolution data confirmed), else they are confirmed first."""
+    (`products`: those here, or the one the study names), add a product (none is here), or choose the formulation a study
+    used (several are in the model). `studies`: the tablet studies it is for; `ready`: the first product's profile can be
+    used now (its product's dissolution data confirmed), else they are confirmed first; `each`: every study's own lever
+    (round 5: a study that names its product is settled by that product only)."""
 
     way: FormulationLever
     products: list[str]
     studies: list[str]
     ready: bool
+    each: list[StudyWayView] = Field(default_factory=list)
 
 
 class StepRow(View):
