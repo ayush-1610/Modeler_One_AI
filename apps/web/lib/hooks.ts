@@ -51,22 +51,42 @@ function useFreshness(otherwise = 0): number | ((query: Answered) => number) {
 /** One clock for reads and decisions (monotonic, so a clock change never orders them wrongly). */
 export const now = () => performance.now();
 
+// One moment per task (final review round 6): what a change does in one go (its answer written, the reads it marks stale
+// sent, one after the other in the same task) is of one moment, so a rule that later asks whether an answer was read
+// since then counts every one of them, whichever went out first.
+let task: number | null = null;
+/** The moment of the task the page is in: the time of its first `moment()`, the same for the rest of the task. */
+export function moment(): number {
+  if (task === null) {
+    task = now();
+    queueMicrotask(() => { task = null; });
+  }
+  return task;
+}
+
 // The latest read of each answer (by its key's hash): when it was asked for and when its request went out, with a token
-// that tells it from a read that replaced it. Written by the reads of this file (`useResource`, `useResources`,
-// `fetchResource`), the only reads of the page's cache.
-const reads = new Map<string, ReadOnItsWay & { token: object }>();
+// that tells it from a read that replaced it, and the moment it was asked in. Written by the reads of this file
+// (`useResource`, `useResources`, `fetchResource`), the only reads of the page's cache. `written`: the moment a change's
+// answer was written under the key (`put`): the server's answer after the change, so it holds the change.
+const reads = new Map<string, ReadOnItsWay & { token: object; at: number }>();
+const written = new Map<string, number>();
 
 /** Mark a read of `key` asked for now; `out()` when its request goes out (a read of `useResources` may wait its turn). */
 function asking(key: QueryKey): { out: () => void } {
   const hash = hashKey(key);
   const token = {};
-  reads.set(hash, { asked: now(), sent: null, token });
+  reads.set(hash, { asked: now(), sent: null, token, at: moment() });
   return { out: () => { const r = reads.get(hash); if (r?.token === token) r.sent = now(); } };
 }
 
-/** When the latest read of the answer under `queryHash` was asked for (null: never by this page). */
-export function askedAt(queryHash: string): number | null {
-  return reads.get(queryHash)?.asked ?? null;
+/** The moment the answer under `hash` was last read in (asked for) or written by a change (-1: never by this page). */
+const heldAt = (hash: string) => Math.max(reads.get(hash)?.at ?? -1, written.get(hash) ?? -1);
+
+/** The moment the answer under `key` was last read in or written by a change (null: never by this page): what a rule
+ *  that follows a change this answer shows counts as current from (`followBlinding`, components/delivery/writes.ts). */
+export function readMoment(key: QueryKey): number | null {
+  const at = heldAt(hashKey(key));
+  return at < 0 ? null : at;
 }
 
 type ResourceOptions<D, T> = {
@@ -189,17 +209,20 @@ export function put<T>(client: QueryClient, key: QueryKey, data: T, sent?: numbe
   const step = afterAnswer(read, decided ?? null);
   if (step === "cancel" || step === "again") void client.cancelQueries({ queryKey: key, exact: true });
   client.setQueryData(key, data);
+  written.set(query?.queryHash ?? hashKey(key), moment());
   if (step === "again") void client.invalidateQueries({ queryKey: key, exact: true });
 }
 
 /** Mark every answer of `routes` stale: those shown are read again (once each), the others when next shown. `since`
- *  (the time a change was answered): an answer read since then, or on its way since then, already holds the change, so
- *  it is not read again (one that failed is). */
-export function readAgain(client: QueryClient, routes: readonly Read[], since?: number): Promise<void> {
+ *  (a `moment()` from when a change was answered): an answer read in that moment or since, on its way since, or written
+ *  by a change since, already holds the change, so it is not read again (one that failed is). `projectId`: only that
+ *  project's answers. */
+export function readAgain(client: QueryClient, routes: readonly Read[], since?: number, projectId?: string): Promise<void> {
   if (!routes.length) return Promise.resolve();
   const named = new Set<string>(routes);
-  const current = (hash: string, failed: boolean) => since !== undefined && !failed && (reads.get(hash)?.asked ?? -1) >= since;
-  return client.invalidateQueries({ predicate: (q) => named.has(q.queryKey[0] as string)
+  const current = (hash: string, failed: boolean) => since !== undefined && !failed && heldAt(hash) >= since;
+  const mine = (key: QueryKey) => projectId === undefined || (key[1] as { project_id?: string } | undefined)?.project_id === projectId;
+  return client.invalidateQueries({ predicate: (q) => named.has(q.queryKey[0] as string) && mine(q.queryKey)
                                                     && !current(q.queryHash, q.state.status === "error") });
 }
 

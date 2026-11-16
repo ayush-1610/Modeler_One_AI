@@ -59,6 +59,7 @@ from modeler_project.dataset_register import dataset, decide_dataset, propose_da
 from modeler_project.dataset_register import datasets as all_datasets
 from modeler_project.datasets import ObservedDataset, Origin, Series
 from modeler_project.evidence import EvidenceState, SourceRef
+from modeler_project.inputs import refresh_inputs
 from modeler_project.intake_rules import RULES_SHA256
 from modeler_project.intake_store import IntakeStore
 from modeler_project.ledger import Ledger
@@ -3367,6 +3368,62 @@ def test_a_study_blinded_only_by_the_projects_list_is_withheld_on_the_sheet_form
                                                          "risk": "medium", "questions": [], "pipeline": True,
                                                          "blinding": {"on": False, "reason": "the MIDD lead's choice"}})
     assert p.get(f"client-data/{sid}/sheets/Sheet1").status_code == 200 and p.get(f"documents/{_sha(ref)}/raw").status_code == 200
+
+
+@pytest.mark.req("T-47", "F-402")
+def test_a_study_the_delivery_blinds_has_its_datasets_withheld_wherever_the_sheet_form_says_they_are(project):
+    """Final review round 6 (the owner's copy): a study the delivery blinds by its card's purpose, the project's list not
+    holding it, while a dataset of its name is listed (read with the sheet form for model building before the card said
+    anything; in the model on the owner's copy). The sheet form's card said its values are withheld, but the evidence
+    redacted the list's studies only, so the dataset's line beside it offered "Show the points". One rule now
+    (`BlindedSources.withholds`): the evidence withholds its points and says why, the client review's group of it, the
+    inputs' Studies row and catalog, the Run page's studies and the reveal's audit follow the same rule."""
+    p = project(blinding=True)
+    workbook = synthetic.messy_workbook()
+    p.deliver(workbook)
+    sid = client_data.submission_id(_sha(workbook.data))
+    answers = {"n": 6, "route": "oral", "formulation": "ir_tablet", "food_state": "fed", "dose": 100, "purpose": "model_building"}
+    assert p.post("client-review:finish", {"file": sid, "sheet": "Fed", "answers": answers}).status_code == 200
+    (read,) = [d for d in all_datasets(p.ws) if d.study.get("study_id") == "231-24"]
+
+    def line() -> dict[str, Any]:
+        return next(d for d in p.get("evidence").json()["data"]["datasets"] if d["id"] == read.id)
+
+    shown = line()
+    assert not shown.get("blinded") and any(v is not None for s in shown["series"] for v in s["values"])
+    entered = p.post(f"{p.subject('231-24')}:enter", {"field": "intended_use", "value": "external_validation",
+                                                       "why": "the plan keeps it for external validation"})
+    assert entered.status_code == 200 and entered.json()["data"]["blinded"] is True
+    assert "231-24" not in p.get("blinding").json()["data"]["external"]        # the delivery blinds it, not the list
+    group = next(g for g in p.get("client-review").json()["data"]["groups"] if g["id"] == "study:231-24")
+    why = "it is entered for external validation on its card"
+    assert (group["blinded"], group["blinded_why"]) == (True, why)
+    # the evidence: its points and reported PK withheld, with the reason the sheet form's card gives
+    withheld = line()
+    assert (withheld["blinded"], withheld["blinded_why"]) == (True, why)
+    assert all(v is None for s in withheld["series"] for v in s["values"]) and all(r["value"] is None for r in withheld["reported"])
+    assert "231-24" in p.get("evidence").json()["data"]["blinding"]["blinded"]
+    # in the model (the owner's copy): its catalog row has no profile, its Studies row and the Run page say blinded
+    decide_dataset(p.ws, read.id, state=EvidenceState.ACCEPTED, reason="confirmed with the sheet form", by="u1")
+    refresh_inputs(p.ws, by="u1")
+    inputs = p.get("inputs").json()["data"]
+    assert next(r for r in inputs["studies"] if r["study_id"] == "231-24")["blinded"] is True
+    (row,) = [r for r in inputs["catalog"]["content"]["studies"] if r["study_id"] == "231-24"]
+    assert row["blinded"] is True and "profile" not in row
+    assert line()["blinded"] is True
+    run = p.client.get("/api/v1/projects/p1/studies", headers=_auth("t")).json()["data"]["studies"]
+    assert next(s for s in run if s["study_id"] == "231-24")["blinded"] is True
+    # its reveal for a check: its values, with the reason on the audit chain, as for a study the list holds
+    revealed = p.post(f"datasets/{read.id}:reveal", {"reason": "check the transcription"})
+    assert revealed.status_code == 200 and any(v is not None for s in revealed.json()["data"]["series"] for v in s["values"])
+    assert [e.reason for e in p.events("dataset.reveal")] == ["check the transcription"]
+    # its card's purpose corrected: no view withholds it any more
+    (purpose,) = [v for v in LedgerView(p.ws).values(field="intended_use") if v.method == "person"]
+    corrected = p.post(f"{p.subject('231-24')}:enter", {"supersedes": purpose.id, "value": "model_building",
+                                                         "why": "entered on the wrong study"})
+    assert corrected.status_code == 200 and corrected.json()["data"]["blinded"] is False, corrected.text
+    assert not line().get("blinded") and any(v is not None for s in line()["series"] for v in s["values"])
+    assert next(r for r in p.get("inputs").json()["data"]["studies"] if r["study_id"] == "231-24")["blinded"] is False
 
 
 @pytest.mark.req("T-47", "F-402", "F-404")

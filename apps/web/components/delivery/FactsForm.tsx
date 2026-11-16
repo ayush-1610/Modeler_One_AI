@@ -17,7 +17,7 @@ import { useEffect, useRef, useState } from "react";
 import { focusSoon } from "@/components/kit/focus";
 
 import { send, type Schema } from "@/lib/api";
-import { useResource } from "@/lib/hooks";
+import { moment, useResource } from "@/lib/hooks";
 import { cardPlace, checkField } from "@/lib/inputsWork";
 import { engineWords, fieldLabel, redrawText, valueWord, type RedrawWhy } from "@/lib/words";
 
@@ -167,13 +167,16 @@ function useEnterAll(params: Params) {
   const enter = async (entries: Schema<"DeliveryEntry">[]): Promise<boolean> => {
     let ok = true;
     const before = client.getQueryData<Page>(pageKey(params.project_id));
+    // the moment the first entry was sent in: the cards the entries answered with were written since (each holds what
+    // the entries before it did), so a change of the blinding the entries made does not read them again
+    const since = moment();
     const answered = new Set<string>();
     for (const body of entries) {
       const { data } = await decide(() => send("post", ENTER, params, body), cardAfter(params.project_id, { page: false }));
       if (!data) { ok = false; break; }
       answered.add(answeredBy(data));
     }
-    if (answered.size) await followPage(client, params.project_id, { answered: [...answered], before });
+    if (answered.size) await followPage(client, params.project_id, { answered: [...answered], before, since });
     return ok;
   };
   return { enter, busy, problem };

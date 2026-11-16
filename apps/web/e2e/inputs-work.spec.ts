@@ -13,7 +13,7 @@ import {
   NEW, NO_TARGET, aboutText, askLines, blindedParts, blindedText, blindedWhy, blindedWords, analyteChoice, analyteChoices, areaHead, assignBody, buildWork, checkField, collisions,
   columnSummary, destinationKey, formulationsHeld, heldBy, inModel, layoutRows, linkCount, linkPlaces, linkRows, linkTarget, linkWords, linkedPiece,
   looseGroups, markedText, nextText, foldChecks, noLayoutReads, noSampleCells, normLabel, notReadRows, onDelivery, pairsMeet, prefixAlias,
-  productFor, releaseAnchor, releaseOf, restoredText, seriesKey,
+  productFor, releaseAnchor, releaseOf, restoredText, seriesKey, signWaitsWords,
   targetProblem, type WorkSources,
 } from "../lib/inputsWork";
 import {
@@ -23,7 +23,7 @@ import {
   stepWhere, studyWay, todoMessage, unitText, unreadWhy, withheldWhy, anchorPlace, sourceNamed, anchorCell, conditionsInWords, distinctNames,
   layoutFieldInText, regionKindText, valueAbout,
 } from "../lib/words";
-import { afterAnswer, blindedStudies, changedRows } from "../lib/freshness";
+import { afterAnswer, blindedStudies, changedRows, followFrom } from "../lib/freshness";
 
 const load = (name: string): WorkSources => JSON.parse(readFileSync(join(__dirname, "fixtures", "inputs-work", `${name}.json`), "utf8"));
 const copy = <T,>(x: T): T => JSON.parse(JSON.stringify(x));
@@ -1348,4 +1348,27 @@ test("round 5: the studies the blinding list withholds, as the inputs name them,
   expect(blindedStudies({ studies: [...studies, { study_id: "CL-01", blinded: true }] })).toBe("CL-01|iv-500|po-50");
   // the order of the rows or a left-out duplicate changes nothing
   expect(blindedStudies({ studies: [...studies].reverse().concat({ study_id: "po-50", blinded: true }) })).toBe("iv-500|po-50");
+});
+
+test("round 6: a change of the blinding seen twice is followed once, from the first one's moment", () => {
+  // nothing followed yet: from the moment the answer that shows it was read in
+  expect(followFrom(undefined, 100)).toBe(100);
+  // a signed landing the split blinds (moment 100: the signature's answer written, the inputs, the client data, the
+  // sheet form and the delivery read in it): the delivery's rows show it first and everything else is read at 130; the
+  // inputs read at 100 then show it too, and are followed from 100, so nothing read at 100 or 130 is read again
+  const last = { since: 100, at: 130 };
+  expect(followFrom(last, 100)).toBe(100);
+  // the other way round: the inputs that following read again (at 130) show it: from 100 as well
+  expect(followFrom(last, 130)).toBe(100);
+  // an answer read after that following shows a change of its own; one read before it, from its own moment
+  expect(followFrom(last, 131)).toBe(131);
+  expect(followFrom(last, 90)).toBe(90);
+});
+
+test("round 6: a blinded card says its signing waits, and why, where Confirm and sign would be", () => {
+  expect(signWaitsWords("it holds the values of a blinded study")).toBe(
+    "Signing waits until the plan is signed, because it holds the values of a blinded study.");
+  expect(signWaitsWords("it is entered for external validation on its card")).toBe(
+    "Signing waits until the plan is signed, because it is entered for external validation on its card.");
+  expect(signWaitsWords(null)).toBe("Signing waits until the plan is signed.");
 });

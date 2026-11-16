@@ -843,6 +843,10 @@ export const blindedWords = (why: string | null | undefined, after = "") =>
   `Blinded until the plan is signed${why ? `, because ${why}` : ""}${after}`;
 /** "Blinded until the plan is signed, because …" with what follows (`after`). */
 export const blindedText = (s: Pick<Subject, "row" | "groups">, after: string) => blindedWords(blindedWhy(s), after);
+/** What a blinded card says where "Confirm and sign…" would be (round 6): the API refuses its signature until the plan
+ *  is signed (409 BLINDED), so no button is offered, and why is said (`blinded_why`), as wherever it is withheld. */
+export const signWaitsWords = (why: string | null | undefined) =>
+  `Signing waits until the plan is signed${why ? `, because ${why}` : ""}.`;
 
 /** A part of a blinded reason, and where what it says is decided (round 5): `purpose`, the study's own purpose on its
  *  delivery card ("it is entered for external validation on its card": changed there); `plan`, the plan's studies and

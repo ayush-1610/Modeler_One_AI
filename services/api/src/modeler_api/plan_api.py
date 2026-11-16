@@ -24,7 +24,7 @@ from modeler_api import agent_jobs, jobs
 from modeler_api.auth import Principal, ensure_step_up, require_role
 from modeler_api.compliance.signatures import SignatureMeaning, Signer, sign_after_step_up
 from modeler_api.config import SettingsDep, get_settings
-from modeler_api.deps import Reader, StoreDep, Writer, blinded_studies, version_view, workspace_for
+from modeler_api.deps import Reader, StoreDep, Writer, blinded_sources, version_view, workspace_for
 from modeler_api.part11 import record_signature
 from modeler_api.responses import answers, envelope
 from modeler_api.views.plan import DraftStart, PlacementPreview, PlanPage, PlanSigned, ReviewPage
@@ -223,7 +223,7 @@ def get_review(project_id: str, principal: Reader, store: StoreDep) -> dict[str,
     brief = _brief(ws)
     structure = plan.structure
     studies = []
-    for row in study_rows(ws, blinded_studies(ws)):
+    for row in study_rows(ws, blinded_sources(ws).withholds):     # one rule for a study's values (round 6)
         placement = plan.placements.get(row["study_id"])
         studies.append({"study_id": row["study_id"], "role": placement.role if placement else None,
                         "role_by": placement.by if placement else None, "purpose": row["purpose"],

@@ -14,7 +14,7 @@ from typing import Any, Literal
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from modeler_api.deps import Reader, StoreDep, Writer, blinded_studies, redact, version_view, workspace_for
+from modeler_api.deps import Reader, StoreDep, Writer, blinded_sources, redact, version_view, workspace_for
 from modeler_api.reference_models import published_models
 from modeler_api.responses import answers, envelope
 from modeler_api.views.inputs import IdentityProposal, InputsPage
@@ -78,16 +78,19 @@ def _view(ws: Workspace) -> dict[str, Any]:
             row["candidates"] = [c.process for c in binding_candidates(record.id)]
         records.append(row)
     open_items = todo(ws)
+    # a study's values are withheld by the rule every view of them follows (the project's list and the delivery's, by
+    # name; final review round 6): its catalog row's profile, and its row on Studies says it is blinded
+    hidden = blinded_sources(ws)
     return {
         "cpf": version_view(ws, cpf_version, with_content=False) | {"assembly": cpf_assembly(ws)} if cpf_version else None,
         "records": records,
-        "catalog": (version_view(ws, catalog) | {"content": redact(ws, ArtifactKind.STUDY_CATALOG, catalog.content)})
+        "catalog": (version_view(ws, catalog) | {"content": redact(ws, ArtifactKind.STUDY_CATALOG, catalog.content, hidden)})
                    if catalog else None,
         "readiness": version_view(ws, ready) if ready else None,
         "choices": choices(ws).model_dump(),
         "todo": open_items,
         "compound": compound_rows(ws, open_items, empty=True),
-        "studies": study_rows(ws, blinded_studies(ws)),
+        "studies": study_rows(ws, hidden.withholds),
         "study_options": _study_options(ws),
         "selection_rule": f"source selection {rule().version} ({rule().status})",
         "published_models": [{"id": tid, "name": spec["name"]} for tid, spec in published_models(_drug(ws))],
