@@ -8076,11 +8076,14 @@ export interface components {
          * FormulationWayView
          * @description What gives a tablet study its formulation as the project stands (`modeler_project.formulation_way`): use a
          *     product's dissolution profile as its release (`products`: those whose profile can), add a product's dissolution data
-         *     (`products`: those here), add a product (none is here), or choose the formulation a study used (several are in the
-         *     model). `studies`: the tablet studies it is for; `ready`: the first product's profile can be used now (its product's
-         *     dissolution data confirmed), else they are confirmed first.
+         *     (`products`: those here, or the one the study names), add a product (none is here), or choose the formulation a study
+         *     used (several are in the model). `studies`: the tablet studies it is for; `ready`: the first product's profile can be
+         *     used now (its product's dissolution data confirmed), else they are confirmed first; `each`: every study's own lever
+         *     (round 5: a study that names its product is settled by that product only).
          */
         FormulationWayView: {
+            /** Each */
+            each?: components["schemas"]["StudyWayView"][];
             /** Products */
             products: string[];
             /** Ready */
@@ -12723,6 +12726,26 @@ export interface components {
             study_class: string;
             /** Study Id */
             study_id: string;
+        };
+        /**
+         * StudyWayView
+         * @description One tablet study's own lever (`modeler_project.formulation_way.StudyWay`): `products` in the order a link opens
+         *     them, `ready` whether the first one's profile can be used now, `named` the product the study names, if any.
+         */
+        StudyWayView: {
+            /** Named */
+            named?: string | null;
+            /** Products */
+            products: string[];
+            /** Ready */
+            ready: boolean;
+            /** Study */
+            study: string;
+            /**
+             * Way
+             * @enum {string}
+             */
+            way: "use_profile" | "add_dissolution" | "add_product" | "choose";
         };
         /** SubjectSpec */
         SubjectSpec: {

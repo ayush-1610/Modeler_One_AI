@@ -185,15 +185,26 @@ def _per_product_items(brief: ProjectBrief | None, matrix: RequirementMatrix | N
     return list(out.values())
 
 
+def named_product(product: str) -> str:
+    """What a solid oral study that names its product asks the client for, in words (round 5): that product's
+    formulation or dissolution data."""
+    return f"The formulation or dissolution data of {product}, the product the study used"
+
+
 def unnamed_product_request(studies: Sequence[str], *, brief: ProjectBrief | None, matrix: RequirementMatrix | None,
-                            rules: IntakeRules | None = None) -> list[RequestLine]:
+                            named: Mapping[str, str] | None = None, rules: IntakeRules | None = None) -> list[RequestLine]:
     """The client request's lines of `unnamed_product_items` for tablet studies read from the model's inputs, not from the
-    ledger (round 4, the owner-job gap 11's deviation): a solid oral study confirmed with the sheet form only, while no
-    product is here at all (`formulation_way` "add_product"), asks the client for its product's release as a delivery
-    study does ("The formulation or dissolution data of the product the study used (no file names the product) — study
-    X"). The same item, label and wording as the delivery's, so the page joins a study asked on both paths into one line."""
+    ledger (round 4, the owner-job gap 11's deviation): a solid oral study whose way to its formulation offers the client
+    (`formulation_way` "add_product" or, round 5, "add_dissolution": no product here, or none whose dissolution profile
+    can give its release) asks the client for its product's release as a delivery study does ("The formulation or
+    dissolution data of the product the study used (no file names the product) — study X"). The same item, label and
+    wording as the delivery's, so the page joins a study asked on both paths into one line. A study that names its product
+    (`named`, by study) asks for that product's ("The formulation or dissolution data of Test 10 mg, the product the study
+    used — study X")."""
     rules = rules or load_rules()
-    statuses = [RequirementStatus(req_id=raw["id"], template=template, label=UNNAMED_PRODUCT, scope="study", subject=study,
+    named = named or {}
+    statuses = [RequirementStatus(req_id=raw["id"], template=template, scope="study", subject=study,
+                                  label=named_product(named[study]) if named.get(study) else UNNAMED_PRODUCT,
                                   criticality=str(raw.get("criticality", "")), applies="yes", status="missing")
                 for study in studies for template, raw in _per_product_items(brief, matrix, rules)]
     return request_lines(statuses, labels={study: study for study in studies})

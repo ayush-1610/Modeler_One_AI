@@ -14,12 +14,13 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
+import { BlindedReason, focusWhenDrawn } from "@/components/delivery/BlindedReason";
 import { DeliveryReview, SUBJECT } from "@/components/delivery/DeliveryReview";
 import type { Suggestions } from "@/components/delivery/FactsForm";
 import { MappingReview, type MappingOpen } from "@/components/delivery/MappingReview";
 import type { Schema } from "@/lib/api";
 import { useResource } from "@/lib/hooks";
-import { blindedWhy, cardAnchor, type Subject, type WorkItem, type WorkModel } from "@/lib/inputsWork";
+import { blindedWhy, cardAnchor, cardPlace, type Subject, type WorkItem, type WorkModel } from "@/lib/inputsWork";
 import { AREA_NAME, STATUS_TONE, STATUS_WORD, type Status, type Tab, plural, whenText } from "@/lib/words";
 
 import { GroupCard, openText } from "../ClientConfirm";
@@ -66,6 +67,8 @@ export type CardEnv = {
   fileName?: (id: string) => string | null;
   /** open a client file's row in Client files */
   onFile?: (id: string) => void;
+  /** open "Add data" on the formulation and dissolution files, for a product (its card's release line: round 5) */
+  onAddData?: (product: string) => void;
 };
 
 /** A card's own items in the one list of work: from its delivery card (facts, required items, checks, disagreements,
@@ -210,8 +213,12 @@ export function ConfirmPath({ subject: s, env, observed, files, onShow }: {
   // a study the delivery blinds (D-15): nothing of it is read or confirmed with the sheet form until the plan is signed
   // (the API refuses it, 409 BLINDED), and the sheet form's reading of it is not shown
   const blinded = Boolean(s.row?.blinded || s.groups.some((g) => g.blinded));
-  // why it is blinded, said wherever it is withheld (round 4): the delivery's reason, else the sheet form's group's
+  // why it is blinded, said wherever it is withheld (round 4): the delivery's reason, else the sheet form's group's; the
+  // part that can be changed leads where it is changed (round 5): the study's purpose on its delivery card (on a card
+  // confirmed with the sheet form, in the delivery's reading, opened first), or the plan's roles
   const why = blindedWhy(s);
+  const toPurpose = s.row ? () => { if (path !== "delivery") setReading(true); focusWhenDrawn(cardPlace("purpose", s.row!.subject, "intended_use")); } : undefined;
+  const because = why ? <>, because <BlindedReason why={why} projectId={projectId} onPurpose={toPurpose} whose={`${s.kind} ${s.label}`} /></> : null;
   // the delivery card's facts (the card reads the same, under the same key), offered to the sheets' drafts
   const card = useResource(SUBJECT, { project_id: projectId, type: s.row?.subject_type ?? "study", subject: s.row?.subject ?? "" },
                            { enabled: Boolean(s.row) && !blinded && s.groups.some((g) => g.items.some((i) => i.kind === "draft")) });
@@ -251,7 +258,7 @@ export function ConfirmPath({ subject: s, env, observed, files, onShow }: {
                                    open={reading} onOpen={setReading}>
                             {() => (blinded
                               ? <p className="delivery-withheld m-0" data-testid={`how-read-withheld-${s.key}`}>Withheld: the study is blinded until
-                                  the plan is signed{why ? `, because ${why}` : ""}, and the sheet form&apos;s reading shows its values. It is read and
+                                  the plan is signed{because}, and the sheet form&apos;s reading shows its values. It is read and
                                   confirmed once the plan is signed.</p>
                               : s.groups.map((g) => <GroupCard key={g.id} projectId={projectId} group={g} run={run} drawn={false}
                                                                mode={sheet && g.state === "to_confirm" ? "confirm" : "read"} alsoOnDelivery
@@ -269,13 +276,13 @@ export function ConfirmPath({ subject: s, env, observed, files, onShow }: {
           )}
           {observed}
           {s.groups.map((g) => <GroupCard key={g.id} projectId={projectId} group={g} run={run} files={files} confirmedSaid={s.done}
-                                          known={known} why={why} />)}
+                                          known={known} why={why} onPurpose={toPurpose} />)}
           {s.row && (
             <HowRead subject={s} title="the delivery (for reference)" open={reading} onOpen={setReading}>
               {/* a study the project blinds (D-15) that the delivery does not: its reading is not shown until the plan is signed */}
               {() => (s.blinded && !s.row!.blinded
                 ? <p className="delivery-withheld m-0" data-testid={`how-read-withheld-${s.key}`}>Withheld: the study is blinded until the plan is
-                    signed{why ? `, because ${why}` : ""}, and the delivery&apos;s reading shows its values.</p>
+                    signed{because}, and the delivery&apos;s reading shows its values.</p>
                 : <DeliveryReview projectId={projectId} row={s.row!} mode="read" onMapping={setMapping} />)}
             </HowRead>
           )}
@@ -288,7 +295,7 @@ export function ConfirmPath({ subject: s, env, observed, files, onShow }: {
             for reference.</p>
           {s.blinded && !s.row.blinded
             ? <p className="delivery-withheld m-0" data-testid={`how-read-withheld-${s.key}`}>Withheld: the study is blinded until the plan is
-                signed{why ? `, because ${why}` : ""}.</p>
+                signed{because}.</p>
             : <DeliveryReview projectId={projectId} row={s.row} mode="read" onMapping={setMapping} />}
         </>
       )}
@@ -304,6 +311,9 @@ export function CardHead({ subject: s, status, open, onToggle, children }: {
   subject: Subject; status: Status; open: boolean; onToggle: () => void; children?: ReactNode;
 }) {
   const toggle = s.path === "delivery" || !s.groups[0] ? `delivery-subject-open-${s.row?.subject ?? s.key}` : `toggle-${s.groups[0].id}`;
+  // why it is blinded, beside the chip (round 5: the chip said only that it is), and its description
+  const why = s.blinded ? blindedWhy(s) : null;
+  const whyId = `${cardAnchor(s)}-blinded-why`;
   return (
     <header className="card-head">
       <button type="button" className="card-toggle" aria-expanded={open} aria-controls={`${cardAnchor(s)}-body`} onClick={onToggle}
@@ -312,7 +322,9 @@ export function CardHead({ subject: s, status, open, onToggle, children }: {
       </button>
       {s.aliases.length > 0 && <span className="muted fs-13">also read as {s.aliases.join(", ")} by the sheet form</span>}
       <StatusChip status={status} testId={`card-status-${s.key}`} />
-      {s.blinded && <span className="chip neutral">blinded until the plan is signed</span>}
+      {s.blinded && <span className="chip neutral" data-testid={`card-blinded-${s.key}`} aria-describedby={why ? whyId : undefined}>blinded
+        until the plan is signed</span>}
+      {why && <span className="muted fs-12" id={whyId} data-testid={`card-blinded-why-${s.key}`}>because {why}</span>}
       {children}
       <span className="muted fs-13 card-path">{viaSheet(s) ? "Confirmed with the sheet form" : s.path === "delivery" ? "Confirm and sign"
         : s.path === "sheet-form" ? "Confirm" : "not available yet"}

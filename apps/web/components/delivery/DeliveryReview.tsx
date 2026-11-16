@@ -25,6 +25,7 @@ import {
   individualText, landingText, layoutFieldInText, placeText, rulesText, tableKindText, valueAbout, valueWord, whenText,
 } from "@/lib/words";
 
+import { BlindedReason, focusWhenDrawn } from "./BlindedReason";
 import { ChangedSince, Decisions } from "./Decisions";
 import { ConfirmDialog } from "./ConfirmDialog";
 import type { MappingOpen } from "./MappingReview";
@@ -35,7 +36,7 @@ import {
 } from "./shared";
 import { SpotCheck } from "./SpotCheck";
 import { ValueSource } from "./ValueSource";
-import { cardKey } from "./writes";
+import { PURPOSE_READS, cardKey } from "./writes";
 
 type Check = Schema<"DeliveryCheck">;
 type Table = Schema<"DeliveryTable">;
@@ -123,6 +124,29 @@ function Enter({ entry, busy, onSubmit, onCancel, testId, spot, about }: {
                data-testid={`${testId}-unit`} aria-label={`Unit: ${about}`} />
       </label>
       <SpotRedraw spot={spot} testId={testId} />
+    </Why>
+  );
+}
+
+/** A blinded study's purpose changed (round 5): its value is withheld, so the new one is chosen from the purposes, with
+ *  the reason. Changed to one that is not external, the study is no longer blinded by it; the API refuses a purpose the
+ *  sheet form loaded its data for otherwise (409 `PURPOSE_DIFFERS`, said under the card's facts). */
+function PurposeChange({ v, purposes, busy, onSubmit, onCancel, about, testId }: {
+  v: Value; purposes: string[]; busy: boolean; about: string; testId: string;
+  onSubmit: (body: Schema<"DeliveryEntry">) => Promise<boolean>; onCancel: () => void;
+}) {
+  const [value, setValue] = useState("");
+  return (
+    <Why action="Change the purpose" actionLabel={`Change the purpose: ${about}`} label={`Why the purpose of ${about} changes`} busy={busy}
+         placeholder="why it changes (kept on the audit trail)" onCancel={onCancel} testId={testId} kind="purpose changed"
+         missing={!value ? "Choose the purpose" : null}
+         onSubmit={(why) => onSubmit({ supersedes: v.id, value, why })}>
+      <label className="delivery-pick">Purpose
+        <select value={value} onChange={(e) => setValue(e.target.value)} data-testid={`${testId}-value`} autoFocus aria-label={`Purpose: ${about}`}>
+          <option value="">choose…</option>
+          {purposes.map((p) => <option key={p} value={p}>{valueWord(p)}</option>)}
+        </select>
+      </label>
     </Why>
   );
 }
@@ -622,11 +646,13 @@ function factLabels(v: Value, own: string): string {
 }
 
 /** The facts stated for the subject, one row per fact (its files' facts and a person's entries), each correctable. */
-function StatedFacts({ projectId, params, values: all, flagged, decide, busy, read, spot, whose }: {
+function StatedFacts({ projectId, params, values: all, flagged, decide, busy, read, spot, whose, purposes }: {
   projectId: string; params: CardParams; values: Value[]; flagged: Map<string, string>; decide: Decide; busy: boolean; read: boolean;
   spot: SpotState;
   /** the subject in words: one file states the same fact for several studies, each on its card */
   whose: string;
+  /** the purposes a study can be entered for (`study_options.purpose`): a blinded study's purpose is changed with them */
+  purposes: string[];
 }) {
   const [source, setSource] = useState<string | null>(null);
   const [correcting, setCorrecting] = useState<string | null>(null);
@@ -652,6 +678,8 @@ function StatedFacts({ projectId, params, values: all, flagged, decide, busy, re
   // the facts of one field together (two analytes, then their two LLOQs), in the order the fields first appear
   const order = [...new Set(values.map((v) => v.field))];
   values.sort((a, b) => order.indexOf(a.field) - order.indexOf(b.field));
+  // the purpose a blinded study's reason names ("entered … on its card"): its place on the card, where a link lands
+  const firstPurpose = values.find((v) => v.field === "intended_use")?.id;
   if (!values.length) return null;
   return (
     <dl className="delivery-facts subject-facts">
@@ -673,7 +701,24 @@ function StatedFacts({ projectId, params, values: all, flagged, decide, busy, re
               <button type="button" className="link-btn" onClick={() => setCorrecting(correcting === v.id ? null : v.id)}
                       data-testid={`delivery-correct-${v.id}`} aria-label={`Correct ${factName(v)}`}>Correct</button>
             )}
-            {correcting === v.id && (
+            {/* a blinded study's purpose is what blinds it: changed here, on any card that shows it (round 5: the reason
+                "it is entered for external validation on its card" led nowhere it could be changed). Its value stays
+                withheld; the new one is chosen */}
+            {v.blinded && v.field === "intended_use" && purposes.length > 0 && (
+              <button type="button" className="link-btn" onClick={() => setCorrecting(correcting === v.id ? null : v.id)} aria-expanded={correcting === v.id}
+                      data-testid={v.id === firstPurpose ? cardPlace("purpose", params.subject, "intended_use") : `delivery-purpose-change-${v.id}`}
+                      aria-label={`Change the purpose… of ${whose}`}>Change the purpose…</button>
+            )}
+            {correcting === v.id && v.blinded && v.field === "intended_use" && (
+              <PurposeChange v={v} purposes={purposes} busy={busy} about={whose} testId={`purpose-${v.id}`}
+                             onCancel={() => { setCorrecting(null); focusSoon(cardPlace("purpose", params.subject, "intended_use")); }}
+                             onSubmit={async (body) => {
+                               const { data } = await decide(() => send("post", ENTER, params, body), PURPOSE_READS);
+                               if (data) setCorrecting(null);
+                               return Boolean(data);
+                             }} />
+            )}
+            {correcting === v.id && !v.blinded && (
               <Enter entry={{ field: v.field, supersedes: v.id, value: v.value === null ? "" : String(v.value), unit: v.unit ?? "" }}
                      busy={busy} onCancel={() => { setCorrecting(null); focusSoon(`delivery-correct-${v.id}`); }} testId={`correct-${v.id}`} spot={spot}
                      about={factName(v)}
@@ -805,7 +850,10 @@ export function DeliveryReview({ projectId, row, mode, gate, onMapping, todo, su
       </p>
       {/* why, so a wrong match is seen (round 3: "the project's blinding list names it (study …)") */}
       {s.blinded && <p className="delivery-withheld" data-testid={`delivery-blinded-${s.subject}`}>{WITHHELD}: this study is blinded until
-        the plan is signed{s.blinded_why ? <span data-testid={`delivery-blinded-why-${s.subject}`}>, because {s.blinded_why}</span> : null}.
+        the plan is signed{s.blinded_why ? <span data-testid={`delivery-blinded-why-${s.subject}`}>, because{" "}
+          {/* the part that can be changed leads where it is changed (round 5): its purpose, below, or the plan's roles */}
+          <BlindedReason why={s.blinded_why} projectId={projectId} whose={whose}
+                         onPurpose={() => focusWhenDrawn(cardPlace("purpose", s.subject, "intended_use"))} /></span> : null}.
         Its values, their spread and what is below the LLOQ are not shown, and it waits to be confirmed until then.</p>}
       {looking && s.confirm_on === "client-review" && <InlineIssue severity="note" testId={`delivery-confirm-on-${s.subject}`}>A filled
         client-data template: it is confirmed with the sheet form, on this card. What the delivery read is shown here for reference.</InlineIssue>}
@@ -841,7 +889,7 @@ export function DeliveryReview({ projectId, row, mode, gate, onMapping, todo, su
                                                                     aria-label={`Enter another fact of ${KIND_LABEL[s.subject_type].toLowerCase()} ${s.label}…`}>
                  Enter another fact…</button> : null}>
         <StatedFacts projectId={projectId} params={params} values={facts} flagged={flagged} decide={decide} busy={busy} read={looking} whose={whose}
-                     spot={s.spot_check} />
+                     spot={s.spot_check} purposes={options?.purpose ?? []} />
         {facts.length === 0 && !s.gaps.length && !factChecks.length && <p className="muted m-0">No fact of the {KIND_LABEL[s.subject_type].toLowerCase()} is stated in its files.</p>}
         {(s.gaps.length > 0 || factChecks.length > 0) && (
           <FactsForm params={params} gaps={s.gaps} checks={factChecks} options={options} suggestions={suggestions}

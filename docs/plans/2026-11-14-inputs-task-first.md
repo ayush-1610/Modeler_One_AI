@@ -908,12 +908,17 @@ before the next starts.
   Products and dissolution's line per tablet study. `?tab=formulations&release=<product>` opens that product's card at
   its release, the first control focused ("Use this profile as the release" where one profile can; what to add where
   none can); a product with no card (the proposal's, a profile of no product) opens Products and dissolution at the
-  profiles of no product, else the proposal's list. The step bar is drawn again when the lever changes (a profile or a
+  profiles of no product, else the proposal's list. *(Round 5: wrong as a landing: the proposal's list took the focus on
+  the product's "Change", where nothing adds dissolution data; a product with no card now opens Add data on the
+  dissolution files, focused, and a card with no profile its "Add its dissolution file…".)* The step bar is drawn again when the lever changes (a profile or a
   product added), not only when the checks do. Inputs no longer reads `/brief` for the lever (round 3 added that read).
   **Found on the way:** a profile's fit is used as a release only once a person confirmed its product's dissolution
   data (`client_review.product_confirmed`; the API's 409 otherwise), and on 7bb1 both products with profiles are still
   to confirm, so "use a product's dissolution profile as its release" would have landed on a button the API refuses.
-  The way carries `ready` (the first product's data confirmed; a confirmed product is offered first): while not, the
+  The way carries `ready` (the first product's data confirmed; a confirmed product is offered first *(round 5: the sort
+  by `ready` ran after "a product the study names first", so a confirmed other product came first, against the
+  module's docstring, and a study naming its product was offered another product's profile; the way is now read for
+  each study, the named product first)*): while not, the
   words say the order ("confirm a product's dissolution data, then use its profile as its release") and the card's
   release line offers "Confirm its data first", which takes the focus to the product's Confirm. **Left:** a product
   signed on the delivery whose sheet-form group was never confirmed still has its profile refused (the rule reads the
@@ -943,7 +948,9 @@ before the next starts.
   because it is entered for external validation on its card. It is in the model; …", which also makes visible the
   state round 3's skeptic found there (loaded for building by the sheet form, entered for external validation on the
   card): **not changed**, an existing state INT-2 the other way round now refuses to create; whether to flag it on the
-  card is for the owner.
+  card is for the owner. *(Round 5: "wherever" was not so: Populations and individuals, a product's card head and the
+  dataset lines gave no reason; they do now, and the reason's words lead to where it is changed: the purpose on the
+  delivery card, where "Change the purpose…" is offered, or the plan's roles.)*
 - **Gap 11's deviation closed: the ask on both paths.** With no product here at all (`add_product`), To do's formulation
   item carries the client request's line for each tablet study it names (`ask`; `study_requirements.unnamed_product_request`,
   the same item, label and wording as the delivery's `unnamed_product_items`), so a study confirmed with the sheet form
@@ -952,11 +959,13 @@ before the next starts.
   product of the delivery with values; a product only the proposal names does not stop it), while the inputs' follows
   "no product here at all"; where a product is only proposed, the delivery asks for a delivery study and the inputs do
   not ask for a sheet-form-only one (the step bar then names "add a product's dissolution data, or ask the client",
-  whose line is the group "Ask the client" when none asks).
+  whose line is the group "Ask the client" when none asks). *(Round 5: closed: the inputs' line follows the study's own
+  way, asked whenever it offers "ask the client", add a product or add a product's dissolution data.)*
 - **Owner questions:** the 7bb1 state above (a study loaded for building, entered for external validation later): flag
   it on the card, or leave it to the plan's split? No other new question.
 - **Not built:** a form to give a release by hand (as rounds 2 and 3 recorded). The Every dataset list's "blinded until
   the MAP is signed" line (a dataset, not a study card) does not say why; the dataset's purpose is shown beside it.
+  *(Round 5: built: the dataset says why, from its study's reason on the project's blinding list.)*
 ### Final review fixes round 4: accessibility and cards (2026-11-15; round 3's a11y-forms and cards-gate skeptics: A11Y-5, A11Y-7, OWN-16, the spot check's honesty, the records; CHANGELOG "Fixed — final review round 4, accessibility and cards")
 - **The demographics form's focus.** The form moves the focus itself once its field can take it (an effect on the
   vocabulary's loading, once per opening), not by `autoFocus`, which the "loading the words…" select swallowed on a
@@ -1181,3 +1190,59 @@ before the next starts.
   screen reader says the table they are in); **owner question:** name them too ("Sort the values of … by Field")?
 - No API change, no locked file, SME rule (draw size, digest and seed rule, requirement levels, the MS-01 split, which
   studies are blinded) or boundary exception was touched.
+
+### Final review fixes round 5: the formulation lever's edges and the blinded reason everywhere (2026-11-16; round 4's downstream-blinding skeptic; CHANGELOG "Fixed — final review round 5, the formulation lever's edges and the blinded reason everywhere")
+- **"add a product's dissolution data" lands on what adds them.** `?tab=formulations&release=<name>`: a product with a
+  card opens its release line, whose first control is now "Use this profile as the release", "Confirm its data first" or,
+  with no profile that can give a release, "Add its dissolution file…"; a product with no card whose profile is listed
+  under the profiles of no product opens that list; any other (a product only the proposal or a study names) opens "Add
+  data" on "Formulation and dissolution files…", focused, saying "· the dissolution data of <name>" while it is open
+  (kit `Menu`'s `open`; closed, the focus goes to "Add data"). The rows of "The formulation of each solid study" land the
+  same way. **Deviation:** the upload has no product field; the dissolution register reads the product from the file,
+  so a file that names another product (or the same one spelled otherwise) gives that product's profile, whatever the
+  menu said it was for.
+- **The way per study (`formulation_way`, `FormulationWayView.each`).** A study that names its formulation: that
+  product's profile if one can give a release, else that product's dissolution data, never another product's profile.
+  A study that names none (the model then holds no formulation): the profiles that can give a release and are no
+  formulation's release already (`_released`: a held formulation's evidence names its profile; a product whose
+  formulation the model holds), the confirmed first; else the products here; else a product. The products in the order
+  the docstring states: named, then confirmed, then the register's. **Deviation:** the step bar names one lever, the
+  first of use a profile, add dissolution data, add a product, choose that a study has, for the studies it settles; a
+  study with another way says its own on its row of Products and dissolution and, where its way offers the client, on
+  "Ask the client". A study that names a product whose profile was already used as the release of a formulation of
+  another name is still offered that profile (its own name is the formulation the model lacks: the profile is used again
+  under it, or the study's formulation corrected). Checked by `test_formulation_way_is_read_for_each_study` with the
+  skeptic's seeds (way_edge.py's monkeypatched profiles and confirmations).
+- **The blinded reason everywhere, in one sentence (`blindedWords`).** Populations and individuals' line, a product's card
+  head (beside its chip, and its description), and the dataset lines (the Every dataset list's and a study card's: the
+  dataset's `blinded_why` on `GET /evidence`, the study's reason on the project's list). The compound is never blinded.
+  The Clinical studies list's "because …" and To do's rows stay text (the card itself leads on).
+- **The reason leads where it can be changed (`blindedParts`, `BlindedReason`).** "it is entered for external validation
+  on its card" is a button to the study's purpose on its delivery card (on a card confirmed with the sheet form, the
+  delivery's reading is opened first; e2e on the round-4 template case), where a blinded study's purpose fact offers
+  "Change the purpose…" (the value stays withheld; a purpose chosen from the five, with a reason, through `:enter`; the
+  API's `PURPOSE_DIFFERS` check unchanged). "the plan places it in …" and "the study split proposes it for …" link to
+  Review & sign's "Studies and roles" (`#review-studies`), where a study's role is decided. "a dataset of it is entered for
+  external validation" and "it holds the values of a blinded study" stay text: a dataset's purpose is not changed on the
+  page (it is read again with another), and a product's is its study's.
+- **The ask follows the way.** To do's formulation item asks for each study whose own way is add a product or add a
+  product's dissolution data (`ask`), so wherever the step bar, Review & sign, To do or a study's row offers "ask the
+  client" for a study's formulation, "Ask the client" holds the study's line, joined with the delivery's (one line per
+  requirement and wording, each study once). A study that names its product is asked for that product's data, on a line
+  of its own wording. The delivery's own condition (no delivery product with values) is unchanged: it may still ask for
+  a delivery study the inputs' way does not (a profile here), which asks for more, never less.
+- **Owner questions:** (1) a curator can now change a blinded study's purpose from the page (the API took it before
+  through `:enter`, with the reason on the audit trail), and a purpose changed from external validation unblinds the
+  study at once; should that need the reviewer role, as turning blinding on or off does (`PUT /blinding`), or a
+  signature? Left as the API had it (a curator, with a reason). (2) round 4's 7bb1 question (231-24 loaded for building,
+  entered for external validation on its card) now has a lever on the card; whether to flag the state itself stays open.
+- **Checked:** in-process on a copy of the review data, exampleamide-pbpk-7bb1 gives the same lever as round 4 (use a
+  profile, Test 10 mg then Brand 10 mg, `ready` false) with each of its two tablet studies' own, and 231-24's group says
+  "it is entered for external validation on its card"; the skeptic's way_edge.py now gives Test 10 mg's dissolution data
+  for a study naming Test 10 mg, and the named product first. In a browser (e2e, stub engine): the owner-job's third
+  test, inputs-blinded's four, blinding. A software fixture, not PBPK evidence.
+- **Records corrected in place:** round 4's CHANGELOG entry and §5 sub-heading (the landing of a product with no card,
+  the order of the products, the reason "wherever" a study is withheld, the ask's condition as what was left, the dataset
+  line as not built).
+- No locked file, SME rule (which studies are blinded, requirement levels, the spot check, the MS-01 split) or boundary
+  exception was touched. API changes are additive (`FormulationWayView.each`; `blinded_why` on a blinded dataset).

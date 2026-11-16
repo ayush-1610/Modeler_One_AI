@@ -15090,8 +15090,15 @@
       },
       "FormulationWayView": {
         "additionalProperties": false,
-        "description": "What gives a tablet study its formulation as the project stands (`modeler_project.formulation_way`): use a\nproduct's dissolution profile as its release (`products`: those whose profile can), add a product's dissolution data\n(`products`: those here), add a product (none is here), or choose the formulation a study used (several are in the\nmodel). `studies`: the tablet studies it is for; `ready`: the first product's profile can be used now (its product's\ndissolution data confirmed), else they are confirmed first.",
+        "description": "What gives a tablet study its formulation as the project stands (`modeler_project.formulation_way`): use a\nproduct's dissolution profile as its release (`products`: those whose profile can), add a product's dissolution data\n(`products`: those here, or the one the study names), add a product (none is here), or choose the formulation a study\nused (several are in the model). `studies`: the tablet studies it is for; `ready`: the first product's profile can be\nused now (its product's dissolution data confirmed), else they are confirmed first; `each`: every study's own lever\n(round 5: a study that names its product is settled by that product only).",
         "properties": {
+          "each": {
+            "items": {
+              "$ref": "#/components/schemas/StudyWayView"
+            },
+            "title": "Each",
+            "type": "array"
+          },
           "products": {
             "items": {
               "type": "string"
@@ -27668,6 +27675,56 @@
           "new"
         ],
         "title": "StudyView",
+        "type": "object"
+      },
+      "StudyWayView": {
+        "additionalProperties": false,
+        "description": "One tablet study's own lever (`modeler_project.formulation_way.StudyWay`): `products` in the order a link opens\nthem, `ready` whether the first one's profile can be used now, `named` the product the study names, if any.",
+        "properties": {
+          "named": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Named"
+          },
+          "products": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Products",
+            "type": "array"
+          },
+          "ready": {
+            "title": "Ready",
+            "type": "boolean"
+          },
+          "study": {
+            "title": "Study",
+            "type": "string"
+          },
+          "way": {
+            "enum": [
+              "use_profile",
+              "add_dissolution",
+              "add_product",
+              "choose"
+            ],
+            "title": "Way",
+            "type": "string"
+          }
+        },
+        "required": [
+          "study",
+          "way",
+          "products",
+          "ready"
+        ],
+        "title": "StudyWayView",
         "type": "object"
       },
       "SubjectSpec": {

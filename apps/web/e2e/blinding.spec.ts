@@ -18,7 +18,8 @@ test("external values are blinded until the MAP is signed, and revealed for a ch
 
   await page.goto(`/projects/${projectId}/inputs?tab=studies`);
   const blinded = page.locator("[data-testid^='blinded-']").first();
-  await expect(blinded).toContainText("blinded until the MAP is signed");
+  // why, in the words every withheld study is said in (round 5: "blinded until the MAP is signed" said nothing of why)
+  await expect(blinded).toContainText("Its values are blinded until the plan is signed, because the plan places it in S5 (external validation)");
   const testId = (await blinded.getAttribute("data-testid"))!;
   const card = page.getByTestId(testId.replace("blinded-", "dataset-"));
   await expect(card).not.toContainText("arithmetic mean");                  // no values on the page

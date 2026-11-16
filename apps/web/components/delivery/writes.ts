@@ -137,6 +137,12 @@ export function cardAfter(projectId: string, { before, page = true }: { before?:
 /** The reference a decision's answer (a card) is followed by: what `followPage` leaves out as `answered`. */
 export const answeredBy = (card: { subject_type: string; subject: string }) => ref(card);
 
+/** What a study's purpose changed besides its card (round 5, "Change the purpose…" on a blinded card): whether it is
+ *  blinded, and with it the sheet form's groups of it, the client's files and documents that hold its values (withheld
+ *  whole while it is) and the inputs' studies. The delivery page is read and followed by `cardAfter` itself. */
+export const PURPOSE_READS: readonly Read[] = ["/api/v1/projects/{project_id}/client-review", "/api/v1/projects/{project_id}/client-data",
+                                               "/api/v1/projects/{project_id}/documents", "/api/v1/projects/{project_id}/inputs"];
+
 /** The spot check's draw or record: the answer is the draw (written where "Show the values to check" reads it); the
  *  subject's card says how far the spot check is and whether it still holds the signature, so that one card is read
  *  again. */

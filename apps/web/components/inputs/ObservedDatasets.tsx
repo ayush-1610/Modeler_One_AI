@@ -3,6 +3,7 @@
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
+import { BlindedReason } from "@/components/delivery/BlindedReason";
 import { Digitizer } from "@/components/evidence/Digitizer";
 import { InlineIssue } from "@/components/kit";
 import { TableFilter, TableMore } from "@/components/kit/SortableTable";
@@ -18,8 +19,9 @@ import type { Run } from "./InputsTodo";
 // a stored dataset (modeler_project.datasets.ObservedDataset), as the dataset routes answer it
 type Dataset = Schema<"ObservedDataset">;
 // a dataset as GET /projects/{id}/evidence lists it: for an external study before the MAP is signed (D-15) the
-// redaction, its values withheld and marked `blinded`
-export type Listed = Narrow<Dataset, { reported: (Omit<Schema<"ReportedPK">, "value"> & { value: number | null })[] }> & { blinded?: boolean };
+// redaction, its values withheld and marked `blinded`, with why its study is on the blinding list (`blinded_why`: round 5)
+export type Listed = Narrow<Dataset, { reported: (Omit<Schema<"ReportedPK">, "value"> & { value: number | null })[] }>
+  & { blinded?: boolean; blinded_why?: string | null };
 type AccessRequest = { id: string; title: string; authors: string; doi: string | null; needed_for: string; status: string };
 type View = Narrow<Pick<Schema<"EvidencePage">, "agents" | "running" | "datasets" | "access_requests">, {
   datasets: Listed[]; access_requests: AccessRequest[];
@@ -123,16 +125,19 @@ function LeaveOut({ d, projectId, run, onProblem }: { d: Listed; projectId: stri
 }
 
 /** A blinded dataset (an external study before the MAP is signed, D-15): revealed for one check with the reason, which
- *  the audit trail keeps. `onRevealed` receives the dataset with its values. */
+ *  the audit trail keeps. Why it is blinded is said, in the words every withheld study is (round 5: "blinded until the MAP
+ *  is signed" said nothing of why), the plan's or the split's part leading to the studies' roles on Review & sign.
+ *  `onRevealed` receives the dataset with its values. */
 function Reveal({ d, projectId, onRevealed, onProblem, compact = false }: {
   d: Listed; projectId: string; onRevealed: (d: Listed) => void; onProblem: (p: string | null) => void; compact?: boolean;
 }) {
   const [reason, setReason] = useState("");
   return (
     <div className={`banner warn ${compact ? "m-4-0 fs-13" : "m-6-0"}`} data-testid={`blinded-${d.id}`}>
-      {compact ? "Its values are blinded until the MAP is signed (ICH M15). To check them now, give the reason; the access is recorded in the audit trail."
-        : <>External study: its values are blinded until the MAP is signed (ICH M15). The metadata above is what the split uses. To
-          check this dataset now, give the reason; the access is recorded in the audit trail.</>}
+      <span id={`${compact ? "blinded-why-line" : "blinded-why"}-${d.id}`} data-testid={`blinded-why-${d.id}`}>Its values are blinded until the plan is signed
+        {d.blinded_why ? <>, because <BlindedReason why={d.blinded_why} projectId={projectId} /></> : null} (ICH M15).</span>
+      {compact ? " To check them now, give the reason; the access is recorded in the audit trail."
+        : " The metadata above is what the split uses. To check this dataset now, give the reason; the access is recorded in the audit trail."}
       <div className="row mt-6">
         <input className="flex-1 minw-180" placeholder="why it must be seen now (required)" value={reason}
                onChange={(e) => setReason(e.target.value)} aria-label={`why ${String(d.study.study_id)} must be seen now`} />
@@ -201,7 +206,8 @@ function DatasetLine({ d: listed, projectId, run, unpromised }: { d: Listed; pro
         <span>{d.kind === "profile" ? "profile" : "PK parameters only"} · {sourceText(d, !/\.(xlsx?|csv)$/i.test(d.source.title ?? ""))}</span>
         <span className={`chip ${tone}`} data-testid={`dataset-state-${d.id}`}>{label}</span>
         {unpromised && <span className="chip neutral" data-testid={`dataset-unpromised-${d.id}`} title={unpromised}>not in the data plan</span>}
-        {d.blinded && <span className="chip neutral" data-testid={`dataset-blinded-${d.id}`}>blinded until the plan is signed</span>}
+        {d.blinded && <span className="chip neutral" data-testid={`dataset-blinded-${d.id}`} aria-describedby={`blinded-why-line-${d.id}`}>blinded until
+          the plan is signed</span>}
         {!d.blinded && more && (
           <button type="button" className="link-btn" aria-expanded={points} onClick={() => setPoints(!points)}
                   aria-label={`${points ? "Hide" : "Show"} the ${d.series.length ? "points" : "details"} of ${String(s.study_id)} · ${sourceText(d)}`}>

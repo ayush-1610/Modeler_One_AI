@@ -885,20 +885,23 @@ def todo(ws: Workspace) -> list[dict[str, Any]]:
             out.append({"kind": kind, "target": sid, "message": detail, "items": [], "dataset_id": dataset_of.get(sid)})
     formulations = checks.get("formulations of solid studies")
     if formulations and not formulations["ok"]:
-        from modeler_project.formulation_way import formulation_way
+        from modeler_project.formulation_way import ASKS, formulation_way
         from modeler_project.requirements import RequirementMatrix
         from modeler_project.study_requirements import unnamed_product_request
 
         proposed = [evidence_view(e) for e in evidence.values() if e.target.startswith("form.") and included(e)]
-        # what gives a tablet study its formulation as the project stands (`way`, the step bar's too: round 4), and, with
-        # no product here at all, what the client is asked for each such study (`ask`: the inputs' side of the delivery's
-        # line, so a study the sheet form loaded is asked too)
+        # what gives a tablet study its formulation as the project stands (`way`, the step bar's too: round 4), and what
+        # the client is asked for each study whose way offers the client (`ask`: no product here, or none with a profile
+        # that can give its release; the inputs' side of the delivery's line, so a study the sheet form loaded is asked
+        # too: round 5, the condition follows the way, as the words that offer "ask the client" do)
         way = formulation_way(ws, formulations["detail"])
         ask = []
-        if way is not None and way.way == "add_product":
+        asking = [e for e in way.each if e.way in ASKS] if way is not None else []
+        if asking:
             matrix = ws.latest(ArtifactKind.REQUIREMENTS, MAIN)
             ask = unnamed_product_request(
-                way.studies, brief=ProjectBrief.from_content(brief_version.content) if brief_version is not None else None,
+                [e.study for e in asking], named={e.study: e.named for e in asking if e.named},
+                brief=ProjectBrief.from_content(brief_version.content) if brief_version is not None else None,
                 matrix=RequirementMatrix.from_content(matrix.content) if matrix is not None else None)
         # its problems one by one as well (`details`): a problem may itself hold "; " (a formulation of a type the builder
         # does not place says which it places), so the page never splits the message

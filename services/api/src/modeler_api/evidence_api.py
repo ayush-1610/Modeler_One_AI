@@ -17,7 +17,7 @@ from pydantic import BaseModel, Field
 from modeler_api import agent_jobs, jobs
 from modeler_api.compound_jobs import SOURCES_AGENT, CodeRunner, run_compound_job, run_research_job
 from modeler_api.config import SettingsDep
-from modeler_api.deps import Reader, StoreDep, Writer, blinded_studies, redact, version_view, workspace_for
+from modeler_api.deps import Reader, StoreDep, Writer, blinded_why, redact, version_view, workspace_for
 from modeler_api.reference_models import TEMPLATES, model_name, snapshot
 from modeler_api.responses import answers, envelope
 from modeler_api.views.evidence import (
@@ -114,11 +114,18 @@ def _evidence_view(item: EvidenceItem) -> dict[str, Any]:
     return {**item.model_dump(mode="json"), "flags": list(dict.fromkeys([*item.flags, *review_flags(item)]))}
 
 
+def _dataset_view(ws: Workspace, dataset: ObservedDataset, hidden: set[str], why: dict[str, str]) -> dict[str, Any]:
+    """A dataset as the list shows it: its values withheld while its study is blinded (D-15), with why (`blinded_why`)."""
+    content = redact(ws, ArtifactKind.DATASET, dataset.to_content(), hidden)
+    return {**content, "blinded_why": why.get(str(dataset.study.get("study_id")))} if content.get("blinded") else content
+
+
 def _view(ws: Workspace) -> dict[str, Any]:
     matrix_version, matrix = _matrix(ws)
     evidence = items(ws)
     observed = datasets(ws)
-    hidden = blinded_studies(ws)
+    why = blinded_why(ws)
+    hidden = set(why)
     rows = coverage(matrix, evidence, observed)
     register = ws.latest(ArtifactKind.EVIDENCE, REGISTER_LITERATURE)
     runs = [r for r in agent_jobs.project_runs(getattr(ws.store, "root", None), ws.tenant_id, ws.project_id)
@@ -126,8 +133,9 @@ def _view(ws: Workspace) -> dict[str, Any]:
     return {
         "data_plan": {"version": matrix_version.version, "status": ws.status(matrix_version).value},
         "evidence": [_evidence_view(e) for e in evidence],
-        # D-15: external datasets' values are withheld until the MAP is signed (metadata kept for the split)
-        "datasets": [redact(ws, ArtifactKind.DATASET, d.to_content(), hidden) for d in observed],
+        # D-15: external datasets' values are withheld until the MAP is signed (metadata kept for the split), each with why
+        # its study is on the blinding list (round 5: the Every dataset line said only that it is blinded)
+        "datasets": [_dataset_view(ws, d, hidden, why) for d in observed],
         "blinding": {"blinded": sorted(hidden)},
         "coverage": [r.__dict__ | {"accepted": list(r.accepted), "proposed": list(r.proposed)} for r in rows],
         "blocking": [r.req_id for r in blocking(rows)],
