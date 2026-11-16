@@ -70,6 +70,66 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
   template study blinded on its delivery card says why on its sheet-form card and in the list). Software test data on
   the stub engine and a copy of the review data: none of it is PBPK evidence.
 
+### Fixed — final review round 4, accessibility and cards (round 3's a11y-forms and cards-gate skeptics: A11Y-5, A11Y-7, OWN-16, the spot check's honesty; plan 2026-11-14 §5) — science-adjacent
+- **The demographics form takes the focus however it opens (A11Y-5).** The form drew its population as a disabled
+  "loading the words…" select while the layout's vocabulary was read; React kept that element once the words arrived, so
+  its `autoFocus` never ran and, on the first open of a page, the focus fell to the page from Populations' "Enter them…",
+  from a card's "Enter them…" and stayed on the spot check's "Choose the individual…" link (its 80 ms timer fired before
+  the form existed). `DemographicsForm` now moves the focus itself once the field can take it, once per opening: on its
+  first field a person fills, or, opened to choose the individual ("Choose the individual…" on a card, on Populations and
+  on the spot check), on the individual's PK-Sim population; the openers say which. "Enter another fact…" puts the focus
+  on its Fact field (the reason field also had `autoFocus` and, drawn later, took it); a value's "Correct" on its Value.
+  Impact: a keyboard or screen-reader user lands in the form they opened, on a fresh page too.
+- **No two controls share a name, with every study card open and on the template project (A11Y-7).** Named with what
+  tells them apart, the words on them first: a stated fact by its value, its labels, its file and its study ("Correct
+  Analyte Exampleamide-M1, from messy-delivery.xlsx (study 230-23)": 230-23's two analytes had one name); a card's facts form
+  (Route, Number of subjects, Purpose of the study, "Save this fact", "Where the facts come from"), "Enter another
+  fact…"'s fields, "Accept as is…", "State it…", "Check layout…", the required item's "It is" select, "Record it" and its
+  reason, "Open in To do", "Confirm now with the sheet form", the card's To do links, the demographics form's fields, the
+  spot check's buttons (Start, Show the values, Hide, Record, "Choose the individual… first", each value's source) and a
+  values table's buttons (by its kind, its file, where it starts there, "page 4, table 1" or "sheet Fasting from cell
+  B22", and its study: two summary tables of one report were one name) with their study; on the template project
+  "Leave it out…" and its form by the dataset's source, a sheet-form item's peek and chart (Linear/Log) by its group and
+  its file (`words.sourceNamed`), a card's "Read from <file>" link by its study; the Clinical studies chips ("All",
+  "Used") by their list; a compound row's "Sources (n)" by its parameter. Scanned on the review copies (both projects,
+  every card open: none left). Impact: a screen reader's list of buttons and fields tells each one apart.
+- **Client files on a phone, and the area's message (OWN-16).** The kit's `.table-scroll table { min-width: 560px }`
+  outranked the phone rule's `.files-table { min-width: 0 }`, so each file's block was 560 px wide in a 358 px box and its
+  long lines (the area proposal) were cut; the phone rule now comes after and is as specific (inputs.css), and each block
+  fits its box. A message said in one area is cleared on every change of area, by one rule on the area shown (a
+  status-line count opening To do kept it; the area bar and a To do row cleared it).
+- **The spot check said honestly before every card decision that draws it again (the cards skeptic's note 3).** Checked
+  against the API's own rule (`intake_review._stale`: the subject's digest over its active values' id, value, unit and
+  anchor, or a value of a check accepted as is that the draw does not hold), on a test project and on a copy of the
+  review data, each decision with a draw in hand:
+  - *Accept as is* draws it again exactly when a value of the check is outside the draw (its values are then always
+    checked): the API says how many per check (`DeliveryCheck.outside_draw`, from `intake_review.outside_draw`, which
+    reads the draw as `_stale` does), and the form says it before Save ("Accepted as is, its values are always checked,
+    and 2 of them are not in the spot check, so it is drawn again"); a check with none, or with no value, says nothing.
+  - *State it…* (the analyte) keeps the values' ids, values, units and anchors: it draws it again only when values are
+    computed from them (an SD from an SE carries its input's analyte, so it is computed anew); the API counts them
+    (`DeliveryCheck.computed`, `intake_review.computed_from`) and the form says it when there are any.
+  - *Keep this value* sets the other values aside: always drawn again, said before Save.
+  - *Not the same study* takes the file's values out of the study: said when the file gives values; "Yes" to a link that
+    names several studies joins another study's values: said.
+  - *Record it* (a required item settled) writes no value: never drawn again, and nothing is said.
+  Plan §5 records what is not foreseen: a plain "Yes, the same study" draws it again only when values wait to be computed
+  from the file's values, which the page does not say before. The draw size, the digest and seed rule and the
+  requirement levels are unchanged (SME-governed). Round 3's numbers for 230-23 (55 new ticks, 62 carried over) are
+  corrected in place: they depend on the ledger's head, and the warning promises none.
+- **Records corrected (the skeptics found them wrong):** round 3's a11y entry below and plan §5 said the demographics
+  form's first field and Enter's fact field took the focus and that the template project's repeated names were fixed in
+  code, and that on a phone no Client files column was cut; round 3's cards report said the spot check's link focused the
+  population select; the cards §5 note said the `writeMapping` regression was still open (round 3's speed group fixed it).
+  Each is corrected where it stands.
+- **API (contract and web types updated):** `DeliveryCheck.outside_draw`, `DeliveryCheck.computed`. Tests:
+  `test_delivery_api.py` (`test_the_card_says_which_decisions_draw_its_spot_check_again_as_the_review_rule_does`: a
+  disposition, an override inside and outside the draw, the analyte stated with and without computed values, a value
+  kept, a link refused, each against the spot check's state), `inputs-work.spec.ts` (`redrawText` for each decision,
+  `anchorPlace`, `sourceNamed`), `inputs-a11y.spec.ts` (the demographics form's focus from its three openers and from
+  Populations' "Choose the individual…" on a fresh page, Enter's fact field; the repeated-names scan with every study
+  card open, and on the client-data template's project; Client files on a phone; the message cleared by a status-line
+  count). Software test data on the stub engine: none of it is PBPK evidence.
 ### Fixed — final review round 3, speed and cache writes (round 2's layout-dialog regression, OWN-7, CODE-4; plan 2026-11-14 §5)
 - **Round 2's regression (the gate-todo skeptic): an approval or a rejection made in the layout dialog that "Read this
   table…" opens is shown.** The dialog opened on the stored layout's table with no version, a cache key
@@ -165,14 +225,18 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
   value was found for ("an open issue on a parameter is what settles its S0 gap: not listed twice").
 - **The spot check made stale by choosing the individual (round 2's regression, not recorded then).** The individual's
   population and sex are ledger facts, in the subject's digest and the draw's seed, so choosing them after the spot
-  check was recorded made it stale and asked for 55 new ticks on the review's 230-23. The draw size and the digest and
-  seed rule are not changed (SME-governed); the page is made honest and the order sensible:
+  check was recorded made it stale and asked for new ticks on the review's 230-23 (how many depends on the ledger's head,
+  which seeds the sample: 55 new and 62 carried over when round 2 chose it, 44 new and 73 carried over on the review copy
+  at round 3's check; corrected in round 4, the warning promises no number). The draw size and the digest and seed rule
+  are not changed (SME-governed); the page is made honest and the order sensible:
   - choosing the individual is the card's own work, before the spot check: a study whose demographics are stated with
     no PK-Sim population or sex chosen gets a row in To do and on its card ("Study 230-23 · choose the study's
     individual", opening its "Choose the individual…" line, which takes the focus), counted with the card's other work,
     so the confirm row reads "first … items on its card; then the spot check and the signature"; where a spot check is
     drawn already the row says "the spot check is then drawn again". The spot check itself, not started or not recorded
-    yet, says "Choose the study's individual first: …" with "Choose the individual…", which opens that form;
+    yet, says "Choose the study's individual first: …" with "Choose the individual…", which opens that form (the round-3
+    report said the link also put the focus on the population select: it did not, the focus stayed on the link; it does
+    since round 4, on the individual's PK-Sim population);
   - where a spot check is drawn or recorded, the individual's form (on the card and on Populations and individuals), the
     facts form, "Enter another fact…" and "Correct" say before Save that saving draws the spot check again, and which
     ticks carry over (`words.redrawText`): "Of the 117 values ticked (recorded by dev-user on 15 Nov 2026, 09:42), the 17
@@ -311,7 +375,10 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
   the row's own button; the bulk bars' Clear to "Pick every file" or the first picked row; Cancel of every inline form
   (the not-data approvals, a file's loose numbers, a table set aside, a restore, Accept as is, State it, Correct, Enter
   another fact, Not the same study, the demographics) back to what opened it; a form opened in place takes the focus
-  (the not-data approvals, the demographics form's first field, Enter's fact field, the analyte).
+  (the not-data approvals, the analyte). Corrected in round 4: the demographics form's first field took it only once the
+  layout's words were read already on the page (a first open left the focus on the page, from Populations, from a card
+  and from the spot check's link), and "Enter another fact…" put it on the reason field, not the fact's; both do since
+  round 4 ("Fixed — final review round 4, accessibility and cards").
 - **A11Y-6: each change is said once.** The status counts were an `aria-live` span that spoke 8 times while the cards
   were read; now a status region says them only when they change after the page has read its work, once they settle
   ("Now 24 missing, 12 to confirm, 27 to decide."). A layout decision is said in the dialog's own live region only, no
@@ -353,10 +420,12 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
   Decided: a matrix not stated (MATRIX_MISSING) is a fact, as the card asks it, so To do now counts it on the study's
   facts row (Missing), no longer as a check to decide.
 - **OWN-16:** Populations' "Save the individual" says what it needs; a message of one area no longer stays on the next
-  (leaving an area clears it); the Link table's head counts as its rows do ("6 files · 355 values and 11 facts"; the rows'
+  (leaving an area by its bar or a To do row clears it; corrected in round 4: a status-line count kept it, fixed then);
+  the Link table's head counts as its rows do ("6 files · 355 values and 11 facts"; the rows'
   buttons "the 76 values and 3 facts of …"; it said 366 values); the page's one filled primary button is "Next" (a form's
   own main button inside an area is drawn tinted); on a phone Client files is one block per file, its parts under their
-  column's name, so a name breaks between words and no column is cut; why a file's work is not counted is said in text,
+  column's name, so a name breaks between words (corrected in round 4: the kit's table width still kept each block 560 px
+  wide in a 358 px box, so long lines were cut; fixed then); why a file's work is not counted is said in text,
   not in a hover. The facts form asking the dosage form only after the route was fixed in round 2 (gap 7).
 - Impact: keyboard and screen-reader use of Inputs (WCAG 2.2 AA: 2.4.1, 2.4.11, 2.5.3, 1.3.1, 3.3.1, 4.1.3, 1.4.3). No
   API, rule or ruleset change; nothing a person decides changes. Tests: e2e/inputs-a11y.spec.ts (new), delivery.spec.ts

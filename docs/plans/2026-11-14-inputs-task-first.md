@@ -700,7 +700,9 @@ before the next starts.
 - **The individual before the spot check; the spot check's digest (owner question).** A study's individual (the PK-Sim
   population and the sex, D-29) is entered as two ledger facts, so it is in the subject's digest and the draw's seed
   (`intake_review.draw_spot_check`): chosen after the spot check is recorded, the spot check is stale and a new draw asks
-  for new ticks (55 on the review's 230-23, 62 carried over). Not changed (the digest and the draw are SME-governed, and
+  for new ticks for the part of the random sample drawn anew (how many depends on the ledger's head, which seeds the
+  sample: on the review's 230-23, 55 new and 62 carried over when round 2 chose it, 44 new and 73 carried over at round
+  3's check; corrected in round 4: the page promises no number of them). Not changed (the digest and the draw are SME-governed, and
   the facts a signature binds include the individual): the card puts the individual first in its open work, counted
   like its other rows (its row says "the spot check is then drawn again" where one is drawn already; the signature does
   not wait for it, as before), the spot check itself says "Choose the study's individual first" while it is not
@@ -738,8 +740,11 @@ before the next starts.
   not on the arrival count; `inputs-task-first.spec.ts`'s two-file "Mark as not data" batch once waited past 15 s for
   its row to update in a loaded batch and passed when the spec was run again, untouched here).
 - **Not in this group:** the gate-todo review's regression (the layout dialog opened on a table with no version, right
-  after "Read this table…", keeps "waits for approval" after an approval: `writeMapping` never writes that key) is
-  still open at this group's base and is another round-3 group's (speed); not touched here, to keep one fix of it.
+  after "Read this table…", keeps "waits for approval" after an approval: `writeMapping` never writes that key) was
+  still open at this group's base and was another round-3 group's (speed); not touched here, to keep one fix of it.
+  Corrected in round 4: round 3's speed group fixed it (`writeMapping` writes the answer under every key a dialog reads
+  a layout by; "Final review fixes round 3: speed and cache writes" below and its CHANGELOG entry), merged with this
+  group at 415cfde, so it is no longer open.
 - Nothing was stopped for a locked file, an SME rule or an owner decision; no boundary exception was added.
 ### Final review fixes round 3: downstream and blinding follow-ups (2026-11-15; OWN-8, owner-job gap 11, the words, the risks round 2's skeptics found, INT-2 the other way round, the blinding scope; CHANGELOG "Fixed — final review round 3, downstream and blinding follow-ups")
 - **Review & sign in words (OWN-8):** `StepBlocked` prints what the API said only where no list of the earlier step's
@@ -838,7 +843,9 @@ before the next starts.
   open under it, else that dialog's panel (`kit/Dialog.tsx`, extending round 2's safety net); "Sign and load" stays
   focusable while it is sent. Not changed: after a successful decision whose row stays (Accept as is on a card's check),
   the focus goes to the row when it has a control left, else stays where the browser puts it; the list-level rule
-  (`focusAfter`) is unchanged.
+  (`focusAfter`) is unchanged. Corrected in round 4: a form opened in place did not always take the focus (the
+  demographics form on its first open of a page, from Populations, a card or the spot check's link; "Enter another fact…"
+  gave it to the reason field): see round 4 below.
 - **Live regions:** the counts are said by a status region of the status line only when they change after the page has
   read its work, 1.5 s after they settle, as "Now … missing, … to confirm, … to decide." (not appended to each decision's
   words, as the reviewer suggested: a decision's answer arrives before the cards it changes are read again, so the
@@ -850,8 +857,11 @@ before the next starts.
 - **Context labels:** a repeated control's name starts with the words on it and then says what it is about (WCAG 2.5.3);
   e2e/inputs-a11y.spec.ts checks that no two visible controls of To do (two link editors open), Populations and
   individuals, or Client files share a name on the 9-file seed. Not checked there: the template project's Clinical
-  studies (fixed in the code: "Show the points", Linear/Log, "Confirm the selection"); the compound rows' fields keep
-  their names with the parameter's id ("value for phys.mw"), which the specs read; putting them in words is left.
+  studies ("Show the points", Linear/Log, "Confirm the selection" were named in the code; corrected in round 4: the
+  template project's names were not all fixed, "Leave the dataset of EX-101 out" and the item peek repeated once per file,
+  and with several study cards open their forms' names repeated with no study: fixed and scanned in round 4, below); the
+  compound rows' fields keep their names with the parameter's id ("value for phys.mw"), which the specs read; putting
+  them in words is left.
 - **Headings:** each area has an h2 of its own (`sr-only`; the bar names the area on screen).
 - **The page's one primary (OWN-16), a deviation in form:** forms inside an area keep the `primary` class (their main
   action) but are drawn tinted (`[id^="inputs-panel-"] .btn.primary` in inputs.css); "Next" is the one filled button. A
@@ -939,3 +949,47 @@ before the next starts.
   it on the card, or leave it to the plan's split? No other new question.
 - **Not built:** a form to give a release by hand (as rounds 2 and 3 recorded). The Every dataset list's "blinded until
   the MAP is signed" line (a dataset, not a study card) does not say why; the dataset's purpose is shown beside it.
+### Final review fixes round 4: accessibility and cards (2026-11-15; round 3's a11y-forms and cards-gate skeptics: A11Y-5, A11Y-7, OWN-16, the spot check's honesty, the records; CHANGELOG "Fixed — final review round 4, accessibility and cards")
+- **The demographics form's focus.** The form moves the focus itself once its field can take it (an effect on the
+  vocabulary's loading, once per opening), not by `autoFocus`, which the "loading the words…" select swallowed on a
+  first open. Where it lands is the opener's to say (`focusOn`): "Choose the individual…" (on a card, on Populations, the
+  spot check's link) on the individual's PK-Sim population, every other opener on the first field a person fills. The
+  spot check's link no longer focuses by a timer; the row scrolls into view and the form takes the focus. A value's
+  "Correct" now opens on its Value (its button stays, so this was not required; one form, one field taking the focus).
+- **Context labels, finished.** Every repeated control on a card names its subject ("study 230-23"), after the words on
+  it (WCAG 2.5.3); a stated fact also by its value and file; a values table by where it starts in its file
+  (`words.anchorPlace`, from its first value's anchor: "page 4, table 1", "sheet Fasting from cell B22"); a sheet-form
+  item, chart or dataset by its source's file (`words.sourceNamed`). e2e/inputs-a11y.spec.ts now scans Clinical studies
+  with every study card open on the 9-file seed, and a second project, the client-data template's (EX-101 from two files,
+  four studies in one workbook), every area, every card open. **Left as it is:** the spot check's tick radios ("matches",
+  "does not match") and a values table's sort buttons repeat by design inside their table, under its caption and the
+  row's legend; they are not in the scan's default view (the scan sees the page as it opens, with every card open, not
+  every value table shown and every spot check drawn).
+- **Phone and message:** the phone rule for Client files comes after the desktop rules and is as specific as the kit's
+  `.table-scroll table`; a message is cleared by one effect on the area chosen (not in each handler), so no way of
+  changing the area keeps it. A message said while the page loads (before it settles on its area) stays.
+- **The spot check, decision by decision (the API's rule, checked, not guessed; `intake_review._stale`):**
+
+  | Card decision | Drawn again? | Said before Save |
+  | --- | --- | --- |
+  | a fact entered, "Enter another fact…", "Correct", the individual | always (a new value, or one superseded) | yes (round 3) |
+  | "Accept as is…" | when a value of the check is outside the draw | yes, with the count (`DeliveryCheck.outside_draw`) |
+  | "State it…" (the analyte) | only when values are computed from the check's values | yes, with the count (`DeliveryCheck.computed`) |
+  | "Keep this value" | always (the others set aside) | yes |
+  | "No…" to a file's link | when the file gives values (they leave the study) | yes |
+  | "Yes" to a link naming several studies | yes (the card's study is merged into the one chosen, read from `Ledger.link_files`; not run in a test) | yes |
+  | "Yes, the same study" (one study) | only when values wait to be computed from the file's (an SD from an SE, a series' n) | **no** |
+  | "Record it" (a required item) | never (no value changes) | nothing to say |
+
+  **Known gap:** the plain "Yes, the same study" is not foreseen: telling it would mean running the ledger's derivations
+  with a confirmation not yet made (`ledger_compute.derivations` with one more `LinkConfirmation`); left, and recorded
+  here. No link waits on the review copies; on the API test's project confirming the late samples' link changed nothing
+  (they state an SD: nothing waits to be computed). **Deviation from the
+  task's list:** "State it…" draws the spot check again only where something is computed from the values (none on the
+  owner's 230-23), so its warning shows only then; settling a required item never does, so it says nothing.
+- **Records corrected in place:** the round-3 accessibility entry and its §5 note (the demographics form's and Enter's
+  focus, the template project's names, the phone files table, the message kept by the status line), the round-3 cards
+  entry and §5 note (55 new ticks and 62 carried over were round 2's, from that ledger head; the spot check's link did
+  not focus anything; the `writeMapping` regression is fixed by round 3's speed group).
+- No locked file, SME rule (draw size, digest and seed rule, requirement levels) or boundary exception was touched. The
+  API change is additive (two counts on a check).

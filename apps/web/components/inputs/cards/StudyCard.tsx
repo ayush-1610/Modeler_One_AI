@@ -8,6 +8,7 @@
 import type { ReactNode } from "react";
 
 import { cardAnchor, normLabel, type Subject } from "@/lib/inputsWork";
+import { sourceNamed } from "@/lib/words";
 
 import { DatasetView } from "../DatasetView";
 import { StudyDatasets, useStudyDatasets } from "../ObservedDatasets";
@@ -29,7 +30,9 @@ export function CardFiles({ subject, env }: { subject: Subject; env: CardEnv }) 
       <span className="muted">Read from </span>
       {names.map(([id, name], i) => (
         <span key={id}>{i > 0 && ", "}
+          {/* named with the card: one file can hold every study's data, and so be named on each card (round 4) */}
           {env.onFile ? <button type="button" className="link-btn" onClick={() => env.onFile!(id)}
+                                aria-label={`${name}: open it in Client files (read from it: ${subject.kind} ${subject.label})`}
                                 title={`Open ${name} in Client files`}>{name}</button> : name}
         </span>
       ))}
@@ -48,7 +51,7 @@ function Observed({ subject: s, env, unpromised }: { subject: Subject; env: Card
   return (
     <section className="delivery-block card-section" data-testid={`card-observed-${s.key}`}>
       <div className="delivery-block-head"><h3>Observed data</h3></div>
-      {drawn.map(({ g, i }) => <DatasetView key={i.id} data={i.data!} label={`${g.title}: ${i.label}`} />)}
+      {drawn.map(({ g, i }) => <DatasetView key={i.id} data={i.data!} label={sourceNamed(`${g.title}: ${i.label}`, i.source)} />)}
       {datasets && <StudyDatasets datasets={datasets} projectId={env.projectId} run={env.run} unpromised={unpromised} />}
       {!drawn.length && delivery && (
         <p className="muted m-0 fs-13">Its profile is drawn here once it is in the model; the values read from its files are under

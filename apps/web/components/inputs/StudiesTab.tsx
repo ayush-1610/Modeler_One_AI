@@ -82,7 +82,7 @@ function StudiesTable({ studies, projectId, run, onIndividuals }: {
         <div className="table-chips" role="group" aria-label="Show studies">
           {SHOW.map((x) => (
             <button key={x.id} type="button" aria-pressed={show === x.id} data-testid={`studies-show-${x.id}`}
-                    onClick={() => setShow(x.id)}>{x.label}</button>
+                    aria-label={`${x.label}: studies in the model`} onClick={() => setShow(x.id)}>{x.label}</button>
           ))}
         </div>
       </TableFilter>
@@ -327,7 +327,8 @@ function StudyList({ subjects, studies, env, unpromised, only, onShow }: {
         <h2 className="area-section-title">The client&apos;s studies <span className="muted">({subjects.length})</span></h2>
         <div className="table-chips" role="group" aria-label="Show the studies">
           {SHOW_CARDS.map((x) => (
-            <button key={x.id} type="button" aria-pressed={show === x.id} data-testid={`studies-cards-${x.id}`} onClick={() => setShow(x.id)}>
+            <button key={x.id} type="button" aria-pressed={show === x.id} data-testid={`studies-cards-${x.id}`} onClick={() => setShow(x.id)}
+                    aria-label={`${x.label}: the client's studies`}>
               {x.label}</button>
           ))}
         </div>

@@ -106,7 +106,9 @@ export function CardTodo({ subject, env }: { subject: Subject; env: CardEnv }) {
   const line = (i: WorkItem, text: string) => (
     <li key={i.id} className={i.open ? undefined : "quiet"}>
       <StatusChip status={i.status} />
-      <button type="button" className="link-btn" onClick={() => env.onGo(i)} data-testid={`card-todo-${i.id}`}>{text}</button>
+      {/* the card's name is left off the line, not off its name: every card lists the same kinds of work (round 4) */}
+      <button type="button" className="link-btn" onClick={() => env.onGo(i)} data-testid={`card-todo-${i.id}`}
+              aria-label={`${text} (${subject.kind} ${subject.label})`}>{text}</button>
       {(i.blocked || i.why) && <span className="muted fs-12">{i.blocked ?? i.why}</span>}
     </li>
   );
@@ -228,6 +230,7 @@ export function ConfirmPath({ subject: s, env, observed, files, onShow }: {
   const sheetPath = toConfirm.length ? (gated: boolean) => (
     <span className="sheet-path">
       <button type="button" className="btn" data-testid={`confirm-sheet-${s.key}`} aria-expanded={sheet}
+              aria-label={`${gated ? "Confirm now with the sheet form" : "Confirm with the sheet form instead"}: ${s.kind} ${s.label}`}
               onClick={() => { setReading(true); setSheet(true);
                                window.setTimeout(() => body.current?.querySelector(".how-read")?.scrollIntoView({ block: "start", behavior: "smooth" }), 60); }}>
         {gated ? "Confirm now with the sheet form" : "Confirm with the sheet form instead"}</button>

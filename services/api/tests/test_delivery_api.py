@@ -2026,6 +2026,91 @@ def test_a_stale_draw_is_drawn_again_with_its_ok_ticks_carried_and_a_failed_tick
     assert len(p.events("signature.create")) == 1 and signed.json()["data"]["confirmation"]["landed"]["datasets"]
 
 
+@pytest.mark.req("T-47", "F-403", "T-06")
+def test_the_card_says_which_decisions_draw_its_spot_check_again_as_the_review_rule_does(project):
+    """A spot check drawn is drawn again when the subject's digest changes or a check accepted as is names a value the draw
+    does not hold (`intake_review._stale`, unchanged). The card says it before each decision (final review round 4):
+    `outside_draw` for "Accept as is", `computed` for the analyte stated. Settling a required item never draws it again;
+    keeping one value of a disagreement always does; a refused link does when its file gives values."""
+    p = project()
+    workbook = synthetic.messy_workbook()
+    p.deliver(workbook)
+    late = _late_samples()                                  # its means name no analyte
+    p.deliver(late, preload=False)
+    assert _accept_note(p, workbook).status_code == 200
+    path = p.subject("230-23")
+
+    def state() -> str:
+        return p.card(path)["spot_check"]["state"]
+
+    def decide(route: str, body: dict[str, Any]) -> dict[str, Any]:
+        answer = p.post(f"{path}:{route}", {**body, "why": "from the protocol"})
+        assert answer.status_code == 200, answer.text
+        return answer.json()["data"]
+
+    # no draw: no value is outside it
+    assert all(c["outside_draw"] == 0 for c in p.card(path)["checks"])
+    (link,) = p.card(path)["links"]
+    decide("link", {"file_sha256": link["file_sha256"], "link_fact": link["link_fact"], "confirmed": True})
+    draw = p.post(f"{path}/spot-check:draw").json()["data"]["draw"]
+    held = {*draw["always"], *draw["sampled"], *draw["carried"]}
+    card = p.card(path)
+    assert card["spot_check"]["state"] == "drawn"
+    opened = {c["id"]: c for c in card["checks"] if c["severity"] == "fail" and not c["overridden"]}
+    for check in opened.values():
+        assert check["outside_draw"] == len({v for v in check["values"] if v not in held}), check["code"]
+    # --- settling a required item changes no value: the draw stands ---
+    item = next(r for r in card["requirements"] if r["status"] == "missing")
+    decide("dispose", {"req_id": item["req_id"], "disposition": "ask_client"})
+    assert state() == "drawn"
+    # --- accepted as is: drawn again exactly when a value of the check is outside the draw ---
+    inside = [c for c in opened.values() if c["values"] and not c["outside_draw"] and c["code"] not in ("ANALYTE_MISSING", "MAPPING_NOT_APPROVED")]
+    outside = [c for c in opened.values() if c["outside_draw"]]
+    assert inside and outside
+    for check in inside:
+        decide("override", {"check_id": check["id"]})
+        assert state() == "drawn", check["code"]
+    decide("override", {"check_id": outside[0]["id"]})
+    assert state() == "stale"
+    p.post(f"{path}/spot-check:draw")
+    # --- the analyte stated: the values keep their ids, and only what is computed from them changes ---
+    card = p.card(path)
+    values = {v["id"]: v for t in card["tables"] for v in t["values"]}
+    analytes = p.page()["analytes"]
+
+    def state_analyte(ids: list[str], analyte: str) -> None:
+        """As "State it…" does: the values linked again with what they are linked to, and the analyte."""
+        first = values[ids[0]]["entity"]
+        linked = {r: first[r] for r in ("study", "arm", "product", "batch") if first.get(r)}
+        answer = p.post("delivery/values:assign", {"targets": ids, "why": "the bioanalytical report", "analyte": analyte, **linked})
+        assert answer.status_code == 200, answer.text
+
+    (missing,) = [c for c in card["checks"] if c["code"] == "ANALYTE_MISSING" and not c["overridden"]]
+    assert missing["computed"] == 0                                    # nothing is computed from the late means
+    state_analyte(missing["values"], analytes[0]["id"])
+    assert state() == "drawn"
+    # the metabolite's means come with an SE: an SD is computed from each, which their analyte linked again computes anew
+    se = [v["id"] for v in values.values() if v["spread_kind"] == "SE" and v["entity"].get("analyte")]
+    reader = LedgerView(p.ws)
+    assert se and review.computed_from(reader, "study", card["subject"], se) == len(se)
+    other = next(a["id"] for a in analytes if a["id"] != values[se[0]]["entity"]["analyte"])
+    state_analyte(se, other)
+    assert state() == "stale"
+    p.post(f"{path}/spot-check:draw")
+    # --- one value of a disagreement kept: the others are set aside, so the draw no longer describes the study ---
+    entered = decide("enter", {"field": "dose", "value": 60, "unit": "mg"})
+    p.post(f"{path}/spot-check:draw")
+    conflict = next(c for c in p.card(path)["conflicts"] if c["field"] == "dose")
+    assert entered["conflicts"] and state() == "drawn"
+    decide("choose", {"conflict_id": conflict["id"], "keep": conflict["values"][0]})
+    assert state() == "stale"
+    p.post(f"{path}/spot-check:draw")
+    # --- a link refused: its file's values leave the study ---
+    assert link["values"] > 0
+    decide("link", {"file_sha256": link["file_sha256"], "link_fact": link["link_fact"], "confirmed": False})
+    assert state() == "stale"
+
+
 @pytest.mark.req("T-47", "T-21", "F-403", "T-06")
 def test_a_table_the_table_mapper_mapped_blocks_until_a_person_approves_its_mapping(project, monkeypatch):
     p = project()

@@ -83,6 +83,10 @@ export function SpotCheck({ projectId, subject, first }: {
   const latest = drawn ?? (showing ? shown.data ?? null : null);
   const spot = latest && latest.draw?.id === card.draw_id && card.state !== "stale" ? latest : null;
   const id = `${subject.subject_type}-${subject.subject}`;
+  // the subject in words, on the buttons every card's spot check repeats (final review round 4, A11Y-7)
+  const whose = `${subject.subject_type} ${subject.label}`;
+  const valueName = (v: SpotValue["value"]) => [`${fieldText(v.field)}${v.time !== null ? ` at ${timeText(v)}` : ""}`,
+    Object.entries(v.labels).map(([role, label]) => `${role} ${label}`).join(" · ")].filter(Boolean).join(", ");
   const recorded = card.state === "complete" && card.recorded_by !== null;
   const folded = recorded && !unfolded;
 
@@ -126,7 +130,7 @@ export function SpotCheck({ projectId, subject, first }: {
             <p className="m-0" data-testid={`spot-done-${subject.subject}`}>
               Every value drawn matches its source · recorded by {card.recorded_by}, {whenText(card.recorded_at)} ·{" "}
               <button type="button" className="link-btn" disabled={busy || (showing && !shown.data && !shown.problem)}
-                      onClick={() => (spot ? setUnfolded(true) : void draw())}
+                      onClick={() => (spot ? setUnfolded(true) : void draw())} aria-label={`Show the ${plural(card.drawn, "value")} of the spot check of ${whose}`}
                       data-testid={`spot-show-${subject.subject}`}>Show the {plural(card.drawn, "value")}</button>
             </p>
           ) : (
@@ -137,12 +141,14 @@ export function SpotCheck({ projectId, subject, first }: {
           )}
           {first && (card.state === "none" || card.state === "drawn") && (
             <p className="inline-issue note m-0 fs-13" data-testid={`spot-first-${subject.subject}`}>{first.text}{" "}
-              <button type="button" className="link-btn" onClick={first.onGo} data-testid={`spot-first-go-${subject.subject}`}>{first.action}</button>
+              <button type="button" className="link-btn" onClick={first.onGo} data-testid={`spot-first-go-${subject.subject}`}
+                      aria-label={`${first.action.replace(/…$/, "")} of ${whose} first…`}>{first.action}</button>
             </p>
           )}
           {!spot && !folded && (
             <div className="row gap-8">
-              <button type="button" className="btn small" disabled={busy} onClick={() => void draw()} data-testid={`spot-draw-${subject.subject}`}>
+              <button type="button" className="btn small" disabled={busy} onClick={() => void draw()} data-testid={`spot-draw-${subject.subject}`}
+                      aria-label={`${card.state === "none" ? "Start the spot check" : card.state === "stale" ? "Start again" : "Show the values to check"} of ${whose}`}>
                 {card.state === "none" ? "Start the spot check" : card.state === "stale" ? "Start again" : "Show the values to check"}
               </button>
               {card.state === "stale" && <span className="muted" data-testid="spot-stale">The values, or the checks accepted as is,
@@ -153,6 +159,7 @@ export function SpotCheck({ projectId, subject, first }: {
           {spot && !folded && (
             <>
               {recorded && <button type="button" className="link-btn" onClick={() => setUnfolded(false)}
+                                   aria-label={`Hide the values of the spot check of ${whose}`}
                                    data-testid={`spot-hide-${subject.subject}`}>Hide the values</button>}
               <div className="table-scroll">
                 <table className="delivery-values" data-testid={`spot-values-${subject.subject}`}>
@@ -169,6 +176,7 @@ export function SpotCheck({ projectId, subject, first }: {
                               <div>
                                 {v.anchor ? (
                                   <button type="button" className="link-btn" aria-expanded={source === v.id} data-testid={`spot-source-${v.id}`}
+                                          aria-label={`${source === v.id ? "Hide" : "Show"} the source of ${valueName(v)}`}
                                           onClick={() => setSource(source === v.id ? null : v.id)}>
                                     {source === v.id ? "Hide the source" : "Show the source"}</button>
                                 ) : <span className="muted fs-12">{v.method === "person" ? "entered by a person: no source" : "computed: its inputs are below"}</span>}
@@ -212,7 +220,7 @@ export function SpotCheck({ projectId, subject, first }: {
               {wanted.length > 0 ? (
                 <div className="row gap-8">
                   <button type="button" className="btn small primary" disabled={busy || ticked < wanted.length} onClick={() => void submit()}
-                          data-testid={`spot-submit-${subject.subject}`}>Record the spot check</button>
+                          aria-label={`Record the spot check of ${whose}`} data-testid={`spot-submit-${subject.subject}`}>Record the spot check</button>
                   <span className="muted" data-testid={`spot-progress-${subject.subject}`} role="status">
                     {ticked} of {wanted.length} ticked{wrong ? `, ${wrong} not matching` : ""}. They are recorded together, once.</span>
                 </div>

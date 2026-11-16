@@ -193,10 +193,13 @@ test("a delivery is reviewed by exception, spot-checked, signed and loaded once"
   // needs its dosage form), then what the study record needs before it can be loaded ---
   const facts = card.getByTestId(`delivery-facts-form-${study.subject}`);
   // pressed with no fact given, the button says what it needs, beside it (final review CODE-6: it was disabled, silent);
-  // the label names the control it is for (A11Y-10)
+  // the label names the control it is for (A11Y-10), and the control is named with its study, the label's words first,
+  // as every card has this form (round 4, A11Y-7)
   await facts.getByTestId(`delivery-facts-form-${study.subject}-submit`).click();
   await expect(facts.getByTestId(`delivery-facts-form-${study.subject}-missing`)).toHaveText(/^Choose or type (at least one of the facts|the fact)$/);
-  await expect(facts.getByLabel("Route", { exact: true })).toHaveAttribute("data-testid", `delivery-enter-gap-${study.subject}-route-value`);
+  await expect(facts.locator("label.facts-label", { hasText: /^Route$/ })).toHaveAttribute("for", `delivery-enter-gap-${study.subject}-route-value`);
+  await expect(facts.getByLabel("Route of study 230-23", { exact: true })).toHaveAttribute("data-testid", `delivery-enter-gap-${study.subject}-route-value`);
+  await expect(facts.getByTestId(`delivery-facts-form-${study.subject}-submit`)).toHaveAccessibleName(/^Save (this fact|these \d+ facts) of study 230-23$/);
   await card.getByTestId(`delivery-enter-gap-${study.subject}-route-value`).selectOption("oral");
   await expect(facts.getByTestId(`delivery-facts-form-${study.subject}-missing`)).toHaveCount(0);
   await facts.getByTestId(`delivery-facts-form-${study.subject}-why`).fill("from the protocol");

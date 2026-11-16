@@ -20,7 +20,7 @@ import {
   ASK_FORMULATION, NO_PRODUCT, alreadyDecidedText, bracketed, checkFix, checkGist, checkLabel, constantText, drawText, escapePattern, flagLines,
   formulationLine, formulationParts, formulationProblem, formulationWays, heldText, individualNeeds, individualText, inputsHref, layoutFieldText,
   layoutFindingText, moveText, paramLabel, patternWords, placeText, readinessText, redrawText, rowRuleText, rowsLeftOut, spotGroupText, stepReason,
-  stepWhere, todoMessage, unitText, unreadWhy, withheldWhy,
+  stepWhere, todoMessage, unitText, unreadWhy, withheldWhy, anchorPlace, sourceNamed,
 } from "../lib/words";
 
 const load = (name: string): WorkSources => JSON.parse(readFileSync(join(__dirname, "fixtures", "inputs-work", `${name}.json`), "utf8"));
@@ -1107,6 +1107,36 @@ test("saving a person's entry says before Save that the spot check is drawn agai
     .toBe("Saving this changes what the spot check was drawn from, so it is drawn again: ticks not recorded yet are not kept.");
   expect(redrawText({ ...spot, state: "none" })).toBeNull();
   expect(redrawText({ ...spot, state: "stale" })).toBeNull();
+  // each card decision that changes what the spot check is drawn from says why, in its own words (final review round 4,
+  // each checked against the API's rule: test_the_card_says_which_decisions_draw_its_spot_check_again_as_the_review_rule_does)
+  const lead = (why: Parameters<typeof redrawText>[1]) => redrawText({ ...spot, state: "drawn", recorded_by: null, recorded_at: null }, why);
+  expect(lead({ kind: "accepted", values: 2 }))
+    .toBe("Accepted as is, its values are always checked, and 2 of them are not in the spot check, so it is drawn again: ticks not recorded yet are not kept.");
+  expect(lead({ kind: "accepted", values: 1 })).toMatch(/^Accepted as is, its values are always checked, and 1 of them is not in the spot check, so it is drawn again/);
+  expect(lead({ kind: "analyte", values: 3 }))
+    .toMatch(/^Stating the analyte computes the 3 values derived from these again \(a spread worked out from another\), so the spot check is drawn again:/);
+  expect(lead({ kind: "kept" })).toMatch(/^Keeping one value sets the others aside, which changes what the spot check was drawn from, so it is drawn again:/);
+  expect(lead({ kind: "refused" })).toMatch(/^Saying no takes the file's values out of the study, so the spot check is drawn again:/);
+  expect(lead({ kind: "joined" })).toMatch(/^Saying yes joins the file's study and its values to this one, so the spot check is drawn again:/);
+  expect(redrawText(spot, { kind: "kept" })).toMatch(/so it is drawn again\. Of the 117 values ticked \(recorded by dev-user on 15 Nov 2026, \d\d:42\), the 17 always checked/);
+  expect(redrawText({ ...spot, state: "stale" }, { kind: "kept" })).toBeNull();
+});
+
+test("a table is told apart by where it starts in its file, a sheet form's chart by its source's file (round 4, A11Y-7)", () => {
+  const sha = "254812adf39fbd9ff97d2ffa2b9fee5b59ad1a2f9198aae8bc75bbbcb1e92f31";
+  expect(anchorPlace(`${sha}@pdfplumber/1.0+pdfplumber0.11.10#p:4/t:1/r:2/c:2@116.00`)).toBe("page 4, table 1");
+  expect(anchorPlace(`${sha}@pdfplumber/1.0+pdfplumber0.11.10#p:5/t:1/r:2/c:2@116.00`)).toBe("page 5, table 1");
+  expect(anchorPlace(`${sha}@workbook/1.0+openpyxl3.1.5#s:'Fasting'!B22`)).toBe("sheet Fasting from cell B22");
+  expect(anchorPlace(`${sha}@workbook/1.0+openpyxl3.1.5#s:'Fasting'!B4:F9`)).toBe("sheet Fasting from cell B4");
+  // nothing a person reads: no place said
+  expect(anchorPlace(null)).toBe("");
+  expect(anchorPlace(`${sha}@reader/1.0`)).toBe("");
+  expect(anchorPlace(`${sha}@reader/1.0#zz:9`)).toBe("");
+  const label = "Study EX-101: profile · 1 series · parent, plasma";
+  expect(sourceNamed(label, { title: "EX-101_PK_sheet.xlsx", locator: "PK!A2:F10" })).toBe(`${label} · EX-101_PK_sheet.xlsx`);
+  expect(sourceNamed(label, { locator: "PK_Summary!2:7" })).toBe(`${label} · sheet PK_Summary, rows 2 to 7`);
+  expect(sourceNamed(label, { page: 3 })).toBe(`${label} · page 3`);
+  expect(sourceNamed(label, null)).toBe(label);
 });
 
 test("a values table whose rows need only checks decided in Checks stays one line naming each with its count (OWN-9)", () => {

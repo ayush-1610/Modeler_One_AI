@@ -418,6 +418,12 @@ class DeliveryCheck(View):
     values: list[str]                         # value ids (none for a blinded subject)
     rule: str
     overridden: bool
+    # what deciding it does to a spot check drawn (said before the decision; final review round 4): accepted as is, its
+    # values are always checked, and `outside_draw` of them the draw does not hold, so it is drawn again (0: none, no
+    # draw, or it is stale already); its analyte stated, the `computed` values worked out from its values (an SD from
+    # an SE) are computed again, so it is drawn again (0: none)
+    outside_draw: int
+    computed: int
 
 
 class DeliveryConflict(View):

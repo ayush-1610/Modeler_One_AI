@@ -245,7 +245,8 @@ function InputRow({ row, name, items, projectId, run }: { row: Row; name: string
       {row.state === "held" && items.length === 0 && row.sources.map(ev).map((e) => <Decide key={e.id} e={e} projectId={projectId} run={run} />)}
       <div className="row gap-6">
         {(row.sources.length > 0 || row.alternatives.length > 0) && row.state === "kept" && (
-          <button type="button" className="link-btn" onClick={() => setOpen(!open)} aria-expanded={open}>
+          <button type="button" className="link-btn" onClick={() => setOpen(!open)} aria-expanded={open}
+                  aria-label={`${open ? "Hide the sources" : `Sources (${row.sources.length + row.alternatives.length})`} of ${name}`}>
             {open ? "Hide the sources" : `Sources (${row.sources.length + row.alternatives.length})`}
           </button>
         )}

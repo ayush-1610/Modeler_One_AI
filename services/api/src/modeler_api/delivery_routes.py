@@ -1058,6 +1058,13 @@ def _subject_view(scope: _Scope, subject_type: str, subject: str, *, signature: 
     draw, record = scope.spot_check(subject_type, subject)
     wanted = [] if blinded or state == "stale" else _wanted(draw, record)
     checks = sorted(card.checks, key=lambda c: (c.id in card.overridden, _SEVERITY.get(c.severity, 9)))
+    # what deciding an open check does to a spot check drawn, said on the card before the decision (final review round 4):
+    # accepted as is, its values outside the draw make it stale; its analyte stated, the values computed from its values
+    # are computed again. Read from the review's own rule; nothing for a blinded subject (no draw)
+    open_checks = [c for c in checks if c.severity == "fail" and c.id not in card.overridden and c.values and not blinded]
+    outside = (review.outside_draw(ws, subject_type, subject, reader=reader)  # type: ignore[arg-type]
+               if open_checks and state in ("drawn", "failed", "complete") else {})
+    computed = {c.id: review.computed_from(reader, subject_type, subject, c.values) for c in open_checks}  # type: ignore[arg-type]
     elsewhere = [d for d in intake_landing.legacy_overlap(ws, subject_type, subject, reader=reader)  # type: ignore[arg-type]
                  if d.state is not EvidenceState.REJECTED]
     used = {(v.mapping.mapping_id, v.mapping.version) for v in values if v.mapping is not None}
@@ -1074,7 +1081,8 @@ def _subject_view(scope: _Scope, subject_type: str, subject: str, *, signature: 
         "gaps": [{"study": g.study, "tag": g.tag, "value": "" if blinded else g.value, "reason": g.reason} for g in card.gaps],
         # a check's message may quote a value or count the values below the LLOQ: not shown for a blinded subject
         "checks": [{"id": c.id, "code": c.code, "severity": c.severity, "message": None if blinded else c.message,
-                    "values": list(c.values), "rule": c.rule, "overridden": c.id in card.overridden} for c in checks],
+                    "values": list(c.values), "rule": c.rule, "overridden": c.id in card.overridden,
+                    "outside_draw": outside.get(c.id, 0), "computed": computed.get(c.id, 0)} for c in checks],
         "conflicts": [{"id": c.id, "field": c.field, "time": c.time, "kind": c.kind, "values": list(c.values),
                        **next(({"labels": row["labels"], "time_unit": row["time_unit"]}
                                for row in scope.rows(reader.value(v) for v in c.values[:1])), {"labels": {}, "time_unit": None})}
