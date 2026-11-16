@@ -757,3 +757,83 @@ test("a product with no dissolution profile: the lever lands on what adds its da
   await page.getByTestId("tab-todo").click();
   await expect(page.getByTestId("todo-group-ask").getByTestId("todo-ask-REQ-form.release")).toContainText("CL-01");
 });
+
+// Round 6 (round 5's downstream-why skeptic, probes B and D): the usual way a study names its product is its own file. The
+// client template's Studies row of CL-02 names Test 10 mg (read by the sheet form and by the delivery, whose Test 10 mg
+// card shows "Role Test · study CL-02"), while only Brand 10 mg, the reference, has a usable and confirmed dissolution
+// profile. Round 5 told every page to use Brand 10 mg's profile, which would model CL-02 with the reference's release,
+// and asked the client "(no file names the product)". Now every page names Test 10 mg's dissolution data, lands on what
+// adds them, and asks the client for Test 10 mg's on a line of its own, where "ask the client" lands.
+// e2e/fixtures/named_product_workbooks.py; software test data on the stub engine, never a model.
+test("a study whose own file names its product: only that product's data settle it, and the client is asked for them", async ({ page, request }) => {
+  test.setTimeout(6 * 60_000);
+  const dir = mkdtempSync(join(tmpdir(), "owner-named-"));
+  execFileSync("uv", ["run", "python", join(__dirname, "fixtures", "named_product_workbooks.py"), dir], { cwd: REPO });
+  const started = await request.post("/api/v1/projects:initiate", { headers: AUTH, multipart: {
+    drug_name: "Namedamide", extract: "false",
+    files: { name: "proposal.md", mimeType: "text/markdown", buffer: Buffer.from("# Proposal\nOral 10 mg tablet.") } } });
+  const projectId = (await started.json()).data.project_id as string;
+  await finishStart(request, projectId);
+  const api = `/api/v1/projects/${projectId}`;
+  expect((await request.post(`${api}/requirements:derive`, { headers: AUTH })).ok()).toBeTruthy();
+  const up = await request.post(`${api}/client-data`, { headers: AUTH, multipart: {
+    files: { name: "named.xlsx", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+             buffer: readFileSync(join(dir, "named.xlsx")) } } });
+  expect(up.status(), await up.text()).toBe(201);
+  // the study and Brand 10 mg's dissolution confirmed with the sheet form: Brand 10 mg's profile can be used now
+  const groups = (await (await request.get(`${api}/client-review`, { headers: AUTH })).json()).data.groups as { id: string; kind: string }[];
+  for (const group of ["study:CL-02", ...groups.filter((g) => g.kind === "product").map((g) => g.id)]) {
+    const confirmed = await request.post(`${api}/client-review:confirm`, { headers: AUTH, data: { group } });
+    expect(confirmed.ok(), await confirmed.text()).toBeTruthy();
+  }
+  expect((await request.post(`${api}/inputs:assemble`, { headers: AUTH })).ok()).toBeTruthy();
+  const item = ((await (await request.get(`${api}/inputs`, { headers: AUTH })).json()).data.todo as
+    { kind: string; way: unknown; ask: { what: string; product: string | null }[] }[]).find((t) => t.kind === "formulation")!;
+  expect(item.way).toEqual({ way: "add_dissolution", products: ["Test 10 mg"], studies: ["CL-02"], ready: true,
+                             each: [{ study: "CL-02", way: "add_dissolution", products: ["Test 10 mg"], ready: true, named: "Test 10 mg" }] });
+  expect(item.ask).toMatchObject([{ what: "The formulation or dissolution data of Test 10 mg, the product the study used — study CL-02",
+                                    product: "Test 10 mg" }]);
+
+  // the step bar: Test 10 mg's dissolution data, or the client; never Brand 10 mg's profile
+  await page.goto(`/projects/${projectId}/inputs?tab=todo`);
+  const stepBar = page.getByTestId("step-waiting");
+  await expect(stepBar).toContainText("a tablet study has no formulation (add a product's dissolution data on Products and dissolution, or ask the client)");
+  await expect(stepBar.getByTestId("step-waiting-release")).toHaveCount(0);
+  // To do's formulation row says which product, and why only it
+  await expect(page.locator("li.todo-line", { has: page.getByTestId("missing-formulation-form.*") })).toContainText(
+    "Test 10 mg, the product the study names, has no dissolution profile that can give a release: add the dissolution file of Test 10 mg "
+    + "(Add data), or ask the client for it (“Ask the client”, on To do).");
+  // "Ask the client": the line that asks for Test 10 mg's data, its own anchor, where "ask the client" lands, focused
+  const ask = page.getByTestId("todo-group-ask");
+  await expect(ask).not.toContainText("no file names the product");
+  await stepBar.getByTestId("step-waiting-or-todo").click();
+  await expect(page).toHaveURL(/\?tab=todo&at=todo-ask-REQ-form\.release~test-10-mg/);
+  const line = ask.getByTestId("todo-ask-REQ-form.release~test-10-mg");
+  await expect(line).toBeFocused();
+  await expect(line).toContainText("The formulation or dissolution data of Test 10 mg, the product the study used · CL-02");
+  await page.screenshot({ path: test.info().outputPath("r6-1-ask-the-named-product.png"), fullPage: true });
+
+  // "add a product's dissolution data": Test 10 mg's card, at "Add its dissolution file…", focused
+  await page.getByTestId("step-waiting").getByTestId("step-waiting-dissolution").click();
+  await expect(page.getByTestId("tab-formulations")).toHaveAttribute("aria-selected", "true");
+  const testCard = page.locator("[data-testid^='product-card-']", { has: page.locator(".card-title", { hasText: /^Test 10 mg$/ }) });
+  await expect(testCard.locator("[data-testid^='card-release-'][data-testid$='-add-file']")).toBeFocused();
+  // CL-02's row says its own way: its file names Test 10 mg, whose data settle it, and its "ask the client" goes to that line
+  const row = page.getByTestId("formulation-none-CL-02");
+  await expect(row).toContainText("no formulation in the model yet (its file names Test 10 mg), and no dissolution profile of Test 10 mg "
+                                  + "can give it: add a product's dissolution data (its dissolution file, Add data), or ask the client");
+  await expect(row).not.toContainText("Brand 10 mg");
+  await expect(row.getByTestId("formulation-ask-CL-02")).toHaveAttribute("href", /at=todo-ask-REQ-form\.release~test-10-mg$/);
+  // the product card's own "ask the client" lands on the same line
+  await expect(testCard.getByRole("link", { name: "ask the client for the dissolution data of Test 10 mg" }))
+    .toHaveAttribute("href", /at=todo-ask-REQ-form\.release~test-10-mg$/);
+  await page.screenshot({ path: test.info().outputPath("r6-2-row-and-card.png"), fullPage: true });
+
+  // Review & sign says the same, and its "ask the client" lands on the same line
+  await page.goto(`/projects/${projectId}/plan`);
+  const check = page.getByTestId("step-blocked-reasons").getByTestId("step-blocked-check-formulations");
+  await expect(check).toHaveText("A tablet study has no formulation: Test 10 mg, the product the study names, has no dissolution profile that "
+                                 + "can give a release; add a product's dissolution data on Products and dissolution, or ask the client on To do.");
+  await check.getByTestId("step-blocked-or").click();
+  await expect(page.getByTestId("todo-group-ask").getByTestId("todo-ask-REQ-form.release~test-10-mg")).toBeFocused();
+});

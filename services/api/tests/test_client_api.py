@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import time
+from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
@@ -352,6 +353,228 @@ def test_formulation_way_is_read_for_each_study(tmp_path, monkeypatch):
 
     lines = unnamed_product_request(["CL-1", "CL-2"], named={"CL-2": "Test 10 mg"}, brief=None, matrix=None)
     assert [line.what for line in lines] == [f"{UNNAMED_PRODUCT} — study CL-1", f"{named_product('Test 10 mg')} — study CL-2"]
+
+
+def _named_template(c, study: str, product: str | None, *, dissolution: str | None = None) -> bytes:
+    """A filled client-data template (software test data): a tablet study whose Studies row names `product` (None: the
+    column left empty), its mean profile, and `dissolution`'s usable curve when given."""
+    import math
+
+    wb = load_workbook(io.BytesIO(c.get("/api/v1/client-data/template.xlsx", headers=H).content))
+    header = [x.value.rstrip("*") for x in wb["Studies"][1]]
+    values = {"study_id": study, "design": "SD", "population": "healthy", "n": 12, "route": "oral", "dose": 10,
+              "dose_unit": "mg", "formulation": "ir_tablet", "food_state": "fasted", "product": product,
+              "product_role": "TEST" if product else None}
+    wb["Studies"].append([values.get(h) for h in header])
+    for t, v in ((0.5, 20.0), (1, 41.0), (2, 30.5), (4, 12.0)):
+        wb["PK_Summary"].append([study, None, t, "h", "arithmetic_mean", v, None, None, 12, "ng/ml"])
+    if dissolution:
+        for t in (5, 10, 15, 20, 30, 45, 60):
+            fraction = 1 - math.exp(-math.log(2) * (t / 20.0) ** 1.3)
+            wb["Dissolution"].append([dissolution, "RLD", 10, "B1", "USP 2 paddle", 50, "phosphate", 6.8, 900, 37, None, t, "min",
+                                      *[round(100 * fraction + d, 2) for d in (-1.5, -1.2, -0.9, -0.6, -0.3, 0, 0, 0.3, 0.6, 0.9, 1.2, 1.5)]])
+    return _save(wb)
+
+
+@pytest.mark.req("T-48")
+def test_a_study_whose_own_file_names_its_product_is_settled_by_that_product_only(setup):
+    """Round 6 (round 5's downstream-why skeptic, probe B): the usual way a study names its product is its own file, the
+    client template's Studies.product (here read with the sheet form). CL-02's names Test 10 mg while only Brand 10 mg
+    (the RLD) has a usable, confirmed profile: its way is Test 10 mg's dissolution data, never Brand 10 mg's profile (round
+    5 offered "use Brand 10 mg's profile", which would model CL-02 with the RLD's release), and the client is asked for
+    Test 10 mg's data in the named words, its line naming the product, never "(no file names the product)"."""
+    from modeler_project.study_requirements import UNNAMED_PRODUCT, named_product
+
+    c, _ws = setup
+    up = c.post("/api/v1/projects/p1/client-data", headers=H,
+                files=[("files", ("named.xlsx", _named_template(c, "CL-02", "Test 10 mg", dissolution="Brand 10 mg"), XLSX))])
+    assert up.status_code == 201, up.text
+    groups = c.get("/api/v1/projects/p1/client-review", headers=H).json()["data"]["groups"]
+    for g in ("study:CL-02", *(g["id"] for g in groups if g["kind"] == "product")):
+        assert c.post("/api/v1/projects/p1/client-review:confirm", headers=H, json={"group": g}).status_code == 200
+    assert c.post("/api/v1/projects/p1/inputs:assemble", headers=H).status_code == 200
+    inputs = next(s for s in c.get("/api/v1/projects/p1/steps", headers=H).json()["data"]["steps"] if s["step"] == "inputs")
+    item = next(t for t in c.get("/api/v1/projects/p1/inputs", headers=H).json()["data"]["todo"] if t["kind"] == "formulation")
+    assert item["way"] == inputs["formulation"]
+    assert inputs["formulation"] == {"way": "add_dissolution", "products": ["Test 10 mg"], "studies": ["CL-02"], "ready": True,
+                                     "each": [{"study": "CL-02", "way": "add_dissolution", "products": ["Test 10 mg"],
+                                               "ready": True, "named": "Test 10 mg"}]}
+    assert [(a["what"], a["product"]) for a in item["ask"]] == [(f"{named_product('Test 10 mg')} — study CL-02", "Test 10 mg")]
+    assert not any(UNNAMED_PRODUCT in a["what"] for a in item["ask"])
+    # a study whose file names no product is still asked in the unnamed words, its line naming no product
+    up = c.post("/api/v1/projects/p1/client-data", headers=H,
+                files=[("files", ("unnamed.xlsx", _named_template(c, "CL-01", None), XLSX))])
+    assert up.status_code == 201, up.text
+    assert c.post("/api/v1/projects/p1/client-review:confirm", headers=H, json={"group": "study:CL-01"}).status_code == 200
+    assert c.post("/api/v1/projects/p1/inputs:assemble", headers=H).status_code == 200
+    item = next(t for t in c.get("/api/v1/projects/p1/inputs", headers=H).json()["data"]["todo"] if t["kind"] == "formulation")
+    # CL-01 names none: Brand 10 mg's profile can give its release (the step bar's lever, done here and now), in the
+    # readiness check's order of the studies
+    assert [(e["study"], e["way"], e["products"], e["named"]) for e in item["way"]["each"]] == [
+        ("CL-02", "add_dissolution", ["Test 10 mg"], "Test 10 mg"), ("CL-01", "use_profile", ["Brand 10 mg"], None)]
+    assert (item["way"]["way"], item["way"]["studies"]) == ("use_profile", ["CL-01"])
+    assert [(a["what"], a["product"]) for a in item["ask"]] == [(f"{named_product('Test 10 mg')} — study CL-02", "Test 10 mg")]
+
+
+class _Ledger:
+    """The delivery's ledger, written as its reading writes it (entities and facts; software test data)."""
+
+    def __init__(self, ws: Workspace):
+        from modeler_project.intake_store import IntakeStore
+
+        self.store = IntakeStore(ws)
+        self.n = 0
+
+    def _anchor(self) -> str:
+        import hashlib
+
+        from modeler_intake.anchors import anchor_text
+
+        self.n += 1
+        return anchor_text(hashlib.sha256(b"named products").hexdigest(), "workbook", "1.0", f"s:'Studies'!B{self.n}")
+
+    def entity(self, type: str, label: str, parent: str | None = None) -> str:
+        from modeler_intake.document_reading import name_key
+        from modeler_project.ledger_models import Entity
+
+        prefix = {"study": "st", "arm": "arm", "product": "pr"}[type]
+        source = self._anchor()
+        return self.store.entities.append("entity", lambda seq: Entity(
+            id=f"{prefix}-{seq}", type=type, label=label, key=name_key(label), parent=parent, source=source,  # type: ignore[arg-type]
+            by="code", at="2026-11-16T09:00:00.000Z").model_dump(mode="json")).body["id"]
+
+    def fact(self, field: str, value: Any, **entity: str) -> None:
+        from modeler_project.ledger_models import EntityRef, Fact
+
+        anchor = self._anchor()
+        self.store.facts.append("fact", lambda seq: Fact(
+            id=f"f-{seq}", delivery="dl-1", entity=EntityRef(**entity), field=field, value=value, verbatim=str(value),
+            anchor=anchor, method="prose", by="code", at="2026-11-16T09:00:00.000Z").model_dump(mode="json"))
+
+
+@pytest.mark.req("T-48")
+def test_the_product_a_study_names_is_read_from_both_of_its_paths(tmp_path, monkeypatch):
+    """Round 6: `file_products` reads the product a study's own client data name from the sheet form's Studies rows and
+    from the delivery's values of the study that name a product (the link a product's card shows as "Role Test · study
+    CL-02"), each as the readiness check names the study (an arm's row and value by `<study>-<arm>`); `formulation_way`
+    then treats the study as one that names its product: named in the sheet form, on the delivery, in both and agreeing
+    (spelled apart: one product), or a name no product here has, never with another product's profile. No link is made
+    up for a study whose files name none."""
+    from modeler_project import client_data, client_review
+    from modeler_project import formulation_way as fw
+    from modeler_project.study_requirements import named_product
+
+    ws = Workspace(FileProjectStore(tmp_path), "t1", "p1")
+    none = lambda s: f"{s}: the study is a solid oral form but the CPF defines no formulation (form.{{name}}.type)"
+    rows: list[dict] = []
+    monkeypatch.setattr(client_data, "submissions", lambda _ws: [{"id": "f1", "file": "client.xlsx", "sha256": "0" * 64,
+                                                                  "template": True, "studies": rows}])
+    profiles = [_profile("d1", "Brand 10 mg")]
+    monkeypatch.setattr(fw, "_profiles", lambda _ws: profiles)
+    monkeypatch.setattr(client_review, "confirmed_profiles", lambda _ws: {"d1"})
+    monkeypatch.setattr(fw, "_released", lambda _ws: (set(), set()))
+    own = lambda w: [(e.study, e.way, e.products, e.ready, e.named) for e in w.each]
+    ledger = _Ledger(ws)
+
+    # named in the sheet form only (the Studies row of CL-02, and of CL-07's arm A, named as its dataset is: CL-07-A)
+    rows += [{"row": 2, "values": {"study_id": "CL-02", "product": "Test 10 mg"}},
+             {"row": 3, "values": {"study_id": "CL-07", "treatment": "A", "product": "Test 10 mg"}}]
+    # named on the delivery only: CL-05's values name Test 10 mg; CL-06's arm B names it (its whole study too)
+    st5, st6 = ledger.entity("study", "CL-05"), ledger.entity("study", "CL-06")
+    test, brand = ledger.entity("product", "Test 10 mg"), ledger.entity("product", "Brand 10 mg")
+    arm_b = ledger.entity("arm", "B", parent=st6)
+    ledger.fact("product_role", "TEST", study=st5, product=test)
+    ledger.fact("product_role", "TEST", study=st6, arm=arm_b, product=test)
+    ledger.fact("percent_dissolved", 50.0, product=brand)              # a product's own value names no study
+    # named in both and agreeing, spelled apart: CL-08's row says "Product TEST 10 MG", its delivery values "Test 10 mg"
+    rows.append({"row": 4, "values": {"study_id": "CL-08", "product": "Product TEST 10 MG"}})
+    ledger.fact("product_role", "TEST", study=ledger.entity("study", "CL-08"), product=test)
+    # a name no product here has, and studies whose files name no product (a value of CL-10 names none; CL-11's row none)
+    rows.append({"row": 5, "values": {"study_id": "CL-09", "product": "Generic 5 mg"}})
+    ledger.fact("route", "oral", study=ledger.entity("study", "CL-10"))
+    rows.append({"row": 6, "values": {"study_id": "CL-11", "product": None}})
+    named = fw.file_products(ws)
+    assert {k: named.get(fw._study(k)) for k in ("CL-02", "CL-07-A", "CL-07", "CL-05", "CL-06-B", "CL-06", "CL-08", "CL-09",
+                                                  "CL-10", "CL-11")} == {
+        "CL-02": ("Test 10 mg",), "CL-07-A": ("Test 10 mg",), "CL-07": None, "CL-05": ("Test 10 mg",),
+        "CL-06-B": ("Test 10 mg",), "CL-06": ("Test 10 mg",), "CL-08": ("Product TEST 10 MG",), "CL-09": ("Generic 5 mg",),
+        "CL-10": None, "CL-11": None}
+
+    # only Brand 10 mg's profile can give a release: each study whose files name Test 10 mg (or Generic 5 mg) adds that
+    # product's dissolution data, said as the product is named here; the study whose files name none may use Brand's
+    way = fw.formulation_way(ws, [none(s) for s in ("CL-02", "CL-05", "CL-06-B", "CL-08", "CL-09", "CL-10")])
+    assert own(way) == [("CL-02", "add_dissolution", ("Test 10 mg",), True, "Test 10 mg"),
+                        ("CL-05", "add_dissolution", ("Test 10 mg",), True, "Test 10 mg"),
+                        ("CL-06-B", "add_dissolution", ("Test 10 mg",), True, "Test 10 mg"),
+                        ("CL-08", "add_dissolution", ("Test 10 mg",), True, "Test 10 mg"),
+                        ("CL-09", "add_dissolution", ("Generic 5 mg",), True, "Generic 5 mg"),
+                        ("CL-10", "use_profile", ("Brand 10 mg",), True, None)]
+    # the step bar names the profile, for the study it settles (done here and now); the others say theirs
+    assert (way.way, way.products, way.studies) == ("use_profile", ("Brand 10 mg",), ("CL-10",))
+    # Test 10 mg's profile arrives, still to confirm: the study that names it uses it (not ready), never Brand 10 mg's
+    profiles.append(_profile("d2", "Test 10 mg"))
+    way = fw.formulation_way(ws, [none("CL-08"), none("CL-10")])
+    assert own(way) == [("CL-08", "use_profile", ("Test 10 mg",), False, "Test 10 mg"),
+                        ("CL-10", "use_profile", ("Brand 10 mg", "Test 10 mg"), True, None)]
+    assert (way.products, way.ready) == (("Test 10 mg", "Brand 10 mg"), False)
+    # the client is asked for the product a study names, in those words; a study whose files name two, for either
+    assert named_product(["Test 10 mg", "Brand 10 mg"]) == ("The formulation or dissolution data of Test 10 mg or Brand 10 mg, "
+                                                             "the product the study used")
+
+
+@pytest.mark.req("T-48")
+def test_a_study_way_is_ready_as_its_first_product_and_a_named_study_may_use_its_profile_again(tmp_path, monkeypatch):
+    """Round 6 (round 5's skeptic, way_edge5 cases 2 and 1): a study's own `ready` is its first product's, never that of
+    a confirmed profile of no product listed before it; and a study that names its product, whose profile was made the
+    release of a formulation of another name, is offered that profile again (used under the study's name, it gives the
+    formulation the study names), never told its product has no profile that can give a release."""
+    from modeler_project import client_review
+    from modeler_project import formulation_way as fw
+
+    ws = Workspace(FileProjectStore(tmp_path), "t1", "p1")
+    none = "CL-1: the study is a solid oral form but the CPF defines no formulation (form.{name}.type)"
+    named = "CL-2: the CPF defines no formulation 'Test 10 mg' (form.Test 10 mg.type)"
+    profiles: list[dict] = [_profile("d9", None), _profile("d1", "Brand 10 mg")]
+    confirmed = {"d9"}
+    released: tuple[set[str], set[str]] = (set(), set())
+    monkeypatch.setattr(fw, "_profiles", lambda _ws: profiles)
+    monkeypatch.setattr(client_review, "confirmed_profiles", lambda _ws: confirmed)
+    monkeypatch.setattr(fw, "_released", lambda _ws: released)
+    way = fw.formulation_way(ws, [none])
+    # the confirmed profile of no product comes first; the first product listed, Brand 10 mg, is not confirmed
+    assert [(e.way, e.products, e.ready) for e in way.each] == [("use_profile", ("Brand 10 mg",), False)]
+    assert (way.products, way.ready) == (("Brand 10 mg",), False)
+    # Test 10 mg's confirmed profile is the release of "Test10" already: CL-2, which names Test 10 mg, may use it again
+    profiles[:] = [_profile("d2", "Test 10 mg")]
+    confirmed = {"d2"}
+    released = ({"d2"}, {"test10"})
+    way = fw.formulation_way(ws, [named])
+    assert [(e.way, e.products, e.ready, e.named) for e in way.each] == [("use_profile", ("Test 10 mg",), True, "Test 10 mg")]
+    # a study that names none is not offered it (it is Test10's release)
+    assert fw.formulation_way(ws, [none]).each[0].way == "add_dissolution"
+
+
+@pytest.mark.req("T-47", "F-402")
+def test_a_blinded_product_says_which_blinded_study_its_values_are(tmp_path):
+    """Round 6 (round 5's skeptic): a product (or the compound) is blinded because it holds a blinded study's values; its
+    card names that study ("it holds the values of study 230-23, which is blinded"), where round 5 said "a blinded study"
+    and the card's body said "this study is blinded" of a product. Each blinded study once, by its label; a study that is
+    not blinded is not named."""
+    from modeler_project import intake_review
+    from modeler_project.ledger_view import LedgerView
+
+    ws = Workspace(FileProjectStore(tmp_path), "t1", "p1")
+    ledger = _Ledger(ws)
+    blinded, other, also = ledger.entity("study", "230-23"), ledger.entity("study", "230-24"), ledger.entity("study", "230-25")
+    product = ledger.entity("product", "Test 10 mg")
+    ledger.fact("product_role", "TEST", study=blinded, product=product)
+    ledger.fact("dose", 10.0, study=blinded, product=product)
+    ledger.fact("product_role", "TEST", study=other, product=product)
+    reader = LedgerView(ws)
+    assert intake_review.held_why(reader, "product", product, {blinded}) == "it holds the values of study 230-23, which is blinded"
+    ledger.fact("product_role", "TEST", study=also, product=product)
+    assert intake_review.held_why(LedgerView(ws), "product", product, {blinded, also}) == (
+        "it holds the values of studies 230-23 and 230-25, which are blinded")
 
 
 def _be_workbook() -> bytes:

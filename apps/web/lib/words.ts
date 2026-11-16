@@ -35,6 +35,12 @@ const spaced = (text: string) => text.replace(/_/g, " ");
 /** Where To do's "Ask the client" lists the release of a tablet study's product (the client request's line for the
  *  data plan's REQ-form.release: `study_requirements.unnamed_product_items` when no product is here). */
 export const ASK_FORMULATION = "todo-ask-REQ-form.release";
+/** A name as an anchor's part: its letters and digits, lower case, joined by "-" ("Test 10 mg" is "test-10-mg"). */
+export const anchorPart = (name: string) => name.trim().toLowerCase().replace(/^product[\s:]+/, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+/** The line of "Ask the client" that asks for a tablet study's product (round 6: two lines shared one anchor): the line of
+ *  the product a study names ("The formulation or dissolution data of Test 10 mg, …": `ASK_FORMULATION~test-10-mg`), else
+ *  the line of the studies whose files name none. */
+export const askAt = (product?: string | null) => (product ? `${ASK_FORMULATION}~${anchorPart(product)}` : ASK_FORMULATION);
 /** Another way to settle a check than its area: what the link says, the area it opens and what it opens there
  *  (`query`, added to the area's URL: `add=product` opens the form that adds a product, `release=<product>` the
  *  product's card at its release, `at=<place>` brings a place of the area into view). */
@@ -117,8 +123,12 @@ export const NO_PRODUCT = "No product is here to give it a release: add the prod
  *  of a type the builder does not place), only the area. */
 export function formulationWays(w: FormulationWay | null | undefined): { waiting: string; situation: string; fix: string; ways: WayLink[] } {
   const link = (id: WayLink["id"], say: string, area: Tab, query?: string): WayLink => ({ id, say, area, query, name: AREA_NAME[area] });
-  const ask = link("ask", "ask the client", "todo", `at=${ASK_FORMULATION}`);
   const products = w?.products ?? [];
+  // "ask the client" lands on the line of the study the way is about (round 6: two lines shared one anchor): the study
+  // whose product the link opens first, when it names it, else the line of the studies that name none
+  const about = (w?.each ?? []).find((e) => e.way === w?.way && e.named && w.studies.includes(e.study)
+    && e.products.some((p) => p.trim().toLowerCase() === (products[0] ?? "").trim().toLowerCase()));
+  const ask = link("ask", "ask the client", "todo", `at=${askAt(about?.products[0])}`);
   const card = `release=${encodeURIComponent(products[0] ?? "")}`;
   const waiting = CHECKS[FORMULATIONS].waiting;
   switch (w?.way) {

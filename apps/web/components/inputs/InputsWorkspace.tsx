@@ -3,10 +3,11 @@
 import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { BriefList } from "@/components/brief/BriefList";
 import { type Act, type Retag, retagCall } from "@/components/client/ClientFiles";
+import { BLINDING_ROLES, type Reach, ReachContext } from "@/components/delivery/BlindedReason";
 import { useDeliveryRefresh } from "@/components/delivery/DeliverySection";
 import type { View as ClientView } from "@/components/client/types";
 import { Banner, PageShell } from "@/components/kit";
@@ -18,7 +19,7 @@ import { HeldReads, readAgain, useMutation, useResource, type After } from "@/li
 import { areaHead, cardAnchor, type InputsLike, nextText, normLabel, productFor, releaseAnchor, releaseOf, type Subject,
          type WorkItem } from "@/lib/inputsWork";
 import { type ArtifactView, STEP_ROUTES } from "@/lib/pipeline";
-import { AREA_NAME, ASK_FORMULATION, type FormulationWay, formulationWays, inputsHref, STATUS_MEANS, plural as count, studyWay,
+import { AREA_NAME, askAt, type FormulationWay, formulationWays, inputsHref, STATUS_MEANS, plural as count, studyWay,
          valueWord } from "@/lib/words";
 
 import { AddDataMenu, type AddDataOpen } from "./AddDataMenu";
@@ -214,6 +215,13 @@ function Workspace({ projectId, initialTab, initialOnly, initialStatus, steps }:
   const view = page.data;
   // the inputs follow every change on the server; a page opened after a change upstream (the brief) assembles them once
   const stale = view && (!view.readiness || view.readiness.status === "STALE");
+  // where a blinded reason may lead (round 6): Review & sign shows its studies and roles once the inputs are ready (the
+  // plan is made from them), and the purpose that blinds a study is changed by a person who may set the blinding (the
+  // signed-in person's roles, read once for the visit with the page)
+  const me = useResource("/api/v1/me", {}, { select: (d) => d.roles });
+  const reachRoles = Boolean(view?.readiness?.content?.ready) && !stale;
+  const reachPurpose = (me.data ?? []).some((r) => BLINDING_ROLES.includes(r));
+  const reach = useMemo<Reach>(() => ({ roles: reachRoles, purpose: reachPurpose }), [reachRoles, reachPurpose]);
 
   // the area the page opened on is kept once the work is read, so a list that empties does not move the page; chosen
   // once the inputs are assembled: on a project's first visit they are read before that, with no to-do yet, and the page
@@ -253,10 +261,17 @@ function Workspace({ projectId, initialTab, initialOnly, initialStatus, steps }:
     if (!urlAt || !shownNow) return;
     let tries = 0, timer = 0;
     const find = () => {
-      // a line of "Ask the client" is found by its requirement too when it is a product's ("todo-ask-REQ-form.release@<product>")
-      const el = document.querySelector<HTMLElement>(`[data-testid="${CSS.escape(urlAt)}"]`)
-        ?? (urlAt.startsWith("todo-ask-") ? document.querySelector<HTMLElement>(`[data-testid^="${CSS.escape(`${urlAt}@`)}"]`) : null)
-        ?? (urlAt.startsWith("todo-ask-") && tries > 10 ? document.querySelector<HTMLElement>('[data-testid="todo-group-ask"]') : null);
+      const q = (selector: string) => document.querySelector<HTMLElement>(selector);
+      // a line of "Ask the client" is found by its requirement too when it is a product's ("todo-ask-REQ-form.release@<product>");
+      // the line of the product a study names (`…~<product>`, round 6), else the delivery's line of that product, else
+      // the line of the studies that name none, else the group
+      const ask = urlAt.startsWith("todo-ask-");
+      const [base, product] = urlAt.split("~");
+      const el = q(`[data-testid="${CSS.escape(urlAt)}"]`)
+        ?? (ask && product ? q(`[data-testid="${CSS.escape(`${base}@${product}`)}"]`) : null)
+        ?? (ask && !product ? q(`[data-testid^="${CSS.escape(`${urlAt}@`)}"]`) : null)
+        ?? (ask && product && tries > 10 ? q(`[data-testid="${CSS.escape(base)}"]`) : null)
+        ?? (ask && tries > 10 ? q('[data-testid="todo-group-ask"]') : null);
       if (!el) { if (++tries < 30) timer = window.setTimeout(find, 100); return; }
       el.scrollIntoView({ block: "center" });
       if (!el.hasAttribute("tabindex")) el.setAttribute("tabindex", "-1");
@@ -576,14 +591,17 @@ function Workspace({ projectId, initialTab, initialOnly, initialStatus, steps }:
   const solidRows = used.filter((s) => SOLID.includes(String(s.facts.formulation)))
     .map((s) => ({ s, own: s.facts.formulation_name ? ownWay(s.study_id) : studyWay(formulationWay, s.study_id) }))
     .filter(({ s, own }) => !only || !s.facts.formulation_name || own);
-  const askHref = inputsHref(projectId, { area: "todo", query: `at=${ASK_FORMULATION}` });
   /** What gives a tablet study its formulation here, as the project stands (round 4: the step bar's lever, the API's
    *  `way`; round 5: the study's own): a product's dissolution profile above; a product without one, its dissolution data;
-   *  no product at all, the product first; or the client. `named`: the study names the product (said after its name). */
+   *  no product at all, the product first; or the client. `named`: the study's record names the formulation (said after
+   *  its name); a study whose own file names its product says so (round 6: why only that product's profile settles it),
+   *  and its "ask the client" lands on the line that asks for that product. */
   const studyLever = (study: string, way: FormulationWay | null, named = false) => {
     const first = way?.products[0];
     const card = productFor(model.subjects, first);
-    const lead = named ? "not in the model yet" : "no formulation in the model yet";
+    const fileNamed = named ? null : way?.each?.[0]?.named ?? null;
+    const lead = named ? "not in the model yet" : `no formulation in the model yet${fileNamed ? ` (its file names ${fileNamed})` : ""}`;
+    const askHref = inputsHref(projectId, { area: "todo", query: `at=${askAt(way?.each?.[0]?.named ? first : null)}` });
     if (way?.way === "use_profile") {
       return <span className="muted" data-testid={`formulation-none-${study}`}>{lead}:{" "}
         <button type="button" className="link-btn" onClick={() => openRelease(first)} data-testid={`formulation-release-${study}`}>
@@ -594,13 +612,13 @@ function Workspace({ projectId, initialTab, initialOnly, initialStatus, steps }:
         {named || way.each?.[0]?.named ? `no dissolution profile of ${first} can give it` : "no product here has a dissolution profile that can give it"}:{" "}
         <button type="button" className="link-btn" onClick={() => openRelease(first)} data-testid={`formulation-dissolution-${study}`}
                 aria-label={first ? `add a product's dissolution data: ${first}` : undefined}>add a product&apos;s dissolution data</button>
-        {" (its dissolution file, Add data), or "}<Link href={askHref} prefetch={false}>ask the client</Link></span>;
+        {" (its dissolution file, Add data), or "}<Link href={askHref} prefetch={false} data-testid={`formulation-ask-${study}`}>ask the client</Link></span>;
     }
     if (way?.way === "add_product") {
       return <span className="muted" data-testid={`formulation-none-${study}`}>{lead}, and no product here:{" "}
         <button type="button" className="link-btn" onClick={() => { if (only) setOnly(false); setAddProduct(Date.now()); }}
                 data-testid={`formulation-add-product-${study}`}>add the product it used</button>
-        {" (“Add a product”, above) with its dissolution data, or "}<Link href={askHref} prefetch={false}>ask the client</Link></span>;
+        {" (“Add a product”, above) with its dissolution data, or "}<Link href={askHref} prefetch={false} data-testid={`formulation-ask-${study}`}>ask the client</Link></span>;
     }
     return <span className="muted" data-testid={`formulation-none-${study}`}>{lead}</span>;
   };
@@ -625,6 +643,7 @@ function Workspace({ projectId, initialTab, initialOnly, initialStatus, steps }:
 
   return (
     <OpenSheetContext.Provider value={openSheet}>
+    <ReachContext.Provider value={reach}>
     <PageShell {...head} before={toAreas}
       actions={(
         <AddDataMenu projectId={projectId} run={run} open={addOpen}
@@ -858,6 +877,7 @@ function Workspace({ projectId, initialTab, initialOnly, initialStatus, steps }:
         </TabPanel>
       )}
     </PageShell>
+    </ReachContext.Provider>
     </OpenSheetContext.Provider>
   );
 }

@@ -160,7 +160,7 @@ def blinded_sources(ws: Workspace, project: dict[str, Any] | None, model_risk: s
                 names.add(name)
                 groups.update(row["legacy_groups"])
                 reason = (hidden_why.get(row["subject"]) if row["subject_type"] == "study"
-                          else "it holds the values of a blinded study")
+                          else delivery_review.held_why(reader, row["subject_type"], row["subject"], hidden))
                 if reason:
                     why[name] = reason
                     why.update({gid: reason for gid in row["legacy_groups"]})

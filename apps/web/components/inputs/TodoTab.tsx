@@ -253,7 +253,7 @@ export function TodoTab({ projectId, work, run, status, only, onStatus, onOnly, 
           {work.ask.length > 0 ? (
             <ul className="todo-lines">
               {work.ask.map((a) => (
-                <li key={`${a.req}|${a.what}`} className="todo-line" data-testid={`todo-ask-${a.req}`}>
+                <li key={`${a.req}|${a.what}`} className="todo-line" data-testid={a.at}>
                   <div className="todo-line-head">
                     <span>{a.what}{a.subjects.length > 0 && <span className="muted"> · {a.subjects.join(", ")}</span>}</span>
                   </div>

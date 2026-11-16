@@ -18,7 +18,7 @@ import { useState } from "react";
 import type { Comparison, Profile } from "@/components/client/types";
 import { send } from "@/lib/api";
 import { cardAnchor, normLabel, releaseAnchor, type Subject } from "@/lib/inputsWork";
-import { ASK_FORMULATION, inputsHref, valueWord } from "@/lib/words";
+import { askAt, inputsHref, valueWord } from "@/lib/words";
 
 import { releaseAfter } from "../after";
 import { ReleaseView } from "../DatasetView";
@@ -208,7 +208,7 @@ function ReleaseLine({ subject, profiles, release, env }: {
           )}
           <span className="muted fs-13">no dissolution profile with a fit is here{env.onAddData ? "" : ": add the product's dissolution file (Add data)"};
             or{" "}
-            <Link href={inputsHref(env.projectId, { area: "todo", query: `at=${ASK_FORMULATION}` })} prefetch={false}
+            <Link href={inputsHref(env.projectId, { area: "todo", query: `at=${askAt(subject.label)}` })} prefetch={false}
                   aria-label={`ask the client for the dissolution data of ${subject.label}`}>ask the client</Link> for it</span>
         </div>
       )}

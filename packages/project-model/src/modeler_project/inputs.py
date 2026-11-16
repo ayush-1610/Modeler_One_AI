@@ -899,8 +899,9 @@ def todo(ws: Workspace) -> list[dict[str, Any]]:
         asking = [e for e in way.each if e.way in ASKS] if way is not None else []
         if asking:
             matrix = ws.latest(ArtifactKind.REQUIREMENTS, MAIN)
+            # a study that names its product (its record, or round 6 its own client data) is asked for that product's data
             ask = unnamed_product_request(
-                [e.study for e in asking], named={e.study: e.named for e in asking if e.named},
+                [e.study for e in asking], named={e.study: e.products or (e.named,) for e in asking if e.named},
                 brief=ProjectBrief.from_content(brief_version.content) if brief_version is not None else None,
                 matrix=RequirementMatrix.from_content(matrix.content) if matrix is not None else None)
         # its problems one by one as well (`details`): a problem may itself hold "; " (a formulation of a type the builder
