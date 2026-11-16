@@ -2,7 +2,7 @@
 
 **Purpose:** the entry point for anyone — engineer or AI model — resuming work on Modeler One. Read in this order:
 `CLAUDE.md` (working rules) → this file (where things stand) → `CHANGELOG.md` (what changed, why, when) → the active
-plan in `docs/plans/`. **Last brought up to date: 2026-10-09 (after B6, the VBE application, merged to `main`).** If HEAD is far ahead of
+plan in `docs/plans/`. **Last brought up to date: 2026-11-16 (§4.0c: the Inputs task-first redesign and its final review rounds, on branch `claude/stoic-bohr-9ymlx9`, not yet merged to `main`).** If HEAD is far ahead of
 that commit and §4 was not updated with it, §4 is stale — fix it before trusting it.
 
 ## 30-second system state
@@ -211,7 +211,57 @@ T-25 (parallel from week 2) · T-29 (P3) · T-30 (human, parallel) · T-19 (P3) 
 Critical path to the first unattended S0→S2 campaign (P1 milestone): T-01 → T-02 → T-03 → T-04/T-10 → T-13, with
 T-05 → T-07 → T-08 → T-18 and T-09 in parallel.
 
-## 4. Where things stand (2026-11-13)
+## 4. Where things stand (2026-11-16)
+
+### 4.0c 2026-11-14 → 16: the Inputs page, task-first (read this first)
+Plan `docs/plans/2026-11-14-inputs-task-first.md` (§2 six rules, §2.1 grafts, §2.2 decisions; **§5 records every
+deviation, gap and owner question, round by round**); audit `docs/plans/2026-11-14-inputs-ux-audit.md` (97 findings);
+design `docs/plans/2026-11-14-inputs-task-first-design.md`. Owner's ask: the page was cluttered, repetitive, unclear;
+"before I approve your work I need to actually use it, so I must be able to fill what all is not there and make
+available all data for downstream tasks".
+- **Where the work is:** branch `claude/stoic-bohr-9ymlx9` (pushed; `main` at 0c4028e is its ancestor, about 100 commits
+  behind). Not merged to `main` and not deployed: the owner has not yet approved it or asked for the PR.
+- **Built (slices 1–4):** one list of work (`lib/inputsWork.ts`) feeding every count; one card per study or product with
+  one confirm path; one row per file (Client files); four status words; To do with inline file-level work; the area
+  bar (To do · Compound · Products and dissolution · Clinical studies · Populations and individuals · Simulation
+  settings · Client files); forms to fill what was missing (arms, batches, analytes, a first layout, numbers not read,
+  compound rows, the individual); page words through `lib/words.ts` (no engine words, ids or locators).
+- **Final review:** four lenses (owner, accessibility, integrity, code) plus an owner-job e2e, then seven fix rounds
+  (2026-11-15/16). Each round: one fixer per group in its own worktree, then an independent skeptic per group that
+  reproduces each finding in a browser or at the API; what it found open became the next round. CHANGELOG entries
+  "Fixed — final review, …" and "Fixed — final review round 2…7, …"; §5 sub-headings of the same names. Main themes:
+  linking and the sheet-form join; blinding (one source for what is withheld, the reason said wherever a study is
+  withheld, a newly blinded study followed everywhere in the same visit, no signature offered that the API refuses);
+  the gate and layouts; cards, counts and the spot check's honesty; the formulation lever that follows what the
+  project holds and the product a study's own file names; speed (a decision reads only what it changes; the RLD
+  flake's root cause: the API read a file's runs after what they write); accessibility (focus, unique names, phone and
+  tablet widths).
+- **Tests at round 6's merge (462d6a0):** `make test` 3178 passed, only the 15 baseline failures (orchestrator and
+  data-intake environment); lint, typecheck and build pass; full e2e 147 of 152 at 8f4f1fe, the five being clashes
+  between the round-6 branches, fixed in 462d6a0 (those specs 11 of 11). Round 7 was running when this was written:
+  see the CHANGELOG's round-7 entries and §5 for its results.
+- **Every engine number in these tests is from the stub engine** (`deploy/dev/stub_engine.py`): software evidence of
+  the page, never PBPK evidence. No locked file, ruleset, requirement level or MS-01 rule was changed.
+- **Open owner questions** (each with its context in §5):
+  1. "Not data" per cell (API 3), or per region as built.
+  2. The gate per delivery or per study (21 CFR 11.10); does the sheet-form path need a signature (INT-7)?
+  3. Open the PR to `main` for deploy and trial?
+  4. SME: the spot check's draw size (117 = 17 always checked + 100 random).
+  5. Is a link carried over a re-read audited as actor "code"?
+  6. Library paper blinding: the whole paper, or only the blinded dataset's figures?
+  7. Leave a person's own choices of the individual out of the spot check's digest and seed?
+  8. The layout `_choose` rule.
+  9. 7bb1's 231-24: in the model for building, entered for external validation on its card; flag it, or leave it to
+     the plan's split?
+  10. Should a delivery signature count as confirming a product's dissolution data for its release?
+  11. Science: should the assembly tie a study to the formulation of the product its file names? (Today, while the model
+      holds one formulation, a tablet study uses it whatever its file names.)
+  12. Who may unblind a study by changing its purpose (the page offers it to the reviewer role; the API's `:enter`
+      still takes a Writer's change)?
+  13. Should the client request download carry the "Ask the client" lines?
+  14. The sidebar's link prefetch app-wide, or the step bar drawn from `/steps` in the browser?
+- **Working mode:** the usage limit stopped workflows several times; each was resumed from its run id or relaunched,
+  with no work lost (fixers commit in their worktrees; merged work is pushed at once).
 
 ### 4.0b 2026-11-13: the client-data intake rebuild (read this first)
 Plan `docs/plans/2026-11-12-client-data-intake-redesign.md` (revision 3, the owner's Decision Memo: "do all at once");
