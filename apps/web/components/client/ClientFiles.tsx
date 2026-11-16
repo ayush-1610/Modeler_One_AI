@@ -76,8 +76,8 @@ function SheetLine({ t, read, proposed, byCode, reading, onRead, onClassify, bli
   const data = DATA_SHEETS.has(t.category);
   return (
     <tr data-testid={`sheet-${t.sheet}`}>
-      <td><code>{t.sheet}</code></td>
-      <td>
+      <td data-label="Sheet"><code>{t.sheet}</code></td>
+      <td data-label="Holds">
         <span className={`chip ${t.category === "OTHER" ? "medium" : data ? "brand" : "neutral"}`}>{CATEGORY_LABEL[t.category] ?? t.category.toLowerCase()}</span>
         {t.evidence_quote && <div className="muted fs-12">“{t.evidence_quote}” {t.evidence_cell.split("!")[1]}</div>}
         <CleaningRecord lines={reading?.cleaning} testId={`sheet-cleaning-${t.sheet}`} />
@@ -95,7 +95,7 @@ function SheetLine({ t, read, proposed, byCode, reading, onRead, onClassify, bli
         )}
         {error && <div className="banner err">{error}</div>}
       </td>
-      <td>{read ? <span className="chip low">read ✓{read > 1 ? ` (${read})` : ""}</span>
+      <td data-label="Read">{read ? <span className="chip low">read ✓{read > 1 ? ` (${read})` : ""}</span>
                : byCode ? <span className="chip medium" title="read on arrival; what the sheet does not say is asked on its study's or product's card">
                    read by {reading?.by === "code" ? "code" : "the reading agent"} · {byCode.length} to give on its card</span>
                : proposed ? <span className="chip brand" title="checked by code; open it, check it and save">reading proposed</span>
@@ -224,7 +224,7 @@ function FileCard({ projectId, file, agents, running, agentReading, act, onRetag
       )}
       {file.template && <p className="muted m-4-0">The client-data template is read automatically, cell by cell.</p>}
       {spreadsheet && !file.template && (
-        <table className="mt-6">
+        <table className="mt-6 sheet-table">
           <thead><tr><th>Sheet</th><th>Holds</th><th>Read</th><th /></tr></thead>
           <tbody>
             {file.triage.map((t) => (

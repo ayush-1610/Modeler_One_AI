@@ -79,7 +79,8 @@ function ProfileLine({ p, projectId, run, product, drawn, notes, short }: {
             <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="formulation name"
                    aria-label={`the formulation ${p.label} is the release of`} />
           </label>
-          <button type="submit" className="btn small" disabled={!name.trim()}>Use as release</button>
+          {/* named by its profile: every product card open shows its own (final review round 5, A11Y-7) */}
+          <button type="submit" className="btn small" disabled={!name.trim()} aria-label={`Use as release: ${p.label}`}>Use as release</button>
         </form>
       ) : <p className="muted m-0 fs-12">Read as a table: no Weibull fit to use as the release.</p>}
       {problem && <p className="inline-issue error" role="alert">{problem}</p>}
@@ -179,14 +180,15 @@ function ReleaseLine({ subject, profiles, release, env }: {
         : "The formulation's release is not set yet"}</strong>{release.needed ? ": a tablet or capsule study needs it." : "."}</p>
       {waiting ? (
         <div className="row gap-6 items-center" data-testid={`${id}-confirm-first`}>
-          <button type="button" className="btn" onClick={toConfirm} data-testid={`${id}-to-confirm`}>Confirm its data first</button>
+          <button type="button" className="btn" onClick={toConfirm} data-testid={`${id}-to-confirm`}
+                  aria-label={`Confirm its data first: the product ${subject.label}`}>Confirm its data first</button>
           <span className="muted fs-13">its dissolution profile (t50 {sig(can[0].fit?.t50_min)} min · shape {sig(can[0].fit?.shape)}) becomes the
             release of the formulation “{subject.label}” once you have confirmed the product&apos;s data on this card (&ldquo;Confirm&rdquo;,
             below); then &ldquo;Use this profile as the release&rdquo; is offered here</span>
         </div>
       ) : can.length === 1 ? (
         <div className="row gap-6 items-center">
-          <button type="button" className="btn primary" data-testid={`${id}-use`}
+          <button type="button" className="btn primary" data-testid={`${id}-use`} aria-label={`Use this profile as the release of ${subject.label}`}
                   onClick={async () => setProblem(await proposeRelease(env.projectId, env.run, can[0], subject.label))}>
             Use this profile as the release</button>
           <span className="muted fs-13">its Weibull fit (t50 {sig(can[0].fit?.t50_min)} min · shape {sig(can[0].fit?.shape)}) becomes the release

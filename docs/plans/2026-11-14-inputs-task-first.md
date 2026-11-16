@@ -964,6 +964,9 @@ before the next starts.
   spot check's link) on the individual's PK-Sim population, every other opener on the first field a person fills. The
   spot check's link no longer focuses by a timer; the row scrolls into view and the form takes the focus. A value's
   "Correct" now opens on its Value (its button stays, so this was not required; one form, one field taking the focus).
+  *(Round 5: once per opening was not enough. The spot check's link pressed again with the form open only scrolled, and
+  Populations' form, keyed by the stated demographics (round 4 left it as pre-existing), was remounted on each field a
+  save wrote, the focus jumping back to the population each time; both fixed in round 5, below.)*
 - **Context labels, finished.** Every repeated control on a card names its subject ("study 230-23"), after the words on
   it (WCAG 2.5.3); a stated fact also by its value and file; a values table by where it starts in its file
   (`words.anchorPlace`, from its first value's anchor: "page 4, table 1", "sheet Fasting from cell B22"); a sheet-form
@@ -972,10 +975,16 @@ before the next starts.
   four studies in one workbook), every area, every card open. **Left as it is:** the spot check's tick radios ("matches",
   "does not match") and a values table's sort buttons repeat by design inside their table, under its caption and the
   row's legend; they are not in the scan's default view (the scan sees the page as it opens, with every card open, not
-  every value table shown and every spot check drawn).
+  every value table shown and every spot check drawn). *Corrected in round 5: they were not the only repeats. With the
+  values tables shown, their pages, the lists of more checks and a spot check drawn, a urine interval's Show and Correct
+  (four per table, the interval left out of the name), the spot check's source buttons and the pagers ("Show 8 more",
+  "Show all 42") repeated too, the names spelled `excretion.amount`, and with every product card open "Use as release"
+  and "Confirm its data first" repeated; all fixed in round 5 (below), and the radios and the sort buttons are now the
+  only repeats, which a round-5 e2e scan of Chromium's names asserts.*
 - **Phone and message:** the phone rule for Client files comes after the desktop rules and is as specific as the kit's
-  `.table-scroll table`; a message is cleared by one effect on the area chosen (not in each handler), so no way of
-  changing the area keeps it. A message said while the page loads (before it settles on its area) stays.
+  `.table-scroll table` *(corrected in round 5: its descendant selectors and the kit's width also reached an open file's
+  own tables, which were cut on a phone; fixed in round 5, below)*; a message is cleared by one effect on the area
+  chosen (not in each handler), so no way of changing the area keeps it. A message said while the page loads (before it settles on its area) stays.
 - **The spot check, decision by decision (the API's rule, checked, not guessed; `intake_review._stale`):**
 
   | Card decision | Drawn again? | Said before Save |
@@ -1051,3 +1060,47 @@ before the next starts.
   is shown at the API by the new test and on the page by the corrected-layout test's runs; no spec holds a read back
   to force it. The one 404 every measured visit logged is the browser's own request for `/favicon.ico`, which the app
   does not serve; nothing of the page.
+
+### Final review fixes round 5: accessibility, phone and names (2026-11-16; round 4's a11y-cards skeptic: OWN-16 with a file open, A11Y-7's remainder, the demographics form's focus, the records; CHANGELOG "Fixed — final review round 5, accessibility, phone and names")
+- **Client files on a phone, a file open.** The phone rules reach only the files table's own rows (`> tbody > tr > td`);
+  an open file's tables are no longer held at the kit's 560 px (`:not(.files-detail .table-scroll table, .sheet-grid
+  table)`), and on a phone each is a block that scrolls itself if it must. A table in a scroll box of its own inside the
+  file (the reading's tables and texts, the sheet grid) keeps its kit width and scrolls in that box, as every values table
+  does on a phone: that is the kit's phone answer, kept (its columns are the file's tables' columns). Two extra steps the
+  item did not name, found by the same measure: a file's sheet table is a block per sheet on a phone (`sheet-table`, its
+  cells named by `data-label`), because even fitting its box it scrolled its state and its button out of sight; and a
+  PDF's page lines are read whole on a phone (they were a one-line quote of about 20 letters). Measured at 390 px on
+  copies of b4e7 (9 files) and eb47 (3): each file opened, with its reading's tables and texts and its first sheet's
+  reader open too, nothing passes the files box but inside a fitting scroll box of its own, no sideways page scroll, no
+  clipped line (probes phone.js, phone2.js; the e2e opens each of the 9-file seed's files).
+- **Names.** What a value is, for the controls repeated on its row, is `words.valueAbout`: the field in the intake
+  vocabulary's words (`layoutFieldText`, which falls back to `fieldLabel`), its time and unit, labels, conditions
+  (`conditionsInWords`: an interval in the hours its fields are read in), statistic and file; two that still read alike
+  are told apart by their cell (`distinctNames`, `anchorCell`). The words a sentence needs for a field whose label is no
+  noun ("fasted or fed state", "share of women (%)") are in `layoutFieldInText`. The spot check's names end "(spot check
+  of study …)", so they never equal the same value's Show in its values table. Pagers are named by their table (the kit's
+  `TableMore` `of`; the other tables of the app have one per page and keep "Show 8 more"). **Left by design, and now
+  asserted to be the only repeats** (e2e scan of Chromium's computed names on Clinical studies and Products with every
+  card, values table, page, list of more checks and a spot check open): a values table's sort buttons (Field, Value,
+  Time, Read by), under the table's caption, and the spot check's two answers per value ("matches", "does not match"),
+  under the value's question (its fieldset's legend names the value). Found by the same scan and fixed: on Products with
+  every product card open, "Use as release" (named by its profile), "Confirm its data first" and "Use this profile as the
+  release" (by their product).
+- **Focus.** A new `asked` on the demographics form re-arms its focus each time the spot check asks for it while it is
+  open (the ask's time, from `RequirementRow`'s `start`); the form keeps what was typed (not keyed, so no remount). The
+  Pending form on Populations is no longer keyed by what is stated: its openers wait for the card (so it starts from what
+  is stated), and it closes on its save. Found while testing, and fixed: `focusSoon` called in the same handler as the
+  close could run before React drew the form out, find the opener missing and fall back to the row, whose first control
+  was the closing form's population, and the focus then fell to the page (230-23, each time, on a copy of b4e7). A form
+  that closes now hands the focus on after the render that removes it (`kit/focus.ts` `useFocusOnClose`), on Populations
+  and on the card's required item; other `focusSoon` callers name one target, which it waits for, and are unchanged.
+  Measured (probes save.js, cardsave.js on throwaway copies): one focus move, from Save to "Choose the individual…".
+- **Records corrected in place:** the round-4 a11y-cards entry (CHANGELOG) and its §5 note above (the names "fixed", the
+  phone blocks "fit", the sort buttons and radios "the only repeats", the focus "once per opening").
+- **Also fixed, seen in the phone screenshots:** the reading's tables and texts named a table by its ids' words ("table,
+  pk individual", "prose"); now `words.regionKindText` ("individual PK table", "text").
+- **Left, not changed:** on a phone the reading's tables and texts and the sheet grid scroll sideways inside their own
+  box (nothing is cut; their columns are the file's). The values tables' sort buttons have no table in their names (a
+  screen reader says the table they are in); **owner question:** name them too ("Sort the values of … by Field")?
+- No API change, no locked file, SME rule (draw size, digest and seed rule, requirement levels, the MS-01 split, which
+  studies are blinded) or boundary exception was touched.

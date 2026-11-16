@@ -16,8 +16,9 @@ import { useState } from "react";
 
 import { type Schema } from "@/lib/api";
 import { NEW, analyteChoice, analyteChoices, linkCount, normLabel, type LinkPart, type LinkRow, type LinkTarget } from "@/lib/inputsWork";
+import { anchorCell, distinctNames, valueAbout } from "@/lib/words";
 
-import { Problem, TUPLE_HEADS, TupleCells, Why, fieldText, labelsText, plural, type SubjectRow } from "./shared";
+import { Problem, TUPLE_HEADS, TupleCells, Why, plural, valueField, type SubjectRow } from "./shared";
 import { ValueSource } from "./ValueSource";
 
 const SHOWN = 6;            // values of a file listed before "Show all"
@@ -128,6 +129,10 @@ export function LinkEditor({ projectId, row, target, onTarget, subjects, analyte
   const [source, setSource] = useState<string | null>(null);
   const context = `for the ${linkCount(row.values)} of ${row.file}`;
   const shown = all ? row.values : row.values.slice(0, SHOWN);
+  // each value named on its Show by its field in words, time, labels, conditions, statistic and file; two that read
+  // alike by where each is in it (final review round 5, A11Y-7)
+  const names = distinctNames(row.values.map((v) => valueAbout({ ...v, file: v.file ?? row.file })), row.values.map((v) => anchorCell(v.anchor)));
+  const nameOf = new Map(row.values.map((v, i) => [v.id, names[i]]));
   return (
     <div className="link-editor" data-testid={`link-editor-${row.fileId}`}>
       <Why action={action} actionLabel={`${action} the ${linkCount(row.values)} of ${row.file}`}
@@ -163,9 +168,9 @@ export function LinkEditor({ projectId, row, target, onTarget, subjects, analyte
             <tbody>
               {shown.map((v) => (
                 <tr key={v.id} data-testid={`delivery-value-${v.id}`}>
-                  <td>{fieldText(v.field)}</td><TupleCells v={v} />
+                  <td>{valueField(v.field)}</td><TupleCells v={v} />
                   <td>{v.anchor && <button type="button" className="link-btn" aria-expanded={source === v.id} data-testid={`delivery-source-open-${v.id}`}
-                                           aria-label={`${source === v.id ? "Hide" : "Show"} the source of ${[`${fieldText(v.field)}${v.time !== null ? ` at ${v.time}` : ""}`, labelsText(v)].filter(Boolean).join(", ")} in ${row.file}`}
+                                           aria-label={`${source === v.id ? "Hide" : "Show"} the source of ${nameOf.get(v.id)}`}
                                            onClick={() => setSource(source === v.id ? null : v.id)}>{source === v.id ? "Hide" : "Show"}</button>}</td>
                 </tr>
               ))}

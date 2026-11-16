@@ -310,7 +310,7 @@ type IndividualOptions = { population: string[]; sex: string[] } | null;
  *  entered through `:enter` with one reason, and with the mean age they become the study's individual when it is
  *  confirmed. `stated`: what is stated already; a person's entry is shown and corrected (`supersedes`) where changed,
  *  never entered twice; a file's is shown as read. */
-export function DemographicsForm({ projectId, params, vocabulary, options, onDone, testId, stated = {}, spot, label, focusOn = "first" }: {
+export function DemographicsForm({ projectId, params, vocabulary, options, onDone, testId, stated = {}, spot, label, focusOn = "first", asked = 0 }: {
   projectId: string; params: Params;
   /** a table layout to read the intake vocabulary from (the population's words), if any */
   vocabulary: { mapping: string | null };
@@ -324,6 +324,9 @@ export function DemographicsForm({ projectId, params, vocabulary, options, onDon
   /** where the focus goes when the form opens: its first field a person fills, or the individual's PK-Sim population
    *  (opened by "Choose the individual…") */
   focusOn?: "first" | "individual";
+  /** a new number each time the form is asked for again while it is open (the spot check's "Choose the individual…"
+   *  pressed again): the focus goes to its field again, as on its first opening (final review round 5) */
+  asked?: number;
 }) {
   const layout = useResource("/api/v1/projects/{project_id}/delivery/mappings/{mapping_id}",
                              { project_id: projectId, mapping_id: vocabulary.mapping ?? "" }, { enabled: Boolean(vocabulary.mapping) });
@@ -348,18 +351,20 @@ export function DemographicsForm({ projectId, params, vocabulary, options, onDon
   // the form opens on its first field a person fills (it is opened by a button that then goes away), or on the
   // individual's population when it is opened to choose the individual. The population is drawn disabled while its words
   // are read and React keeps that element once they arrive, so an autoFocus never ran on a first open: the focus is
-  // moved once the field can take it, once per opening (final review round 4, A11Y-5)
+  // moved once the field can take it, once per opening (final review round 4, A11Y-5), and again each time the form is
+  // asked for while it is open (`asked`, round 5: a second press of the spot check's link only scrolled). `took` is the
+  // opening the focus was given for: what a save writes into the card while the form is open moves nothing
   const first = fromFile("population") ? NUMBERS.find((f) => !fromFile(f)) ?? "individual_population" : "population";
   const target = focusOn === "individual" ? "individual_population" : first;
   const box = useRef<HTMLDivElement>(null);
-  const took = useRef(false);
+  const took = useRef<number | null>(null);
   useEffect(() => {
-    if (took.current || loading) return;
+    if (took.current === asked || loading) return;
     const field = box.current?.querySelector<HTMLElement>(`[data-testid="${CSS.escape(`${testId}-${target}`)}"]`);
     if (!field || field.matches(":disabled")) return;
-    took.current = true;
+    took.current = asked;
     field.focus();
-  }, [loading, target, testId]);
+  }, [loading, target, testId, asked]);
   const read = (f: string) => (
     <span className="facts-read" data-testid={`${testId}-${f}`}>{valueWord(String(stated[f].value))}
       <span className="muted"> · from its file</span></span>

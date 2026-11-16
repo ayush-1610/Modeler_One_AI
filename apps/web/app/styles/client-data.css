@@ -67,6 +67,12 @@
 .doc-inventory { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; font-size: 13px; }
 .doc-inventory li { display: flex; gap: 6px; align-items: baseline; min-width: 0; }
 .doc-inventory li .muted { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1 1 auto; }
+/* on a phone the line a page holds is read whole, on a line of its own under its page (a one-line quote kept about 20
+   letters of it at 390 px; final review round 5, OWN-16) */
+@media (max-width: 600px) {
+  .doc-inventory li { flex-wrap: wrap; }
+  .doc-inventory li .muted { white-space: normal; overflow: visible; flex-basis: 100%; order: 1; }
+}
 .doc-read { font-size: 13px; padding: 8px 10px; border-radius: var(--radius-sm); background: color-mix(in srgb, var(--sim) 6%, var(--surface)); }
 .doc-read details { margin-top: 4px; }
 /* what a file is, changeable on its card and in the files view; code's other reading of it, to use or keep */

@@ -16,7 +16,7 @@ import { useId, useState } from "react";
 import { SUBJECT } from "@/components/delivery/DeliveryReview";
 import { DemographicsForm, demographicsText, statedDemographics } from "@/components/delivery/FactsForm";
 import { EmptyState } from "@/components/kit";
-import { focusSoon } from "@/components/kit/focus";
+import { useFocusOnClose } from "@/components/kit/focus";
 import { send } from "@/lib/api";
 import { useResource } from "@/lib/hooks";
 import { normLabel, type Subject, type WorkItem } from "@/lib/inputsWork";
@@ -200,8 +200,10 @@ function Pending({ s, projectId, vocabulary, options, onOpen }: {
   const individual = card.data?.individual ?? null;
   const set = individual?.demographics ?? null;
   const chip = s.path !== "delivery" ? "to confirm first" : set || !said ? "loads when the study is confirmed" : "kept, not simulated yet";
-  // closed (saved or cancelled), back on the button that opens it, as it then reads
-  const close = () => { setEntering(false); if (delivery) focusSoon(`individual-enter-open-${delivery.subject}`, `individual-pending-${s.key}`); };
+  // closed (saved or cancelled), back on the button that opens it, as it then reads, once the form is drawn out (round 5:
+  // handed on in the same call, the focus could land on the closing form's field and fall to the page)
+  const closing = useFocusOnClose(entering, delivery ? `individual-enter-open-${delivery.subject}` : null, `individual-pending-${s.key}`);
+  const close = () => { closing(); setEntering(false); };
   return (
     <div className="individual pending" data-testid={`individual-pending-${s.key}`}>
       <div className="spread">
@@ -210,7 +212,10 @@ function Pending({ s, projectId, vocabulary, options, onOpen }: {
       </div>
       {delivery ? (
         entering ? (
-          <DemographicsForm key={said} projectId={projectId} params={{ project_id: projectId, type: delivery.subject_type, subject: delivery.subject }}
+          // not keyed by what is stated: a save of several fields writes the card after each, and a remount on each moved the
+          // focus back to the population (final review round 5) and lost what a failed save left typed. The form opens once
+          // the card is read (its openers wait for it) and closes on its save, so it starts from what is stated
+          <DemographicsForm projectId={projectId} params={{ project_id: projectId, type: delivery.subject_type, subject: delivery.subject }}
                             vocabulary={{ mapping: vocabulary }} options={options} onDone={close} label={s.label}
                             testId={`individual-enter-${delivery.subject}`} stated={stated} spot={card.data?.spot_check ?? null}
                             focusOn={entering === "individual" ? "individual" : "first"} />

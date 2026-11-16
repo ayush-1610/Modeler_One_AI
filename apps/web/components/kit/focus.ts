@@ -4,6 +4,8 @@
 // are gone (a few frames at most). The same rule for a control that removes itself (a Cancel, a bar's Clear, a question
 // answered): it hands the focus to what opened it or to the next control there (`focusSoon`, final review A11Y-5).
 
+import { useCallback, useEffect, useRef } from "react";
+
 const CONTROLS = "input:not([disabled]), select:not([disabled]), button:not([disabled]), a[href], [tabindex]:not([tabindex='-1'])";
 
 const byTestId = (id: string) => document.querySelector<HTMLElement>(`[data-testid="${CSS.escape(id)}"]`);
@@ -52,4 +54,21 @@ export function focusSoon(...targets: (string | null | undefined)[]) {
     if (frames++ < 20) window.requestAnimationFrame(go);
   };
   window.requestAnimationFrame(go);
+}
+
+/** A form that closes itself (saved or cancelled) hands the focus on with `focusSoon(...targets)` once it is drawn out,
+ *  never before: `close()` marks the closing, and the focus moves after the render in which `open` is false. Handed on
+ *  in the same call as the close, the focus could land before React drew it out, on the form's own first field (the
+ *  fallback, a row holding the form, still held it), and fall to the page when the form went (final review round 5: a
+ *  save of the demographics on Populations ended on the page). */
+export function useFocusOnClose(open: unknown, ...targets: (string | null | undefined)[]): () => void {
+  const closing = useRef(false);
+  const where = useRef(targets);
+  where.current = targets;
+  useEffect(() => {
+    if (open || !closing.current) return;
+    closing.current = false;
+    focusSoon(...where.current);
+  }, [open]);
+  return useCallback(() => { closing.current = true; }, []);
 }
