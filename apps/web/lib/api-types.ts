@@ -4674,6 +4674,8 @@ export interface components {
             code: string;
             /** Computed */
             computed: number;
+            /** Field */
+            field?: string | null;
             /** Id */
             id: string;
             /** Message */
@@ -4689,6 +4691,8 @@ export interface components {
              * @enum {string}
              */
             severity: "fail" | "warn" | "info";
+            /** Unit */
+            unit?: string | null;
             /** Values */
             values: string[];
         };

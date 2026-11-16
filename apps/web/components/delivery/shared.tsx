@@ -9,7 +9,9 @@ import { useCallback, useState } from "react";
 
 import { ReasonForm } from "@/components/kit/Reason";
 import type { Envelope, Schema } from "@/lib/api";
-import { alreadyDecidedText, conditionsInWords, layoutFieldText, whereIs } from "@/lib/words";
+import {
+  alreadyDecidedText, checkGist, checkText, conditionsInWords, engineWords, labelWord, layoutFieldText, whereIs,
+} from "@/lib/words";
 import { useMutation, type After, type Outcome } from "@/lib/hooks";
 
 import { cardAfter, pageKey, writePage } from "./writes";
@@ -33,6 +35,21 @@ export const when = (iso: string | null | undefined) => (iso ? iso.slice(0, 16).
 const words = (text: string) => text.replace(/_/g, " ");
 
 export const KIND_LABEL: Record<SubjectKind, string> = { study: "Study", product: "Product", compound: "Compound" };
+
+/** What a blocker holds, in words (final review round 6: the confirm dialog said the API's detail as written, "2 failed
+ *  checks: ABOVE_RANGE, LANDING_FIELD_MISSING", and a fact not stated by its field's id): the failed checks by what each
+ *  says (`words.checkText`, the card's words; their count only for a blinded subject, whose messages are withheld), the
+ *  facts not stated by their reasons; any other detail with its engine terms replaced. */
+export function blockerDetail(b: Blocker, s: Subject): string {
+  if (b.code === "CHECK_FAILED") {
+    const said = s.checks.filter((c) => b.ids.includes(c.id) && c.message !== null)
+      .map((c) => checkGist(checkText({ ...c, message: c.message as string })).gist);
+    const n = b.ids.length || s.checks.filter((c) => c.severity === "fail" && !c.overridden).length;
+    return said.length ? `${plural(n, "check")} to decide: ${[...new Set(said)].join("; ")}` : `${plural(n, "check")} to decide, on the card`;
+  }
+  if (b.code === "SCHEMA_GAP" && s.gaps.length) return [...new Set(s.gaps.map((g) => g.reason))].join("; ");
+  return engineWords(b.detail);
+}
 
 /** A file's state in words (`DeliveryFile.state`). */
 export const FILE_STATE: Record<string, { label: string; tone: string }> = {
@@ -109,7 +126,7 @@ export function spreadText(v: Value): string {
 }
 
 /** The labels a value is read with, as written in its file: "study 230-23 · analyte Exampleamide". */
-export const labelsText = (v: Value) => Object.entries(v.labels).map(([role, label]) => `${role} ${label}`).join(" · ");
+export const labelsText = (v: Value) => Object.entries(v.labels).map(([role, label]) => labelWord(role, label)).join(" · ");
 
 /** The conditions a value is read under, in words ("interval 0 to 4 h"), never the intake's field ids. */
 export const conditionsText = (v: Value) => conditionsInWords(v.conditions);

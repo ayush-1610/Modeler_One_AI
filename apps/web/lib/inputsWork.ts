@@ -301,8 +301,9 @@ const SETTLED_ELSEWHERE = new Set(["LANDING_FIELD_MISSING", "DOSE_MISSING", "MAT
  *  MATRIX_MISSING's matrix; null for any other check. One rule for the card's facts form (`FactsForm`) and To do's facts
  *  row, so a fact is asked, and counted, as a fact in both (final review CODE-8 c: To do counted a matrix not stated as a
  *  check to decide while the card asked it as a fact). */
-export function checkField(c: { code: string; message?: string | null }): string | null {
-  if (c.code === "LANDING_FIELD_MISSING") return /needs (\w+)/.exec(c.message ?? "")?.[1] ?? null;
+export function checkField(c: { code: string; message?: string | null; field?: string | null }): string | null {
+  // the field the API names apart (round 6), else read from the message, as the API wrote it before
+  if (c.code === "LANDING_FIELD_MISSING") return c.field ?? /needs (\w+)/.exec(c.message ?? "")?.[1] ?? null;
   return c.code === "DOSE_MISSING" ? "dose" : c.code === "MATRIX_MISSING" ? "matrix" : null;
 }
 /** A card's blockers counted elsewhere: the delivery-wide clean-up (once, by file), the card's own rows, the spot check

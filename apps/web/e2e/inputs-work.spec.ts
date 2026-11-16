@@ -21,7 +21,8 @@ import {
   formulationLine, formulationParts, formulationProblem, formulationWays, heldText, individualNeeds, individualText, inputsHref, layoutFieldText,
   layoutFindingText, moveText, paramLabel, patternWords, placeText, readinessText, redrawText, rowRuleText, rowsLeftOut, spotGroupText, stepReason,
   stepWhere, studyWay, todoMessage, unitText, unreadWhy, withheldWhy, anchorPlace, sourceNamed, anchorCell, conditionsInWords, distinctNames,
-  layoutFieldInText, regionKindText, valueAbout,
+  layoutFieldInText, regionKindText, valueAbout, checkText, datasetHolds, datasetNames, datasetPlace, datasetSource, labelWord, landingText,
+  lowerFirst, pkParamText, templateIssueText, withArticle,
 } from "../lib/words";
 import { afterAnswer, blindedStudies, changedRows, followFrom } from "../lib/freshness";
 
@@ -1410,4 +1411,89 @@ test("round 6: a blinded card says its signing waits, and why, where Confirm and
   expect(signWaitsWords("it is entered for external validation on its card")).toBe(
     "Signing waits until the plan is signed, because it is entered for external validation on its card.");
   expect(signWaitsWords(null)).toBe("Signing waits until the plan is signed.");
+});
+
+test("round 6: a check says the field and unit the API names apart in words, never the field's id", () => {
+  // UNIT_NOT_CHECKED on 230-23 and on a product (intake_checks `_unit_not_checked`), as the owner's project shows them
+  expect(checkText({ message: "pk.Cmax: values in 'ng/mL'; no unit table exists for this field, so the unit is kept and not checked",
+                     field: "pk.Cmax", unit: "ng/mL" }))
+    .toBe("Cmax (PK parameter): values in “ng/mL”; no unit table exists for this field, so the unit is kept and not checked");
+  expect(checkText({ message: "excretion.amount: values in 'mg'; no unit table exists for this field, so the unit is kept and not checked",
+                     field: "excretion.amount", unit: "mg" })).toMatch(/^Amount excreted: values in “mg”;/);
+  expect(checkText({ message: "particle_size_d50_um: values in 'µm'; no unit table exists for this field, so the unit is kept and not checked",
+                     field: "particle_size_d50_um", unit: "µm" })).toMatch(/^Particle size d50 \(µm\): values in “µm”;/);
+  expect(checkText({ message: "concentration: values above the range (written \">x\"): no number is kept", field: "concentration" }))
+    .toBe("Concentration: values above the range (written \">x\"): no number is kept");
+  expect(checkText({ message: "the study record needs n, which no active value states", field: "n" }))
+    .toBe("the study record needs the number of subjects, which no active value states");
+  expect(checkText({ message: "analyte Exampleamide, matrix plasma: the reported AUC_last and the NCA of its mean profile differ by more than the tolerance",
+                     field: "pk.AUC_last" })).toContain("the reported AUC last and the NCA");
+  expect(checkText({ message: "excretion values are kept in the ledger; no dataset is made from them" })).toBe(
+    "excretion values are kept with the delivery; no dataset is made from them");
+  // the fact a failed check asks for is the field the API names, as before read from its message
+  expect(checkField({ code: "LANDING_FIELD_MISSING", message: "the study record needs n, which no active value states", field: "n" })).toBe("n");
+  // a message that names no field is as the API wrote it, its engine terms in words
+  expect(checkText({ message: "analyte not stated, matrix plasma: concentrations name no analyte", field: null }))
+    .toBe("analyte not stated, matrix plasma: concentrations name no analyte");
+  // no dotted id or snake_case id is left in any of them
+  for (const [message, field, unit] of [["pk.t_half: values in 'h'; no unit table exists for this field", "pk.t_half", "h"],
+                                        ["percent_dissolved: values with no unit stated", "percent_dissolved", null]] as const) {
+    expect(checkText({ message, field, unit })).not.toMatch(/\b[a-z]+[._][a-z_]+\b/i);
+  }
+});
+
+test("round 6: two datasets of one study read from one sheet are told apart by what they hold and where they start", () => {
+  // 230-23 on the owner's project (exampleamide-pbpk-7bb1): the parent's six subjects and their mean, and the metabolite's
+  // mean ± SE, both loaded by one signed confirmation of messy-delivery.xlsx (their locator names the confirmation)
+  const source = { title: "messy-delivery.xlsx", locator: "Delivery confirmation cf-33", page: 1 };
+  const parent = { kind: "profile", analyte: "Exampleamide", matrix: "plasma", study: { study_id: "230-23" }, source,
+                   quote: "[Fasting row 4] A4=001 | B4=BLQ | C4=12.1",
+                   series: [...["001", "002", "003", "004", "005", "006"].map(() => ({ statistic: "individual", error_kind: "none" })),
+                            { statistic: "arithmetic_mean", error_kind: "SD" }] };
+  const metabolite = { kind: "profile", analyte: "Exampleamide-M1", matrix: "plasma", study: { study_id: "230-23" }, source,
+                       quote: "[Fasting row 22] A22=0 | B22=BLQ", series: [{ statistic: "arithmetic_mean", error_kind: "SE" }] };
+  expect(datasetHolds(parent)).toBe("Exampleamide in plasma, 6 subjects and their arithmetic mean ± SD");
+  expect(datasetHolds(metabolite)).toBe("Exampleamide-M1 in plasma, arithmetic mean ± SE");
+  expect(datasetPlace(parent.quote)).toBe("sheet Fasting from row 4");
+  // the confirmation's id is never said, nor a spreadsheet's page; the place in the sheet is
+  expect(datasetSource(parent)).toBe("messy-delivery.xlsx, sheet Fasting from row 4");
+  const names = datasetNames([parent, metabolite]);
+  expect(names[0]).not.toBe(names[1]);
+  expect(names).toEqual(["230-23 · Exampleamide in plasma, 6 subjects and their arithmetic mean ± SD · messy-delivery.xlsx, sheet Fasting from row 4",
+                         "230-23 · Exampleamide-M1 in plasma, arithmetic mean ± SE · messy-delivery.xlsx, sheet Fasting from row 22"]);
+  for (const n of names) expect(n).not.toMatch(/cf-\d|confirmation|p\.\d/);
+  // a sheet-form dataset keeps its sheet ranges, never "p.6"; a PDF's page is said as a page; reported PK only
+  expect(datasetSource({ ...parent, source: { title: "client-template-filled.xlsx", locator: "Studies!A2:AK2; PK_Summary!2:7", page: 6 } }))
+    .toBe("client-template-filled.xlsx, sheet Studies, cells A2 to AK2; sheet PK_Summary, rows 2 to 7");
+  expect(datasetSource({ ...parent, source: { title: "study-report.pdf", locator: null, page: 4 } })).toBe("study-report.pdf, page 4");
+  expect(datasetHolds({ ...parent, kind: "pk_parameters", analyte: "parent", series: [] })).toBe("the parent drug in plasma, PK parameters only");
+  // two that still read alike are told apart by their place
+  expect(datasetNames([{ ...metabolite, source: { title: "a.xlsx" } }, { ...metabolite, source: { title: "a.xlsx" }, quote: "[Fed row 3] A3=1" }]))
+    .toEqual(["230-23 · Exampleamide-M1 in plasma, arithmetic mean ± SE · a.xlsx, sheet Fasting from row 22",
+              "230-23 · Exampleamide-M1 in plasma, arithmetic mean ± SE · a.xlsx, sheet Fed from row 3"]);
+});
+
+test("round 6: labels, kinds, PK parameters, the template's problems and a study's missing facts, in words", () => {
+  expect(labelWord("vessel", "vessel_1")).toBe("vessel 1");
+  expect(labelWord("subject", "001")).toBe("subject 001");
+  expect(labelWord("vessel", "V-2")).toBe("vessel V-2");
+  expect(lowerFirst("PK summary table")).toBe("PK summary table");
+  expect(lowerFirst("Individual PK table")).toBe("individual PK table");
+  expect(withArticle("individual PK table")).toBe("an individual PK table");
+  expect(withArticle("PK summary table")).toBe("a PK summary table");
+  expect(pkParamText("t_half")).toBe("half-life");
+  expect(pkParamText("AUC_last")).toBe("AUC last");
+  expect(templateIssueText("PK_Summary!F7", "value: '1,2' is not a plain number (the template takes a decimal point, no units or separators)"))
+    .toBe("sheet PK_Summary, cell F7: value: “1,2” is not a plain number (the template takes a decimal point, no units or separators)");
+  expect(templateIssueText("PK_Summary!A7:J7", "arithmetic_mean at 12.0 h: no value and no BLQ mark; the row is left out (missing is not below the LLOQ)"))
+    .toBe("sheet PK_Summary, cells A7 to J7: arithmetic mean at 12.0 h: no value and no BLQ mark; the row is left out (missing is not below the LLOQ)");
+  // a study's arm ("230-26-Cohort 1") kept the field ids `n`, `intended_use` on the card (the owner's 230-26)
+  expect(landingText("230-26-Cohort 1: the study record needs n, which no active value states: enter it; 230-26-Cohort 1: the study record "
+    + "needs route, which no active value states: enter it; 230-26-Cohort 1: the study record needs intended_use, which no active value "
+    + "states: enter it", "230-26"))
+    .toBe("arm Cohort 1: the number of subjects, the route and what the study is for are not stated");
+  expect(landingText("230-23: the study record needs n, which no active value states: enter it", "230-23")).toBe("the number of subjects is not stated");
+  // a dotted field the landing keeps is said in the layout's words
+  expect(heldText("230-23: excretion (excretion.amount): kept in the ledger; the model inputs have no place for it yet", "230-23"))
+    .toBe("Excretion (amount excreted): kept, not used by the model (no place for it yet)");
 });

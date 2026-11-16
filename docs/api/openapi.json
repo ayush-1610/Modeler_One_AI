@@ -4579,6 +4579,17 @@
             "title": "Computed",
             "type": "integer"
           },
+          "field": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Field"
+          },
           "id": {
             "title": "Id",
             "type": "string"
@@ -4614,6 +4625,17 @@
             ],
             "title": "Severity",
             "type": "string"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
           },
           "values": {
             "items": {

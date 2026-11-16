@@ -128,7 +128,7 @@ function SharedLine({ studies, projectId, run, options }: { studies: StudyRow[];
           {studies.map((s, i) => (
             <span key={s.study_id}>{i > 0 && " · "}
               <button type="button" className="link-btn" aria-expanded={open === s.study_id} onClick={() => setOpen(open === s.study_id ? null : s.study_id)}
-                      aria-label={`Change the individual of ${s.study_id}`}><strong>{s.study_id}</strong></button>
+                      aria-label={`Change the individual of ${s.study_id}`} data-testid={`individual-change-${s.study_id}`}><strong>{s.study_id}</strong></button>
             </span>
           ))}
           <span className="muted fs-13"> · {plural(studies.length, "study", "studies")}, one individual{values ? `: ${values}` : ""}</span>

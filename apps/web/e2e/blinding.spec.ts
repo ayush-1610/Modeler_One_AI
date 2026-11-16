@@ -22,11 +22,14 @@ test("external values are blinded until the MAP is signed, and revealed for a ch
   await expect(blinded).toContainText("Its values are blinded until the plan is signed, because the plan places it in S5 (external validation)");
   const testId = (await blinded.getAttribute("data-testid"))!;
   const card = page.getByTestId(testId.replace("blinded-", "dataset-"));
-  await expect(card).not.toContainText("arithmetic mean");                  // no values on the page
+  // no values on the page: what the dataset holds is said (its analyte, its series' statistic: final review round 6, so
+  // two datasets of a study read apart), never a series' points
+  await expect(card.locator(".series")).toHaveCount(0);
+  await expect(card).not.toContainText("35");
   await blinded.getByPlaceholder("why it must be seen now (required)").fill("check the transcription against the table");
   await blinded.getByRole("button", { name: "Reveal for this check" }).click();
   await expect(page.getByTestId(testId)).toHaveCount(0);
-  await expect(card).toContainText("arithmetic mean");                       // revealed for this check only
+  await expect(card.locator(".series").first()).toBeVisible();              // revealed for this check only
   await expect(card).toContainText("35");
   await page.screenshot({ path: test.info().outputPath("blinding.png"), fullPage: true });
 });

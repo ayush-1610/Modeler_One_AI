@@ -85,7 +85,7 @@ test("a figure is digitized against calibrated axes, its overlay checked, and th
   await page.getByTestId("digitize-save").click();
 
   const card = page.locator(".evidence", { hasText: "doe-2019-po-10mg" });
-  await expect(card).toContainText("figure digitized");
+  await expect(card).toContainText("digitized figure");             // its origin in words (round 6: "figure digitized")
   // within the click resolution of the truth (1 h, 100), (2 h, 75), (4 h, 50)
   const text = await card.locator(".series").innerText();
   const pairs = [...text.matchAll(/([\d.]+): ([\d.]+)/g)].map((m) => [Number(m[1]), Number(m[2])]);

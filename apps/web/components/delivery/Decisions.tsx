@@ -14,7 +14,7 @@
 import type { ReactNode } from "react";
 
 import type { Schema } from "@/lib/api";
-import { engineWords, layoutFieldInText, layoutFieldText, placeText, tableKindText, valueWord, whenText, DISPOSITION_WORD } from "@/lib/words";
+import { checkText, layoutFieldInText, layoutFieldText, placeText, tableKindText, valueWord, whenText, DISPOSITION_WORD } from "@/lib/words";
 
 import { num, plural, type Subject } from "./shared";
 
@@ -35,7 +35,7 @@ export function decisionText(d: Decision, subject: Subject): string {
   switch (d.kind) {
     case "override": {
       const check = subject.checks.find((c) => c.id === d.check_id);
-      return `Accepted as is: ${check?.message ? engineWords(check.message) : subject.blinded ? "a check (withheld, blinded)" : "a check"}`;
+      return `Accepted as is: ${check?.message ? checkText({ ...check, message: check.message }) : subject.blinded ? "a check (withheld, blinded)" : "a check"}`;
     }
     case "disposition": {
       const item = subject.requirements.find((r) => r.req_id === d.req_id);

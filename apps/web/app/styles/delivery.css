@@ -50,6 +50,22 @@
 .delivery-regions td, .delivery-regions th { font-size: 13px; padding: 7px 8px; }
 .delivery-regions code { overflow-wrap: anywhere; }
 .delivery-regions .link-btn + .link-btn { margin-left: 10px; }
+/* on a phone or a tablet each table or text of a file is a block, its parts under their column's name, as Client files'
+   rows and a file's sheets are on a phone: its six columns needed 600 to 800 px, so on a phone its state and its layout's
+   chip ("waits for approval") sat off the screen until its box was scrolled sideways, and at 768 px its last column did
+   (final review round 6). As specific as the kit's `.table-scroll table { min-width: 560px }` and more; an empty part (no
+   layout, no number) is not shown */
+@media (max-width: 900px) {
+  .table-scroll table.delivery-regions, .delivery-regions > tbody, .delivery-regions > tbody > tr, .delivery-regions > tbody > tr > td {
+    display: block; width: 100%; min-width: 0; }
+  .delivery-regions > thead { display: none; }
+  .delivery-regions > tbody > tr { padding: 6px 8px; border-bottom: 1px solid var(--line-soft, var(--line)); }
+  .delivery-regions > tbody > tr > td { padding: 2px 0; border: 0; text-align: left; }
+  .delivery-regions > tbody > tr > td:empty { display: none; }
+  .delivery-regions > tbody > tr > td[data-label]::before { content: attr(data-label); display: block; font-size: 12px; font-weight: 600;
+    color: var(--ink-dim); }
+  .delivery-regions .chip, .delivery-regions .delivery-chip-btn { white-space: normal; text-align: left; }
+}
 .delivery-stages { margin: 0; padding: 0; list-style: none; display: grid; gap: 2px; font-size: 12.5px; }
 .delivery-stages .failed { color: var(--fail-ink); }
 .delivery-chip-btn { display: inline-flex; align-items: center; gap: 6px; padding: 0; border: 0; background: none; font: inherit;

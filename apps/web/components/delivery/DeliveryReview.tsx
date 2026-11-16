@@ -21,8 +21,9 @@ import { useResource } from "@/lib/hooks";
 import { analyteChoices, cardPlace, foldChecks, normLabel, signWaitsWords } from "@/lib/inputsWork";
 import { numericKey, useTableView } from "@/lib/tableView";
 import {
-  DISPOSITION_WORD, anchorCell, anchorPlace, checkGist, distinctNames, engineWords, fieldInText, fieldLabel, heldText, individualNeeds,
-  individualText, landingText, layoutFieldInText, placeText, rulesText, tableKindText, valueAbout, valueWord, whenText,
+  DISPOSITION_WORD, anchorCell, anchorPlace, checkGist, checkText, distinctNames, fieldInText, fieldLabel, heldText,
+  individualNeeds, individualText, labelWord, landingText, layoutFieldInText, lowerFirst, placeText, rulesText, tableKindText,
+  valueAbout, valueWord, whenText,
 } from "@/lib/words";
 
 import { BlindedReason, ReachContext, focusWhenDrawn } from "./BlindedReason";
@@ -31,8 +32,9 @@ import { ConfirmDialog } from "./ConfirmDialog";
 import type { MappingOpen } from "./MappingReview";
 import { FactsForm, DemographicsForm, SpotRedraw, statedDemographics, type Suggestions } from "./FactsForm";
 import {
-  BLOCKER_LABEL, ChipFor, KIND_LABEL, MAPPING_STATE, Problem, TupleCells, WITHHELD, Why, conditionsText, labelsText, levelText, plural,
-  pageAfter, statisticText, typed, useCardDecide, useDecide, valueField, valueText, when, type CardDecide, type Subject, type SubjectRow, type Value,
+  BLOCKER_LABEL, ChipFor, KIND_LABEL, MAPPING_STATE, Problem, TupleCells, WITHHELD, Why, blockerDetail, conditionsText, labelsText, levelText,
+  plural, pageAfter, statisticText, typed, useCardDecide, useDecide, valueField, valueText, when, type CardDecide, type Subject, type SubjectRow,
+  type Value,
 } from "./shared";
 import { SpotCheck } from "./SpotCheck";
 import { ValueSource } from "./ValueSource";
@@ -169,10 +171,14 @@ function valueNames(values: Value[]): Map<string, string> {
   return new Map(values.map((v, i) => [v.id, names[i]]));
 }
 
+/** A check's message as the card says it: in words (`words.checkText`: the field the API names apart, never its id), or
+ *  that it is withheld (a blinded subject's message may quote a value). */
+const checkSaid = (check: Check) => (check.message === null ? WITHHELD : checkText({ ...check, message: check.message }));
+
 /** The checks a folded values table names, each by what is wrong ("the profile states more than one LLOQ"); two of the
  *  same kind are told apart by what they are about ("…, arm Test"). */
 function foldNames(folded: { check: Check }[]): string[] {
-  const gists = folded.map(({ check }) => checkGist(check.message ?? WITHHELD));
+  const gists = folded.map(({ check }) => checkGist(checkSaid(check)));
   return gists.map((g) => (gists.filter((x) => x.gist === g.gist).length > 1 && g.where ? `${g.gist}, ${g.where}` : g.gist));
 }
 
@@ -211,7 +217,7 @@ function ValueTable({ projectId, params, table, flagged, decide, busy, onMapping
   // a file, two tables of a card, or one file on two cards)
   const at = table.kind === "table" ? anchorPlace(table.values.find((v) => v.anchor)?.anchor) : "";
   // (its first letter in lower case, a name in capitals kept: "the individual PK table", never "pk")
-  const tableName = `the ${title.charAt(0).toLowerCase()}${title.slice(1)}${table.file && table.kind === "table" ? ` in ${table.file}` : ""}${at ? `, ${at}` : ""} (${whose})`;
+  const tableName = `the ${lowerFirst(title)}${table.file && table.kind === "table" ? ` in ${table.file}` : ""}${at ? `, ${at}` : ""} (${whose})`;
   return (
     <section className="delivery-table" data-testid={`delivery-table-${table.id}`}>
       <div className="delivery-block-head">
@@ -329,7 +335,7 @@ function StateAnalyte({ projectId, params, check, values, onDone, onCancel, whos
   whose: string; spot: SpotState;
 }) {
   // the check named with its subject, on the form's fields and button (two such checks, and every card, repeat them)
-  const about = `${engineWords(check.message ?? WITHHELD)} (${whose})`;
+  const about = `${checkSaid(check)} (${whose})`;
   const page = useResource("/api/v1/projects/{project_id}/delivery", { project_id: projectId });
   const all = page.data?.enabled ? page.data.analytes : [];
   // one option per name (review OWN-11): of two analytes both called "Exampleamide", the one the study's values carry
@@ -409,13 +415,13 @@ function CheckRow({ check, subject, decide, busy, onMapping, params, read, value
     window.setTimeout(() => row.current?.querySelector<HTMLElement>("select, input, button")?.focus(), 80);
   }, [start]); // eslint-disable-line react-hooks/exhaustive-deps
   const open = check.severity === "fail" && !check.overridden;
-  const message = check.message ?? WITHHELD;
+  const message = checkSaid(check);
   const mapping = check.code === MAPPED ? subject.mappings.find((m) => check.message?.includes(m.mapping_id)) : undefined;
   return (
     <li ref={row} className={open ? "delivery-check open" : "delivery-check"} data-testid={`delivery-check-${check.id}`} data-code={check.code}>
       <div className="delivery-check-line">
         <span className={`chip ${check.overridden ? "neutral" : SEVERITY[check.severity].tone}`}>{check.overridden ? "accepted as is" : SEVERITY[check.severity].label}</span>
-        <span className="delivery-check-text">{engineWords(message)}</span>
+        <span className="delivery-check-text">{message}</span>
         {check.values.length > 0 && <span className="muted fs-12">{plural(check.values.length, "value")}, marked in the tables</span>}
         {!read && open && !acting && !stating && (
           check.code === MAPPED ? (mapping
@@ -427,9 +433,9 @@ function CheckRow({ check, subject, decide, busy, onMapping, params, read, value
             : <span className="muted fs-12">checked with its table&apos;s layout</span>)
             : <>
               {analyte && <button type="button" className="btn small" onClick={() => setStating(true)} data-testid={`delivery-analyte-open-${check.id}`}
-                                  aria-label={`State the analyte: ${engineWords(message)} (${whose})`}>State it…</button>}
+                                  aria-label={`State the analyte: ${message} (${whose})`}>State it…</button>}
               <button type="button" className="btn small" onClick={() => setActing(true)} data-testid={`delivery-override-open-${check.id}`}
-                      aria-label={`Accept as is: ${engineWords(message)} (${whose})`}>Accept as is…</button>
+                      aria-label={`Accept as is: ${message} (${whose})`}>Accept as is…</button>
             </>
         )}
       </div>
@@ -440,8 +446,8 @@ function CheckRow({ check, subject, decide, busy, onMapping, params, read, value
         {/* accepted as is, its values are always checked: one the spot check drawn now does not hold draws it again */}
         {check.outside_draw > 0 && <SpotRedraw spot={subject.spot_check} testId={`delivery-override-${check.id}`}
                                                why={{ kind: "accepted", values: check.outside_draw }} />}
-        <Why action="Accept as is" actionLabel={`Accept as is: ${engineWords(message)} (${whose})`}
-             label={`Why "${engineWords(message)}" holds as it is (${whose})`} busy={busy} kind="accepted as is"
+        <Why action="Accept as is" actionLabel={`Accept as is: ${message} (${whose})`}
+             label={`Why "${message}" holds as it is (${whose})`} busy={busy} kind="accepted as is"
              onCancel={() => { setActing(false); focusSoon(`delivery-override-open-${check.id}`); }}
              testId={`delivery-override-${check.id}`} placeholder="why it holds as it is (kept on the audit trail)" autoFocus
              onSubmit={async (why) => {
@@ -460,7 +466,7 @@ function ConflictRow({ conflict, values, decide, busy, params, read, spot }: {
   spot: SpotState;
 }) {
   const [keep, setKeep] = useState("");
-  const where = [layoutFieldInText(conflict.field), conflict.time !== null ? `at ${conflict.time}` : "", Object.entries(conflict.labels).map(([r, l]) => `${r} ${l}`).join(" · ")].filter(Boolean).join(" · ");
+  const where = [layoutFieldInText(conflict.field), conflict.time !== null ? `at ${conflict.time}` : "", Object.entries(conflict.labels).map(([r, l]) => labelWord(r, l)).join(" · ")].filter(Boolean).join(" · ");
   return (
     <li className="delivery-check open" data-testid={cardPlace("conflict", params.subject, conflict.id)}>
       <div className="delivery-check-line">
@@ -642,7 +648,7 @@ const BARE = new Set(["analyte", "matrix", "arm", "product", "batch"]);
 function factLabels(v: Value, own: string): string {
   // the subject's own label and the fact's own (an analyte fact's analyte) are not said again
   return Object.entries(v.labels).filter(([role]) => role !== own && role !== v.field)
-    .map(([role, label]) => (BARE.has(role) ? label : `${role} ${label}`)).join(", ");
+    .map(([role, label]) => (BARE.has(role) ? label : labelWord(role, label))).join(", ");
 }
 
 /** The facts stated for the subject, one row per fact (its files' facts and a person's entries), each correctable. */
@@ -886,12 +892,12 @@ export function DeliveryReview({ projectId, row, mode, gate, onMapping, todo, su
               <span className="muted">Before it can be signed: </span>
               {blockers.map((b, i) => (
                 <Fragment key={`${b.code}-${i}`}>{i > 0 && " · "}
-                  <span data-testid={cardPlace("blocker", s.subject, b.code)} title={engineWords(b.detail)}>{BLOCKER_WORD[b.code] ?? BLOCKER_LABEL[b.code] ?? valueWord(b.code)}</span>
+                  <span data-testid={cardPlace("blocker", s.subject, b.code)} title={blockerDetail(b, s)}>{BLOCKER_WORD[b.code] ?? BLOCKER_LABEL[b.code] ?? valueWord(b.code)}</span>
                 </Fragment>
               ))}
             </p>
           ) : !done && !gated.length && <p className="banner ok" data-testid={`delivery-ready-${s.subject}`}>Nothing holds its confirmation.</p>}
-          {todo ?? (blockers.length > 0 && <ul className="plain-list">{blockers.map((b, i) => <li key={`${b.code}-${i}`}>{engineWords(b.detail)}</li>)}</ul>)}
+          {todo ?? (blockers.length > 0 && <ul className="plain-list">{blockers.map((b, i) => <li key={`${b.code}-${i}`}>{blockerDetail(b, s)}</li>)}</ul>)}
         </Section>
       )}
       <Problem text={problem} testId={`delivery-card-problem-${s.subject}`} />
@@ -1020,7 +1026,8 @@ export function DeliveryReview({ projectId, row, mode, gate, onMapping, todo, su
                 {c.landed ? `In the model since ${when(c.landed.at)}: ${plural(c.landed.datasets.length, "dataset")}, ${plural(c.landed.evidence.length, "value")}`
                   + (c.landed.dissolution_records ? `, ${plural(c.landed.dissolution_records, "dissolution record")}` : "")
                   + (c.landed.rejected_legacy.length ? ` · ${plural(c.landed.rejected_legacy.length, "earlier reading")} of the same source not used` : "") : "Not loaded yet."}
-                {" "}· record {c.record_sha256.slice(0, 12)}{c.rules ? ` · ${rulesText(c.rules)}` : ""}
+                {/* the signed record's fingerprint, kept on purpose: what a reviewer matches with the audit trail (round 6) */}
+                {" "}· fingerprint of the signed record {c.record_sha256.slice(0, 12)}{c.rules ? ` · ${rulesText(c.rules)}` : ""}
               </p>
               {c.held && c.held.length > 0 && <ul className="flags">{c.held.map((h) => <li key={h}>{heldText(h, s.label)}</li>)}</ul>}
               <ChangedSince subject={s} />

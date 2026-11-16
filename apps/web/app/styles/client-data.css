@@ -66,12 +66,13 @@
 .doc-reading { margin-top: 6px; display: grid; gap: 6px; }
 .doc-inventory { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; font-size: 13px; }
 .doc-inventory li { display: flex; gap: 6px; align-items: baseline; min-width: 0; }
-.doc-inventory li .muted { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1 1 auto; }
-/* on a phone the line a page holds is read whole, on a line of its own under its page (a one-line quote kept about 20
-   letters of it at 390 px; final review round 5, OWN-16) */
+/* the line a page holds is read whole at every width, wrapping in its place (round 6: a one-line quote cut it with an
+   ellipsis above a phone's width, at 601 to 900 px too); on a phone it is on a line of its own under its page (a one-line
+   quote kept about 20 letters of it at 390 px; final review round 5, OWN-16) */
+.doc-inventory li .muted { white-space: normal; overflow-wrap: anywhere; min-width: 0; flex: 1 1 auto; }
 @media (max-width: 600px) {
   .doc-inventory li { flex-wrap: wrap; }
-  .doc-inventory li .muted { white-space: normal; overflow: visible; flex-basis: 100%; order: 1; }
+  .doc-inventory li .muted { flex-basis: 100%; order: 1; }
 }
 .doc-read { font-size: 13px; padding: 8px 10px; border-radius: var(--radius-sm); background: color-mix(in srgb, var(--sim) 6%, var(--surface)); }
 .doc-read details { margin-top: 4px; }

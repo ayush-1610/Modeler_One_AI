@@ -179,14 +179,14 @@ class _Context:
                    matrix=study_matrix(values) if subject_type == "study" else None)
 
     def add(self, code: str, values: Iterable[str], message: str, *, detail: str = "",
-            rule: str = "checks.severity") -> None:
+            rule: str = "checks.severity", field: str | None = None, unit: str | None = None) -> None:
         level = self.severity.get(code)
         if level is None:                    # the rules file does not list it: not run
             return
         ids = tuple(sorted(set(values)))
         self.results.append(CheckResult(id=result_id(code, self.subject, ids, detail), code=code, severity=level,  # type: ignore[arg-type]
                                         subject_type=self.subject_type, subject=self.subject, message=message,
-                                        values=ids, rule=rule))
+                                        values=ids, rule=rule, field=field, unit=unit))
 
     def label(self, entity_id: str | None, default: str = "") -> str:
         if entity_id is None:
@@ -329,7 +329,7 @@ def _duplicate_time(ctx: _Context) -> None:
         same = {v.id for cluster in clusters if len(cluster) > 1 for _, v in cluster}
         if same:
             ctx.add("DUPLICATE_TIME", same, f"{key[0]}: values of one series at one time (within the time resolution)",
-                    detail=_detail(key), rule="ledger.time_resolution_min")
+                    detail=_detail(key), rule="ledger.time_resolution_min", field=key[0])
 
 
 def _times_not_increasing(ctx: _Context) -> None:
@@ -341,7 +341,8 @@ def _times_not_increasing(ctx: _Context) -> None:
         timed = [(m, v) for v in values if (m := _minutes(v)) is not None]
         back = [vb.id for (a, _), (b, vb) in pairwise(timed) if b < a]
         if back:
-            ctx.add("TIMES_NOT_INCREASING", back, f"{key[1]}: times go back in the order written", detail=_detail(key))
+            ctx.add("TIMES_NOT_INCREASING", back, f"{key[1]}: times go back in the order written", detail=_detail(key),
+                    field=key[1])
 
 
 def _matrix_not_plasma(ctx: _Context) -> None:
@@ -375,7 +376,7 @@ def _statistic_missing(ctx: _Context) -> None:
             by_field.setdefault(value.field, []).append(value.id)
     for name, ids in by_field.items():
         ctx.add("STATISTIC_MISSING", ids, f"{name}: values with no statistic and no subject: neither an individual "
-                "nor a summary value lands", detail=name)
+                "nor a summary value lands", detail=name, field=name)
 
 
 def _spread_kind_missing(ctx: _Context) -> None:
@@ -385,7 +386,7 @@ def _spread_kind_missing(ctx: _Context) -> None:
             by_field.setdefault(value.field, []).append(value.id)
     for name, ids in by_field.items():
         ctx.add("SPREAD_KIND_MISSING", ids, f"{name}: spreads of unknown kind (SD, SE, CV% ...): none lands",
-                detail=name)
+                detail=name, field=name)
 
 
 def _negative_value(ctx: _Context) -> None:
@@ -395,7 +396,8 @@ def _negative_value(ctx: _Context) -> None:
         if number is not None and number < 0:
             by_field.setdefault(value.field, []).append(value.id)
     for name, ids in by_field.items():
-        ctx.add("NEGATIVE_VALUE", ids, f"{name}: negative values (an observed dataset refuses them)", detail=name)
+        ctx.add("NEGATIVE_VALUE", ids, f"{name}: negative values (an observed dataset refuses them)", detail=name,
+                field=name)
 
 
 def _above_range(ctx: _Context) -> None:
@@ -404,7 +406,8 @@ def _above_range(ctx: _Context) -> None:
         if value.uloq is not None and value.value is None:
             by_field.setdefault(value.field, []).append(value.id)
     for name, ids in by_field.items():
-        ctx.add("ABOVE_RANGE", ids, f"{name}: values above the range (written \">x\"): no number is kept", detail=name)
+        ctx.add("ABOVE_RANGE", ids, f"{name}: values above the range (written \">x\"): no number is kept", detail=name,
+                field=name)
 
 
 def _occasions_not_landed(ctx: _Context) -> None:
@@ -559,7 +562,7 @@ def _nca_mismatch(ctx: _Context) -> None:
             ctx.add("NCA_MISMATCH", (rep.id,), f"reported {parameter}: several mean profiles fit it (they differ in "
                     "arm, product, batch, period or occasion, and the report does not say which); it is not compared",
                     detail=f"{rep.field}|{rep.id}|several|{judged(v.id for _, vs in fitting for v in vs)}",
-                    rule="datasets.NCA_TOLERANCE")
+                    rule="datasets.NCA_TOLERANCE", field=rep.field)
             continue
         if not fitting:
             continue
@@ -577,12 +580,12 @@ def _nca_mismatch(ctx: _Context) -> None:
         detail = f"{_detail(key)}|{rep.field}|{rep.id}"
         if factor is None:
             ctx.add("NCA_MISMATCH", ids, f"{ctx.describe(profile)}: reported {parameter} in {rep.unit!r} cannot be "
-                    f"compared with the profile in {unit!r}", detail=detail, rule="datasets.NCA_TOLERANCE")
+                    f"compared with the profile in {unit!r}", detail=detail, rule="datasets.NCA_TOLERANCE", field=rep.field)
             continue
         theirs = number * factor                    # in the profile's units (an AUC: its concentration unit x min)
         if ours > 0 and abs(ours - theirs) / theirs > NCA_TOLERANCE:
             ctx.add("NCA_MISMATCH", ids, f"{ctx.describe(profile)}: the reported {parameter} and the NCA of its mean "
-                    "profile differ by more than the tolerance", detail=detail, rule="datasets.NCA_TOLERANCE")
+                    "profile differ by more than the tolerance", detail=detail, rule="datasets.NCA_TOLERANCE", field=rep.field)
 
 
 def _factor(reported: str | None, unit: str | None, mol_weight: float | None, *, auc: bool) -> float | None:
@@ -646,7 +649,7 @@ def _landing_field_missing(ctx: _Context) -> None:
     for name in needed:
         if name not in have:
             ctx.add("LANDING_FIELD_MISSING", (), f"the study record needs {name}, which no active value states",
-                    detail=f"{name}|{seen}")
+                    detail=f"{name}|{seen}", field=name)
 
 
 def _time_reference_unstated(ctx: _Context) -> None:
@@ -859,7 +862,7 @@ def _unit_missing(ctx: _Context) -> None:
         if value.time is not None and not (value.time_unit or "").strip():
             by_field.setdefault("time", []).append(value.id)
     for name, ids in by_field.items():
-        ctx.add("UNIT_MISSING", ids, f"{name}: values with no unit stated", detail=name)
+        ctx.add("UNIT_MISSING", ids, f"{name}: values with no unit stated", detail=name, field=name)
 
 
 def _unit_not_in_tables(ctx: _Context) -> None:
@@ -871,7 +874,7 @@ def _unit_not_in_tables(ctx: _Context) -> None:
             found.setdefault(("time", value.time_unit), []).append(value.id)
     for (name, unit), ids in found.items():
         ctx.add("UNIT_NOT_IN_TABLES", ids, f"{name}: values in {unit!r}, which the {unit_class(name)} table does not "
-                "hold; kept as written, nothing converted", detail=f"{name}|{unit}")
+                "hold; kept as written, nothing converted", detail=f"{name}|{unit}", field=name, unit=unit)
 
 
 def _unit_not_checked(ctx: _Context) -> None:
@@ -881,7 +884,7 @@ def _unit_not_checked(ctx: _Context) -> None:
             found.setdefault((value.field, value.unit), []).append(value.id)
     for (name, unit), ids in found.items():
         ctx.add("UNIT_NOT_CHECKED", ids, f"{name}: values in {unit!r}; no unit table exists for this field, so the "
-                "unit is kept and not checked", detail=f"{name}|{unit}")
+                "unit is kept and not checked", detail=f"{name}|{unit}", field=name, unit=unit)
 
 
 def _marked_value(ctx: _Context) -> None:
@@ -890,7 +893,7 @@ def _marked_value(ctx: _Context) -> None:
         if value.method in _TABLE_METHODS and _MARK.search(value.verbatim):
             by_field.setdefault(value.field, []).append(value.id)
     for name, ids in by_field.items():
-        ctx.add("MARKED_VALUE", ids, f"{name}: values carry a footnote mark: read the footnote", detail=name)
+        ctx.add("MARKED_VALUE", ids, f"{name}: values carry a footnote mark: read the footnote", detail=name, field=name)
 
 
 def _mapping_not_approved(ctx: _Context) -> None:

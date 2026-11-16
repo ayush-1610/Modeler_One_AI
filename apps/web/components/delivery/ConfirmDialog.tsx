@@ -13,10 +13,10 @@ import { useRef, useState } from "react";
 import { Dialog } from "@/components/kit/Dialog";
 import { send } from "@/lib/api";
 import { now } from "@/lib/hooks";
-import { engineWords, tableKindText } from "@/lib/words";
+import { landingText, tableKindText } from "@/lib/words";
 
 import {
-  BLOCKER_LABEL, KIND_LABEL, Problem, WITHHELD, levelText, plural, useDecide, type Blocker, type Page, type Subject,
+  BLOCKER_LABEL, KIND_LABEL, Problem, WITHHELD, blockerDetail, levelText, plural, useDecide, type Blocker, type Page, type Subject,
 } from "./shared";
 import { pageKey, writeConfirmed } from "./writes";
 
@@ -130,8 +130,8 @@ export function ConfirmDialog({ projectId, subject, onClose }: { projectId: stri
         <div className="delivery-blocked" role="alert" data-testid="delivery-confirm-blockers">
           <strong>It cannot be signed yet:</strong>
           <ul className="plain-list">
-            {blockers.map((b, i) => <li key={`${b.code}-${i}`}><strong>{BLOCKER_WORD[b.code] ?? BLOCKER_LABEL[b.code] ?? b.code}</strong>: {engineWords(b.detail)}</li>)}
-            {subject.landing_problem && <li><strong>It cannot be loaded</strong>: {subject.landing_problem}</li>}
+            {blockers.map((b, i) => <li key={`${b.code}-${i}`}><strong>{BLOCKER_WORD[b.code] ?? BLOCKER_LABEL[b.code] ?? b.code}</strong>: {blockerDetail(b, subject)}</li>)}
+            {subject.landing_problem && <li><strong>It cannot be loaded</strong>: {landingText(subject.landing_problem, subject.label)}</li>}
           </ul>
         </div>
       )}

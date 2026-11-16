@@ -92,6 +92,14 @@ test("the Inputs workspace: values flow in, open items are settled on their tab,
   await individual.getByLabel("age for po-md").fill("41");
   await individual.getByRole("button", { name: "Save the individual" }).click();
   await expect(page.getByTestId("individual-po-md")).toContainText("entered");
+  // the studies table's individual names its study and where it leads, and opens that study's own row there (final review
+  // round 6: on the owner's project two rows' "not stated" were one name, and the button only changed the area)
+  await page.getByTestId("tab-studies").click();
+  const own = page.getByTestId("study-individual-po-md");
+  await expect(own).toHaveAccessibleName("entered: the individual of study po-md, on Populations and individuals");
+  await own.click();
+  await expect(page.getByTestId("tab-individuals")).toHaveAttribute("aria-selected", "true");
+  await expect.poll(() => page.evaluate(() => Boolean(document.activeElement?.closest('[data-testid="individual-po-md"]')))).toBe(true);
   // the proposal's populations are shown here, where the individuals are (page review 1, decision 3): one is added
   const populations = page.getByTestId("inputs-populations");
   await expect(populations).toContainText("The populations the proposal names · 0");

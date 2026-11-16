@@ -191,6 +191,10 @@ class CheckResult(_B):
     message: str
     values: tuple[str, ...] = ()
     rule: str = ""                            # the key of intake_rules.yaml it applied
+    # the intake field the message names ("<field>: …", "needs <field>", "reported <pk name>") and, for a unit check,
+    # the unit as written: sent apart so the page says them in its own words, never the field's id (final review round 6)
+    field: str | None = None
+    unit: str | None = None
 
 
 class SchemaGap(_B):
