@@ -69,9 +69,10 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
   loose number still on the raw file's row after the bulk submit) matches round 4's root cause (a read of the delivery
   page sent before the decision, here the refusal's re-read of the template's file, overwrote the decision's written
   page), which round 4's `put` fixed and this round keeps. Neither reproduced on 04c95b7 under a 3-core CPU burner
-  (inputs-task-first with `--repeat-each 3`: 33 of 33); runs after the fix: plan §5. One more seen in this round's
-  run: inputs-blinded's last check failed on the audit answer's own timestamp (`04:56:35.605…` holds "35.6", the
-  withheld value it looks for); it now leaves the timestamps out of what it searches.
+  and a 4-core one (inputs-task-first with `--repeat-each 3`, twice: 66 of 66); runs after the fix: plan §5 (33 of 33
+  under load). One more seen in this round's run: inputs-blinded's last check failed on the audit answer's own
+  timestamp (`04:56:35.605…` holds "35.6", the withheld value it looks for); it now leaves the timestamps out of what
+  it searches.
 - **The offers' request budget is checked (inputs-todo).** Another project of the drug now offers two literature values
   (`fixtures/literature_value.py` takes values): filing the placeholder under its pathway costs the decision, the inputs
   and the offers (one offer goes), and adding the permeability with its source on its row the decision, the inputs, the

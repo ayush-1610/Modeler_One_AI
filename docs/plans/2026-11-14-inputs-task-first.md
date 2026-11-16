@@ -1103,17 +1103,22 @@ before the next starts.
   inputs-task-first, inputs-todo, inputs-work, inputs-workspace, members, studies-client-sheets, value-reuse): 81 of
   82; the one failure was inputs-blinded's last check finding "35.6" in the audit answer's own timestamp
   (`04:56:35.605…`), not in what it says, now compared with the timestamps left out. delivery.spec's exact request
-  lists and client-confirm's hold unchanged.
+  lists and client-confirm's hold unchanged. The RLD test under load with this round's `put`: inputs-task-first with
+  `--repeat-each 3` under a 3-core CPU burner, 33 of 33 (the corrected-layout test 23.6, 22.3 and 22.3 s).
 - **Timing failures (item 3).** The round-4-merged run (e2e-04c95b7.log) had none: 128 of 128. Seen once in round 4,
   both before its request-budget fix was merged: inputs-task-first ':606' at ':691' (Dissolution Test's version 2) and
-  ':213' (a loose number still on the raw file's row after the bulk submit). On 04c95b7, under a 3-core CPU burner,
-  inputs-task-first with `--repeat-each 3`: 33 of 33 passed, neither reproduced. ':691' is a test-side race, read from
+  ':213' (a loose number still on the raw file's row after the bulk submit). On 04c95b7, inputs-task-first with
+  `--repeat-each 3` (each test three times, each repeat on its own project) under a 3-core CPU burner: 33 of 33; again
+  under a 4-core burner: 33 of 33 (the corrected-layout test 21.9, 21.4 and 21.9 s); neither reproduced in six loaded
+  runs of each test. ':691' is a test-side race, read from
   the code: the test polled until RLD's table was read with version 3 and then read Test's once, but the intake job
   reads the queued files one after the other (`intake_pipeline_jobs._drain`), so Test's reading could still be under
   way; it now polls both. ':213' matches round 4's root cause: with the template's row first in the batch, its refusal
   (409) read the delivery page again, and that read, sent before the raw file's decision, could land after the
   decision's written page and put back the loose number; round 4's `put` calls it off, and round 5's keeps doing so
-  (asked for before the decision).
+  (asked for before the decision). A third, seen once in this round's run (Runs above): inputs-blinded's search of the
+  audit answer for the withheld "35.6" found it in the answer's own timestamp; the timestamps are left out of the
+  search now (inputs-blinded and inputs-blinded-follow then 5 of 5).
 - **The offers' budget (item 4).** inputs-todo now seeds another project of the drug with two literature values and
   checks both branches that take an offer away: "File under this pathway" (the decision, the inputs, the offers) and
   Add on a Compound row (the decision, the inputs, the evidence, the offers), each with the offer gone or shrunk after.
