@@ -8,7 +8,7 @@
 import type { QueryClient, QueryKey } from "@tanstack/react-query";
 
 import type { Schema } from "@/lib/api";
-import type { After, Read } from "@/lib/hooks";
+import { put, type After, type Read } from "@/lib/hooks";
 
 const DELIVERY = "/api/v1/projects/{project_id}/delivery" as const;
 const CARD = "/api/v1/projects/{project_id}/delivery/subjects/{type}/{subject}" as const;
@@ -38,7 +38,7 @@ export function changedSubjects(before: Page | undefined, after: Page): string[]
  *  is next shown. */
 export function writePage(client: QueryClient, projectId: string, page: Page) {
   const before = client.getQueryData<Page>(pageKey(projectId));
-  client.setQueryData(pageKey(projectId), page);
+  put(client, pageKey(projectId), page);
   const changed = new Set(changedSubjects(before, page));
   void client.invalidateQueries({ predicate: (q) => q.queryKey[0] === CARD && !changed.has(cardRef(q.queryKey) ?? ""), refetchType: "none" });
   void client.invalidateQueries({ predicate: (q) => changed.has(cardRef(q.queryKey) ?? "") });
@@ -48,7 +48,9 @@ export function writePage(client: QueryClient, projectId: string, page: Page) {
 const newest = (m: Mapping) => Math.max(m.version, ...m.versions.map((v) => v.version));
 
 /** Write a layout a decision answered under every key a dialog shows it by, and read the page again: its list of layouts
- *  changed and the files of the layout are being read again. The cards follow when the reading ends. The keys follow
+ *  changed and the files of the layout are being read again. The page follows that reading to its end, and the cards
+ *  and the To do rows with it (`useDeliveryRefresh`). A read of the layout sent before the decision is called off, so it
+ *  cannot put back the layout as it was (`put`, final review round 4). The keys follow
  *  the API's own rule (GET …/mappings/{id}: no `version` is the latest, a file and region the table it is shown on):
  *  the answer is written at its version, and, when it is the latest by its own list of versions, with no version, each
  *  both on no table and on the table it shows. A dialog opened with no version on a table (the one "Read this table…"
@@ -61,8 +63,8 @@ export function writeMapping(client: QueryClient, projectId: string, m: Mapping)
   const at = m.sample ? { file_sha256: m.sample.file_sha256, region_id: m.sample.region_id } : null;
   const versions = [{ version: String(m.version) }, ...(newest(m) === m.version ? [{}] : [])];
   for (const v of versions) {
-    client.setQueryData([MAPPING, params, v], m);
-    if (at) client.setQueryData([MAPPING, params, { ...v, ...at }], m);
+    put(client, [MAPPING, params, v], m);
+    if (at) put(client, [MAPPING, params, { ...v, ...at }], m);
   }
   void client.invalidateQueries({ predicate: (q) => q.queryKey[0] === CARD, refetchType: "none" });
   void client.invalidateQueries({ queryKey: pageKey(projectId), exact: true });
@@ -73,19 +75,12 @@ export function readPage(client: QueryClient, projectId: string) {
   void client.invalidateQueries({ queryKey: pageKey(projectId), exact: true });
 }
 
-/** A reading a decision asked for has ended (its layout no longer waits): the page and the cards shown are read again
- *  (the others are stale already), as when the page sees its reading end. */
-export function readReading(client: QueryClient, projectId: string) {
-  readPage(client, projectId);
-  void client.invalidateQueries({ predicate: (q) => q.queryKey[0] === CARD && (q.queryKey[1] as { project_id?: string })?.project_id === projectId });
-}
-
 /** A decision on a subject's card (`:enter`, `:override`, `:dispose`, `:choose`, `:link`): the answer is the card, written
  *  under the key every part of the page reads it by (its own area, the work model's counts, Populations and
  *  individuals); `reads`: the delivery page, read again once, since the subject's row there (how many values it has and
  *  how they were read) follows the card. Nothing else on the page changed. */
 export function cardAfter(projectId: string, reads: readonly Read[] = [DELIVERY]): After<Subject> {
-  return { write: (card, client) => client.setQueryData(cardKey(projectId, card.subject_type, card.subject), card), reads };
+  return { write: (card, client) => put(client, cardKey(projectId, card.subject_type, card.subject), card), reads };
 }
 
 /** The spot check's draw or record: the answer is the draw (written where "Show the values to check" reads it); the
@@ -93,20 +88,23 @@ export function cardAfter(projectId: string, reads: readonly Read[] = [DELIVERY]
  *  again. */
 export function spotAfter(projectId: string, type: string, subject: string): After<Spot> {
   return {
-    write: (spot, client) => client.setQueryData([SPOT, { project_id: projectId, type, subject }, {}], spot),
+    write: (spot, client) => put(client, [SPOT, { project_id: projectId, type, subject }, {}], spot),
     keys: [cardKey(projectId, type, subject)],
   };
 }
 
-/** What a signed confirmation changed, once its dialog has said what loaded: the card (its answer); the delivery page;
- *  the model inputs, the datasets and dissolution records, the sheet form's groups of the same source (loaded now), all
- *  read again; the other cards marked stale (one landing can name another's source), read when next shown. The step bar
- *  follows the readiness (the workspace draws it again when the readiness changes). */
+/** What a signed confirmation changed, once its dialog has said what loaded: the card (its answer); the delivery page
+ *  (the subject's row); the model inputs; the sheet form's groups of the same source (loaded now); the client's files
+ *  and their dissolution profiles; the evidence when the landing put datasets or values in it (a product's lands its
+ *  dissolution records only) — each measured by the API's answers before and after (final review round 4). No other
+ *  card changes: a card names the sheet form's datasets of its source (`loaded_elsewhere`), never the delivery's, and a
+ *  landing makes only the delivery's (round 3 marked them all stale, and the cards To do counts were read again). The
+ *  step bar follows the readiness (the workspace draws it again when the readiness changes). */
 export function writeConfirmed(client: QueryClient, projectId: string, card: Subject): Promise<void> {
-  const key = cardKey(projectId, card.subject_type, card.subject);
-  client.setQueryData(key, card);
-  void client.invalidateQueries({ predicate: (q) => q.queryKey[0] === CARD && cardRef(q.queryKey) !== ref(card), refetchType: "none" });
+  put(client, cardKey(projectId, card.subject_type, card.subject), card);
+  const landed = card.confirmation?.landed;
+  const evidence = !landed || landed.datasets.length > 0 || landed.evidence.length > 0;
   const reads = new Set<string>([DELIVERY, "/api/v1/projects/{project_id}/inputs", "/api/v1/projects/{project_id}/client-review",
-                                 "/api/v1/projects/{project_id}/client-data", "/api/v1/projects/{project_id}/evidence"]);
+                                 "/api/v1/projects/{project_id}/client-data", ...(evidence ? ["/api/v1/projects/{project_id}/evidence"] : [])]);
   return client.invalidateQueries({ predicate: (q) => reads.has(q.queryKey[0] as string) });
 }

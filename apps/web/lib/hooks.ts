@@ -138,6 +138,15 @@ export function fetchResource<R extends RouteFor<"get">>(client: QueryClient, ro
 /** A read of the page, by its route: every answer of the route (whatever its parameters) is meant. */
 export type Read = RouteFor<"get">;
 
+/** Write an answer under its key, what the server holds now. A read of the same key still on its way (sent before the
+ *  change: a poll, the page's idle reads, the end of a reading) is called off first: answered after the change, it
+ *  would put back what the page showed before it (final review round 4: an approval's answer was overwritten by a read
+ *  of the layout sent just before it, and the page stopped following the reading it had started). */
+export function put<T>(client: QueryClient, key: QueryKey, data: T): void {
+  void client.cancelQueries({ queryKey: key, exact: true });
+  client.setQueryData(key, data);
+}
+
 /** Mark every answer of `routes` stale: those shown are read again (once each), the others when next shown. */
 export function readAgain(client: QueryClient, routes: readonly Read[]): Promise<void> {
   if (!routes.length) return Promise.resolve();

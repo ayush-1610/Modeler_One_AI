@@ -333,8 +333,18 @@ test("a delivery is reviewed by exception, spot-checked, signed and loaded once"
   // the signed view keeps the focus in the dialog (its panel), so its Done is one Tab away, never the page's top
   await expect.poll(() => dialog.evaluate((d) => d.contains(document.activeElement))).toBe(true);
   await expect(dialog.getByTestId("delivery-landed")).toContainText("Loaded into the project: 2 datasets");
-  await dialog.getByTestId("delivery-confirm-done").click();
-  await expect(card.getByTestId(`delivery-manifestation-${study.subject}`)).toContainText("Dev User | Reviewed |");
+  // closed, the signed confirmation reads again what it changed, each measured by the API's answers before and after
+  // (final review round 4): the subject's row, the inputs, the sheet form's groups of its source, the client's files and
+  // the evidence its datasets are in; the card is its answer, written; the step bar drawn again at most once
+  const done = await requests(page, async () => {
+    await dialog.getByTestId("delivery-confirm-done").click();
+    await expect(card.getByTestId(`delivery-manifestation-${study.subject}`)).toContainText("Dev User | Reviewed |");
+  });
+  expect(done.filter((r) => !r.startsWith("prefetch") && !r.includes("server render")).sort(), done.join("\n"))
+    .toEqual(["GET client-data", "GET client-review", "GET delivery", "GET evidence", "GET inputs"]);
+  expect(done.filter((r) => r.includes("server render")).length, done.join("\n")).toBeLessThanOrEqual(1);
+  // the sidebar's links are prefetched again by Next ("/" is the projects and a new project's start, here), no other
+  expect(done.filter((r) => r.startsWith("prefetch ") && !/^prefetch \/(library|history)?$/.test(r)), done.join("\n")).toEqual([]);
   await expect(card.getByTestId(`delivery-confirm-${study.subject}`)).toHaveCount(0);
   // the card says who signed it and that it is in the model; its row in the list says Done
   await expect(page.locator('[data-testid^="card-loaded-"]')).toContainText("Signed by Dev User");

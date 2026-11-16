@@ -19,7 +19,7 @@ import { send } from "@/lib/api";
 import { cardAnchor, normLabel, releaseAnchor, type Subject } from "@/lib/inputsWork";
 import { valueWord } from "@/lib/words";
 
-import { RELEASE } from "../after";
+import { releaseAfter } from "../after";
 import { ReleaseView } from "../DatasetView";
 import type { Run } from "../InputsTodo";
 
@@ -41,7 +41,7 @@ const usable = (p: Profile) => p.release_model !== "Table" && Boolean(p.fit && p
 const proposeRelease = (projectId: string, run: Run, p: Profile, name: string) =>
   run(() => send("post", "/api/v1/projects/{project_id}/dissolution/{profile_id}:propose", { project_id: projectId, profile_id: p.id },
                  { formulation: name }),
-      `Its dissolution profile is proposed as the release of the formulation “${name}”; it flows into the model.`, RELEASE);
+      `Its dissolution profile is proposed as the release of the formulation “${name}”; it flows into the model.`, releaseAfter(projectId));
 
 /** Whether a dissolution profile is this product's: its product as the profile names it, by the card's name or another
  *  name the sheet form gave it. */

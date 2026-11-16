@@ -10,7 +10,7 @@
 // is off (`enabled` false); the page is read again every few seconds while a file is being read (`useDeliveryRefresh`,
 // once for the page), and not while nothing is.
 
-import { useQueryClient } from "@tanstack/react-query";
+import { hashKey, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
@@ -29,7 +29,7 @@ import {
   ChipFor, FILE_STATE, MAPPING_STATE, Problem, REGION_STATE, WITHHELD, Why, fieldText, plural, tableName,
   useDecide, when, type FileRow, type Page, type Region,
 } from "./shared";
-import { readPage, writePage } from "./writes";
+import { pageKey, readPage, writePage } from "./writes";
 
 const RUN = "/api/v1/projects/{project_id}/delivery:run" as const;
 const EXCLUDE = "/api/v1/projects/{project_id}/delivery/regions:exclude" as const;
@@ -252,23 +252,37 @@ const AFTER_READING = ["/api/v1/projects/{project_id}/delivery", "/api/v1/projec
                        "/api/v1/projects/{project_id}/client-data", "/api/v1/projects/{project_id}/inputs",
                        "/api/v1/projects/{project_id}/reading-queue"];
 
+/** What the delivery page says has been read: each file's latest run, by its id and state. A reading that ended since
+ *  the page last looked changes it, whether or not an answer in between said a file was being read. */
+export function readMark(page: Page): string {
+  return page.deliveries.flatMap((d) => d.files).map((f) => `${f.sha256}:${f.run?.run_id ?? ""}:${f.run?.state ?? ""}`).sort().join("|");
+}
+
 /** A file read while Inputs is open brings values onto the cards: what the reading changes is read again when it ends
- *  (the delivery and its cards, the sheet form, the client's files, the inputs; plan 2026-11-14 slice 4: not every
- *  read of the page). The page is read every 3 s while a file is being read, and not otherwise. Used by the Inputs
- *  workspace, so it holds on every area. Answers the delivery as read, null until read. */
+ *  (the cards and layouts, the sheet form, the client's files, the inputs; plan 2026-11-14 slice 4: not every read of
+ *  the page). The page is read every 3 s while a file is being read, and not otherwise. A reading has ended when the
+ *  page, no longer reading, names other runs than when the page was last brought up to date: followed by what was read,
+ *  not by catching the moment the flag turned, so a reading that starts and ends between two reads (one a decision
+ *  asked for, read back once) is followed too (final review round 4: To do kept a table's row the reading had cleared).
+ *  The page itself is current then: the API reads the runs before what they write, so "not reading" holds what the
+ *  last reading wrote. Used by the Inputs workspace, so it holds on every area. Answers the delivery as read, null until
+ *  read. */
 export function useDeliveryRefresh(projectId: string): Page | null {
   const read = useResource("/api/v1/projects/{project_id}/delivery", { project_id: projectId }, { poll: (d) => d.running, interval: 3000 });
   const client = useQueryClient();
-  const was = useRef(false);
-  const running = read.data?.running ?? false;
+  const page = read.data;
+  const mark = page ? readMark(page) : null;
+  const settled = useRef<string | null>(null);         // the runs named when the page was last brought up to date
   useEffect(() => {
-    if (running) was.current = true;
-    else if (was.current) {
-      was.current = false;
-      void client.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && AFTER_READING.some((r) => (q.queryKey[0] as string).startsWith(r)) });
-    }
-  }, [running]); // eslint-disable-line react-hooks/exhaustive-deps
-  return read.data;
+    if (!page || mark === null) return;
+    if (settled.current === null) settled.current = mark;               // the visit's first answer: read with the rest
+    if (page.running || mark === settled.current) return;
+    settled.current = mark;
+    const own = pageKey(projectId);
+    void client.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && q.queryHash !== hashKey(own)
+                                                 && AFTER_READING.some((r) => (q.queryKey[0] as string).startsWith(r)) });
+  }, [mark, page?.running]); // eslint-disable-line react-hooks/exhaustive-deps
+  return page;
 }
 
 export function DeliverySection({ projectId, work, focus, onOpenGroup, onItem }: {
@@ -349,7 +363,7 @@ export function DeliverySection({ projectId, work, focus, onOpenGroup, onItem }:
               {cleanUp.join(" · ")}: settled in {first && onItem ? (
                 <button type="button" className="link-btn" onClick={() => onItem(first)} data-testid="delivery-in-todo-open"
                         aria-label={`Open To do on the first of them: ${first.label}`}>To do</button>
-              ) : <Link href="?tab=todo">To do</Link>}, together, a file or a layout at a time.</p>
+              ) : <Link href="?tab=todo" prefetch={false}>To do</Link>}, together, a file or a layout at a time.</p>
           )}
 
           {/* each study, product and the compound is confirmed on its card in its area (plan 2026-11-14 slice 3): no

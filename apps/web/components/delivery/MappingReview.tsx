@@ -28,7 +28,7 @@ import {
 
 import { LayoutEditor, columnsSent } from "./LayoutEditor";
 import { ChipFor, MAPPING_STATE, Problem, WITHHELD, Why, plural, useDecide } from "./shared";
-import { readReading, writeMapping } from "./writes";
+import { writeMapping } from "./writes";
 
 type Mapping = Schema<"DeliveryMapping">;
 type Finding = Schema<"DeliveryMappingFinding">;
@@ -195,18 +195,11 @@ function MappingBody({ projectId, mappingId, version, at, onSaid, queue, startEd
   // the table the answer is shown on: the one this dialog shows (a decision's answer keeps it)
   const shownAt = m?.sample ? { file_sha256: m.sample.file_sha256, region_id: m.sample.region_id } : at;
 
-  // the layout's files are read again after a decision (its answer waits, and is read every few seconds until they are):
-  // once they are, the delivery page and the cards are read again, so a table's row in To do and a card follow the
-  // reading by the layout's own word, not only by the page's "reading" flag (final review round 3)
-  const waiting = m?.waiting ?? false;
-  const wasWaiting = useRef(false);
-  useEffect(() => {
-    if (waiting) wasWaiting.current = true;
-    else if (wasWaiting.current) {
-      wasWaiting.current = false;
-      readReading(client, projectId);
-    }
-  }, [waiting]); // eslint-disable-line react-hooks/exhaustive-deps
+  // the layout's files are read again after a decision: its answer waits, and is read every few seconds until they are.
+  // The delivery page follows the same reading to its end (while a file of this layout is read, the page says it is
+  // reading) and reads the cards and the To do rows again then (`useDeliveryRefresh`, by the runs it names), so nothing
+  // more is read here (final review round 4: round 3's second signal here followed a flag's turn, and missed it when the
+  // answer that showed it was overwritten by a read sent just before the decision)
 
   // the focus follows the form (review A11Y-2): into the layout form's heading when it opens, back to the button that
   // opened a form when it is cancelled (the reject form's reason takes it by itself: autoFocus)

@@ -22,6 +22,31 @@ export const START_DONE: BriefChange[] = [
   { path: "scenarios[0].route", value: "oral" },
 ];
 
+/** The requests the page sends about the project while `act` runs and the page settles: `METHOD route` for the API (the
+ *  escalations bell's own polls left out), `server render <path>` for a part drawn on the server again, `prefetch <path>`
+ *  for Next's prefetch of a page a link leads to; paths with the project's id as `<p>`. */
+export async function requestsDuring(page: Page, projectId: string, act: () => Promise<void>, settle = 1500): Promise<string[]> {
+  const seen: string[] = [];
+  const hear = (r: { method(): string; url(): string; headers(): Record<string, string> }) => {
+    const url = r.url();
+    if (url.includes("_rsc=")) {
+      const path = new URL(url).pathname.replace(`/projects/${projectId}`, "/projects/<p>");
+      seen.push(r.headers()["next-router-prefetch"] ? `prefetch ${path}` : `server render ${path}`);
+    } else if (url.includes("/api/v1/") && !/\/api\/v1\/escalations(\?|$)/.test(url)) {
+      seen.push(`${r.method()} ${url.replace(/^.*\/api\/v1\/(projects\/[^/?]+\/)?/, "")}`);
+    }
+  };
+  page.on("request", hear);
+  await act();
+  await page.waitForTimeout(settle);
+  page.off("request", hear);
+  return seen;
+}
+
+/** The sidebar's links (Projects, Start from proposal, the library, the history): prefetched again by Next whenever the
+ *  page is drawn again on the server. Every other link of Inputs is not prefetched (final review round 4). */
+export const SIDEBAR_PREFETCH = /^prefetch \/(projects\/(start|<p>\/(library|history)))?$/;
+
 /** In Client files, open a file's row on its sheets and their reading (plan 2026-11-14 slice 1), unless it is open. */
 export async function openFile(page: Page, name: string) {
   const toggle = page.getByTestId(`file-toggle-${name}`);

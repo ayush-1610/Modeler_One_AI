@@ -296,7 +296,7 @@ export function GroupCard({ projectId, group, run, mode = "confirm", alsoOnDeliv
                                                      { project_id: projectId }, { group: group.id }),
                                           group.kind === "product"
                                             ? `${group.title}: confirmed. Its dissolution profile is kept; the formulation's release is set with “Use this profile as the release” on its card.`
-                                            : `${group.title}: confirmed, in the model.`, confirmAfter(projectId, group.id))}>
+                                            : `${group.title}: confirmed, in the model.`, confirmAfter(projectId, group))}>
             Confirm {name}
           </button>
         </footer>

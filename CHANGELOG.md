@@ -130,6 +130,81 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
   Populations' "Choose the individual…" on a fresh page, Enter's fact field; the repeated-names scan with every study
   card open, and on the client-data template's project; Client files on a phone; the message cleared by a status-line
   count). Software test data on the stub engine: none of it is PBPK evidence.
+
+### Fixed — final review round 4, request budget and the RLD flake (OWN-7's remainder, the sheet's view after a save, the corrected-layout row in To do; plan 2026-11-14 §5)
+- **The RLD flake: To do kept a table's row after its corrected layout was approved and read (inputs-task-first,
+  "a table the newest layout cannot read"; failed once in every round-3 group under load).** Root cause, in two parts.
+  (1) The API put an answer together from what was read before it said whether a file was being read: the delivery
+  page read each file's coverage first and `running` last, a layout its tables first and `waiting` last. A reading that
+  ended while the answer was put together gave "not reading" beside the coverage from before it (a new API test ends a
+  run in the middle of a read and shows it: the old code answers `running: false` with version 1's coverage). (2) The
+  page followed a reading by catching the moment a flag turned: `running` going false on the delivery page, and
+  `waiting` going false on the open layout dialog. After the approval the first read of the page could be that
+  straddled answer (old rows, "not reading", so no poll and no refresh), and the dialog's answer could be overwritten by
+  a read of the layout sent just before the approval (it was in flight when the approval's answer was written; a write
+  does not call off a read on its way), so the dialog never saw "waiting" and its signal never fired either. The page
+  then held the old rows with nothing left to read them again; the snapshots of the failed runs show exactly that
+  (the dialog current, the delivery page post-approval but with the old coverage and no "Reading…").
+  Fixed at both ends, without timing: the API reads the runs before anything a run writes (`_Scope.refresh`, so
+  "not reading" means what follows is current, and an answer put together while a reading ends says "reading", so the
+  page reads it again); the page follows a reading by
+  the runs the delivery page names (`useDeliveryRefresh`: when the page is not reading and names other runs than when
+  it was last brought up to date, it reads again what a reading changes, the cards and layouts, the sheet form, the
+  client's files, the inputs; not the page itself, which is current), so a reading that starts and ends between two
+  reads is followed too; every answer a decision writes calls off the read of the same key still on its way (`put` in
+  `lib/hooks.ts`, used by `writes.ts` and `after.ts`). The layout dialog's own end-of-reading signal is removed (the
+  page follows the same reading). Impact: the row leaves To do at the page's next read after the reading ends.
+  Reproduced before the fix only as the API race (the page-level failure did not show in six runs under a 3-core
+  burner); after it, the reduced spec passed 5 of 5 under a 4-core burner and the whole spec file 5 of 5 under load
+  (plan §5 lists each run).
+- **OWN-7's remainder: a decision on Compound and a confirmation read only what they change**, each checked against the
+  API's answers before and after (copies of the review projects; the stub engine, a software fixture):
+  - *Compound* (`components/inputs/after.ts`): the other projects' offers (`value-reuse`) are what they found that this
+    project does not hold, compared by parameter, value, unit, source and quote whatever its state here, so a decision
+    on a value held already never changes them and a value newly held can only take an offer away. A value accepted,
+    rejected or excluded (`evidenceAfter`), one kept over the others (`chooseAfter`, the answer's evidence page now
+    written) and a pKa's acid or base (`correctAfter`) read the inputs only: pKa Save measured 1 read (round 3: inputs,
+    value-reuse, evidence). A value filed under another parameter or given its quote's number (Correct, File under
+    pathway), one added (`valuesAfter`), the identity's molecular weight, a published model's values, the literature
+    agent's end, the compound values entered in To do and a release proposed read the offers again only when the page
+    holds one. A dataset's study, facts or overlay (`MODEL`) no longer reads the offers (datasets are not offered).
+  - *The sheet form's confirmation* (`confirmAfter`, now given the group): the inputs, and the evidence when the group
+    loads datasets or values; the client data only when a product's profile was chosen between two files (its
+    profiles are put together again); the delivery and a card where a subject reads the same source, as before. The
+    API showed the client data unchanged by a study's or a product's confirmation (round 3 read it every time). Study
+    CL-01 measured: the confirmation, the delivery, the inputs and the evidence, and the step bar drawn again (it read
+    the client data too, and about twenty prefetches followed); product Test 10 mg: the confirmation and the inputs.
+  - *The signed confirmation* (`writeConfirmed`): the delivery page, the inputs, the sheet form, the client data, and
+    the evidence only when the landing put datasets or values in it (a product's lands its dissolution records only: 4
+    reads, the evidence unchanged by the API's word). The other cards are no longer marked stale: a card names the
+    sheet form's datasets of its source, never the delivery's, and no other card changed in the API's answers; round 3
+    marked them all, so the cards To do counts were read again after the dialog closed (one more in delivery.spec).
+- **The step bar's links and Inputs' own links are not prefetched** (`prefetch={false}`: the step bar, its "Waiting on
+  you" links, Inputs' "Next", "Finish Start", "Go to Review & sign", the reading tray's and Client files' links, the
+  delivery section's "To do"). Every time the step bar was drawn again (a readiness change, a confirmation), Next
+  prefetched every page they lead to: 25 prefetch requests measured after the CL-01 confirmation, 8 now (the sidebar's
+  four links, which every page shares: plan §5). Measured from Inputs to Review & sign through the step bar, three runs
+  each: with prefetch the skeleton at 95 to 131 ms and the page at 392 to 438 ms, without it 99 to 181 ms and 178 to
+  402 ms, so prefetching bought nothing measurable.
+- **Round 2's risk (a): a sheet's view is read again after the sheet form saves it** (`SHEET` adds
+  `client-data/{sid}/sheets/{sheet}`): it says the sheet was read before, which offers to replace that reading when it
+  is read again. It was current only because the delivery's end-of-reading refresh reads every route under the client
+  data again; without it a second save in the same visit could add the same datasets twice. client-data-guided now
+  saves a sheet, reads it again in the same visit with the delivery never seen reading, and finds the replace option
+  ticked.
+- **Records corrected in place.** Round 3's plan §5 said a value accepted or rejected on Compound costs "the decision
+  and one read" (it was two there: the inputs and the offers; pKa, Correct and Keep three) and that no prefetch appeared
+  in the measured flows (about twenty followed every step-bar redraw); its "two signals" note in plan §5 and in round 3's
+  entry below said the layout dialog's signal closed the gap it did not close. Each now says so where it stands.
+- **Tests.** services/api/tests/test_delivery_api.py: a reading that ends while the page or a layout is put together
+  leaves the answer saying it is reading (fails on the old code). e2e: inputs-todo asserts that Keep, Correct, Accept
+  and pKa Save each cost the decision and one read of the inputs (and of the offers, after Correct, only when one is
+  shown), at most one step-bar render and no prefetch of a page's link; client-confirm that the study's sheet-form
+  confirmation costs the confirmation, the inputs, the evidence and the delivery page (a delivery study reads the same
+  files), not the client data; delivery that the signed confirmation's Done reads the delivery, the inputs, the sheet
+  form, the client data and the evidence, nothing else; client-data-guided the sheet's view above. No API contract
+  change; no locked file.
+
 ### Fixed — final review round 3, speed and cache writes (round 2's layout-dialog regression, OWN-7, CODE-4; plan 2026-11-14 §5)
 - **Round 2's regression (the gate-todo skeptic): an approval or a rejection made in the layout dialog that "Read this
   table…" opens is shown.** The dialog opened on the stored layout's table with no version, a cache key
@@ -172,6 +247,8 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
   too (the dialog reads it every few seconds while it waits; when it no longer does, the delivery page and the cards
   shown are read again), not only by the page's "reading" flag: the broad refresh had hidden that a read answered just
   as the reading ended could leave a table's row in To do as it was before (seen once in inputs-task-first).
+  *Corrected in round 4:* both signals caught a flag's turn and both could miss it, so the row could still stay; the
+  cause and its fix are in round 4's entry above (the dialog's signal is removed).
   The step bar (drawn on the server) is drawn again when what it says about Inputs changes: its state and the readiness
   checks that fail, from the readiness the inputs answer with, whatever changed it; never after a decision that leaves
   it as it was (a card decision). The Inputs page holds what it has read for the visit (`HeldReads`): an area shown

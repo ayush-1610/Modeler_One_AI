@@ -33,7 +33,7 @@ export default async function InputsPage({ params, searchParams }: {
           <p>Start is not finished. The inputs are gathered once it is: {start.reasons.length}{" "}
             {start.reasons.length === 1 ? "thing still needs" : "things still need"} you.</p>
           <ul>{start.reasons.map((r) => <li key={r}>{r}</li>)}</ul>
-          <Link className="btn primary" href={STEP_ROUTES.start(projectId)} data-testid="inputs-blocked-start">Finish Start</Link>
+          <Link className="btn primary" href={STEP_ROUTES.start(projectId)} prefetch={false} data-testid="inputs-blocked-start">Finish Start</Link>
         </section>
       </main>
     );
@@ -48,7 +48,7 @@ export default async function InputsPage({ params, searchParams }: {
                             // inputs that have begun stay open; Start still says what it needs, in red
                             <div className="banner err" role="alert" data-testid="inputs-start-not-done">
                               <span aria-hidden>⚠ </span>Start is not finished ({start.reasons.length} left): {start.reasons.join(" · ")}.{" "}
-                              <Link href={STEP_ROUTES.start(projectId)}>Finish Start first</Link>.
+                              <Link href={STEP_ROUTES.start(projectId)} prefetch={false}>Finish Start first</Link>.
                             </div>
                           )}
                          </>

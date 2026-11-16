@@ -9,7 +9,7 @@ import { join, resolve } from "node:path";
 
 import { expect, type Page, test } from "@playwright/test";
 
-import { finishStart } from "./fixtures/inputs";
+import { SIDEBAR_PREFETCH, finishStart, requestsDuring } from "./fixtures/inputs";
 
 const REPO = resolve(__dirname, "../../..");
 const AUTH = { Authorization: "Bearer dev" };
@@ -88,9 +88,22 @@ test("a study two client files contradict is settled on its card, then confirmed
   await expect(confirm).toBeEnabled();
   await expect(confirm).toHaveText("Confirm study EX-101");
   await expect(card).toContainText("Ready. Confirming adds this study to the model under your name.");
-  await confirm.click();
-  // one confirmation line per card: its head line says who confirmed it and when; the group inside does not repeat it
-  await expect(page.getByTestId("card-loaded-study:EX-101")).toContainText("Confirmed with the sheet form by");
+  await page.waitForLoadState("networkidle");
+  const sent = await requestsDuring(page, projectId, async () => {
+    await confirm.click();
+    // one confirmation line per card: its head line says who confirmed it and when; the group inside does not repeat it
+    await expect(page.getByTestId("card-loaded-study:EX-101")).toContainText("Confirmed with the sheet form by");
+  });
+  // what the confirmation changed, and only that (final review round 4, measured by the API's answers before and after):
+  // the groups are its answer, written; the inputs and the evidence (its datasets loaded) read again; the delivery page,
+  // since its study EX-101 reads the same two files (its card is not shown: marked to read when it is); the client's
+  // files are as they were, so they are not read (round 3 read them); the step bar drawn again at most once, as the
+  // readiness changed; no link of the page prefetched again (the sidebar's are Next's own)
+  const said = sent.join("\n");
+  expect(sent.filter((s) => !s.startsWith("prefetch") && !s.startsWith("server render")).sort(), said)
+    .toEqual(["GET delivery", "GET evidence", "GET inputs", "POST client-review:confirm"]);
+  expect(sent.filter((s) => s.startsWith("server render")).length, said).toBeLessThanOrEqual(1);
+  expect(sent.filter((s) => s.startsWith("prefetch") && !SIDEBAR_PREFETCH.test(s)), said).toEqual([]);
   await expect(card.getByTestId("group-confirmed-study:EX-101")).toHaveCount(0);
   await expect(card.getByTestId("issue-final-study:EX-101|dose_mg")).toHaveText("10");   // still shown, final
   await expect(page.getByTestId("study-EX-101")).toBeVisible();                          // loaded into the project

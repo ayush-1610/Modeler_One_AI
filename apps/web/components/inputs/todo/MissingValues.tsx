@@ -21,11 +21,11 @@ import { Problem } from "@/components/delivery/shared";
 import { focusAfter } from "@/components/kit/focus";
 import { announce } from "@/components/kit/LiveRegion";
 import { send, type Schema } from "@/lib/api";
-import { readAgain, useMutation, useResource } from "@/lib/hooks";
+import { useMutation, useResource } from "@/lib/hooks";
 import type { WorkItem } from "@/lib/inputsWork";
 import { paramLabel, plural } from "@/lib/words";
 
-import { MODEL } from "../after";
+import { valuesArrived } from "../after";
 import { PathwayPick, type TodoItem } from "../InputsTodo";
 
 const INPUTS = "/api/v1/projects/{project_id}/inputs" as const;
@@ -102,7 +102,7 @@ export function MissingValues({ projectId, items, onOpen, heading }: {
     setEntries((was) => Object.fromEntries(Object.entries(was).filter(([id]) => !sent.includes(id))));
     // the compound's rows, the to-do and the model checks follow: what a model input changes is read again once, after
     // the last (the step bar follows the readiness: the workspace draws it again when the readiness changes)
-    await readAgain(client, MODEL.reads!);
+    await valuesArrived(client, projectId);
     const text = `${named.join(", ")}: ${plural(sent.length, "value")} added with ${title.trim() ? `“${title.trim()}”` : "the source"}.`
       + `${Object.keys(refused).length ? ` ${plural(Object.keys(refused).length, "value")} not added: see its row.` : ""}`;
     setSaid(text);
