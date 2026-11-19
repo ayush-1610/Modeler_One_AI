@@ -15,6 +15,16 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Security — Next.js 16.4.2 → 16.4.6 (2026-11-19, the owner's request)
+- **What:** the web app's `next` (and its `@next/*` packages, nothing else in the lockfile) moves from 16.4.2 to 16.4.6.
+- **Why:** `npm audit` reported two moderate advisories for 16.2.0–16.4.4, both cache leaks across root params with
+  `'use cache'` (GHSA-mfr8-8qww-v76h, GHSA-vc7v-qv4w-wrv8), fixed in 16.4.5; and `next build` began stopping on a
+  security notice for the installed version. 16.4.6 is the current `latest` (published 2026-11-09). `npm audit` now
+  reports no vulnerabilities.
+- **Impact:** none intended on behaviour (a patch release in the same minor). The app does not use `'use cache'` or
+  `unstable_cache`. The web typecheck passes; the production build and the full e2e suite are recorded below when they
+  end.
+
 ### Fixed — final review round 7, what a blinded study still shows (round 6's blinding-follow skeptic and the quote the names-words fixer found; plan 2026-11-14 §5) — science-adjacent
 - **A group joined to a blinded study under another name has its datasets withheld everywhere
   (`BlindedSources.joined`, modeler_project.blinded_sources).** Round 6's one rule matched by name only. A sheet-form group
