@@ -103,6 +103,76 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
   studies are blinded is unchanged). API contract: `InputStudyRow.blinded_why` added (optional); the OpenAPI snapshot and
   the web types are refreshed.
 
+### Fixed — final review round 7, a study whose file names another product than the model holds (round 6's named-product skeptic; plan 2026-11-14 §5) — science-adjacent
+- **A study whose file names Test 10 mg no longer looks settled by Brand 10 mg's release (`formulation_way`,
+  `inputs.todo`, Products and dissolution).** In the common bioequivalence shape (two studies, or a crossover's Test and
+  Reference arms; the Test study's file names Test 10 mg, the Reference study's Brand 10 mg; only Brand 10 mg has a
+  usable profile) the step bar's first lever is Brand 10 mg's profile, for the Reference study. Once it was used, Brand
+  10 mg was the model's only formulation, which the build uses for every tablet study that names none
+  (`resolve_formulation_name`), so the readiness check passed, the Test study's To do item and its ask were gone, and its
+  row showed a choice already set to Brand 10 mg: the Test product would be modelled with the reference's release, and
+  nothing said so. Whether the build should tie such a study to its named product stays the owner's question (unchanged:
+  the assembly, the CPF and the readiness check). The page now keeps it open: with the study catalog's rows, `formulation_way`
+  gives each tablet study that names no formulation, while the model holds exactly one that is not the product its own
+  file names (by the formulation's name, or by the product of the profile its release was made from: "RLD" made from
+  Brand 10 mg's profile is Brand 10 mg's), its own way as a study that names its product (Test 10 mg's profile, else its
+  dissolution data) with `uses`, the formulation the model would use. To do's formulation item stays open for it,
+  counted like the other open items (Products and dissolution's count, the status line, "Next"), its row saying first
+  "CL-02: its file names Test 10 mg; the model would use Brand 10 mg's release (its only formulation) until Test 10 mg's
+  release is set." and then what sets it; the item's problems list says the same; the client is still asked for Test 10
+  mg's data; the study's row on Products and dissolution says it, with "add Test 10 mg's dissolution data" and "ask the
+  client"; Test 10 mg's card says a tablet study needs its release. A study's choice of its formulation never starts on
+  another product's: where the study's file names a product, the choice starts with none chosen ("choose the formulation
+  it used"), that product's formulation listed first where the model holds one; this also covers the readiness check's
+  "choose" (two formulations), whose studies now carry the product their files name. A formulation a person chooses for
+  the study (with why) settles it, as any choice does. The step bar and Review & sign follow the readiness check, as
+  before.
+- **One line per product in "Ask the client".** Where the delivery asks for a product's release itself (its per-product
+  line, `REQ-form.release@<product>`: the product's name, dosage form or release says it is solid, or the data plan lists
+  it, "Test 10 mg tablet"), the inputs added a second line for the study whose file names it, in other words ("The
+  formulation or dissolution data of Test 10 mg tablet, the product the study used · CL-04"). The study now joins the
+  delivery's line, which names it ("Release model of the product (dissolution) · Test 10 mg tablet, the product study CL-04
+  used"), matched by the product's name (or the line's own slug); the line carries the joined lines' anchors
+  (`data-also`), so every "ask the client" of the study (the step bar's, Review & sign's, its row's, its product card's)
+  lands on it, focused.
+- **Speed: what the ways read from the ledger and the client files is read once while they are unchanged.**
+  `file_products` folded the ledger on every GET /inputs and GET /steps while a tablet study lacked a formulation. The
+  ledger's names (`_ledger_names`: its products with values, and the product each study's values name) are now kept,
+  keyed by the project and the size and modification time of the four logs the fold reads (append-only), and
+  `file_products` by those and the client files' record folders' modification times (each version is a new file in its
+  folder); a write to any of them is read at the next request. Kept in the process with `functools.lru_cache`, as the
+  other read caches are (the C8 guard against module-level job state is unchanged): right in any process, since it is
+  keyed by what it read. Measured on a copy of the review data's 7bb1 (median of 15 to 31 requests,
+  each on a fresh workspace, in process): before, GET /inputs 0.136 s and GET /steps 0.088 s, of which file_products
+  0.074 s and 0.071 s; after, 0.061 to 0.063 s and 0.017 to 0.018 s, the same as with file_products stubbed out (0.061 s,
+  0.017 s). The first request after a change pays one fold (about 0.08 s).
+- **Words: a blinded reason is one sentence with no brackets in a row.** A dataset's line ended "… before a plan (its role
+  is decided on Review & sign, which opens once the inputs are ready: what they still wait on) (ICH M15)." (and, once the
+  inputs were ready, "… S5 (external validation) (ICH M15)."). The reference now follows what it qualifies ("Its values are
+  blinded until the plan is signed (ICH M15), because …"), and the part that waits on the inputs is a clause: "…, before a
+  plan, a role decided on Review & sign once the inputs are ready (what they still wait on)."
+- **Records corrected in place:** round 6's §5 owner question said "The page no longer leads there" (it did, through the
+  step bar's lever for the other study); its gap note said the delivery asks nothing for a named product (true only
+  where the delivery's per-product item does not apply; where it does, both asked); round 6's entry below said a study is
+  never offered another product's profile, without the other study's lever; and its plan-link words.
+- **Why:** the owner uses the page next. A bioequivalence project is the usual case: the page led its Test study to the
+  reference's release and then showed it settled, and asked a solid-named product's release twice.
+- **Impact:** science-adjacent, on the page only: which tablet studies stay open and what they are asked; the
+  assembly, the CPF, the readiness check and what is built are unchanged (the owner's question, plan §5). API: additive
+  contract change, `StudyWayView.uses` (snapshot and web types refreshed); To do's formulation item exists also while
+  the readiness check passes, for such a study. No ruleset, template, requirement level, locked file or boundary exception
+  changed.
+- **Tests:** `test_client_api.py` (both shapes through the API: the step bar's lever for the Reference study, Brand 10
+  mg's profile used, the check and the step bar pass while To do's item stays open for the Test study with `uses`, its
+  problem and its ask; the crossover's formulation named "RLD"; Test 10 mg's profile used too, so each study chooses,
+  named; a choice for each closes it; the ledger's and the files' names read again only after a write),
+  `inputs-work.spec.ts` (the joined line, by name and by the data plan's id, its studies and anchors; the words; a card's
+  release needed; the item counted and its row's words), e2e `inputs-owner-job` (three new tests: the two shapes,
+  following the step bar's lever in the browser, then the Test study's row, choice, card, To do row, count and ask; the
+  solid-named product's one line, where the step bar's and the row's "ask the client" land), `inputs-blinded` and
+  `blinding` (the reason's new words); e2e 98 + 23 passed on the final code (plan §5 lists the specs). Software test
+  data on the stub engine: none of it is PBPK evidence.
+
 ### Fixed — merging final review round 6 (the three round-6 branches together)
 - **A blinded product's card said its reason twice.** Round 6's blinding group put "Signing waits until the plan is
   signed, because …" where a blinded card's "Confirm and sign…" was; the named-product group said a product's reason
@@ -216,7 +286,9 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
   opens when the inputs are ready" (probe F: no such section). The link is now given only while the inputs are ready and
   checked since they last changed (the plan is made from them; the page's own readiness); otherwise the part is said,
   followed by "(its role is decided on Review & sign, which opens once the inputs are ready: what they still wait on)",
-  whose link brings the step bar's "Waiting on you" (what Review & sign waits on) into focus over To do.
+  whose link brings the step bar's "Waiting on you" (what Review & sign waits on) into focus over To do. *(Round 7: said
+  as a clause, ", a role decided on Review & sign once the inputs are ready (what they still wait on)", so a dataset's
+  line no longer ends with two brackets in a row.)*
 - **A blinded product's card says why once, and names the study.** Its head said "because it holds the values of a
   blinded study" and its body said "withheld (blinded): this study is blinded until the plan is signed, because it holds
   the values of a blinded study". The reason now names the study (`intake_review.held_why`: "it holds the values of
@@ -238,7 +310,10 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
   another study's line, and linked a reason to a section Review & sign does not show before the inputs are ready.
 - **Impact:** science-adjacent: which product's profile is offered for a study (never another product's than the one its
   file names); the model building itself is unchanged (the readiness check and the CPF read the study record as before,
-  see §5's open question). API: no contract change (the formulation item's `ask` lines, untyped, now carry the named
+  see §5's open question). *(Corrected in round 7: for that study, yes; but with two studies, or a crossover's arms, whose
+  files name Test 10 mg and Brand 10 mg, the step bar's first lever was Brand 10 mg's profile for the Reference study,
+  and once it was used the Test study looked settled, its choice set to Brand 10 mg, the model's only formulation, and
+  its item and ask gone. Round 7 keeps such a study open on the page; the build is unchanged.)* API: no contract change (the formulation item's `ask` lines, untyped, now carry the named
   product; a blinded product's `blinded_why` names the study). No ruleset, template, requirement level, locked file or
   boundary exception changed; which studies are blinded is unchanged.
 - **Tests:** `test_client_api.py` (a template naming Test 10 mg beside Brand 10 mg's confirmed profile, through the API;

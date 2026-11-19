@@ -877,24 +877,32 @@ def todo(ws: Workspace) -> list[dict[str, Any]]:
                                "provider": d.provider, "state": d.state.value, "kind": d.kind,
                                "statistics": sorted({s.statistic for s in d.series}), "series": len(d.series)}
                               for d in observed]})
-    dataset_of = {str(r["study_id"]): r.get("dataset_id") for r in catalog_rows(ws)}
+    rows = catalog_rows(ws)
+    dataset_of = {str(r["study_id"]): r.get("dataset_id") for r in rows}
     for name, kind in (("multiple-dose regimens", "regimen"), ("demographics stated (D-29)", "demographics")):
         check = checks.get(name)
         for detail in (check or {"detail": []})["detail"] if check and not check["ok"] else []:
             sid = detail.split(":", 1)[0]
             out.append({"kind": kind, "target": sid, "message": detail, "items": [], "dataset_id": dataset_of.get(sid)})
     formulations = checks.get("formulations of solid studies")
-    if formulations and not formulations["ok"]:
-        from modeler_project.formulation_way import ASKS, formulation_way
+    failing = list(formulations["detail"]) if formulations and not formulations["ok"] else []
+    from modeler_project.formulation_way import ASKS, elsewhere_problem, formulation_way
+
+    # what gives a tablet study its formulation as the project stands (`way`, the step bar's too: round 4), and, round 7,
+    # each tablet study the check passes that would use another product's release: the model's only formulation is not
+    # the product its own file names (`uses`; whether the build should tie it to its product is the owner's question,
+    # so the readiness check is not changed, but the item stays open for it and its client is asked; the step bar reads
+    # the check only)
+    way = formulation_way(ws, failing, rows=rows, cpf=cpf)
+    elsewhere = [e for e in way.each if e.uses] if way is not None else []
+    if failing or elsewhere:
         from modeler_project.requirements import RequirementMatrix
         from modeler_project.study_requirements import unnamed_product_request
 
         proposed = [evidence_view(e) for e in evidence.values() if e.target.startswith("form.") and included(e)]
-        # what gives a tablet study its formulation as the project stands (`way`, the step bar's too: round 4), and what
-        # the client is asked for each study whose way offers the client (`ask`: no product here, or none with a profile
-        # that can give its release; the inputs' side of the delivery's line, so a study the sheet form loaded is asked
-        # too: round 5, the condition follows the way, as the words that offer "ask the client" do)
-        way = formulation_way(ws, formulations["detail"])
+        # what the client is asked for each study whose way offers the client (`ask`: no product here, or none with a
+        # profile that can give its release; the inputs' side of the delivery's line, so a study the sheet form loaded is
+        # asked too: round 5, the condition follows the way, as the words that offer "ask the client" do)
         ask = []
         asking = [e for e in way.each if e.way in ASKS] if way is not None else []
         if asking:
@@ -905,9 +913,11 @@ def todo(ws: Workspace) -> list[dict[str, Any]]:
                 brief=ProjectBrief.from_content(brief_version.content) if brief_version is not None else None,
                 matrix=RequirementMatrix.from_content(matrix.content) if matrix is not None else None)
         # its problems one by one as well (`details`): a problem may itself hold "; " (a formulation of a type the builder
-        # does not place says which it places), so the page never splits the message
-        out.append({"kind": "formulation", "target": "form.*", "message": "; ".join(formulations["detail"]),
-                    "details": list(formulations["detail"]), "items": proposed,
+        # does not place says which it places), so the page never splits the message; the readiness check's, then each
+        # study's that would use another product's release
+        details = [*failing, *(elsewhere_problem(e) for e in elsewhere)]
+        out.append({"kind": "formulation", "target": "form.*", "message": "; ".join(details), "details": details,
+                    "items": proposed,
                     "way": way.model_dump(mode="json") if way is not None else None,
                     "ask": [line.model_dump(mode="json") for line in ask]})
     build = checks.get("every planned simulation builds (software)")

@@ -100,8 +100,21 @@ export type FormulationWay = {
   /** each study's own way (round 5): a study that names its product is settled by that product only (`named`) */
   each?: StudyWay[];
 };
-/** One tablet study's own way (the API's `StudyWayView`). */
-export type StudyWay = { study: string; way: FormulationWay["way"]; products: string[]; ready: boolean; named?: string | null };
+/** One tablet study's own way (the API's `StudyWayView`); `uses` (round 7, To do's item only): the formulation the model
+ *  would use for it while that is another product's than the one its file names (the model's only formulation). */
+export type StudyWay = { study: string; way: FormulationWay["way"]; products: string[]; ready: boolean; named?: string | null;
+                         uses?: string | null };
+/** A tablet study whose file names a product while the model would use another product's release for it (round 7: the
+ *  readiness check passes, as the build uses the model's only formulation for a study that names none; whether the build
+ *  should tie it to its product is the owner's question), in words: "its file names Test 10 mg; the model would use Brand
+ *  10 mg's release (its only formulation) until Test 10 mg's release is set". */
+export const elsewhereText = (named: string, uses: string) =>
+  `its file names ${named}; the model would use ${uses}'s release (its only formulation) until ${named}'s release is set`;
+/** The tablet studies a product's line of "Ask the client" asks for too (round 7: their own line for the same product
+ *  joined it): "the product study CL-04 used", "the product studies CL-02 and CL-04 used". */
+export const askStudies = (studies: string[]) =>
+  `the product ${studies.length === 1 ? "study" : "studies"} ${studies.length < 2 ? studies.join("")
+    : `${studies.slice(0, -1).join(", ")} and ${studies[studies.length - 1]}`} used`;
 /** A study's own way, said as the step bar says one (`formulationWays` takes it): its entry of `each`, else the step bar's
  *  way when it is for that study, else none (round 5: Products and dissolution's row of each tablet study said the step
  *  bar's lever, which may be another study's). */
@@ -324,6 +337,9 @@ export function formulationProblem(text: string): string {
     [/^(.+?): binned product '(.+)' needs .*$/, (m) => `${m[1]}: product “${m[2]}” needs its bins and their mass fractions`],
     [/^(.+?): binned product '(.+)': a bin cannot itself be a binned product$/, (m) => `${m[1]}: a bin of product “${m[2]}” is itself a product of bins, which the model cannot build`],
     [/^(.+?): study record: .*$/, (m) => `${m[1]}: its facts are not complete enough to build its simulation (see the study on Clinical studies)`],
+    // round 7: the readiness check passes, but the model's only formulation is another product's (`formulation_way.elsewhere_problem`)
+    [/^(.+?): its file names (.+), but the CPF's only formulation '(.+)' would be used \(the study names no formulation\)$/,
+     (m) => `${m[1]}: ${elsewhereText(m[2], m[3])}`],
   ];
   for (const [rule, say] of said) { const m = rule.exec(text); if (m) return say(m); }
   return idWords(text);

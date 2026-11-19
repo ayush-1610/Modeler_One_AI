@@ -599,7 +599,7 @@ test("products with dissolution profiles here: every page names the profile as t
   // (round 5: with each study's own way; CL-01 names no product, so either product's profile can give its release)
   expect(steps.find((s) => s.step === "inputs")!.formulation)
     .toEqual({ way: "use_profile", products: ["Test 10 mg", "Brand 10 mg"], studies: ["CL-01"], ready: false,
-               each: [{ study: "CL-01", way: "use_profile", products: ["Test 10 mg", "Brand 10 mg"], ready: false, named: null }] });
+               each: [{ study: "CL-01", way: "use_profile", products: ["Test 10 mg", "Brand 10 mg"], ready: false, named: null, uses: null }] });
 
   // Review & sign: the situation and the lever, in the order they are done; no "add a product"
   await page.goto(`/projects/${projectId}/plan`);
@@ -790,7 +790,8 @@ test("a study whose own file names its product: only that product's data settle 
   const item = ((await (await request.get(`${api}/inputs`, { headers: AUTH })).json()).data.todo as
     { kind: string; way: unknown; ask: { what: string; product: string | null }[] }[]).find((t) => t.kind === "formulation")!;
   expect(item.way).toEqual({ way: "add_dissolution", products: ["Test 10 mg"], studies: ["CL-02"], ready: true,
-                             each: [{ study: "CL-02", way: "add_dissolution", products: ["Test 10 mg"], ready: true, named: "Test 10 mg" }] });
+                             each: [{ study: "CL-02", way: "add_dissolution", products: ["Test 10 mg"], ready: true, named: "Test 10 mg",
+                                      uses: null }] });
   expect(item.ask).toMatchObject([{ what: "The formulation or dissolution data of Test 10 mg, the product the study used — study CL-02",
                                     product: "Test 10 mg" }]);
 
@@ -836,4 +837,131 @@ test("a study whose own file names its product: only that product's data settle 
                                  + "can give a release; add a product's dissolution data on Products and dissolution, or ask the client on To do.");
   await check.getByTestId("step-blocked-or").click();
   await expect(page.getByTestId("todo-group-ask").getByTestId("todo-ask-REQ-form.release~test-10-mg")).toBeFocused();
+});
+
+/** A project from one of e2e/fixtures/be_named_workbooks.py's templates: Start done, the workbook read, its studies and
+ *  products confirmed with the sheet form (all of them, or only the studies), the inputs put together. */
+async function beProject(request: APIRequestContext, drug: string, file: string, dir: string, products = true) {
+  const started = await request.post("/api/v1/projects:initiate", { headers: AUTH, multipart: {
+    drug_name: drug, extract: "false",
+    files: { name: "proposal.md", mimeType: "text/markdown", buffer: Buffer.from("# Proposal\nOral 10 mg tablet.") } } });
+  const projectId = (await started.json()).data.project_id as string;
+  await finishStart(request, projectId);
+  const api = `/api/v1/projects/${projectId}`;
+  expect((await request.post(`${api}/requirements:derive`, { headers: AUTH })).ok()).toBeTruthy();
+  const up = await request.post(`${api}/client-data`, { headers: AUTH, multipart: {
+    files: { name: file, mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", buffer: readFileSync(join(dir, file)) } } });
+  expect(up.status(), await up.text()).toBe(201);
+  const groups = (await (await request.get(`${api}/client-review`, { headers: AUTH })).json()).data.groups as { id: string; kind: string }[];
+  for (const group of groups.filter((g) => g.kind === "study" || (products && g.kind === "product"))) {
+    const confirmed = await request.post(`${api}/client-review:confirm`, { headers: AUTH, data: { group: group.id } });
+    expect(confirmed.ok(), await confirmed.text()).toBeTruthy();
+  }
+  expect((await request.post(`${api}/inputs:assemble`, { headers: AUTH })).ok()).toBeTruthy();
+  return { projectId, api };
+}
+
+// Round 7 (round 6's named-product skeptic): the common bioequivalence shape. The Test study's file names Test 10 mg, the
+// Reference study's Brand 10 mg, and only Brand 10 mg has a usable profile: the step bar's first lever is Brand 10 mg's
+// profile, for the Reference study. Followed, Brand 10 mg is the model's only formulation, which the build uses for every
+// tablet study that names none (whether it should tie the Test study to Test 10 mg is the owner's question, unchanged), so
+// the readiness check passes. Round 6's page then showed the Test study settled: no To do item, no ask, its row a choice
+// already set to Brand 10 mg. Now the Test study stays open: To do's formulation item (counted like the others) says
+// the model would use Brand 10 mg's release until Test 10 mg's is set, its row says it, its choice starts with none chosen,
+// and the client is still asked for Test 10 mg's data. Two studies, and a crossover's two arms.
+// e2e/fixtures/be_named_workbooks.py; software test data on the stub engine, never a model.
+for (const shape of [{ name: "two studies", file: "two.xlsx", drug: "Twoamide", reference: "CL-01", testStudy: "CL-02" },
+                     { name: "a crossover's arms", file: "crossover.xlsx", drug: "Crossamide", reference: "CL-02-Reference", testStudy: "CL-02-Test" }]) {
+  test(`${shape.name}: the step bar's lever for the Reference study leaves the Test study open, its product asked for`, async ({ page, request }) => {
+    test.setTimeout(6 * 60_000);
+    const dir = mkdtempSync(join(tmpdir(), "owner-be-"));
+    execFileSync("uv", ["run", "python", join(__dirname, "fixtures", "be_named_workbooks.py"), dir], { cwd: REPO });
+    const { projectId, api } = await beProject(request, shape.drug, shape.file, dir);
+    const steps = (await (await request.get(`${api}/steps`, { headers: AUTH })).json()).data.steps as { step: string; formulation: { studies: string[] } }[];
+    expect(steps.find((s) => s.step === "inputs")!.formulation.studies).toEqual([shape.reference]);
+
+    // the step bar's lever: Brand 10 mg's profile, used from its card, as the owner would
+    await page.goto(`/projects/${projectId}/inputs?tab=todo`);
+    const stepBar = page.getByTestId("step-waiting");
+    await expect(stepBar).toContainText("a tablet study has no formulation (use a product's dissolution profile as its release on Products and dissolution)");
+    await stepBar.getByTestId("step-waiting-release").click();
+    const brand = page.locator("[data-testid^='product-card-']", { has: page.locator(".card-title", { hasText: /^Brand 10 mg$/ }) });
+    const use = brand.locator("[data-testid^='card-release-'][data-testid$='-use']");
+    await expect(use).toBeVisible();
+    await use.click();
+    await expect(brand.locator("[data-testid^='card-release-']").first()).toContainText("In the model as the formulation “Brand 10 mg”");
+    // the readiness check passes now (the build is unchanged: the owner's question), so the step bar no longer names it
+    await expect(page.getByTestId("step-waiting")).not.toContainText("a tablet study has no formulation");
+    const inputs = (await (await request.get(`${api}/inputs`, { headers: AUTH })).json()).data;
+    expect(inputs.readiness.content.checks.find((c: { check: string }) => c.check === "formulations of solid studies").ok).toBe(true);
+
+    // the Test study's row on Products and dissolution: what the model would use, what sets its own product's release,
+    // and a choice that starts with none chosen
+    const why = `its file names Test 10 mg; the model would use Brand 10 mg's release (its only formulation) until Test 10 mg's release is set`;
+    const row = page.getByTestId(`formulation-${shape.testStudy}`);
+    await expect(row.getByTestId(`formulation-elsewhere-${shape.testStudy}`)).toHaveText(
+      `${why}: add Test 10 mg's dissolution data (its dissolution file, Add data), or ask the client`);
+    await expect(row.getByTestId(`formulation-ask-${shape.testStudy}`)).toHaveAttribute("href", /at=todo-ask-REQ-form\.release~test-10-mg$/);
+    const choice = row.getByTestId(`formulation-choice-${shape.testStudy}`);
+    await expect(choice).toHaveValue("");
+    await expect(choice.locator("option")).toHaveText(["choose the formulation it used", "Brand 10 mg"]);
+    // the Reference study uses its own product's: nothing said, its choice its own
+    await expect(page.getByTestId(`formulation-elsewhere-${shape.reference}`)).toHaveCount(0);
+    await expect(page.getByTestId(`formulation-choice-${shape.reference}`)).toHaveValue("Brand 10 mg");
+    // Test 10 mg's card: a tablet study needs its release
+    const testCard = page.locator("[data-testid^='product-card-']", { has: page.locator(".card-title", { hasText: /^Test 10 mg$/ }) });
+    await expect(testCard.locator("section.card-release")).toContainText("The formulation's release is not set yet: a tablet or capsule study needs it.");
+    await page.screenshot({ path: test.info().outputPath(`r7-${shape.file}-products.png`), fullPage: true });
+
+    // To do: the formulation item is open for the Test study, counted like the others, and says why first
+    await page.getByTestId("tab-todo").click();
+    const counted = await agreed(page);
+    expect(counted.areas.formulations).toBeGreaterThanOrEqual(1);
+    const todoRow = page.locator("li.todo-line", { has: page.getByTestId("missing-formulation-form.*") });
+    await expect(todoRow).toContainText(`${shape.testStudy}: ${why}. Test 10 mg, the product the study names, has no dissolution profile that can give `
+                                        + "a release: add the dissolution file of Test 10 mg (Add data), or ask the client for it");
+    await expect(todoRow).not.toContainText(shape.reference);
+    // its ask stays: the line that asks for Test 10 mg's data, for the Test study, where the row's "ask the client" lands
+    const line = page.getByTestId("todo-group-ask").getByTestId("todo-ask-REQ-form.release~test-10-mg");
+    await expect(line).toContainText(`The formulation or dissolution data of Test 10 mg, the product the study used · ${shape.testStudy}`);
+    await page.screenshot({ path: test.info().outputPath(`r7-${shape.file}-todo.png`), fullPage: true });
+    await page.goto(`/projects/${projectId}/inputs?tab=formulations`);
+    await page.getByTestId(`formulation-ask-${shape.testStudy}`).click();
+    await expect(page.getByTestId("todo-group-ask").getByTestId("todo-ask-REQ-form.release~test-10-mg")).toBeFocused();
+    // the item's own card on Products and dissolution lists its problem in words
+    await page.goto(`/projects/${projectId}/inputs?tab=formulations`);
+    await expect(page.getByTestId("todo-formulation-form.*").getByTestId("formulation-problems")).toHaveText(`${shape.testStudy}: ${why}`);
+  });
+}
+
+// Round 7 (round 6's named-product skeptic, probe P): the delivery asks for a product's release itself when its name says
+// it is solid ("Test 10 mg tablet"), and the inputs asked again for the study whose file names it, in other words: the
+// same release twice. Now the study joins the delivery's line, which names it, and "ask the client" lands there.
+// e2e/fixtures/be_named_workbooks.py; software test data on the stub engine, never a model.
+test("a product the delivery asks for already is asked once, the study on its line, where 'ask the client' lands", async ({ page, request }) => {
+  test.setTimeout(6 * 60_000);
+  const dir = mkdtempSync(join(tmpdir(), "owner-solid-"));
+  execFileSync("uv", ["run", "python", join(__dirname, "fixtures", "be_named_workbooks.py"), dir], { cwd: REPO });
+  const { projectId, api } = await beProject(request, "Solidamide", "solid-label.xlsx", dir, false);
+  // the delivery's reading is queued: once it shows the product, it asks for its release
+  await expect.poll(async () => ((await (await request.get(`${api}/delivery`, { headers: AUTH })).json()).data?.request ?? [])
+    .map((r: { req_id: string }) => r.req_id), { timeout: 60_000 }).toContain("REQ-form.release@test-10-mg-tablet");
+  expect((await request.post(`${api}/inputs:assemble`, { headers: AUTH })).ok()).toBeTruthy();
+
+  await page.goto(`/projects/${projectId}/inputs?tab=todo`);
+  const ask = page.getByTestId("todo-group-ask");
+  const line = ask.getByTestId("todo-ask-REQ-form.release@test-10-mg-tablet");
+  await expect(line).toContainText("Release model of the product (dissolution) · Test 10 mg tablet, the product study CL-04 used");
+  await expect(ask.getByTestId("todo-ask-REQ-form.release~test-10-mg-tablet")).toHaveCount(0);
+  await expect(ask).not.toContainText("The formulation or dissolution data of Test 10 mg tablet");
+  expect((await line.innerText()).match(/CL-04/g)).toHaveLength(1);
+  await page.screenshot({ path: test.info().outputPath("r7-solid-label-ask.png"), fullPage: true });
+  // the step bar's "ask the client" lands on it, focused
+  await page.getByTestId("step-waiting").getByTestId("step-waiting-or-todo").click();
+  await expect(page).toHaveURL(/at=todo-ask-REQ-form\.release~test-10-mg-tablet/);
+  await expect(line).toBeFocused();
+  // and so does the study's row on Products and dissolution
+  await page.goto(`/projects/${projectId}/inputs?tab=formulations`);
+  await page.getByTestId("formulation-ask-CL-04").click();
+  await expect(page.getByTestId("todo-group-ask").getByTestId("todo-ask-REQ-form.release@test-10-mg-tablet")).toBeFocused();
 });

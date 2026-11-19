@@ -19,7 +19,7 @@ import { HeldReads, readAgain, useMutation, useResource, type After } from "@/li
 import { areaHead, cardAnchor, type InputsLike, nextText, normLabel, productFor, releaseAnchor, releaseOf, type Subject,
          type WorkItem } from "@/lib/inputsWork";
 import { type ArtifactView, STEP_ROUTES } from "@/lib/pipeline";
-import { AREA_NAME, askAt, type FormulationWay, formulationWays, inputsHref, STATUS_MEANS, plural as count, studyWay,
+import { AREA_NAME, askAt, elsewhereText, type FormulationWay, formulationWays, inputsHref, STATUS_MEANS, plural as count, studyWay,
          valueWord } from "@/lib/words";
 
 import { AddDataMenu, type AddDataOpen } from "./AddDataMenu";
@@ -60,13 +60,22 @@ type View = Narrow<Schema<"InputsPage">, {
   todo: TodoItem[];
 }>;
 
-function FormulationChoice({ study, options, projectId, run }: { study: string; options: string[]; projectId: string; run: Run }) {
-  const [value, setValue] = useState(options[0] ?? "");
+/** The formulation a tablet study used, chosen with why. A study whose own file names its product (`named`, round 7) starts
+ *  with none chosen, that product's formulation listed first where the model holds one: another product's is never
+ *  preselected for it (the model's only formulation was shown chosen for a study whose file names another product). */
+function FormulationChoice({ study, options, named, projectId, run }: {
+  study: string; options: string[]; named?: string | null; projectId: string; run: Run;
+}) {
+  const mine = (o: string) => Number(Boolean(named) && normLabel(o) === normLabel(named!));
+  const listed = named ? [...options].sort((a, b) => mine(b) - mine(a)) : options;
+  const [value, setValue] = useState(named ? "" : options[0] ?? "");
   const [reason, setReason] = useState("");
   return (
     <div className="row gap-4">
-      <select value={value} onChange={(e) => setValue(e.target.value)} aria-label={`formulation of ${study}`}>
-        {options.map((o) => <option key={o}>{o}</option>)}
+      <select value={value} onChange={(e) => setValue(e.target.value)} aria-label={`formulation of ${study}`}
+              data-testid={`formulation-choice-${study}`}>
+        {named && <option value="" disabled>choose the formulation it used</option>}
+        {listed.map((o) => <option key={o}>{o}</option>)}
       </select>
       <input placeholder="why" value={reason} onChange={(e) => setReason(e.target.value)} className="w-160" />
       <button className="btn" disabled={!reason.trim() || !value}
@@ -263,11 +272,13 @@ function Workspace({ projectId, initialTab, initialOnly, initialStatus, steps }:
     const find = () => {
       const q = (selector: string) => document.querySelector<HTMLElement>(selector);
       // a line of "Ask the client" is found by its requirement too when it is a product's ("todo-ask-REQ-form.release@<product>");
-      // the line of the product a study names (`…~<product>`, round 6), else the delivery's line of that product, else
-      // the line of the studies that name none, else the group
+      // the line of the product a study names (`…~<product>`, round 6), or the delivery's line it joined (round 7: the
+      // line stands for it, `data-also`), else the delivery's line of that product, else the line of the studies that
+      // name none, else the group
       const ask = urlAt.startsWith("todo-ask-");
       const [base, product] = urlAt.split("~");
       const el = q(`[data-testid="${CSS.escape(urlAt)}"]`)
+        ?? (ask ? q(`[data-also~="${CSS.escape(urlAt)}"]`) : null)
         ?? (ask && product ? q(`[data-testid="${CSS.escape(`${base}@${product}`)}"]`) : null)
         ?? (ask && !product ? q(`[data-testid^="${CSS.escape(`${urlAt}@`)}"]`) : null)
         ?? (ask && product && tries > 10 ? q(`[data-testid="${CSS.escape(base)}"]`) : null)
@@ -608,6 +619,20 @@ function Workspace({ projectId, initialTab, initialOnly, initialStatus, steps }:
     const fileNamed = named ? null : way?.each?.[0]?.named ?? null;
     const lead = named ? "not in the model yet" : `no formulation in the model yet${fileNamed ? ` (its file names ${fileNamed})` : ""}`;
     const askHref = inputsHref(projectId, { area: "todo", query: `at=${askAt(way?.each?.[0]?.named ? first : null)}` });
+    // round 7: the model would use another product's release for it (its only formulation), though the readiness check
+    // passes: said, with what sets its own product's release; its ask stays
+    const uses = named ? null : way?.each?.[0]?.uses ?? null;
+    if (uses && fileNamed && (way?.way === "use_profile" || way?.way === "add_dissolution")) {
+      return <span className="muted" data-testid={`formulation-elsewhere-${study}`}>{elsewhereText(fileNamed, uses)}:{" "}
+        {way.way === "use_profile"
+          // its profile here: used (or its data confirmed first), as the step bar says it
+          ? <><button type="button" className="link-btn" onClick={() => openRelease(first)} data-testid={`formulation-release-${study}`}
+                      aria-label={first ? `${formulationWays(way).ways[0]?.say}: ${first}` : undefined}>
+              {formulationWays(way).ways[0]?.say}</button>, above{card ? ` (${card.label}'s card)` : ""}</>
+          : <><button type="button" className="link-btn" onClick={() => openRelease(first)} data-testid={`formulation-dissolution-${study}`}>
+              add {first}&apos;s dissolution data</button>{" (its dissolution file, Add data), or "}
+              <Link href={askHref} prefetch={false} data-testid={`formulation-ask-${study}`}>ask the client</Link></>}</span>;
+    }
     if (way?.way === "use_profile") {
       return <span className="muted" data-testid={`formulation-none-${study}`}>{lead}:{" "}
         <button type="button" className="link-btn" onClick={() => openRelease(first)} data-testid={`formulation-release-${study}`}
@@ -782,16 +807,23 @@ function Workspace({ projectId, initialTab, initialOnly, initialStatus, steps }:
               <h3 className="mt-0">The formulation of each solid study</h3>
               <table>
                 <tbody>
-                  {solidRows.map(({ s, own }) => (
-                    <tr key={s.study_id} data-testid={`formulation-${s.study_id}`}>
-                      <td><strong>{s.study_id}</strong> <span className="muted">{valueWord(String(s.facts.formulation))}</span></td>
-                      <td>{s.facts.formulation_name
-                        // a study that names its formulation: the name, and while the model lacks it, what gives it (round 5)
-                        ? <>{String(s.facts.formulation_name)}{own && <> {studyLever(s.study_id, own, true)}</>}</>
-                        : formulations.length ? <FormulationChoice study={s.study_id} options={formulations} projectId={projectId} run={run} />
-                          : studyLever(s.study_id, own)}</td>
-                    </tr>
-                  ))}
+                  {solidRows.map(({ s, own }) => {
+                    // its own entry of the way: the product its file names, and (round 7) another product's formulation the
+                    // model would use for it; a choice of the formulation never starts on another product's for it
+                    const mine = own?.each?.find((e) => normLabel(e.study) === normLabel(s.study_id));
+                    return (
+                      <tr key={s.study_id} data-testid={`formulation-${s.study_id}`}>
+                        <td><strong>{s.study_id}</strong> <span className="muted">{valueWord(String(s.facts.formulation))}</span></td>
+                        <td>{s.facts.formulation_name
+                          // a study that names its formulation: the name, and while the model lacks it, what gives it (round 5)
+                          ? <>{String(s.facts.formulation_name)}{own && <> {studyLever(s.study_id, own, true)}</>}</>
+                          : formulations.length
+                            ? <>{mine?.uses && studyLever(s.study_id, own)}
+                                <FormulationChoice study={s.study_id} options={formulations} named={mine?.named} projectId={projectId} run={run} /></>
+                            : studyLever(s.study_id, own)}</td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </section>

@@ -154,8 +154,9 @@ function Reveal({ d, name, projectId, onRevealed, onProblem, compact = false, sa
   const [reason, setReason] = useState("");
   return (
     <div className={`banner warn ${compact ? "m-4-0 fs-13" : "m-6-0"}`} data-testid={`blinded-${d.id}`}>
+      {/* one sentence, its reference after what it qualifies (round 7: "… (what they still wait on) (ICH M15).") */}
       <span id={`${compact ? "blinded-why-line" : "blinded-why"}-${d.id}`} data-testid={`blinded-why-${d.id}`}>Its values are blinded until the plan is signed
-        {d.blinded_why && d.blinded_why !== said ? <>, because <BlindedReason why={d.blinded_why} projectId={projectId} /></> : null} (ICH M15).</span>
+        (ICH M15){d.blinded_why && d.blinded_why !== said ? <>, because <BlindedReason why={d.blinded_why} projectId={projectId} /></> : null}.</span>
       {compact ? " To check them now, give the reason; the access is recorded in the audit trail."
         : " The metadata above is what the split uses. To check this dataset now, give the reason; the access is recorded in the audit trail."}
       <div className="row mt-6">

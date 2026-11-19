@@ -315,7 +315,8 @@ test("a blinded dataset says why, and the plan's part of the reason leads to whe
 
   await page.goto(`/projects/${projectId}/inputs?tab=studies`);
   const why = page.getByTestId(`blinded-why-${blinded.id}`).first();
-  await expect(why).toHaveText("Its values are blinded until the plan is signed, because the plan places it in S5 (external validation) (ICH M15).");
+  // one sentence, its reference after what it qualifies (round 7: two brackets in a row at its end)
+  await expect(why).toHaveText("Its values are blinded until the plan is signed (ICH M15), because the plan places it in S5 (external validation).");
   const link = why.getByRole("link", { name: /^the plan places it in S5 \(external validation\)/ });
   await expect(link).toHaveAttribute("href", `/projects/${projectId}/plan#review-studies`);
   await page.screenshot({ path: test.info().outputPath("7-dataset-why.png"), fullPage: true });
@@ -464,9 +465,10 @@ test("before the inputs are ready, the split's reason says where its role is dec
 
   await page.goto(`/projects/${projectId}/inputs?tab=studies`);
   const why = page.getByTestId(`blinded-why-${before.id}`).first();
-  await expect(why).toHaveText("Its values are blinded until the plan is signed, because the study split proposes it for S5 (external "
-                               + "validation), before a plan (its role is decided on Review & sign, which opens once the inputs are ready: "
-                               + "what they still wait on) (ICH M15).");
+  // one sentence with no bracket after another (round 7: "… what they still wait on) (ICH M15).")
+  await expect(why).toHaveText("Its values are blinded until the plan is signed (ICH M15), because the study split proposes it for S5 (external "
+                               + "validation), before a plan, a role decided on Review & sign once the inputs are ready (what they still wait on).");
+  expect(await why.innerText()).not.toMatch(/\)\s*\(/);
   await expect(why.getByRole("link", { name: /^the study split/ })).toHaveCount(0);
   await page.screenshot({ path: test.info().outputPath("8-split-why-before-ready.png"), fullPage: true });
   // its link: what the inputs wait on (the step bar's "Waiting on you", what Review & sign lists), focused, over To do:
@@ -485,8 +487,8 @@ test("before the inputs are ready, the split's reason says where its role is dec
   expect(after.blinded_why).toMatch(/^the study split proposes it for S5 \(external validation\), before a plan$/);
   await page.goto(`/projects/${projectId}/inputs?tab=studies`);
   const whyNow = page.getByTestId(`blinded-why-${after.id}`).first();
-  await expect(whyNow).toHaveText("Its values are blinded until the plan is signed, because the study split proposes it for S5 (external "
-                                  + "validation), before a plan (ICH M15).");
+  await expect(whyNow).toHaveText("Its values are blinded until the plan is signed (ICH M15), because the study split proposes it for S5 (external "
+                                  + "validation), before a plan.");
   const link = whyNow.getByRole("link", { name: /^the study split proposes it for S5 \(external validation\), before a plan/ });
   await expect(link).toHaveAttribute("href", `/projects/${projectId}/plan#review-studies`);
   await link.click();

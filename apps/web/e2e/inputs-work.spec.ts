@@ -17,7 +17,7 @@ import {
   targetProblem, type Subject, type WorkSources,
 } from "../lib/inputsWork";
 import {
-  ASK_FORMULATION, NO_PRODUCT, alreadyDecidedText, askAt, bracketed, checkFix, checkGist, checkLabel, constantText, drawText, escapePattern, flagLines,
+  ASK_FORMULATION, NO_PRODUCT, alreadyDecidedText, askAt, askStudies, bracketed, elsewhereText, checkFix, checkGist, checkLabel, constantText, drawText, escapePattern, flagLines,
   formulationLine, formulationParts, formulationProblem, formulationWays, heldText, individualNeeds, individualText, inputsHref, layoutFieldText,
   layoutFindingText, moveText, paramLabel, patternWords, placeText, readinessText, redrawText, rowRuleText, rowsLeftOut, spotGroupText, stepReason,
   stepWhere, studyWay, todoMessage, unitText, unreadWhy, withheldWhy, anchorPlace, sourceNamed, anchorCell, conditionsInWords, distinctNames,
@@ -898,7 +898,8 @@ test("round 4: a tablet study confirmed with the sheet form only, with no produc
   sources.delivery!.request = [line("CL-1")];
   const asked = askLines(sources.delivery, sources.inputs).filter((a) => a.req === "REQ-form.release");
   expect(asked).toEqual([{ req: "REQ-form.release", what: "The formulation or dissolution data of the product the study used (no file names the product)",
-                           subjects: ["CL-1", "OJ-9"], required: true, why: "the model itself", at: ASK_FORMULATION }]);
+                           subjects: ["CL-1", "OJ-9"], required: true, why: "the model itself", at: ASK_FORMULATION, product: null, studies: [],
+                           also: [] }]);
   // with no delivery (the sheet form only), the inputs alone ask it, and the work model's "Ask the client" lists it
   sources.delivery = null;
   expect(askLines(null, sources.inputs).find((a) => a.req === "REQ-form.release")!.subjects).toEqual(["OJ-9", "cl-1"]);
@@ -996,6 +997,66 @@ test("round 6: each line of 'Ask the client' has its own anchor, and 'ask the cl
   const own = formulationWays(studyWay(way, "CL-2"));
   expect(own.situation).toBe("Test 10 mg, the product the study names, has no dissolution profile that can give a release");
   expect(own.ways[0].query).toBe("release=Test%2010%20mg");
+});
+
+test("round 7: a product the delivery asks for already is asked once, the studies that name it on its line, where their asks land", () => {
+  // the delivery's per-product line (`REQ-form.release@<product>`, a product whose name says it is solid) and the inputs'
+  // lines of two studies whose files name it: one line, the delivery's, naming the studies; their anchors lead to it
+  const line = (study: string, product: string) => ({ req_id: "REQ-form.release", product, why: "the model itself", required: true, sheet: "",
+                                                      what: `The formulation or dissolution data of ${product}, the product the study used — study ${study}` });
+  const sources = copy(load("clientamide"));
+  sources.inputs!.todo.push({ kind: "formulation", target: "form.*", tab: "formulations", message: "", way: null,
+                              ask: [line("CL-04", "Test 10 mg tablet"), line("CL-05", "Product TEST 10 MG TABLET"), line("CL-06", "Test 10 mg")] });
+  sources.delivery!.request = [{ req_id: "REQ-form.release@test-10-mg-tablet", what: "Release model of the product (dissolution) — Test 10 mg tablet",
+                                 why: "the model itself", required: true, product: "Test 10 mg tablet", sheet: "" }];
+  const asked = askLines(sources.delivery, sources.inputs).filter((a) => a.req.startsWith("REQ-form.release"));
+  expect(asked.map((a) => [a.at, a.what, a.subjects, a.studies, a.also])).toEqual([
+    ["todo-ask-REQ-form.release@test-10-mg-tablet", "Release model of the product (dissolution)", ["Test 10 mg tablet"], ["CL-04", "CL-05"],
+     [`${ASK_FORMULATION}~test-10-mg-tablet`]],
+    // a product the delivery does not ask for (its item does not apply) keeps the study's own line
+    [`${ASK_FORMULATION}~test-10-mg`, "The formulation or dissolution data of Test 10 mg, the product the study used", ["CL-06"], [], []],
+  ]);
+  // the data plan's id for the product (another slug) is the same product's line, by its name
+  sources.delivery!.request[0].req_id = "REQ-form.release@tab-1";
+  expect(askLines(sources.delivery, sources.inputs).filter((a) => a.req.startsWith("REQ-form.release")).map((a) => [a.at, a.studies, a.subjects]))
+    .toEqual([["todo-ask-REQ-form.release@tab-1", ["CL-04", "CL-05"], ["Test 10 mg tablet"]], [`${ASK_FORMULATION}~test-10-mg`, [], ["CL-06"]]]);
+  // the studies, in words, after the product
+  expect(askStudies(["CL-04"])).toBe("the product study CL-04 used");
+  expect(askStudies(["CL-02", "CL-04", "CL-05"])).toBe("the product studies CL-02, CL-04 and CL-05 used");
+});
+
+test("round 7: a study whose file names another product than the model's only formulation stays open, in words", () => {
+  // the API's problem for it, and its way (To do's item: the readiness check passes, so it is the item's only study)
+  const problem = "CL-02: its file names Test 10 mg, but the CPF's only formulation 'Brand 10 mg' would be used (the study names no formulation)";
+  expect(formulationProblem(problem)).toBe("CL-02: its file names Test 10 mg; the model would use Brand 10 mg's release (its only formulation) until "
+                                           + "Test 10 mg's release is set");
+  expect(elsewhereText("Test 10 mg", "RLD")).toBe("its file names Test 10 mg; the model would use RLD's release (its only formulation) until Test 10 mg's "
+                                                  + "release is set");
+  const way = { way: "add_dissolution" as const, products: ["Test 10 mg"], studies: ["CL-02"], ready: true,
+                each: [{ study: "CL-02", way: "add_dissolution" as const, products: ["Test 10 mg"], ready: true, named: "Test 10 mg", uses: "Brand 10 mg" }] };
+  const how = formulationWays(way);
+  expect(how.situation).toBe("Test 10 mg, the product the study names, has no dissolution profile that can give a release");
+  expect(how.ways.map((w) => [w.id, w.query])).toEqual([["dissolution", "release=Test%2010%20mg"], ["ask", `at=${ASK_FORMULATION}~test-10-mg`]]);
+  // Test 10 mg's card says a tablet study needs its release; Brand 10 mg's (in the model) is not asked for by this problem
+  const inputs = { todo: [{ kind: "formulation", target: "form.*", message: problem, details: [problem], way }],
+                   compound: [{ id: "form.Brand 10 mg.type", state: "kept", tab: "formulations" }], studies: [], readiness: null };
+  expect(releaseOf({ label: "Test 10 mg", aliases: [] }, inputs)).toEqual({ name: null, needed: true });
+  expect(releaseOf({ label: "Brand 10 mg", aliases: [] }, inputs)).toEqual({ name: "Brand 10 mg", needed: false });
+  expect(releaseOf({ label: "Other 5 mg", aliases: [] }, inputs)).toEqual({ name: null, needed: false });
+  // the work model counts it as an open item of Products and dissolution, and its ask stays
+  const sources = copy(load("clientamide"));
+  sources.inputs!.todo.push({ ...inputs.todo[0], tab: "formulations",
+                              ask: [{ req_id: "REQ-form.release", what: "The formulation or dissolution data of Test 10 mg, the product the study used — study CL-02",
+                                      why: "the model itself", required: true, product: "Test 10 mg" }] });
+  const work = buildWork(sources);
+  const item = work.items.find((i) => i.id === "todo:formulation:form.*")!;
+  expect(item.open).toBe(true);
+  expect(item.area).toBe("formulations");
+  // its row says why it is open first, then what settles it
+  expect(item.detail).toBe("CL-02: its file names Test 10 mg; the model would use Brand 10 mg's release (its only formulation) until Test 10 mg's "
+                           + "release is set. Test 10 mg, the product the study names, has no dissolution profile that can give a release: add the "
+                           + "dissolution file of Test 10 mg (Add data), or ask the client for it (“Ask the client”, on To do).");
+  expect(work.ask.find((a) => a.at === `${ASK_FORMULATION}~test-10-mg`)!.subjects).toEqual(["CL-02"]);
 });
 
 test("round 5: why a study or dataset is blinded, in one sentence, its changeable part leading where it is changed", () => {
