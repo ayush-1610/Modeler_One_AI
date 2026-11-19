@@ -2,7 +2,7 @@
 
 **Purpose:** the entry point for anyone — engineer or AI model — resuming work on Modeler One. Read in this order:
 `CLAUDE.md` (working rules) → this file (where things stand) → `CHANGELOG.md` (what changed, why, when) → the active
-plan in `docs/plans/`. **Last brought up to date: 2026-11-16 (§4.0c: the Inputs task-first redesign and its final review rounds, on branch `claude/stoic-bohr-9ymlx9`, not yet merged to `main`).** If HEAD is far ahead of
+plan in `docs/plans/`. **Last brought up to date: 2026-11-19 (§4.0c: the Inputs task-first redesign and its final review, merged to `main` for the owner's trial).** If HEAD is far ahead of
 that commit and §4 was not updated with it, §4 is stale — fix it before trusting it.
 
 ## 30-second system state
@@ -213,21 +213,22 @@ T-05 → T-07 → T-08 → T-18 and T-09 in parallel.
 
 ## 4. Where things stand (2026-11-16)
 
-### 4.0c 2026-11-14 → 16: the Inputs page, task-first (read this first)
+### 4.0c 2026-11-14 → 19: the Inputs page, task-first (read this first)
 Plan `docs/plans/2026-11-14-inputs-task-first.md` (§2 six rules, §2.1 grafts, §2.2 decisions; **§5 records every
 deviation, gap and owner question, round by round**); audit `docs/plans/2026-11-14-inputs-ux-audit.md` (97 findings);
 design `docs/plans/2026-11-14-inputs-task-first-design.md`. Owner's ask: the page was cluttered, repetitive, unclear;
 "before I approve your work I need to actually use it, so I must be able to fill what all is not there and make
 available all data for downstream tasks".
-- **Where the work is:** branch `claude/stoic-bohr-9ymlx9` (pushed; `main` at 0c4028e is its ancestor, about 100 commits
-  behind). Not merged to `main` and not deployed: the owner has not yet approved it or asked for the PR.
+- **Where the work is:** built on branch `claude/stoic-bohr-9ymlx9`, fast-forwarded onto `main` on 2026-11-19 at the
+  owner's request ("push … to main only if everything is looking good. I actually want to test this now"), after the
+  checks below. Not yet deployed to the server (deploy from `main` with `bash deploy/dev/deploy_to_server.sh`).
 - **Built (slices 1–4):** one list of work (`lib/inputsWork.ts`) feeding every count; one card per study or product with
   one confirm path; one row per file (Client files); four status words; To do with inline file-level work; the area
   bar (To do · Compound · Products and dissolution · Clinical studies · Populations and individuals · Simulation
   settings · Client files); forms to fill what was missing (arms, batches, analytes, a first layout, numbers not read,
   compound rows, the individual); page words through `lib/words.ts` (no engine words, ids or locators).
 - **Final review:** four lenses (owner, accessibility, integrity, code) plus an owner-job e2e, then seven fix rounds
-  (2026-11-15/16). Each round: one fixer per group in its own worktree, then an independent skeptic per group that
+  (2026-11-15 → 19). Each round: one fixer per group in its own worktree, then an independent skeptic per group that
   reproduces each finding in a browser or at the API; what it found open became the next round. CHANGELOG entries
   "Fixed — final review, …" and "Fixed — final review round 2…7, …"; §5 sub-headings of the same names. Main themes:
   linking and the sheet-form join; blinding (one source for what is withheld, the reason said wherever a study is
@@ -236,16 +237,25 @@ available all data for downstream tasks".
   project holds and the product a study's own file names; speed (a decision reads only what it changes; the RLD
   flake's root cause: the API read a file's runs after what they write); accessibility (focus, unique names, phone and
   tablet widths).
-- **Tests at round 6's merge (462d6a0):** `make test` 3178 passed, only the 15 baseline failures (orchestrator and
-  data-intake environment); lint, typecheck and build pass; full e2e 147 of 152 at 8f4f1fe, the five being clashes
-  between the round-6 branches, fixed in 462d6a0 (those specs 11 of 11). Round 7 was running when this was written:
-  see the CHANGELOG's round-7 entries and §5 for its results.
+- **Tests at round 7's merge (670aff4), the head merged to `main`:** `make test` 3188 passed, only the 15 baseline
+  failures (orchestrator and data-intake environment); `make lint`, the web typecheck (OpenAPI check included) and the
+  build pass; full e2e 161 of 161 (one run on an idle machine). No locked file differs from `main`'s.
+- **Known open, for the next fix round (round 7's skeptics; the script is ready):** a blinded dataset's write answers
+  (`:study`, `:overlay`, `POST datasets`, `:digitize`) still carry its quote and values to the person who saved it (not
+  shown; reached from Populations when a blinded study's individual is saved); a blinded dataset's check flags keep an
+  NCA mismatch's two numbers in the API; Review & sign says nothing when a study's file names another product than the
+  model's only formulation (the gate itself is owner question 11), and that study's open item lists the other
+  product's release values with Accept/Reject; a few words: the signature's wait said twice, "MAP" in two lines, field
+  ids over-worded inside a file name or a client's own headers, a stale stored AUC-unit flag worded with a reason no
+  longer true, the pathway picker named by its id, the Start page's "on this server" twice.
+- **Next.js:** the build reports that Next.js 16.4.2 has a known security vulnerability; the owner asked for the
+  upgrade on its own branch after this merge.
 - **Every engine number in these tests is from the stub engine** (`deploy/dev/stub_engine.py`): software evidence of
   the page, never PBPK evidence. No locked file, ruleset, requirement level or MS-01 rule was changed.
 - **Open owner questions** (each with its context in §5):
   1. "Not data" per cell (API 3), or per region as built.
   2. The gate per delivery or per study (21 CFR 11.10); does the sheet-form path need a signature (INT-7)?
-  3. Open the PR to `main` for deploy and trial?
+  3. (Answered 2026-11-19: merged to `main` for the owner's trial.)
   4. SME: the spot check's draw size (117 = 17 always checked + 100 random).
   5. Is a link carried over a re-read audited as actor "code"?
   6. Library paper blinding: the whole paper, or only the blinded dataset's figures?
@@ -260,6 +270,10 @@ available all data for downstream tasks".
       still takes a Writer's change)?
   13. Should the client request download carry the "Ask the client" lines?
   14. The sidebar's link prefetch app-wide, or the step bar drawn from `/steps` in the browser?
+  15. A blinded (S5) study's individual: set before the plan is signed (as the readiness check and round 7 have it),
+      or after? `POST datasets/{id}:study` has no blinding guard either way.
+  16. Re-check a stored dataset's flags when it is read (7bb1's 230-23 keeps a flag from before the AUC unit could be
+      compared), or only at its next revision?
 - **Working mode:** the usage limit stopped workflows several times; each was resumed from its run id or relaunched,
   with no work lost (fixers commit in their worktrees; merged work is pushed at once).
 
