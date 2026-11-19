@@ -22,8 +22,10 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
   security notice for the installed version. 16.4.6 is the current `latest` (published 2026-11-09). `npm audit` now
   reports no vulnerabilities.
 - **Impact:** none intended on behaviour (a patch release in the same minor). The app does not use `'use cache'` or
-  `unstable_cache`. The web typecheck passes; the production build and the full e2e suite are recorded below when they
-  end.
+  `unstable_cache`. Checked: the web typecheck and the production build pass (the build no longer stops on the security
+  notice); full e2e 160 of 161. The one failure (inputs-blinded, round 7's joined-group test) searched `/evidence`'s raw
+  text for a withheld value and once matched it inside the answer's own timestamp (…:09.88…), as round 5 found for
+  another answer; that check now strips timestamps as round 5's does, and the spec passes 14 of 14 (two runs).
 
 ### Fixed — final review round 7, what a blinded study still shows (round 6's blinding-follow skeptic and the quote the names-words fixer found; plan 2026-11-14 §5) — science-adjacent
 - **A group joined to a blinded study under another name has its datasets withheld everywhere
