@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import base64
 import json
+import logging
 import time
 from datetime import UTC, datetime, timedelta
 
@@ -116,6 +117,21 @@ def test_an_agent_runs_on_the_model_and_active_key_the_console_sets_without_a_re
     assert [(h["agent"], h["provider"], h["reason"]) for h in history] == [("A1", "litellm", "back on"), ("A1", "off", "A1 paused")]
     assert client.put("/api/v1/admin/agents/A9", json={"provider": "off", "reason": "x"},
                       headers=_as("owner")).status_code == 409
+
+
+def test_a_projects_pages_say_why_the_agents_are_off_in_words_and_the_admin_console_names_the_setting(client, monkeypatch, caplog):
+    """Final review round 7: a hover title on Client files read "agents are off (MODELER_LLM_PROVIDER not set)". A
+    project's pages say it in words; the admin console still names the setting (and the server's log does)."""
+    monkeypatch.delenv("MODELER_LLM_PROVIDER", raising=False)
+    page = agent_jobs.agents_status("A4")
+    assert page == {"enabled": False, "problem": agent_jobs.AGENTS_OFF} and "MODELER_" not in page["problem"]
+    assert "MODELER_LLM_PROVIDER" in agent_jobs.agents_status("A4", admin=True)["problem"]
+    with caplog.at_level(logging.INFO, logger="modeler_api.agent_jobs"):
+        agent_jobs.log_agents_status()                       # at the server's start, by the setting to change
+    assert "MODELER_LLM_PROVIDER not set" in caplog.text
+    monkeypatch.setattr(agent_jobs, "chat_model", lambda agent=None: (None, "MODELER_LLM_PROVIDER=bedrock needs BEDROCK_REGION"))
+    assert agent_jobs.agents_status("A4")["problem"] == agent_jobs.AGENTS_MISCONFIGURED
+    assert "BEDROCK_REGION" in agent_jobs.agents_status("A4", admin=True)["problem"]
 
 
 def test_a_key_test_says_whether_it_answers_and_is_kept_with_the_key(client, monkeypatch):

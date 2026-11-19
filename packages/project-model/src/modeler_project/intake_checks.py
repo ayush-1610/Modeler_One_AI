@@ -41,8 +41,18 @@ from typing import Any, Literal
 
 from modeler_intake.anchors import sha256_of
 from modeler_intake.document_reading import name_key
-from modeler_intake.fields import CONDITION_FIELDS, MASS_UNITS, known_unit, read_choice, unit_class, unit_table
-from modeler_project.datasets import NCA_TOLERANCE
+from modeler_intake.fields import (
+    CONDITION_FIELDS,
+    MASS_UNITS,
+    condition_text,
+    condition_word,
+    either,
+    known_unit,
+    read_choice,
+    unit_class,
+    unit_table,
+)
+from modeler_project.datasets import NCA_TOLERANCE, auc_unit_parts
 from modeler_project.intake_records import CheckResult, MappingEntry, RequirementStatus
 from modeler_project.intake_rules import IntakeRules
 from modeler_project.intake_rules import rules as load_rules
@@ -91,10 +101,6 @@ LANDING_FIELDS = ("n", "dose", "route", "intended_use")
 # percent_dissolved ...) needs no unit written beside its value
 _UNIT_IN_NAME = re.compile(r"_(?:kg|cm|um|mg|g|h|min|ml|c|kcal)$|^percent_")
 _MARK = re.compile(r"\d\s*[*†‡]")                          # a footnote mark on a number ("12.3*")
-# An AUC unit as concentration × time: "ng*h/mL", "ng/mL*h", "h*ng/mL", "µg·h/L" (the time token one of the time table's)
-_TIME = r"(?:s|sec|min|minutes?|h|hrs?|hours?|d|days?)"
-_AUC_UNIT = re.compile(rf"^\s*(?:(?P<t1>{_TIME})\s*[*·×]\s*(?P<c1>.+)|(?P<a>[^*·×]+?)\s*[*·×]\s*(?P<t2>{_TIME})\s*(?P<b>/.*)?)$",
-                       re.IGNORECASE)
 _TOTAL = re.compile(r"^total\b", re.IGNORECASE)            # the total row of a composition table
 
 
@@ -507,9 +513,14 @@ def _spreads(ctx: _Context) -> None:
                                      []).append(value.id)
     for (code, rule, detail), ids in found.items():
         statistic, kind = detail.split("|")
-        why = ("lands no error and stays in the ledger as written" if rule == "landing.spreads_landed"
-               else "cannot be converted to an SD (no n)" if kind == "SE" else "cannot be converted to an SD")
-        ctx.add(code, ids, f"{kind} values beside a {statistic.replace('_', ' ')}: {why}", detail=detail, rule=rule)
+        why = ("no error is loaded; they are kept as written" if rule == "landing.spreads_landed"
+               else "cannot be converted to an SD (no number of subjects)" if kind == "SE" else "cannot be converted to an SD")
+        ctx.add(code, ids, f"{kind} values beside {_a(statistic.replace('_', ' '))}: {why}", detail=detail, rule=rule)
+
+
+def _a(noun: str) -> str:
+    """A noun with its indefinite article: "an arithmetic mean", "a geometric mean"."""
+    return f"{'an' if noun[:1].lower() in 'aeiou' else 'a'} {noun}"
 
 
 def _n_missing(ctx: _Context) -> None:
@@ -522,8 +533,8 @@ def _n_missing(ctx: _Context) -> None:
         arm = key[1]
         if any(f.entity.arm in (None, arm) for f in n_facts):
             continue
-        ctx.add("N_MISSING", (), f"{key[0]}: a {statistic.replace('_', ' ')} series with no n, at its points or for "
-                "its arm", detail=_detail(key))
+        ctx.add("N_MISSING", (), f"{key[0]}: {_a(statistic.replace('_', ' '))} series with no number of subjects (n), "
+                "at its points or for its arm", detail=_detail(key), field=key[0])
 
 
 # The parts of `_series_key` a reported PK parameter and the mean series it reports must agree on, where both state
@@ -596,13 +607,10 @@ def _factor(reported: str | None, unit: str | None, mol_weight: float | None, *,
         return None
     concentration, time = reported, None
     if auc:
-        match = _AUC_UNIT.match(reported)
-        if match is None:
+        parts = auc_unit_parts(reported)             # an AUC unit as concentration x time, read as the dataset check reads it
+        if parts is None:
             return None
-        if match["t1"]:
-            time, concentration = match["t1"], match["c1"]
-        else:
-            time, concentration = match["t2"], match["a"] + (match["b"] or "")
+        concentration, time = parts
     try:
         mw = mol_weight or (1.0 if is_molar(concentration.strip()) == is_molar(unit) else None)
         factor = umol_per_l_per(concentration.strip(), mw) / umol_per_l_per(unit, mw)
@@ -731,9 +739,11 @@ def _runs(ctx: _Context) -> dict[tuple[Any, ...], list[ValueState]]:
 
 
 def _describe_run(ctx: _Context, run: tuple[Any, ...]) -> str:
+    """A dissolution run in words: "batch L2301, medium phosphate buffer, pH 6.8" (its conditions as a person writes
+    them, `fields.condition_text`; final review round 7: "ph 6.8")."""
     batch, conditions = run
     bits = [f"batch {ctx.label(batch)}"] if batch else []
-    bits += [f"{k} {v}" for k, v in conditions]
+    bits += [condition_text(k, v) for k, v in conditions]
     return ", ".join(bits) or "a run with no batch or conditions"
 
 
@@ -749,7 +759,8 @@ def _dissolution_method_incomplete(ctx: _Context) -> None:
         stated_ = {k for k, v in run[1] if str(v).strip()}
         missing = [c for c in needed if c not in stated_]
         if missing:
-            ctx.add("DISSOLUTION_METHOD_INCOMPLETE", (), f"{_describe_run(ctx, run)}: no {', '.join(missing)} stated",
+            ctx.add("DISSOLUTION_METHOD_INCOMPLETE", (), f"{_describe_run(ctx, run)}: no "
+                    f"{either([condition_word(c) for c in missing])} stated",
                     detail=f"{_detail(run)}|{judged(v.id for v in values)}", rule="routing.item_fields")
 
 
@@ -812,8 +823,10 @@ def _dissolution_runs_not_keyed(ctx: _Context) -> None:
         names = sorted({name for conditions in others for name in conditions})
         differ = [name for name in names if len({repr(conditions.get(name, "")) for conditions in others}) > 1]
         if differ:
-            ctx.add("DISSOLUTION_RUNS_NOT_KEYED", (), f"runs share one profile key ({', '.join(_KEYED)}) and differ "
-                    f"in {', '.join(differ)}, which it does not key: at the landing one would overwrite the other",
+            ctx.add("DISSOLUTION_RUNS_NOT_KEYED", (), "runs share one profile key "
+                    f"({', '.join(condition_word(k) for k in _KEYED)}) and differ in "
+                    f"{', '.join(condition_word(k) for k in differ)}, which it does not key: at the landing one would "
+                    "overwrite the other",
                     detail=_detail(key))
 
 

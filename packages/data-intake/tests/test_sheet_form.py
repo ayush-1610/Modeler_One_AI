@@ -123,6 +123,24 @@ def test_a_dissolution_sheet_gets_its_conditions_and_the_brief_product_name():
     assert {r.vessel for r in records} == {f"Vessel {i}" for i in range(1, 13)}
 
 
+def _dissolution_unnamed_ph(wb):
+    ws = wb.active
+    ws.title = "Run 2"
+    ws.append(["Dissolution of Desvenlafaxine ER Tablets 50 mg (Test), USP II (paddle), 50 rpm, phosphate buffer"])
+    ws.append(["Time (hr)", *(f"Vessel {i}" for i in range(1, 7)), "Mean"])
+    for t, base in ((1, 18.0), (2, 30.0), (4, 48.0), (8, 72.0)):
+        ws.append([t, *(base + d for d in (-1, -0.5, 0, 0.5, 1, 0)), base])
+
+
+def test_a_fact_taken_from_the_file_name_is_said_by_its_label_not_its_field_id():
+    """Final review round 7: the note said "ph '6.8' is taken from the file name" (the field's id) on Products."""
+    grid = _grid(_dissolution_unnamed_ph, "Dissolution pH 6.8.xlsx")
+    form, notes = suggest(grid.sheets["Run 2"], filename="Dissolution pH 6.8.xlsx")
+    assert form.constants["ph"] == "6.8"
+    assert "pH '6.8' is taken from the file name: check it." in notes
+    assert not any(n.startswith(("ph ", "rpm ", "volume_ml ", "strength_mg ")) for n in notes)
+
+
 def _iv_summary(wb):
     ws = wb.active
     ws.title = "Fig 1"
@@ -139,7 +157,7 @@ def test_published_mean_data_get_their_statistic_sd_and_n_and_the_route_from_the
     assert form.constants["route"] == "iv_infusion" and form.constants["formulation"] == "solution"
     assert form.constants["study_id"] == "Nichols2012-IV" and form.constants["dose"] == "50"
     assert form.study == {"infusion_time_min": "300"}
-    assert any("dose '50' is taken from the file name" in n for n in notes)
+    assert any("Dose '50' is taken from the file name" in n for n in notes)
     result = apply_recipe(grid, _recipe(to_proposal(form, grid.sheets["Fig 1"])))
     assert result.issues == [] and [r.n for r in result.concentrations] == [14] * 5
 

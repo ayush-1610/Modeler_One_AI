@@ -5,6 +5,7 @@ import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { SHEET } from "@/components/inputs/after";
 import { narrow, send } from "@/lib/api";
 import { useMutation, useResource } from "@/lib/hooks";
+import { sheetNoteText } from "@/lib/words";
 
 import type { ClientFile, ReadPreview, SheetForm, SheetView } from "./types";
 
@@ -288,7 +289,7 @@ export function SheetReader({ projectId, file, sheet, last, onSaved, onClose, re
       {view.notes.length > 0 && (
         <div className="found">
           <strong>{view.proposed_by === "code" ? "Found in the sheet" : "The agent's notes"}</strong>
-          <ul>{view.notes.map((n) => <li key={n}>{n}</li>)}</ul>
+          <ul>{view.notes.map((n) => <li key={n}>{sheetNoteText(n)}</li>)}</ul>
         </div>
       )}
       <div className="reader-body">

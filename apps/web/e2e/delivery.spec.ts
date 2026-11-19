@@ -393,4 +393,15 @@ test("a delivery is reviewed by exception, spot-checked, signed and loaded once"
     expect(new Set(names).size, names.join(" | ")).toBe(2);
     for (const n of names) expect(n).not.toMatch(/cf-\d|confirmation|p\.\d/);
   }
+  // both "Leave it out…" forms open: each form's reason, button and "Cancel" are named by its dataset (round 7: the two
+  // "Cancel" read alike)
+  for (let n = 2; n > 0; n -= 1) await lines.getByRole("button", { name: /^Leave it out… the dataset of/ }).first().click();
+  for (const [kind, name] of [["button", /^Cancel: the dataset of /], ["button", /^Leave it out: the dataset of /],
+                              ["textbox", /^reason for the dataset of /]] as const) {
+    const names = await lines.getByRole(kind, { name }).evaluateAll((els) => els.map((e) => e.getAttribute("aria-label") ?? ""));
+    expect(names, String(name)).toHaveLength(2);
+    expect(new Set(names).size, names.join(" | ")).toBe(2);
+  }
+  await lines.getByRole("button", { name: /^Cancel: the dataset of / }).first().click();
+  await expect(lines.getByRole("button", { name: /^Cancel: the dataset of / })).toHaveCount(1);
 });

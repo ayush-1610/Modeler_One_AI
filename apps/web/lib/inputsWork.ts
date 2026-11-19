@@ -12,8 +12,8 @@
 
 import type { Schema } from "./api";
 import {
-  AREA_NAME, type FormulationWay, STATUS_WORD, type Status, type Tab, UNREADABLE, anchorPart, askAt, checkFix, checkLabel, elsewhereText, factText,
-  formulationParts, formulationWays, individualNeeds, layoutOrigin, placeText, plural,
+  AREA_NAME, type FormulationWay, STATUS_WORD, type Status, type Tab, UNREADABLE, anchorPart, askAt, checkFix, checkLabel, checkText,
+  elsewhereText, factText, formulationParts, formulationWays, individualNeeds, layoutFieldInText, layoutOrigin, placeText, plural, roleText,
   tableKindText, todoLabel, whenText, whereIs,
 } from "./words";
 
@@ -49,7 +49,10 @@ export type FileLike = { id: string; file: string; sha256: string };
 export type CardLike = {
   blockers: { code: string; detail: string }[];
   gaps: { tag: string; reason: string }[];
-  checks: { id: string; code: string; message: string | null; severity: string; overridden: boolean }[];
+  /** `field` and `unit`: what the check is about, sent apart from its message (final review round 6), so To do says it as
+   *  the card does (`words.checkText`, round 7) */
+  checks: { id: string; code: string; message: string | null; severity: string; overridden: boolean; field?: string | null;
+            unit?: string | null }[];
   conflicts: { id: string; field: string; kind: string; time: number | null; time_unit?: string | null; labels?: Record<string, string> }[];
   links: { id: string; state: string; file: string; study_label: string | null }[];
   requirements: { req_id: string; status: string; disposition: string | null; label: string }[];
@@ -563,7 +566,10 @@ export function buildWork(sources: WorkSources): WorkModel {
     }
     for (const c of failing) {
       if (SETTLED_ELSEWHERE.has(c.code) || (c.code === "MAPPING_NOT_APPROVED" && layoutIds.some((id) => c.message?.includes(id)))) continue;
-      add({ ...base, id: `check:${s.key}:${c.id}`, group: "disagree", status: "to_decide", label: `${name}: ${c.message ?? "a check failed"}`,
+      // said as the card's check row says it (`checkText`: its field in words, never its id; final review round 7: To do
+      // and the card's to-do list said "concentration: values above the range…" beside the row's "Concentration: …")
+      add({ ...base, id: `check:${s.key}:${c.id}`, group: "disagree", status: "to_decide",
+            label: `${name}: ${c.message !== null ? checkText({ ...c, message: c.message }) : "a check failed"}`,
             detail: "A check failed: correct the values, or say why it holds as it is.", where: at(`delivery-check-${c.id}`) });
     }
     // each disagreement says whom it is about and when, with the time's unit ("concentration at 1 h, subject 001,
@@ -572,7 +578,7 @@ export function buildWork(sources: WorkSources): WorkModel {
       const about = aboutText(x.labels);
       const when = x.time !== null ? ` at ${x.time}${x.time_unit ? ` ${x.time_unit}` : ""}` : "";
       add({ ...base, id: `differ:${s.key}:${x.id}`, group: "disagree", status: "to_decide", about: about || undefined,
-            label: `${name}: the files give different ${x.kind === "unit" ? "units" : "values"} for ${x.field.replace(/_/g, " ")}${when}${about ? `, ${about}` : ""}`,
+            label: `${name}: the files give different ${x.kind === "unit" ? "units" : "values"} for ${layoutFieldInText(x.field)}${when}${about ? `, ${about}` : ""}`,
             where: at(cardPlace("conflict", own, x.id)) });
     }
     for (const l of card.links.filter((x) => x.state !== "refused")) {
@@ -1067,11 +1073,15 @@ const alike = (name: string, others: string[]) => {
 };
 const digits = (x: number) => String(Number(x.toPrecision(8)));
 
-/** A fact of a file in a few words ("dose 50 mg", "fasted", "LLOQ 0.5 ng/mL"); never a blinded study's value. */
-function factWords(v: Value): string {
+/** A fact of a file in a few words ("dose 50 mg", "fasted", "LLOQ 0.5 ng/mL", "pH 6.8", "test product"); never a blinded
+ *  study's value. The field by its label in a sentence, its unit in brackets left out where the value says it (final
+ *  review round 7: "product role TEST", "strength 50 mg" said by the field's id and the template's code). */
+export function factWords(v: Pick<Value, "field" | "value" | "verbatim" | "unit" | "blinded">): string {
   const value = v.blinded ? WITHHELD : v.value === null ? v.verbatim ?? "" : typeof v.value === "number" ? digits(v.value) : String(v.value);
+  if (v.field === "product_role" && !v.blinded) return roleText(value);
   const said = `${value}${v.unit && !v.blinded ? ` ${v.unit}` : ""}`;
-  return v.field === "food_state" ? said : `${v.field === "lloq" ? "LLOQ" : v.field.replace(/_mg$/, "").replace(/_/g, " ")} ${said}`;
+  const field = layoutFieldInText(v.field);
+  return v.field === "food_state" ? said : `${v.unit && !v.blinded ? field.replace(/ \([^)]*\)$/, "") : field} ${said}`;
 }
 
 /** The one entity of a role the file gives its values (its arm, batch or analyte), with its label; none when the file

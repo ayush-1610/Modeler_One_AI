@@ -20,7 +20,7 @@ import { areaHead, cardAnchor, type InputsLike, nextText, normLabel, productFor,
          type WorkItem } from "@/lib/inputsWork";
 import { type ArtifactView, STEP_ROUTES } from "@/lib/pipeline";
 import { AREA_NAME, askAt, elsewhereText, type FormulationWay, formulationWays, inputsHref, STATUS_MEANS, plural as count, studyWay,
-         valueWord } from "@/lib/words";
+         profileText, valueWord } from "@/lib/words";
 
 import { AddDataMenu, type AddDataOpen } from "./AddDataMenu";
 import { DOCUMENTS, FILES, SEARCH, blindingChanged, inputsAfter, valuesAfter, valuesArrived } from "./after";
@@ -585,7 +585,7 @@ function Workspace({ projectId, initialTab, initialOnly, initialStatus, steps }:
   const toggleCard = (s: Subject, first: boolean) => setCardsOpen((was) => ({ ...was, [s.key]: !(was[s.key] ?? (focused(s, cardFocus) || first)) }));
   // the dissolution profiles, each on its product's card; those of no product's card after them
   const dissolution = client.data?.dissolution;
-  const profileLabel = (id: string) => dissolution?.profiles.find((p) => p.id === id)?.label ?? id;
+  const profileLabel = (id: string) => profileText(dissolution?.profiles.find((p) => p.id === id)?.label ?? id);
   const products = cardsFor("formulations").filter((s) => s.kind === "product");
   // what gives a tablet study its formulation as the project stands (round 4: the API's, the step bar's and To do's lever):
   // a product's dissolution profile here, products without one, or no product at all; each study's own (round 5)
@@ -795,7 +795,7 @@ function Workspace({ projectId, initialTab, initialOnly, initialStatus, steps }:
           {!only && dissolutionNotes(dissolution?.profiles ?? [], dissolution?.problems ?? []).length > 0 && (
             <section className="card-section" data-testid="dissolution-notes">
               <h3 className="area-section-title">Notes on the dissolution data</h3>
-              <ul className="flags">{dissolutionNotes(dissolution?.profiles ?? [], dissolution?.problems ?? []).map((x) => <li key={x}>{x}</li>)}</ul>
+              <ul className="flags">{dissolutionNotes(dissolution?.profiles ?? [], dissolution?.problems ?? []).map((x) => <li key={x}>{profileText(x)}</li>)}</ul>
             </section>
           )}
           {!only && <BriefList projectId={projectId} group="products" testId="inputs-products" addAt={addProduct}

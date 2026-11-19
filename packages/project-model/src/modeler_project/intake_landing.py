@@ -77,8 +77,8 @@ from pydantic import BaseModel, ConfigDict
 
 from modeler_intake.anchors import AnchorError, DocxCell, SheetCell, format_locator, parse_anchor
 from modeler_intake.client_template import FORMULATIONS, ROUTES, USES
+from modeler_intake.fields import condition_text, condition_word, known_unit, read_choice
 from modeler_intake.fields import field as field_def
-from modeler_intake.fields import known_unit, read_choice
 from modeler_intake.validate import TIME_UNITS, canonical_unit
 from modeler_project import client_data
 from modeler_project.dataset_register import dataset, datasets, decide_dataset, propose_dataset, revise_dataset
@@ -606,7 +606,7 @@ class _Planner:
             written = [(name, text) for name, text in zip(_DISSOLUTION_KEY, key[4:], strict=True)
                        if name in _NUMERIC_CONDITIONS and isinstance(text, str)]
             if written:                                     # the profile key holds rpm, pH and volume as numbers
-                self.held.append(f"{what}: " + "; ".join(f"{name} is written {text!r}, which is not a number"
+                self.held.append(f"{what}: " + "; ".join(f"{condition_word(name)} is written {text!r}, which is not a number"
                                                          for name, text in written) + ": not landed")
                 continue
             if len(unkeyed[key]) > 1:
@@ -774,8 +774,9 @@ def _condition(name: str, text: str) -> Any:
 
 
 def _run_words(key: tuple[Any, ...]) -> str:
-    bits = [f"{name} {value:g}" if isinstance(value, float) else f"{name} {value}"
-            for name, value in zip(("apparatus", "rpm", "medium", "pH", "volume_ml"), key[4:], strict=True)
+    """A run's conditions as a person writes them ("USP II, 50 rpm, medium phosphate buffer, pH 6.8, volume 900 mL";
+    final review round 7: "volume_ml 900")."""
+    bits = [condition_text(name, value) for name, value in zip(_DISSOLUTION_KEY, key[4:], strict=True)
             if value not in (None, "")]
     return ", ".join(bits) or "conditions not stated"
 

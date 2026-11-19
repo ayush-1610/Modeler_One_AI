@@ -11,7 +11,7 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
 
 import type { Schema } from "@/lib/api";
-import { conditionsInWords, pkParamText, valueWord } from "@/lib/words";
+import { conditionsInWords, pkParamText, profileText, valueWord } from "@/lib/words";
 
 type Data = Schema<"DatasetPoints">;
 type Series = Schema<"SeriesPoints">;
@@ -259,7 +259,7 @@ type Profile = import("@/components/client/types").Profile;
  *  the conditions, and the table of points. */
 /** A dissolution profile drawn with its fit. `title`: the name over the chart ("" where its name is said just above it);
  *  its conditions are listed by their labels, without its product and role, which its name says (final review OWN-10). */
-export function ReleaseView({ p, title = p.label }: { p: Profile; title?: string }) {
+export function ReleaseView({ p, title = profileText(p.label) }: { p: Profile; title?: string }) {
   const [box, W] = useBoxWidth();
   const tMax = Math.max(...p.times_min, 1);
   const x = (t: number) => PAD.l + (t / tMax) * (W - PAD.l - PAD.r);
@@ -276,7 +276,7 @@ export function ReleaseView({ p, title = p.label }: { p: Profile; title?: string
       <figure className="profile-chart">
         {title && <div className="profile-chart-bar"><span className="muted">{title}</span></div>}
         <div className="chart-box" ref={box}>
-        <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} role="img" aria-label={`release of ${p.label}`}>
+        <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} role="img" aria-label={`release of ${profileText(p.label)}`}>
           {[0, 25, 50, 75, 100].map((v) => (
             <g key={v} className="grid"><line x1={PAD.l} x2={W - PAD.r} y1={y(v)} y2={y(v)} />
               <text x={PAD.l - 6} y={y(v) + 4} textAnchor="end">{v}</text></g>

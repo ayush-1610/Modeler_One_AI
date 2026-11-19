@@ -13,7 +13,7 @@ import {
   NEW, NO_TARGET, aboutText, askLines, blindedParts, blindedText, blindedWhy, blindedWords, analyteChoice, analyteChoices, areaHead, assignBody, buildWork, checkField, collisions,
   columnSummary, destinationKey, formulationsHeld, heldBy, inModel, layoutRows, linkCount, linkPlaces, linkRows, linkTarget, linkWords, linkedPiece,
   looseGroups, markedText, nextText, foldChecks, noLayoutReads, noSampleCells, normLabel, notReadRows, onDelivery, pairsMeet, prefixAlias,
-  productFor, releaseAnchor, releaseOf, restoredText, seriesKey, SIGN_WAITS, individualBlindedWords, studyBlindedWhy,
+  factWords, productFor, releaseAnchor, releaseOf, restoredText, seriesKey, SIGN_WAITS, individualBlindedWords, studyBlindedWhy,
   targetProblem, type Subject, type WorkSources,
 } from "../lib/inputsWork";
 import {
@@ -22,7 +22,8 @@ import {
   layoutFindingText, moveText, paramLabel, patternWords, placeText, readinessText, redrawText, rowRuleText, rowsLeftOut, spotGroupText, stepReason,
   stepWhere, studyWay, todoMessage, unitText, unreadWhy, withheldWhy, anchorPlace, sourceNamed, anchorCell, conditionsInWords, distinctNames,
   layoutFieldInText, regionKindText, valueAbout, checkText, datasetHolds, datasetNames, datasetPlace, datasetSource, labelWord, landingText,
-  lowerFirst, pkParamText, templateIssueText, withArticle,
+  lowerFirst, pkParamText, templateIssueText, withArticle, datasetFlagText, fieldIdsInWords, idWords, profileText, roleText, sheetNoteText,
+  tagWhyText, unpromisedText,
 } from "../lib/words";
 import { afterAnswer, blindedStudies, changedRows, followFrom } from "../lib/freshness";
 
@@ -213,8 +214,8 @@ test("what holds up a card signed on the delivery is counted: its facts, require
   // 230-25: the dose as DOSE_MISSING and as the record's need, once; the product's dissolution method, to decide
   expect(row("fact:study:230-25").label).toBe("Study 230-25 · not stated: the route, the dose, what the study is for, the number of subjects");
   expect(model.items.filter((i) => i.id.startsWith("check:product:Exampleamide IR tablet:")).map((i) => i.label))
-    .toEqual(["Product Exampleamide IR tablet: batch L2301, medium phosphate buffer, ph 6.8: no apparatus stated",
-              "Product Exampleamide IR tablet: batch L2301, medium HCl buffer, ph 1.2: no apparatus stated"]);
+    .toEqual(["Product Exampleamide IR tablet: batch L2301, medium phosphate buffer, pH 6.8: no apparatus stated",
+              "Product Exampleamide IR tablet: batch L2301, medium HCl buffer, pH 1.2: no apparatus stated"]);
   // each counts in its subject's area, and every count still agrees
   expect(model.counts.missing + model.counts.to_confirm + model.counts.to_decide).toBe(model.counts.open);
   const areas = (["compound", "formulations", "studies", "individuals", "settings", "files"] as const).reduce((n, t) => n + model.byArea[t], 0);
@@ -1586,4 +1587,75 @@ test("round 6: labels, kinds, PK parameters, the template's problems and a study
   // a dotted field the landing keeps is said in the layout's words
   expect(heldText("230-23: excretion (excretion.amount): kept in the ledger; the model inputs have no place for it yet", "230-23"))
     .toBe("Excretion (amount excreted): kept, not used by the model (no place for it yet)");
+});
+
+test("round 7: a dataset's flags, the sheet form's notes, a profile's role and a condition's id, in words", () => {
+  // 230-23's parent dataset on the owner's project (7bb1), its flag as the dataset keeps it
+  expect(datasetFlagText("reported AUC_last unit 'ng*h/mL' not comparable (state it as concentration*time, e.g. ng/ml*h)"))
+    .toBe("The reported AUC last, in “ng*h/mL”, is not compared with the profile: its unit is not read as a concentration times a time (such as “ng/mL*h”)");
+  expect(datasetFlagText("nca_mismatch AUC_last: profile gives 512.3, reported 400 (+28 %)"))
+    .toBe("The reported AUC last and the profile's own differ by more than the tolerance: the profile gives 512.3, the source reports 400 (+28%)");
+  expect(datasetFlagText("nca_mismatch Cmax: profile gives 31, reported 40 (-22 %)")).toMatch(/^The reported Cmax and/);
+  expect(datasetFlagText("cross_file: 230-23 protocol.pdf via a person")).toBe("Values joined from 230-23 protocol.pdf, linked by a person");
+  expect(datasetFlagText("series mean: mean values without N")).toBe("Series mean: a mean with no number of subjects");
+  expect(datasetFlagText("PK parameters only: judges a prediction, cannot train a profile fit"))
+    .toBe("PK parameters only: they can judge a prediction, not train a profile fit");
+  expect(datasetFlagText("a flag with volume_ml and ph unknown")).toBe("A flag with volume (mL) and pH unknown");
+  // the sheet form's note on b4e7 and 39c9, kept with the sheet's reading before round 7 named it by its label
+  expect(sheetNoteText("ph '6.8' is taken from the file name: check it.")).toBe("pH '6.8' is taken from the file name: check it.");
+  expect(sheetNoteText("volume_ml '900' is taken from the file name: check it.")).toBe("Volume (mL) '900' is taken from the file name: check it.");
+  expect(sheetNoteText("pH '6.8' is taken from the file name: check it.")).toBe("pH '6.8' is taken from the file name: check it.");
+  expect(sheetNoteText("Study id '230-23-TEST' is made from the file name: give each arm its own id.")).toBe(
+    "Study id '230-23-TEST' is made from the file name: give each arm its own id.");
+  // a dissolution profile's label (ProfileKey.label): the role in words, or left out where the product's name says it
+  expect(profileText("Test 10 mg · TEST · phosphate pH 6.8 · batch B1 · USP 2 paddle · 50 rpm")).toBe(
+    "Test 10 mg · phosphate pH 6.8 · batch B1 · USP 2 paddle · 50 rpm");
+  expect(profileText("Brand 10 mg · RLD · phosphate pH 6.8 · batch B1")).toBe("Brand 10 mg · RLD · phosphate pH 6.8 · batch B1");
+  expect(profileText("Exampleamide 10 mg · REFERENCE · FaSSIF pH 6.5")).toBe("Exampleamide 10 mg · reference product · FaSSIF pH 6.5");
+  expect(profileText("TEST · FaSSIF pH 6.5")).toBe("Test product · FaSSIF pH 6.5");
+  expect(profileText("Test 10 mg · TEST · phosphate pH 6.8: a time appears twice")).toBe("Test 10 mg · phosphate pH 6.8: a time appears twice");
+  expect(profileText("Study 230-23-TEST · Sheet1")).toBe("Study 230-23-TEST · Sheet1");      // a study's name keeps its own words
+  expect(roleText("TEST")).toBe("test product");
+  // a condition's or a field's id left in a message the API wrote before round 7; a quote and a possessive kept as written
+  expect(fieldIdsInWords("a run with no batch or conditions: no apparatus, medium, ph stated")).toBe(
+    "a run with no batch or conditions: no apparatus, medium, pH stated");
+  expect(fieldIdsInWords("runs differ in surfactant, temperature_c, volume_ml")).toBe("runs differ in surfactant, temperature (°C), volume (mL)");
+  expect(fieldIdsInWords("the column “vessel_1” and the product's role")).toBe("the column “vessel_1” and the product's role");
+  expect(fieldIdsInWords("pk.AUC_last and excretion.amount")).toBe("AUC last (PK parameter) and amount excreted");
+  expect(checkText({ message: "batch L2301, medium phosphate buffer, ph 6.8: no apparatus stated" })).toBe(
+    "batch L2301, medium phosphate buffer, pH 6.8: no apparatus stated");
+  expect(checkText({ message: "concentration: an arithmetic mean series with no number of subjects (n), at its points or for its arm",
+                     field: "concentration" })).toBe("Concentration: an arithmetic mean series with no number of subjects (n), at its points or for its arm");
+  expect(checkText({ message: "values read by mapping mp-9c55440c25bd v1, which no person has approved" })).toBe(
+    "values read with a table layout no person has approved yet");
+  // a file's facts in a link row ("product role TEST", "strength_mg"), a file's reason for its kind, an unpromised dataset
+  expect(factWords({ field: "product_role", value: "TEST", verbatim: null, unit: null, blinded: false })).toBe("test product");
+  expect(factWords({ field: "strength_mg", value: 50, verbatim: null, unit: "mg", blinded: false })).toBe("strength 50 mg");
+  expect(factWords({ field: "ph", value: 6.8, verbatim: null, unit: null, blinded: false })).toBe("pH 6.8");
+  expect(factWords({ field: "lloq", value: 0.5, verbatim: null, unit: "ng/mL", blinded: false })).toBe("LLOQ 0.5 ng/mL");
+  expect(factWords({ field: "food_state", value: "fasted", verbatim: null, unit: null, blinded: false })).toBe("fasted");
+  expect(tagWhyText("sheet “Diss pH 6.8” holds dissolution (header “% dissolved mean”, Diss pH 6.8!D1)")).toBe(
+    "sheet “Diss pH 6.8” holds dissolution (header “% dissolved mean”, cell D1)");
+  expect(unpromisedText("dataset CL-01 (ds-5d48c2722b): delivered, not promised by the data plan")).toBe(
+    "Dataset CL-01: delivered, not promised by the data plan");
+  expect(idWords("elim (Exampleamide clinical pharmacology review)")).toBe("an elimination pathway (Exampleamide clinical pharmacology review)");
+});
+
+test("round 7: To do and a card's to-do list say a failed check as its card's row does, never by its field's id", () => {
+  const sources = load("exampleamide");
+  const card = sources.cards!["study/st-8"]!;
+  const fail = (id: string, code: string, message: string, field: string) =>
+    ({ id, code, message, field, unit: null, severity: "fail", overridden: false });
+  card.checks = [...card.checks,
+    fail("ck-r7-1", "ABOVE_RANGE", "concentration: values above the range (written \">x\"): no number is kept", "concentration"),
+    fail("ck-r7-2", "UNIT_MISSING", "pk.AUC_last: values with no unit", "pk.AUC_last"),
+    fail("ck-r7-3", "NEGATIVE_VALUE", "excretion.amount: negative values", "excretion.amount"),
+    fail("ck-r7-4", "STATISTIC_MISSING", "percent_dissolved: values with no statistic", "percent_dissolved")];
+  const model = buildWork(sources);
+  const said = (id: string) => model.items.find((i) => i.id === `check:study:230-23:${id}`)?.label;
+  expect(said("ck-r7-1")).toBe("Study 230-23: Concentration: values above the range (written \">x\"): no number is kept");
+  expect(said("ck-r7-2")).toBe("Study 230-23: AUC last (PK parameter): values with no unit");
+  expect(said("ck-r7-3")).toBe("Study 230-23: Amount excreted: negative values");
+  expect(said("ck-r7-4")).toBe("Study 230-23: Percent dissolved: values with no statistic");
+  for (const item of model.items.filter((i) => i.id.startsWith("check:"))) expect(item.label).not.toMatch(/\b[a-z]+[._][a-z_]+\b|\bph\b/);
 });

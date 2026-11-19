@@ -10,6 +10,7 @@ from modeler_project.datasets import (
     Origin,
     ReportedPK,
     Series,
+    auc_unit_parts,
     check_dataset,
     new_dataset_id,
 )
@@ -42,6 +43,22 @@ def test_dataset_checks_and_the_nca_cross_check():
     params = check_dataset(_ds(kind="pk_parameters", series=(), reported=(ReportedPK(parameter="Cmax", value=1, unit="ng/ml"),)))
     assert any("cannot train" in f for f in params.flags)
     assert not _ds(origin=Origin.SYNTHETIC).real and not _ds(origin=Origin.ILLUSTRATIVE).real
+
+
+@pytest.mark.req("T-45")
+def test_an_auc_unit_written_as_the_client_files_write_it_is_compared():
+    """Final review round 7: the dataset check read an AUC unit only as "ng/mL*h", so "ng*h/mL" (the delivery's own, and
+    the unit the intake checks read) was flagged "not comparable" on 230-23 of the owner's project. One reading now
+    (`auc_unit_parts`, shared with `intake_checks._factor`); a unit that is no concentration times a time still is."""
+    assert auc_unit_parts("ng*h/mL") == auc_unit_parts("ng/mL*h") == auc_unit_parts("h*ng/mL") == ("ng/mL", "h")
+    assert auc_unit_parts("µg·h/L") == ("µg/L", "h") and auc_unit_parts("ng/mL") is None
+    for unit in ("ng*h/mL", "h*ng/mL", "ng/ml*h"):
+        ok = check_dataset(_ds(reported=(ReportedPK(parameter="AUC_last", value=540, unit=unit),)))
+        assert ok.flags == (), unit
+        off = check_dataset(_ds(reported=(ReportedPK(parameter="AUC_last", value=400, unit=unit),)))
+        assert any(f.startswith("nca_mismatch AUC_last") for f in off.flags), unit
+    odd = check_dataset(_ds(reported=(ReportedPK(parameter="AUC_last", value=540, unit="mg*h"),)))
+    assert odd.flags == ("reported AUC_last unit 'mg*h' not comparable (state it as concentration*time, e.g. ng/ml*h)",)
 
 
 @pytest.mark.req("T-19")

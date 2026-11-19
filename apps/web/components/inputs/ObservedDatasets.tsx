@@ -11,7 +11,7 @@ import { narrow, send, upload, type Narrow, type Schema } from "@/lib/api";
 import type { DocumentView } from "@/lib/brief";
 import { useResource } from "@/lib/hooks";
 import { useTableView } from "@/lib/tableView";
-import { datasetHolds, datasetNames, datasetSource, lowerFirst, pkParamText, valueWord } from "@/lib/words";
+import { datasetFlagText, datasetHolds, datasetNames, datasetSource, lowerFirst, pkParamText, unpromisedText, valueWord } from "@/lib/words";
 
 import { MODEL, SEARCH, datasetAfter, evidenceAfter } from "./after";
 import type { Run } from "./InputsTodo";
@@ -137,7 +137,9 @@ function LeaveOut({ d, name: which, projectId, run, onProblem }: {
                                                        out ? `${id} is used again.` : `${id} is left out: ${reason}.`, datasetAfter(projectId, d.id)))}>
         {out ? "Use it again" : "Leave it out"}
       </button>
-      <button type="button" className="link-btn" onClick={() => setOpen(false)}>Cancel</button>
+      {/* named by its dataset: with both of 230-23's forms open, two "Cancel" read alike (final review round 7) */}
+      <button type="button" className="link-btn" data-testid={`dataset-leave-cancel-${d.id}`} aria-label={`Cancel: the dataset of ${which}`}
+              onClick={() => setOpen(false)}>Cancel</button>
     </span>
   );
 }
@@ -183,7 +185,7 @@ function DatasetNotes({ d }: { d: Listed }) {
           ±{(d.digitization.resolution.y / 2).toPrecision(2)} {d.unit}; overlay {d.digitization.overlay_approved_by ? `checked by ${d.digitization.overlay_approved_by}` : "not checked yet"}
         </p>
       )}
-      {d.flags.length > 0 && <ul className="flags">{d.flags.map((f) => <li key={f}>{f}</li>)}</ul>}
+      {d.flags.length > 0 && <ul className="flags">{d.flags.map((f) => <li key={f}>{datasetFlagText(f)}</li>)}</ul>}
     </>
   );
 }
@@ -225,7 +227,7 @@ function DatasetLine({ d: listed, name, projectId, run, unpromised, said = null 
         <span className={`chip ${ORIGIN_CHIP[d.origin] ?? "neutral"}`}>{originWord(d.origin)}</span>
         <span>{datasetHolds(d)} · {datasetSource(d)}</span>
         <span className={`chip ${tone}`} data-testid={`dataset-state-${d.id}`}>{label}</span>
-        {unpromised && <span className="chip neutral" data-testid={`dataset-unpromised-${d.id}`} title={unpromised}>not in the data plan</span>}
+        {unpromised && <span className="chip neutral" data-testid={`dataset-unpromised-${d.id}`} title={unpromisedText(unpromised)}>not in the data plan</span>}
         {d.blinded && <span className="chip neutral" data-testid={`dataset-blinded-${d.id}`} aria-describedby={`blinded-why-line-${d.id}`}>blinded until
           the plan is signed</span>}
         {!d.blinded && more && (
@@ -272,7 +274,7 @@ function DatasetCard({ d: listed, name, projectId, run, unpromised }: {
           <span className={`chip ${ORIGIN_CHIP[d.origin] ?? "neutral"}`}>{originWord(d.origin)}</span>
           <span className="chip neutral">{d.kind === "profile" ? "profile" : "PK parameters only"}</span>
           <span className={`chip ${tone}`} data-testid={`dataset-state-${d.id}`}>{label}</span>
-          {unpromised && <span className="chip neutral" data-testid={`dataset-unpromised-${d.id}`} title={unpromised}>not in the data plan</span>}
+          {unpromised && <span className="chip neutral" data-testid={`dataset-unpromised-${d.id}`} title={unpromisedText(unpromised)}>not in the data plan</span>}
         </div>
         <span className="muted">{d.purpose.replace(/_/g, " ")}</span>
       </div>

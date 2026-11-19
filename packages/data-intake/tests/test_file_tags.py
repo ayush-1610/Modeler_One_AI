@@ -36,7 +36,8 @@ def test_a_workbook_proposes_the_kind_most_of_its_sheets_hold_with_the_header_qu
             {"sheet": "Notes", "category": "OTHER", "evidence_cell": "", "evidence_quote": ""}]
     hint = from_triage(rows)
     assert hint is not None and hint.kind == "clinical"
-    assert "“Conc”" in hint.why and "Conc!A1" in hint.why and "2 of 2 data sheets" in hint.why
+    assert "“Conc”" in hint.why and "(header “Subject”, cell A1)" in hint.why and "2 of 2 data sheets" in hint.why
+    assert "!" not in hint.why                                   # never the raw locator "Conc!A1" (final review round 7)
     tie = [{"sheet": "Diss", "category": "DISSOLUTION"}, {"sheet": "Conc", "category": "PK_INDIVIDUAL"}]
     assert from_triage(tie) is None and from_triage([{"sheet": "N", "category": "OTHER"}]) is None
 

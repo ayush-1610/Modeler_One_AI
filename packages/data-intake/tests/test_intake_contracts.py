@@ -44,9 +44,13 @@ from modeler_intake.anchors import (
 from modeler_intake.client_template import SHEETS, is_template, read_client_workbook
 from modeler_intake.fields import (
     CONDITION_FIELDS,
+    CONDITION_WORDS,
     FIELDS,
     KIND_OF_CATEGORY,
     LABEL_FIELDS,
+    condition_text,
+    condition_word,
+    either,
     field,
     known_unit,
     read_choice,
@@ -270,6 +274,22 @@ def test_the_fields_cover_every_column_of_the_client_data_template():
     assert field("phys.") is None and field("phys.logp x") is None
     assert set(KIND_OF_CATEGORY) == {c.value for c in SheetCategory} and KIND_OF_CATEGORY["OTHER"] == "unknown"
     assert field("special_population").choices == ("pediatric", "hepatic_impairment", "renal_impairment", "pregnancy", "elderly")
+
+
+def test_a_condition_is_said_in_words_never_by_its_field_id():
+    """Final review round 7: a dissolution run's checks said "ph 6.8", "no apparatus, medium, ph stated" and "volume_ml is
+    written '900 mL'". Every condition field has its words; its value is written as a person writes it."""
+    assert set(CONDITION_WORDS) == set(CONDITION_FIELDS)
+    assert all("_" not in word and word != name for name, word in CONDITION_WORDS.items() if name not in ("medium",
+               "apparatus", "surfactant", "cumulative", "component"))
+    assert condition_word("ph") == "pH" and condition_word("volume_ml") == "volume (mL)" and condition_word("odd_name") == "odd name"
+    said = [condition_text("ph", "6.8"), condition_text("ph", 6.8), condition_text("ph", "ph 6.8"), condition_text("rpm", "50"),
+            condition_text("rpm", "50 rpm"), condition_text("volume_ml", 900.0), condition_text("temperature_c", "37"),
+            condition_text("medium", "phosphate buffer"), condition_text("interval_start_h", "0")]
+    assert said == ["pH 6.8", "pH 6.8", "pH 6.8", "50 rpm", "50 rpm", "volume 900 mL", "37 °C", "medium phosphate buffer",
+                    "interval from 0 h"]
+    assert either(["apparatus"]) == "apparatus" and either(["apparatus", "medium", "pH"]) == "apparatus, medium or pH"
+    assert either([]) == ""
 
 
 def test_a_units_class_is_its_fields_and_only_existing_tables_check_it():

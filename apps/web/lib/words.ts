@@ -280,6 +280,10 @@ export const paramLabel = (id: string) => {
 export const idWords = (text: string) => {
   const lower = (label: string) => (/^[A-Z][a-z]/.test(label) ? label.charAt(0).toLowerCase() + label.slice(1) : label);
   if (PARAM_LABEL[text.trim()]) return lower(PARAM_LABEL[text.trim()]);
+  // one id with its source after it, as another project's values are offered ("elim (Exampleamide clinical pharmacology
+  // review)": final review round 7)
+  const sourced = /^(\S+)( \(.*\))$/.exec(text.trim());
+  if (sourced && PARAM_LABEL[sourced[1]]) return `${lower(PARAM_LABEL[sourced[1]])}${sourced[2]}`;
   return text.replace(/\b(?:phys|bind|elim|perm|dist)\.[A-Za-z0-9_<>]+(?:\.[A-Za-z0-9_<>]+)*/g, (id) => {
     const label = paramLabel(id);
     return label === id ? id : lower(label);
@@ -570,6 +574,18 @@ export function locatorText(locator: string): string {
   }).join("; ");
 }
 
+/** Why a file's content reads as another kind (`ClientFile.tag_proposal.why`, as `modeler_intake.file_tags` writes it and
+ *  the file keeps it), with its cell in words: "sheet “Diss pH 6.8” holds dissolution (header “% dissolved mean”, cell
+ *  D1)"; a reason kept before then names the cell by its raw locator ("Diss pH 6.8!D1"; final review round 7). */
+export const tagWhyText = (why: string) => why.replace(/, '?([^,!()“”]+?)'?!\$?([A-Z]{1,3})\$?([0-9]+)\)/g, (_m, _sheet, c, r) => `, cell ${c}${r})`);
+
+/** A dataset the client delivered that the data plan did not promise (the reconciliation's line, "dataset CL-01
+ *  (ds-5d48c2722b): delivered, not promised by the data plan"), without the dataset's id (final review round 7). */
+export const unpromisedText = (line: string) => {
+  const text = line.replace(/\s*\(ds-[0-9a-f]+\)/g, "");
+  return `${text.charAt(0).toUpperCase()}${text.slice(1)}`;
+};
+
 /** A problem the client-data template's reading found (`ClientFile.issues`: a cell's locator and the reader's message),
  *  in words: "sheet PK_Summary, cell F7: value “1,2” is not a plain number …", the template's statistic as a person says
  *  it ("arithmetic mean", never `arithmetic_mean`); never the raw locator `PK_Summary!F7` (final review round 6). */
@@ -697,7 +713,23 @@ export function checkText(check: { message: string; field?: string | null; unit?
     else if (pk && text.includes(`reported ${pk}`)) text = text.replace(`reported ${pk}`, `reported ${pkParamText(pk)}`);
   }
   if (check.unit) text = text.replace(`'${check.unit}'`, `“${check.unit}”`).replace(`"${check.unit}"`, `“${check.unit}”`);
-  return engineWords(text);
+  return fieldIdsInWords(engineWords(text));
+}
+
+/** The intake vocabulary's field ids left in a sentence the API wrote (one written before the field was sent apart, a
+ *  field named in the middle of a message, a stored note), each in the page's words (final review round 7: round 6's
+ *  `checkText` replaced only the field the API names, so "no apparatus, medium, ph stated" and "volume_ml" stayed): a
+ *  dotted field ("pk.AUC_last", "excretion.amount") by its layout words, a field id with an underscore that the
+ *  vocabulary has ("volume_ml", "temperature_c", "percent_dissolved") by its label in a sentence, and "ph" as "pH". A
+ *  word in quotes is the file's own and stays as written; a word that is no field id is left as it is. */
+export function fieldIdsInWords(text: string): string {
+  const known = (id: string) => id in FIELD_LABEL || id in IN_TEXT || id in LAYOUT_WORD;
+  const plain = (part: string) => part
+    .replace(/\b(?:pk|excretion|composition|relation|link)\.[A-Za-z_/]+(?:\.[A-Za-z_/]+)*/g, (id) => layoutFieldInText(id))
+    .replace(/\b[a-z]+(?:_[a-z0-9]+)+\b/g, (id) => (known(id) ? layoutFieldInText(id) : id))
+    .replace(/\bph\b/g, "pH");
+  // the parts in quotes (“…”, "…", and '…' not opened inside a word: "the product's role" is no quote) are kept
+  return text.split(/(“[^”]*”|"[^"]*"|(?<![A-Za-z])'[^']*')/).map((part, i) => (i % 2 ? part : plain(part))).join("");
 }
 
 /** What a study's simulated individual still needs (D-29; `DeliveryIndividual.needs` and `why`, the landing's held
@@ -772,6 +804,10 @@ export const stageText = (stage: string) => STAGE_WORD[stage] ?? spaced(stage);
  *  read 10"). Only these terms are replaced; the rest is shown as the reader wrote it. */
 export const engineWords = (text: string) => text
   .replace(/kept in the ledger/g, "kept with the delivery")
+  // a layout by what it is, never its id (final review round 7: "values read by mapping mp-9c55440c25bd v1, which no
+  // person has approved" in a card's "checks to decide")
+  .replace(/values read by mapping mp-[0-9a-f]+ v\d+, which no person has approved/g, "values read with a table layout no person has approved yet")
+  .replace(/\bmapping mp-[0-9a-f]+ v\d+/g, "a table layout").replace(/\bno recorded mapping\b/g, "no recorded layout")
   .replace(/silent loss/g, "numbers not read").replace(/outside numbers/g, "loose numbers")
   .replace(/unassigned values/g, "values not linked to a study").replace(/\bregions\b/g, "tables and texts").replace(/\bregion\b/g, "table or text");
 
@@ -902,16 +938,17 @@ export function layoutFieldText(name: string): string {
   if ((m = /^pk\.(.+)$/.exec(name))) return `${pk(m[1])} (PK parameter)`;
   if ((m = /^relation\.ddi_ratio\.(.+)$/.exec(name))) return `${pk(m[1])} ratio, with vs without the interacting drug`;
   if ((m = /^relation\.test_vs_reference\.(.+)$/.exec(name))) return `${pk(m[1])} ratio, test vs reference`;
-  const words: Record<string, string> = {
-    "excretion.amount": "Amount excreted", "excretion.fraction": "Fraction excreted (%)", "composition.amount": "Amount in the composition",
-    "link.study_id": "Study named for a link to another file", "link.protocol": "Protocol named for a link to another file",
-    "link.cross_reference": "Reference to another file", concentration: "Concentration", percent_dissolved: "Percent dissolved",
-    study_id: "Study", treatment: "Treatment (arm)", product_role: "Product's role", analyte_role: "Analyte's role",
-    molecular_weight: "Molecular weight", subject: "Subject", period: "Period", sequence: "Sequence", occasion: "Occasion",
-    vessel: "Vessel", product: "Product", interval_start_h: "Interval start (h)", interval_end_h: "Interval end (h)",
-  };
-  return words[name] ?? fieldLabel(name);
+  return LAYOUT_WORD[name] ?? fieldLabel(name);
 }
+/** The fields of the intake vocabulary a layout names that the forms do not (`layoutFieldText`). */
+const LAYOUT_WORD: Record<string, string> = {
+  "excretion.amount": "Amount excreted", "excretion.fraction": "Fraction excreted (%)", "composition.amount": "Amount in the composition",
+  "link.study_id": "Study named for a link to another file", "link.protocol": "Protocol named for a link to another file",
+  "link.cross_reference": "Reference to another file", concentration: "Concentration", percent_dissolved: "Percent dissolved",
+  study_id: "Study", treatment: "Treatment (arm)", product_role: "Product's role", analyte_role: "Analyte's role",
+  molecular_weight: "Molecular weight", subject: "Subject", period: "Period", sequence: "Sequence", occasion: "Occasion",
+  vessel: "Vessel", product: "Product", interval_start_h: "Interval start (h)", interval_end_h: "Interval end (h)",
+};
 /** A field inside a sentence: "the product's role", "the batch", "the pH", "the Cmax (PK parameter)" (a name keeps its capitals). */
 const fieldInSentence = (name: string) => `the ${layoutFieldInText(name)}`;
 /** The fields whose label is no noun in a sentence ("the fasted or fed", "the women (%)"), as a sentence says them. */
@@ -1027,6 +1064,70 @@ export function datasetSource(d: DatasetLike): string {
 export function datasetNames(datasets: (DatasetLike & { study: Record<string, unknown> })[]): string[] {
   return distinctNames(datasets.map((d) => `${String(d.study.study_id)} · ${datasetHolds(d)} · ${datasetSource(d)}`),
                        datasets.map((d) => datasetPlace(d.quote)));
+}
+
+/** What an observed dataset's check found (its `flags`, as `modeler_project.datasets.check_dataset` writes them and the
+ *  dataset keeps them: a stored record, matched by its prefix elsewhere, so the page words it), in words (final review
+ *  round 7: 230-23's parent dataset on the owner's project showed "reported AUC_last unit 'ng*h/mL' not comparable (state
+ *  it as concentration*time, e.g. ng/ml*h)"): a PK parameter by its name (`pkParamText`), a unit in quotes, never a
+ *  parameter's or a check's id. A flag this does not know is said with its field ids in words (`fieldIdsInWords`). */
+export function datasetFlagText(flag: string): string {
+  const said: [RegExp, (m: RegExpExecArray) => string][] = [
+    [/^reported (\S+) unit '([^']*)' not comparable\b.*$/,
+     (m) => `The reported ${pkParamText(m[1])}, in “${m[2]}”, is not compared with the profile: its unit is not read as a `
+       + "concentration times a time (such as “ng/mL*h”)"],
+    [/^nca_mismatch (\S+): profile gives (\S+), reported (\S+) \(([^)]*)\)$/,
+     (m) => `The reported ${pkParamText(m[1])} and the profile's own differ by more than the tolerance: the profile gives ${m[2]}, `
+       + `the source reports ${m[3]} (${m[4].replace(/ %$/, "%")})`],
+    [/^cross_file: (.+) via (.+)$/, (m) => `Values joined from ${m[1]}${m[2] === "a person" ? ", linked by a person" : ""}`],
+    [/^series (.+): mean values without N$/, (m) => `Series ${m[1]}: a mean with no number of subjects`],
+    [/^series (.+): values below LLOQ but no LLOQ stated$/, (m) => `Series ${m[1]}: values below the LLOQ, and no LLOQ is stated`],
+    [/^digitized: overlay not yet approved$/, () => "Digitized figure: its overlay is not checked yet"],
+    [/^PK parameters only: .*$/, () => "PK parameters only: they can judge a prediction, not train a profile fit"],
+  ];
+  for (const [rule, say] of said) { const m = rule.exec(flag); if (m) return say(m); }
+  const text = fieldIdsInWords(flag);
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+/** A note of the sheet form (`ReviewGroup.notes`, stored with the sheet's reading), in words: a fact taken from the file
+ *  name by its field's label ("pH '6.8' is taken from the file name: check it."; final review round 7: a note stored
+ *  before then names the field's id, "ph '6.8' …"), a dissolution profile's product role in words (`profileText`), any
+ *  other field id in words. */
+export function sheetNoteText(note: string): string {
+  const named = /^([a-z_]+) ('[^']*' is taken from the file name.*)$/.exec(note);
+  if (named) return `${fieldLabel(named[1])} ${named[2]}`;
+  return fieldIdsInWords(profileText(note));
+}
+
+// --- a product's role, and a dissolution profile named (final review round 7) ---------------------------------------------
+
+/** A product's role as the client-data template codes it (`modeler_intake.records.DISSOLUTION_ROLES`; the sheet form's
+ *  "REF"), in words inside a sentence: "test product", "reference product", "RLD". */
+const ROLE_TEXT: Record<string, string> = {
+  TEST: "test product", RLD: "RLD", REFERENCE: "reference product", REF: "reference product", SOLUTION: "solution", OTHER: "other product",
+};
+/** A product's role in words inside a sentence ("test product", "RLD"); a code it does not know as it is sent. */
+export const roleText = (code: string) => ROLE_TEXT[code] ?? spaced(code);
+/** What a product's name says of its role, when it says it ("Test 10 mg" is the test product). */
+const ROLE_IN_NAME: Record<string, RegExp> = {
+  TEST: /\btest\b/i, RLD: /\brld\b/i, REFERENCE: /\breference\b|\bref\b/i, REF: /\breference\b|\bref\b/i, SOLUTION: /\bsolution\b/i,
+};
+const ROLE_CODE = "TEST|RLD|REFERENCE|REF|SOLUTION|OTHER";
+/** A dissolution profile's label (`pbpk_domain.dissolution.ProfileKey.label`, "<product> · <ROLE> · <medium> pH … ·
+ *  batch … · <apparatus> · <rpm> rpm") as the page says it, or a sentence that starts with one: the role in words, or
+ *  left out where the product's name says it ("Test 10 mg · phosphate pH 6.8 · …", "Brand 10 mg · RLD · …"; final review
+ *  round 7: "Test 10 mg · TEST · …"). The label itself stays the register's (stored with the profile; the notes name a
+ *  profile by it). */
+export function profileText(text: string): string {
+  // a label starts the text, or follows its file's name ("b.xlsx: Test 10 mg · TEST · …: a time appears twice")
+  const named = text.replace(new RegExp(`(^|: )([^·:]+?) · (${ROLE_CODE})(?= · |: |$)`, "g"),
+    (_m, lead: string, product: string, role: string) => `${lead}${ROLE_IN_NAME[role]?.test(product) ? product : `${product} · ${roleText(role)}`}`);
+  // a profile of no product named starts with its role
+  return named.replace(new RegExp(`(^|: )(${ROLE_CODE})(?= · |: |$)`, "g"), (_m, lead: string, role: string) => {
+    const word = roleText(role);
+    return `${lead}${word.charAt(0).toUpperCase()}${word.slice(1)}`;
+  });
 }
 
 /** What a column holds (a column's role, `MappingSpec` Role), in words. */

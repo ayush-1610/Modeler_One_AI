@@ -18,7 +18,7 @@ import { useState } from "react";
 import type { Comparison, Profile } from "@/components/client/types";
 import { send } from "@/lib/api";
 import { cardAnchor, normLabel, releaseAnchor, type Subject } from "@/lib/inputsWork";
-import { askAt, inputsHref, valueWord } from "@/lib/words";
+import { askAt, inputsHref, profileText, valueWord } from "@/lib/words";
 
 import { releaseAfter } from "../after";
 import { ReleaseView } from "../DatasetView";
@@ -78,10 +78,10 @@ function ProfileLine({ p, projectId, run, product, drawn, notes, short }: {
         }}>
           <label className="delivery-pick">Formulation
             <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="formulation name"
-                   aria-label={`the formulation ${p.label} is the release of`} />
+                   aria-label={`the formulation ${profileText(p.label)} is the release of`} />
           </label>
           {/* named by its profile: every product card open shows its own (final review round 5, A11Y-7) */}
-          <button type="submit" className="btn small" disabled={!name.trim()} aria-label={`Use as release: ${p.label}`}>Use as release</button>
+          <button type="submit" className="btn small" disabled={!name.trim()} aria-label={`Use as release: ${profileText(p.label)}`}>Use as release</button>
         </form>
       ) : <p className="muted m-0 fs-12">Read as a table: no Weibull fit to use as the release.</p>}
       {problem && <p className="inline-issue error" role="alert">{problem}</p>}
@@ -113,7 +113,7 @@ export function Dissolution({ profiles, comparisons, label, projectId, run, prod
   const f2 = comparisons.filter((c) => mine.has(c.test));
   if (!profiles.length) return null;
   // on a product's card, a profile is said without the product's name and role (the card's title says them)
-  const short = (p: Profile) => (product ? profileShort(p.label, [product, String(p.key.product ?? ""), String(p.key.role ?? "")]) : p.label);
+  const short = (p: Profile) => (product ? profileShort(p.label, [product, String(p.key.product ?? ""), String(p.key.role ?? "")]) : profileText(p.label));
   const byId = new Map(profiles.map((p) => [p.id, p] as const));
   return (
     <section className="delivery-block card-section" data-testid={testId}>
