@@ -88,11 +88,29 @@ def study_key(study_id: Any) -> str:
     return re.sub(r"[^A-Z0-9]", "", str(study_id).upper())
 
 
+_ROW = re.compile(r"^\[[^\]\n]+? row \d+\]")
+_DIGIT = re.compile(r"\d")
+
+# what `redact_dataset` withholds of a dataset, as its version history's paths (`deps.hidden_paths`)
+WITHHELD_PATHS = ("series", "reported", "quote", "note", "decision_reason", "digitization")
+
+
 def redact_dataset(content: dict[str, Any]) -> dict[str, Any]:
-    """A dataset's view without its values: series values and errors, reported PK values (times and metadata kept)."""
+    """A dataset's view without its values (D-15): its series' values and errors; its reported PK's values, spread and
+    quotes; its own quote, which for a dataset read from a sheet is the sheet's first row verbatim, values and all
+    ("[Fed row 4] A4=101 | B4=BLQ | C4=5.2 …"), down to the place it names ("[Fed row 4]", all the page reads of it,
+    `words.datasetPlace`); its note left out and the digits of the reason it was decided with masked (a person may have
+    quoted a value; the delivery's rule, `intake_decisions.mask`); a digitized figure's picked points left out (with the
+    calibration kept they would give the values). Its times, units, study record (the split's metadata) and source kept
+    (final review round 7: the quote and note were served with a blinded study's values in them)."""
     series = [{**s, "values": [None] * len(s.get("values") or []), "error": None} for s in content.get("series", [])]
-    reported = [{**r, "value": None} for r in content.get("reported", [])]
-    return {**content, "series": series, "reported": reported, "blinded": True}
+    reported = [{**r, "value": None, "variability": "", "quote": ""} for r in content.get("reported", [])]
+    place = _ROW.match(str(content.get("quote") or ""))
+    out = {**content, "series": series, "reported": reported, "quote": place.group(0) if place else "", "note": "",
+           "decision_reason": _DIGIT.sub("•", str(content.get("decision_reason") or "")), "blinded": True}
+    if isinstance(content.get("digitization"), dict):
+        out["digitization"] = {**content["digitization"], "pixels": {}}
+    return out
 
 
 def redact_row(row: dict[str, Any]) -> dict[str, Any]:

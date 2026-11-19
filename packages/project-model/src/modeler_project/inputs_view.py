@@ -116,12 +116,18 @@ def _demographics_state(row: dict[str, Any]) -> str:
     return "default" if row.get("demographics_choice") == "healthy_adult_default" else "missing"
 
 
-def study_rows(ws: Workspace, blinded: Collection[str] | Callable[[str], bool]) -> list[dict[str, Any]]:
+def study_rows(ws: Workspace, blinded: Collection[str] | Callable[[str], bool],
+               why: Callable[[str], str | None] | None = None) -> list[dict[str, Any]]:
     """Each study as the Studies and Individuals tabs show it: its facts (no observed values), the role the MS-01 split
-    proposes (the plan's once a plan exists; changed only there, D-33), whether it is blinded (D-15), its
-    demographics (D-29) and whether its regimen is complete. Studies a person left out follow, with the reason.
-    `blinded`: the blinded study ids, or the rule that says whether a study id is (`BlindedSources.withholds`)."""
+    proposes (the plan's once a plan exists; changed only there, D-33), whether it is blinded (D-15) and why
+    (`blinded_why`, when `why` is given: the reason the evidence gives its datasets, so a study no card or sheet-form
+    group holds is said with its reason too; final review round 7), its demographics (D-29) and whether its regimen is
+    complete. Studies a person left out follow, with the reason. `blinded`: the blinded study ids, or the rule that says
+    whether a study id is (`BlindedSources.withholds`); `why`: the reason for a blinded study id (`study_why`)."""
     held = blinded if callable(blinded) else blinded.__contains__
+
+    def said(sid: str) -> dict[str, Any]:
+        return {"blinded_why": why(sid) if held(sid) else None} if why is not None else {}
     from modeler_project.dataset_register import datasets
     from modeler_project.plan import current
     from modeler_project.roles import proposed_roles
@@ -135,7 +141,7 @@ def study_rows(ws: Workspace, blinded: Collection[str] | Callable[[str], bool]) 
                                                           "demographics_choice")}
         rows.append({"study_id": sid, "dataset_id": row.get("dataset_id"), "origin": row.get("origin"),
                      "purpose": row.get("purpose"), "evaluable": bool(row.get("evaluable")), "facts": facts,
-                     "role": roles.get(sid), "role_source": role_source, "blinded": held(sid), "excluded": None,
+                     "role": roles.get(sid), "role_source": role_source, "blinded": held(sid), **said(sid), "excluded": None,
                      "demographics": _demographics_state(row),
                      "regimen_missing": row.get("design") == "MD"
                      and not (row.get("n_doses") and row.get("dosing_interval_h"))})
@@ -146,7 +152,7 @@ def study_rows(ws: Workspace, blinded: Collection[str] | Callable[[str], bool]) 
             facts = dict(dataset.study)
             rows.append({"study_id": sid, "dataset_id": dataset.id, "origin": dataset.origin.value,
                          "purpose": dataset.purpose, "evaluable": False, "facts": facts, "role": None,
-                         "role_source": role_source, "blinded": held(sid), "excluded": left_out[sid],
+                         "role_source": role_source, "blinded": held(sid), **said(sid), "excluded": left_out[sid],
                          "demographics": _demographics_state({**facts, "demographics_choice": dataset.demographics_choice}),
                          "regimen_missing": False})
     return rows

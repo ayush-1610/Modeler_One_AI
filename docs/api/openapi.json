@@ -15736,6 +15736,17 @@
             "title": "Blinded",
             "type": "boolean"
           },
+          "blinded_why": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Blinded Why"
+          },
           "dataset_id": {
             "anyOf": [
               {

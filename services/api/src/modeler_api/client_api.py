@@ -691,6 +691,8 @@ def _review(ws: Workspace) -> dict[str, Any]:
         for item in group["items"]:
             if item["kind"] == "dataset" and (d := dataset(ws, item["id"])) is not None:
                 item["data"] = card_points(redact(ws, ArtifactKind.DATASET, d.to_content(), delivery))
+                if item["data"]["blinded"]:   # its quote is its sheet's first row, values and all (round 7)
+                    item.update(source={**(item.get("source") or {}), "quote": ""}, note=_masked(item.get("note", "")))
             elif item["kind"] == "profile" and item["id"] in register:
                 item["release"] = register[item["id"]]
             elif item["kind"] == "draft":
@@ -704,6 +706,14 @@ def _review(ws: Workspace) -> dict[str, Any]:
                 item["release"] = None               # a profile's points and fit are its values
         if group["blinded"]:
             _withheld(group)
+            continue
+        # a dataset withheld in a group that is not (a study the list holds, in a group of a name a person linked to it):
+        # the options that quote it say nothing of its values either
+        held = {str(i["id"]) for i in group["items"] if i["kind"] == "dataset" and (i.get("data") or {}).get("blinded")}
+        for issue in group["issues"] if held else ():
+            for option in issue["options"]:
+                if option.get("source") and (held & set(option.get("datasets") or ()) or option.get("value") in held):
+                    option["source"] = {**option["source"], "quote": ""}
     return {"groups": found, "to_confirm": sum(1 for g in found if g["state"] == "to_confirm")}
 
 

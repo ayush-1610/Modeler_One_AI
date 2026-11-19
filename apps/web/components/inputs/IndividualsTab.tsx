@@ -19,7 +19,7 @@ import { EmptyState } from "@/components/kit";
 import { useFocusOnClose } from "@/components/kit/focus";
 import { send } from "@/lib/api";
 import { useResource } from "@/lib/hooks";
-import { blindedText, normLabel, type Subject, type WorkItem } from "@/lib/inputsWork";
+import { blindedText, individualBlindedWords, normLabel, studyBlindedWhy, type Subject, type WorkItem } from "@/lib/inputsWork";
 import { fieldInText, individualNeeds, individualText, plural } from "@/lib/words";
 
 import { MODEL } from "./after";
@@ -35,8 +35,15 @@ const STATE: Record<StudyRow["demographics"], [string, string]> = {
 };
 const num = (v: string) => (v.trim() === "" ? null : Number(v));
 
-/** One study's individual: entered from the study's report, or the explicit healthy adult default. */
-function Individual({ s, projectId, run, options }: { s: StudyRow; projectId: string; run: Run; options: Options }) {
+/** One study's individual: entered from the study's report, or the explicit healthy adult default. A blinded study's
+ *  individual is set now too, as To do asks it: it is the study's design, not its values, and the plan needs it (the
+ *  inputs' readiness asks it of every study in the model, D-29); its line says that its values are withheld, and why
+ *  (final review round 7: To do said its demographics could not be acted on yet while this offered the form). */
+function Individual({ s, projectId, run, options, why = null }: {
+  s: StudyRow; projectId: string; run: Run; options: Options;
+  /** why a blinded study is blinded (`studyBlindedWhy`) */
+  why?: string | null;
+}) {
   const given = (s.facts.demographics ?? {}) as Demographics;
   const [d, setD] = useState({
     population: given.population ?? "", sex: given.sex ?? "", age: given.age_years?.toString() ?? "",
@@ -60,6 +67,7 @@ function Individual({ s, projectId, run, options }: { s: StudyRow; projectId: st
         <strong>{s.study_id}</strong>
         <span className={`chip ${tone}`}>{label}</span>
       </div>
+      {s.blinded && <p className="muted m-4-0-0 fs-13" data-testid={`individual-blinded-${s.study_id}`}>{individualBlindedWords(why)}</p>}
       {s.demographics === "published" ? (
         <p className="muted m-4-0-0 fs-13">Simulated with the individual its published simulation names.</p>
       ) : (
@@ -114,7 +122,9 @@ function Individual({ s, projectId, run, options }: { s: StudyRow; projectId: st
 const sharedKey = (s: StudyRow) => (s.demographics === "missing" ? null : `${s.demographics}|${JSON.stringify(s.facts.demographics ?? {})}`);
 
 /** Studies that share one individual, on one line; each opens its own form. */
-function SharedLine({ studies, projectId, run, options }: { studies: StudyRow[]; projectId: string; run: Run; options: Options }) {
+function SharedLine({ studies, projectId, run, options, whyOf }: {
+  studies: StudyRow[]; projectId: string; run: Run; options: Options; whyOf: (s: StudyRow) => string | null;
+}) {
   const [open, setOpen] = useState<string | null>(null);
   const [tone, label] = STATE[studies[0].demographics];
   const given = (studies[0].facts.demographics ?? {}) as Demographics;
@@ -135,7 +145,8 @@ function SharedLine({ studies, projectId, run, options }: { studies: StudyRow[];
         </span>
         <span className={`chip ${tone}`}>{label}</span>
       </div>
-      {open && <div className="mt-6"><Individual s={studies.find((s) => s.study_id === open)!} projectId={projectId} run={run} options={options} /></div>}
+      {open && <div className="mt-6"><Individual s={studies.find((s) => s.study_id === open)!} projectId={projectId} run={run} options={options}
+                                                 why={whyOf(studies.find((s) => s.study_id === open)!)} /></div>}
     </div>
   );
 }
@@ -153,6 +164,7 @@ export function StudyIndividuals({ studies, projectId, run, options, subjects = 
   onOpen?: (item: WorkItem | null, subject: Subject) => void;
 }) {
   const used = studies.filter((s) => !s.excluded);
+  const whyOf = (s: StudyRow) => (s.blinded ? studyBlindedWhy(subjects, s) : null);
   const inModel = new Set(used.map((s) => normLabel(s.study_id)));
   const pending = subjects.filter((s) => s.kind === "study" && !s.done && !inModel.has(normLabel(s.label)));
   const groups = new Map<string, StudyRow[]>();
@@ -170,8 +182,10 @@ export function StudyIndividuals({ studies, projectId, run, options, subjects = 
   return (
     <>
       {used.length === 0 && <p className="muted m-0 fs-13">No study is in the model yet: each confirmed study gets its individual here.</p>}
-      {[...groups.values()].map((list) => <SharedLine key={list.map((s) => s.study_id).join("|")} studies={list} projectId={projectId} run={run} options={options} />)}
-      {alone.map((s) => <Individual key={`${s.study_id}-${s.demographics}`} s={s} projectId={projectId} run={run} options={options} />)}
+      {[...groups.values()].map((list) => <SharedLine key={list.map((s) => s.study_id).join("|")} studies={list} projectId={projectId} run={run}
+                                                       options={options} whyOf={whyOf} />)}
+      {alone.map((s) => <Individual key={`${s.study_id}-${s.demographics}`} s={s} projectId={projectId} run={run} options={options}
+                                    why={whyOf(s)} />)}
       {pending.length > 0 && (
         <div className="individuals-pending" data-testid="individuals-pending">
           <h4 className="delivery-sub">The client&apos;s studies to confirm</h4>

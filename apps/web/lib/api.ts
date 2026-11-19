@@ -182,15 +182,26 @@ async function coded(res: Response): Promise<Record<string, unknown> | undefined
 
 const UNREACHABLE = "The web server could not be reached. Check your connection to it.";
 
+/** Whether an answer is the API's own (JSON): not the web server's proxy's bare error page, nor the plain "Internal Server
+ *  Error" of an error the API did not handle (a read sent once more for either changes nothing). */
+const fromApi = (res: Response) => (res.headers.get("content-type") ?? "").includes("application/json");
+
 async function request<T>(url: string, method: "GET" | "POST" | "PUT", body?: unknown): Promise<Envelope<T>> {
+  const call = () => withSession(() => fetch(url, {
+    method,
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${BROWSER_TOKEN}` },
+    body: body === undefined ? undefined : JSON.stringify(body),
+    cache: "no-store",
+  }));
   let res: Response;
   try {
-    res = await withSession(() => fetch(url, {
-      method,
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${BROWSER_TOKEN}` },
-      body: body === undefined ? undefined : JSON.stringify(body),
-      cache: "no-store",
-    }));
+    res = await call();
+    // a read the web server's proxy could not complete is sent once more, at once: a read changes nothing, and the proxy
+    // answers a bare 500 when the API closed the connection it was about to reuse (a kept-alive socket the API had just
+    // closed: "socket hang up"). With no retries otherwise, one such answer left the page without what it read until a
+    // reload (final review round 7: the delivery's first read failed so under load and no card came). A write is never
+    // sent twice; the API's own refusals (JSON) are said at once, as before
+    if (method === "GET" && res.status >= 500 && !fromApi(res)) res = await call();
   } catch {
     return errorEnvelope(UNREACHABLE);
   }

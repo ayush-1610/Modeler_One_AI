@@ -198,7 +198,7 @@ def reveal_dataset(project_id: str, dataset_id: str, body: RevealRequest, princi
     if version is None:
         raise HTTPException(status_code=404, detail=f"no dataset {dataset_id}")
     dataset = ObservedDataset.from_content(version.content)
-    if blinded_sources(ws).withholds(dataset.study.get("study_id")):     # as the evidence withholds it (round 6)
+    if blinded_sources(ws).holds(version.content):     # as the evidence withholds it (rounds 6 and 7)
         store.audit(ws.tenant_id).append(actor=principal.user_id, action="dataset.reveal", resource_type="dataset",
                                          resource_id=f"{project_id}/{dataset_id}@v{version.version}",
                                          after=version.sha256, reason=body.reason)

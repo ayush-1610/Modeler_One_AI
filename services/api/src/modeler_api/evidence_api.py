@@ -121,7 +121,7 @@ def _dataset_view(ws: Workspace, dataset: ObservedDataset, hidden: BlindedSource
     delivery blinds; final review round 6: the list alone left the points of a study the delivery blinds on its card,
     beside its sheet form's line saying they are withheld)."""
     content = redact(ws, ArtifactKind.DATASET, dataset.to_content(), hidden)
-    return {**content, "blinded_why": hidden.study_why(dataset.study.get("study_id"))} if content.get("blinded") else content
+    return {**content, "blinded_why": hidden.dataset_why(content)} if content.get("blinded") else content
 
 
 def _view(ws: Workspace) -> dict[str, Any]:
@@ -140,7 +140,7 @@ def _view(ws: Workspace) -> dict[str, Any]:
         # its study is on the blinding list (round 5: the Every dataset line said only that it is blinded)
         "datasets": [_dataset_view(ws, d, hidden) for d in observed],
         "blinding": {"blinded": sorted({*hidden.listed, *(str(d.study.get("study_id")) for d in observed
-                                                          if hidden.withholds(d.study.get("study_id")))})},
+                                                          if hidden.holds({"id": d.id, "study": d.study}))})},
         "coverage": [r.__dict__ | {"accepted": list(r.accepted), "proposed": list(r.proposed)} for r in rows],
         "blocking": [r.req_id for r in blocking(rows)],
         "access_requests": access_requests(ws),

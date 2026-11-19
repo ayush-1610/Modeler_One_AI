@@ -146,14 +146,16 @@ function LeaveOut({ d, name: which, projectId, run, onProblem }: {
  *  the audit trail keeps. Why it is blinded is said, in the words every withheld study is (round 5: "blinded until the MAP
  *  is signed" said nothing of why), the plan's or the split's part leading to the studies' roles on Review & sign.
  *  `onRevealed` receives the dataset with its values. */
-function Reveal({ d, name, projectId, onRevealed, onProblem, compact = false }: {
+function Reveal({ d, name, projectId, onRevealed, onProblem, compact = false, said = null }: {
   d: Listed; name: string; projectId: string; onRevealed: (d: Listed) => void; onProblem: (p: string | null) => void; compact?: boolean;
+  /** the reason its study's card says already (its withheld line): not said again on the card (round 7) */
+  said?: string | null;
 }) {
   const [reason, setReason] = useState("");
   return (
     <div className={`banner warn ${compact ? "m-4-0 fs-13" : "m-6-0"}`} data-testid={`blinded-${d.id}`}>
       <span id={`${compact ? "blinded-why-line" : "blinded-why"}-${d.id}`} data-testid={`blinded-why-${d.id}`}>Its values are blinded until the plan is signed
-        {d.blinded_why ? <>, because <BlindedReason why={d.blinded_why} projectId={projectId} /></> : null} (ICH M15).</span>
+        {d.blinded_why && d.blinded_why !== said ? <>, because <BlindedReason why={d.blinded_why} projectId={projectId} /></> : null} (ICH M15).</span>
       {compact ? " To check them now, give the reason; the access is recorded in the audit trail."
         : " The metadata above is what the split uses. To check this dataset now, give the reason; the access is recorded in the audit trail."}
       <div className="row mt-6">
@@ -206,8 +208,8 @@ function Overlay({ d, name, projectId, run, onProblem, small = false }: {
 /** A dataset on its study's card: one line with where it stands, whether the data plan promised it, and Leave out; its
  *  points under "Show the points", with what the source reports and how a figure was digitized. Everything the dataset
  *  list offers is here too: a blinded dataset is revealed for a check, a digitized figure's overlay is checked. */
-function DatasetLine({ d: listed, name, projectId, run, unpromised }: {
-  d: Listed; name: string; projectId: string; run: Run; unpromised: string | null;
+function DatasetLine({ d: listed, name, projectId, run, unpromised, said = null }: {
+  d: Listed; name: string; projectId: string; run: Run; unpromised: string | null; said?: string | null;
 }) {
   const [problem, setProblem] = useState<string | null>(null);
   const [points, setPoints] = useState(false);
@@ -233,7 +235,7 @@ function DatasetLine({ d: listed, name, projectId, run, unpromised }: {
         <Overlay d={d} name={name} projectId={projectId} run={run} onProblem={setProblem} small />
         <LeaveOut d={d} name={name} projectId={projectId} run={run} onProblem={setProblem} />
       </div>
-      {d.blinded && <Reveal d={d} name={name} projectId={projectId} onRevealed={(x) => { setRevealed(x); setPoints(true); }} onProblem={setProblem}
+      {d.blinded && <Reveal d={d} name={name} projectId={projectId} onRevealed={(x) => { setRevealed(x); setPoints(true); }} onProblem={setProblem} said={said}
                             compact />}
       {!d.blinded && points && d.series.map((series) => (
         <div key={series.name} className="series">
@@ -318,14 +320,16 @@ export const datasetsWaiting = (datasets: Listed[]) => [
 /** The datasets of one study, on its card (plan 2026-11-14 slice 3): one line each, with where it stands, whether the
  *  data plan promised it, Leave out and, where they apply, the reveal of a blinded dataset and the overlay check of a
  *  digitized figure. Nothing when the study has none. */
-export function StudyDatasets({ datasets, projectId, run, unpromised = [] }: {
+export function StudyDatasets({ datasets, projectId, run, unpromised = [], said = null }: {
   datasets: Listed[]; projectId: string; run: Run; unpromised?: string[];
+  /** why the card says its study is blinded (`blindedWhy`): a dataset blinded for the same reason does not say it again */
+  said?: string | null;
 }) {
   if (!datasets.length) return null;
   const names = namesOf(datasets);
   return (
     <ul className="dataset-lines" data-testid="study-datasets">
-      {datasets.map((d) => <DatasetLine key={d.id} d={d} name={names.get(d.id) ?? d.id} projectId={projectId} run={run}
+      {datasets.map((d) => <DatasetLine key={d.id} d={d} name={names.get(d.id) ?? d.id} projectId={projectId} run={run} said={said}
                                         unpromised={unpromisedOf(d, unpromised)} />)}
     </ul>
   );

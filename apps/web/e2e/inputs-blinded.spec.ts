@@ -73,10 +73,15 @@ test("a study the delivery blinds shows no value, reason digit, page line or she
   await expect(body.locator('[data-testid^="confirm-sheet-"]')).toHaveCount(0);
   const howRead = body.locator('[data-testid^="how-read-"]').first();
   await howRead.locator("summary").click();
-  await expect(body.locator('[data-testid^="how-read-withheld-"]')).toContainText("Withheld: the study is blinded until the plan is signed");
-  // the reading's withheld line says why too, and so does the list's chip (round 4: wherever it is withheld)
-  await expect(body.locator('[data-testid^="how-read-withheld-"]')).toContainText(", because it is entered for external validation on its card,");
+  // the reading's withheld line says what it is; why is said once on the card, on its withheld line above (round 7: the
+  // reading said it again), and the list's chip says it too (round 4: wherever it is withheld)
+  await expect(body.locator('[data-testid^="how-read-withheld-"]')).toHaveText(
+    "The sheet form's reading is withheld too: it shows the study's values.");
+  expect((await body.innerText()).match(/because it is entered for external validation on its card/g)).toHaveLength(1);
+  expect((await body.innerText()).match(/waits to be confirmed|Signing waits/g)).toHaveLength(1);
   await expect(page.locator('[data-testid^="study-blinded-why-"]').filter({ hasText: "entered for external validation" })).toHaveCount(2);
+  // the list's "Confirmed with" says it waits, as its card does (round 7: it said "Confirm and sign")
+  await expect(page.getByTestId(`study-confirm-with-study:${fed.label}`)).toHaveText("waits until the plan is signed");
   await expect(page.locator("body")).not.toContainText("35.6");
   await page.screenshot({ path: test.info().outputPath("1-blinded-card.png"), fullPage: true });
 
@@ -246,8 +251,12 @@ test("a blinded product says why on its card head, Populations says why, and the
   if ((await productToggle.getAttribute("aria-expanded")) !== "true") await productToggle.click();
   await expect(productCard.getByTestId(`delivery-blinded-${product.subject}`)).toHaveText(
     "withheld (blinded): the values it holds of a blinded study, their spread and what is below the LLOQ are not shown until the plan is "
-    + "signed, and it waits to be confirmed until then.");
+    + "signed.");
   expect((await productCard.innerText()).match(/because it holds the values of study 230-23/g)).toHaveLength(1);
+  // round 7: that its confirmation waits is said once, where "Confirm and sign…" would be; its head names no path it cannot use
+  await expect(productCard.getByTestId(`delivery-sign-waits-${product.subject}`)).toHaveText("Signing waits until the plan is signed.");
+  expect((await productCard.innerText()).match(/waits to be confirmed|Signing waits/g)).toHaveLength(1);
+  await expect(productCard.locator(".card-path")).toHaveText("Products and dissolution");
   await expect(productCard).not.toContainText("this study is blinded");
   await expect(productCard).not.toContainText("the study is blinded");
   await page.screenshot({ path: test.info().outputPath("6a-product-card-why-once.png"), fullPage: true });
@@ -372,18 +381,54 @@ test("a study the delivery blinds withholds its sheet-form dataset's points besi
   if ((await toggle.getAttribute("aria-expanded")) !== "true") await toggle.click();
   const card = page.getByTestId(`delivery-card-${study.subject}`);
   await card.locator("details.how-read > summary", { hasText: "How the files were read: the sheet form" }).click();
-  await expect(card.locator('[data-testid^="how-read-withheld-"]')).toContainText(
-    "Withheld: the study is blinded until the plan is signed, because it is entered for external validation on its card, and the "
-    + "sheet form's reading shows its values.");
-  // round 6: its signature is not offered either (the API refuses it); where it would be, the wait and why
+  await expect(card.locator('[data-testid^="how-read-withheld-"]')).toHaveText(
+    "The sheet form's reading is withheld too: it shows the study's values.");
+  // round 6: its signature is not offered either (the API refuses it); where it would be, the wait (round 7: only the wait,
+  // why is said once, on the card's withheld line)
   await expect(card.getByTestId(`delivery-confirm-${study.subject}`)).toHaveCount(0);
-  await expect(card.getByTestId(`delivery-sign-waits-${study.subject}`)).toHaveText(
-    "Signing waits until the plan is signed, because it is entered for external validation on its card.");
+  await expect(card.getByTestId(`delivery-sign-waits-${study.subject}`)).toHaveText("Signing waits until the plan is signed.");
+  await expect(card.getByTestId(`delivery-blinded-why-${study.subject}`)).toHaveText(", because it is entered for external validation on its card");
   const line = page.getByTestId(`dataset-${dataset.id}`);
   await expect(line.getByTestId(`dataset-blinded-${dataset.id}`)).toHaveText(/blinded until\s+the plan is signed/);
   await expect(line.getByRole("button", { name: /^Show the points/ })).toHaveCount(0);
-  await expect(line.getByTestId(`blinded-why-${dataset.id}`)).toContainText("because it is entered for external validation on its card");
+  // the dataset's line, on the same card, does not say the card's reason again (round 7); its reveal stays
+  await expect(line.getByTestId(`blinded-why-${dataset.id}`)).toHaveText("Its values are blinded until the plan is signed (ICH M15).");
+  const body = card.locator("xpath=ancestor::*[contains(@class,'card-body')][1]");
+  expect((await body.innerText()).match(/because it is entered for external validation on its card/g)).toHaveLength(1);
+  // the list's "Confirmed with" says it waits, as the card does (round 7: it said "Confirm and sign")
+  await expect(page.getByTestId("study-confirm-with-study:231-24")).toHaveText("waits until the plan is signed");
   await page.screenshot({ path: test.info().outputPath("8-sheet-dataset-withheld.png"), fullPage: true });
+
+  // round 7: in the model, as on the owner's copy (its dataset confirmed before its card said what it is for). Its
+  // individual is its design, not its values, and the plan needs it (the inputs' readiness asks it of every study in the
+  // model): To do counts it like any other study's and Populations takes it, saying the study's values are blinded and
+  // why (round 6: To do said it "can't be acted on yet: its facts are set afterwards" while Populations offered the form;
+  // hiding the form would leave no way past the readiness check)
+  const accepted = await request.post(`${api}/datasets/${dataset.id}:decide`, { headers: AUTH,
+    data: { state: "ACCEPTED", reason: "confirmed before its card said what it is for" } });
+  expect(accepted.ok(), await accepted.text()).toBeTruthy();
+  type StudyRow = { study_id: string; blinded: boolean; blinded_why: string | null; demographics: string };
+  const row = async () => (await read<{ studies: StudyRow[] }>("inputs")).studies.find((s) => s.study_id === "231-24");
+  expect(await row()).toMatchObject({ blinded: true, blinded_why: "it is entered for external validation on its card", demographics: "missing" });
+  await page.goto(`/projects/${projectId}/inputs?tab=todo`);
+  const todoRow = page.locator('li[data-item="todo:demographics:231-24"]');
+  await expect(todoRow).toBeVisible();
+  await expect(todoRow).not.toContainText("can't be acted on yet");
+  await expect(todoRow).not.toContainText("its facts are set afterwards");
+  await todoRow.getByRole("button", { name: "Demographics of study 231-24" }).click();
+  await expect(page.getByTestId("tab-individuals")).toHaveAttribute("aria-selected", "true");
+  const individual = page.getByTestId("individual-231-24");
+  await expect(individual.getByTestId("individual-blinded-231-24")).toHaveText(
+    "Its values are blinded until the plan is signed, because it is entered for external validation on its card. Its individual is set "
+    + "now: the plan needs it.");
+  await expect(individual.getByTestId("individual-save-231-24")).toBeVisible();
+  await page.screenshot({ path: test.info().outputPath("9-populations-blinded-in-model.png"), fullPage: true });
+  // and the owner gets past it here: the healthy adult default chosen, as for any study (listed as a MAP limitation)
+  await individual.getByRole("button", { name: "Use the healthy adult default for 231-24" }).click();
+  await expect.poll(async () => (await row())?.demographics).toBe("default");
+  await page.getByTestId("tab-todo").click();
+  await expect(page.locator('li[data-item="todo:demographics:231-24"]')).toHaveCount(0);
+  await expect(page.locator("body")).not.toContainText("35.6");
 });
 
 // Round 6 (round 5's skeptic, probe F): Review & sign shows its studies and roles only once the inputs are ready (the plan
@@ -446,4 +491,87 @@ test("before the inputs are ready, the split's reason says where its role is dec
   await expect(link).toHaveAttribute("href", `/projects/${projectId}/plan#review-studies`);
   await link.click();
   await expect(page.locator("#review-studies")).toBeVisible();
+});
+
+// Round 7 (round 6's skeptic, probe R on the owner's exampleamide-pbpk): a BE arm's workbook the sheet form read under
+// another name (230-23-REF), its values linked to study 230-23 on the delivery (the group joined to the study, its
+// `legacy_groups`). Once 230-23 is entered for external validation on its card, the client review withheld the joined
+// group, but the evidence matched by name only and kept the group's dataset's points: the card said its values are not
+// shown beside a 230-23-REF line offering "Show the points" with every value. One rule now. Software test data (made-up
+// numbers of a BE arm), never a model.
+test("a group joined to a study the delivery blinds under another name has its dataset withheld on the evidence and on the card", async ({ page, request }) => {
+  const started = await request.post("/api/v1/projects:initiate", { headers: AUTH, multipart: {
+    drug_name: "Exampleamide", extract: "false",
+    files: { name: "proposal.md", mimeType: "text/markdown", buffer: Buffer.from("# Proposal\nOral tablet, 50 mg.") } } });
+  const projectId = (await started.json()).data.project_id as string;
+  await finishStart(request, projectId);
+  expect((await request.post(`/api/v1/projects/${projectId}/requirements:derive`, { headers: AUTH })).ok()).toBeTruthy();
+  const api = `/api/v1/projects/${projectId}`;
+  const read = async <T,>(path: string) => (await (await request.get(`${api}/${path}`, { headers: AUTH })).json()).data as T;
+  const dir = mkdtempSync(join(tmpdir(), "blinded-joined-"));
+  execFileSync("uv", ["run", "python", join(__dirname, "fixtures", "er_be_workbooks.py"), dir], { cwd: REPO });
+  const book = "230-23 Fasting Reference.xlsx";
+  const up = await request.post(`${api}/client-data`, { headers: AUTH, multipart: {
+    files: { name: book, mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", buffer: readFileSync(join(dir, book)) } } });
+  expect(up.status(), await up.text()).toBe(201);
+  type Subject_ = Row & { subject_type: string; legacy_groups: string[]; blinded_why: string | null };
+  type Page_ = { running: boolean; deliveries: { files: { sha256: string }[] }[]; subjects: Subject_[]; unassigned: { id: string }[] };
+  await expect.poll(async () => {
+    const d = await read<Page_ | null>("delivery");
+    const c = await read<{ running: boolean } | null>("client-data");
+    return Boolean(d && !d.running && d.deliveries.flatMap((x) => x.files).length === 1 && c && !c.running);
+  }, { timeout: 300_000, intervals: [2000] }).toBe(true);
+  // the sheet form reads the sheet as 230-23-REF, for model building (to confirm); the delivery's values are linked to 230-23
+  const delivered = await read<Page_>("delivery");
+  const sid = `file-${delivered.deliveries.flatMap((d) => d.files)[0].sha256.slice(0, 12)}`;
+  const finished = await request.post(`${api}/client-review:finish`, { headers: AUTH, data: { file: sid, sheet: "Sheet1", answers: {
+    n: 6, route: "oral", formulation: "ir_tablet", food_state: "fasted", dose: 50, purpose: "model_building" } } });
+  expect(finished.ok(), await finished.text()).toBeTruthy();
+  if (!delivered.subjects.some((s) => s.label === "230-23")) {
+    const targets = [...new Set(delivered.unassigned.map((v) => v.id.split("#")[0]))];
+    const linked = await request.post(`${api}/delivery/values:assign`, { headers: AUTH,
+      data: { targets, new_study: "230-23", why: "the file's title names study 230-23" } });
+    expect(linked.ok(), await linked.text()).toBeTruthy();
+  }
+  type Dataset = { id: string; study: { study_id: string }; blinded?: boolean; blinded_why?: string | null; quote: string;
+                   series: { values: (number | null)[] }[] };
+  const ref = async () => (await read<{ datasets: Dataset[] }>("evidence")).datasets.find((d) => d.study.study_id === "230-23-REF")!;
+  const open = await ref();
+  expect(open.blinded ?? false).toBe(false);
+  const values = [...new Set(open.series.flatMap((s) => s.values).filter((v): v is number => v !== null && v > 5).map(String))]
+    .filter((v) => v.includes("."));
+  expect(values.length).toBeGreaterThan(5);
+  const study = (await read<Page_>("delivery")).subjects.find((s) => s.label === "230-23")!;
+  expect(study.legacy_groups).toContain("study:230-23-REF");
+
+  // blinding on, and 230-23 entered for external validation on its card: the delivery blinds it, the list does not
+  const on = await request.put(`${api}/blinding`, { headers: AUTH, data: { on: true, reason: "external validation is blinded until the MAP is signed" } });
+  expect(on.ok(), await on.text()).toBeTruthy();
+  const entered = await request.post(`${api}/delivery/subjects/study/${study.subject}:enter`, { headers: AUTH,
+    data: { field: "intended_use", value: "external_validation", why: "the protocol keeps it for external validation" } });
+  expect(entered.ok(), await entered.text()).toBeTruthy();
+  const why = "it is entered for external validation on its card";
+  type Group = { id: string; blinded: boolean; blinded_why: string | null };
+  expect((await read<{ groups: Group[] }>("client-review")).groups.find((g) => g.id === "study:230-23-REF")).toMatchObject({ blinded: true, blinded_why: why });
+  // the evidence agrees: the joined group's dataset withheld, with the delivery's reason, and its quote only the place
+  const withheld = await ref();
+  expect(withheld).toMatchObject({ blinded: true, blinded_why: why });
+  expect(withheld.series.flatMap((s) => s.values).every((v) => v === null)).toBe(true);
+  expect(withheld.quote).toMatch(/^(\[Sheet1 row \d+\])?$/);
+  const evidence = await (await request.get(`${api}/evidence`, { headers: AUTH })).text();
+  expect(values.filter((v) => evidence.includes(v))).toEqual([]);
+
+  // on 230-23's card: the withheld line says why, and the 230-23-REF line beside it offers no points
+  await page.goto(`/projects/${projectId}/inputs?tab=studies`);
+  const toggle = page.getByTestId(`delivery-subject-open-${study.subject}`);
+  await expect(toggle).toBeVisible({ timeout: 30_000 });
+  if ((await toggle.getAttribute("aria-expanded")) !== "true") await toggle.click();
+  const card = page.getByTestId(`delivery-card-${study.subject}`);
+  await expect(card.getByTestId(`delivery-blinded-why-${study.subject}`)).toHaveText(`, because ${why}`);
+  const line = page.getByTestId(`dataset-${withheld.id}`);
+  await expect(line.getByTestId(`dataset-blinded-${withheld.id}`)).toHaveText(/blinded until\s+the plan is signed/);
+  await expect(line.getByRole("button", { name: /^Show the points/ })).toHaveCount(0);
+  const body = await page.locator("body").innerText();
+  expect(values.filter((v) => body.includes(v))).toEqual([]);
+  await page.screenshot({ path: test.info().outputPath("10-joined-group-withheld.png"), fullPage: true });
 });

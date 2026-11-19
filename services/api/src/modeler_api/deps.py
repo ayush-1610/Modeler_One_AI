@@ -125,28 +125,30 @@ def blinded_sources(ws: Workspace) -> BlindedSources:
 
 def redact(ws: Workspace, kind: ArtifactKind, content: dict[str, Any], hidden: BlindedSources | None = None) -> dict[str, Any]:
     """An artifact's content as the viewer may see it: blinded external values left out (D-15). A study's values are
-    withheld by the one rule every view of them follows (`blinded_sources`, `BlindedSources.withholds`: the project's
-    list and the delivery's, by the study's name; final review round 6). `hidden`: that rule, when the caller has it."""
+    withheld by the one rule every view of them follows (`blinded_sources`, `BlindedSources.holds`: the project's list
+    and the delivery's, by the study's name, final review round 6; and the datasets of the client review's withheld
+    groups, round 7), its quote and note with them (`redact_dataset`). `hidden`: that rule, when the caller has it."""
     if kind not in (ArtifactKind.DATASET, ArtifactKind.STUDY_CATALOG):
         return content
     hidden = blinded_sources(ws) if hidden is None else hidden
     if not hidden:
         return content
     if kind is ArtifactKind.DATASET:
-        return blind.redact_dataset(content) if hidden.withholds((content.get("study") or {}).get("study_id")) else content
+        return blind.redact_dataset(content) if hidden.holds(content) else content
     return {**content, "studies": [blind.redact_row(r) if hidden.withholds(r.get("study_id")) else r
                                    for r in content.get("studies", [])]}
 
 
 def hidden_paths(ws: Workspace, kind: ArtifactKind, content: dict[str, Any]) -> tuple[str, ...]:
-    """History paths that would show blinded values (a dataset's series and reported PK, a catalog's studies), by the
+    """History paths that would show blinded values (a dataset's series, reported PK, quote, note, decision reason and
+    picked points, `blinding.WITHHELD_PATHS`; a catalog's studies), by the
     rule `redact` follows; a catalog's whenever anything is withheld (an earlier version may hold a study the latest
     does not)."""
     if kind not in (ArtifactKind.DATASET, ArtifactKind.STUDY_CATALOG):
         return ()
     hidden = blinded_sources(ws)
-    if kind is ArtifactKind.DATASET and hidden.withholds((content.get("study") or {}).get("study_id")):
-        return ("series", "reported")
+    if kind is ArtifactKind.DATASET and hidden.holds(content):
+        return blind.WITHHELD_PATHS     # its values, and the quote, note and picked points that carry them (round 7)
     if kind is ArtifactKind.STUDY_CATALOG and hidden:
         return ("studies",)
     return ()

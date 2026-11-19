@@ -8349,6 +8349,8 @@ export interface components {
         InputStudyRow: {
             /** Blinded */
             blinded: boolean;
+            /** Blinded Why */
+            blinded_why?: string | null;
             /** Dataset Id */
             dataset_id: string | null;
             /**

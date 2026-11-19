@@ -12,9 +12,12 @@
 // product that holds its values (round 4 left such a product's card showing the study's values).
 //
 // One rule follows a change of the project's blinding, either way, whichever answer shows it (`followBlinding`, final
-// review round 6): the API withholds by file and by name too, beyond the rows that changed (the why of a decision about a
-// file that now holds a blinded study's values, on the card of another study; a layout's headers; a source page; a
-// dataset's points; the Studies list's chip), so everything of the project the blinding changes is read again, once.
+// review round 6): the API withholds by file, by name and by the sheet form's withheld groups too, beyond the rows that
+// changed (the why of a decision about a file that now holds a blinded study's values, on the card of another study; a
+// layout's headers; a source page; a dataset's points; the Studies list's chip; a figure suggested from a file; round 7:
+// the datasets of a group joined to a blinded study under another name), so every answer of the project that the
+// blinding changes (`BLINDING`) is read again, once: at once where it is shown or counted, else when it is next shown
+// (round 6 said "everything" while the reading tray's figure suggestions were left out; round 7 adds them).
 
 import type { QueryClient, QueryKey } from "@tanstack/react-query";
 
@@ -41,18 +44,20 @@ const cardOf = (key: QueryKey, projectId: string) => {
   return key[0] === CARD && params?.project_id === projectId ? ref(params) : null;
 };
 
-/** Everything of a project whose answer a change of its blinding changes (final review round 6; the API's
- *  `modeler_project.blinded_sources`, by file and by name): the delivery's page; every card (its values, its spot check,
+/** Every answer of a project that a change of its blinding changes (final review rounds 6 and 7; the API's
+ *  `modeler_project.blinded_sources`, by file, by name and by group): the delivery's page; every card (its values, its spot check,
  *  and the why of a decision about a file that holds a blinded study's values, masked on any card); the layout views
  *  (their headers and findings masked by file) and the source view (a page withheld by file); the inputs (the Studies
  *  list says which studies are blinded) and the evidence (a dataset's points); the client's files and their sheets, the
- *  sheet form's groups, the documents, their pages and the figures suggested from them. */
+ *  sheet form's groups, the documents, their pages and the figures suggested from them; the reading tray (its figure
+ *  suggestions, withheld by file: `client_api._figures`, round 7). */
 const BLINDING: readonly Read[] = [
   DELIVERY, CARD, SPOT, MAPPING, SOURCE,
   "/api/v1/projects/{project_id}/inputs", "/api/v1/projects/{project_id}/evidence",
   "/api/v1/projects/{project_id}/client-data", "/api/v1/projects/{project_id}/client-data/{sid}/sheets/{sheet}",
   "/api/v1/projects/{project_id}/client-review", "/api/v1/projects/{project_id}/documents",
   "/api/v1/projects/{project_id}/documents/{sha256}/pages/{page}", "/api/v1/projects/{project_id}/documents/{sha256}/figures",
+  "/api/v1/projects/{project_id}/reading-queue",
 ];
 
 // per page (its cache) and project: the last following of a change of the blinding
@@ -60,9 +65,10 @@ const followed = new WeakMap<QueryClient, Map<string, Followed>>();
 
 /** The one place that decides what a change of the project's blinding reads (final review round 6), either way (a study
  *  or product blinded, no longer blinded, or blinded for another reason), whichever answer shows it: a delivery row
- *  (`followRows`) or the studies the inputs say are blinded (`blindingChanged`, components/inputs/after.ts). Everything
- *  of the project the blinding changes (`BLINDING`) is read again, at once where it is shown or counted (the work model
- *  counts every card), else when next shown, except what was read or written in the moment `since` or later (the moment
+ *  (`followRows`) or the studies the inputs say are blinded (`blindingChanged`, components/inputs/after.ts). Every answer
+ *  of the project the blinding changes (`BLINDING`) is read again, at once where it is shown or counted (an open card;
+ *  the work model reads the cards still to sign, unblinded), else marked stale and read when next shown (a closed card),
+ *  except what was read or written in the moment `since` or later (the moment
  *  the answer that shows the change was read in, or the decision's): that holds the change already. An answer read by an
  *  earlier following of the same change (the inputs it read again, say) shows that change again: it is followed from the
  *  same moment, so nothing is read twice when both rules see it (round 5's gap a: a signed landing the split blinds read
