@@ -98,6 +98,10 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
   - A CI test runs the whole run with a scripted model (`services/agents/tests/test_dataroom_run.py`): read, triage,
     extract and write; a misread dose refused and corrected; a stage with no model skipped and saying so; the writer
     refused a number of its own.
+- **The extractor's instructions are per file.** They hold only the fields and table kinds the file's topics need: about
+  1,000 tokens instead of 1,700. A request a provider calls too large (HTTP 413) is tried once more with a third of the
+  pages. The page budget is `MODELER_DATAROOM_FOCUS_CHARS` (default 14,000 characters). The free GroqCloud tier
+  refuses any single request over 8,000 tokens, so it needs about 9,000 there.
 - **Known gap:** the agents are not yet scored on the real delivery; that is the next step. The report export follows.
 
 ### Added — the Data room's reader: every file of a real delivery read, scans included (plan 2026-11-21 v2 §9, build step 1)

@@ -86,7 +86,20 @@ TOPIC_WORDS: dict[str, tuple[str, ...]] = {
     "question": ("objective", "purpose", "scope", "pbbm", "pbpk", "bioequivalen", "reformulat", "health canada", "fda",
                  "ema", "request", "deliverable", "context of use", "virtual"),
 }
-FOCUS_CHARS = 14000      # the pages shown to the extractor up front (about 3,500 tokens)
+FOCUS_CHARS = 14000      # the pages shown to the extractor up front (about 3,500 tokens); MODELER_DATAROOM_FOCUS_CHARS
+
+
+def focus_chars() -> int:
+    import os
+
+    try:
+        return max(2000, int(os.environ.get("MODELER_DATAROOM_FOCUS_CHARS") or FOCUS_CHARS))
+    except ValueError:
+        return FOCUS_CHARS
+
+
+def _too_large(error: str) -> bool:
+    return "413" in error or "too large" in error.lower() or "context length" in error.lower()
 
 
 def _focus(doc: SourceDocument, topics: Sequence[str], budget: int = FOCUS_CHARS) -> str:
@@ -214,7 +227,8 @@ def question(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, 
         return (3 * any(w in name for w in ("proposal", "request", "scope", "email", "pasted", "letter"))
                 + 2 * bool(t and set(t.topics) & {"question", "regulatory"}) + (f.kind in ("docx", "image")))
     ranked = sorted(docs.items(), key=lambda kv: -weight(kv[0], kv[1][0]))[:4]
-    material = "\n\n".join(f"=== {p}\n{_focus(d, ['question'], budget=4000)}" for p, (_f, d) in ranked)
+    per_file = max(800, focus_chars() // 4)
+    material = "\n\n".join(f"=== {p}\n{_focus(d, ['question'], budget=per_file)}" for p, (_f, d) in ranked)
     saved: list[BaseModel] = []
 
     def check(answer: BaseModel) -> list[str]:
@@ -234,6 +248,11 @@ def question(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, 
     outcome = run_tool_loop(model, system=QUESTION_SYSTEM, tools=tools, max_turns=10, user=(
         f"The delivery's files:\n{listing}\n\nThe pages most likely to state the question:\n{material}\n\n"
         "Write the question card (each quote with its file)."))
+    if not saved and _too_large(outcome.error):
+        material = "\n\n".join(f"=== {p}\n{_focus(d, ['question'], budget=per_file // 3)}" for p, (_f, d) in ranked[:2])
+        outcome = run_tool_loop(model, system=QUESTION_SYSTEM, tools=tools, max_turns=8, user=(
+            f"The delivery's files:\n{listing}\n\nThe pages most likely to state the question:\n{material}\n\n"
+            "Write the question card (each quote with its file)."))
     if not saved:
         return f"no question card ({outcome.status}{': ' + outcome.error if outcome.error else ''})"
     store.set_question(saved[0], by=f"agent:A6:{model.provider}/{model.model}", confirmed=False)  # type: ignore[arg-type]
@@ -271,23 +290,44 @@ def triage(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, st
 
 # --- A8: extraction -----------------------------------------------------------------------------------------------------
 
-EXTRACT_SYSTEM = _COMMON + """
+_TOPIC_FIELDS = {"clinical_design": ("study.",), "clinical_disposition": ("study.",), "clinical_demographics": ("study.",),
+                 "dosing_and_meals": ("study.",), "bioanalysis": ("study.",), "clinical_concentrations": ("study.",),
+                 "clinical_pk": ("study.",), "be_statistics": ("study.",), "dissolution": ("dissolution.", "product.", "batch."),
+                 "composition": ("product.", "batch."), "manufacturing": ("product.", "batch."), "solubility": ("substance.",),
+                 "particle_size": ("substance.", "batch."), "drug_substance": ("substance.",), "adme": ("adme.",),
+                 "label": ("adme.", "substance.", "product."), "question": ("question.",)}
+_TOPIC_KINDS = {"clinical_concentrations": ("concentrations",), "clinical_pk": ("pk_parameters",),
+                "clinical_demographics": ("demographics",), "clinical_disposition": ("disposition",),
+                "dissolution": ("dissolution",), "composition": ("composition",), "solubility": ("solubility",),
+                "particle_size": ("particle_size",), "be_statistics": ("be_statistics",), "drug_substance": ("physchem",)}
+
+
+def extract_system(topics: Sequence[str]) -> str:
+    """The extractor's instructions for one file: the fields and table kinds its topics need (all of them when the
+    triage gave no topic), so a small model's context holds the file rather than the vocabulary."""
+    prefixes = {p for t in topics for p in _TOPIC_FIELDS.get(t, ())} or {f.split(".")[0] + "." for f in FIELDS}
+    kinds = {k for t in topics for k in _TOPIC_KINDS.get(t, ())} or set(ROLES)
+    fields = "\n".join(f"   {k}: {v}" for k, v in FIELDS.items() if k.startswith(tuple(prefixes)))
+    roles = "\n".join(f"   {k}: {', '.join(v)}" for k, v in ROLES.items() if k in kinds)
+    return _COMMON + f"""
 
 Your job (A8): for one file, find every input the checklist asks for and answer with:
-1. table descriptions (kind, part, header lines, first and last data line, summary lines such as the client's mean or
-   RSD rows, and for each cell position its role; a column whose header is a time gets "time"; side-by-side blocks
-   (a batch, a product) get "group" as written). Describe a table once per page it covers. Roles by kind:
-""" + "\n".join(f"   {k}: {', '.join(v)}" for k, v in ROLES.items()) + """
-   Concentrations: each value cell gets role "value" and its time; say the time unit and the concentration unit as the
-   file writes them; say zero_means_blq when the file writes values below the LLOQ as 0; list the file's missing and
-   below-LLOQ tokens if they differ from the defaults. Put a table's shared values (medium, pH, volume, rpm, apparatus,
-   study) in constants, and give each also as a fact.
-2. facts with quotes. Fields (use these names; a new dotted name is allowed when none fits):
-""" + "\n".join(f"   {k}: {v}" for k, v in FIELDS.items()) + """
-   subject: what the fact is about (a study number, a treatment code, a batch); product: the question card's product
-   name when the fact concerns one. A treatment code (A, B, T, R) and its meaning is study.treatment_code with subject =
-   the code. Subjects listed (completed, excluded) go in the value as numbers only, the reason in note.
-3. not_found: the checklist ids you looked for in this file and did not find."""
+1. table descriptions: kind, part, header lines, first and last data line, summary lines (the client's mean or RSD
+   rows), and for each cell position its role. A column whose header is a time gets "time" (as the header writes it);
+   side-by-side blocks (a batch, a product) get "group" as written. One description per page a table covers. Roles:
+{roles}
+   Concentrations: each value cell gets role "value" and its time; give the time unit and the concentration unit as
+   written; zero_means_blq when the file writes values below the LLOQ as 0. A table's shared values (medium, pH,
+   volume, rpm, apparatus, study) go in constants, and each is also a fact.
+2. facts, each with its verbatim quote. Fields (a new dotted name only when none fits):
+{fields}
+   subject: what the fact is about (a study number, a treatment code, a batch). product: the question card's product
+   name when the fact concerns one. One fact per treatment code (subject = the code). Subject lists (completed,
+   excluded) hold the numbers only; the reason goes in note.
+3. not_found: the checklist ids you looked for here and did not find."""
+
+
+EXTRACT_SYSTEM = extract_system(())   # the whole vocabulary (kept for reference and tests)
 
 
 def _extraction_problems(answer: Extraction, path: str, f: FileView, doc: SourceDocument) -> list[str]:
@@ -327,13 +367,20 @@ def extract(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, s
                             "Submit this file's tables and facts.")
         tools = [x for x in _doc_tools({path: (f, doc)}) if x.name != "search"] + [_search_one(path, doc), tool]
         topics = list(t.topics) if t else []
-        user = (f"The question: {card.question if card else '(not set)'}\nThe products:\n{products or '(not set)'}\n"
-                f"The checklist:\n{checklist or '(not set)'}\n\nFile: {path} ({f.kind}; "
-                f"{'OCR on pages ' + ', '.join(map(str, f.ocr_pages)) if f.ocr_pages else 'text layer'})"
-                f"{'; the triage says: ' + t.reason if t else ''}\n\nIts parts: "
-                f"{', '.join(f'{p.name} ({len(p.lines)} lines)' for p in _parts(doc)[:200])}\n\n"
-                f"The pages most likely to hold what the checklist needs (open others with the tools):\n{_focus(doc, topics)}")
-        outcome = run_tool_loop(model, system=EXTRACT_SYSTEM, user=user, tools=tools, max_turns=14)
+
+        def user(budget: int, path: str = path, f: FileView = f, doc: SourceDocument = doc, t: FileTriage | None = t,
+                 topics: list[str] = topics) -> str:
+            return (f"The question: {card.question if card else '(not set)'}\nThe products:\n{products or '(not set)'}\n"
+                    f"The checklist:\n{checklist or '(not set)'}\n\nFile: {path} ({f.kind}; "
+                    f"{'OCR on pages ' + ', '.join(map(str, f.ocr_pages)) if f.ocr_pages else 'text layer'})"
+                    f"{'; the triage says: ' + t.reason if t else ''}\n\nIts parts: "
+                    f"{', '.join(f'{p.name} ({len(p.lines)} lines)' for p in _parts(doc)[:120])}\n\n"
+                    f"The pages most likely to hold what the checklist needs (open others with the tools):\n"
+                    f"{_focus(doc, topics, budget=budget)}")
+        budget = focus_chars()
+        outcome = run_tool_loop(model, system=extract_system(topics), user=user(budget), tools=tools, max_turns=14)
+        if not saved and _too_large(outcome.error):      # a provider's per-request limit: the same, with fewer pages
+            outcome = run_tool_loop(model, system=extract_system(topics), user=user(budget // 3), tools=tools, max_turns=10)
         if not saved:
             failed.append(f"{path}: no answer ({outcome.status}{': ' + outcome.error[:200] if outcome.error else ''})")
         if saved:
