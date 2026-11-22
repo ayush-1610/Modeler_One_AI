@@ -560,7 +560,9 @@ test("a group joined to a study the delivery blinds under another name has its d
   expect(withheld).toMatchObject({ blinded: true, blinded_why: why });
   expect(withheld.series.flatMap((s) => s.values).every((v) => v === null)).toBe(true);
   expect(withheld.quote).toMatch(/^(\[Sheet1 row \d+\])?$/);
-  const evidence = await (await request.get(`${api}/evidence`, { headers: AUTH })).text();
+  // what the answer says, not when it said it (as round 5's check above: a time such as hh:mm:09.88… once matched 9.88)
+  const evidence = (await (await request.get(`${api}/evidence`, { headers: AUTH })).text())
+    .replace(/\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?(\+00:00|Z)?/g, "<time>");
   expect(values.filter((v) => evidence.includes(v))).toEqual([]);
 
   // on 230-23's card: the withheld line says why, and the 230-23-REF line beside it offers no points

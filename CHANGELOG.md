@@ -15,6 +15,18 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Security — Next.js 16.4.2 → 16.4.6 (2026-11-19, the owner's request)
+- **What:** the web app's `next` (and its `@next/*` packages, nothing else in the lockfile) moves from 16.4.2 to 16.4.6.
+- **Why:** `npm audit` reported two moderate advisories for 16.2.0–16.4.4, both cache leaks across root params with
+  `'use cache'` (GHSA-mfr8-8qww-v76h, GHSA-vc7v-qv4w-wrv8), fixed in 16.4.5; and `next build` began stopping on a
+  security notice for the installed version. 16.4.6 is the current `latest` (published 2026-11-09). `npm audit` now
+  reports no vulnerabilities.
+- **Impact:** none intended on behaviour (a patch release in the same minor). The app does not use `'use cache'` or
+  `unstable_cache`. Checked: the web typecheck and the production build pass (the build no longer stops on the security
+  notice); full e2e 160 of 161. The one failure (inputs-blinded, round 7's joined-group test) searched `/evidence`'s raw
+  text for a withheld value and once matched it inside the answer's own timestamp (…:09.88…), as round 5 found for
+  another answer; that check now strips timestamps as round 5's does, and the spec passes 14 of 14 (two runs).
+
 ### Added — the Data room's API and page, and its printable evidence report (plan 2026-11-21 v2 §4, §5, §6, §10; build steps 2–6 on screen)
 - **The API (`modeler_api.dataroom_api`, L6), under `/api/v1/projects/{id}/dataroom`.** Every route is typed (the
   engine's own models; the OpenAPI snapshot and `apps/web/lib/api-types.ts` are regenerated). Members read; the roles
