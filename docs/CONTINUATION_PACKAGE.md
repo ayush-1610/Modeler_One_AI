@@ -251,13 +251,18 @@ repository):
 - Reading the whole delivery takes 17 min on 4 CPUs (147 pages through OCR).
 
 **Open, in order:**
-1. Score A6–A10 on the sample delivery per model. The owner's GroqCloud key is on the free tier (8,000 tokens a
-   minute, 8,000 per request, 1,000 requests a day): too small for a whole delivery. The owner should move it to the
-   Developer tier.
-2. Merge `dataroom-api-web`, run the whole suite, merge to `main`, deploy.
-3. The anonymized CI fixture with recorded model answers.
-4. SME sign-off of `dataroom_rules.yaml`.
-5. Population templates beyond PK-Sim's (Indian adults; plan §12).
+1. Score A6–A10 on the sample delivery per model.
+   - The owner's GroqCloud key is on the free tier (8,000 tokens a minute and per request, 200,000 a day). The owner
+     could not upgrade it (2026-11-22).
+   - So the default is the in-house Qwen Coder, on the server, after Ollama's context window is raised to 32k. The
+     client refuses a cut prompt.
+   - Free options plug in as "Another OpenAI-compatible service", once the owner has checked their data terms
+     (Cerebras, NVIDIA's API catalog).
+2. Fixed: 15 findings of an independent review of the science (CHANGELOG, both parts).
+3. Merge `dataroom-api-web`, run the whole suite, merge to `main`, deploy.
+4. The anonymized CI fixture with recorded model answers (a scripted-model run exists: `test_dataroom_run.py`).
+5. SME sign-off of `dataroom_rules.yaml`.
+6. Population templates beyond PK-Sim's (Indian adults; plan §12).
 
 ### 4.0c 2026-11-14 → 19: the Inputs page, task-first
 Plan `docs/plans/2026-11-14-inputs-task-first.md` (§2 six rules, §2.1 grafts, §2.2 decisions; **§5 records every
