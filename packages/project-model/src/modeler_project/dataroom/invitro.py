@@ -1,0 +1,234 @@
+"""In vitro data from the cells code read (plan 2026-11-21 v2 §8 "Dissolution", "Solubility"): dissolution profiles
+per product, batch and medium (mean and spread from the units, checked against the client's own mean row), f2 where it
+applies, a Weibull fit on every profile; composition side by side; solubility with the volume the dose needs.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import re
+import statistics
+from collections import defaultdict
+from collections.abc import Sequence
+
+from modeler_project.dataroom.extract import parse_number
+from modeler_project.dataroom.model import (
+    CheckedFact,
+    Chip,
+    CompositionRow,
+    DissolutionView,
+    F2View,
+    Problem,
+    ReadTable,
+    SolubilityRow,
+)
+from modeler_project.dataroom.rules import Rules, load_rules
+from pbpk_domain.dissolution import Profile, ProfileKey, f2, fit_weibull
+
+_PH = re.compile(r"\bpH\s*([0-9]+(?:\.[0-9]+)?)", re.IGNORECASE)
+_SOLUBILITY_UNITS = {"mg/ml": 1.0, "g/l": 1.0, "mg/l": 1e-3, "µg/ml": 1e-3, "ug/ml": 1e-3, "mcg/ml": 1e-3,
+                     "μg/ml": 1e-3, "ng/ml": 1e-6, "mg/100ml": 1e-2, "g/100ml": 10.0, "% w/v": 10.0}
+
+
+def _norm(text: str) -> str:
+    return re.sub(r"[^a-z0-9.]+", " ", text.lower()).strip()
+
+
+def _ph_of(*texts: str) -> float | None:
+    for text in texts:
+        if text and (m := _PH.search(text)):
+            return float(m.group(1))
+    return None
+
+
+def _decimals(text: str) -> int:
+    return len(text.split(".")[1]) if "." in text else 0
+
+
+def batch_products(facts: Sequence[CheckedFact]) -> dict[str, str]:
+    """Each batch as written (normalised) -> the product the client says it is a batch of."""
+    out: dict[str, str] = {}
+    for f in facts:
+        if f.ok and f.fact.field == "product.batch" and f.fact.product:
+            out[_norm(f.fact.value)] = f.fact.product
+    return out
+
+
+def _view_id(table_id: str, group: str) -> str:
+    return "ds-" + hashlib.sha256(f"{table_id}|{group}".encode()).hexdigest()[:10]
+
+
+def dissolution_views(table: ReadTable, *, products: dict[str, str] | None = None,
+                      rules: Rules | None = None) -> tuple[list[DissolutionView], list[Problem]]:
+    """One profile per side-by-side group of a dissolution table (a batch, a product), units down and times across."""
+    rules = rules or load_rules()
+    desc = table.description
+    products = products or {}
+    factor = 60.0 if desc.time_unit.strip().lower() in ("h", "hr", "hour", "hours") else 1.0
+    const = {k.lower(): v for k, v in desc.constants.items()}
+    medium = const.get("medium", "")
+    problems: list[Problem] = []
+    groups: dict[str, dict[float, list[tuple[float | None, Chip]]]] = defaultdict(lambda: defaultdict(list))
+    summaries: dict[str, dict[str, dict[float, tuple[str, Chip]]]] = defaultdict(lambda: defaultdict(dict))
+    units_per_group: dict[str, int] = defaultdict(int)
+    for row in table.rows:
+        cells = [c for c in row.cells if c.role == "value" and c.time is not None]
+        if row.summary:
+            for c in cells:
+                summaries[c.group][row.summary.lower()][c.time * factor] = (c.text, c.chip)
+            continue
+        seen: set[str] = set()
+        for c in cells:
+            number = parse_number(c.text)
+            if number is None and c.text.strip():
+                problems.append(Problem(code="UNREADABLE_VALUE", where=c.chip,
+                                        message=f"line {row.line}: {c.text!r} is not a percentage dissolved"))
+            groups[c.group][c.time * factor].append((number, c.chip))
+            seen.add(c.group)
+        for g in seen:
+            units_per_group[g] += 1
+    views: list[DissolutionView] = []
+    tol_digit, rsd_tol = rules.dissolution.client_mean_tolerance_last_digit, rules.dissolution.rsd_tolerance_points
+    for group, by_time in groups.items():
+        times = sorted(by_time)
+        n_units = units_per_group[group]
+        vessels = [tuple(by_time[t][i][0] if i < len(by_time[t]) else None for t in times) for i in range(n_units)]
+        means, sds, chips = [], [], []
+        own: list[Problem] = []
+        for t in times:
+            xs = [x for x, _ in by_time[t] if x is not None]
+            means.append(round(statistics.fmean(xs), 4) if xs else float("nan"))
+            sds.append(round(statistics.stdev(xs), 4) if len(xs) > 1 else None)
+            chips += [chip for _, chip in by_time[t]]
+        client_mean: list[float | None] = []
+        summary = summaries.get(group, {})
+        mean_row = next((summary[k] for k in ("mean", "avg", "average") if k in summary), {})
+        rsd_row = next((summary[k] for k in ("rsd", "cv", "%rsd", "rsd%") if k in summary), {})
+        for i, t in enumerate(times):
+            text, chip = mean_row.get(t, ("", None))
+            theirs = parse_number(text) if text else None
+            client_mean.append(theirs)
+            if theirs is not None and abs(theirs - means[i]) > tol_digit * 10 ** -_decimals(text) + 1e-9:
+                own.append(Problem(code="MEAN_ROW_DIFFERS", where=chip, message=(
+                    f"{t:g} min: the client's mean {text} %, the units' mean {means[i]:.2f} %")))
+            rtext, rchip = rsd_row.get(t, ("", None))
+            rsd = parse_number(rtext) if rtext else None
+            if rsd is not None and sds[i] is not None and means[i] > 0:
+                ours = 100 * sds[i] / means[i]
+                if abs(ours - rsd) > rsd_tol + 10 ** -_decimals(rtext):
+                    own.append(Problem(code="RSD_ROW_DIFFERS", where=rchip, message=(
+                        f"{t:g} min: the client's RSD {rtext} %, the units' {ours:.2f} %")))
+        batch = const.get("batch", "") or group
+        product = products.get(_norm(batch), const.get("product", "")) or products.get(_norm(group), "")
+        ph = _ph_of(const.get("ph", ""), medium) if not parse_number(const.get("ph", "")) else parse_number(const["ph"])
+        volume = parse_number(re.sub(r"[^\d.]", "", const.get("volume", "")) or "")
+        rpm = parse_number(re.sub(r"[^\d.]", "", const.get("rpm", const.get("speed", ""))) or "")
+        key = ProfileKey(product=product or batch, role="", batch=batch, apparatus=const.get("apparatus", ""), rpm=rpm,
+                         medium=medium, ph=ph, volume_ml=volume)
+        profile = Profile(key=key, times_min=tuple(times), vessels=tuple(vessels), mean=tuple(means), sd=tuple(sds), n=n_units)
+        fit = fit_weibull(profile)
+        early = [m for t, m in zip(times, means, strict=True) if t <= rules.dissolution.very_rapid_within_min]
+        very_rapid = bool(early) and max(early) >= rules.dissolution.very_rapid_percent
+        plateau = bool(means) and max(means) < rules.dissolution.plateau_below_percent
+        if plateau:
+            own.append(Problem(code="PLATEAU", severity="info", message=(
+                f"the profile levels off at {max(means):.0f} %: a Weibull curve rises to 100 %; a table of the profile "
+                "may describe it better (a decision)")))
+        views.append(DissolutionView(
+            id=_view_id(table.id, group), product=product, batch=batch, medium=medium, ph=ph,
+            apparatus=const.get("apparatus", ""), rpm=rpm, volume_ml=volume, n_units=n_units, times_min=tuple(times),
+            mean=tuple(means), sd=tuple(sds), client_mean=tuple(client_mean), weibull=fit.to_content(),
+            very_rapid=very_rapid, plateau=plateau, sources=tuple(chips[:1] + [c for c in (mean_row.get(times[0], ("", None))[1],) if c]),
+            problems=tuple(own)))
+    return views, problems
+
+
+def _profile(view: DissolutionView) -> Profile:
+    return Profile(key=ProfileKey(product=view.product, role="", batch=view.batch, medium=view.medium, ph=view.ph),
+                   times_min=view.times_min, vessels=(), mean=view.mean, sd=view.sd, n=view.n_units)
+
+
+def f2_pairs(views: Sequence[DissolutionView], roles: dict[str, str]) -> list[F2View]:
+    """f2 for each test or reformulated product against the reference, in each medium both were tested in."""
+    out: list[F2View] = []
+    refs = [v for v in views if roles.get(v.product) == "reference"]
+    for test in views:
+        if roles.get(test.product) in ("reference", None, ""):
+            continue
+        for ref in refs:
+            if (ref.ph, _norm(ref.medium)) != (test.ph, _norm(test.medium)) and ref.ph != test.ph:
+                continue
+            if ref.ph is None and test.ph is None and _norm(ref.medium) != _norm(test.medium):
+                continue
+            result = f2(_profile(test), _profile(ref))
+            out.append(F2View(test=test.id, reference=ref.id, value=result.value, similar=result.similar,
+                              applicable=result.applicable, reasons=result.reasons))
+    return out
+
+
+def composition_rows(tables: Sequence[ReadTable]) -> list[CompositionRow]:
+    """Each component once, its amount per product side by side; a row whose amounts differ is marked changed."""
+    rows: dict[str, dict] = {}
+    for table in tables:
+        about = table.description.about
+        for row in table.rows:
+            one = {c.role: c for c in row.cells if c.role in ("component", "function")}
+            if "component" not in one or not one["component"].text.strip():
+                continue
+            name = one["component"].text.strip()
+            entry = rows.setdefault(_norm(name), {"component": name, "function": "", "amounts": {}, "sources": []})
+            if "function" in one and one["function"].text.strip():
+                entry["function"] = entry["function"] or one["function"].text.strip()
+            for c in row.cells:
+                if c.role in ("amount", "percent") and c.text.strip():
+                    product = c.group or about or "product"
+                    entry["amounts"][product + (" (%)" if c.role == "percent" else "")] = c.text.strip()
+                    entry["sources"].append(c.chip)
+    out = []
+    for entry in rows.values():
+        mg = {k: v for k, v in entry["amounts"].items() if not k.endswith("(%)")}
+        values = {parse_number(v) for v in mg.values()}
+        changed = len(mg) > 1 and len(values) > 1
+        out.append(CompositionRow(component=entry["component"], function=entry["function"], amounts=entry["amounts"],
+                                  changed=changed, sources=tuple(entry["sources"][:4])))
+    return out
+
+
+def _mg_per_ml(value: float, unit: str) -> float | None:
+    u = unit.strip().lower().replace(" ", "").replace("μ", "µ")
+    for k, f in _SOLUBILITY_UNITS.items():
+        if u == k.replace(" ", ""):
+            return value * f
+    return None
+
+
+def solubility_rows(tables: Sequence[ReadTable], *, dose_mg: float | None, medium_volume_ml: float | None = None,
+                    rules: Rules | None = None) -> tuple[list[SolubilityRow], list[Problem]]:
+    """Solubility per medium or pH, with the volume the dose needs and the share of the dose that dissolves in a glass
+    of water and in the dissolution medium."""
+    rules = rules or load_rules()
+    out, problems = [], []
+    glass = rules.solubility.glass_volume_ml
+    for table in tables:
+        unit = table.description.value_unit
+        for row in table.rows:
+            one = {c.role: c for c in row.cells}
+            if "solubility" not in one or not one["solubility"].text.strip():
+                continue
+            text = one["solubility"].text.strip()
+            number = parse_number(text)
+            col_unit = one["solubility"].unit or unit
+            mg_ml = _mg_per_ml(number, col_unit) if number is not None else None
+            if number is not None and mg_ml is None:
+                problems.append(Problem(code="UNIT_UNKNOWN", where=one["solubility"].chip,
+                                        message=f"line {row.line}: solubility unit {col_unit!r} is not one code converts"))
+            medium = one["medium"].text.strip() if "medium" in one else ""
+            ph = parse_number(one["ph"].text) if "ph" in one else _ph_of(medium)
+            need = round(dose_mg / mg_ml, 2) if dose_mg and mg_ml else None
+            out.append(SolubilityRow(
+                medium=medium, ph=ph, solubility_mg_ml=mg_ml, as_written=f"{text} {col_unit}".strip(),
+                volume_for_dose_ml=need, fraction_in_glass=round(min(1.0, mg_ml * glass / dose_mg), 4) if need else None,
+                fraction_in_medium=(round(min(1.0, mg_ml * medium_volume_ml / dose_mg), 4)
+                                    if need and medium_volume_ml else None),
+                sources=(one["solubility"].chip,)))
+    return out, problems

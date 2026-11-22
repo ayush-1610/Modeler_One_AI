@@ -3,8 +3,8 @@
 An agent reads a delivery and answers in these forms only:
 - `QuestionCard`: what the project must answer, the products compared, the checklist of inputs;
 - `FileTriage`: what a file is for;
-- `TableDescription`: where a table is and what each of its columns and rows means (code then reads every number from
-  the cells or the page lines it names, `room_extract`);
+- `TableDescription`: where a table is (a part of a file, a range of its lines) and what each cell position means
+  (code then reads every value from the cells it names, `modeler_project.dataroom.extract`);
 - `Fact`: one value with the verbatim quote it was read from (code checks the quote is in the file and the value in the
   quote).
 
@@ -77,7 +77,8 @@ FIELDS: dict[str, str] = {
 ROLES: dict[str, tuple[str, ...]] = {
     "concentrations": ("subject", "sequence", "period", "treatment", "time", "value", "statistic", "analyte", "matrix",
                        "dose", "group"),
-    "pk_parameters": ("subject", "sequence", "period", "treatment", "parameter", "statistic", "group"),
+    "pk_parameters": ("subject", "sequence", "period", "treatment", "cmax", "tmax", "auc_t", "auc_inf", "t_half",
+                      "lambda_z", "statistic", "group"),
     "demographics": ("subject", "sex", "age", "weight", "height", "bmi", "race", "smoking", "group"),
     "disposition": ("subject", "status", "reason", "period"),
     "dissolution": ("unit", "time", "value", "statistic", "batch", "medium"),
@@ -136,37 +137,38 @@ class Fact(_B):
     quote: str = Field(description="the verbatim text from the file that contains the value (one to three lines)")
     file: str = ""
     part: str = Field(default="", description="where: p<page>, sheet:<name> or body")
+    product: str = Field(default="", description="the product (as named on the question card) the fact concerns, if any")
     note: str = ""
 
 
 class ColumnSpec(_B):
-    index: int = Field(description="1-based position of the cell in a row (grid column, or cell between ' | ' marks)")
+    index: int = Field(description="1-based position of the cell in a line (cells are separated by ' | ')")
     role: str
     label: str = Field(default="", description="the column's header as written")
     unit: str = ""
-    time: float | None = Field(default=None, description="for a column whose header is a time: that time")
+    time: float | None = Field(default=None, description="for a column whose header is a time: that time, in time_unit")
     group: str = Field(default="", description="a side-by-side block this column belongs to (a batch, a treatment), as written")
 
 
 class TableDescription(_B):
+    """Where a table is (a part of a file and a range of its lines) and what its cells mean. Code reads every value."""
+
     file: str
     kind: TableKind
     about: str = Field(default="", description="study, product or batch the whole table belongs to, as written")
-    source: Literal["grid", "lines"]
-    region_id: str = Field(default="", description="grid: the table region id")
-    part: str = Field(default="", description="lines: p<page> (or sheet:<name> / body)")
-    header_rows: list[int] = Field(default_factory=list, description="grid rows or page lines that hold the headers")
-    first_row: int = Field(description="first data row (grid row, or page line)")
-    last_row: int = Field(description="last data row (inclusive)")
-    skip_rows: list[int] = Field(default_factory=list)
-    summary_rows: dict[str, int] = Field(default_factory=dict, description="e.g. {'mean': 25, 'rsd': 26}")
+    part: str = Field(description="p<page>, sheet:<name> or body")
+    header_lines: list[int] = Field(default_factory=list, description="the lines that hold the headers")
+    first_line: int = Field(description="first data line")
+    last_line: int = Field(description="last data line (inclusive)")
+    skip_lines: list[int] = Field(default_factory=list, description="lines inside the range that are not data (a repeated header, a subtotal)")
+    summary_lines: dict[str, int] = Field(default_factory=dict, description="the client's own summary lines, e.g. {'mean': 25, 'rsd': 26}")
     columns: list[ColumnSpec]
     time_unit: str = ""
     value_unit: str = ""
-    missing_tokens: list[str] = Field(default_factory=lambda: [".", "-", "—", "NA", "N/A", "NR", "ND", "NS"])
-    blq_tokens: list[str] = Field(default_factory=lambda: ["BLQ", "BQL", "<LLOQ", "< LLOQ", "<LOQ", "BLOQ"])
+    missing_tokens: list[str] = Field(default_factory=lambda: [".", "-", "—", "NA", "N/A", "NR", "ND", "NS", "M"])
+    blq_tokens: list[str] = Field(default_factory=lambda: ["BLQ", "BQL", "<LLOQ", "< LLOQ", "<LOQ", "BLOQ", "LLOQ"])
     zero_means_blq: bool = Field(default=False, description="true when the file writes concentrations below the LLOQ as 0")
-    constants: dict[str, str] = Field(default_factory=dict, description="values every row shares (analyte, matrix, medium …), each also given as a Fact")
+    constants: dict[str, str] = Field(default_factory=dict, description="values every row shares (analyte, matrix, medium, batch …), each also given as a Fact")
     note: str = ""
 
 

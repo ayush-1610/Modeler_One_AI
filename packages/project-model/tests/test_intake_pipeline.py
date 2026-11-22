@@ -32,8 +32,8 @@ from modeler_intake.mapping.fingerprint import layout_fingerprint
 from modeler_intake.mapping.prose_check import ProseFactError
 from modeler_intake.mapping.rules import map_by_rule
 from modeler_intake.mapping_spec import MappingSpec
-from modeler_intake.source import parse as parse_module
 from modeler_intake.source import SOURCE_VERSION, parse_document, region_grid, resolve
+from modeler_intake.source import parse as parse_module
 from modeler_project import ArtifactKind, FileProjectStore, Workspace, intake_files, intake_pipeline
 from modeler_project.brief import empty_brief
 from modeler_project.client_data import ingest

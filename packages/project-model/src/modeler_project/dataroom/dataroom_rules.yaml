@@ -1,0 +1,29 @@
+# Every rule and tolerance the Data room judges a client's data with (plan 2026-11-21 v2 §8). The analysis-set rules
+# are the platform's proposal (the owner, 2026-11-22: "you decide"); every one is shown on screen and a person may
+# override it with a reason. PROVISIONAL: UNVERIFIED until the SME signs. Read by modeler_project.dataroom.rules; a
+# change here is a science change (CHANGELOG entry, version bump, the owner's approval).
+version: "0.1"
+status: UNVERIFIED
+analysis_sets:
+  evaluable_min_quantifiable: 3      # an evaluable profile has at least this many quantifiable concentrations after dosing
+  # modeling set = completed ∩ evaluable in every period; AUC set = modeling set with every scheduled sample present
+means:
+  blq_predose: zero                  # below the LLOQ before the dose counts as 0
+  blq_postdose_arithmetic: zero      # after the dose: 0 in the arithmetic mean
+  blq_postdose_geometric: exclude    # and left out of the geometric mean
+nca:
+  method: linear-up/log-down         # pbpk_domain.nca
+  blq_leading: zero                  # below the LLOQ before the first quantifiable sample: 0
+  blq_after_first: exclude           # below the LLOQ after it: left out (kept in the table)
+  tolerance_percent: 1.0             # our value and the client's differ by more than this: a conflict, both shown
+  tmax_tolerance_h: 0.05              # 3 min: the client's Tmax may be at the actual sampling time
+dissolution:
+  client_mean_tolerance_last_digit: 1   # the client's mean row may differ from ours by one unit of its last digit
+  rsd_tolerance_points: 0.5
+  very_rapid_percent: 85                # ≥ 85 % within 15 min: similar without f2 (pbpk_domain dissolution ruleset)
+  very_rapid_within_min: 15
+  plateau_below_percent: 95             # a profile whose highest mean stays below this is flagged: it may need a table formulation
+solubility:
+  glass_volume_ml: 250                  # the dose fraction that dissolves in a glass of water
+conflicts:
+  relative_tolerance_percent: 1.0       # two sources of one number differ by more than this: a conflict

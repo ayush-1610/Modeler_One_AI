@@ -10,9 +10,10 @@
   printed they come out backwards and transposed;
 - duplicates found twice: the same bytes, and the same content in another format (a `.txt` and a `.dat` of one table).
 
-`document_text` turns a parsed document into numbered parts (a PDF page, a sheet, a Word body) of plain lines: what
-the agents read, and what a quote is checked against (`find_quote`). The numbers themselves are read from the parsed
-document's cells and words, never from these lines.
+`document_parts` turns a parsed document into numbered parts (a PDF page, a sheet, a Word body) of lines of located
+cells: what the agents read, what a table description points into (part, line, cell), and what a quote is checked
+against (`find_quote`). Every cell keeps where it came from (its words' box on a page, its A1 address on a sheet), so
+a value read from it is shown at its place.
 """
 
 from __future__ import annotations
@@ -188,10 +189,10 @@ def read_file(path: str, data: bytes, *, ocr: OcrEngine | None = None) -> RoomFi
                     turned_pages=turned, reading_copy=payload is not data, document=doc)
 
 
-def read_delivery(uploads: Iterable[tuple[str, bytes]], *, ocr: OcrEngine | None = None) -> list[RoomFile]:
-    """Every real file of the uploads (archives unpacked), read, with duplicates marked."""
+def expand_uploads(uploads: Iterable[tuple[str, bytes]]) -> tuple[list[tuple[str, bytes]], list[RoomFile]]:
+    """The real files of the uploads (archives unpacked, leftovers dropped), and the archives that could not be opened."""
     expanded: list[tuple[str, bytes]] = []
-    out: list[RoomFile] = []
+    unreadable: list[RoomFile] = []
     for path, data in uploads:
         if is_junk(path):
             continue
@@ -199,24 +200,32 @@ def read_delivery(uploads: Iterable[tuple[str, bytes]], *, ocr: OcrEngine | None
             try:
                 members = zip_members(data, path)
             except ValueError as exc:   # a damaged or protected archive is listed with its reason
-                out.append(RoomFile(path=path, name=PurePosixPath(path).name, sha256=hashlib.sha256(data).hexdigest(),
-                                    size_bytes=len(data), kind="archive", read_as=PurePosixPath(path).name,
-                                    state="unreadable", reason=str(exc)))
+                unreadable.append(RoomFile(path=path, name=PurePosixPath(path).name, sha256=hashlib.sha256(data).hexdigest(),
+                                           size_bytes=len(data), kind="archive", read_as=PurePosixPath(path).name,
+                                           state="unreadable", reason=str(exc)))
                 continue
-            expanded.extend((f"{m}", b) for m, b in members if not is_junk(m))
+            expanded.extend((_utf8_name(m), b) for m, b in members if not is_junk(m))
         else:
             expanded.append((path, data))
-    by_bytes: dict[str, str] = {}
+    return expanded, unreadable
+
+
+def mark_duplicates(files: list[tuple[str, bytes, RoomFile | None]]) -> list[RoomFile]:
+    """The files in order, each read once: a later file with the same bytes is a duplicate of the first (no document),
+    one with the same content in another format names the first (`same_content_as`). `files` holds (path, bytes, the
+    file read), the read file None for a repeat of earlier bytes."""
+    out: list[RoomFile] = []
+    by_bytes: dict[str, RoomFile] = {}
     by_text: dict[str, str] = {}
-    for path, data in expanded:
+    for path, data, room in files:
         sha = hashlib.sha256(data).hexdigest()
         if sha in by_bytes:
-            first = next(f for f in out if f.path == by_bytes[sha])
-            out.append(first.model_copy(update={"path": path, "name": PurePosixPath(path).name,
-                                                "duplicate_of": by_bytes[sha], "document": None}))
+            first = by_bytes[sha]
+            out.append(first.model_copy(update={"path": path, "name": PurePosixPath(path).name, "duplicate_of": first.path,
+                                                "same_content_as": None, "document": None}))
             continue
-        room = read_file(path, data, ocr=ocr)
-        by_bytes[sha] = path
+        assert room is not None
+        by_bytes[sha] = room
         if room.text_sha256 and room.state in ("read", "partly_read") and len(_normal_text_of(room)) > 40:
             if room.text_sha256 in by_text:
                 room = room.model_copy(update={"same_content_as": by_text[room.text_sha256]})
@@ -224,6 +233,28 @@ def read_delivery(uploads: Iterable[tuple[str, bytes]], *, ocr: OcrEngine | None
                 by_text[room.text_sha256] = path
         out.append(room)
     return out
+
+
+def read_delivery(uploads: Iterable[tuple[str, bytes]], *, ocr: OcrEngine | None = None) -> list[RoomFile]:
+    """Every real file of the uploads (archives unpacked), read, with duplicates marked."""
+    expanded, unreadable = expand_uploads(uploads)
+    seen: set[str] = set()
+    read: list[tuple[str, bytes, RoomFile | None]] = []
+    for path, data in expanded:
+        sha = hashlib.sha256(data).hexdigest()
+        read.append((path, data, None if sha in seen else read_file(path, data, ocr=ocr)))
+        seen.add(sha)
+    return unreadable + mark_duplicates(read)
+
+
+def _utf8_name(name: str) -> str:
+    """A member name as its maker wrote it: an archive made without the UTF-8 flag (macOS's own) has its UTF-8 names
+    read as cp437 ("17-06-138 ΓÇô Cinacalcet" for "17-06-138 – Cinacalcet"); a name that is not such a misreading is kept."""
+    try:
+        fixed = name.encode("cp437").decode("utf-8")
+    except (UnicodeEncodeError, UnicodeDecodeError):
+        return name
+    return fixed if fixed != name else name
 
 
 def _normal_text_of(room: RoomFile) -> str:
@@ -237,7 +268,41 @@ def _normal(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip().lower()
 
 
-def _lines_of_words(words) -> list[str]:
+class LineCell(BaseModel):
+    """One cell of a line: a run of words between column gaps (a page), a sheet cell, a Word table cell, a paragraph."""
+
+    model_config = ConfigDict(frozen=True)
+
+    text: str
+    box: tuple[float, float, float, float] | None = None   # a page cell: its words' box, points, top-left origin
+    ref: str = ""                                           # a sheet cell: its A1 address; a Word cell: t<table>/r<row>/c<col>
+
+
+class Line(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    number: int                       # 1-based within its part
+    cells: tuple[LineCell, ...]
+
+    @property
+    def text(self) -> str:
+        """The line as the agents read it: cells joined by " | " (an empty sheet cell stays as an empty place)."""
+        return " | ".join(c.text for c in self.cells)
+
+
+class Part(BaseModel):
+    """A numbered part of a document: a PDF page (p3), a sheet (sheet:Name) or a Word/text body (body)."""
+
+    model_config = ConfigDict(frozen=True)
+
+    name: str
+    page: int | None = None
+    width: float | None = None
+    height: float | None = None
+    lines: tuple[Line, ...] = ()
+
+
+def _page_lines(words) -> list[Line]:
     rows: list[list] = []
     for word in sorted(words, key=lambda w: (w.box[1], w.box[0])):
         if rows and abs(rows[-1][0].box[1] - word.box[1]) <= LINE_GAP_POINTS:
@@ -245,55 +310,85 @@ def _lines_of_words(words) -> list[str]:
         else:
             rows.append([word])
     lines = []
-    for row in rows:
+    for number, row in enumerate(rows, start=1):
         row.sort(key=lambda w: w.box[0])
         heights = sorted(w.box[3] - w.box[1] for w in row)
         gap = COLUMN_GAP_EM * heights[len(heights) // 2]
-        line = row[0].text
+        groups: list[list] = [[row[0]]]
         for a, b in pairwise(row):
-            line += (" | " if b.box[0] - a.box[2] > gap else " ") + b.text
-        lines.append(line)
+            if b.box[0] - a.box[2] > gap:
+                groups.append([b])
+            else:
+                groups[-1].append(b)
+        cells = tuple(LineCell(text=" ".join(w.text for w in g),
+                               box=(min(w.box[0] for w in g), min(w.box[1] for w in g), max(w.box[2] for w in g),
+                                    max(w.box[3] for w in g))) for g in groups)
+        lines.append(Line(number=number, cells=cells))
     return lines
 
 
-def document_text(doc: SourceDocument) -> list[tuple[str, list[str]]]:
-    """The document as numbered parts of plain lines: ("p3", lines) per PDF page, ("sheet:Name", rows as
-    tab-joined cells) per sheet, ("body", lines) for Word and text files."""
-    parts: list[tuple[str, list[str]]] = []
+def _a1(row: int, column: int) -> str:
+    letters = ""
+    while column:
+        column, rest = divmod(column - 1, 26)
+        letters = chr(65 + rest) + letters
+    return f"{letters}{row}"
+
+
+def document_parts(doc: SourceDocument) -> list[Part]:
+    """The document as numbered parts of lines of located cells: one part per PDF page, per sheet, and the Word or text
+    body. What the agents read, what a table description points into, and what a quote is checked against."""
+    parts: list[Part] = []
     for page in doc.pages:
-        parts.append((f"p{page.number}", _lines_of_words(page.words)))
+        parts.append(Part(name=f"p{page.number}", page=page.number, width=page.width, height=page.height,
+                          lines=tuple(_page_lines(page.words))))
     for sheet in doc.sheets:
         rows: dict[int, dict[int, str]] = {}
         for cell in sheet.cells:
             rows.setdefault(cell.row, {})[cell.column] = cell.text
         lines = []
-        for r in sorted(rows):
+        for number, r in enumerate(sorted(rows), start=1):
             cols = rows[r]
-            lines.append("\t".join(cols.get(c, "") for c in range(1, max(cols) + 1)))
-        parts.append((f"sheet:{sheet.name}", lines))
+            lines.append(Line(number=number, cells=tuple(LineCell(text=cols.get(c, ""), ref=_a1(r, c))
+                                                        for c in range(1, max(cols) + 1))))
+        parts.append(Part(name=f"sheet:{sheet.name}", lines=tuple(lines)))
     if doc.body:
         lines = []
         for item in doc.body:
             if item.kind == "paragraph" and item.paragraph is not None and item.paragraph.text.strip():
-                lines.append(item.paragraph.text)
+                for text in item.paragraph.text.splitlines() or [item.paragraph.text]:
+                    if text.strip():
+                        lines.append(Line(number=len(lines) + 1, cells=(LineCell(text=text, ref=f"para{item.paragraph.index}"),)))
             elif item.kind == "table" and item.table is not None:
                 grid: dict[int, dict[int, str]] = {}
                 for cell in item.table.cells:
                     grid.setdefault(cell.row, {})[cell.column] = cell.text.replace("\n", " ")
                 for r in sorted(grid):
-                    lines.append(" | ".join(grid[r].get(c, "") for c in range(1, max(grid[r]) + 1)))
-        parts.append(("body", lines))
+                    cells = tuple(LineCell(text=grid[r].get(c, ""), ref=f"t{item.table.index}/r{r}/c{c}")
+                                  for c in range(1, max(grid[r]) + 1))
+                    lines.append(Line(number=len(lines) + 1, cells=cells))
+        parts.append(Part(name="body", lines=tuple(lines)))
     return parts
+
+
+def document_text(doc: SourceDocument) -> list[tuple[str, list[str]]]:
+    """The document's parts as plain lines (`document_parts`, each line's cells joined by " | ")."""
+    return [(part.name, [line.text for line in part.lines]) for part in document_parts(doc)]
+
+
+def unmarked(text: str) -> str:
+    """Normalised text with the column marks taken out (a quote is written without them)."""
+    return re.sub(r"\s+", " ", re.sub(r"\s*\|\s*", " ", _normal(text))).strip()
 
 
 def find_quote(doc: SourceDocument, quote: str) -> tuple[str, int] | None:
     """Where a quote occurs in the document (part, 1-based line of its start), comparing normalised text and ignoring
     line breaks and column marks; None when it does not occur."""
-    want = _normal(quote).replace(" | ", " ")
+    want = unmarked(quote)
     if len(want) < 3:
         return None
     for part, lines in document_text(doc):
-        normal = [_normal(ln).replace(" | ", " ") for ln in lines]
+        normal = [unmarked(ln) for ln in lines]
         joined, starts, pos = "", [], 0
         for ln in normal:
             starts.append(pos)

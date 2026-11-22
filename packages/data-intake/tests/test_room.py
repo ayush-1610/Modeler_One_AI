@@ -197,13 +197,13 @@ def test_a_tab_export_is_read_as_a_table_with_a_cell_per_value():
     assert sniff_delimiter(CONC.encode()) == "\t"
     room = read_file("Part D/conc.dat", CONC.encode())
     assert room.kind == "delimited" and room.read_as == "conc.dat.tsv" and room.state == "read"
-    assert document_text(room.document)[0][1][2] == "1\t1\t1\t12.5"
+    assert document_text(room.document)[0][1][2] == "1 | 1 | 1 | 12.5"
 
 
 def test_a_semicolon_export_is_read_as_a_table_too_and_prose_is_not():
     room = read_file("conc.txt", CONC.replace("\t", ";").encode())
     assert room.kind == "delimited" and room.read_as == "conc.txt.csv"
-    assert document_text(room.document)[0][1][1] == "1\t1\t0\tBLQ"
+    assert document_text(room.document)[0][1][1] == "1 | 1 | 0 | BLQ"
     assert sniff_delimiter(b"The study was open-label.\nTwo periods, one week apart.\nTwelve subjects.\n") is None
 
 
@@ -276,3 +276,12 @@ def test_the_ocr_engine_reads_a_scanned_image_and_locates_each_word_on_the_page(
 def test_a_damaged_archive_is_listed_unreadable_with_its_reason():
     (room,) = read_delivery([("Client/data.zip", b"PK\x03\x04 not really a zip")])
     assert (room.kind, room.state) == ("archive", "unreadable") and "not a readable ZIP archive" in room.reason
+
+
+def test_an_archive_made_without_the_utf8_flag_keeps_its_names():
+    out = io.BytesIO()
+    with zipfile.ZipFile(out, "w") as z:
+        info = zipfile.ZipInfo("Part D/17-06-138 \u2013 Concentration Table.dat".encode().decode("cp437"))
+        z.writestr(info, CONC.encode())   # a cp437 name, no UTF-8 flag: as macOS's archiver writes it
+    (room,) = read_delivery([("data.zip", out.getvalue())])
+    assert room.path == "Part D/17-06-138 \u2013 Concentration Table.dat"

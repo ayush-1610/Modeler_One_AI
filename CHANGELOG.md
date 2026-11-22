@@ -15,6 +15,61 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — the Data room's engine: code reads, checks and computes; five agents describe (plan 2026-11-21 v2 §6–§9, build steps 3–6) — science
+- **Code reads what an agent describes (`modeler_project.dataroom.extract`).** An agent says where a table is (a part
+  of a file, a range of lines, the role of each cell position) and quotes facts. `read_table` reads every cell it names
+  and keeps each cell's place (file, part, line, cell, its box on the page or its A1 address). On a page, a line short
+  of cells (an empty cell has no words) has its cells placed under their columns by position; a line that cannot be
+  placed is left out with the reason. A column's time must be written in the header lines. `check_fact` refuses a fact
+  whose quote is not in the file or whose value is not in its quote. A model never types a value into the room.
+- **The rules (`dataroom_rules.yaml` 0.1, UNVERIFIED; the owner, 2026-11-22: "you decide").** These are the analysis
+  sets of plan §8:
+  - completed: dosed in every period, sampled through each (at most two scheduled samples missing), and not one the
+    client lists as withdrawn or excluded;
+  - modeling set: the completers with at least 3 quantifiable concentrations after the dose in every period;
+  - AUC set: the modeling set with the last scheduled sample in every period.
+
+  Mean profiles per arm count a value below the LLOQ as 0 in the arithmetic mean and leave it out of the geometric
+  mean. NCA per profile uses linear-up/log-down (`pbpk_domain.nca`), compared with the client's values (1 % for Cmax and
+  AUC, 0.05 h for Tmax). The trapezoid rule the client used is detected and said. On dissolution, the client's mean row
+  must agree with the units' mean to one unit of its last digit; f2 and the very-rapid rule come from the dissolution
+  ruleset; a Weibull fit is made on every profile, and a profile that levels off below 95 % is flagged. Solubility gives
+  the volume the dose needs and the dose fraction that dissolves in 250 mL and in the medium.
+- **The assembly (`assemble`).** It joins the files:
+  - statuses per value: verified when two files agree, sponsor, literature, calculated, entered, conflict, missing;
+  - decisions with a suggestion and the reason: analysis set, population database (a stated ethnicity matched to the
+    harvested PK-Sim databases; Indian → `Asian_Tanaka_1996`, with the backlog noted), meal template (standard unless
+    the composition says high-fat), reference solubility, release profile per product, and the release model when the
+    profile levels off;
+  - data requests coded A–D: from the confirmed checklist, all-BLQ subjects, subject counts that differ, NCA
+    differences, a client summary row that disagrees, a medium where the test product has no reference, and missing
+    compound inputs;
+  - the simulation plan (reference arm calibration, test arm verification, dissolution-only products prediction);
+  - the PK-Sim input sheet: CPF ids and registry names for the compound, `Formulation_Tablet_Weibull` with the builder's
+    harvested parameter names, the individual's population and mean age, weight and height (units converted), route,
+    dose and water per kg, meals, the observed series per arm, and the evaluation targets.
+- **The store (`DataRoomStore`) and the reader run (`reading.read_uploads`).** Uploads go to the project's blobs. Files
+  are read in parallel (4 processes) and not read again when the bytes and the reader version are unchanged. The agents'
+  answers are kept per file, decisions, entered values and request edits are append-only, and each confirmation,
+  decision and entry is written to the project's audit trail.
+- **The agents (`modeler_agents.dataroom`, A6–A10, prompt `dataroom-1`).** A6 drafts the question card and a checklist
+  tailored from a standard PBPK/PBBM list; A7 sorts each file (used, context, not needed); A8 describes each used file's
+  tables and quotes its facts; A9 re-reads each table's roles against its headers; A10 writes the finding lines and the
+  request wording. Each answers only through a submit tool whose handler runs code's checks and sends a refusal back,
+  so the model corrects and submits again; A10's text may hold only numbers already in the room.
+- Impact, checked on the owner's second sample delivery with hand-written descriptions (kept outside the repository):
+  - Subjects: 48 dosed, 37 with concentrations in period 2 (the client says 38: shown as a data request), 34
+    completed, 33 in the modeling set (one subject has every sample below the LLOQ), 31 in the AUC set.
+  - Exposure: Cmax geometric means and Tmax match the client's PK file exactly. The AUC0–t geometric means are within
+    0.3 % (the client used the linear rule with actual sampling times).
+  - Dissolution: the client's mean rows match, and one RSD in the client's report (4.0 % where the units give 1.7 %)
+    is found.
+  - Solubility: the dose/solubility volumes match the client's to rounding.
+
+  Tests: `packages/project-model/tests/test_dataroom.py`, 10 on a synthetic delivery (T-47).
+- **Known gap:** the agents are not yet scored on the real delivery; that is the next step. Publishing into the existing
+  stores and the report export follow.
+
 ### Added — the Data room's reader: every file of a real delivery read, scans included (plan 2026-11-21 v2 §9, build step 1)
 - **Our own OCR engine (`modeler_intake.ocr.RapidOcr`).** RapidOCR's ONNX models run on the server's CPU, from the
   wheel; nothing leaves the server (the owner's answer, 2026-11-22: "our engine"). It fills the PDF reader's existing

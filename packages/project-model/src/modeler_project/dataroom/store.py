@@ -1,0 +1,229 @@
+"""The Data room's files of one project, under `<root>/<tenant>/projects/<project>/dataroom/` (plan 2026-11-21 v2 §9).
+
+    uploads.json                 the uploads: name, sha256 (bytes in the project's blobs), who, when
+    files.json                   every real file of the uploads, as read (FileView, no document)
+    docs/<sha256>.json.gz        each file's read document (SourceDocument), write-once per reader version
+    question.json                the question card, and who confirmed it when
+    triage/<sha256>.json         the triage agent's answer for one file
+    extractions/<sha256>.json    the extractor's answer for one file (tables described, facts quoted), with its model
+    reviews/<sha256>.json        the checker's issues with one file's tables
+    writing.json                 the writer's finding lines and request wording (numbers checked against the room)
+    decisions.jsonl              the modeler's decisions, append-only: the last line per decision id stands
+    entered.jsonl                values entered by a person, append-only, with the reason
+    requests.jsonl               data request edits (wording, status), append-only
+    run.json                     the background run: stage, counts, per-agent model, errors
+
+Every decision, entered value and confirmation is also written to the project's audit trail (21 CFR Part 11: who, when,
+what, why). No path is built from input that is not a checked sha256.
+"""
+
+from __future__ import annotations
+
+import gzip
+import json
+import re
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
+
+from modeler_intake.room_specs import Extraction, FileTriage, QuestionCard
+from modeler_intake.source_model import SourceDocument
+from modeler_project.dataroom.model import FileView, Value
+from modeler_project.workspace import Workspace
+from pbpk_domain.atomic_io import atomic_write_bytes, atomic_write_text, file_lock
+
+_SHA = re.compile(r"[0-9a-f]{64}")
+_ID = re.compile(r"[A-Za-z0-9_.:\-\s()/,&+%·]{1,200}")
+
+
+def _sha(value: str) -> str:
+    if not _SHA.fullmatch(value):
+        raise KeyError(f"not a sha256: {value!r}")
+    return value
+
+
+def _now() -> str:
+    return datetime.now(UTC).isoformat(timespec="seconds")
+
+
+class DataRoomStore:
+    def __init__(self, ws: Workspace):
+        self.ws = ws
+        root = getattr(ws.store, "root", None)
+        self.available = root is not None
+        self.base: Path | None = (Path(root) / ws.tenant_id / "projects" / ws.project_id / "dataroom") if root else None
+
+    def _path(self, *parts: str) -> Path:
+        if self.base is None:
+            raise RuntimeError("the project store has no file root: the Data room is off")
+        return self.base.joinpath(*parts)
+
+    def _read_json(self, *parts: str) -> Any:
+        path = self._path(*parts)
+        return json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
+
+    def _append(self, name: str, row: dict[str, Any]) -> None:
+        path = self._path(name)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with file_lock(path), path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(row, ensure_ascii=False, sort_keys=True) + "\n")
+            handle.flush()
+
+    def _rows(self, name: str) -> list[dict[str, Any]]:
+        path = self._path(name)
+        if not path.exists():
+            return []
+        return [json.loads(ln) for ln in path.read_text(encoding="utf-8").splitlines() if ln.strip().endswith("}")]
+
+    def audit(self, *, actor: str, action: str, resource_id: str, after: dict[str, Any], reason: str | None = None) -> None:
+        self.ws.store.audit(self.ws.tenant_id).append(actor=actor, action=action, resource_type="dataroom",
+                                                      resource_id=f"{self.ws.project_id}/{resource_id}", after=after,
+                                                      reason=reason)
+
+    # --- uploads and files ------------------------------------------------------------------------------------------
+
+    def add_upload(self, name: str, data: bytes, *, by: str) -> dict[str, Any]:
+        sha = self.ws.store.put_blob(self.ws.tenant_id, self.ws.project_id, data)
+        uploads = self.uploads()
+        if not any(u["sha256"] == sha for u in uploads):
+            uploads.append({"name": name, "sha256": sha, "size_bytes": len(data), "by": by, "at": _now()})
+            atomic_write_text(self._path("uploads.json"), json.dumps(uploads, indent=1, ensure_ascii=False))
+            self.audit(actor=by, action="dataroom.upload", resource_id=sha, after={"name": name, "size_bytes": len(data)})
+        return next(u for u in uploads if u["sha256"] == sha)
+
+    def uploads(self) -> list[dict[str, Any]]:
+        return self._read_json("uploads.json") or []
+
+    def upload_bytes(self, sha256: str) -> bytes:
+        path = self.ws.store.blob_path(self.ws.tenant_id, self.ws.project_id, _sha(sha256))
+        if path is None:
+            raise KeyError(sha256)
+        return path.read_bytes()
+
+    def set_files(self, files: list[FileView]) -> None:
+        atomic_write_text(self._path("files.json"), json.dumps([f.model_dump(mode="json") for f in files], indent=1,
+                                                               ensure_ascii=False))
+
+    def files(self) -> list[FileView]:
+        rows = self._read_json("files.json") or []
+        triage = {sha: t for sha in {r["sha256"] for r in rows} if (t := self.triage(sha)) is not None}
+        return [FileView.model_validate(r).model_copy(update={"triage": triage.get(r["sha256"])}) for r in rows]
+
+    def put_doc(self, sha256: str, doc: SourceDocument) -> None:
+        atomic_write_bytes(self._path("docs", f"{_sha(sha256)}.json.gz"), gzip.compress(doc.model_dump_json(by_alias=True).encode()))
+
+    def doc(self, sha256: str) -> SourceDocument | None:
+        path = self._path("docs", f"{_sha(sha256)}.json.gz")
+        if not path.exists():
+            return None
+        return SourceDocument.model_validate_json(gzip.decompress(path.read_bytes()))
+
+    def docs(self) -> dict[str, SourceDocument]:
+        return {f.sha256: d for f in self.files() if not f.duplicate_of and (d := self.doc(f.sha256)) is not None}
+
+    # --- the question -------------------------------------------------------------------------------------------------
+
+    def set_question(self, card: QuestionCard, *, by: str, confirmed: bool = False, reason: str = "") -> None:
+        atomic_write_text(self._path("question.json"), json.dumps(
+            {"card": card.model_dump(mode="json"), "confirmed": confirmed, "by": by, "at": _now()}, indent=1, ensure_ascii=False))
+        if confirmed:
+            self.audit(actor=by, action="dataroom.question.confirm", resource_id="question",
+                       after={"question": card.question, "checklist": [c.id for c in card.checklist]}, reason=reason or None)
+
+    def question(self) -> tuple[QuestionCard | None, bool]:
+        row = self._read_json("question.json")
+        return (QuestionCard.model_validate(row["card"]), bool(row["confirmed"])) if row else (None, False)
+
+    # --- agents' answers ------------------------------------------------------------------------------------------------
+
+    def put_triage(self, triage: FileTriage, sha256: str) -> None:
+        atomic_write_text(self._path("triage", f"{_sha(sha256)}.json"), triage.model_dump_json(indent=1))
+
+    def triage(self, sha256: str) -> FileTriage | None:
+        row = self._read_json("triage", f"{_sha(sha256)}.json")
+        return FileTriage.model_validate(row) if row else None
+
+    def put_extraction(self, extraction: Extraction, sha256: str, *, agent: dict[str, str]) -> None:
+        atomic_write_text(self._path("extractions", f"{_sha(sha256)}.json"), json.dumps(
+            {"extraction": extraction.model_dump(mode="json"), "agent": agent, "at": _now()}, indent=1, ensure_ascii=False))
+
+    def extraction(self, sha256: str) -> tuple[Extraction, dict[str, str]] | None:
+        row = self._read_json("extractions", f"{_sha(sha256)}.json")
+        return (Extraction.model_validate(row["extraction"]), row.get("agent", {})) if row else None
+
+    def extractions(self) -> list[Extraction]:
+        return [e for f in self.files() if not f.duplicate_of and (got := self.extraction(f.sha256)) for e in (got[0],)]
+
+    def put_review(self, sha256: str, issues: list[dict[str, Any]], *, agent: str) -> None:
+        atomic_write_text(self._path("reviews", f"{_sha(sha256)}.json"), json.dumps(
+            {"issues": issues, "agent": agent, "at": _now()}, indent=1, ensure_ascii=False))
+
+    def reviews(self) -> dict[str, list[dict[str, Any]]]:
+        """The checker's issues per file path."""
+        out = {}
+        for f in self.files():
+            row = self._read_json("reviews", f"{f.sha256}.json") if _SHA.fullmatch(f.sha256) else None
+            if row and row.get("issues"):
+                out[f.path] = row["issues"]
+        return out
+
+    def put_writing(self, findings: dict[str, str], requests: dict[str, str], *, agent: str) -> None:
+        atomic_write_text(self._path("writing.json"), json.dumps(
+            {"findings": findings, "requests": requests, "agent": agent, "at": _now()}, indent=1, ensure_ascii=False))
+
+    def writing(self) -> dict[str, dict[str, str]]:
+        row = self._read_json("writing.json") or {}
+        return {"findings": row.get("findings", {}), "requests": row.get("requests", {})}
+
+    # --- the modeler's word -------------------------------------------------------------------------------------------------
+
+    def decide(self, decision_id: str, chosen: str, *, by: str, reason: str = "") -> dict[str, str]:
+        if not _ID.fullmatch(decision_id) or not _ID.fullmatch(chosen):
+            raise ValueError("not a decision id or option id")
+        row = {"id": decision_id, "chosen": chosen, "reason": reason, "by": by, "at": _now()}
+        self._append("decisions.jsonl", row)
+        self.audit(actor=by, action="dataroom.decide", resource_id=decision_id, after={"chosen": chosen}, reason=reason or None)
+        return row
+
+    def decisions(self) -> dict[str, dict[str, str]]:
+        return {r["id"]: r for r in self._rows("decisions.jsonl")}
+
+    def enter(self, value: Value, *, by: str, reason: str) -> None:
+        if not reason.strip():
+            raise ValueError("a value entered by a person needs its reason")
+        row = value.model_copy(update={"status": "entered", "note": reason}).model_dump(mode="json")
+        self._append("entered.jsonl", {"value": row, "by": by, "at": _now()})
+        self.audit(actor=by, action="dataroom.enter", resource_id=value.key, after={"value": value.value, "unit": value.unit},
+                   reason=reason)
+
+    def entered(self) -> list[Value]:
+        latest: dict[str, Value] = {}
+        for r in self._rows("entered.jsonl"):
+            v = Value.model_validate(r["value"])
+            latest[v.key] = v
+        return list(latest.values())
+
+    def edit_request(self, request_id: str, *, by: str, wording: str | None = None, status: str | None = None) -> None:
+        if not re.fullmatch(r"[ABCD]-\d{2}", request_id):
+            raise ValueError("not a data request id")
+        if status not in (None, "open", "not_needed", "answered"):
+            raise ValueError("not a data request status")
+        self._append("requests.jsonl", {"id": request_id, "wording": wording, "status": status, "by": by, "at": _now()})
+        self.audit(actor=by, action="dataroom.request", resource_id=request_id, after={"status": status, "wording": wording})
+
+    def request_edits(self) -> dict[str, dict[str, str]]:
+        out: dict[str, dict[str, str]] = {}
+        for r in self._rows("requests.jsonl"):
+            entry = out.setdefault(r["id"], {})
+            for k in ("wording", "status"):
+                if r.get(k) is not None:
+                    entry[k] = r[k]
+        return out
+
+    # --- the background run -----------------------------------------------------------------------------------------------
+
+    def set_run(self, run: dict[str, Any]) -> None:
+        atomic_write_text(self._path("run.json"), json.dumps(run, indent=1, ensure_ascii=False, default=str))
+
+    def run(self) -> dict[str, Any]:
+        return self._read_json("run.json") or {"state": "idle"}
