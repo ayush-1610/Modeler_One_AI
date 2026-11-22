@@ -202,7 +202,8 @@ C drug substance and disposition: MW (salt and free base), pKa, logP/logD, solub
 D clinical: per study the design, dose, products and batches per treatment, fasting and meals, water, sampling times,
   LLOQ, demographics, disposition (who completed, who was excluded and why), individual concentrations, the client's
   NCA and BE results.
-Each checklist item gets topics from: """ + ", ".join(TOPICS) + "."
+Each checklist item gets topics from: """ + ", ".join(TOPICS) + """.
+Each product is {"name": as the files name it, "role": reference | test | original | reformulated | other}."""
 
 
 def question(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, step: Step, only: set[str] | None = None,

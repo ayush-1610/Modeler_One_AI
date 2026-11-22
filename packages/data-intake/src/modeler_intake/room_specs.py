@@ -106,7 +106,8 @@ class ChecklistItem(_B):
 
 class ProductRef(_B):
     name: str = Field(description="as the files name it")
-    role: Literal["reference", "test", "original", "reformulated", "other"]
+    role: Literal["reference", "test", "original", "reformulated", "other"] = Field(
+        description="the product's part in the comparison: reference, test, original, reformulated or other")
     note: str = ""
 
 
