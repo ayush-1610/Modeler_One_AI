@@ -51,8 +51,13 @@ def _centre(box: tuple[float, float, float, float]) -> float:
 def _placed(line: Line, centres: list[float] | None, n: int) -> tuple[list[int | None], str]:
     """For each cell of the line, the 1-based column it stands under; a reason when they cannot be placed."""
     cells = line.cells
-    if len(cells) == n or centres is None or any(c.box is None for c in cells):
+    on_page = all(c.box is not None for c in cells)
+    if len(cells) == n or not on_page:
+        # a sheet's or a Word table's cells keep their columns; a short sheet row only lacks its trailing empty cells
         return list(range(1, len(cells) + 1)), "" if len(cells) <= n else f"{len(cells)} cells, {n} expected"
+    if centres is None:
+        return list(range(1, len(cells) + 1)), (f"{len(cells)} cells, {n} expected, and no line of the table has every "
+                                                "cell to place them by")
     if len(cells) > n:
         return list(range(1, len(cells) + 1)), f"{len(cells)} cells, {n} expected"
     placed: list[int | None] = []

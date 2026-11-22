@@ -102,6 +102,10 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
   1,000 tokens instead of 1,700. A request a provider calls too large (HTTP 413) is tried once more with a third of the
   pages. The page budget is `MODELER_DATAROOM_FOCUS_CHARS` (default 14,000 characters). The free GroqCloud tier
   refuses any single request over 8,000 tokens, so it needs about 9,000 there.
+- **A page line with fewer cells than its table is placed or refused, never shifted.** When no line of the table has
+  every cell to take the columns from, the line is left out with the reason. Before, its cells were read by position
+  and a missing cell moved the values after it one column to the left. Test: a vessel row missing its 10 min value
+  reads empty at 10 min and keeps 91 at 15 min.
 - **Known gap:** the agents are not yet scored on the real delivery; that is the next step. The report export follows.
 
 ### Added — the Data room's reader: every file of a real delivery read, scans included (plan 2026-11-21 v2 §9, build step 1)

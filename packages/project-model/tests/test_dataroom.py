@@ -260,3 +260,34 @@ def test_one_sentence_defining_several_treatment_codes_gives_one_arm_per_code(ro
     (study,) = view.studies
     assert [(a.treatment, a.role, a.product) for a in study.arms] == [
         ("A", "reference", "Refamide 100 mg"), ("B", "test", "Exampleamide 100 mg")]
+
+
+def _page_pdf(rows: list[list[tuple[float, str]]]) -> bytes:
+    """A one-page PDF: each row a line of (x, text) cells, 16 points apart."""
+    ops = "\n".join(f"BT /F1 10 Tf {x} {700 - 16 * r} Td ({text}) Tj ET" for r, row in enumerate(rows) for x, text in row)
+    stream = ops.encode("latin-1")
+    objects = [b"1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj\n", b"2 0 obj << /Type /Pages /Kids [4 0 R] /Count 1 >> endobj\n",
+               b"3 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >> endobj\n",
+               (b"4 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> "
+                b"/Contents 5 0 R >> endobj\n"),
+               f"5 0 obj << /Length {len(stream)} >> stream\n".encode() + stream + b"\nendstream endobj\n"]
+    body, offsets = b"%PDF-1.4\n", []
+    for obj in objects:
+        offsets.append(len(body))
+        body += obj
+    xref = len(body)
+    body += f"xref\n0 {len(offsets) + 1}\n0000000000 65535 f \n".encode() + b"".join(f"{o:010d} 00000 n \n".encode() for o in offsets)
+    return body + f"trailer << /Size {len(offsets) + 1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n".encode()
+
+
+def test_a_page_line_missing_a_cell_has_its_cells_placed_under_their_columns():
+    cols = (72, 160, 240, 320)
+    pdf = _page_pdf([list(zip(cols, ("Unit", "5", "10", "15"), strict=True)), list(zip(cols, ("1", "81", "88", "90"), strict=True)),
+                     [(72, "2"), (160, "80"), (320, "91")]])   # vessel 2 has no 10 min value
+    doc = parse_document(pdf, "diss.pdf")
+    desc = TableDescription(file="diss.pdf", kind="dissolution", part="p1", header_lines=[1], first_line=2, last_line=3,
+                            columns=[C(index=1, role="unit")] + [C(index=i + 2, role="value", time=t) for i, t in enumerate((5, 10, 15))])
+    table = read_table(desc, doc, file="diss.pdf", sha256=doc.file_sha256)
+    assert not table.problems
+    second = {c.time: c.text for c in table.rows[1].cells if c.role == "value"}
+    assert second == {5: "80", 10: "", 15: "91"}
