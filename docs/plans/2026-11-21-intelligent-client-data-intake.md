@@ -425,3 +425,15 @@ On every real delivery available:
    engine installs with the Python packages; nothing to install by hand.
 3. **Try it** on the cinacalcet delivery: create a project, attach the proposal, drop the zip.
 4. **Tell us** what is wrong or missing. Each correction becomes a test case.
+
+## 15. Deviations and findings during the build (2026-11-22)
+
+| # | Plan said | Built | Why |
+|---|---|---|---|
+| 1 | Two ways to point at a table: grid cells (region ids) and page lines | One way for every file type: a part (page, sheet, Word body), a range of its lines, and the role of each cell position | Ruled PDF tables whose rows have no rules came out of the grid reader as one multi-line cell. The line view reads them exactly, and sheets, delimited exports, Word and OCR'd pages give the same lines. One way is also easier for a model to learn. A page line that lacks cells is placed under its columns by position, or refused with the reason |
+| 2 | Completed = from the disposition table and text | Dosed in every period and sampled through each (at most two scheduled samples missing), minus the subjects the client lists as withdrawn or excluded. The client's own completer list is compared with it | The data alone cannot know a subject discontinued at the last sample (subject 10 of the sample). The client's word alone missed a dropout the data shows. Each difference is shown |
+| 3 | NCA compared at 1 % | Compared using the trapezoid rule the client's values follow (detected: the median difference of each rule). Ours (linear-up/log-down) is kept beside it, and Tmax is compared within 0.05 h | The sample's CRO used the linear rule at actual times. Comparing it with log-down flagged 60 of 68 profiles; with the right rule it flags 2, explained by the actual times |
+| 4 | Send to the model publishes the confirmed inputs | Also refuses to send an arm whose product has no release input, and a value whose unit cannot be converted | Publishing a tablet arm as a solution would silently change the model. The sample's reference product has no dissolution profile, so a data request asks for one |
+| 5 | GroqCloud for speed | The agents are token-lean: code picks the pages per topic, instructions are per file, a provider's rate limit is waited out, a too-large request is retried with fewer pages | The owner's key is on the free tier: 8,000 tokens a minute and per request, 1,000 requests a day (read from its own response headers). Moving it to the Developer tier is the owner's step |
+| 6 | Report as PDF | A print-ready page that the browser saves as PDF | No server-side PDF library is needed, and the page is the screen's own content |
+| 7 | — (found) | A provider's refusal of the model's own tool call (GroqCloud HTTP 400) goes back to the model to correct | gpt-oss-120b sometimes writes an argument the schema does not allow; GroqCloud refuses it before our checks see it |
