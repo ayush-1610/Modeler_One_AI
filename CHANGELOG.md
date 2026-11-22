@@ -83,6 +83,21 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
   file's topics (about 3,500 tokens) and has 14 turns to open others. The question agent gets the pages of the
   proposal and the request. On HTTP 429 the client waits the `Retry-After` the provider gives (at most 90 s, test in
   `test_llm.py`). The owner's GroqCloud key is on the free tier: 8,000 tokens a minute and 1,000 requests a day.
+- **Fixed: what the first real-model runs exposed (commits a7c4ce6, 3fd1dd2; recorded here after the fact, they were
+  committed without their entries).**
+  - GroqCloud checks a tool call's arguments itself and answers HTTP 400 when they do not fit; the run used to stop the
+    file there. Now the refusal goes back to the model, which calls again (`llm.ToolCallRejected`, test in
+    `test_llm.py`). On the sample delivery, the question card's first answer had written `type` where the form says
+    `role`.
+  - A treatment-code sentence given as one fact ("B = test product; A = reference product") gives one arm per code.
+    A code's product is the fact's own, else the question card's only product of the role named.
+  - A fact's number is the value, not a count or a tolerance (`extract.number_of`): "1 x 90 mg" is 90, "240±2 mL" is
+    240, and a list or a range gives no single number.
+  - `run_room(files=...)` limits the per-file stages to the files named.
+  - What a stage could not do is kept per file (`store.stage_notes`).
+  - A CI test runs the whole run with a scripted model (`services/agents/tests/test_dataroom_run.py`): read, triage,
+    extract and write; a misread dose refused and corrected; a stage with no model skipped and saying so; the writer
+    refused a number of its own.
 - **Known gap:** the agents are not yet scored on the real delivery; that is the next step. The report export follows.
 
 ### Added — the Data room's reader: every file of a real delivery read, scans included (plan 2026-11-21 v2 §9, build step 1)
