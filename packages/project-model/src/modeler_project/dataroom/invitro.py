@@ -45,6 +45,17 @@ def _decimals(text: str) -> int:
     return len(text.split(".")[1]) if "." in text else 0
 
 
+def _quantity(text: str, units: dict[str, float], *, bare: bool = False) -> float | None:
+    """The first number written with one of the units ("900 mL at 37 ± 0.5 °C" -> 900), or, `bare`, a text that is one
+    number alone ("75")."""
+    m = re.search(r"(\d+(?:\.\d+)?)\s*(" + "|".join(sorted(units, key=len, reverse=True)) + r")\b", text, re.IGNORECASE)
+    if m:
+        return float(m.group(1)) * units[m.group(2).lower()]
+    if bare and re.fullmatch(r"\s*\d+(?:\.\d+)?\s*", text or ""):
+        return float(text)
+    return None
+
+
 def batch_products(facts: Sequence[CheckedFact]) -> dict[str, str]:
     """Each batch as written (normalised) -> the product the client says it is a batch of."""
     out: dict[str, str] = {}
@@ -90,7 +101,13 @@ def dissolution_views(table: ReadTable, *, products: dict[str, str] | None = Non
     views: list[DissolutionView] = []
     tol_digit, rsd_tol = rules.dissolution.client_mean_tolerance_last_digit, rules.dissolution.rsd_tolerance_points
     for group, by_time in groups.items():
-        times = sorted(by_time)
+        empty = [t for t, got in by_time.items() if not any(x is not None for x, _ in got)]
+        if empty:
+            problems.append(Problem(code="TIME_WITHOUT_VALUES", message=(
+                f"{group or 'the profile'}: no unit has a value at {', '.join(f'{t:g}' for t in sorted(empty))} min; left out")))
+        times = sorted(t for t in by_time if t not in empty)
+        if not times:
+            continue
         n_units = units_per_group[group]
         vessels = [tuple(by_time[t][i][0] if i < len(by_time[t]) else None for t in times) for i in range(n_units)]
         means, sds, chips = [], [], []
@@ -121,8 +138,8 @@ def dissolution_views(table: ReadTable, *, products: dict[str, str] | None = Non
         batch = const.get("batch", "") or group
         product = products.get(_norm(batch), const.get("product", "")) or products.get(_norm(group), "")
         ph = _ph_of(const.get("ph", ""), medium) if not parse_number(const.get("ph", "")) else parse_number(const["ph"])
-        volume = parse_number(re.sub(r"[^\d.]", "", const.get("volume", "")) or "")
-        rpm = parse_number(re.sub(r"[^\d.]", "", const.get("rpm", const.get("speed", ""))) or "")
+        volume = _quantity(const.get("volume", "") or medium, {"ml": 1.0, "l": 1000.0}, bare=True)
+        rpm = _quantity(const.get("rpm", const.get("speed", "")) or medium, {"rpm": 1.0}, bare=True)
         key = ProfileKey(product=product or batch, role="", batch=batch, apparatus=const.get("apparatus", ""), rpm=rpm,
                          medium=medium, ph=ph, volume_ml=volume)
         profile = Profile(key=key, times_min=tuple(times), vessels=tuple(vessels), mean=tuple(means), sd=tuple(sds), n=n_units)
@@ -148,21 +165,23 @@ def _profile(view: DissolutionView) -> Profile:
                    times_min=view.times_min, vessels=(), mean=view.mean, sd=view.sd, n=view.n_units)
 
 
+def _condition(view: DissolutionView) -> tuple:
+    return (_norm(view.medium), view.ph, _norm(view.apparatus), view.rpm, view.volume_ml)
+
+
 def f2_pairs(views: Sequence[DissolutionView], roles: dict[str, str]) -> list[F2View]:
-    """f2 for each test or reformulated product against the reference, in each medium both were tested in."""
+    """f2 for each test product against the reference, and each reformulated product against the original and the
+    reference, only between profiles run under the same conditions (medium, pH, apparatus, speed, volume)."""
+    against = {"test": ("reference",), "reformulated": ("original", "reference"), "original": ("reference",)}
     out: list[F2View] = []
-    refs = [v for v in views if roles.get(v.product) == "reference"]
     for test in views:
-        if roles.get(test.product) in ("reference", None, ""):
-            continue
-        for ref in refs:
-            if (ref.ph, _norm(ref.medium)) != (test.ph, _norm(test.medium)) and ref.ph != test.ph:
-                continue
-            if ref.ph is None and test.ph is None and _norm(ref.medium) != _norm(test.medium):
-                continue
-            result = f2(_profile(test), _profile(ref))
-            out.append(F2View(test=test.id, reference=ref.id, value=result.value, similar=result.similar,
-                              applicable=result.applicable, reasons=result.reasons))
+        for ref_role in against.get(roles.get(test.product, ""), ()):
+            for ref in views:
+                if roles.get(ref.product) != ref_role or ref.id == test.id or _condition(ref) != _condition(test):
+                    continue
+                result = f2(_profile(test), _profile(ref))
+                out.append(F2View(test=test.id, reference=ref.id, value=result.value, similar=result.similar,
+                                  applicable=result.applicable, reasons=result.reasons))
     return out
 
 
@@ -232,3 +251,25 @@ def solubility_rows(tables: Sequence[ReadTable], *, dose_mg: float | None, mediu
                                     if need and medium_volume_ml else None),
                 sources=(one["solubility"].chip,)))
     return out, problems
+
+
+def solubility_from_facts(facts: Sequence[CheckedFact], *, dose_mg: float | None, medium_volume_ml: float | None = None,
+                          rules: Rules | None = None) -> list[SolubilityRow]:
+    """Solubility values stated as facts ("0.20 mg/mL in water at 37 °C"), as rows beside the tables' rows, so the
+    reference solubility is chosen among all of them."""
+    rules = rules or load_rules()
+    glass = rules.solubility.glass_volume_ml
+    out = []
+    for f in facts:
+        if f.number is None:
+            continue
+        mg_ml = _mg_per_ml(f.number, f.fact.unit) if f.fact.unit else None
+        text = f"{f.fact.subject} {f.fact.note} {f.fact.value} {f.fact.quote}"
+        need = round(dose_mg / mg_ml, 2) if dose_mg and mg_ml else None
+        out.append(SolubilityRow(
+            medium=(f.fact.subject or f.fact.note or "as stated").strip(), ph=_ph_of(text), solubility_mg_ml=mg_ml,
+            as_written=f"{f.fact.value} {f.fact.unit}".strip(), volume_for_dose_ml=need,
+            fraction_in_glass=round(min(1.0, mg_ml * glass / dose_mg), 4) if need else None,
+            fraction_in_medium=round(min(1.0, mg_ml * medium_volume_ml / dose_mg), 4) if need and medium_volume_ml else None,
+            sources=(f.chip,) if f.chip else ()))
+    return out

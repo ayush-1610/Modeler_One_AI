@@ -14,12 +14,13 @@ from typing import Any
 from modeler_intake.room_specs import Extraction, QuestionCard
 from modeler_intake.source_model import SourceDocument
 from modeler_project.dataroom.clinical import study_view, subject_id
-from modeler_project.dataroom.extract import check_fact, parse_number, read_table
+from modeler_project.dataroom.extract import check_fact, number_of, parse_number, read_table
 from modeler_project.dataroom.invitro import (
     batch_products,
     composition_rows,
     dissolution_views,
     f2_pairs,
+    solubility_from_facts,
     solubility_rows,
 )
 from modeler_project.dataroom.model import (
@@ -173,7 +174,81 @@ def _demographics(tables: Sequence[ReadTable], members: Sequence[str]) -> dict[s
     return out
 
 
-_CODE = re.compile(r"(?<![A-Za-z0-9])([A-Z][A-Z0-9]{0,2}|\d{1,2})\s*[=:]\s*([^;,\n]+)")
+_CODE = re.compile(r"^\s*(?:treatment\s+)?([A-Z][A-Z0-9]{0,2}|\d{1,2})\s*[=:]\s*(.+?)\s*$", re.IGNORECASE)
+
+
+def _code_pairs(text: str) -> list[tuple[str, str]]:
+    """The codes a sentence defines: "B = test product; A = reference product", "A: Refamide 100 mg (Lot R-12).
+    Treatment B: Exampleamide 100 mg"; each meaning stops at ";", at a sentence's end or at the next code."""
+    pieces = re.split(r";|\n|\.\s+(?=\S)|,\s*(?=(?:treatment\s+)?[A-Z][A-Z0-9]{0,2}\s*[=:])", text, flags=re.IGNORECASE)
+    out = []
+    for piece in pieces:
+        m = _CODE.match(piece)
+        if m and m.group(1).upper() == m.group(1):
+            out.append((m.group(1), m.group(2).rstrip(".")))
+    return out
+
+
+def _word(word: str, text: str) -> bool:
+    return re.search(rf"(?<![a-z]){re.escape(word)}(?![a-z])", text.lower()) is not None
+
+
+def population_of(text: str) -> str | None:
+    """The harvested PK-Sim population a stated ethnicity matches, by whole words, the longest phrase first ("white
+    American" before "white"; "Caucasian" is not "Asian")."""
+    for word, db in sorted(_ETHNICITY, key=lambda wd: -len(wd[0])):
+        if _word(word, text):
+            return db
+    return None
+
+
+def sex_of(text: str) -> str | None:
+    """MALE, FEMALE, MIXED or None from words ("male", "men", "women", "female", "both sexes")."""
+    female = any(_word(w, text) for w in ("female", "females", "women", "woman"))
+    male = any(_word(w, text) for w in ("male", "males", "men", "man"))
+    if _word("both sexes", text) or (male and female):
+        return "MIXED"
+    return "FEMALE" if female else ("MALE" if male else None)
+
+
+def pka_type(text: str) -> str | None:
+    t = text.lower()
+    acid = any(w in t for w in ("acid", "acidic", "carboxyl", "phenol", "sulfonamide"))
+    base = any(w in t for w in ("base", "basic", "amine", "amino", "piperidine", "pyridine"))
+    return None if acid == base else ("acid" if acid else "base")
+
+
+def fraction_unbound(value: float, unit: str, text: str) -> tuple[float | None, str]:
+    """The fraction unbound from a binding value as written: a fraction (0-1) as is; a percentage bound or unbound by
+    the words beside it ("95 % bound", "fu 5 %"); None with the reason when the words do not say which."""
+    percent = "%" in unit or "%" in text or value > 1
+    if not percent:
+        return (value, "") if 0 <= value <= 1 else (None, f"{value:g} is not a fraction")
+    t = text.lower()
+    unbound = any(w in t for w in ("unbound", "free fraction", "fraction unbound", "fu "))
+    bound = not unbound and any(w in t for w in ("bound", "binding"))
+    if unbound:
+        return round(value / 100, 6), f"{value:g} % unbound"
+    if bound:
+        return round(1 - value / 100, 6), f"from {value:g} % bound"
+    return None, f"{value:g} %: the file does not say bound or unbound"
+
+
+_TIME_WORDS = r"(h|hr|hrs|hour|hours|min|mins|minute|minutes)"
+
+
+def meal_times(text: str) -> list[float] | None:
+    """Meal times in hours after the dose (negative: before it) from words: "lunch 4 h and dinner 10 h after dosing",
+    "30 minutes before dosing", "at 4, 8 and 12 hours post-dose"; None when no time is written with its unit (a clock
+    time such as "07:30" is not a time after the dose)."""
+    out: list[float] = []
+    for m in re.finditer(r"((?:\d+(?:\.\d+)?\s*(?:,|and|&|or)\s*)*\d+(?:\.\d+)?)\s*" + _TIME_WORDS + r"\b(?=(.{0,40}))",
+                         text, re.IGNORECASE):
+        numbers = [float(x) for x in re.findall(r"\d+(?:\.\d+)?", m.group(1))]
+        factor = 1 / 60 if m.group(2).lower().startswith("min") else 1.0
+        before = re.search(r"\b(before|prior|pre)", m.group(3), re.IGNORECASE) is not None
+        out.extend(round((-x if before else x) * factor, 4) for x in numbers)
+    return sorted(set(out)) or None
 
 
 def _arms(facts: Sequence[CheckedFact], question: QuestionCard | None) -> list[Arm]:
@@ -185,8 +260,7 @@ def _arms(facts: Sequence[CheckedFact], question: QuestionCard | None) -> list[A
     for p in (question.products if question else ()):
         by_role[p.role].append(p.name)
     for f in facts:
-        pairs = [(f.fact.subject.strip(), f.fact.value.strip())] if f.fact.subject.strip() else [
-            (m.group(1), m.group(2).strip()) for m in _CODE.finditer(f.fact.value)]
+        pairs = [(f.fact.subject.strip(), f.fact.value.strip())] if f.fact.subject.strip() else _code_pairs(f.fact.value)
         for code, meaning in pairs:
             product = f.fact.product if f.fact.subject.strip() else ""
             if not product:
@@ -293,7 +367,7 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
                 "the completers with evaluable profiles in every period")))
         dem = _demographics(mine("demographics"), sets["modeling"].subjects if "modeling" in sets else ())
         ethnicity = _first(sfacts, "study.ethnicity")
-        guess = next((db for word, db in _ETHNICITY if ethnicity and word in ethnicity.fact.value.lower()), "European_ICRP_2002")
+        guess = (population_of(ethnicity.fact.value) if ethnicity else None) or "European_ICRP_2002"
         decisions.append(_decision(inputs.decisions, Decision(
             id=f"population:{sid}", title=f"Population for {sid}",
             question="Which PK-Sim population database stands for the study's subjects?",
@@ -301,6 +375,17 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
             why=(f"the study's subjects are {ethnicity.fact.value}" if ethnicity else "no ethnicity found: the reference European")
             + ("; no Indian population exists in PK-Sim yet (backlog): the Asian database is the closest" if ethnicity and
                "indian" in ethnicity.fact.value.lower() else ""), evidence=(ethnicity.chip,) if ethnicity and ethnicity.chip else ())))
+        sex_fact = _first(sfacts, "study.sex")
+        males, females = int(dem.get("male", 0) or 0), int(dem.get("female", 0) or 0)
+        stated = sex_of(sex_fact.fact.value) if sex_fact else None
+        if (males and females) or stated == "MIXED":
+            decisions.append(_decision(inputs.decisions, Decision(
+                id=f"sex:{sid}", title=f"Sex of {sid}'s individual",
+                question="The study has men and women; a PK-Sim individual is one sex. Which stands for the study?",
+                options=(Option(id="MALE", label="Male"), Option(id="FEMALE", label="Female")),
+                suggested="FEMALE" if females > males else "MALE",
+                why=f"{males} men and {females} women in the modeling set" if males or females else sex_fact.fact.value,
+                evidence=(sex_fact.chip,) if sex_fact and sex_fact.chip else ())))
         meal = _first(sfacts, "study.meal_composition") or _first(sfacts, "study.fed") or _first(sfacts, "study.meal_times")
         if meal:
             high_fat = "high" in meal.fact.value.lower() and "fat" in meal.fact.value.lower()
@@ -331,6 +416,8 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
     medium_volume = next((d.volume_ml for d in diss if d.volume_ml), None)
     solubility, found = solubility_rows(by_kind["solubility"], dose_mg=dose, medium_volume_ml=medium_volume, rules=rules)
     problems += found
+    solubility += solubility_from_facts([f for f in facts if f.ok and f.fact.field == "substance.solubility"], dose_mg=dose,
+                                        medium_volume_ml=medium_volume, rules=rules)
     for product in sorted({d.product or d.batch for d in diss}):
         views = [d for d in diss if (d.product or d.batch) == product]
         qc = next((d for d in views if "qc" in d.medium.lower()), None)
@@ -424,26 +511,47 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
 
     # --- PK-Sim inputs ---------------------------------------------------------------------------------------------------
     inputs_rows: list[InputRow] = []
+    pka_rows = _pka_rows([f for f in facts if f.ok and f.fact.field == "substance.pka"], substance)
     for key, name, field, unit in COMPOUND:
         if key in entered:
             v = entered[key]
             inputs_rows.append(InputRow(block="compound", name=key, label=name, value=v.value, unit=v.unit, status="entered",
                                         note=v.note))
             continue
-        got = next((v for v in substance + adme if v.key.split("[")[0] == field), None)
-        if got is None and key == "phys.solubility.ref" and solubility and chosen.get("solubility-ref"):
-            row = solubility[int(chosen["solubility-ref"].split("-")[1])]
-            inputs_rows.append(InputRow(block="compound", name=key, label=label_of(key), value=row.solubility_mg_ml, unit="mg/ml",
-                                        status="sponsor", sources=row.sources, decision="solubility-ref", note=row.as_written))
-            inputs_rows.append(InputRow(block="compound", name="phys.solubility.ref_ph", label="Reference pH", value=row.ph,
-                                        status="sponsor" if row.ph is not None else "missing", sources=row.sources,
-                                        decision="solubility-ref"))
+        if key == "phys.pka.base.0":
+            inputs_rows += pka_rows or [InputRow(block="compound", name=key, label=name, status="missing",
+                                                 note="not in the delivery: literature or a data request")]
             continue
-        value, note = (got.value, "") if got else (None, "not in the delivery: literature or a data request")
-        if got and key == "bind.fu" and isinstance(value, float) and value > 1:
-            value, note = round(1 - value / 100, 6), f"from {got.as_written} % bound"
-        inputs_rows.append(InputRow(block="compound", name=key, label=name, value=value, unit=got.unit if got else unit,
-                                    status=got.status if got else "missing", sources=got.sources if got else (), note=note))
+        if key == "phys.solubility.ref":
+            if solubility and chosen.get("solubility-ref"):
+                row = solubility[int(chosen["solubility-ref"].split("-")[1])]
+                inputs_rows.append(InputRow(block="compound", name=key, label=label_of(key), value=row.solubility_mg_ml,
+                                            unit="mg/ml", status="sponsor" if row.solubility_mg_ml is not None else "missing",
+                                            sources=row.sources, decision="solubility-ref", note=row.as_written))
+                inputs_rows.append(InputRow(block="compound", name="phys.solubility.ref_ph", label="Reference pH", value=row.ph,
+                                            status="sponsor" if row.ph is not None else "missing", sources=row.sources,
+                                            decision="solubility-ref",
+                                            note="" if row.ph is not None else "the chosen solubility states no pH"))
+            else:
+                inputs_rows.append(InputRow(block="compound", name=key, label=name, unit=unit, status="missing",
+                                            note="not in the delivery: literature or a data request"))
+            continue
+        got = next((v for v in substance + adme if v.key.split("[")[0] == field), None)
+        if got is None:
+            inputs_rows.append(InputRow(block="compound", name=key, label=name, unit=unit, status="missing",
+                                        note="not in the delivery: literature or a data request"))
+            continue
+        value, row_unit, note, status = got.value, got.unit, "", got.status
+        if not isinstance(value, float):
+            value, status, note = None, "missing", f"not one number as written ({got.as_written!r}): enter the value"
+        elif key == "bind.fu":
+            quote = " ".join([got.as_written, got.note] + [c.text for c in got.sources])
+            value, note = fraction_unbound(value, got.unit, quote)
+            row_unit = ""
+            if value is None:
+                status = "missing"
+        inputs_rows.append(InputRow(block="compound", name=key, label=name, value=value, unit=row_unit, status=status,
+                                    sources=got.sources, note=note))
     for product in sorted({d.product or d.batch for d in diss}):
         did = chosen.get(f"release:{product}")
         view = next((d for d in diss if d.id == did), None)
@@ -465,7 +573,6 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
         sid = view.study_id
         sets = {s.name: s for s in view.sets}
         set_name = chosen.get(f"analysis-set:{sid}", "modeling")
-        members = sets[set_name].subjects if set_name in sets else ()
         population = chosen.get(f"population:{sid}", "European_ICRP_2002")
         inputs_rows.append(InputRow(block="individual", owner=sid, name="Population", label="Population database",
                                     value=population, status="calculated", decision=f"population:{sid}"))
@@ -478,9 +585,23 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
                 inputs_rows.append(InputRow(block="individual", owner=sid, name=label, label=f"{label} (mean)", unit=unit,
                                             status="missing", note="no demographics table read"))
         sex = next((v for v in view.facts if v.key.startswith("study.sex")), None)
-        inputs_rows.append(InputRow(block="individual", owner=sid, name="Gender", label="Sex",
-                                    value=sex.as_written if sex else None, status=sex.status if sex else "missing",
-                                    sources=sex.sources if sex else ()))
+        males = next((v.value for v in view.facts if v.key.endswith(".demographics.male")), 0) or 0
+        females = next((v.value for v in view.facts if v.key.endswith(".demographics.female")), 0) or 0
+        gender = chosen.get(f"sex:{sid}") or ("FEMALE" if females and not males else "MALE" if males and not females else
+                                              (sex_of(sex.as_written) if sex else None))
+        gender = None if gender == "MIXED" else gender
+        inputs_rows.append(InputRow(block="individual", owner=sid, name="Gender", label="Sex", value=gender,
+                                    status=("calculated" if (males or females) else sex.status if sex else "missing")
+                                    if gender else "missing", sources=sex.sources if sex else (),
+                                    decision=f"sex:{sid}" if f"sex:{sid}" in chosen else "",
+                                    note="" if gender else "the study's sex is not stated"))
+        fed = next((v for v in view.facts if v.key.startswith("study.fed")), None)
+        fasting = next((v for v in view.facts if v.key.startswith("study.fasting")), None)
+        food = "fed" if fed else ("fasted" if fasting else None)
+        inputs_rows.append(InputRow(block="protocol", owner=sid, name="Food state", label="Fed or fasted", value=food,
+                                    status=(fed or fasting).status if food else "missing",  # type: ignore[union-attr]
+                                    sources=(fed or fasting).sources if food else (),  # type: ignore[union-attr]
+                                    note="" if food else "the study does not say fed or fasted"))
         dose_v = next((v for v in view.facts if v.key.startswith("study.dose")), None)
         water = next((v for v in view.facts if v.key.startswith("study.water")), None)
         weight = dem.get("weight_mean")
@@ -498,7 +619,8 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
                                             label="Water with the dose", value=round(water.value / weight.value, 3), unit="ml/kg",
                                             status="calculated", sources=water.sources,
                                             note=f"{water.as_written} ÷ the mean weight {weight.value} kg"))
-            n = len([s for s in members if any(r.subject == s and r.treatment == arm.treatment for r in view.nca)])
+            profile = next((p for p in view.profiles if p.treatment == arm.treatment and p.analysis_set == set_name), None)
+            n = profile.n_subjects if profile else 0
             inputs_rows.append(InputRow(block="observed", owner=owner, name="ObservedData",
                                         label=f"Mean profile, {sets[set_name].label if set_name in sets else set_name}",
                                         value=f"arithmetic mean ± SD and geometric mean, N = {n}",
@@ -514,10 +636,14 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
         meal = chosen.get(f"meal:{sid}")
         times = next((v for v in view.facts if v.key.startswith("study.meal_times")), None)
         if meal:
-            inputs_rows.append(InputRow(block="event", owner=sid, name=MEAL_HIGH_FAT if meal == "high_fat" else MEAL_STANDARD,
-                                        label="Meal", value=times.as_written if times else None, unit="h after the dose",
-                                        status=times.status if times else "missing", sources=times.sources if times else (),
-                                        decision=f"meal:{sid}"))
+            parsed = meal_times(times.as_written) if times else None
+            inputs_rows.append(InputRow(
+                block="event", owner=sid, name=MEAL_HIGH_FAT if meal == "high_fat" else MEAL_STANDARD, label="Meal",
+                value="; ".join(f"{t:g}" for t in parsed) if parsed else None, unit="h after the dose (negative: before)",
+                status=times.status if parsed and times else "missing", sources=times.sources if times else (),
+                decision=f"meal:{sid}",
+                note=(f"as written: {times.as_written}" if parsed else f"no time with its unit in {times.as_written!r}")
+                if times else "no meal time found"))
         for e in view.exposures:
             if e.statistic != "median":
                 inputs_rows.append(InputRow(block="target", owner=f"{sid} · {e.treatment}", name=e.metric,
@@ -564,6 +690,28 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
                         adme=tuple(adme), products=tuple(products), composition=tuple(composition), solubility=tuple(solubility),
                         dissolution=tuple(diss), f2=tuple(f2s), studies=tuple(studies), decisions=tuple(decisions),
                         requests=tuple(requests), plan=tuple(plan), inputs=tuple(inputs_rows), problems=tuple(problems))
+
+
+def _pka_rows(facts: Sequence[CheckedFact], substance: Sequence[Value]) -> list[InputRow]:
+    """One row per stated pKa: acid or base by the words beside it (phys.pka.acid.N / phys.pka.base.N, as plan §7.1);
+    a pKa whose type is not stated, or that is not one number, is Missing with the reason, never guessed."""
+    rows: list[InputRow] = []
+    seen: dict[str, int] = defaultdict(int)
+    conflict = any(v.key.startswith("substance.pka") and v.status == "conflict" for v in substance)
+    for f in facts:
+        kind = pka_type(f"{f.fact.value} {f.fact.note} {f.fact.quote} {f.fact.subject}")
+        value = number_of(f.fact.value, f.fact.unit)
+        chip = (f.chip,) if f.chip else ()
+        if value is None or kind is None:
+            rows.append(InputRow(block="compound", name="phys.pka", label="pKa", status="missing", sources=chip,
+                                 note=("not one number as written" if value is None else "its type (acid or base) is not "
+                                       "stated") + f": {f.fact.value!r}"))
+            continue
+        key = f"phys.pka.{kind}.{seen[kind]}"
+        seen[kind] += 1
+        rows.append(InputRow(block="compound", name=key, label=f"pKa ({'acidic' if kind == 'acid' else 'basic'})", value=value,
+                             status="conflict" if conflict else "sponsor", sources=chip))
+    return rows
 
 
 def label_of(key: str) -> str:

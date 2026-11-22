@@ -186,8 +186,9 @@ DISS_REF = "Unit\t5\t10\t15\t30\t45\n" + "".join(f"{u}\t{55 + u}\t{75 + u}\t{84 
 BATCHES = "Batches: LOT-1 is the test product; LOT-R is the reference product.\n"
 
 
-def _published_room(room):
+def _published_room(room, extra_facts=()):
     files, docs, question, extractions = room
+    files, docs = list(files), dict(docs)
     extra = []
     for name, data in (("diss_ref.tsv", DISS_REF), ("batches.txt", BATCHES)):
         view, doc = _file(name, data.encode())
@@ -201,9 +202,17 @@ def _published_room(room):
             last_line=7, time_unit="min", value_unit="%", constants={"medium": "pH 6.8 phosphate buffer"},
             columns=[C(index=1, role="unit")] + [C(index=2 + i, role="value", time=t, group="LOT-R")
                                                  for i, t in enumerate((5, 10, 15, 30, 45))])]),
+        Extraction(file="D/synopsis.md", facts=[
+            Fact(field="study.fasting", subject="EX-01", value="overnight fast", quote="after an overnight fast")]),
         Extraction(file="D/batches.txt", facts=[
             Fact(field="product.batch", value="LOT-1", product="Exampleamide 100 mg", quote="LOT-1 is the test product"),
             Fact(field="product.batch", value="LOT-R", product="Refamide 100 mg", quote="LOT-R is the reference product")])]
+    for name, text, fact in extra_facts:
+        v, d = _file(name, text.encode())
+        files.append(v)
+        docs[v.sha256] = d
+        extractions.append(Extraction(file=f"D/{name}", facts=[fact]))
+    _published_room.last = (files, docs, extractions)  # type: ignore[attr-defined]
     view = assemble(Inputs(files=files, docs=docs, question=question, question_confirmed=True, extractions=extractions))
     decisions = {d.id: {"chosen": d.suggested, "reason": "as suggested", "by": "user:m"} for d in view.decisions}
     return assemble(Inputs(files=files, docs=docs, question=question, question_confirmed=True, extractions=extractions,
@@ -428,3 +437,85 @@ def test_a_description_shifted_by_one_column_is_caught_by_each_columns_own_heade
                             columns=shifted)
     problems = read_table(desc, doc, file="d.tsv", sha256=doc.file_sha256).problems
     assert [p.code for p in problems] == ["TIME_NOT_IN_HEADER"] * 3
+
+
+def test_the_published_dataset_is_the_chosen_sets_own_profile_with_its_arms_n(room, tmp_path):
+    from modeler_project.dataroom.publish import plan_publication
+
+    view = _published_room(room)
+    question = room[2]
+    files, docs, extractions = _published_room.last  # type: ignore[attr-defined]
+    decisions = {d.id: {"chosen": d.suggested, "by": "u"} for d in view.decisions} | {
+        "analysis-set:EX-01": {"chosen": "completed", "by": "u", "reason": "all completers"}}
+    chosen = assemble(Inputs(files=files, docs=docs, question=question, question_confirmed=True, extractions=extractions,
+                             decisions=decisions))
+    plan = plan_publication(chosen, by="u")
+    arm_b = next(d for d in plan.datasets if d.study["study_id"] == "EX-01-B")
+    at_2h = arm_b.series[0].values[arm_b.series[0].times.index(2)]
+    assert arm_b.study["n"] == 5 and arm_b.series[0].n == 5 and round(at_2h, 6) == 16.8   # subject 3: all BLQ in B
+    assert "completed" in arm_b.note.lower()
+
+
+def test_meal_times_are_read_with_their_unit_and_direction_and_a_clock_time_is_not():
+    from modeler_project.dataroom.assemble import meal_times
+
+    assert meal_times("lunch 4 h and dinner 10 h after dosing") == [4.0, 10.0]
+    assert meal_times("a high-fat breakfast 30 minutes before dosing") == [-0.5]
+    assert meal_times("meals at 4, 8 and 12 hours post-dose") == [4.0, 8.0, 12.0]
+    assert meal_times("breakfast at 07:30") is None
+
+
+def test_fraction_unbound_is_converted_once_from_what_the_words_say():
+    from modeler_project.dataroom.assemble import fraction_unbound
+
+    assert fraction_unbound(95.0, "%", "Plasma protein binding was 95%") == (0.05, "from 95 % bound")
+    assert fraction_unbound(5.0, "%", "fu 5 % in human plasma")[0] == 0.05
+    assert fraction_unbound(0.05, "", "fraction unbound 0.05") == (0.05, "")
+    assert fraction_unbound(95.0, "%", "95 %")[0] is None
+
+
+def test_the_pka_type_is_read_never_assumed_and_the_population_matches_whole_words():
+    from modeler_project.dataroom.assemble import pka_type, population_of, sex_of
+
+    assert (pka_type("The carboxylic acid has a pKa of 4.2"), pka_type("pKa 8.9 (basic amine)"), pka_type("pKa 6.5")) == (
+        "acid", "base", None)
+    assert population_of("Caucasian") == "European_ICRP_2002" and population_of("Asian Indian") == "Asian_Tanaka_1996"
+    assert population_of("White American") == "WhiteAmerican_NHANES_1997" and population_of("Martian") is None
+    assert (sex_of("healthy women"), sex_of("male volunteers"), sex_of("males and females"), sex_of("adults")) == (
+        "FEMALE", "MALE", "MIXED", None)
+
+
+def test_codes_stop_at_the_sentence_or_the_next_code():
+    from modeler_project.dataroom.assemble import _code_pairs
+
+    assert _code_pairs("A: Refamide 100 mg tablet (Lot R-12). Treatment B: Exampleamide 100 mg tablet (Lot T-07)") == [
+        ("A", "Refamide 100 mg tablet (Lot R-12)"), ("B", "Exampleamide 100 mg tablet (Lot T-07)")]
+    assert _code_pairs("B = test product; A = reference product") == [("B", "test product"), ("A", "reference product")]
+
+
+def test_f2_pairs_only_profiles_run_under_the_same_conditions_and_reformulated_against_original():
+    from modeler_project.dataroom.invitro import _quantity, f2_pairs
+    from modeler_project.dataroom.model import DissolutionView
+
+    def view(i, product, medium, rpm=50.0):
+        return DissolutionView(id=f"d{i}", product=product, medium=medium, ph=6.8, rpm=rpm, n_units=12,
+                               times_min=(5, 10, 15, 30), mean=(30, 50, 70, 90), sd=(2, 2, 2, 2))
+
+    roles = {"R": "reference", "T": "test", "O": "original", "N": "reformulated"}
+    pairs = f2_pairs([view(1, "R", "pH 6.8 phosphate"), view(2, "T", "pH 6.8 phosphate + 1% SLS"), view(3, "T", "pH 6.8 phosphate"),
+                      view(4, "O", "pH 6.8 phosphate", rpm=75), view(5, "N", "pH 6.8 phosphate", rpm=75)], roles)
+    assert {(p.test, p.reference) for p in pairs} == {("d3", "d1"), ("d5", "d4")}
+    assert _quantity("900 mL at 37 ± 0.5 °C", {"ml": 1.0, "l": 1000.0}) == 900.0
+
+
+def test_sources_that_disagree_block_sending_until_a_person_chooses(room):
+    from modeler_project.dataroom.publish import plan_publication
+
+    view = _published_room(room, extra_facts=[
+        ("mw1.txt", "Molecular weight: 412.5 g/mol\n", Fact(field="substance.mw", value="412.5", unit="g/mol",
+                                                             quote="Molecular weight: 412.5 g/mol")),
+        ("mw2.txt", "MW 421.5 g/mol (free base)\n", Fact(field="substance.mw", value="421.5", unit="g/mol",
+                                                         quote="MW 421.5 g/mol (free base)"))])
+    mw = next(r for r in view.inputs if r.name == "phys.mw")
+    assert mw.status == "conflict"
+    assert any("sources disagree" in b for b in plan_publication(view, by="u").blocked)

@@ -65,59 +65,68 @@ def _evidence(row: InputRow, target: str, value: float | str, *, by: str, note: 
 
 def _dataset(view: StudyView, treatment: str, set_name: str, *, rows: list[InputRow], by: str,
              formulation_name: str | None) -> tuple[ObservedDataset | None, str]:
-    profile = next((p for p in view.profiles if p.treatment == treatment and p.analysis_set == "modeling"), None)
-    if profile is None:
-        return None, f"{view.study_id} arm {treatment}: no mean profile"
-    members = next((s.subjects for s in view.sets if s.name == set_name), ())
     owner = f"{view.study_id} · {treatment}"
+    profile = next((p for p in view.profiles if p.treatment == treatment and p.analysis_set == set_name), None)
+    if profile is None or profile.n_subjects == 0:
+        return None, f"{owner}: no subject of the chosen set has this arm's profile"
     get = {r.name: r for r in rows if r.owner in (view.study_id, owner)}
     dose = get.get("InputDose")
     if dose is None or not isinstance(dose.value, float):
         return None, f"{owner}: the dose is missing"
-    population = get.get("Population")
+    food = get.get("Food state")
+    if food is None or food.value not in ("fed", "fasted"):
+        return None, f"{view.study_id}: the study does not say fed or fasted"
+    population, sex = get.get("Population"), get.get("Gender")
     age, weight, height = get.get("Age"), get.get("Weight"), get.get("Height")
-    sex = get.get("Gender")
     demographics: dict[str, Any] | None = None
     if population and population.value and age and isinstance(age.value, float):
-        demographics = {"population": population.value, "sex": "FEMALE" if str(sex.value or "").lower().startswith("f") else "MALE",
-                        "age_years": age.value}
+        if not sex or sex.value not in ("MALE", "FEMALE"):
+            return None, f"{view.study_id}: the individual's sex is not known"
+        demographics = {"population": population.value, "sex": sex.value, "age_years": age.value}
         if weight and isinstance(weight.value, float):
             demographics["weight_kg"] = weight.value
         if height and isinstance(height.value, float):
             demographics["height_cm"] = height.value
     water = get.get("Volume of water/body weight")
-    meal_rows = [r for r in rows if r.block == "event" and r.owner == view.study_id]
     meals = []
-    for r in meal_rows:
-        for t in re.findall(r"\d+(?:\.\d+)?", str(r.value or "")):
-            meals.append({"time_h": float(t), "template": r.name, "name": r.name.split(": ", 1)[-1]})
+    for r in rows:
+        if r.block == "event" and r.owner == view.study_id:
+            if r.value is None:
+                return None, f"{view.study_id}: its meal times could not be read ({r.note})"
+            for t in re.findall(r"-?\d+(?:\.\d+)?", str(r.value)):
+                meals.append({"time_h": float(t), "template": r.name, "name": r.name.split(": ", 1)[-1]})
     points = profile.points
     times = tuple(p.time_h for p in points)
     arith = tuple(None if (p.mean is None or (p.n_geo == 0 and p.mean == 0)) else p.mean for p in points)
-    study = {"study_id": f"{view.study_id}-{treatment}", "n": max(len(members), 1), "design": "SD",
+    n = profile.n_subjects
+    study = {"study_id": f"{view.study_id}-{treatment}", "n": n, "design": "SD",
              "crossover": len(view.periods) > 1, "route": "oral", "dose_mg": dose.value,
              "formulation": "ir_tablet" if formulation_name else "solution", "formulation_name": formulation_name,
-             "food_state": "fed" if meals else "fasted", "meals": meals,
+             "food_state": food.value, "meals": meals,
              "water_ml_per_kg": water.value if water and isinstance(water.value, float) else None,
              "demographics": demographics, "statistic": "mean_sd", "n_timepoints": len(times)}
     if view.lloq is not None:
         study["lloq"] = view.lloq
     series = (Series(name="arithmetic mean", statistic="arithmetic_mean", times=times, values=arith,
-                     error=tuple(p.sd for p in points), error_kind="SD", n=len(members),
+                     error=tuple(p.sd for p in points), error_kind="SD", n=n,
                      n_at=tuple(p.n for p in points) if len({p.n for p in points}) > 1 else None),
               Series(name="geometric mean", statistic="geometric_mean", times=times, values=tuple(p.geomean for p in points),
-                     n=len(members), n_at=tuple(p.n_geo for p in points) if len({p.n_geo for p in points}) > 1 else None))
-    unit = (view.concentration_unit or "ng/mL").replace("mL", "ml").replace("L", "l") if view.concentration_unit else "ng/ml"
+                     n=n, n_at=tuple(p.n_geo for p in points) if len({p.n_geo for p in points}) > 1 else None))
+    unit = view.concentration_unit.replace("mL", "ml").replace("L", "l")
+    label = next((s.label for s in view.sets if s.name == set_name), set_name)
     dataset = ObservedDataset(
         id=_id("ds", view.study_id, treatment, set_name, times, arith), kind="profile", study=study, time_unit="h", unit=unit,
         series=series, origin=Origin.CLIENT, extraction="TABLE", provider="CLIENT", purpose="model_building",
         proposed_by=by, demographics_choice="entered" if demographics else None,
-        note=f"Data room: mean of the {set_name} set ({len(members)} subjects); below the LLOQ counted 0 in the arithmetic "
-             "mean and left out of the geometric mean")
+        note=f"Data room: the mean of the {label.lower()} ({n} subjects in this arm); below the LLOQ counted 0 in the "
+             "arithmetic mean and left out of the geometric mean")
     try:
         return check_dataset(dataset), ""
     except ValueError as exc:
         return None, f"{owner}: {exc}"
+
+
+_BLOCKING_STUDY = ("TIME_UNIT_NOT_STATED", "UNIT_NOT_STATED", "SAMPLE_CONFLICT", "NO_CONCENTRATIONS")
 
 
 def plan_publication(view: DataRoomView, *, by: str) -> Publication:
@@ -130,24 +139,39 @@ def plan_publication(view: DataRoomView, *, by: str) -> Publication:
     rows = list(view.inputs)
     evidence: list[EvidenceItem] = []
     for row in rows:
-        if row.block == "compound" and row.value is not None and row.status != "missing":
-            evidence.append(_evidence(row, row.name, row.value, by=by, note=f"Data room: {row.label}"))
+        if row.block != "compound":
+            continue
+        if row.status == "conflict":
+            blocked.append(f"{row.label}: the sources disagree; choose one (enter it) before sending")
+        elif row.value is not None and row.status != "missing":
+            if not isinstance(row.value, float):
+                blocked.append(f"{row.label}: {row.value!r} is not one number")
+            else:
+                evidence.append(_evidence(row, row.name, row.value, by=by, note=f"Data room: {row.label}"))
+    names = {r.name for r in rows if r.block == "compound" and r.value is not None}
+    if "phys.solubility.ref" in names and "phys.solubility.ref_ph" not in names:
+        blocked.append("the reference solubility has no pH: choose a solubility with its pH, or enter the pH")
     chosen = {d.id: d.chosen or d.suggested for d in view.decisions}
     formulations: dict[str, str] = {}
     for row in rows:
-        if row.block != "formulation" or row.owner in formulations and row.name == "Formulation_Tablet_Weibull":
+        if row.block != "formulation":
             continue
         name = slug(row.owner)
         if row.name == "Formulation_Tablet_Weibull":
             if chosen.get(f"release-model:{row.owner}") == "particles":
                 blocked.append(f"{row.owner}: particle dissolution needs the particle size and solubility entered as "
-                               "inputs; publish it with the Weibull release, or enter them")
+                               "inputs; send it with the Weibull release, or enter them")
+                continue
+            fitted = [r for r in rows if r.block == "formulation" and r.owner == row.owner and r.name in (
+                "Dissolution time (50% dissolved)", "Dissolution shape") and isinstance(r.value, float)]
+            if len(fitted) < 2:
+                blocked.append(f"{row.owner}: its Weibull fit did not give t50 and shape (too few time points)")
                 continue
             formulations[row.owner] = name
             evidence.append(_evidence(row, f"form.{name}.type", "Weibull", by=by, note=f"Data room: {row.owner}"))
             continue
         key = {"Dissolution time (50% dissolved)": "t50", "Dissolution shape": "shape", "Lag time": "lag"}.get(row.name)
-        if key and isinstance(row.value, float):
+        if key and isinstance(row.value, float) and row.owner in formulations:
             evidence.append(_evidence(row, f"form.{name}.weibull.{key}", row.value, by=by, note=f"Data room: {row.note}"))
     from modeler_project.evidence import assess
 
@@ -158,15 +182,27 @@ def plan_publication(view: DataRoomView, *, by: str) -> Publication:
                            "PK-Sim's unit")
     datasets: list[ObservedDataset] = []
     for study in view.studies:
+        bad = [p.message for p in study.problems if p.code in _BLOCKING_STUDY]
+        if bad:
+            blocked.append(f"{study.study_id}: " + "; ".join(bad))
+            continue
         set_name = chosen.get(f"analysis-set:{study.study_id}", "modeling")
-        for arm in study.arms or ():
-            product = arm.product
-            if product and product not in formulations:
-                blocked.append(f"{study.study_id} arm {arm.treatment}: {product} has no release input (no dissolution "
+        arm_codes = {a.treatment for a in study.arms}
+        treatments = {p.treatment for p in study.profiles}
+        if treatments - arm_codes:
+            blocked.append(f"{study.study_id}: what treatment {', '.join(sorted(treatments - arm_codes))} stands for is not "
+                           "given (its product is unknown)")
+        for arm in study.arms:
+            if arm.treatment not in treatments:
+                continue
+            if not arm.product:
+                blocked.append(f"{study.study_id} arm {arm.treatment}: its product is not known ({arm.meaning or 'no meaning given'})")
+                continue
+            if arm.product not in formulations:
+                blocked.append(f"{study.study_id} arm {arm.treatment}: {arm.product} has no release input (no dissolution "
                                "profile of it was read); its data request asks for one")
                 continue
-            got, why = _dataset(study, arm.treatment, set_name, rows=rows, by=by,
-                                formulation_name=formulations.get(product) if product else None)
+            got, why = _dataset(study, arm.treatment, set_name, rows=rows, by=by, formulation_name=formulations[arm.product])
             if got is None:
                 blocked.append(why)
             else:

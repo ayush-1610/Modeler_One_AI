@@ -138,6 +138,31 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
     position above the column, so a header on a line of its own still counts. A description shifted by one column is
     caught.
   - A concentration table may name an `actual_time` column; the nominal `time` makes the means.
+- **Fixed: the independent review, part 2: the assembly and Send to the model.** Each has a regression test.
+  - **The published dataset is the chosen set's own profile.** Before, the values came from the modeling set while
+    N and the note named the chosen set. N is now the subjects of that arm in that set, so a parallel study's arms no
+    longer carry the whole study's N. An empty set blocks.
+  - **Food state comes from the study's fed or fasting facts.** A study that says neither blocks. Meal times are read
+    with their unit and their direction: "30 minutes before dosing" is −0.5 h, and a clock time is not a time after
+    the dose. Times that cannot be read block.
+  - **Fraction unbound is converted once, by the words.** "95 % bound" is 0.05. Before, it was 0.05 shown in % and then
+    divided by 100 again. When the file does not say bound or unbound, the value is Missing.
+  - **A pKa's type is read, never assumed.** Acid gives `phys.pka.acid.N`, base gives `phys.pka.base.N`, as plan §7.1
+    says; a pKa with no stated type is Missing. Before, every pKa was entered as basic.
+  - **Solubility stated as facts joins the tables' rows in the reference-solubility decision.** A reference solubility
+    with no pH blocks.
+  - **Treatment codes stop at the sentence or the next code** ("A: … (Lot R-12). Treatment B: …"). An arm with no known
+    product, or a treatment in the data with no code meaning, blocks. Before, such an arm was published as an oral
+    solution or silently dropped.
+  - **Send to the model also blocks on** sources that disagree, a value that is not one number, a Weibull fit with no
+    t50 or shape, an unknown time unit, a missing concentration unit, and two different values for one sample. A
+    dissolution time with no value in any unit is left out, where before it crashed the room.
+  - **Population and sex.** Ethnicity matches whole words, the longest phrase first ("Caucasian" is no longer "Asian").
+    Sex comes from the demographics table or the words; a study of men and women is a decision, and an unknown sex
+    blocks.
+  - **f2 compares only profiles run under the same conditions** (medium, pH, apparatus, speed, volume), and also each
+    reformulated product against the original. "900 mL at 37 ± 0.5 °C" is 900 mL, not 900370.5.
+  - On the sample delivery the sets, exposures, demographics and the held-back reference arm are unchanged.
 - **Known gap:** the agents are not yet scored on the real delivery; that is the next step. The report export follows.
 
 ### Added — the Data room's reader: every file of a real delivery read, scans included (plan 2026-11-21 v2 §9, build step 1)
