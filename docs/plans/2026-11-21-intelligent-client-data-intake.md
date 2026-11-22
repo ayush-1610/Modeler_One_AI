@@ -1,317 +1,427 @@
-# Intelligent client-data intake: from any delivery to verified PK-Sim inputs (plan, 2026-11-21)
+# Data room: from any client delivery to verified PK-Sim inputs (plan v2, 2026-11-22)
 
-**Status:** proposed, waiting for the owner's approval. Nothing in this plan is built yet.
-
-**Supersedes:** the client-data parts of `2026-11-14-inputs-task-first.md` (the sheet-form reader and the delivery
-pipeline as the way client data enters the model). That plan's page work stays in the code until this plan's
-replacement is proven on real deliveries (§10).
-
-**Why this plan exists.** Seven review rounds made the Inputs page consistent, but the owner's real deliveries still
-came out wrong (2026-11-19: a crossover concentration table read as one series; facts not in any file shown as if
-read; studies split; a dose in a Word file not used; the owner's own data hidden by blinding). The cause was the
-approach, not the screens: rule-based readers built and tested on synthetic files, two reading paths, and no real
-delivery with a known right answer. This plan starts from what a PBPK/PBBM modeler actually needs and from real
-deliveries.
+**Status:** approved in direction by the owner on 2026-11-21 and 2026-11-22. Build starts after this version.
+**Replaces:** v1 of this file (2026-11-21). **Supersedes** the client-data parts of `2026-11-14-inputs-task-first.md`:
+the sheet-form reader and the delivery pipeline as the way client data enter the model.
+**Worked example:** the cinacalcet PBBM delivery. Its numbers are client-confidential, so they are kept outside the
+repository. The owner received them as a visual walkthrough of the screens.
 
 ---
 
-## 1. The owner's decisions this plan rests on (2026-11-21)
+## 0. In one paragraph
 
-| # | Question | Owner's answer |
+A client sends a delivery: a zip of PDFs, Word files, spreadsheets, text exports and scans. The **Data room**:
+1. reads every file, including scans, with our own OCR engine;
+2. understands what the project must answer;
+3. finds only the data the model needs, and shows each value with the file, page and line it came from;
+4. checks every number against the source and recomputes what can be recomputed;
+5. lists what is missing or contradictory as numbered data requests;
+6. asks the modeler only for real modeling choices.
+
+It produces two things from the same verified data:
+- a clean, visual **evidence report**, in the spirit of the owner's kick-off report;
+- the exact **PK-Sim inputs**, each traceable to its source.
+
+Nothing is invented. Any of the three AI models (Qwen Coder, Claude, gpt-oss-120b on GroqCloud) can do the reading,
+chosen per agent with one click.
+
+## 1. The owner's decisions (log)
+
+| Date | Question | Decision |
 |---|---|---|
-| 1 | The system reads *any* delivery, understands the project's question, extracts only what the model needs with sources, flags conflicts and gaps, and prepares PK-Sim inputs. No per-format ETL. | Yes (corrections will be flagged later) |
-| 2 | Shape: question first, then targeted extraction, then explicit modeler decisions | Yes, to be judged on real use |
-| 3 | Cinacalcet: formulation from fitted release of the dissolution data, or mechanistic particle dissolution? | **Fit release from the dissolution data** |
-| 4 | Model switch: one global switch, or per agent? | **Per agent** |
-| 5 | Third model | `openai/gpt-oss-120b` on **GroqCloud** (Qwen Coder in-house and Claude stay) |
+| 2026-11-21 | Generic intelligent system, not per-format ETL | Yes |
+| 2026-11-21 | Question first → targeted extraction → explicit modeler decisions | Yes |
+| 2026-11-21 | Cinacalcet formulation: fitted release or particle dissolution | Fitted release from the dissolution data |
+| 2026-11-21 | Model switch global or per agent | Per agent |
+| 2026-11-21 | Third model | `openai/gpt-oss-120b` on GroqCloud |
+| 2026-11-22 | Client data to Groq | Allowed |
+| 2026-11-22 | The PK-Sim answer key | The platform defines what PK-Sim needs, in which format (§7) |
+| 2026-11-22 | More deliveries | Not now; build with what we have |
+| 2026-11-22 | Scanned pages | Our own OCR engine (self-hosted, no data leaves the server for OCR) |
+| 2026-11-22 | Population for Indian subjects | Use the closest database for now; **backlog: build more population physiology templates** (§12) |
+| 2026-11-22 | Which dissolution medium the release is fitted to | Show every product, batch, medium and pH available; the choice is made later, per project |
+| 2026-11-22 | Meal composition not given | Use a default template, or the literature/web definition, and say so |
+| 2026-11-22 | Analysis-set rules | The platform decides; the rules in §8 apply and can be overridden |
+| 2026-11-22 | Blinding during data checking | Not required. Recommendation below; the owner confirms |
 
-## 2. What real deliveries look like (and why no fixed ETL works)
+**Blinding: recommendation.** Do not hide values while the data are being read and checked. That matches how the
+owner works: the kick-off report shows the test arm that is later used for verification. Scientific integrity
+(ICH M15, pre-specification) comes from two things:
+1. **declaring each dataset's role** (calibration, verification, prediction) in the simulation plan, and having it
+   signed with the Modeling Analysis Plan before any calibration starts;
+2. the audit trail, which records who saw and decided what, and when.
 
-Every delivery is different because the **question of interest** differs: virtual bioequivalence, a post-approval
-reformulation (PBBM), food effect, DDI, a special population, first-in-human. The question decides which data matter.
+The Data room therefore shows all values. The existing blinding switch remains for the model-building steps, for any
+project or regulator that requires it, but it is off by default for new projects. Changing the MS-01 blinding rule
+itself is an SME decision and is not part of this plan.
 
-The cinacalcet delivery (48 files, Parts A to D plus a proposal) is one example of thousands:
+## 2. What we have today
 
-- **Most of it does not feed the model.** Ascorbic acid monographs, TSE/BSE and nitrosamine declarations, a patent,
-  13 specification and test-procedure files.
-- **Key facts are scanned or split across files.**
-  - Scanned with no text layer: the individual demographics (12 pages), the protocol (54 pages), the meal details,
-    the manufacturing summary and the dissolution test procedure.
-  - The treatment codes ("B = test, A = reference") are defined only in a side `.txt` file.
-  - Who counts for analysis (dosed per period, completed, statistical set, AUC set) is in prose, with a reason per
-    subject.
-- **The same data come twice.** The concentration table and the PK parameters each come in two formats; the same
-  particle-size file sits in two parts.
-- **Conflicts are normal.**
-  - The BE batch number is written three different ways across the files.
-  - The reference product carries different brand names and lots in the clinical study and in the dissolution
-    comparison.
-  - The coating breakdown does not sum to the coat weight.
-- **Modeling-relevant details hide in operational text.**
-  - Meals at 4, 9, 13 and 24 h after dosing explain a second peak about an hour after the first meal in most profiles.
-  - An antiemetic was given before dosing.
-- **Gaps that block the question.** There is no reference-product dissolution profile, and no data with and without
-  ascorbic acid.
-
-The earlier deliveries (Exampleamide, Clientamide, Desvenlafaxine) showed further shapes:
-- stacked subject blocks;
-- dose and n in a Word summary;
-- dissolution per vessel in Excel;
-- crossovers with Test and Reference arms.
-
-**Conclusion:** the system must *understand* each delivery against its question, not parse known layouts.
-
-## 3. What the system must produce: two outputs from one evidence base
-
-The owner's kick-off report (Cinacalcet Project Kickoff Report v2, slides 7–14) is the reference for the first output.
-
-### 3.1 The evidence report (for the people)
-
-One page per area, each with:
-
-1. **A one-line finding.** For example "a weak base with low, pH-dependent solubility; the dissolution model rests
-   on these inputs".
-2. **Tables with Property | Value | Source | Status.**
-   - Status is one of: Verified (consistent sources) · Single source · Sponsor data · Literature · Calculated ·
-     Conflict · TBD.
-3. **Headline numbers computed from the data.** For example: the fold change in solubility between two pH values;
-   how much of the dose can dissolve in a given volume; the share of profiles that rise after a meal; the share of
-   AUC that accrues after it.
-4. **Charts with their context.**
-   - Solubility versus pH.
-   - Dissolution per medium, product against product, with f2.
-   - Mean concentration per arm, with the meal marked.
-   - The subject flow, from dosed to the analysis set.
-5. **Comparison matrices.**
-   - Original versus reformulated composition, per component.
-   - Process changes.
-6. **Numbered data requests** for every gap or conflict.
-   - Coded by area: A formulation/manufacturing, B in vitro, C drug substance/disposition, D clinical.
-   - For example D-01 "Explanation of subject 12 and the final locked analysis dataset".
-7. **The simulation plan** (slide 14). Each simulation (formulation + condition) is paired with its observed data and
-   its role: development, calibration, verification or prediction.
-
-The areas are:
-- Question and context of use;
-- Drug substance (physico-chemistry);
-- ADME and disposition;
-- Formulation and what changed;
-- Solubility;
-- In vitro dissolution;
-- Clinical design and populations;
-- Observed PK;
-- Data requests;
-- Simulation plan.
-
-The report is shown in the platform and can be exported (PDF; slides later).
-
-### 3.2 The model inputs (for PK-Sim)
-
-The exact numbers that go into the PK-Sim project, each traced to its evidence. All PK-Sim names below are from the
-harvested catalog (`services/engine-worker/golden/catalog.json`) and the reference snapshot
-(`golden/example_snapshot.json`).
-
-- **Compound:**
-  - molecular weight, lipophilicity, pKa, solubility (the reference value and the pH table), fraction unbound,
-    permeability;
-  - clearance processes (e.g. `MetabolizationSpecific_FirstOrder`, `GlomerularFiltration`) with their parameters.
-- **Formulation per product and batch:**
-  - from the fitted dissolution release (the owner's choice for cinacalcet): `Formulation_Tablet_Weibull` with
-    `Dissolution time (50% dissolved)`, `Dissolution shape`, `Lag time`;
-  - `Formulation_Dissolved` for solutions;
-  - which medium's profile is fitted is a recorded modeler decision.
-- **Individual and population:**
-  - a population database (e.g. `Asian_Tanaka_1996`, `European_ICRP_2002`), sex, and the age, weight and height
-    from the study's demographics;
-  - ranges and size for virtual trials.
-- **Protocol:** `ApplicationType`, `DosingInterval`, `InputDose`, `Infusion time`, `Start time`.
-- **Events:** meals at their stated times (e.g. `Meal: Standard (Human)`, `Meal: High-fat breakfast (Human)`). The
-  choice of template is a recorded decision when the meal composition is unknown.
-- **Observed data:**
-  - one table per arm, aggregated (mean, its spread type and N at each time) and individual;
-  - with `Study Id`, `Grouping`, `Data type`, `N`, `Molecule`, `Organ`, `Compartment`, `Route`, `Dose`,
-    `Formulation`, `Food state`.
-- **Evaluation targets (not PK-Sim inputs):** Cmax, AUC and Tmax per arm (geometric and arithmetic), BE ratios and
-  90 % CI, f2. They judge the simulations, in the existing acceptance and VBE checks.
-
-These feed the existing CPF and snapshot builder. A PK-Sim name not yet harvested (e.g. a table formulation) is
-harvested from the engine before it is used.
-
-## 4. Principles
-
-1. **Question first.** The project's question decides the required inputs; everything else is triaged out with a
-   reason.
-2. **Nothing invented.**
-   - Every value is read (with file, page and cell or quote), computed (with the rule and its inputs), entered by a
-     person, or marked missing.
-   - Never defaulted silently.
-   - The rate of invented values must be zero in every test.
-3. **The agent proposes, code verifies, the modeler decides.**
-   - An AI model reads and proposes.
-   - Deterministic code checks every number and quote against the source and does all arithmetic (means, NCA, f2,
-     fits, unit conversions).
-   - Modeling judgments are shown as decisions with evidence and a suggestion. Examples: the analysis set, the
-     population, the formulation type and medium, meal templates, outliers, and calibration versus verification.
-4. **Generic, not per case.** No reader written for one layout. The same agents, tools and schemas handle any
-   delivery. New cases improve prompts, tools and tests, not special branches.
-5. **Measured, not assumed.** Real deliveries with known answers score every stage and every model before anything
-   is trusted.
-6. **Model-agnostic.** Any agent can run on Qwen Coder, Claude or gpt-oss-120b, chosen per agent.
-7. **Traceable for regulators.** Every PK-Sim input links back to its evidence and decision. The existing audit chain
-   and signatures record who confirmed what (21 CFR Part 11, ICH M15).
-
-## 5. The flow
-
-| Stage | What happens | Who | Output |
-|---|---|---|---|
-| 1. Intake | Files stored as received (hash, type, pages); archives unpacked; duplicates found by content; scanned pages detected and read by OCR or a vision model | Code (+ vision model for scans) | Inventory with a text layer for every page |
-| 2. Question | The proposal, request email and data plan read; context of use, products to compare and required inputs drafted from the platform's data-plan templates (`requirements/*.yaml`), tailored to the question | Agent drafts, **owner confirms** | Question card + checklist |
-| 3. Triage | Every file and page classified (clinical data, design, demographics, composition, manufacturing, dissolution, drug substance, ADME, literature, regulatory paperwork) and linked to checklist items, or set aside with a reason | Agent, code checks coverage | File map: what each file is for |
-| 4. Extraction | Per checklist item, the agent reads the relevant pages and tables with tools (text, OCR, table parsing in a sandbox, spreadsheet reading) and returns typed records (§6) with citations | Agent | Proposed evidence records |
-| 5. Verification | Every number is matched to its cited cell or text; every quote is found verbatim; units parsed; a second pass (another prompt, or another model) checks the semantic mapping (treatment codes, arms, which batch) | Code + second agent pass | Verified records, rejections with reasons |
-| 6. Assembly | Facts joined across files: one study record, arms, subject flow, analysis sets with their rule, product → batch → dissolution links; derived numbers computed | Code | The evidence base (§6) |
-| 7. Status and gaps | Each item gets its status (§3.1); conflicts listed; data requests drafted with codes and wording | Code + agent drafts wording | Status table, conflict list, data requests |
-| 8. Decisions | Decision cards (analysis set, population, formulation type and medium, meal events, outliers, calibration/verification split), each with evidence, options and a suggestion | **Modeler decides** | Recorded decisions |
-| 9. Outputs | The evidence report (§3.1) and the PK-Sim inputs (§3.2), both from the same evidence base and decisions | Code | Report + CPF + snapshot inputs |
-
-New files can arrive at any time. They re-enter at stage 1, and only what they change is redone.
-
-## 6. The evidence base (the canonical data model)
-
-Generic record types. Every field carries its source and status. These are CDISC-shaped where a standard exists
-(SDTM PC, DM, EX, TA; ADaM ADPC, ADSL), so a client's CDISC datasets load directly.
-
-| Record | Key fields |
-|---|---|
-| Project question | question, regulator, products compared, context of use, required-input checklist |
-| Document | file, hash, pages, type, scanned?, duplicate-of, relevance |
-| Drug substance property | property (MW, pKa, logP/logD, solubility at pH/medium/temperature, fu, B/P, permeability, particle size d10/d50/d90, solid form), value, unit, conditions |
-| ADME fact | absorption, distribution, metabolism (enzymes, fm), elimination, food effect, DDI; value or statement |
-| Product | name, role (Test/Reference/original/reformulated), strength, dosage form, release type, manufacturer |
-| Composition | product, component, amount per unit, function, grade; process step changes |
-| Batch | product, batch number(s) as written, lot aliases, use (BE study, dissolution, stability), API batch, particle size |
-| Dissolution run | batch, medium, pH, surfactant, volume, apparatus, speed, temperature, n units; values per unit per time; mean, spread type, CV |
-| Study | id, title, design (parallel/crossover, periods, sequences, washout), single/multiple dose, fasted/fed, meal times and type, co-medication, sampling schedule, analyte, matrix, LLOQ, bioanalytical method |
-| Arm / treatment | study, treatment code and meaning, product, batch, dose, route, regimen |
-| Subject | id, sequence, demographics (age, sex, weight, height, BMI, race), disposition (dosed per period, completed, reason) |
-| Concentration | subject, period, treatment, nominal time, actual time, value, unit, BLQ flag |
-| PK result | subject or summary, parameter, value, statistic (arithmetic/geometric), set |
-| Analysis set | name, rule, subjects in/out with reasons, which outputs use it |
-| Decision | topic, options, evidence, choice, by whom, when |
-| Data request | code, area, text, linked items, status |
-| Simulation plan row | formulation + condition, observed data, role |
-
-## 7. The agents
-
-| Agent | Job | Tools | Default model (switchable per agent) |
-|---|---|---|---|
-| Reader | Text, OCR and page images; scanned-page detection | PDF/Word/Excel/text readers, OCR, page render | A vision-capable model for scans (Claude); gpt-oss-120b is text-only |
-| Question | Context of use and checklist from the proposal and templates | Template library, document search | Any |
-| Triage | Classify files and pages; link them to checklist items | Document search | Any (fast/cheap) |
-| Extractor | Typed records with citations, per checklist item | Page and table readers, a Python sandbox to parse tables, unit library | Strongest available |
-| Checker | Second pass on mappings (codes, arms, batches); asks the extractor to redo | Same, read-only | A different model from the extractor where possible |
-| Writer | Findings, data-request wording, report text (never numbers) | Evidence base (read-only) | Any |
-
-All numbers are code-checked (§4.3). Prompts and schemas are generic and versioned. Each agent's output is cached per
-document hash, so re-runs are cheap.
-
-## 8. Three models, switched per agent
-
-- **What exists today:**
-  - Per-agent provider choice in the admin console (`platform_settings.AGENT_PROVIDERS`).
-  - The in-house model through LiteLLM (Qwen Coder).
-  - Claude on Amazon Bedrock (Opus, Sonnet, Haiku).
-- **Add:** a **GroqCloud** provider for `openai/gpt-oss-120b`.
-  - It uses Groq's OpenAI-compatible API (`https://api.groq.com/openai/v1`), as in the owner's example.
-  - The key is entered once in the admin console and stored like the other keys, never in code or chat.
-  - Settings: `reasoning_effort` (low, medium, high), temperature, max tokens.
-- **One click per agent:**
-  - Each agent's row in the admin console gets three buttons (Qwen Coder · Claude · gpt-oss-120b) and shows the
-    model in use.
-  - A per-project override is possible later if needed.
-- **Capability check before a switch:**
-  - Tool calling, structured output and vision are marked per model.
-  - An agent that needs vision (scanned pages) warns before being switched to a text-only model.
-- **Same tests for all three.** The evaluation (§9) runs on each model, so the choice per agent is based on scores,
-  cost and speed.
-- **Data protection.** Client files go to whichever provider an agent uses. GroqCloud is a third-party cloud; the
-  owner confirms per client whether that is allowed. The page says which provider each agent sends data to.
-
-## 9. Proof: evaluation on real deliveries
-
-| Case | Source of truth |
-|---|---|
-| Cinacalcet (PBBM, reformulation) | The owner's kick-off report v2, kept outside the repository (client-confidential): its analysis set, geometric-mean Cmax and AUC per arm, Tmax, f2 per medium, solubility table, composition and process-change tables, data requests |
-| Desvenlafaxine (VBE) | The owner's PK-Sim entries for it (to be provided) |
-| Exampleamide / Clientamide | Synthetic: kept only as regression tests, never as proof |
-| 2–3 new deliveries from the owner | The owner's own extraction |
-
-**Scores per case and per model:**
-- found / missed / wrong for each checklist item;
-- exact match of the numbers that go to PK-Sim;
-- invented values (must be 0);
-- valid citations;
-- conflicts found (recall);
-- correct data requests;
-- time and cost per delivery.
-
-A stage is done only when it meets its target on every real case. A target is never lowered to pass.
-
-## 10. What happens to today's code
-
-- **Kept:**
-  - the file store;
-  - the audit chains and signatures;
-  - the CPF and snapshot builder;
-  - NCA, f2 and the Weibull fit (`pbpk_domain.nca`, `pbpk_domain.dissolution`);
-  - the data-plan templates;
-  - the blinding rules;
-  - the agents' provider layer;
-  - the steps after Inputs (plan, runs, acceptance).
-- **Replaced behind a switch:**
-  - the sheet-form reader and the delivery pipeline as the way client data enters the model;
-  - the Inputs page's two-path cards.
-
-  Both stay available until the new flow passes §9 on the real cases. Then the owner decides to retire them.
-- **Locked files and SME rules are not touched** (rulesets, requirement levels, MS-01, CPF schema, builder). If a
-  change is needed there, it goes in its own PR with the owner's approval, as CLAUDE.md requires.
-
-## 11. Phases (each ends with a check the owner can see)
-
-| Phase | Builds | Done when |
+| Area | What it does today | Verdict |
 |---|---|---|
-| P0 | GroqCloud provider and one-click per-agent switch; the evaluation harness; the cinacalcet truth set from the kick-off report | A test call works on all three models; the harness scores a dummy run |
-| P1 | Intake (stage 1) and the question (stage 2) | On cinacalcet: every file inventoried, every scan read, the checklist matches the proposal's data requirements A–D |
-| P2 | Triage and extraction with verification (stages 3–5), clinical and dissolution first, then composition, drug substance and ADME | Cinacalcet numbers match the truth set; zero invented values; each model scored |
-| P3 | Assembly, status, data requests, decision cards (stages 6–8) | The cinacalcet subject flow (dosed per period, completed, statistical set, proposed set, AUC set), its conflicts (batch, reference lot, coating) and data requests reproduced |
-| P4 | Outputs (stage 9): the evidence report in the platform and as a PDF; the PK-Sim inputs through the builder | The report matches slides 7–14 in content; the PK-Sim project builds and runs on the real engine with traced inputs |
-| P5 | Run on the owner's new deliveries; fix what fails; re-score all cases | All real cases at target; then the owner decides on retiring the old paths |
+| Start (proposal reader, agent A1) | Reads the proposal, drafts drug, question, application template | **Keep**; its output seeds the question (§5, stage 2) |
+| Data plan (`requirements/*.yaml`, `requirements:derive`) | The required inputs per application template (core small molecule, VBE, food effect, DDI, FIH, special populations) | **Keep** as the starting checklist (SME-governed, unchanged) |
+| Client files: upload and store | Files stored by hash in the project | **Keep** |
+| Sheet-form reader (`modeler_intake.sheet_form`) | Guesses a spreadsheet's layout with patterns (time, subject and value columns) | **Replace**: it misread real tables (stacked subjects, codes defined in other files) |
+| Delivery pipeline (ledger, mappings, spot check, signed confirmation) | Cell-level ledger of every value, table mapper, prose extractor, per-subject cards, 117-value spot check, Part 11 signature | **Replace as the entry path**. Keep its good parts: anchored values, signature, audit. Its heavy per-cell review and two-path cards go |
+| Inputs page (7 areas, two paths, To do) | Shows both readings side by side, many states | **Replace** with the Data room. The old page stays reachable for existing projects until the switch-over (§11) |
+| Blinding at intake | Hides values of studies marked for validation | **Off at intake** (§1) |
+| Evidence store (`EvidenceItem`), observed datasets (`ObservedDataset`, `StudyRecord`), dissolution register | Where accepted values, profiles and study facts live | **Keep: the Data room publishes into them**, so everything after Inputs keeps working |
+| CPF, snapshot builder, PK-Sim engine, campaign S0–S7, MAP, acceptance, VBE, reports | Model building, running, judging | **Keep, unchanged** |
+| NCA (`pbpk_domain.nca`), f2 and Weibull fit (`pbpk_domain.dissolution`) | Deterministic science functions | **Keep, reused** for the derived numbers |
+| Agents A1–A5, provider layer (LiteLLM in-house, Claude on Bedrock), per-agent console setting | The AI edge | **Keep and extend**: GroqCloud provider, one-click switch, new Data room agents |
+| Audit trail, signatures, auth, locked files | Part 11 | **Keep, unchanged** |
+| Design: blue gradient square logo, blue palette | The visual identity | **Change**: new logo, calmer spacing and the brand palette of the kick-off deck (§10) |
 
-## 12. What I need from the owner
+## 3. What is not in line with the new system, and why
 
-1. **GroqCloud.** An API key, entered in the admin console (not in chat). Also: may client data be sent to Groq, and
-   from which server? The server must be able to reach `api.groq.com`.
-2. **Truth for the real cases:**
-   - the numbers you would enter in PK-Sim for cinacalcet (or the project file once built);
-   - the same for Desvenlafaxine;
-   - for the 2–3 new deliveries, the delivery plus your kick-off report or extraction.
-3. **Vision and OCR.** For scanned pages, may we use Claude (vision) or an OCR engine on the server?
-4. **Decision defaults.** Your usual choices:
-   - population database for Indian subjects;
-   - which dissolution medium you fit Weibull to;
-   - default meal template when the composition is unknown;
-   - analysis-set rules (e.g. exclude subjects with all samples below the LLOQ).
+1. **Readers that guess layouts with patterns.** Real deliveries defeat them: stacked subject blocks, a treatment code
+   explained in another file, units in headers, "." for missing, scanned tables. The new system has the AI *describe*
+   a table (which column is the subject, the period, the treatment, the times) and code reads the numbers.
+2. **Two reading paths for the same files.** Today two different answers have to be reconciled on the page. There will
+   be one path.
+3. **Cell-by-cell review and a random spot check of 117 values.** This is replaced by:
+   - code verification of every value;
+   - cross-checks, e.g. recomputing the client's own Cmax from the individual data;
+   - one confirmation per section.
+4. **No understanding of the question.** Today every file is read the same way. The new flow starts from what the
+   project must answer.
+5. **No place for derived evidence.** Mean profiles, analysis sets, f2, solubility per dose, composition differences and
+   the simulation plan had no home. They become first-class, with their rules shown.
+6. **Silent defaults.** Today "plasma", "oral", "healthy" and "model building" could be filled in when the files never
+   said so. The new rule: every value is read, computed, entered or *missing*. Never defaulted silently.
+7. **Facts in scans and prose were unreachable.** Demographics and the protocol were scanned. Meal times and exclusions
+   were in sentences. The OCR engine and the fact extraction (with verbatim quotes) make them reachable.
 
-   The system then suggests these and records your choice.
-5. **Blinding at intake.** Should values be hidden while data is being checked, or only from model building
-   (MS-01)?
+## 4. What changes, and how the switch happens
 
-## 13. Risks
+- **New code, beside the old.**
+  - A Data room engine in the existing layers (§9).
+  - A new API under `/projects/{id}/dataroom`.
+  - A new Inputs page.
+- **New projects** open the Data room as their Inputs step.
+- **Existing projects** keep the old page, with a link to "Open in the Data room", which reads their stored files again.
+- The Data room **publishes** into the same stores the old path filled: evidence items, observed datasets, study
+  records, dissolution profiles. So Review & sign, Run and reports work unchanged.
+- When the Data room reaches its targets on the real deliveries (§13), the owner decides to retire the old reading paths
+  and their screens. Their code is then removed in one change.
 
-- **Scanned and complex tables.** OCR errors on numbers. Mitigation: numbers from scans are always marked "from a
-  scan" and need confirmation unless a second source agrees.
-- **Model variation.** The same prompt gives different answers across models. Mitigation: code verification, the
-  checker pass, and per-model scores.
-- **Cost and speed of large deliveries** (hundreds of pages). Mitigation: triage first, per-item extraction, a cache
-  per document hash.
-- **Scope creep in the report.** It shows what the question needs, not everything in the files.
+## 5. The flow, as you will use it
+
+Example: a new PBBM project for a reformulated tablet.
+
+**1. Start.** You create the project and attach the proposal (as today). The proposal reader drafts the question.
+
+**2. Drop the client's delivery.** Drag the zip, or many files, onto the Data room. A progress panel shows each stage
+with live counts:
+> Reading 48 files · 12 scanned, reading them · Understanding the question · Sorting files (31 relevant, 17 set
+> aside) · Extracting · Checking every number · Putting it together
+
+You can leave and come back. Each stage is cached, so adding one file later redoes only what it changes.
+
+**3. The question card (you confirm).** The question card shows:
+- what must be answered: "Does the reformulation change in vivo performance relative to the reference product?";
+- for whom: Health Canada;
+- the products compared: reference, original test, reformulated test;
+- the context of use;
+- the checklist of required inputs, from the data-plan templates and tailored to the question.
+
+You can add or remove items, then confirm.
+
+**4. Overview.** One screen:
+- the question;
+- four headline numbers: files read, inputs found, data requests, decisions waiting;
+- the sections with a status dot each;
+- the conflicts that need attention first.
+
+**5. The sections.** Each section has:
+- a one-line finding at the top;
+- one to three cards below: tables (Property · Value · Source · Status), headline numbers and charts;
+- data requests at the bottom;
+- a source chip on every value (e.g. "CSR p. 12"). Clicking it opens the page with the line highlighted.
+
+The sections:
+
+| Section | What you see |
+|---|---|
+| Files | Every file with its type, pages and purpose (Used · Context · Not needed, with the reason); scans marked "read by OCR"; duplicates grouped |
+| Drug substance | MW, salt and dose basis, pKa, logP/logD, solubility vs pH, particle size, solid form, melting point; status per row |
+| ADME and disposition | Absorption, distribution, metabolism, elimination: the label and literature facts with sources; food effect; what must come from elsewhere |
+| Formulation | Composition per product side by side (changed rows highlighted); excipient functions; process changes; the new excipient and its share of the core |
+| Solubility | Solubility per pH or medium (bar chart); the volume needed to dissolve the dose; what that means for release |
+| Dissolution | Every product × batch × medium × pH: mean profile with spread (n units), method (apparatus, speed, volume, temperature); f2 where it applies, with the rule ("> 85 % in 15 min: f2 not needed"); Weibull fit per profile, shown but not chosen |
+| Clinical studies | Per study: design (crossover, periods, washout, single or multiple dose), products and batches per treatment, fasting and meals, co-medication, sampling, bioanalysis (LLOQ), demographics; the subject flow (dosed per period → completed → client's statistical set → proposed modeling set → AUC set) |
+| Observed PK | Mean profile per arm (arithmetic and geometric, ± spread, N per time) with meals marked; exposure metrics (Cmax, AUC, Tmax; geometric means), our recomputation beside the client's; the client's BE result; headline observations (e.g. a second rise after the meal) |
+| Decisions | Every modeling choice waiting for you, each with evidence, options and a suggestion |
+| Data requests | All requests, coded A (formulation and manufacturing), B (in vitro), C (drug substance and disposition), D (clinical); editable wording; export to Word or PDF to send to the client |
+| Simulation plan | Rows of formulation + condition, the observed data each is compared with, and its role (development, calibration, verification, prediction) |
+| PK-Sim inputs | The model inputs per building block (§7), each with value, unit, PK-Sim name, source and status; "Send to the model" publishes them |
+
+**6. Decisions.** A decision card looks like this:
+> **Analysis set for the observed profiles.** Suggested: *33 subjects*, which is the completers minus one subject
+> with every sample below the LLOQ.
+>
+> Other options: the client's statistical set (35), all dosed subjects (48).
+>
+> Evidence: the synopsis (p. 4, exclusion reasons), the concentration table (the subject's rows are all zero).
+> [Choose] [Enter a reason]
+
+**7. Missing or contradictory data.** Each one shows as a data request, e.g. "B-01 Reference product dissolution, same
+method, n = 12". You can also:
+- enter a value yourself, which is recorded as entered by you, with your reason;
+- mark an item "not needed for this question".
+
+**8. Report.** "Export report" produces the evidence report as a PDF: the same pages as the screen, with your logo.
+This is the kick-off report, generated.
+
+**9. Send to the model.** When the required inputs are confirmed, "Send to the model" publishes them, signed. Review &
+sign then starts from them.
+
+## 6. Status words (as in the kick-off report)
+
+| Status | Meaning | Colour |
+|---|---|---|
+| Verified | Two independent sources agree, or our recomputation reproduces the client's number | green |
+| Sponsor data | From the client's own reports or data, one source | amber |
+| Literature | From a publication, label or database | blue-grey |
+| Calculated | Computed by the platform from verified inputs (the rule is shown) | violet |
+| Entered | Entered by a person, with a reason | grey |
+| Conflict | Sources disagree beyond tolerance (both shown) | red |
+| Missing | Needed and not found; a data request exists | red outline |
+
+## 7. The PK-Sim inputs: what the platform produces, and in which format
+
+This is the answer key format. For each project, the platform produces this sheet and builds the PK-Sim project from
+it through the existing CPF and snapshot builder. Every PK-Sim name below comes from the harvested catalog
+(`services/engine-worker/golden/catalog.json`), the reference snapshot or the parameter registry
+(`pbpk_domain/parameters/registry.yaml`).
+
+### 7.1 Compound (CPF parameters)
+
+Each row has: CPF id · PK-Sim name · value · unit · source · status.
+
+- `phys.mw` (Molecular weight), with the salt and free-base basis stated.
+- `phys.pka.base.*` / `phys.pka.acid.*` (pKa and type).
+- `phys.logp` (Lipophilicity).
+- `phys.solubility.ref` + `phys.solubility.ref_ph` (reference solubility and its pH), and the solubility-vs-pH table
+  where PK-Sim takes it.
+- `bind.fu` (Fraction unbound) and `dist.bp_ratio`.
+- `perm.intestinal`.
+- Elimination processes, with their PK-Sim process names (e.g. `MetabolizationSpecific_FirstOrder` for an enzyme,
+  `GlomerularFiltration`).
+
+A value not in the client data is looked up by the existing literature and compound-source agents and marked
+Literature, or it stays Missing with a data request.
+
+### 7.2 Formulations (one per product and batch)
+
+- `Formulation_Tablet_Weibull` with `Dissolution time (50% dissolved)` [min], `Dissolution shape`, `Lag time` [min],
+  fitted to the chosen dissolution profile.
+- Every available profile has its fit shown, and the choice is a decision.
+- `Formulation_Dissolved` for a solution.
+
+The product's composition and batch are attached as context, not as PK-Sim parameters.
+
+### 7.3 Individual and population (per study)
+
+- Population database (from the harvested list, e.g. `Asian_Tanaka_1996`, `European_ICRP_2002`), sex, age, weight and
+  height from the study's demographics (mean, and ranges for a virtual population).
+- The individual carries the study's mean weight and height (as the Demographics model already supports).
+
+### 7.4 Protocol (per treatment)
+
+- Application type (oral; IV with its infusion time), dose (mg, as free base), dosing interval and number of doses.
+- The water taken with the dose (ml per kg).
+
+### 7.5 Events
+
+Meals at their stated times after the dose:
+- the PK-Sim template `Meal: Standard (Human)` unless the composition says otherwise;
+- `Meal: High-fat breakfast (Human)` for an FDA high-fat breakfast.
+
+The template choice is recorded as a decision when the composition is not given.
+
+### 7.6 Observed data (per arm)
+
+One aggregated series per treatment arm in the modeling analysis set:
+- times in h and concentrations in the stated unit;
+- arithmetic mean with SD;
+- the geometric mean as a second series;
+- N at each time.
+
+Individual profiles are kept for virtual-population work. Metadata: `Study Id`, `Grouping`, `Data type`, `N`,
+`Molecule`, `Organ`/`Compartment`, `Route`, `Dose`, `Formulation`, `Food state`.
+
+### 7.7 Evaluation targets (not PK-Sim inputs)
+
+Cmax, AUC0–t, AUC0–inf and Tmax per arm (geometric and arithmetic), the client's BE ratios with 90 % CI, f2 values,
+and partial AUCs where the question needs them. They feed the acceptance and VBE checks.
+
+### 7.8 Simulation plan
+
+Each row: formulation + condition · observed data · role. It is signed with the MAP.
+
+## 8. Rules the platform applies (shown on screen, overridable with a reason)
+
+**Analysis sets (clinical).**
+- *Dosed*: received at least one dose.
+- *Completed*: received every treatment of the design and completed sampling (from the disposition table and text).
+- *Evaluable profile*: at least three quantifiable concentrations after dosing. A profile with every sample below the
+  LLOQ is flagged as a possible non-absorber or dosing error, and becomes a data request.
+- **Modeling set (default):** completed ∩ evaluable in every period.
+- *AUC set*: the modeling set with complete sampling to the last scheduled time in every arm.
+- The client's own sets (e.g. the statistical analysis list) are shown beside these; any difference is explained or
+  becomes a data request.
+
+**Mean profiles.**
+- Computed per arm at nominal times, as arithmetic mean ± SD and geometric mean.
+- Values below the LLOQ before dosing count as 0. After dosing, they count as 0 in the arithmetic mean and are
+  excluded from the geometric mean.
+- N is shown at each time.
+
+**Recomputation.**
+- NCA per subject (linear-up/log-down) is compared with the client's PK file. A difference beyond 1 % is a conflict
+  with both values shown.
+- Cmax and AUC geometric means are recomputed for the sets above.
+
+**Dissolution.**
+- Mean and spread per time from the unit values. The client's average row is checked against it (to rounding).
+- f2 only when both profiles are below 85 % at 15 minutes, using the standard f2 rules.
+- A Weibull fit on every profile. A plateau below 100 % is flagged, because it may need a table formulation.
+
+**Solubility.** The volume needed to dissolve the dose, and the dose fraction that can dissolve in 250 mL and in the
+medium volume, per pH.
+
+**Units.** Converted by the existing unit library. The original as-written value is always kept.
+
+**Meals.** The template is chosen per §7.5. Composition is never assumed silently.
+
+**Population.** The closest harvested database for the study's ethnicity; this is a decision card. Building more
+population templates is in the backlog (§12).
+
+## 9. How the intelligence works (technical)
+
+**Principle:** the AI reads and describes; code extracts, checks and computes; the modeler decides.
+
+| Stage | Where (layer) | What |
+|---|---|---|
+| Inventory | `modeler_intake` (L2, no AI) | Hash, type, page count, duplicates by content; archives unpacked; the text layer per page (pypdfium2); OCR per scanned page with **RapidOCR** (self-hosted ONNX, CPU, pip-installed: no admin rights needed on the server), keeping each word with its position; Word and Excel read natively; delimited text sniffed |
+| Tables | `modeler_intake` | Tables found in spreadsheets, delimited text, and PDF/OCR text, by token positions; each cell gets a stable id (doc · page · table · row · column) |
+| Question and checklist | `modeler_agents` (L4) | Agent reads the proposal, request email and data-plan templates; proposes context of use, products compared and checklist |
+| Triage | `modeler_agents` | Agent classifies each file and page and links it to checklist items, or sets it aside with a reason |
+| Extraction | `modeler_agents` | Per checklist item the agent returns either a **table description** or a **fact with a verbatim quote**. A table description is not numbers: e.g. "rows are subject × treatment; column A = subject, B = sequence, C = treatment, D = period; columns E–W are times in h from the header; '.' = missing; treatment codes defined in file X line Y". Agent tools: list documents, search pages, read page, read table preview, read cells |
+| Verification | `modeler_project` (L3, code) | Code applies each table description and reads every number from the cells. Each quote must be found verbatim in the page text, and the value must occur in it. Units are parsed, and plausibility checked (time order, ranges, sums). A second agent pass (the checker, ideally another model) reviews the mappings: codes, arms, batches. Anything failing is sent back once with the reason, then shown as a problem |
+| Assembly | `modeler_project` (code) | Joins facts across files (one study record, arms, subjects, batches ↔ products ↔ dissolution); applies §8; computes derived numbers with the existing NCA, f2 and Weibull functions |
+| Status, conflicts, data requests | code + Writer agent | Status per value (§6); conflicts by tolerance; data requests drafted (the Writer words them, never writes numbers) |
+| Publishing | `modeler_project` | Confirmed sections become evidence items, study records, observed datasets and dissolution profiles in the existing stores, with source references |
+| API | `modeler_api` (L6) | `/projects/{id}/dataroom/...`: upload, run, status, sections, sources (page image with highlight), decisions, requests, report export, publish. Typed responses (OpenAPI snapshot updated) |
+| Page | `apps/web` (L7) | The Data room (§10) |
+
+**Agents and models (one click per agent in the admin console):**
+
+| Agent | Needs | Suggested default |
+|---|---|---|
+| Question | reasoning | Claude or gpt-oss-120b |
+| Triage | speed, many short calls | gpt-oss-120b (Groq is fast) or Qwen Coder |
+| Extractor | the strongest reading | Claude or gpt-oss-120b; scored on the real cases |
+| Checker | a second opinion | a different model from the Extractor |
+| Writer | clear English | any |
+
+OCR is not an AI model. It is our own engine, so scans never leave the server.
+
+**GroqCloud.**
+- A new provider in the admin console: an API key, the model `openai/gpt-oss-120b`, `reasoning_effort` (low, medium,
+  high).
+- It uses Groq's OpenAI-compatible endpoint `https://api.groq.com/openai/v1` with the platform's existing
+  OpenAI-compatible client.
+- The key is stored encrypted, like the other keys.
+- **One click per agent:** each agent row shows three buttons (Qwen Coder · Claude · gpt-oss-120b). The active one is
+  highlighted, and the change is recorded with who and when.
+
+**Proof built in.**
+- Each run records the model and prompt version per agent.
+- An evaluation command scores a run against an answer key: found, missed, wrong, invented values (must be 0), exact
+  match of PK-Sim inputs, valid citations, time and cost.
+- The cinacalcet answer key lives outside the repository (confidential). The repository's tests use an anonymized
+  fixture with the same structure (stacked crossover table, codes in a side file, scanned demographics, multi-medium
+  dissolution) and recorded model answers, so CI never calls a paid model.
+
+## 10. Design
+
+**Principles.** Only what matters, every number with its source, calm space.
+- One finding per section, large.
+- At most three cards per screen before scrolling.
+- Tables with four columns at most by default; details open on click.
+- No engine words.
+
+**Layout.**
+- A left rail of sections, each with a status dot.
+- A content column up to 1120 px wide.
+- An 8 px spacing grid, with 32 px between cards and 24 px inside them.
+- Type scale 13 / 15 / 20 / 28 px.
+
+**Palette (from the kick-off deck).**
+
+| Role | Colour |
+|---|---|
+| Brand, headings | Deep indigo `#3B1F7A` |
+| Text | Ink `#141A33` |
+| Reference series | Indigo `#4B2A99` |
+| Test, original | Teal `#1A9AA6` |
+| Reformulated | Magenta `#C2307A` |
+| Statuses | Green `#1E7B45` · amber `#9A5B00` · red `#B3261E` |
+
+**Charts.** Plotly, already in the app, with a single shared style: thin lines, dots at the data, events (meals) as a
+dashed rule with a label, and units on the axes.
+
+**Source viewer.** A side drawer with the page image and the line or cell highlighted, the file name and page, and
+"Open file".
+
+**Logo.** The blue square goes. The new mark is a curve rising from a dose point and settling, drawn as a single line
+through small nodes (echoing the kick-off deck's network motif), on a transparent background: no box. Three variants
+were shown to the owner; the chosen one is used in the app and on the exported report.
+
+## 11. Build steps, and what you will see after each
+
+| Step | Builds | You will see |
+|---|---|---|
+| 1 | GroqCloud provider; one-click per-agent switch; new logo and palette tokens | Admin → Agents with three buttons per agent; the new logo |
+| 2 | Inventory and OCR engine; tables from every file type | The Files section: every file with its type, pages, "read by OCR", duplicates |
+| 3 | Question and checklist agent; triage | The question card and checklist; files sorted into Used, Context and Not needed, with reasons |
+| 4 | Extraction and verification (clinical, dissolution, composition, drug substance, ADME) | The sections filled, with source chips and statuses |
+| 5 | Assembly and rules (§8); decisions; data requests; simulation plan | Subject flow, mean profiles, exposure metrics, dissolution charts, f2 and fits, decision cards, data requests |
+| 6 | PK-Sim inputs; publishing into the existing stores; report export | The PK-Sim inputs section; "Send to the model"; the PDF report |
+| 7 | Evaluation on the cinacalcet delivery with each model; fixes until the targets are met | A score table per model |
+| 8 | Records, tests, merge to `main`, deploy instructions | The same on the server after deploy |
+
+Everything is delivered together at the end, as asked. Questions that block a step are asked when they arise.
+
+## 12. Backlog (recorded, not in this build)
+
+- **Population physiology templates** beyond PK-Sim's databases (e.g. Indian adults): anthropometry and organ scaling
+  from literature, validated against published PK; needs the owner's and an SME's review.
+- Slides export of the report (PPTX), in addition to PDF.
+- A client portal for sending data requests and receiving answers.
+- Biorelevant media and precipitation modeling, when a question needs it.
+- Retiring the old reading paths (after §13 is met).
+
+## 13. Targets (when the Data room counts as working)
+
+On every real delivery available:
+- every required input found or listed as missing;
+- zero invented values;
+- the PK-Sim inputs exactly as the modeler would enter them;
+- the client's own reported numbers reproduced where recomputable (e.g. Cmax and AUC geometric means per arm);
+- every source chip opens the right page and line;
+- a full delivery processed in under 20 minutes on the server.
+
+## 14. What the owner does
+
+1. **GroqCloud key**, entered once:
+   - Admin console → Keys → Add → GroqCloud → paste the key → Save → make active.
+   - Then Admin → Agents → click "gpt-oss-120b" on the agents to use it.
+   - The server must be able to reach `api.groq.com` (outbound HTTPS).
+2. **Deploy** after the build: on the Mac, from a checkout of `main`, run `bash deploy/dev/deploy_to_server.sh`. The OCR
+   engine installs with the Python packages; nothing to install by hand.
+3. **Try it** on the cinacalcet delivery: create a project, attach the proposal, drop the zip.
+4. **Tell us** what is wrong or missing. Each correction becomes a test case.
