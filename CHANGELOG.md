@@ -68,7 +68,10 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
   request that cannot fit; the window named in GroqCloud's, vLLM's and a bare 413) and in `test_proposal_intake.py`
   (the passes run after a read that ran out of turns); `e2e/start-intake-words.spec.ts`; A1 on the real proposal,
   on NVIDIA's Nemotron Ultra: 64 fields accepted and 7 refused by code's checks, the passes ran after its 80 turns,
-  and code had nothing left to draft (before: the same 64, then no passes and 9 fields left to code's drafts).
+  and code had nothing left to draft (before: the same 64, then no passes and 9 fields left to code's drafts). In a
+  simulated 8,000-token window (GroqCloud's free tier) it stops its circling read and its passes fill Start: 11
+  fields accepted, 3 left to code, in 3 minutes (without the stop: 9 and 6, in 6 minutes). A small window stays
+  far weaker than a 32k one.
 
 ### Security — Next.js 16.4.2 → 16.4.6 (2026-11-19, the owner's request)
 - **What:** the web app's `next` (and its `@next/*` packages, nothing else in the lockfile) moves from 16.4.2 to 16.4.6.
