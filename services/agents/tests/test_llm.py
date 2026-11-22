@@ -468,3 +468,25 @@ def test_a_loop_going_round_in_circles_stops_so_shorter_steps_can_run():
     tool = Tool("search", "search", {"type": "object", "properties": {"q": {"type": "string"}}}, lambda q: "no matches")
     outcome = run_tool_loop(Circles(), system="s", user="u", tools=[tool], max_turns=80)
     assert outcome.status == "INCOMPLETE" and outcome.turns == 6 and "repeated the same calls" in outcome.error
+
+
+def test_an_agent_that_keeps_reading_is_told_to_submit_two_turns_before_its_last():
+    # A6 on Nemotron read files for all ten of its turns and saved no question card (2026-11-22)
+    seen = []
+
+    class Reader:
+        provider, model = "test", "r"
+
+        def complete(self, messages, tools):
+            seen.append(messages[-1])
+            if messages[-1]["role"] == "user" and messages[-1]["content"].startswith("Two turns are left"):
+                return ChatResult("", (ToolCall(id="s", name="submit_card", arguments={}),), "tool_calls", {}, "r")
+            return ChatResult("", (ToolCall(id=str(len(messages)), name="read", arguments={"n": len(messages)}),),
+                              "tool_calls", {}, "r")
+
+    saved = []
+    tools = [Tool("read", "read", {"type": "object", "properties": {}}, lambda n: f"line {n}"),
+             Tool("submit_card", "submit", {"type": "object", "properties": {}}, lambda: saved.append(1) or "saved")]
+    run_tool_loop(Reader(), system="s", user="u", tools=tools, max_turns=10)
+    assert saved == [1]
+    assert sum(1 for m in seen if m["role"] == "user" and "Two turns are left. Call submit_card now" in m["content"]) == 1

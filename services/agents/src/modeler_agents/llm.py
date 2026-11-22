@@ -477,7 +477,16 @@ def run_tool_loop(model: ChatModel, *, system: str, user: str, tools: list[Tool]
     share = FIT_SHARE
     made: dict[str, tuple[list[int], str]] = {}   # each call (name and arguments) -> its turns and its last answer
     repeating = 0                      # turns in a row whose every call was made before with the same answer
+    # an agent that answers through one submit tool (`submit_…`) is told, two turns before its last, to submit what it
+    # has: one that kept reading lost everything it found (A6 on Nemotron read files for all ten turns, 2026-11-22)
+    submits = [t.name for t in tools if t.name.startswith("submit_")]
+    finish = submits[0] if len(submits) == 1 else None
+    submitted = False
     for turn in range(1, max_turns + 1):
+        if finish and not submitted and max_turns >= 4 and turn == max_turns - 1:
+            messages.append({"role": "user", "content": (
+                f"Two turns are left. Call {finish} now with what you have found; leave out what you have not found.")})
+            log_step({"type": "finish_reminder", "turn": turn, "tool": finish})
         if window is not None:
             messages = _fitted(messages, schemas, window, share)
         try:
@@ -523,6 +532,7 @@ def run_tool_loop(model: ChatModel, *, system: str, user: str, tools: list[Tool]
         messages.append(turn_message)
         repeated = 0
         for call in result.tool_calls:
+            submitted = submitted or call.name == finish
             tool = by_name.get(call.name)
             if tool is None:
                 answer = f"ERROR: unknown tool {call.name!r}; available: {', '.join(by_name)}"

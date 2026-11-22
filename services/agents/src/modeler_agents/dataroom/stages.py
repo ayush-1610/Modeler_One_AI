@@ -238,7 +238,7 @@ def question(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, 
     tools = _doc_tools(docs) + [_submit_tool("submit_question", QuestionCard, check, saved,
                                              "Submit the question card (with the quotes it rests on).")]
     step(0, 1, "reading the proposal and the request")
-    outcome = run_tool_loop(model, system=QUESTION_SYSTEM, tools=tools, max_turns=10, user=(
+    outcome = run_tool_loop(model, system=QUESTION_SYSTEM, tools=tools, max_turns=14, user=(
         f"The delivery's files:\n{listing}\n\nThe pages most likely to state the question:\n{material}\n\n"
         "Write the question card (each quote with its file)."))
     if not saved and _too_large(outcome.error):

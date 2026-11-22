@@ -15,6 +15,14 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Fixed — an agent that kept reading lost its work at its last turn (2026-11-22, found scoring the Data room on NVIDIA)
+- **What:** the Data room's question agent (A6) on Nemotron Ultra read files one per turn for all ten of its turns and
+  saved no question card ("no question card (INCOMPLETE: stopped after 10 turns)").
+- **Fix:** `run_tool_loop` tells an agent that answers through one submit tool (`submit_…`), two turns before its
+  last, to submit what it has found and leave out the rest; A6 gets 14 turns instead of 10.
+- **Impact:** every Data room agent (A6 question, A7 triage, A8 extract, A9 check, A10 write) now saves an answer
+  when its turns run short, checked by code as before. Test: `test_llm.py`.
+
 ### Added — NVIDIA's API catalog as a one-click model (2026-11-22, the owner's request: a free cloud model)
 - **What:** a fourth one-click choice on every agent's row in Admin → Agents, **Nemotron Ultra**
   (`nvidia/nemotron-3-ultra-550b-a55b` on `https://integrate.api.nvidia.com/v1`). Its key goes under Admin → Keys →
