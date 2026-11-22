@@ -624,3 +624,22 @@ def test_the_agents_note_never_decides_bound_or_unbound(room):
                                 question_confirmed=True, extractions=[*extractions, Extraction(file="D/label.md", facts=facts)]))
     fu = next(r for r in room_view.inputs if r.name == "bind.fu")
     assert fu.value == 0.03 and fu.note == "from 97 % bound"
+
+
+def test_a_data_row_is_no_statement_a_dose_is_a_mass_and_a_counted_list_gives_its_subjects():
+    # the sample delivery on Nemotron: subject 12 "excluded" and "48 dosed" quoted from concentration rows, a dose of 1
+    # from "single oral dose of 1 tablet", and "14 (01, 02, 06 …)" read as the tokens "14 (01" and "46)"
+    text = ("12\tAB\t1\tA\t0\t0\t.\t.\n\nsingle oral dose of 1 tablet of cinacalcet 90 mg.\n"
+            "No. Of subjects withdrawn/dropout: 14 (01, 02, 06, 10, 15, 27, 29, 33, 36, 37, 39, 41, 45 and 46)\n")
+    doc = parse_document(text.encode(), "s.md")
+
+    def check(field, value, quote, unit=""):
+        return check_fact(Fact(field=field, value=value, unit=unit, quote=quote), doc, file="s.md", sha256=doc.file_sha256)
+
+    row = check("study.excluded_subjects", "12", "12 | AB | 1 | A | 0 | 0 | . | .")
+    assert not row.ok and "a line of a data table" in row.problem
+    count = check("study.dose", "1 tablet", "single oral dose of 1 tablet")
+    assert not count.ok and "is a mass" in count.problem
+    assert check("study.dose", "90", "1 tablet of cinacalcet 90 mg", unit="mg").ok
+    assert subjects_in("14 (01, 02, 06, 10, 15, 27, 29, 33, 36, 37, 39, 41, 45 and 46)") == [
+        "1", "2", "6", "10", "15", "27", "29", "33", "36", "37", "39", "41", "45", "46"]

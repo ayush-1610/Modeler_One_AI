@@ -56,6 +56,9 @@ def subjects_in(text: str) -> list[str]:
     20; "S06, S09"; "101-001, 101-005" (site-subject ids, not a range); "34, 35 38" (a missing comma). A fact's value
     holds the subjects only; its reason is its note."""
     out: list[str] = []
+    # "14 (01, 02, 06 …)": a count, then the subjects in brackets (the count is not a subject)
+    counted = re.fullmatch(r"\s*\d+\s*\((.+)\)\s*\.?\s*", text, re.DOTALL)
+    text = (counted.group(1) if counted else text).replace("(", " ").replace(")", " ")
     for token in re.split(r"[,;&]|\band\b", text):
         token = token.strip()
         if not token:

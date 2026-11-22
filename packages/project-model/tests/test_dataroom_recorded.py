@@ -8,8 +8,9 @@ checks every quote, as in a run. The room they give is compared with the room fr
 the numbers a model reaches through code must be the same, and what the model missed must be said, not hidden.
 
 Replaying them found four faults, each fixed in code and tested in `test_dataroom.py`: "BLQ" listed both as a missing
-sample and below the LLOQ, treatment codes "meaning" themselves with a product claimed from a data row, a method's
-conditions typed by the agent, and the agent's note deciding bound or unbound (fu 0.97 instead of 0.03).
+sample and below the LLOQ, treatment codes "meaning" themselves with a product claimed from a data row (a data row is
+no statement: such a quote is refused), a method's conditions typed by the agent, and the agent's note deciding bound
+or unbound (fu 0.97 instead of 0.03).
 """
 
 from __future__ import annotations
@@ -85,7 +86,10 @@ def test_what_the_model_missed_or_got_wrong_is_said_not_hidden(rooms):
     # its own descriptions, refused with the reason: BLQ listed as missing too, and codes "meaning" themselves
     assert "TOKEN_BOTH_MISSING_AND_BLQ" in codes
     refused = [p.message for p in got.problems if p.code == "FACT_REFUSED"]
-    assert len(refused) == 4 and all("must say what the code is" in m for m in refused)
+    # every refusal is a quote of a table's line (per-subject demographics, mean rows, codes "meaning" themselves): the
+    # tables' descriptions give those values, and the comparisons above show nothing was lost
+    assert refused and all("a line of a data table" in m for m in refused)
+    assert sum(m.startswith("a treatment code") for m in refused) == 4
     # it did not link the batches to their products: each release is the batch's, and the send says so
     assert {r.owner for r in got.inputs if r.block == "formulation"} == {"LOT-R", "LOT-T", "LOT-X"}
     assert not got.f2                                       # with no products, no test is compared with its reference

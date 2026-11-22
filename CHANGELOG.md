@@ -15,6 +15,29 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Fixed — a data row quoted as a statement, a dose with no mass, a counted subject list; the agents scored on the sample delivery (2026-11-22)
+- **How it was found:** Nemotron Ultra ran on the owner's cinacalcet delivery (key files, hand-written question card).
+  The room was scored against the hand-written answers (kept outside the repository): 28 of 34 at first.
+- **Fixed (tests in `test_dataroom.py`):**
+  - **A quote that is a line of a data table is refused.** The quote had five cells or more, mostly numbers or blanks.
+    The agent "excluded" subject 12 by quoting its concentration row, so the completers were 33, not the client's 34.
+    It "counted" 48 dosed from subject 48's row, and the client's statistical set came out 31 instead of 35. A table's
+    values come from its description; a fact quotes what a document states. On the synthetic delivery this refuses
+    the agent's per-subject demographic and mean-row facts too, with no value lost (`test_dataroom_recorded.py`).
+  - **A dose or strength must be a mass.** "single oral dose of 1 tablet" gave a dose of 1 beside "1 x 90 mg", a
+    conflict that held the send back.
+  - **"14 (01, 02, 06 …)" gives its subjects.** The count before the brackets is no subject, and brackets do not stick
+    to the numbers.
+- **Score now (Nemotron Ultra, cinacalcet, 8 of 9 key files):** 31 of 34 values match the hand-written answers:
+  - every subject set, every exposure (Cmax, AUC0–t, AUC0–∞, Tmax for both arms), the arms, the dose, water, LLOQ,
+    ethnicity, the demographics and the six solubilities;
+  - the remaining three are the sex written "Male" for "male" (the same decision), and the dissolution report, which
+    NVIDIA's service failed five times (HTTP 502).
+  - The question card on its own (A6, 14 turns with the submit reminder) named the question and the three products
+    with the right roles.
+- **Impact:** facts an agent drew from data rows no longer change subject sets or counts; doses are masses. Rules file
+  unchanged.
+
 ### Fixed — four ways a model's answers reached the Data room's numbers wrongly; real model answers replayed in CI (2026-11-22)
 - **How it was found:** every Data room agent ran on the synthetic Exampleamide delivery with Nemotron Ultra (NVIDIA's API
   catalog). Its answers, replayed through code, were compared with the room from the hand-written answers: 43 of 58

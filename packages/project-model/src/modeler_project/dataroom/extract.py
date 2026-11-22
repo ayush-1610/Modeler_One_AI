@@ -191,12 +191,32 @@ def _treatment_code_problem(fact: Fact) -> str:
     return ""
 
 
+_DATA_CELL = re.compile(r"^(?:[<>≤≥]?\s*[-+]?\d[\d.,]*\s*%?|\.|-|—|na|n/a|nd|ns|blq|bql|)$", re.IGNORECASE)
+_MASS = re.compile(r"(?<![a-z])(mg|g|µg|μg|ug|mcg|ng)(?![a-z])", re.IGNORECASE)
+
+
+def _data_row(quote: str) -> bool:
+    """A quote that is a line of a data table (five cells or more, most of them numbers or blanks), not a statement:
+    an agent quoted a subject's concentration row to say the subject was excluded (2026-11-22)."""
+    cells = [c.strip() for c in quote.split("|")]
+    return len(cells) >= 5 and sum(bool(_DATA_CELL.match(c)) for c in cells) >= 0.6 * len(cells)
+
+
 def check_fact(fact: Fact, doc: SourceDocument, *, file: str, sha256: str) -> CheckedFact:
     """The fact with its place, when its quote is in the file and its value in the quote; refused otherwise."""
     if not fact.value.strip():
         return CheckedFact(fact=fact, ok=False, problem="the fact has no value")
+    if _data_row(fact.quote):
+        return CheckedFact(fact=fact, ok=False, problem=(
+            "the quote is a line of a data table: a table's values are read from its description (describe the table), "
+            "and a fact quotes what a document states"))
     if fact.field == "study.treatment_code" and (why := _treatment_code_problem(fact)):
         return CheckedFact(fact=fact, ok=False, problem=why)
+    if fact.field in ("study.dose", "product.strength") and not _MASS.search(f"{fact.value} {fact.unit}"):
+        # "single oral dose of 1 tablet" gave a dose of 1 beside "1 x 90 mg" (Nemotron on the sample delivery)
+        return CheckedFact(fact=fact, ok=False, problem=(
+            "a dose or strength is a mass (mg): a count of tablets alone is not one; give it with the strength, e.g. "
+            "1 x 90 mg"))
     found = find_quote(doc, fact.quote)
     if found is None:
         return CheckedFact(fact=fact, ok=False, problem=f"the quote is not in {file}")
