@@ -201,7 +201,7 @@ D clinical: per study the design, dose, products and batches per treatment, fast
 Each checklist item gets topics from: """ + ", ".join(TOPICS) + "."
 
 
-def question(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, step: Step) -> str:
+def question(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, step: Step, only: set[str] | None = None) -> str:
     card, confirmed = store.question()
     if card is not None and (confirmed or not redo):
         return "the question card is already there" + (" and confirmed" if confirmed else "")
@@ -251,8 +251,8 @@ declarations, a duplicate printout), with one plain sentence why. topics from: "
 study (its number) and the products the file is about, as written."""
 
 
-def triage(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, step: Step) -> str:
-    docs = _used_files(store)
+def triage(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, step: Step, only: set[str] | None = None) -> str:
+    docs = {p: v for p, v in _used_files(store).items() if only is None or p in only}
     todo = [(p, f, d) for p, (f, d) in docs.items() if redo or store.triage(f.sha256) is None]
     card, _confirmed = store.question()
     context = f"The question: {card.question}\n" if card else ""
@@ -307,8 +307,8 @@ def _extraction_problems(answer: Extraction, path: str, f: FileView, doc: Source
     return problems
 
 
-def extract(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, step: Step) -> str:
-    docs = _used_files(store)
+def extract(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, step: Step, only: set[str] | None = None) -> str:
+    docs = {p: v for p, v in _used_files(store).items() if only is None or p in only}
     card, _confirmed = store.question()
     checklist = "\n".join(f"- {c.id} [{c.area}] {c.label} (topics: {', '.join(c.topics)})" for c in (card.checklist if card else ()))
     products = "\n".join(f"- {p.name} ({p.role})" for p in (card.products if card else ()))
@@ -366,8 +366,8 @@ class _Review(BaseModel):
     tables: list[dict[str, Any]]
 
 
-def check(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, step: Step) -> str:
-    docs = _used_files(store)
+def check(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, step: Step, only: set[str] | None = None) -> str:
+    docs = {p: v for p, v in _used_files(store).items() if only is None or p in only}
     todo = [(p, f, d, got[0]) for p, (f, d) in docs.items() if (got := store.extraction(f.sha256)) and got[0].tables]
     issues = 0
     for done, (path, f, doc, ext) in enumerate(todo, start=1):
@@ -409,7 +409,7 @@ def _numbers_ok(text: str, allowed: str) -> bool:
     return all(n in allowed for n in re.findall(r"\d+(?:\.\d+)?", text))
 
 
-def write(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, step: Step) -> str:
+def write(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, step: Step, only: set[str] | None = None) -> str:
     view = room_view(store)
     material = json.dumps({
         "sections": [s.model_dump() for s in view.sections],
