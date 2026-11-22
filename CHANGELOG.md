@@ -243,6 +243,10 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
   in `llm.py`, `platform_settings`, the key test lists its models). The owner can use a free or cheaper service
   (Cerebras, NVIDIA's API catalog, OpenRouter …) without a code change; the owner could not upgrade GroqCloud
   (2026-11-22). Guide: `docs/USING_THE_TOOL.md` §6a. Tests: `test_llm.py` and `test_admin_platform.py`.
+- **Fixed: "Open in the Data room" on the earlier Inputs page is one quiet line (13 px) under the step bar.** As a
+  15 px paragraph with a 16 px margin, it pushed that page's area bar 5.5 px below the slim head the Inputs frame e2e
+  holds it to (340 px). The full e2e suite: 162 passed, 1 failed (this), and after the fix that spec and the Data room
+  specs passed (5 of 5).
 - **Known gap:** the agents are not yet scored on the real delivery; that is the next step. The report export follows.
 
 ### Added — the Data room's reader: every file of a real delivery read, scans included (plan 2026-11-21 v2 §9, build step 1)

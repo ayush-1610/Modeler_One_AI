@@ -7,7 +7,7 @@
 .dr .muted { color: var(--ink-quiet); }
 .dr .tnum { font-variant-numeric: tabular-nums; }
 .dr-small { font-size: 13px; }
-.dr-entry { margin: 16px 0 0; font-size: 15px; }
+.dr-entry { margin: 4px 0 0; font-size: 13px; line-height: 18px; }   /* one quiet line under the step bar: the Inputs page's area bar stays high */
 
 /* --- the way in ------------------------------------------------------------------------------------------------------ */
 .dr-intake { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px; align-items: stretch; }
