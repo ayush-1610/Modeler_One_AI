@@ -54,6 +54,7 @@ SYNOPSIS = (
     "Subjects withdrawn: 4 (adverse event in period 2).",
     "Plasma was assayed by LC-MS/MS; LLOQ 0.5 ng/mL.",
     "Exampleamide: molecular weight 412.5 g/mol (free base); pKa 8.9 (basic).",
+    "Dissolution: USP 2 paddle at 50 rpm in 900 mL of pH 6.8 phosphate buffer and of pH 1.2 HCl.",
 )
 
 

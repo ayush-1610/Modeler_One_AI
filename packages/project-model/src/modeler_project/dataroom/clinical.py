@@ -122,9 +122,11 @@ def samples_from(table: ReadTable) -> tuple[list[Sample], list[Problem], str]:
             text = cell.text.strip()
             low = text.lower()
             number = parse_number(text)
-            is_missing = not text or low in missing
-            is_blq = not is_missing and (low in blq or low.startswith("<") or "blq" in low or "bql" in low
-                                         or (desc.zero_means_blq and number == 0))
+            # below the LLOQ is a measurement: a BLQ marker counts as one even when the description also lists it as a
+            # missing sample (that description is refused with TOKEN_BOTH_MISSING_AND_BLQ)
+            marked_blq = bool(text) and (low.startswith("<") or "blq" in low or "bql" in low or "bloq" in low)
+            is_missing = not marked_blq and (not text or low in missing)
+            is_blq = not is_missing and (marked_blq or low in blq or (desc.zero_means_blq and number == 0))
             if not is_missing and not is_blq and number is None:
                 problems.append(Problem(code="UNREADABLE_VALUE", message=f"line {row.line}: {text!r} is not a concentration",
                                         where=cell.chip))
@@ -390,7 +392,7 @@ def study_view(study_id: str, *, concentrations: Sequence[ReadTable], pk_tables:
     for f in _facts(facts, "study.n_dosed"):
         if f.number is None:
             continue
-        period = _period_named(f"{f.fact.subject} {f.fact.note} {f.fact.quote}", periods)
+        period = _period_named(f"{f.fact.subject} {f.fact.quote}", periods)     # not the agent's note
         ours = next((x for x in sets if x.name == f"dosed:{period}"), None) if period else sets[0]
         if ours is not None and int(f.number) != len(ours.subjects):
             problems.append(Problem(code="DOSED_DIFFERS", where=f.chip, message=(

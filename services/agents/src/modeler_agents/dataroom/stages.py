@@ -24,7 +24,7 @@ from modeler_project.dataroom.extract import check_fact, read_table
 from modeler_project.dataroom.model import FileView
 from modeler_project.dataroom.store import DataRoomStore
 
-PROMPT_VERSION = "dataroom-1"
+PROMPT_VERSION = "dataroom-2"
 MAX_LINES = 120          # lines one read returns
 PREVIEW_LINES = 40       # lines of each of the first parts the triage agent sees
 
@@ -311,13 +311,16 @@ Your job (A8): for one file, find every input the checklist asks for and answer 
    side-by-side blocks (a batch, a product) get "group" as written. One description per page a table covers. Roles:
 {roles}
    Concentrations: each value cell gets role "value" and its time; give the time unit and the concentration unit as
-   written; zero_means_blq when the file writes values below the LLOQ as 0. A table's shared values (medium, pH,
-   volume, rpm, apparatus, study) go in constants, and each is also a fact.
+   written; zero_means_blq when the file writes values below the LLOQ as 0. A marker is either below the LLOQ (BLQ,
+   <LLOQ) or a missing sample (".", NS), never both. A table's shared values (medium, pH, volume, rpm, apparatus,
+   study) go in constants only as a file writes them, and each is also a fact.
 2. facts, each with its verbatim quote. Fields (a new dotted name only when none fits):
 {fields}
    subject: what the fact is about (a study number, a treatment code, a batch). product: the question card's product
-   name when the fact concerns one. One fact per treatment code (subject = the code). Subject lists (completed,
-   excluded) hold the numbers only; the reason goes in note.
+   name when the fact concerns one. One fact per treatment code (subject = the code; value = what the documents say
+   it is, e.g. "Refamide 100 mg (reference product)"). Each batch or lot a file links to a product is a fact
+   product.batch (value = the batch, product = the product). Subject lists (completed, excluded) hold the numbers
+   only; the reason goes in note.
 3. not_found: the checklist ids you looked for here and did not find."""
 
 

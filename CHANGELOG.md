@@ -15,6 +15,41 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Fixed — four ways a model's answers reached the Data room's numbers wrongly; real model answers replayed in CI (2026-11-22)
+- **How it was found:** every Data room agent ran on the synthetic Exampleamide delivery with Nemotron Ultra (NVIDIA's API
+  catalog). Its answers, replayed through code, were compared with the room from the hand-written answers: 43 of 58
+  values matched at first.
+- **Fixed in code (each tested in `test_dataroom.py`):**
+  1. **"BLQ" listed both as a missing sample and below the LLOQ.** Every BLQ value became a missing sample, so subject 3
+     was "not dosed" in period 2 and the AUC set shrank from 5 to 3, with AUC geometric means 16–20 % off.
+     - Such a description is refused (`TOKEN_BOTH_MISSING_AND_BLQ`) and sent back to the agent.
+     - A BLQ marker always counts as below the LLOQ (a measurement), never as a missing sample.
+  2. **Treatment codes that "meant" themselves.** The agent quoted a data row for code A and claimed a product for it.
+     It also gave the synopsis's "A = …; B = …" sentence under the study's number. Reference and test came out
+     swapped, and the study's number became a third arm.
+     - A code's value must say what the code is, and must not be a table line.
+     - A product claimed for a code must be named, or its role, in the quote.
+     - A sentence defining several codes gives each code, whatever its subject.
+  3. **A method's conditions typed by the agent.** A dissolution table's `constants` (apparatus, speed, volume, medium,
+     temperature, pH) fed f2's same-conditions test and the report unchecked: "50 rpm" and "900 mL" were stated in no
+     file. Each is now kept only when the delivery writes it: in a file, in the table's file name, or in a checked
+     quote (a number with its unit: "50 rpm", "pH 6.8"). Any other is left out with `CONSTANT_NOT_IN_FILES`.
+     - The synthetic synopsis now states its dissolution method.
+  4. **The agent's note deciding bound or unbound.** The note "fraction unbound = 3%" beside the quote "Plasma protein
+     binding: 97 %" made fu 0.97 instead of 0.03, a 32-fold error in the PK-Sim input.
+     - Bound or unbound, a pKa's acid or base type, the period a dosed count refers to, and a solubility medium's pH are
+       now read from the file's words, never from the agent's note.
+- **After the fixes:**
+  - The sets, every exposure, the arms, the dissolution means, the solubility, the compound inputs (fu 0.03) and the
+    Weibull fits all equal the hand-written answers'.
+  - What the model missed is said: its refused descriptions, and no batch linked to a product, so each release is a
+    batch's and no f2 is computed.
+  - The extractor's prompt (`dataroom-2`) now asks for the BLQ rule, a code's meaning and batch facts.
+- **The fixture:** `packages/project-model/tests/fixtures/dataroom/exampleamide-recorded.json` (made-up data only).
+  `test_dataroom_recorded.py` replays it through code's checks, with no model call in CI.
+- **Impact:** a run whose agent made these slips now has them refused with the reason, or left out and said, instead of
+  wrong numbers. The rules file (`dataroom_rules.yaml`) is unchanged.
+
 ### Fixed — an agent that kept reading lost its work at its last turn (2026-11-22, found scoring the Data room on NVIDIA)
 - **What:** the Data room's question agent (A6) on Nemotron Ultra read files one per turn for all ten of its turns and
   saved no question card ("no question card (INCOMPLETE: stopped after 10 turns)").

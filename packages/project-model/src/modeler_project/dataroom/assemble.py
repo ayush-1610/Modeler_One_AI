@@ -8,9 +8,10 @@ from __future__ import annotations
 import re
 import statistics
 from collections import defaultdict
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from typing import Any
 
+from modeler_intake.room import document_text, unmarked
 from modeler_intake.room_specs import Extraction, QuestionCard
 from modeler_intake.source_model import SourceDocument
 from modeler_project.dataroom.clinical import study_view, subject_id
@@ -265,15 +266,64 @@ def _arms(facts: Sequence[CheckedFact], question: QuestionCard | None) -> list[A
     for p in (question.products if question else ()):
         by_role[p.role].append(p.name)
     for f in facts:
-        pairs = [(f.fact.subject.strip(), f.fact.value.strip())] if f.fact.subject.strip() else _code_pairs(f.fact.value)
+        # a sentence defining several codes ("A = reference; B = test") stands for each, whatever its subject (an agent
+        # gave the study's number as the subject of such a sentence, 2026-11-22, and the study became a code)
+        defined = _code_pairs(f.fact.value)
+        single = bool(f.fact.subject.strip()) and len(defined) < 2
+        pairs = [(f.fact.subject.strip(), f.fact.value.strip())] if single else defined
         for code, meaning in pairs:
-            product = f.fact.product if f.fact.subject.strip() else ""
+            product = f.fact.product if single else ""
             if not product:
                 role = next((r for r in ("reference", "reformulated", "test") if r in meaning.lower()), "")
                 product = by_role[role][0] if role and len(by_role[role]) == 1 else ""
             role = next((p.role for p in (question.products if question else ()) if p.name == product), "")
             out.setdefault(code, Arm(treatment=code, meaning=meaning, product=product, role=role, source=f.chip))
     return sorted(out.values(), key=lambda a: a.treatment)
+
+
+#: a table's constants that are numbers of science (a method's conditions): kept only when the delivery says them
+SAID_CONSTANTS = ("medium", "apparatus", "rpm", "speed", "volume", "temperature", "ph")
+_CONSTANT_UNITS = {"rpm": ("rpm", "r/min"), "speed": ("rpm", "r/min"), "volume": ("ml", "l"), "temperature": ("°c", "c")}
+
+
+def _said_constants(tables: Sequence[ReadTable], docs: Iterable[SourceDocument], quotes: Sequence[str]
+                    ) -> tuple[list[ReadTable], list[Problem]]:
+    """Each table's method conditions as the delivery says them: a constant is kept when its words are written in a
+    file, in the table's file name or in a checked quote, and a bare number with its unit ("50 rpm", "pH 6.8"); one
+    no file says is left out and said. The agent names the conditions; it may not type them (2026-11-22: "50 rpm" and
+    "900 mL" reached f2 from a table's constants that no file stated)."""
+    wanted = [t for t in tables if any(k.lower() in SAID_CONSTANTS for k in t.description.constants)]
+    if not wanted:
+        return list(tables), []
+    said = [unmarked(" ".join(ln for _part, lines in document_text(d) for ln in lines)) for d in docs]
+    said += [unmarked(q) for q in quotes]
+    out, problems = [], []
+    for table in tables:
+        desc = table.description
+        kept, dropped = {}, []
+        for key, value in desc.constants.items():
+            k, v = key.lower(), unmarked(value)
+            if k not in SAID_CONSTANTS or not v:
+                kept[key] = value
+                continue
+            if re.search(r"[a-z]", v):
+                phrases = [v]
+            elif k == "ph":
+                phrases = [f"ph {v}", f"ph{v}"]
+            else:
+                phrases = [f"{v} {u}" for u in _CONSTANT_UNITS.get(k, ())] + [f"{v}{u}" for u in _CONSTANT_UNITS.get(k, ())]
+            pattern = "|".join(rf"(?<![\w.]){re.escape(ph)}(?![\w])" for ph in phrases)
+            if pattern and any(re.search(pattern, text) for text in [*said, unmarked(desc.file)]):
+                kept[key] = value
+            else:
+                dropped.append(f"{key} {value!r}")
+        if dropped:
+            problems.append(Problem(code="CONSTANT_NOT_IN_FILES", message=(
+                f"the table on {desc.part} of {desc.file}: {', '.join(dropped)} is written in no file of the delivery, so "
+                "it is left out (the agent names a condition; a file must state it)")))
+            table = table.model_copy(update={"description": desc.model_copy(update={"constants": kept})})
+        out.append(table)
+    return out, problems
 
 
 def _decision(decisions: Mapping[str, Mapping[str, str]], d: RoomDecision) -> RoomDecision:
@@ -321,6 +371,8 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
                 facts.append(CheckedFact(fact=fact, ok=False, problem=f"{path}: no read document"))
                 continue
             facts.append(check_fact(fact.model_copy(update={"file": path}), doc, file=path, sha256=file.sha256))
+    tables, found = _said_constants(tables, inputs.docs.values(), [f.fact.quote for f in facts if f.ok])
+    problems += found
     for f in facts:
         if not f.ok:
             problems.append(Problem(code="FACT_REFUSED", message=f"{_field_label(f.fact.field)} “{f.fact.value}” ({f.fact.file}): "
@@ -505,7 +557,8 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
     with_ref = {(d.ph, _norm(d.medium)) for d in diss if roles.get(d.product) == "reference"}
     for ph, medium in sorted(tested - with_ref, key=lambda x: (x[0] or 0, x[1])):
         if roles and any(r == "reference" for r in roles.values()):
-            request("B", f"Reference product dissolution in {written.get((ph, medium)) or f'pH {ph:g}'}",
+            where = written.get((ph, medium)) or (f"pH {ph:g}" if ph is not None else "the medium the test product was run in")
+            request("B", f"Reference product dissolution in {where}",
                     "the test product was tested in this medium and the reference was not: no comparison is possible")
     for key, label, field, _unit in COMPOUND:
         word = label.split(" (")[0].lower()
@@ -551,7 +604,9 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
         if not isinstance(value, float):
             value, status, note = None, "missing", f"not one number as written ({got.as_written!r}): enter the value"
         elif key == "bind.fu":
-            quote = " ".join([got.as_written, got.note] + [c.text for c in got.sources])
+            # bound or unbound by the file's own words only: the agent's note once said "fraction unbound = 3%" beside
+            # "Plasma protein binding: 97 %", and fu came out 0.97 instead of 0.03 (Nemotron, 2026-11-22)
+            quote = " ".join([got.as_written] + [c.text for c in got.sources])
             value, note = fraction_unbound(value, got.unit, quote)
             row_unit = ""
             if value is None:
@@ -725,7 +780,7 @@ def _pka_rows(facts: Sequence[CheckedFact], substance: Sequence[Value]) -> list[
     seen: dict[str, int] = defaultdict(int)
     conflict = any(v.key.startswith("substance.pka") and v.status == "conflict" for v in substance)
     for f in facts:
-        kind = pka_type(f"{f.fact.value} {f.fact.note} {f.fact.quote} {f.fact.subject}")
+        kind = pka_type(f"{f.fact.value} {f.fact.quote}")      # the file's words, never the agent's note
         value = number_of(f.fact.value, f.fact.unit)
         chip = (f.chip,) if f.chip else ()
         if value is None or kind is None:

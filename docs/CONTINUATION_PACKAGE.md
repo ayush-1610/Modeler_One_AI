@@ -278,7 +278,9 @@ repository):
      (Cerebras, NVIDIA's API catalog).
 2. Fixed: 15 findings of an independent review of the science (CHANGELOG, both parts).
 3. Merge `dataroom-api-web`, run the whole suite, merge to `main`, deploy.
-4. The anonymized CI fixture with recorded model answers (a scripted-model run exists: `test_dataroom_run.py`).
+4. Done 2026-11-22: real model answers on the synthetic delivery, replayed in CI (`test_dataroom_recorded.py`). Replaying
+   them found four faults, all fixed: BLQ read as missing, treatment codes swapped, unquoted method conditions, and
+   fu decided by the agent's note.
 5. SME sign-off of `dataroom_rules.yaml`.
 6. Population templates beyond PK-Sim's (Indian adults; plan §12).
 

@@ -279,10 +279,10 @@ def solubility_from_facts(facts: Sequence[CheckedFact], *, dose_mg: float | None
         if f.number is None:
             continue
         mg_ml = _mg_per_ml(f.number, f.fact.unit) if f.fact.unit else None
-        text = f"{f.fact.subject} {f.fact.note} {f.fact.value} {f.fact.quote}"
+        text = f"{f.fact.subject} {f.fact.value} {f.fact.quote}"      # the medium's pH: not from the agent's note
         need = round(dose_mg / mg_ml, 2) if dose_mg and mg_ml else None
         out.append(SolubilityRow(
-            medium=(f.fact.subject or f.fact.note or "as stated").strip(), ph=_ph_of(text), solubility_mg_ml=mg_ml,
+            medium=(f.fact.subject or "as stated").strip(), ph=_ph_of(text), solubility_mg_ml=mg_ml,
             as_written=f"{f.fact.value} {f.fact.unit}".strip(), volume_for_dose_ml=need,
             fraction_in_glass=round(min(1.0, mg_ml * glass / dose_mg), 4) if need else None,
             fraction_in_medium=round(min(1.0, mg_ml * medium_volume_ml / dose_mg), 4) if need and medium_volume_ml else None,

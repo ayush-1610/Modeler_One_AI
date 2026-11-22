@@ -543,3 +543,84 @@ def test_sources_that_disagree_block_sending_until_a_person_chooses(room):
     mw = next(r for r in view.inputs if r.name == "phys.mw")
     assert mw.status == "conflict"
     assert any("sources disagree" in b for b in plan_publication(view, by="u").blocked)
+
+
+# --- found replaying a real model's answers on the synthetic delivery (Nemotron Ultra, 2026-11-22) ---------------------
+
+
+def test_a_marker_listed_both_as_missing_and_below_the_lloq_is_refused_and_read_as_below_the_lloq():
+    # "BLQ" in both lists made every value below the LLOQ a missing sample: the subject sets and the AUC set changed
+    from modeler_project.dataroom.clinical import samples_from
+
+    conc = "SUB\tPER\tTRT\t0\t1\t2\n1\t1\tA\t0\t5.2\tBLQ\n1\t2\tB\tBLQ\tBLQ\tBLQ\n"
+    doc = parse_document(conc.encode(), "c.tsv")
+    part = document_parts(doc)[0]
+    desc = TableDescription(file="c.tsv", kind="concentrations", about="EX", part=part.name, header_lines=[1], first_line=2,
+                            last_line=3, time_unit="h", value_unit="ng/mL", missing_tokens=[".", "BLQ"], blq_tokens=["BLQ"],
+                            columns=[C(index=1, role="subject"), C(index=2, role="period"), C(index=3, role="treatment")]
+                            + [C(index=4 + i, role="value", time=t) for i, t in enumerate((0, 1, 2))])
+    table = read_table(desc, doc, file="c.tsv", sha256=doc.file_sha256)
+    assert any(p.code == "TOKEN_BOTH_MISSING_AND_BLQ" and p.severity == "error" for p in table.problems)
+    samples, _problems, _unit = samples_from(table)
+    blq = [s for s in samples if s.text == "BLQ"]
+    assert len(blq) == 4 and all(s.blq and not s.missing for s in blq)
+
+
+def test_a_treatment_code_must_say_what_it_is_and_its_product_must_be_in_the_quote():
+    text = "SUB\tTRT\tC1\n001\tA\t3.28\n\nTreatments: A = Refamide 100 mg (reference product); B = Exampleamide 100 mg.\n"
+    doc = parse_document(text.encode(), "s.md")
+
+    def check(**kw):
+        return check_fact(Fact(field="study.treatment_code", **kw), doc, file="s.md", sha256=doc.file_sha256)
+
+    repeated = check(subject="A", value="A", product="Exampleamide 100 mg", quote="001 A 3.28")
+    assert not repeated.ok and "not repeat the code" in repeated.problem
+    unnamed = check(subject="A", value="first arm", product="Exampleamide 100 mg", quote="Treatments: A = Refamide 100 mg")
+    assert unnamed.ok is False and "does not name the product" in unnamed.problem
+    good = check(subject="A", value="Refamide 100 mg (reference product)", product="Refamide 100 mg",
+                 quote="A = Refamide 100 mg (reference product)")
+    assert good.ok, good.problem
+
+
+def test_a_sentence_defining_several_codes_gives_each_code_whatever_its_subject():
+    # the study's number given as the subject made "EX-01" an arm of the study
+    from modeler_project.dataroom.assemble import _arms
+    from modeler_project.dataroom.model import CheckedFact
+
+    question = QuestionCard(question="BE?", products=[ProductRef(name="Refamide 100 mg", role="reference"),
+                                                       ProductRef(name="Exampleamide 100 mg", role="test")])
+    sentence = "A = Refamide 100 mg (reference product); B = Exampleamide 100 mg (test product)"
+    fact = CheckedFact(fact=Fact(field="study.treatment_code", subject="EX-01", value=sentence, quote=sentence), ok=True)
+    arms = _arms([fact], question)
+    assert [(a.treatment, a.role, a.product) for a in arms] == [("A", "reference", "Refamide 100 mg"),
+                                                                ("B", "test", "Exampleamide 100 mg")]
+
+
+def test_a_method_condition_no_file_states_is_left_out_and_said():
+    # "50 rpm" and "900 mL" reached f2 from a table's constants that no file of the delivery stated
+    from modeler_project.dataroom.assemble import _said_constants
+
+    doc = parse_document(b"Dissolution: USP 2 paddle at 50 rpm in pH 6.8 phosphate buffer.\n", "method.md")
+    diss = parse_document(DISS.encode(), "diss.tsv")
+    desc = TableDescription(file="D/diss.tsv", kind="dissolution", part=document_parts(diss)[0].name, header_lines=[1],
+                            first_line=2, last_line=7, time_unit="min", value_unit="%", columns=[C(index=1, role="unit")],
+                            constants={"medium": "pH 6.8 phosphate buffer", "apparatus": "USP 2 paddle", "rpm": "50",
+                                       "volume": "900 mL", "batch": "LOT-1"})
+    table = read_table(desc, diss, file="D/diss.tsv", sha256=diss.file_sha256)
+    (kept,), problems = _said_constants([table], [doc, diss], quotes=[])
+    assert kept.description.constants == {"medium": "pH 6.8 phosphate buffer", "apparatus": "USP 2 paddle", "rpm": "50",
+                                          "batch": "LOT-1"}
+    assert [p.code for p in problems] == ["CONSTANT_NOT_IN_FILES"] and "volume '900 mL'" in problems[0].message
+
+
+def test_the_agents_note_never_decides_bound_or_unbound(room):
+    # the note "fraction unbound = 3%" beside "Plasma protein binding: 97 %" made fu 0.97 instead of 0.03
+    files, docs, question, extractions = room
+    label = parse_document(b"# Label\n\nPlasma protein binding: 97 %\n", "label.md")
+    view = FileView(path="D/label.md", name="label.md", sha256=label.file_sha256, kind="text")
+    facts = [Fact(field="adme.fu", subject="Exampleamide", value="97 %", unit="%", quote="Plasma protein binding: 97 %",
+                  note="Plasma protein binding (bound fraction); fraction unbound = 3%")]
+    room_view = assemble(Inputs(files=[*files, view], docs={**docs, label.file_sha256: label}, question=question,
+                                question_confirmed=True, extractions=[*extractions, Extraction(file="D/label.md", facts=facts)]))
+    fu = next(r for r in room_view.inputs if r.name == "bind.fu")
+    assert fu.value == 0.03 and fu.note == "from 97 % bound"

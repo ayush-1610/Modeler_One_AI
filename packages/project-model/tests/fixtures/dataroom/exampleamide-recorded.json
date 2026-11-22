@@ -1,0 +1,2569 @@
+{
+ "model": "nvidia/nemotron-3-ultra-550b-a55b",
+ "recorded": "2026-11-22",
+ "question": {
+  "question": "Use PBPK modeling to predict the bioequivalence of the reformulated Exampleamide 100 mg tablet (LOT-X) relative to the reference product Refamide 100 mg (LOT-R), leveraging the clinical bioequivalence study EX-01 (Exampleamide 100 mg LOT-T vs Refamide 100 mg LOT-R) and in vitro dissolution data for all three batches (LOT-R, LOT-T, LOT-X) in pH 1.2 and pH 6.8 media, to support a formulation bridging / biowaiver assessment for the reformulated product.",
+  "regulator": "FDA / EMA (not explicitly stated in delivery; typical for PBPK-based biowaiver submissions)",
+  "approach": "PBPK modeling with mechanistic absorption modeling (e.g., ADAM, compartmental absorption and transit model) incorporating: (1) clinical PK data from study EX-01 for model verification using LOT-T vs LOT-R; (2) in vitro dissolution profiles for LOT-R, LOT-T, and LOT-X in pH 1.2 and pH 6.8; (3) drug substance properties (solubility vs pH, permeability, pKa, MW, protein binding); (4) formulation compositions for all three products; (5) study design parameters (fasted dosing, 240 mL water, meals at 4 h and 10 h). The verified model is then used to simulate LOT-X vs LOT-R and predict BE metrics (Cmax, AUC ratios with 90% CIs).",
+  "context_of_use": "Formulation bridging / biowaiver for a reformulated Exampleamide 100 mg immediate-release tablet (LOT-X) that differs from the clinically tested Exampleamide 100 mg (LOT-T) in excipient composition (reduced microcrystalline cellulose, increased crospovidone, added sodium lauryl sulfate). The clinical BE study EX-01 established BE of LOT-T vs reference Refamide 100 mg (LOT-R). The modelling must determine whether LOT-X can be considered bioequivalent to LOT-R without a new clinical study.",
+  "products": [
+   {
+    "name": "Refamide 100 mg",
+    "role": "reference",
+    "note": "Reference product in study EX-01; batch LOT-R"
+   },
+   {
+    "name": "Exampleamide 100 mg",
+    "role": "test",
+    "note": "Test product in study EX-01; batch LOT-T; clinically tested vs Refamide"
+   },
+   {
+    "name": "Exampleamide 100 mg reformulated",
+    "role": "reformulated",
+    "note": "Reformulated version not clinically tested; batch LOT-X; target of PBPK prediction"
+   }
+  ],
+  "checklist": [
+   {
+    "id": "A-composition-all-products",
+    "label": "Composition of every product (qualitative and quantitative)",
+    "area": "A",
+    "why": "Needed to define drug product input for PBPK absorption model; reformulated product has changed excipients (MCC, crospovidone, added SLS) that may affect dissolution and absorption.",
+    "required": true,
+    "topics": [
+     "composition",
+     "manufacturing"
+    ]
+   },
+   {
+    "id": "A-manufacturing-changes",
+    "label": "Manufacturing process and its changes for the reformulated product",
+    "area": "A",
+    "why": "Process changes can affect critical quality attributes (particle size, solid state, dissolution) beyond composition alone.",
+    "required": true,
+    "topics": [
+     "manufacturing",
+     "composition"
+    ]
+   },
+   {
+    "id": "A-changed-excipient-share",
+    "label": "Changed excipient and its share in the reformulated product",
+    "area": "A",
+    "why": "SLS added at 4 mg (1.6% of tablet weight), crospovidone increased from 8 to 12 mg, MCC reduced from 120 to 110 mg; these changes drive the dissolution difference at pH 6.8.",
+    "required": true,
+    "topics": [
+     "composition",
+     "manufacturing"
+    ]
+   },
+   {
+    "id": "B-dissolution-all-media",
+    "label": "Dissolution of every product and batch in every medium tested (QC and biorelevant pH 1.2, 4.5, 6.8) with apparatus, speed, volume, units",
+    "area": "B",
+    "why": "Primary input for absorption model; data exist for pH 1.2 (LOT-R, LOT-T) and pH 6.8 (LOT-R, LOT-T, LOT-X); need apparatus, rpm, volume, units to translate to in vivo dissolution.",
+    "required": true,
+    "topics": [
+     "dissolution",
+     "quality_paperwork"
+    ]
+   },
+   {
+    "id": "B-particle-size",
+    "label": "Particle size distribution of drug substance in each product/batch",
+    "area": "B",
+    "why": "Affects dissolution rate and absorption; not provided in delivery.",
+    "required": true,
+    "topics": [
+     "particle_size",
+     "drug_substance"
+    ]
+   },
+   {
+    "id": "B-drug-product-specification",
+    "label": "Drug product specification (dissolution acceptance criteria, assay, impurities)",
+    "area": "B",
+    "why": "Defines the quality space for the model; not provided in delivery.",
+    "required": true,
+    "topics": [
+     "quality_paperwork",
+     "dissolution"
+    ]
+   },
+   {
+    "id": "C-drug-substance-properties",
+    "label": "Drug substance properties: MW (salt and free base), pKa, logP/logD, solubility vs pH, permeability, fu, B/P ratio, metabolism (enzymes, fm), elimination, IV or absolute bioavailability",
+    "area": "C",
+    "why": "Core PBPK model parameters; delivery provides MW 412.5 g/mol (free base), pKa 8.9 (basic), solubility at pH 1.2/4.5/6.8, protein binding 97%; missing: logP/logD, permeability, B/P ratio, metabolism, elimination, absolute bioavailability.",
+    "required": true,
+    "topics": [
+     "drug_substance",
+     "adme",
+     "solubility",
+     "literature"
+    ]
+   },
+   {
+    "id": "D-clinical-study-design",
+    "label": "Clinical study EX-01 design, dose, products and batches per treatment, fasting and meals, water, sampling times",
+    "area": "D",
+    "why": "Defines the simulation protocol for model verification; delivery provides: open two-period crossover, 100 mg oral, 240 mL water, overnight fast, meals at 4 h and 10 h, sampling times (0, 0.5, 1, 1.5, 2, 3, 4, 6, 8, 12, 24 h).",
+    "required": true,
+    "topics": [
+     "clinical_design",
+     "dosing_and_meals"
+    ]
+   },
+   {
+    "id": "D-clinical-concentrations",
+    "label": "Individual plasma concentration-time data for all subjects and treatments",
+    "area": "D",
+    "why": "Required for model verification (visual predictive checks, goodness-of-fit); delivery provides concentrations for 8 subjects, 2 periods, treatments A (LOT-R) and B (LOT-T) with some missing/BLQ values.",
+    "required": true,
+    "topics": [
+     "clinical_concentrations",
+     "bioanalysis"
+    ]
+   },
+   {
+    "id": "D-clinical-pk-nca",
+    "label": "NCA PK parameters (Cmax, Tmax, AUC0-t) per subject per treatment",
+    "area": "D",
+    "why": "Target metrics for model verification and BE assessment; delivery provides Cmax, Tmax, AUC0-t for all subjects.",
+    "required": true,
+    "topics": [
+     "clinical_pk",
+     "be_statistics"
+    ]
+   },
+   {
+    "id": "D-clinical-demographics",
+    "label": "Subject demographics (sex, age, weight, height, ethnicity)",
+    "area": "D",
+    "why": "Needed to build virtual population matching the study; delivery provides 8 subjects (6M/2F), age 26-40, weight 59.5-70 kg, all Asian origin.",
+    "required": true,
+    "topics": [
+     "clinical_demographics"
+    ]
+   },
+   {
+    "id": "D-clinical-disposition",
+    "label": "Subject disposition (completed, excluded, reasons)",
+    "area": "D",
+    "why": "Subject 003 period 2 (treatment B) has all BLQ concentrations; subject 004 period 2 and 005 period 2 have missing late timepoints; synopsis notes 4 subjects withdrawn due to adverse event in period 2. Must clarify which data are usable for model verification.",
+    "required": true,
+    "topics": [
+     "clinical_disposition",
+     "clinical_concentrations"
+    ]
+   },
+   {
+    "id": "D-bioanalysis",
+    "label": "Bioanalytical method details (LLOQ, validation, matrix)",
+    "area": "D",
+    "why": "LLOQ 0.5 ng/mL stated in synopsis; need full validation report for regulatory acceptance.",
+    "required": true,
+    "topics": [
+     "bioanalysis"
+    ]
+   },
+   {
+    "id": "D-be-statistics",
+    "label": "Client's BE statistical results (geometric mean ratios, 90% CIs for Cmax and AUC)",
+    "area": "D",
+    "why": "Benchmark for model verification; not provided in delivery (only individual PK parameters).",
+    "required": true,
+    "topics": [
+     "be_statistics",
+     "clinical_pk"
+    ]
+   }
+  ],
+  "quotes": [
+   {
+    "field": "question.source",
+    "subject": "Cover letter",
+    "value": "Delivery for the Exampleamide project",
+    "unit": "",
+    "quote": "Dear modelling team\nplease find enclosed the delivery for the Exampleamide project.\nKind regards",
+    "file": "Exampleamide delivery/Cover letter.txt",
+    "part": "body",
+    "product": "",
+    "note": "Cover letter does not state an explicit modelling question; question inferred from data package content."
+   },
+   {
+    "field": "study.design",
+    "subject": "EX-01",
+    "value": "open two-period crossover in healthy adults",
+    "unit": "",
+    "quote": "Study EX-01: an open two-period crossover in healthy adults",
+    "file": "Exampleamide delivery/Clinical/EX-01 synopsis.pdf",
+    "part": "p1",
+    "product": "",
+    "note": ""
+   },
+   {
+    "field": "study.treatments",
+    "subject": "EX-01",
+    "value": "A = Refamide 100 mg (reference); B = Exampleamide 100 mg (test)",
+    "unit": "",
+    "quote": "Treatments: A = Refamide 100 mg (reference product); B = Exampleamide 100 mg (test product).",
+    "file": "Exampleamide delivery/Clinical/EX-01 synopsis.pdf",
+    "part": "p1",
+    "product": "",
+    "note": ""
+   },
+   {
+    "field": "study.batches",
+    "subject": "EX-01",
+    "value": "LOT-R = Refamide 100 mg; LOT-T = Exampleamide 100 mg; LOT-X = Exampleamide 100 mg reformulated",
+    "unit": "",
+    "quote": "Batches: LOT-R is Refamide 100 mg; LOT-T is Exampleamide 100 mg; LOT-X is Exampleamide 100 mg reformulated.",
+    "file": "Exampleamide delivery/Clinical/EX-01 synopsis.pdf",
+    "part": "p1",
+    "product": "",
+    "note": ""
+   },
+   {
+    "field": "study.population",
+    "subject": "EX-01",
+    "value": "Healthy male and female adults; all subjects were of Asian origin",
+    "unit": "",
+    "quote": "Healthy male and female adults; all subjects were of Asian origin.",
+    "file": "Exampleamide delivery/Clinical/EX-01 synopsis.pdf",
+    "part": "p1",
+    "product": "",
+    "note": ""
+   },
+   {
+    "field": "study.dosing",
+    "subject": "EX-01",
+    "value": "100 mg oral with 240 mL water after overnight fast; meals at 4 h and 10 h",
+    "unit": "",
+    "quote": "Route: oral. Each subject received 100 mg with 240 mL of water after an overnight fast.\nStandardised meals were served at 4 h and 10 h after dosing.",
+    "file": "Exampleamide delivery/Clinical/EX-01 synopsis.pdf",
+    "part": "p1",
+    "product": "",
+    "note": ""
+   },
+   {
+    "field": "study.disposition",
+    "subject": "EX-01",
+    "value": "4 subjects withdrawn (adverse event in period 2)",
+    "unit": "",
+    "quote": "Subjects withdrawn: 4 (adverse event in period 2).",
+    "file": "Exampleamide delivery/Clinical/EX-01 synopsis.pdf",
+    "part": "p1",
+    "product": "",
+    "note": ""
+   },
+   {
+    "field": "study.bioanalysis",
+    "subject": "EX-01",
+    "value": "LC-MS/MS; LLOQ 0.5 ng/mL",
+    "unit": "",
+    "quote": "Plasma was assayed by LC-MS/MS; LLOQ 0.5 ng/mL.",
+    "file": "Exampleamide delivery/Clinical/EX-01 synopsis.pdf",
+    "part": "p1",
+    "product": "",
+    "note": ""
+   },
+   {
+    "field": "drugsubstance.mw",
+    "subject": "Exampleamide",
+    "value": "412.5 g/mol (free base)",
+    "unit": "g/mol",
+    "quote": "Exampleamide: molecular weight 412.5 g/mol (free base); pKa 8.9 (basic).",
+    "file": "Exampleamide delivery/Clinical/EX-01 synopsis.pdf",
+    "part": "p1",
+    "product": "Exampleamide 100 mg",
+    "note": ""
+   },
+   {
+    "field": "drugsubstance.pka",
+    "subject": "Exampleamide",
+    "value": "8.9 (basic)",
+    "unit": "",
+    "quote": "Exampleamide: molecular weight 412.5 g/mol (free base); pKa 8.9 (basic).",
+    "file": "Exampleamide delivery/Clinical/EX-01 synopsis.pdf",
+    "part": "p1",
+    "product": "Exampleamide 100 mg",
+    "note": ""
+   },
+   {
+    "field": "drugsubstance.mw_label",
+    "subject": "Exampleamide",
+    "value": "412.5 g/mol",
+    "unit": "g/mol",
+    "quote": "Molecular weight: 412.5 g/mol",
+    "file": "Exampleamide delivery/Literature/Label.md",
+    "part": "body",
+    "product": "Exampleamide 100 mg",
+    "note": ""
+   },
+   {
+    "field": "drugsubstance.protein_binding",
+    "subject": "Exampleamide",
+    "value": "97 %",
+    "unit": "%",
+    "quote": "Plasma protein binding: 97 %",
+    "file": "Exampleamide delivery/Literature/Label.md",
+    "part": "body",
+    "product": "Exampleamide 100 mg",
+    "note": ""
+   },
+   {
+    "field": "composition.refamide",
+    "subject": "Refamide 100 mg",
+    "value": "Exampleamide 100, MCC 120, Lactose 60, Crospovidone 8, SLS 0, Mg stearate 2",
+    "unit": "mg",
+    "quote": "Component | Function | Refamide 100 mg | Exampleamide 100 mg | Exampleamide 100 mg reformulated\nExampleamide | active | 100 | 100 | 100\nMicrocrystalline cellulose | filler | 120 | 120 | 110\nLactose monohydrate | filler | 60 | 60 | 60\nCrospovidone | disintegrant | 8 | 8 | 12\nSodium lauryl sulfate | surfactant | 0 | 0 | 4\nMagnesium stearate | lubricant | 2 | 2 | 2",
+    "file": "Exampleamide delivery/Formulation/Composition.tsv",
+    "part": "sheet:Composition",
+    "product": "Refamide 100 mg",
+    "note": ""
+   },
+   {
+    "field": "composition.exampleamide",
+    "subject": "Exampleamide 100 mg",
+    "value": "Exampleamide 100, MCC 120, Lactose 60, Crospovidone 8, SLS 0, Mg stearate 2",
+    "unit": "mg",
+    "quote": "Component | Function | Refamide 100 mg | Exampleamide 100 mg | Exampleamide 100 mg reformulated\nExampleamide | active | 100 | 100 | 100\nMicrocrystalline cellulose | filler | 120 | 120 | 110\nLactose monohydrate | filler | 60 | 60 | 60\nCrospovidone | disintegrant | 8 | 8 | 12\nSodium lauryl sulfate | surfactant | 0 | 0 | 4\nMagnesium stearate | lubricant | 2 | 2 | 2",
+    "file": "Exampleamide delivery/Formulation/Composition.tsv",
+    "part": "sheet:Composition",
+    "product": "Exampleamide 100 mg",
+    "note": "Identical to Refamide 100 mg composition"
+   },
+   {
+    "field": "composition.exampleamide_reformulated",
+    "subject": "Exampleamide 100 mg reformulated",
+    "value": "Exampleamide 100, MCC 110, Lactose 60, Crospovidone 12, SLS 4, Mg stearate 2",
+    "unit": "mg",
+    "quote": "Component | Function | Refamide 100 mg | Exampleamide 100 mg | Exampleamide 100 mg reformulated\nExampleamide | active | 100 | 100 | 100\nMicrocrystalline cellulose | filler | 120 | 120 | 110\nLactose monohydrate | filler | 60 | 60 | 60\nCrospovidone | disintegrant | 8 | 8 | 12\nSodium lauryl sulfate | surfactant | 0 | 0 | 4\nMagnesium stearate | lubricant | 2 | 2 | 2",
+    "file": "Exampleamide delivery/Formulation/Composition.tsv",
+    "part": "sheet:Composition",
+    "product": "Exampleamide 100 mg reformulated",
+    "note": "Reformulated: MCC reduced 10 mg, crospovidone increased 4 mg, SLS added 4 mg"
+   },
+   {
+    "field": "dissolution.ph1.2.lotR",
+    "subject": "LOT-R (Refamide)",
+    "value": "80.0 | 92.0 | 96.0 | 98.0 | 98.8 | 98.8",
+    "unit": "%",
+    "quote": "Mean | 80.0 | 92.0 | 96.0 | 98.0 | 98.8 | 98.8 | 86.0 | 95.0 | 97.0 | 98.8 | 98.8 | 98.8",
+    "file": "Exampleamide delivery/In vitro/Dissolution pH 1.2.tsv",
+    "part": "sheet:Dissolution pH 1.2",
+    "product": "Refamide 100 mg",
+    "note": "6 tablets per batch; apparatus, speed, volume not stated in file; values are mean % dissolved at 5, 10, 15, 30, 45, 60 min"
+   },
+   {
+    "field": "dissolution.ph1.2.lotT",
+    "subject": "LOT-T (Exampleamide)",
+    "value": "86.0 | 95.0 | 97.0 | 98.8 | 98.8 | 98.8",
+    "unit": "%",
+    "quote": "Mean | 80.0 | 92.0 | 96.0 | 98.0 | 98.8 | 98.8 | 86.0 | 95.0 | 97.0 | 98.8 | 98.8 | 98.8",
+    "file": "Exampleamide delivery/In vitro/Dissolution pH 1.2.tsv",
+    "part": "sheet:Dissolution pH 1.2",
+    "product": "Exampleamide 100 mg",
+    "note": "6 tablets per batch; apparatus, speed, volume not stated in file; values are mean % dissolved at 5, 10, 15, 30, 45, 60 min"
+   },
+   {
+    "field": "dissolution.ph6.8.lotR",
+    "subject": "LOT-R (Refamide)",
+    "value": "38.0 | 58.0 | 71.0 | 86.0 | 93.0 | 96.8",
+    "unit": "%",
+    "quote": "Mean | 38.0 | 58.0 | 71.0 | 86.0 | 93.0 | 96.8 | 45.0 | 66.0 | 79.0 | 91.0 | 96.0 | 97.6 | 30.0 | 47.0 | 60.0 | 77.5 | 84.0 | 87.0",
+    "file": "Exampleamide delivery/In vitro/Dissolution pH 6.8.tsv",
+    "part": "sheet:Dissolution pH 6.8",
+    "product": "Refamide 100 mg",
+    "note": "12 tablets per batch; apparatus, speed, volume not stated in file; values are mean % dissolved at 5, 10, 15, 30, 45, 60 min"
+   },
+   {
+    "field": "dissolution.ph6.8.lotT",
+    "subject": "LOT-T (Exampleamide)",
+    "value": "45.0 | 66.0 | 79.0 | 91.0 | 96.0 | 97.6",
+    "unit": "%",
+    "quote": "Mean | 38.0 | 58.0 | 71.0 | 86.0 | 93.0 | 96.8 | 45.0 | 66.0 | 79.0 | 91.0 | 96.0 | 97.6 | 30.0 | 47.0 | 60.0 | 77.5 | 84.0 | 87.0",
+    "file": "Exampleamide delivery/In vitro/Dissolution pH 6.8.tsv",
+    "part": "sheet:Dissolution pH 6.8",
+    "product": "Exampleamide 100 mg",
+    "note": "12 tablets per batch; apparatus, speed, volume not stated in file; values are mean % dissolved at 5, 10, 15, 30, 45, 60 min"
+   },
+   {
+    "field": "dissolution.ph6.8.lotX",
+    "subject": "LOT-X (Exampleamide reformulated)",
+    "value": "30.0 | 47.0 | 60.0 | 77.5 | 84.0 | 87.0",
+    "unit": "%",
+    "quote": "Mean | 38.0 | 58.0 | 71.0 | 86.0 | 93.0 | 96.8 | 45.0 | 66.0 | 79.0 | 91.0 | 96.0 | 97.6 | 30.0 | 47.0 | 60.0 | 77.5 | 84.0 | 87.0",
+    "file": "Exampleamide delivery/In vitro/Dissolution pH 6.8.tsv",
+    "part": "sheet:Dissolution pH 6.8",
+    "product": "Exampleamide 100 mg reformulated",
+    "note": "12 tablets per batch; slower dissolution than LOT-R and LOT-T at pH 6.8; apparatus, speed, volume not stated in file; values are mean % dissolved at 5, 10, 15, 30, 45, 60 min"
+   },
+   {
+    "field": "solubility.ph1.2",
+    "subject": "Exampleamide",
+    "value": "4.8",
+    "unit": "mg/mL",
+    "quote": "0.1 N HCl | 1.2 | 4.8",
+    "file": "Exampleamide delivery/In vitro/Solubility.tsv",
+    "part": "sheet:Solubility",
+    "product": "Exampleamide 100 mg",
+    "note": "Solubility in 0.1 N HCl at pH 1.2"
+   },
+   {
+    "field": "solubility.ph4.5",
+    "subject": "Exampleamide",
+    "value": "1.9",
+    "unit": "mg/mL",
+    "quote": "Acetate buffer | 4.5 | 1.9",
+    "file": "Exampleamide delivery/In vitro/Solubility.tsv",
+    "part": "sheet:Solubility",
+    "product": "Exampleamide 100 mg",
+    "note": "Solubility in acetate buffer at pH 4.5"
+   },
+   {
+    "field": "solubility.ph6.8",
+    "subject": "Exampleamide",
+    "value": "0.15",
+    "unit": "mg/mL",
+    "quote": "Phosphate buffer | 6.8 | 0.15",
+    "file": "Exampleamide delivery/In vitro/Solubility.tsv",
+    "part": "sheet:Solubility",
+    "product": "Exampleamide 100 mg",
+    "note": "Solubility in phosphate buffer at pH 6.8"
+   },
+   {
+    "field": "solubility.water",
+    "subject": "Exampleamide",
+    "value": "0.21",
+    "unit": "mg/mL",
+    "quote": "Water | 6.5 | 0.21",
+    "file": "Exampleamide delivery/In vitro/Solubility.tsv",
+    "part": "sheet:Solubility",
+    "product": "Exampleamide 100 mg",
+    "note": "Solubility in water at pH 6.5"
+   },
+   {
+    "field": "clinical.concentrations",
+    "subject": "EX-01",
+    "value": "Individual plasma concentrations for 8 subjects, 2 periods, treatments A (LOT-R) and B (LOT-T) at 0, 0.5, 1, 1.5, 2, 3, 4, 6, 8, 12, 24 h",
+    "unit": "ng/mL",
+    "quote": "Subject | Sequence | Period | Treatment | 0 | 0.5 | 1 | 1.5 | 2 | 3 | 4 | 6 | 8 | 12 | 24\n001 | AB | 1 | A | 0 | 3.28 | 7.84 | 11.68 | 13.52 | 12.16 | 9.92 | 6.64 | 4.48 | 2.08 | BLQ\n001 | AB | 2 | B | 0 | 4 | 8.96 | 12.64 | 13.68 | 11.68 | 9.36 | 6.32 | 4.16 | 1.92 | BLQ",
+    "file": "Exampleamide delivery/Clinical/EX-01 concentrations.tsv",
+    "part": "sheet:EX-01 concentrations",
+    "product": "",
+    "note": "Full dataset includes 8 subjects; some missing/BLQ values (e.g., subject 003 period 2 all BLQ; subject 004 period 2 and 005 period 2 missing late timepoints)"
+   },
+   {
+    "field": "clinical.pk_parameters",
+    "subject": "EX-01",
+    "value": "Subject | Period | Treatment | Cmax (ng/mL) | Tmax (h) | AUC0-t (ng.h/mL)",
+    "unit": "ng/mL, h, ng.h/mL",
+    "quote": "Subject | Period | Treatment | Cmax (ng/mL) | Tmax (h) | AUC0-t (ng.h/mL)\n001 | 1 | A | 13.52 | 2 | 79.46\n001 | 2 | B | 13.68 | 2 | 77.74",
+    "file": "Exampleamide delivery/Clinical/EX-01 PK parameters.tsv",
+    "part": "sheet:EX-01 PK parameters",
+    "product": "",
+    "note": "16 rows (8 subjects × 2 periods); Tmax consistently 2 h for all"
+   },
+   {
+    "field": "clinical.demographics",
+    "subject": "EX-01",
+    "value": "8 subjects: 6M/2F, age 26-40, weight 59.5-70 kg, height 161-168 cm",
+    "unit": "",
+    "quote": "Subject | Sex | Age (years) | Weight (kg) | Height (cm)\n001 | M | 26 | 59.5 | 161\n002 | M | 28 | 61 | 162\n003 | F | 30 | 62.5 | 163\n004 | M | 32 | 64 | 164\n005 | M | 34 | 65.5 | 165\n006 | F | 36 | 67 | 166\n007 | M | 38 | 68.5 | 167\n008 | M | 40 | 70 | 168",
+    "file": "Exampleamide delivery/Clinical/EX-01 demographics.tsv",
+    "part": "sheet:EX-01 demographics",
+    "product": "",
+    "note": "All subjects of Asian origin per synopsis"
+   }
+  ]
+ },
+ "triage": {
+  "Exampleamide delivery/Clinical/EX-01 concentrations.tsv": {
+   "path": "Exampleamide delivery/Clinical/EX-01 concentrations.tsv",
+   "purpose": "used",
+   "topics": [
+    "clinical_concentrations",
+    "clinical_design"
+   ],
+   "reason": "This file contains the plasma concentration-time data from the clinical bioequivalence study EX-01 comparing Exampleamide 100 mg LOT-T and Refamide 100 mg LOT-R, which is essential for PBPK model building and validation.",
+   "study": "EX-01",
+   "products": [
+    "Exampleamide 100 mg LOT-T",
+    "Refamide 100 mg LOT-R"
+   ]
+  },
+  "Exampleamide delivery/Clinical/EX-01 PK parameters.tsv": {
+   "path": "Exampleamide delivery/Clinical/EX-01 PK parameters.tsv",
+   "purpose": "used",
+   "topics": [
+    "clinical_pk",
+    "clinical_design",
+    "be_statistics"
+   ],
+   "reason": "This file contains subject-level PK parameters (Cmax, Tmax, AUC0-t) from the pivotal bioequivalence study EX-01 comparing Exampleamide LOT-T to Refamide LOT-R, which are required as clinical input for PBPK model building and validation.",
+   "study": "EX-01",
+   "products": [
+    "Exampleamide 100 mg LOT-T",
+    "Refamide 100 mg LOT-R"
+   ]
+  },
+  "Exampleamide delivery/Clinical/EX-01 demographics.tsv": {
+   "path": "Exampleamide delivery/Clinical/EX-01 demographics.tsv",
+   "purpose": "used",
+   "topics": [
+    "clinical_demographics"
+   ],
+   "reason": "This file contains subject-level demographics (sex, age, weight, height) for the clinical bioequivalence study EX-01, which are required to define the virtual population in PBPK modeling.",
+   "study": "EX-01",
+   "products": [
+    "Exampleamide 100 mg LOT-T",
+    "Refamide 100 mg LOT-R"
+   ]
+  },
+  "Exampleamide delivery/In vitro/Dissolution pH 6.8.tsv": {
+   "path": "Exampleamide delivery/In vitro/Dissolution pH 6.8.tsv",
+   "purpose": "used",
+   "topics": [
+    "dissolution",
+    "clinical_design"
+   ],
+   "reason": "This file contains in vitro dissolution profiles at pH 6.8 for the reference (LOT-R), clinical test (LOT-T), and reformulated (LOT-X) batches, which are required as input for PBPK modeling to predict bioequivalence and support formulation bridging.",
+   "study": "EX-01",
+   "products": [
+    "Exampleamide 100 mg tablet (LOT-X)",
+    "Refamide 100 mg (LOT-R)",
+    "Exampleamide 100 mg (LOT-T)"
+   ]
+  },
+  "Exampleamide delivery/In vitro/Dissolution pH 1.2.tsv": {
+   "path": "Exampleamide delivery/In vitro/Dissolution pH 1.2.tsv",
+   "purpose": "used",
+   "topics": [
+    "dissolution"
+   ],
+   "reason": "This file contains in vitro dissolution profiles at pH 1.2 for three batches (LOT-R reference, LOT-T test from clinical study EX-01, and LOT-X reformulated product) needed for PBPK modeling to predict bioequivalence of LOT-X vs LOT-R.",
+   "study": "EX-01",
+   "products": [
+    "Exampleamide 100 mg tablet LOT-R",
+    "Exampleamide 100 mg tablet LOT-T",
+    "Exampleamide 100 mg tablet LOT-X"
+   ]
+  },
+  "Exampleamide delivery/In vitro/Solubility.tsv": {
+   "path": "Exampleamide delivery/In vitro/Solubility.tsv",
+   "purpose": "used",
+   "topics": [
+    "solubility",
+    "drug_substance",
+    "adme"
+   ],
+   "reason": "This file provides the equilibrium solubility of Exampleamide in media spanning the gastrointestinal pH range (pH 1.2, 4.5, 6.5, 6.8), which is a required input for PBPK absorption modeling to predict dissolution and bioavailability of the reformulated LOT-X tablet relative to the reference LOT-R and the clinical test LOT-T.",
+   "study": "EX-01",
+   "products": [
+    "Exampleamide 100 mg tablet LOT-X",
+    "Exampleamide 100 mg tablet LOT-T",
+    "Refamide 100 mg tablet LOT-R"
+   ]
+  },
+  "Exampleamide delivery/Formulation/Composition.tsv": {
+   "path": "Exampleamide delivery/Formulation/Composition.tsv",
+   "purpose": "used",
+   "topics": [
+    "composition"
+   ],
+   "reason": "This file provides the quantitative composition of the reference (Refamide 100 mg), test (Exampleamide 100 mg), and reformulated (Exampleamide 100 mg reformulated) tablets, which is required as input for PBPK modeling to predict bioequivalence.",
+   "study": "EX-01",
+   "products": [
+    "Refamide 100 mg",
+    "Exampleamide 100 mg",
+    "Exampleamide 100 mg reformulated"
+   ]
+  },
+  "Exampleamide delivery/Literature/Label.md": {
+   "path": "Exampleamide delivery/Literature/Label.md",
+   "purpose": "used",
+   "topics": [
+    "drug_substance",
+    "adme",
+    "label"
+   ],
+   "reason": "Label extract providing molecular weight (412.5 g/mol) and plasma protein binding (97%) for Exampleamide, which are key physicochemical inputs for PBPK modeling.",
+   "study": "EX-01",
+   "products": [
+    "Exampleamide 100 mg tablet (LOT-X)",
+    "Refamide 100 mg (LOT-R)",
+    "Exampleamide 100 mg (LOT-T)"
+   ]
+  },
+  "Exampleamide delivery/Cover letter.txt": {
+   "path": "Exampleamide delivery/Cover letter.txt",
+   "purpose": "not_needed",
+   "topics": [
+    "quality_paperwork"
+   ],
+   "reason": "Administrative cover letter enclosing the delivery, containing no modeling data or study details.",
+   "study": "",
+   "products": [
+    "Exampleamide"
+   ]
+  },
+  "Exampleamide delivery/Clinical/EX-01 synopsis.pdf": {
+   "path": "Exampleamide delivery/Clinical/EX-01 synopsis.pdf",
+   "purpose": "used",
+   "topics": [
+    "clinical_design",
+    "clinical_demographics",
+    "dosing_and_meals",
+    "bioanalysis",
+    "drug_substance",
+    "clinical_disposition"
+   ],
+   "reason": "This synopsis provides the clinical study design (open two-period crossover), subject population (healthy Asian adults), dosing conditions (fasted, 240 mL water, standardized meals), bioanalytical method (LC-MS/MS, LLOQ 0.5 ng/mL), and drug physicochemical properties (MW 412.5 g/mol, pKa 8.9) for the pivotal BE study EX-01 comparing LOT-T vs LOT-R, which are essential inputs for PBPK model calibration and the subsequent biowaiver assessment for reformulated LOT-X.",
+   "study": "EX-01",
+   "products": [
+    "Refamide 100 mg (LOT-R)",
+    "Exampleamide 100 mg (LOT-T)",
+    "Exampleamide 100 mg reformulated (LOT-X)"
+   ]
+  }
+ },
+ "extractions": {
+  "Exampleamide delivery/Clinical/EX-01 concentrations.tsv": {
+   "file": "Exampleamide delivery/Clinical/EX-01 concentrations.tsv",
+   "tables": [
+    {
+     "file": "Exampleamide delivery/Clinical/EX-01 concentrations.tsv",
+     "kind": "concentrations",
+     "about": "EX-01",
+     "part": "sheet:EX-01 concentrations",
+     "header_lines": [
+      1
+     ],
+     "first_line": 2,
+     "last_line": 17,
+     "skip_lines": [],
+     "summary_lines": {},
+     "columns": [
+      {
+       "index": 1,
+       "role": "subject",
+       "label": "Subject",
+       "unit": "",
+       "time": null,
+       "group": ""
+      },
+      {
+       "index": 2,
+       "role": "sequence",
+       "label": "Sequence",
+       "unit": "",
+       "time": null,
+       "group": ""
+      },
+      {
+       "index": 3,
+       "role": "period",
+       "label": "Period",
+       "unit": "",
+       "time": null,
+       "group": ""
+      },
+      {
+       "index": 4,
+       "role": "treatment",
+       "label": "Treatment",
+       "unit": "",
+       "time": null,
+       "group": ""
+      },
+      {
+       "index": 5,
+       "role": "value",
+       "label": "0",
+       "unit": "",
+       "time": 0.0,
+       "group": ""
+      },
+      {
+       "index": 6,
+       "role": "value",
+       "label": "0.5",
+       "unit": "",
+       "time": 0.5,
+       "group": ""
+      },
+      {
+       "index": 7,
+       "role": "value",
+       "label": "1",
+       "unit": "",
+       "time": 1.0,
+       "group": ""
+      },
+      {
+       "index": 8,
+       "role": "value",
+       "label": "1.5",
+       "unit": "",
+       "time": 1.5,
+       "group": ""
+      },
+      {
+       "index": 9,
+       "role": "value",
+       "label": "2",
+       "unit": "",
+       "time": 2.0,
+       "group": ""
+      },
+      {
+       "index": 10,
+       "role": "value",
+       "label": "3",
+       "unit": "",
+       "time": 3.0,
+       "group": ""
+      },
+      {
+       "index": 11,
+       "role": "value",
+       "label": "4",
+       "unit": "",
+       "time": 4.0,
+       "group": ""
+      },
+      {
+       "index": 12,
+       "role": "value",
+       "label": "6",
+       "unit": "",
+       "time": 6.0,
+       "group": ""
+      },
+      {
+       "index": 13,
+       "role": "value",
+       "label": "8",
+       "unit": "",
+       "time": 8.0,
+       "group": ""
+      },
+      {
+       "index": 14,
+       "role": "value",
+       "label": "12",
+       "unit": "",
+       "time": 12.0,
+       "group": ""
+      },
+      {
+       "index": 15,
+       "role": "value",
+       "label": "24",
+       "unit": "",
+       "time": 24.0,
+       "group": ""
+      }
+     ],
+     "time_unit": "h",
+     "value_unit": "ng/mL",
+     "missing_tokens": [
+      ".",
+      "BLQ"
+     ],
+     "blq_tokens": [
+      "BLQ"
+     ],
+     "zero_means_blq": false,
+     "constants": {
+      "analyte": "Exampleamide",
+      "matrix": "plasma",
+      "study": "EX-01"
+     },
+     "note": "Crossover BE study EX-01: 8 subjects, 2 periods, 2 sequences (AB, BA). Treatment A = Exampleamide 100 mg LOT-T, Treatment B = Refamide 100 mg LOT-R (per triage). Concentration units not stated in file; assumed ng/mL typical for plasma. BLQ = below limit of quantification; '.' = missing/not reported."
+    }
+   ],
+   "facts": [
+    {
+     "field": "study.id",
+     "subject": "EX-01",
+     "value": "EX-01",
+     "unit": "",
+     "quote": "Subject | Sequence | Period | Treatment | 0 | 0.5 | 1 | 1.5 | 2 | 3 | 4 | 6 | 8 | 12 | 24",
+     "file": "Exampleamide delivery/Clinical/EX-01 concentrations.tsv",
+     "part": "sheet:EX-01 concentrations",
+     "product": "",
+     "note": ""
+    },
+    {
+     "field": "study.design",
+     "subject": "EX-01",
+     "value": "crossover, 2 periods, 2 sequences (AB, BA)",
+     "unit": "",
+     "quote": "001 | AB | 1 | A | 0 | 3.28 | 7.84 | 11.68 | 13.52 | 12.16 | 9.92 | 6.64 | 4.48 | 2.08 | BLQ\n001 | AB | 2 | B | 0 | 4 | 8.96 | 12.64 | 13.68 | 11.68 | 9.36 | 6.32 | 4.16 | 1.92 | BLQ\n002 | BA | 1 | B | 0 | 4.25 | 9.52 | 13.43 | 14.54 | 12.41 | 9.95 | 6.72 | 4.42 | 2.04 | BLQ",
+     "file": "Exampleamide delivery/Clinical/EX-01 concentrations.tsv",
+     "part": "sheet:EX-01 concentrations",
+     "product": "",
+     "note": ""
+    },
+    {
+     "field": "study.treatment_code",
+     "subject": "A",
+     "value": "A",
+     "unit": "",
+     "quote": "001 | AB | 1 | A | 0 | 3.28 | 7.84 | 11.68 | 13.52 | 12.16 | 9.92 | 6.64 | 4.48 | 2.08 | BLQ",
+     "file": "Exampleamide delivery/Clinical/EX-01 concentrations.tsv",
+     "part": "sheet:EX-01 concentrations",
+     "product": "Exampleamide 100 mg",
+     "note": "Per triage, Treatment A = Exampleamide 100 mg LOT-T"
+    },
+    {
+     "field": "study.treatment_code",
+     "subject": "B",
+     "value": "B",
+     "unit": "",
+     "quote": "001 | AB | 2 | B | 0 | 4 | 8.96 | 12.64 | 13.68 | 11.68 | 9.36 | 6.32 | 4.16 | 1.92 | BLQ",
+     "file": "Exampleamide delivery/Clinical/EX-01 concentrations.tsv",
+     "part": "sheet:EX-01 concentrations",
+     "product": "Refamide 100 mg",
+     "note": "Per triage, Treatment B = Refamide 100 mg LOT-R"
+    },
+    {
+     "field": "study.sampling_times",
+     "subject": "EX-01",
+     "value": "0, 0.5, 1, 1.5, 2, 3, 4, 6, 8, 12, 24 h",
+     "unit": "h",
+     "quote": "Subject | Sequence | Period | Treatment | 0 | 0.5 | 1 | 1.5 | 2 | 3 | 4 | 6 | 8 | 12 | 24",
+     "file": "Exampleamide delivery/Clinical/EX-01 concentrations.tsv",
+     "part": "sheet:EX-01 concentrations",
+     "product": "",
+     "note": ""
+    }
+   ],
+   "not_found": [
+    "study.title",
+    "study.blinding",
+    "study.n_planned",
+    "study.n_dosed",
+    "study.n_completed",
+    "study.completed_subjects",
+    "study.statistical_set",
+    "study.excluded_subjects",
+    "study.population",
+    "study.sex",
+    "study.ethnicity",
+    "study.age",
+    "study.weight",
+    "study.height",
+    "study.bmi",
+    "study.dose",
+    "study.route",
+    "study.regimen",
+    "study.fasting",
+    "study.fed",
+    "study.meal_times",
+    "study.meal_composition",
+    "study.water",
+    "study.comedication",
+    "study.washout",
+    "study.lloq",
+    "study.bioanalytical_method",
+    "study.be_result",
+    "study.dates",
+    "study.matrix",
+    "study.analyte",
+    "D-clinical-pk-nca",
+    "D-clinical-demographics",
+    "D-clinical-disposition",
+    "D-bioanalysis",
+    "D-be-statistics"
+   ]
+  },
+  "Exampleamide delivery/Clinical/EX-01 PK parameters.tsv": {
+   "file": "Exampleamide delivery/Clinical/EX-01 PK parameters.tsv",
+   "tables": [
+    {
+     "file": "Exampleamide delivery/Clinical/EX-01 PK parameters.tsv",
+     "kind": "pk_parameters",
+     "about": "EX-01",
+     "part": "sheet:EX-01 PK parameters",
+     "header_lines": [
+      1
+     ],
+     "first_line": 2,
+     "last_line": 16,
+     "skip_lines": [],
+     "summary_lines": {},
+     "columns": [
+      {
+       "index": 1,
+       "role": "subject",
+       "label": "Subject",
+       "unit": "",
+       "time": null,
+       "group": ""
+      },
+      {
+       "index": 2,
+       "role": "period",
+       "label": "Period",
+       "unit": "",
+       "time": null,
+       "group": ""
+      },
+      {
+       "index": 3,
+       "role": "treatment",
+       "label": "Treatment",
+       "unit": "",
+       "time": null,
+       "group": ""
+      },
+      {
+       "index": 4,
+       "role": "cmax",
+       "label": "Cmax (ng/mL)",
+       "unit": "ng/mL",
+       "time": null,
+       "group": ""
+      },
+      {
+       "index": 5,
+       "role": "tmax",
+       "label": "Tmax (h)",
+       "unit": "h",
+       "time": null,
+       "group": ""
+      },
+      {
+       "index": 6,
+       "role": "auc_t",
+       "label": "AUC0-t (ng.h/mL)",
+       "unit": "ng.h/mL",
+       "time": null,
+       "group": ""
+      }
+     ],
+     "time_unit": "h",
+     "value_unit": "ng/mL",
+     "missing_tokens": [],
+     "blq_tokens": [],
+     "zero_means_blq": false,
+     "constants": {},
+     "note": "Individual subject PK parameters from bioequivalence study EX-01. 8 subjects, 2-period crossover. Treatments A and B (mapping to test/reference not specified in this file)."
+    }
+   ],
+   "facts": [
+    {
+     "field": "study.id",
+     "subject": "EX-01",
+     "value": "EX-01",
+     "unit": "",
+     "quote": "Subject | Period | Treatment | Cmax (ng/mL) | Tmax (h) | AUC0-t (ng.h/mL)\n001 | 1 | A | 13.52 | 2 | 79.46",
+     "file": "Exampleamide delivery/Clinical/EX-01 PK parameters.tsv",
+     "part": "sheet:EX-01 PK parameters",
+     "product": "",
+     "note": "Study identifier from filename and context"
+    },
+    {
+     "field": "study.design",
+     "subject": "EX-01",
+     "value": "crossover, 2 periods, 2 sequences",
+     "unit": "",
+     "quote": "001 | 1 | A | 13.52 | 2 | 79.46\n001 | 2 | B | 13.68 | 2 | 77.74\n002 | 1 | B | 14.54 | 2 | 82.62\n002 | 2 | A | 14.37 | 2 | 100.76",
+     "file": "Exampleamide delivery/Clinical/EX-01 PK parameters.tsv",
+     "part": "sheet:EX-01 PK parameters",
+     "product": "",
+     "note": "Inferred from data: each subject appears in two periods with different treatments (A and B), indicating a 2x2 crossover design"
+    },
+    {
+     "field": "study.n_dosed",
+     "subject": "EX-01",
+     "value": "8",
+     "unit": "",
+     "quote": "001 | 1 | A | 13.52 | 2 | 79.46\n001 | 2 | B | 13.68 | 2 | 77.74\n002 | 1 | B | 14.54 | 2 | 82.62\n002 | 2 | A | 14.37 | 2 | 100.76\n003 | 1 | A | 15.21 | 2 | 106.67\n004 | 1 | B | 16.25 | 2 | 109.14\n004 | 2 | A | 16.05 | 2 | 45.91\n005 | 1 | A | 16.9 | 2 | 118.53\n005 | 2 | B | 17.1 | 2 | 97.17\n006 | 1 | B | 17.96 | 2 | 123.65\n006 | 2 | A | 17.75 | 2 | 124.46\n007 | 1 | A | 18.59 | 2 | 130.38\n007 | 2 | B | 18.81 | 2 | 126.39\n008 | 1 | B | 19.67 | 2 | 132.11\n008 | 2 | A | 19.44 | 2 | 136.31",
+     "file": "Exampleamide delivery/Clinical/EX-01 PK parameters.tsv",
+     "part": "sheet:EX-01 PK parameters",
+     "product": "",
+     "note": "8 unique subjects (001-008) each with 2 periods = 16 rows"
+    },
+    {
+     "field": "study.completed_subjects",
+     "subject": "EX-01",
+     "value": "001, 002, 003, 004, 005, 006, 007, 008",
+     "unit": "",
+     "quote": "001 | 1 | A | 13.52 | 2 | 79.46\n001 | 2 | B | 13.68 | 2 | 77.74\n002 | 1 | B | 14.54 | 2 | 82.62\n002 | 2 | A | 14.37 | 2 | 100.76\n003 | 1 | A | 15.21 | 2 | 106.67\n004 | 1 | B | 16.25 | 2 | 109.14\n004 | 2 | A | 16.05 | 2 | 45.91\n005 | 1 | A | 16.9 | 2 | 118.53\n005 | 2 | B | 17.1 | 2 | 97.17\n006 | 1 | B | 17.96 | 2 | 123.65\n006 | 2 | A | 17.75 | 2 | 124.46\n007 | 1 | A | 18.59 | 2 | 130.38\n007 | 2 | B | 18.81 | 2 | 126.39\n008 | 1 | B | 19.67 | 2 | 132.11\n008 | 2 | A | 19.44 | 2 | 136.31",
+     "file": "Exampleamide delivery/Clinical/EX-01 PK parameters.tsv",
+     "part": "sheet:EX-01 PK parameters",
+     "product": "",
+     "note": "All 8 subjects have data for both periods, suggesting all completed the study"
+    },
+    {
+     "field": "study.treatment_code",
+     "subject": "A",
+     "value": "A",
+     "unit": "",
+     "quote": "001 | 1 | A | 13.52 | 2 | 79.46",
+     "file": "Exampleamide delivery/Clinical/EX-01 PK parameters.tsv",
+     "part": "sheet:EX-01 PK parameters",
+     "product": "",
+     "note": "Treatment code A appears in 8 rows across subjects and periods; product/batch mapping not specified in this file"
+    },
+    {
+     "field": "study.treatment_code",
+     "subject": "B",
+     "value": "B",
+     "unit": "",
+     "quote": "001 | 2 | B | 13.68 | 2 | 77.74",
+     "file": "Exampleamide delivery/Clinical/EX-01 PK parameters.tsv",
+     "part": "sheet:EX-01 PK parameters",
+     "product": "",
+     "note": "Treatment code B appears in 7 rows across subjects and periods (subject 003 missing period 2); product/batch mapping not specified in this file"
+    },
+    {
+     "field": "study.sampling_times",
+     "subject": "EX-01",
+     "value": "Tmax values observed at 2 h for all subjects",
+     "unit": "",
+     "quote": "001 | 1 | A | 13.52 | 2 | 79.46\n001 | 2 | B | 13.68 | 2 | 77.74\n002 | 1 | B | 14.54 | 2 | 82.62\n002 | 2 | A | 14.37 | 2 | 100.76",
+     "file": "Exampleamide delivery/Clinical/EX-01 PK parameters.tsv",
+     "part": "sheet:EX-01 PK parameters",
+     "product": "",
+     "note": "All Tmax values in this dataset are 2 h; full sampling schedule not provided in this file"
+    }
+   ],
+   "not_found": [
+    "study.title",
+    "study.blinding",
+    "study.n_planned",
+    "study.n_completed",
+    "study.statistical_set",
+    "study.excluded_subjects",
+    "study.population",
+    "study.sex",
+    "study.ethnicity",
+    "study.age",
+    "study.weight",
+    "study.height",
+    "study.bmi",
+    "study.dose",
+    "study.route",
+    "study.regimen",
+    "study.fasting",
+    "study.fed",
+    "study.meal_times",
+    "study.meal_composition",
+    "study.water",
+    "study.comedication",
+    "study.washout",
+    "study.analyte",
+    "study.matrix",
+    "study.lloq",
+    "study.bioanalytical_method",
+    "study.be_result",
+    "study.dates",
+    "D-clinical-demographics",
+    "D-clinical-disposition",
+    "D-bioanalysis",
+    "D-be-statistics"
+   ]
+  },
+  "Exampleamide delivery/Clinical/EX-01 demographics.tsv": {
+   "file": "Exampleamide delivery/Clinical/EX-01 demographics.tsv",
+   "tables": [
+    {
+     "file": "Exampleamide delivery/Clinical/EX-01 demographics.tsv",
+     "kind": "demographics",
+     "about": "EX-01",
+     "part": "sheet:EX-01 demographics",
+     "header_lines": [
+      1
+     ],
+     "first_line": 2,
+     "last_line": 9,
+     "skip_lines": [],
+     "summary_lines": {},
+     "columns": [
+      {
+       "index": 1,
+       "role": "subject",
+       "label": "Subject",
+       "unit": "",
+       "time": null,
+       "group": ""
+      },
+      {
+       "index": 2,
+       "role": "sex",
+       "label": "Sex",
+       "unit": "",
+       "time": null,
+       "group": ""
+      },
+      {
+       "index": 3,
+       "role": "age",
+       "label": "Age (years)",
+       "unit": "years",
+       "time": null,
+       "group": ""
+      },
+      {
+       "index": 4,
+       "role": "weight",
+       "label": "Weight (kg)",
+       "unit": "kg",
+       "time": null,
+       "group": ""
+      },
+      {
+       "index": 5,
+       "role": "height",
+       "label": "Height (cm)",
+       "unit": "cm",
+       "time": null,
+       "group": ""
+      }
+     ],
+     "time_unit": "",
+     "value_unit": "",
+     "missing_tokens": [],
+     "blq_tokens": [],
+     "zero_means_blq": false,
+     "constants": {},
+     "note": "Demographics for 8 subjects in study EX-01. No ethnicity or BMI column."
+    }
+   ],
+   "facts": [
+    {
+     "field": "subject.age",
+     "subject": "001",
+     "value": "26",
+     "unit": "years",
+     "quote": "001 | M | 26 | 59.5 | 161",
+     "file": "Exampleamide delivery/Clinical/EX-01 demographics.tsv",
+     "part": "sheet:EX-01 demographics",
+     "product": "",
+     "note": ""
+    },
+    {
+     "field": "subject.sex",
+     "subject": "001",
+     "value": "M",
+     "unit": "",
+     "quote": "001 | M | 26 | 59.5 | 161",
+     "file": "Exampleamide delivery/Clinical/EX-01 demographics.tsv",
+     "part": "sheet:EX-01 demographics",
+     "product": "",
+     "note": ""
+    },
+    {
+     "field": "subject.weight",
+     "subject": "001",
+     "value": "59.5",
+     "unit": "kg",
+     "quote": "001 | M | 26 | 59.5 | 161",
+     "file": "Exampleamide delivery/Clinical/EX-01 demographics.tsv",
+     "part": "sheet:EX-01 demographics",
+     "product": "",
+     "note": ""
+    },
+    {
+     "field": "subject.height",
+     "subject": "001",
+     "value": "161",
+     "unit": "cm",
+     "quote": "001 | M | 26 | 59.5 | 161",
+     "file": "Exampleamide delivery/Clinical/EX-01 demographics.tsv",
+     "part": "sheet:EX-01 demographics",
+     "product": "",
+     "note": ""
+    },
+    {
+     "field": "subject.age",
+     "subject": "002",
+     "value": "28",
+     "unit": "years",
+     "quote": "002 | M | 28 | 61 | 162",
+     "file": "Exampleamide delivery/Clinical/EX-01 demographics.tsv",
+     "part": "sheet:EX-01 demographics",
+     "product": "",
+     "note": ""
+    },
+    {
+     "field": "subject.sex",
+     "subject": "002",
+     "value": "M",
+     "unit": "",
+     "quote": "002 | M | 28 | 61 | 162",
+     "file": "Exampleamide delivery/Clinical/EX-01 demographics.tsv",
+     "part": "sheet:EX-01 demographics",
+     "product": "",
+     "note": ""
+    },
+    {
+     "field": "subject.weight",
+     "subject": "002",
+     "value": "61",
+     "unit": "kg",
+     "quote": "002 | M | 28 | 61 | 162",
+     "file": "Exampleamide delivery/Clinical/EX-01 demographics.tsv",
+     "part": "sheet:EX-01 demographics",
+     "product": "",
+     "note": ""
+    },
+    {
+     "field": "subject.height",
+     "subject": "002",
+     "value": "162",
+     "unit": "cm",
+     "quote": "002 | M | 28 | 61 | 162",
+     "file": "Exampleamide delivery/Clinical/EX-01 demographics.tsv",
+     "part": "sheet:EX-01 demographics",
+     "product": "",
+     "note": ""
+    },
+    {
+     "field": "subject.age",
+     "subject": "003",
+     "value": "30",
+     "unit": "years",
+     "quote": "003 | F | 30 | 62.5 | 163",
+     "file": "Exampleamide delivery/Clinical/EX-01 demographics.tsv",
+     "part": "sheet:EX-01 demographics",
+     "product": "",
+     "note": ""
+    },
+    {
+     "field": "subject.sex",
+     "subject": "003",
+     "value": "F",
+     "unit": "",
+     "quote": "003 | F | 30 | 62.5 | 163",
+     "file": "Exampleamide delivery/Clinical/EX-01 demographics.tsv",
+     "part": "sheet:EX-01 demographics",
+     "product": "",
+     "note": ""
+    },
+    {
+     "field": "subject.weight",
+     "subject": "003",
+     "value": "62.5",
+     "unit": "kg",
+     "quote": "003 | F | 30 | 62.5 | 163",
+     "file": "Exampleamide delivery/Clinical/EX-01 demographics.tsv",
+     "part": "sheet:EX-01 demographics",
+     "product": "",
+     "note": ""
+    },
+    {
+     "field": "subject.height",
+     "subject": "003",
+     "value": "163",
+     "unit": "cm",
+     "quote": "003 | F | 30 | 62.5 | 163",
+     "file": "Exampleamide delivery/Clinical/EX-01 demographics.tsv",
+     "part": "sheet:EX-01 demographics",
+     "product": "",
+     "note": ""
+    },
+    {
+     "field": "subject.age",
+     "subject": "004",
+     "value": "32",
+     "unit": "years",
+     "quote": "004 | M | 32 | 64 | 164",
+     "file": "Exampleamide delivery/Clinical/EX-01 demographics.tsv",
+     "part": "sheet:EX-01 demographics",
+     "product": "",
+     "note": ""
+    },
+    {
+     "field": "subject.sex",
+     "subject": "004",
+     "value": "M",
+     "unit": "",
+     "quote": "004 | M | 32 | 64 | 164",
+     "file": "Exampleamide delivery/Clinical/EX-01 demographics.tsv",
+     "part": "sheet:EX-01 demographics",
+     "product": "",
+     "note": ""
+    },
+    {
+     "field": "subject.weight",
+     "subject": "004",
+     "value": "64",
+     "unit": "kg",
+     "quote": "004 | M | 32 | 64 | 164",
+     "file": "Exampleamide delivery/Clinical/EX-01 demographics.tsv",
+     "part": "sheet:EX-01 demographics",
+     "product": "",
+     "note": ""
+    },
+    {
+     "field": "subject.height",
+     "subject": "004",
+     "value": "164",
+     "unit": "cm",
+     "quote": "004 | M | 32 | 64 | 164",
+     "file": "Exampleamide delivery/Clinical/EX-01 demographics.tsv",
+     "part": "sheet:EX-01 demographics",
+     "product": "",
+     "note": ""
+    },
+    {
+     "field": "subject.age",
+     "subject": "005",
+     "value": "34",
+     "unit": "years",
+     "quote": "005 | M | 34 | 65.5 | 165",
+     "file": "Exampleamide delivery/Clinical/EX-01 demographics.tsv",
+     "part": "sheet:EX-01 demographics",
+     "product": "",
+     "note": ""
+    },
+    {
+     "field": "subject.sex",
+     "subject": "005",
+     "value": "M",
+     "unit": "",
+     "quote": "005 | M | 34 | 65.5 | 165",
+     "file": "Exampleamide delivery/Clinical/EX-01 demographics.tsv",
+     "part": "sheet:EX-01 demographics",
+     "product": "",
+     "note": ""
+    },
+    {
+     "field": "subject.weight",
+     "subject": "005",
+     "value": "65.5",
+     "unit": "kg",
+     "quote": "005 | M | 34 | 65.5 | 165",
+     "file": "Exampleamide delivery/Clinical/EX-01 demographics.tsv",
+     "part": "sheet:EX-01 demographics",
+     "product": "",
+     "note": ""
+    },
+    {
+     "field": "subject.height",
+     "subject": "005",
+     "value": "165",
+     "unit": "cm",
+     "quote": "005 | M | 34 | 65.5 | 165",
+     "file": "Exampleamide delivery/Clinical/EX-01 demographics.tsv",
+     "part": "sheet:EX-01 demographics",
+     "product": "",
+     "note": ""
+    },
+    {
+     "field": "subject.age",
+     "subject": "006",
+     "value": "36",
+     "unit": "years",
+     "quote": "006 | F | 36 | 67 | 166",
+     "file": "Exampleamide delivery/Clinical/EX-01 demographics.tsv",
+     "part": "sheet:EX-01 demographics",
+     "product": "",
+     "note": ""
+    },
+    {
+     "field": "subject.sex",
+     "subject": "006",
+     "value": "F",
+     "unit": "",
+     "quote": "006 | F | 36 | 67 | 166",
+     "file": "Exampleamide delivery/Clinical/EX-01 demographics.tsv",
+     "part": "sheet:EX-01 demographics",
+     "product": "",
+     "note": ""
+    },
+    {
+     "field": "subject.weight",
+     "subject": "006",
+     "value": "67",
+     "unit": "kg",
+     "quote": "006 | F | 36 | 67 | 166",
+     "file": "Exampleamide delivery/Clinical/EX-01 demographics.tsv",
+     "part": "sheet:EX-01 demographics",
+     "product": "",
+     "note": ""
+    },
+    {
+     "field": "subject.height",
+     "subject": "006",
+     "value": "166",
+     "unit": "cm",
+     "quote": "006 | F | 36 | 67 | 166",
+     "file": "Exampleamide delivery/Clinical/EX-01 demographics.tsv",
+     "part": "sheet:EX-01 demographics",
+     "product": "",
+     "note": ""
+    },
+    {
+     "field": "subject.age",
+     "subject": "007",
+     "value": "38",
+     "unit": "years",
+     "quote": "007 | M | 38 | 68.5 | 167",
+     "file": "Exampleamide delivery/Clinical/EX-01 demographics.tsv",
+     "part": "sheet:EX-01 demographics",
+     "product": "",
+     "note": ""
+    },
+    {
+     "field": "subject.sex",
+     "subject": "007",
+     "value": "M",
+     "unit": "",
+     "quote": "007 | M | 38 | 68.5 | 167",
+     "file": "Exampleamide delivery/Clinical/EX-01 demographics.tsv",
+     "part": "sheet:EX-01 demographics",
+     "product": "",
+     "note": ""
+    },
+    {
+     "field": "subject.weight",
+     "subject": "007",
+     "value": "68.5",
+     "unit": "kg",
+     "quote": "007 | M | 38 | 68.5 | 167",
+     "file": "Exampleamide delivery/Clinical/EX-01 demographics.tsv",
+     "part": "sheet:EX-01 demographics",
+     "product": "",
+     "note": ""
+    },
+    {
+     "field": "subject.height",
+     "subject": "007",
+     "value": "167",
+     "unit": "cm",
+     "quote": "007 | M | 38 | 68.5 | 167",
+     "file": "Exampleamide delivery/Clinical/EX-01 demographics.tsv",
+     "part": "sheet:EX-01 demographics",
+     "product": "",
+     "note": ""
+    },
+    {
+     "field": "subject.age",
+     "subject": "008",
+     "value": "40",
+     "unit": "years",
+     "quote": "008 | M | 40 | 70 | 168",
+     "file": "Exampleamide delivery/Clinical/EX-01 demographics.tsv",
+     "part": "sheet:EX-01 demographics",
+     "product": "",
+     "note": ""
+    },
+    {
+     "field": "subject.sex",
+     "subject": "008",
+     "value": "M",
+     "unit": "",
+     "quote": "008 | M | 40 | 70 | 168",
+     "file": "Exampleamide delivery/Clinical/EX-01 demographics.tsv",
+     "part": "sheet:EX-01 demographics",
+     "product": "",
+     "note": ""
+    },
+    {
+     "field": "subject.weight",
+     "subject": "008",
+     "value": "70",
+     "unit": "kg",
+     "quote": "008 | M | 40 | 70 | 168",
+     "file": "Exampleamide delivery/Clinical/EX-01 demographics.tsv",
+     "part": "sheet:EX-01 demographics",
+     "product": "",
+     "note": ""
+    },
+    {
+     "field": "subject.height",
+     "subject": "008",
+     "value": "168",
+     "unit": "cm",
+     "quote": "008 | M | 40 | 70 | 168",
+     "file": "Exampleamide delivery/Clinical/EX-01 demographics.tsv",
+     "part": "sheet:EX-01 demographics",
+     "product": "",
+     "note": ""
+    }
+   ],
+   "not_found": [
+    "A-composition-all-products",
+    "A-manufacturing-changes",
+    "A-changed-excipient-share",
+    "B-dissolution-all-media",
+    "B-particle-size",
+    "B-drug-product-specification",
+    "C-drug-substance-properties",
+    "D-clinical-study-design",
+    "D-clinical-concentrations",
+    "D-clinical-pk-nca",
+    "D-clinical-disposition",
+    "D-bioanalysis",
+    "D-be-statistics"
+   ]
+  },
+  "Exampleamide delivery/In vitro/Dissolution pH 6.8.tsv": {
+   "file": "Exampleamide delivery/In vitro/Dissolution pH 6.8.tsv",
+   "tables": [
+    {
+     "file": "Exampleamide delivery/In vitro/Dissolution pH 6.8.tsv",
+     "kind": "dissolution",
+     "about": "LOT-R, LOT-T, LOT-X at pH 6.8",
+     "part": "sheet:Dissolution pH 6.8",
+     "header_lines": [
+      1,
+      2
+     ],
+     "first_line": 3,
+     "last_line": 15,
+     "skip_lines": [],
+     "summary_lines": {
+      "mean": 15
+     },
+     "columns": [
+      {
+       "index": 1,
+       "role": "unit",
+       "label": "Unit",
+       "unit": "",
+       "time": null,
+       "group": ""
+      },
+      {
+       "index": 2,
+       "role": "value",
+       "label": "5",
+       "unit": "",
+       "time": 5.0,
+       "group": "LOT-R"
+      },
+      {
+       "index": 3,
+       "role": "value",
+       "label": "10",
+       "unit": "",
+       "time": 10.0,
+       "group": "LOT-R"
+      },
+      {
+       "index": 4,
+       "role": "value",
+       "label": "15",
+       "unit": "",
+       "time": 15.0,
+       "group": "LOT-R"
+      },
+      {
+       "index": 5,
+       "role": "value",
+       "label": "30",
+       "unit": "",
+       "time": 30.0,
+       "group": "LOT-R"
+      },
+      {
+       "index": 6,
+       "role": "value",
+       "label": "45",
+       "unit": "",
+       "time": 45.0,
+       "group": "LOT-R"
+      },
+      {
+       "index": 7,
+       "role": "value",
+       "label": "60",
+       "unit": "",
+       "time": 60.0,
+       "group": "LOT-R"
+      },
+      {
+       "index": 8,
+       "role": "value",
+       "label": "5",
+       "unit": "",
+       "time": 5.0,
+       "group": "LOT-T"
+      },
+      {
+       "index": 9,
+       "role": "value",
+       "label": "10",
+       "unit": "",
+       "time": 10.0,
+       "group": "LOT-T"
+      },
+      {
+       "index": 10,
+       "role": "value",
+       "label": "15",
+       "unit": "",
+       "time": 15.0,
+       "group": "LOT-T"
+      },
+      {
+       "index": 11,
+       "role": "value",
+       "label": "30",
+       "unit": "",
+       "time": 30.0,
+       "group": "LOT-T"
+      },
+      {
+       "index": 12,
+       "role": "value",
+       "label": "45",
+       "unit": "",
+       "time": 45.0,
+       "group": "LOT-T"
+      },
+      {
+       "index": 13,
+       "role": "value",
+       "label": "60",
+       "unit": "",
+       "time": 60.0,
+       "group": "LOT-T"
+      },
+      {
+       "index": 14,
+       "role": "value",
+       "label": "5",
+       "unit": "",
+       "time": 5.0,
+       "group": "LOT-X"
+      },
+      {
+       "index": 15,
+       "role": "value",
+       "label": "10",
+       "unit": "",
+       "time": 10.0,
+       "group": "LOT-X"
+      },
+      {
+       "index": 16,
+       "role": "value",
+       "label": "15",
+       "unit": "",
+       "time": 15.0,
+       "group": "LOT-X"
+      },
+      {
+       "index": 17,
+       "role": "value",
+       "label": "30",
+       "unit": "",
+       "time": 30.0,
+       "group": "LOT-X"
+      },
+      {
+       "index": 18,
+       "role": "value",
+       "label": "45",
+       "unit": "",
+       "time": 45.0,
+       "group": "LOT-X"
+      },
+      {
+       "index": 19,
+       "role": "value",
+       "label": "60",
+       "unit": "",
+       "time": 60.0,
+       "group": "LOT-X"
+      }
+     ],
+     "time_unit": "min",
+     "value_unit": "%",
+     "missing_tokens": [
+      ".",
+      "-",
+      "—",
+      "NA",
+      "N/A",
+      "NR",
+      "ND",
+      "NS",
+      "M"
+     ],
+     "blq_tokens": [
+      "BLQ",
+      "BQL",
+      "<LLOQ",
+      "< LLOQ",
+      "<LOQ",
+      "BLOQ",
+      "LLOQ"
+     ],
+     "zero_means_blq": false,
+     "constants": {
+      "medium": "pH 6.8",
+      "batches": "LOT-R, LOT-T, LOT-X",
+      "units_per_batch": "12"
+     },
+     "note": "Dissolution profiles for three batches (LOT-R reference, LOT-T clinical test, LOT-X reformulated) at pH 6.8. 12 units per batch tested at 6 time points (5, 10, 15, 30, 45, 60 min). Mean values on line 15. Apparatus, speed, volume, temperature not specified in this file."
+    }
+   ],
+   "facts": [
+    {
+     "field": "dissolution.time_points",
+     "subject": "pH 6.8",
+     "value": "5, 10, 15, 30, 45, 60",
+     "unit": "min",
+     "quote": "Time (min) | 5 | 10 | 15 | 30 | 45 | 60 | 5 | 10 | 15 | 30 | 45 | 60 | 5 | 10 | 15 | 30 | 45 | 60",
+     "file": "Exampleamide delivery/In vitro/Dissolution pH 6.8.tsv",
+     "part": "sheet:Dissolution pH 6.8",
+     "product": "",
+     "note": "Sampling time points for dissolution testing at pH 6.8, same for all three batches"
+    },
+    {
+     "field": "dissolution.mean_values",
+     "subject": "LOT-R at pH 6.8",
+     "value": "38.0, 58.0, 71.0, 86.0, 93.0, 96.8",
+     "unit": "%",
+     "quote": "Mean | 38.0 | 58.0 | 71.0 | 86.0 | 93.0 | 96.8 | 45.0 | 66.0 | 79.0 | 91.0 | 96.0 | 97.6 | 30.0 | 47.0 | 60.0 | 77.5 | 84.0 | 87.0",
+     "file": "Exampleamide delivery/In vitro/Dissolution pH 6.8.tsv",
+     "part": "sheet:Dissolution pH 6.8",
+     "product": "Refamide 100 mg",
+     "note": "Mean dissolution values for LOT-R at 5, 10, 15, 30, 45, 60 min"
+    },
+    {
+     "field": "dissolution.mean_values",
+     "subject": "LOT-T at pH 6.8",
+     "value": "45.0, 66.0, 79.0, 91.0, 96.0, 97.6",
+     "unit": "%",
+     "quote": "Mean | 38.0 | 58.0 | 71.0 | 86.0 | 93.0 | 96.8 | 45.0 | 66.0 | 79.0 | 91.0 | 96.0 | 97.6 | 30.0 | 47.0 | 60.0 | 77.5 | 84.0 | 87.0",
+     "file": "Exampleamide delivery/In vitro/Dissolution pH 6.8.tsv",
+     "part": "sheet:Dissolution pH 6.8",
+     "product": "Exampleamide 100 mg",
+     "note": "Mean dissolution values for LOT-T at 5, 10, 15, 30, 45, 60 min"
+    },
+    {
+     "field": "dissolution.mean_values",
+     "subject": "LOT-X at pH 6.8",
+     "value": "30.0, 47.0, 60.0, 77.5, 84.0, 87.0",
+     "unit": "%",
+     "quote": "Mean | 38.0 | 58.0 | 71.0 | 86.0 | 93.0 | 96.8 | 45.0 | 66.0 | 79.0 | 91.0 | 96.0 | 97.6 | 30.0 | 47.0 | 60.0 | 77.5 | 84.0 | 87.0",
+     "file": "Exampleamide delivery/In vitro/Dissolution pH 6.8.tsv",
+     "part": "sheet:Dissolution pH 6.8",
+     "product": "Exampleamide 100 mg reformulated",
+     "note": "Mean dissolution values for LOT-X at 5, 10, 15, 30, 45, 60 min"
+    }
+   ],
+   "not_found": [
+    "B-dissolution-all-media (apparatus, speed, volume, temperature)",
+    "B-particle-size",
+    "B-drug-product-specification",
+    "C-drug-substance-properties",
+    "A-composition-all-products",
+    "A-manufacturing-changes",
+    "A-changed-excipient-share",
+    "D-clinical-study-design",
+    "D-clinical-concentrations",
+    "D-clinical-pk-nca",
+    "D-clinical-demographics",
+    "D-clinical-disposition",
+    "D-bioanalysis",
+    "D-be-statistics"
+   ]
+  },
+  "Exampleamide delivery/In vitro/Dissolution pH 1.2.tsv": {
+   "file": "Exampleamide delivery/In vitro/Dissolution pH 1.2.tsv",
+   "tables": [
+    {
+     "file": "Exampleamide delivery/In vitro/Dissolution pH 1.2.tsv",
+     "kind": "dissolution",
+     "about": "LOT-R and LOT-T at pH 1.2",
+     "part": "sheet:Dissolution pH 1.2",
+     "header_lines": [
+      1,
+      2
+     ],
+     "first_line": 3,
+     "last_line": 9,
+     "skip_lines": [],
+     "summary_lines": {
+      "mean": 9
+     },
+     "columns": [
+      {
+       "index": 1,
+       "role": "unit",
+       "label": "",
+       "unit": "",
+       "time": null,
+       "group": ""
+      },
+      {
+       "index": 2,
+       "role": "value",
+       "label": "5",
+       "unit": "",
+       "time": 5.0,
+       "group": "LOT-R"
+      },
+      {
+       "index": 3,
+       "role": "value",
+       "label": "10",
+       "unit": "",
+       "time": 10.0,
+       "group": "LOT-R"
+      },
+      {
+       "index": 4,
+       "role": "value",
+       "label": "15",
+       "unit": "",
+       "time": 15.0,
+       "group": "LOT-R"
+      },
+      {
+       "index": 5,
+       "role": "value",
+       "label": "30",
+       "unit": "",
+       "time": 30.0,
+       "group": "LOT-R"
+      },
+      {
+       "index": 6,
+       "role": "value",
+       "label": "45",
+       "unit": "",
+       "time": 45.0,
+       "group": "LOT-R"
+      },
+      {
+       "index": 7,
+       "role": "value",
+       "label": "60",
+       "unit": "",
+       "time": 60.0,
+       "group": "LOT-R"
+      },
+      {
+       "index": 8,
+       "role": "value",
+       "label": "5",
+       "unit": "",
+       "time": 5.0,
+       "group": "LOT-T"
+      },
+      {
+       "index": 9,
+       "role": "value",
+       "label": "10",
+       "unit": "",
+       "time": 10.0,
+       "group": "LOT-T"
+      },
+      {
+       "index": 10,
+       "role": "value",
+       "label": "15",
+       "unit": "",
+       "time": 15.0,
+       "group": "LOT-T"
+      },
+      {
+       "index": 11,
+       "role": "value",
+       "label": "30",
+       "unit": "",
+       "time": 30.0,
+       "group": "LOT-T"
+      },
+      {
+       "index": 12,
+       "role": "value",
+       "label": "45",
+       "unit": "",
+       "time": 45.0,
+       "group": "LOT-T"
+      },
+      {
+       "index": 13,
+       "role": "value",
+       "label": "60",
+       "unit": "",
+       "time": 60.0,
+       "group": "LOT-T"
+      }
+     ],
+     "time_unit": "min",
+     "value_unit": "%",
+     "missing_tokens": [
+      ".",
+      "-",
+      "—",
+      "NA",
+      "N/A",
+      "NR",
+      "ND",
+      "NS",
+      "M"
+     ],
+     "blq_tokens": [
+      "BLQ",
+      "BQL",
+      "<LLOQ",
+      "< LLOQ",
+      "<LOQ",
+      "BLOQ",
+      "LLOQ"
+     ],
+     "zero_means_blq": false,
+     "constants": {
+      "medium": "pH 1.2"
+     },
+     "note": "File contains dissolution profiles for 6 tablets per batch (LOT-R and LOT-T) plus mean row. Apparatus, speed, volume, temperature, and units (tablets per batch) not stated in this file."
+    }
+   ],
+   "facts": [],
+   "not_found": [
+    "B-dissolution-all-media (LOT-X reformulated batch, pH 6.8 medium, apparatus, speed, volume, temperature, units per batch)",
+    "B-particle-size",
+    "B-drug-product-specification",
+    "C-drug-substance-properties",
+    "A-composition-all-products",
+    "A-manufacturing-changes",
+    "A-changed-excipient-share",
+    "D-clinical-study-design",
+    "D-clinical-concentrations",
+    "D-clinical-pk-nca",
+    "D-clinical-demographics",
+    "D-clinical-disposition",
+    "D-bioanalysis",
+    "D-be-statistics"
+   ]
+  },
+  "Exampleamide delivery/In vitro/Solubility.tsv": {
+   "file": "Exampleamide delivery/In vitro/Solubility.tsv",
+   "tables": [
+    {
+     "file": "Exampleamide delivery/In vitro/Solubility.tsv",
+     "kind": "solubility",
+     "about": "",
+     "part": "sheet:Solubility",
+     "header_lines": [
+      1
+     ],
+     "first_line": 2,
+     "last_line": 5,
+     "skip_lines": [],
+     "summary_lines": {},
+     "columns": [
+      {
+       "index": 1,
+       "role": "medium",
+       "label": "Medium",
+       "unit": "",
+       "time": null,
+       "group": ""
+      },
+      {
+       "index": 2,
+       "role": "ph",
+       "label": "pH",
+       "unit": "",
+       "time": null,
+       "group": ""
+      },
+      {
+       "index": 3,
+       "role": "solubility",
+       "label": "Solubility (mg/mL)",
+       "unit": "mg/mL",
+       "time": null,
+       "group": ""
+      }
+     ],
+     "time_unit": "",
+     "value_unit": "",
+     "missing_tokens": [
+      ".",
+      "-",
+      "—",
+      "NA",
+      "N/A",
+      "NR",
+      "ND",
+      "NS",
+      "M"
+     ],
+     "blq_tokens": [
+      "BLQ",
+      "BQL",
+      "<LLOQ",
+      "< LLOQ",
+      "<LOQ",
+      "BLOQ",
+      "LLOQ"
+     ],
+     "zero_means_blq": false,
+     "constants": {},
+     "note": "Equilibrium solubility of Exampleamide in four media spanning the GI pH range. Temperature not specified in file."
+    }
+   ],
+   "facts": [
+    {
+     "field": "substance.solubility",
+     "subject": "Water pH 6.5",
+     "value": "0.21",
+     "unit": "mg/mL",
+     "quote": "Water | 6.5 | 0.21",
+     "file": "Exampleamide delivery/In vitro/Solubility.tsv",
+     "part": "sheet:Solubility",
+     "product": "",
+     "note": "Equilibrium solubility in water at pH 6.5"
+    },
+    {
+     "field": "substance.solubility",
+     "subject": "0.1 N HCl pH 1.2",
+     "value": "4.8",
+     "unit": "mg/mL",
+     "quote": "0.1 N HCl | 1.2 | 4.8",
+     "file": "Exampleamide delivery/In vitro/Solubility.tsv",
+     "part": "sheet:Solubility",
+     "product": "",
+     "note": "Equilibrium solubility in 0.1 N HCl at pH 1.2"
+    },
+    {
+     "field": "substance.solubility",
+     "subject": "Acetate buffer pH 4.5",
+     "value": "1.9",
+     "unit": "mg/mL",
+     "quote": "Acetate buffer | 4.5 | 1.9",
+     "file": "Exampleamide delivery/In vitro/Solubility.tsv",
+     "part": "sheet:Solubility",
+     "product": "",
+     "note": "Equilibrium solubility in acetate buffer at pH 4.5"
+    },
+    {
+     "field": "substance.solubility",
+     "subject": "Phosphate buffer pH 6.8",
+     "value": "0.15",
+     "unit": "mg/mL",
+     "quote": "Phosphate buffer | 6.8 | 0.15",
+     "file": "Exampleamide delivery/In vitro/Solubility.tsv",
+     "part": "sheet:Solubility",
+     "product": "",
+     "note": "Equilibrium solubility in phosphate buffer at pH 6.8"
+    }
+   ],
+   "not_found": [
+    "A-composition-all-products",
+    "A-manufacturing-changes",
+    "A-changed-excipient-share",
+    "B-dissolution-all-media",
+    "B-particle-size",
+    "B-drug-product-specification",
+    "C-drug-substance-properties",
+    "D-clinical-study-design",
+    "D-clinical-concentrations",
+    "D-clinical-pk-nca",
+    "D-clinical-demographics",
+    "D-clinical-disposition",
+    "D-bioanalysis",
+    "D-be-statistics"
+   ]
+  },
+  "Exampleamide delivery/Formulation/Composition.tsv": {
+   "file": "Exampleamide delivery/Formulation/Composition.tsv",
+   "tables": [
+    {
+     "file": "Exampleamide delivery/Formulation/Composition.tsv",
+     "kind": "composition",
+     "about": "Refamide 100 mg, Exampleamide 100 mg, Exampleamide 100 mg reformulated",
+     "part": "sheet:Composition",
+     "header_lines": [
+      1
+     ],
+     "first_line": 2,
+     "last_line": 7,
+     "skip_lines": [],
+     "summary_lines": {},
+     "columns": [
+      {
+       "index": 1,
+       "role": "component",
+       "label": "Component",
+       "unit": "",
+       "time": null,
+       "group": ""
+      },
+      {
+       "index": 2,
+       "role": "function",
+       "label": "Function",
+       "unit": "",
+       "time": null,
+       "group": ""
+      },
+      {
+       "index": 3,
+       "role": "amount",
+       "label": "Refamide 100 mg",
+       "unit": "",
+       "time": null,
+       "group": "Refamide 100 mg"
+      },
+      {
+       "index": 4,
+       "role": "amount",
+       "label": "Exampleamide 100 mg",
+       "unit": "",
+       "time": null,
+       "group": "Exampleamide 100 mg"
+      },
+      {
+       "index": 5,
+       "role": "amount",
+       "label": "Exampleamide 100 mg reformulated",
+       "unit": "",
+       "time": null,
+       "group": "Exampleamide 100 mg reformulated"
+      }
+     ],
+     "time_unit": "",
+     "value_unit": "",
+     "missing_tokens": [
+      ".",
+      "-",
+      "—",
+      "NA",
+      "N/A",
+      "NR",
+      "ND",
+      "NS",
+      "M"
+     ],
+     "blq_tokens": [
+      "BLQ",
+      "BQL",
+      "<LLOQ",
+      "< LLOQ",
+      "<LOQ",
+      "BLOQ",
+      "LLOQ"
+     ],
+     "zero_means_blq": false,
+     "constants": {},
+     "note": "Amounts are in mg per tablet (implied by context of 100 mg strength tablets)."
+    }
+   ],
+   "facts": [
+    {
+     "field": "product.name",
+     "subject": "Refamide 100 mg",
+     "value": "Refamide 100 mg",
+     "unit": "",
+     "quote": "Component | Function | Refamide 100 mg | Exampleamide 100 mg | Exampleamide 100 mg reformulated",
+     "file": "Exampleamide delivery/Formulation/Composition.tsv",
+     "part": "sheet:Composition",
+     "product": "Refamide 100 mg",
+     "note": ""
+    },
+    {
+     "field": "product.name",
+     "subject": "Exampleamide 100 mg",
+     "value": "Exampleamide 100 mg",
+     "unit": "",
+     "quote": "Component | Function | Refamide 100 mg | Exampleamide 100 mg | Exampleamide 100 mg reformulated",
+     "file": "Exampleamide delivery/Formulation/Composition.tsv",
+     "part": "sheet:Composition",
+     "product": "Exampleamide 100 mg",
+     "note": ""
+    },
+    {
+     "field": "product.name",
+     "subject": "Exampleamide 100 mg reformulated",
+     "value": "Exampleamide 100 mg reformulated",
+     "unit": "",
+     "quote": "Component | Function | Refamide 100 mg | Exampleamide 100 mg | Exampleamide 100 mg reformulated",
+     "file": "Exampleamide delivery/Formulation/Composition.tsv",
+     "part": "sheet:Composition",
+     "product": "Exampleamide 100 mg reformulated",
+     "note": ""
+    },
+    {
+     "field": "product.strength",
+     "subject": "Refamide 100 mg",
+     "value": "100",
+     "unit": "mg",
+     "quote": "Exampleamide | active | 100 | 100 | 100",
+     "file": "Exampleamide delivery/Formulation/Composition.tsv",
+     "part": "sheet:Composition",
+     "product": "Refamide 100 mg",
+     "note": ""
+    },
+    {
+     "field": "product.strength",
+     "subject": "Exampleamide 100 mg",
+     "value": "100",
+     "unit": "mg",
+     "quote": "Exampleamide | active | 100 | 100 | 100",
+     "file": "Exampleamide delivery/Formulation/Composition.tsv",
+     "part": "sheet:Composition",
+     "product": "Exampleamide 100 mg",
+     "note": ""
+    },
+    {
+     "field": "product.strength",
+     "subject": "Exampleamide 100 mg reformulated",
+     "value": "100",
+     "unit": "mg",
+     "quote": "Exampleamide | active | 100 | 100 | 100",
+     "file": "Exampleamide delivery/Formulation/Composition.tsv",
+     "part": "sheet:Composition",
+     "product": "Exampleamide 100 mg reformulated",
+     "note": ""
+    }
+   ],
+   "not_found": [
+    "A-manufacturing-changes",
+    "A-changed-excipient-share",
+    "B-dissolution-all-media",
+    "B-particle-size",
+    "B-drug-product-specification",
+    "C-drug-substance-properties",
+    "D-clinical-study-design",
+    "D-clinical-concentrations",
+    "D-clinical-pk-nca",
+    "D-clinical-demographics",
+    "D-clinical-disposition",
+    "D-bioanalysis",
+    "D-be-statistics"
+   ]
+  },
+  "Exampleamide delivery/Literature/Label.md": {
+   "file": "Exampleamide delivery/Literature/Label.md",
+   "tables": [],
+   "facts": [
+    {
+     "field": "substance.mw",
+     "subject": "Exampleamide",
+     "value": "412.5 g/mol",
+     "unit": "g/mol",
+     "quote": "Molecular weight: 412.5 g/mol",
+     "file": "Exampleamide delivery/Literature/Label.md",
+     "part": "body",
+     "product": "Exampleamide",
+     "note": "Molecular weight from label extract"
+    },
+    {
+     "field": "adme.fu",
+     "subject": "Exampleamide",
+     "value": "97 %",
+     "unit": "%",
+     "quote": "Plasma protein binding: 97 %",
+     "file": "Exampleamide delivery/Literature/Label.md",
+     "part": "body",
+     "product": "Exampleamide",
+     "note": "Plasma protein binding (bound fraction) from label extract; fraction unbound = 3%"
+    }
+   ],
+   "not_found": [
+    "A-composition-all-products",
+    "A-manufacturing-changes",
+    "A-changed-excipient-share",
+    "B-dissolution-all-media",
+    "B-particle-size",
+    "B-drug-product-specification",
+    "C-drug-substance-properties",
+    "D-clinical-study-design",
+    "D-clinical-concentrations",
+    "D-clinical-pk-nca",
+    "D-clinical-demographics",
+    "D-clinical-disposition",
+    "D-bioanalysis",
+    "D-be-statistics"
+   ]
+  },
+  "Exampleamide delivery/Clinical/EX-01 synopsis.pdf": {
+   "file": "Exampleamide delivery/Clinical/EX-01 synopsis.pdf",
+   "tables": [],
+   "facts": [
+    {
+     "field": "study.id",
+     "subject": "EX-01",
+     "value": "EX-01",
+     "unit": "",
+     "quote": "Study EX-01: an open two-period crossover in healthy adults",
+     "file": "",
+     "part": "p1",
+     "product": "",
+     "note": ""
+    },
+    {
+     "field": "study.title",
+     "subject": "EX-01",
+     "value": "Clinical study report synopsis",
+     "unit": "",
+     "quote": "Clinical study report synopsis",
+     "file": "",
+     "part": "p1",
+     "product": "",
+     "note": ""
+    },
+    {
+     "field": "study.design",
+     "subject": "EX-01",
+     "value": "open two-period crossover",
+     "unit": "",
+     "quote": "Study EX-01: an open two-period crossover in healthy adults",
+     "file": "",
+     "part": "p1",
+     "product": "",
+     "note": ""
+    },
+    {
+     "field": "study.blinding",
+     "subject": "EX-01",
+     "value": "open",
+     "unit": "",
+     "quote": "Study EX-01: an open two-period crossover in healthy adults",
+     "file": "",
+     "part": "p1",
+     "product": "",
+     "note": ""
+    },
+    {
+     "field": "study.treatment_code",
+     "subject": "EX-01",
+     "value": "A = Refamide 100 mg (reference product); B = Exampleamide 100 mg (test product)",
+     "unit": "",
+     "quote": "Treatments: A = Refamide 100 mg (reference product); B = Exampleamide 100 mg (test product).",
+     "file": "",
+     "part": "p1",
+     "product": "",
+     "note": ""
+    },
+    {
+     "field": "study.population",
+     "subject": "EX-01",
+     "value": "healthy adults",
+     "unit": "",
+     "quote": "Study EX-01: an open two-period crossover in healthy adults",
+     "file": "",
+     "part": "p1",
+     "product": "",
+     "note": ""
+    },
+    {
+     "field": "study.sex",
+     "subject": "EX-01",
+     "value": "male and female",
+     "unit": "",
+     "quote": "Healthy male and female adults; all subjects were of Asian origin.",
+     "file": "",
+     "part": "p1",
+     "product": "",
+     "note": ""
+    },
+    {
+     "field": "study.ethnicity",
+     "subject": "EX-01",
+     "value": "Asian",
+     "unit": "",
+     "quote": "Healthy male and female adults; all subjects were of Asian origin.",
+     "file": "",
+     "part": "p1",
+     "product": "",
+     "note": ""
+    },
+    {
+     "field": "study.dose",
+     "subject": "EX-01",
+     "value": "100 mg",
+     "unit": "",
+     "quote": "Route: oral. Each subject received 100 mg with 240 mL of water after an overnight fast.",
+     "file": "",
+     "part": "p1",
+     "product": "",
+     "note": ""
+    },
+    {
+     "field": "study.route",
+     "subject": "EX-01",
+     "value": "oral",
+     "unit": "",
+     "quote": "Route: oral. Each subject received 100 mg with 240 mL of water after an overnight fast.",
+     "file": "",
+     "part": "p1",
+     "product": "",
+     "note": ""
+    },
+    {
+     "field": "study.regimen",
+     "subject": "EX-01",
+     "value": "Each subject received 100 mg",
+     "unit": "",
+     "quote": "Route: oral. Each subject received 100 mg with 240 mL of water after an overnight fast.",
+     "file": "",
+     "part": "p1",
+     "product": "",
+     "note": ""
+    },
+    {
+     "field": "study.fasting",
+     "subject": "EX-01",
+     "value": "after an overnight fast",
+     "unit": "",
+     "quote": "Route: oral. Each subject received 100 mg with 240 mL of water after an overnight fast.",
+     "file": "",
+     "part": "p1",
+     "product": "",
+     "note": ""
+    },
+    {
+     "field": "study.water",
+     "subject": "EX-01",
+     "value": "240 mL",
+     "unit": "",
+     "quote": "Route: oral. Each subject received 100 mg with 240 mL of water after an overnight fast.",
+     "file": "",
+     "part": "p1",
+     "product": "",
+     "note": ""
+    },
+    {
+     "field": "study.meal_times",
+     "subject": "EX-01",
+     "value": "4 h and 10 h after dosing",
+     "unit": "",
+     "quote": "Standardised meals were served at 4 h and 10 h after dosing.",
+     "file": "",
+     "part": "p1",
+     "product": "",
+     "note": ""
+    },
+    {
+     "field": "study.analyte",
+     "subject": "EX-01",
+     "value": "Exampleamide",
+     "unit": "",
+     "quote": "Exampleamide: molecular weight 412.5 g/mol (free base); pKa 8.9 (basic).",
+     "file": "",
+     "part": "p1",
+     "product": "",
+     "note": ""
+    },
+    {
+     "field": "study.matrix",
+     "subject": "EX-01",
+     "value": "plasma",
+     "unit": "",
+     "quote": "Plasma was assayed by LC-MS/MS; LLOQ 0.5 ng/mL.",
+     "file": "",
+     "part": "p1",
+     "product": "",
+     "note": ""
+    },
+    {
+     "field": "study.lloq",
+     "subject": "EX-01",
+     "value": "0.5 ng/mL",
+     "unit": "",
+     "quote": "Plasma was assayed by LC-MS/MS; LLOQ 0.5 ng/mL.",
+     "file": "",
+     "part": "p1",
+     "product": "",
+     "note": ""
+    },
+    {
+     "field": "study.bioanalytical_method",
+     "subject": "EX-01",
+     "value": "LC-MS/MS",
+     "unit": "",
+     "quote": "Plasma was assayed by LC-MS/MS; LLOQ 0.5 ng/mL.",
+     "file": "",
+     "part": "p1",
+     "product": "",
+     "note": ""
+    },
+    {
+     "field": "substance.mw",
+     "subject": "Exampleamide",
+     "value": "412.5 g/mol (free base)",
+     "unit": "",
+     "quote": "Exampleamide: molecular weight 412.5 g/mol (free base); pKa 8.9 (basic).",
+     "file": "",
+     "part": "p1",
+     "product": "",
+     "note": ""
+    },
+    {
+     "field": "substance.pka",
+     "subject": "Exampleamide",
+     "value": "8.9 (basic)",
+     "unit": "",
+     "quote": "Exampleamide: molecular weight 412.5 g/mol (free base); pKa 8.9 (basic).",
+     "file": "",
+     "part": "p1",
+     "product": "",
+     "note": ""
+    },
+    {
+     "field": "study.excluded_subjects",
+     "subject": "EX-01",
+     "value": "4",
+     "unit": "",
+     "quote": "Subjects withdrawn: 4 (adverse event in period 2).",
+     "file": "",
+     "part": "p1",
+     "product": "",
+     "note": "withdrawn due to adverse event in period 2"
+    }
+   ],
+   "not_found": [
+    "A-composition-all-products",
+    "A-manufacturing-changes",
+    "A-changed-excipient-share",
+    "B-dissolution-all-media",
+    "B-particle-size",
+    "B-drug-product-specification",
+    "C-drug-substance-properties",
+    "D-clinical-study-design",
+    "D-clinical-concentrations",
+    "D-clinical-pk-nca",
+    "D-clinical-demographics",
+    "D-clinical-disposition",
+    "D-bioanalysis",
+    "D-be-statistics"
+   ]
+  }
+ },
+ "writing": {
+  "findings": {
+   "files": "10 files delivered and read into the data room.",
+   "substance": "6 drug substance properties identified from delivered documents.",
+   "adme": "1 ADME fact extracted from the provided materials.",
+   "formulation": "6 formulation components documented; 3 components differ across batches.",
+   "solubility": "Solubility measured in 8 different media conditions.",
+   "dissolution": "5 dissolution profiles available; 2 batches release ≥85% within 15 minutes.",
+   "clinical": "EX-01 modeling set contains 6 subjects with complete data.",
+   "observed": "2 mean PK profiles; 4 of 4 client exposure values reproduced within 1%.",
+   "decisions": "9 modeling decisions await client confirmation before proceeding.",
+   "requests": "7 data requests remain open pending client response.",
+   "plan": "6 simulations planned: 2 calibration, 1 verification, 3 prediction.",
+   "inputs": "44 of 47 PK-Sim input fields populated; 3 compound properties missing."
+  },
+  "requests": {
+   "EX-01: subject counts": "Please clarify subject 3 status: the client lists it as completed but the data does not show completion.",
+   "EX-01: subject counts (subject 4)": "Please clarify subject 4 status: the client lists it as completed but the data does not show completion.",
+   "EX-01: actual sampling times": "Please provide actual sampling times for EX-01; a few client AUC and Tmax values differ from our nominal-time calculations.",
+   "Dissolution LOT-X in pH 6.8: the summary row": "Please confirm the 30-minute mean dissolution for LOT-X in pH 6.8: client reports 77.5%, unit data gives 76.00%.",
+   "Lipophilicity": "Please provide the compound lipophilicity (logP) value for modeling, or confirm if we should source from literature (will be marked).",
+   "Blood-to-plasma ratio": "Please provide the blood-to-plasma ratio for modeling, or confirm if we should source from literature (will be marked).",
+   "Specific intestinal permeability (transcellular)": "Please provide the specific intestinal permeability (transcellular) for modeling, or confirm if we should source from literature (will be marked)."
+  }
+ },
+ "about": "Every Data room agent (A6-A10) on the synthetic Exampleamide delivery (modeler_project.dataroom.synthetic, made-up data), answered once by Nemotron Ultra on NVIDIA's API catalog and saved as submitted. Replayed by test_dataroom_recorded.py through code's checks; never a model call in CI."
+}

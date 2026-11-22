@@ -106,6 +106,13 @@ def read_table(desc: TableDescription, doc: SourceDocument, *, file: str, sha256
     wanted = [k for k in range(desc.first_line, desc.last_line + 1) if k not in desc.skip_lines]
     wanted += [k for k in summary_of if k not in wanted]
     problems: list[Problem] = []
+    both = {t.strip().lower() for t in desc.missing_tokens} & {t.strip().lower() for t in desc.blq_tokens}
+    if both:
+        # "BLQ" listed as a missing sample too made every value below the LLOQ a missing sample (Nemotron on the
+        # synthetic delivery, 2026-11-22): the subject sets and the AUC set changed
+        problems.append(Problem(code="TOKEN_BOTH_MISSING_AND_BLQ", severity="error", message=(
+            f"{', '.join(sorted(both))}: listed both as a missing sample and as below the LLOQ; a value is one or the "
+            "other (below the LLOQ is a measurement, a missing sample is none)")))
     if desc.last_line < desc.first_line or not n:
         problems.append(Problem(code="EMPTY_RANGE", severity="error",
                                 message=f"the table on {desc.part} of {file} names no lines or no columns"))
@@ -165,10 +172,31 @@ def _value_in_quote(value: str, quote: str) -> bool:
     return bool(numbers) and all(x in in_quote for x in numbers)
 
 
+_ROLE_WORDS = ("reference", "test", "reformulat", "original", "innovator", "generic", "brand", "rld", "listed drug")
+
+
+def _treatment_code_problem(fact: Fact) -> str:
+    """A treatment code's meaning must say what the code is, and a product named for it must be named in the quote
+    (Nemotron on the synthetic delivery, 2026-11-22: code A "meaning" A, its product claimed from a data row)."""
+    meaning, code = unmarked(fact.value), unmarked(fact.subject)
+    if not re.search(r"[a-z]{3,}", re.sub(r"\b" + re.escape(code) + r"\b", "", meaning) if code else meaning):
+        return "a treatment code's value must say what the code is (e.g. 'reference product'), not repeat the code"
+    if "|" in fact.value:
+        return "a treatment code's value is what the documents say the code is, not a line of a table"
+    if fact.product.strip():
+        quote = unmarked(fact.quote)
+        name = unmarked(fact.product)
+        if name not in quote and not any(w in quote for w in _ROLE_WORDS):
+            return f"the quote does not name the product {fact.product!r} or its role for this code"
+    return ""
+
+
 def check_fact(fact: Fact, doc: SourceDocument, *, file: str, sha256: str) -> CheckedFact:
     """The fact with its place, when its quote is in the file and its value in the quote; refused otherwise."""
     if not fact.value.strip():
         return CheckedFact(fact=fact, ok=False, problem="the fact has no value")
+    if fact.field == "study.treatment_code" and (why := _treatment_code_problem(fact)):
+        return CheckedFact(fact=fact, ok=False, problem=why)
     found = find_quote(doc, fact.quote)
     if found is None:
         return CheckedFact(fact=fact, ok=False, problem=f"the quote is not in {file}")
