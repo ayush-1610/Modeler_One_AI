@@ -60,6 +60,13 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
   - With an empty list nothing changes except two things: a timeout costs 2 waits instead of 5, and the in-house model
     streams.
   - A cloud model in the list receives client files when the one before it fails: the notice says so before saving.
+- **Which free models, measured (2026-11-22):** every Data room agent was run on the synthetic delivery, and its room
+  compared with the hand-written answers (58 values).
+  - Nemotron Ultra (NVIDIA): 51 of 58; on the owner's sample delivery 31 of 34.
+  - Nemotron 3.5 Super (NVIDIA): 7 of 58. It answered every stage, but its table descriptions found no study.
+  - Kimi K3.1 Pro, MiniMax M3.1 Flash and Mistral Large 4 (all through NVIDIA's catalog): no question card. NVIDIA
+    answered HTTP 502 ("upstream request failed") to each large request, five times each.
+  - So, of NVIDIA's catalog, Nemotron Ultra is the one to list, and only for data its terms allow.
 - **Known gaps (from the governance review):**
   - Consent is not yet recorded per client and per provider; the list is one for the platform.
   - No project can yet be marked "in-house only".
