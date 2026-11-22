@@ -57,6 +57,7 @@ AGENT_PROVIDERS: dict[str, str] = {
     "litellm": "In-house model (LiteLLM proxy)",
     "bedrock": "Claude on Amazon Bedrock",
     "groq": "gpt-oss-120b on GroqCloud",
+    "openai_compat": "Another OpenAI-compatible service",
 }
 EFFORTS = ("low", "medium", "high", "xhigh", "max")          # Claude's `output_config.effort`
 GROQ_EFFORTS = ("low", "medium", "high")                     # gpt-oss's `reasoning_effort` (modeler_agents.llm)
@@ -81,6 +82,11 @@ KEY_PROVIDERS: dict[str, dict[str, Any]] = {
                            ("aws_access_key", "AWS access key ID", True, False),
                            ("aws_secret_key", "AWS secret access key", True, False))},
     "groq": {"label": "gpt-oss-120b on GroqCloud", "fields": (("api_key", "GroqCloud API key", True, True),)},
+    # any OpenAI-compatible Chat Completions service (Cerebras, NVIDIA's API catalog, OpenRouter …): its address and key;
+    # the model is typed on the agent's row ("More…")
+    "openai_compat": {"label": "Another OpenAI-compatible service",
+                      "fields": (("base_url", "Service address (ending in /v1)", False, True),
+                                 ("api_key", "API key", True, True))},
     # the console's people and companies (F): the realm's service-account client, `keycloak_admin`
     "keycloak": {"label": "Keycloak service account (people and companies)",
                  "fields": (("client_id", "Client ID (modeler-admin-api)", False, True),
@@ -315,6 +321,9 @@ def model_env(read_root: str, master_key: str, agent: str) -> dict[str, str] | N
     if setting["provider"] == "groq":
         return {"MODELER_LLM_PROVIDER": "groq", "GROQ_API_KEY": key["api_key"], "MODELER_LLM_MODEL": setting["model"],
                 "MODELER_LLM_EFFORT": setting.get("effort") or ""}
+    if setting["provider"] == "openai_compat":
+        return {"MODELER_LLM_PROVIDER": "openai_compat", "OPENAI_COMPAT_BASE": key["base_url"],
+                "OPENAI_COMPAT_KEY": key["api_key"], "MODELER_LLM_MODEL": setting["model"]}
     raise SettingsError(f"{setting['provider']} cannot run an agent yet")
 
 

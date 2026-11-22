@@ -24,6 +24,13 @@ or Claude on Amazon Bedrock (`modeler_agents.claude`; the admin console sets the
     MODELER_LLM_EFFORT=medium         low, medium, high, xhigh or max (unset: the model's own default)
     MODELER_LLM_FALLBACK=...          the model asked when the first declines or stays overloaded (optional)
 
+or any other OpenAI-compatible service (Cerebras, NVIDIA's API catalog, OpenRouter …), its address, key and model given:
+
+    MODELER_LLM_PROVIDER=openai_compat
+    OPENAI_COMPAT_BASE=https://…/v1
+    OPENAI_COMPAT_KEY=...
+    MODELER_LLM_MODEL=...
+
 or gpt-oss-120b on GroqCloud (plan 2026-11-21 v2 §9: a third model, chosen per agent in the admin console), through
 Groq's OpenAI-compatible endpoint `https://api.groq.com/openai/v1` with the same client as the proxy:
 
@@ -65,8 +72,11 @@ class ProviderDefaults:
 PROVIDERS: dict[str, ProviderDefaults] = {
     "litellm": ProviderDefaults("http://127.0.0.1:4000/v1", "LITELLM_KEY", "qwen-coder"),
     "groq": ProviderDefaults("https://api.groq.com/openai/v1", "GROQ_API_KEY", "openai/gpt-oss-120b"),
+    # any other service with an OpenAI-compatible Chat Completions endpoint (Cerebras, NVIDIA's API catalog,
+    # OpenRouter, Together …): its address, key and model are the console's
+    "openai_compat": ProviderDefaults("", "OPENAI_COMPAT_KEY", ""),
 }
-BASE_ENV = {"litellm": "LITELLM_BASE"}       # GroqCloud's address is fixed
+BASE_ENV = {"litellm": "LITELLM_BASE", "openai_compat": "OPENAI_COMPAT_BASE"}       # GroqCloud's address is fixed
 GROQ_EFFORTS = ("low", "medium", "high")      # gpt-oss's `reasoning_effort` on GroqCloud
 DEFAULT_TIMEOUT_S = 600.0
 
@@ -162,9 +172,11 @@ class OpenAICompatChat:
                 else:
                     if response.status_code == 200:
                         try:
-                            return _parse(response.json(), self.model, inline_tools=bool(tools))
+                            result = _parse(response.json(), self.model, inline_tools=bool(tools))
                         except ValueError as exc:
                             raise LLMUnavailableError(f"{self.provider} answered with something that is not JSON: {exc}") from exc
+                        _check_context(self, body, result)
+                        return result
                     raise_refusal(self, response)
                     last_error = f"HTTP {response.status_code}: {_error_message(response)}"
                     wait = _retry_after(response)
@@ -177,6 +189,23 @@ class OpenAICompatChat:
 
 
 RETRY_AFTER_MAX_S = 90.0
+# a request of this many characters or more is at least this many tokens (JSON and English run 3–4.5 characters a
+# token); a model that reports reading under half of that saw a cut prompt
+CHARS_PER_TOKEN_MAX = 4.5
+CUT_PROMPT_SHARE = 0.5
+
+
+def _check_context(chat: OpenAICompatChat, body: dict[str, Any], result: ChatResult) -> None:
+    """The in-house model (Ollama behind the proxy) cuts a prompt longer than its context window without saying so, and
+    answers from what is left: an agent then works from half its instructions. A reported prompt much shorter than the
+    request is refused, with what to change."""
+    seen = result.usage.get("input_tokens", 0)
+    least = len(json.dumps(body, ensure_ascii=False)) / CHARS_PER_TOKEN_MAX
+    if chat.provider == "litellm" and seen and least > 2000 and seen < CUT_PROMPT_SHARE * least:
+        raise LLMUnavailableError(
+            f"the model read {seen} tokens of a request of at least {least:.0f}: its context window is too small and "
+            "the prompt was cut. Raise it on the server (Ollama: start it with OLLAMA_CONTEXT_LENGTH=32768, or a "
+            "model with PARAMETER num_ctx 32768) and run again")
 
 
 def _retry_after(response: httpx.Response) -> float | None:
@@ -302,6 +331,9 @@ def chat_model_from_env(env: Mapping[str, str] | None = None) -> ChatModel | Non
         if effort and effort not in GROQ_EFFORTS:
             raise LLMConfigError(f"MODELER_LLM_EFFORT for groq must be one of {', '.join(GROQ_EFFORTS)}, not {effort!r}")
     base_env = BASE_ENV.get(provider)
+    if provider == "openai_compat" and not ((env.get("OPENAI_COMPAT_BASE") or "").strip() and (env.get("MODELER_LLM_MODEL") or "").strip()):
+        raise LLMConfigError("MODELER_LLM_PROVIDER=openai_compat needs OPENAI_COMPAT_BASE (the service's …/v1 address) and "
+                             "MODELER_LLM_MODEL")
     return OpenAICompatChat(
         provider=provider, base_url=((env.get(base_env) if base_env else None) or defaults.base_url).strip(), api_key=key,
         model=(env.get("MODELER_LLM_MODEL") or defaults.model).strip(), timeout_s=timeout, reasoning_effort=effort,

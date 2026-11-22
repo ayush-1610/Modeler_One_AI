@@ -163,6 +163,14 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
   - **f2 compares only profiles run under the same conditions** (medium, pH, apparatus, speed, volume), and also each
     reformulated product against the original. "900 mL at 37 ± 0.5 °C" is 900 mL, not 900370.5.
   - On the sample delivery the sets, exposures, demographics and the held-back reference arm are unchanged.
+- **Qwen Coder stays the Data room's default, and its cut prompts are caught.** Every agent nobody has clicked follows
+  the server's environment, which is the in-house Qwen Coder. Ollama cuts a prompt longer than its context window
+  without saying so, so an agent would work from half its instructions. The client now refuses an in-house answer
+  that read under half of its request, and names the setting to raise (`OLLAMA_CONTEXT_LENGTH`).
+- **Added: "Another OpenAI-compatible service".** It is a provider with an address, a key and a model (`openai_compat`
+  in `llm.py`, `platform_settings`, the key test lists its models). The owner can use a free or cheaper service
+  (Cerebras, NVIDIA's API catalog, OpenRouter …) without a code change; the owner could not upgrade GroqCloud
+  (2026-11-22). Guide: `docs/USING_THE_TOOL.md` §6a. Tests: `test_llm.py` and `test_admin_platform.py`.
 - **Known gap:** the agents are not yet scored on the real delivery; that is the next step. The report export follows.
 
 ### Added — the Data room's reader: every file of a real delivery read, scans included (plan 2026-11-21 v2 §9, build step 1)

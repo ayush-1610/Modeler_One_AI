@@ -111,6 +111,28 @@ def test_a_spent_daily_limit_is_said_at_once_not_waited_on():
     assert (len(calls), waits) == (1, [])
 
 
+def test_a_prompt_the_in_house_model_cut_is_refused_with_what_to_change():
+    def handler(request):
+        return httpx.Response(200, json={"choices": [{"message": {"content": "ok"}, "finish_reason": "stop"}],
+                                         "usage": {"prompt_tokens": 2048, "completion_tokens": 3}, "model": "m"})
+
+    chat = OpenAICompatChat(provider="litellm", base_url="https://x", api_key="k", model="m",
+                            transport=httpx.MockTransport(handler), sleep=lambda s: None)
+    with pytest.raises(Exception, match="OLLAMA_CONTEXT_LENGTH"):
+        chat.complete([{"role": "user", "content": "word " * 8000}], [])
+    assert chat.complete([{"role": "user", "content": "short"}], []).content == "ok"   # a short prompt read whole
+
+
+def test_another_openai_compatible_service_needs_its_address_and_model():
+    from modeler_agents.llm import chat_model_from_env
+
+    env = {"MODELER_LLM_PROVIDER": "openai_compat", "OPENAI_COMPAT_KEY": "k"}
+    with pytest.raises(LLMConfigError, match="OPENAI_COMPAT_BASE"):
+        chat_model_from_env(env)
+    model = chat_model_from_env(env | {"OPENAI_COMPAT_BASE": "https://api.example.ai/v1", "MODELER_LLM_MODEL": "gpt-oss-120b"})
+    assert (model.provider, model.base_url, model.model) == ("openai_compat", "https://api.example.ai/v1", "gpt-oss-120b")
+
+
 def test_client_does_not_retry_a_refusal():
     calls = []
 

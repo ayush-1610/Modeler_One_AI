@@ -174,9 +174,19 @@ New projects use the Data room as their Inputs step (existing projects keep thei
    publishes the inputs into the stores Review & sign and Run already use.
 7. **Export the report.** It opens the evidence report as a printable page; save it as PDF.
 
-**Choosing the models.** Admin → Agents lists the Data room's five agents, A6 to A10. Each has three buttons: Qwen
-Coder, Claude, gpt-oss-120b. GroqCloud's free tier allows 8,000 tokens a minute and per request, and 200,000 a day.
-That is too little for a whole delivery, so use its Developer tier.
+**Choosing the models.** Admin → Agents lists the Data room's five agents, A6 to A10.
+- **By default they run on the in-house Qwen Coder** (the server's LiteLLM proxy). An agent nobody clicked follows the
+  server's environment. It is free, and client files never leave the server.
+- **One check on the server:** Ollama must give Qwen a context window of at least 32,000 tokens. Ollama's default is
+  much smaller, and it then cuts the agents' prompts without saying so. The Data room now refuses such an answer and
+  says what to change. To set it, start Ollama with `OLLAMA_CONTEXT_LENGTH=32768`, or create a model with
+  `PARAMETER num_ctx 32768` and point the proxy's `qwen-coder` alias at it.
+- **Three buttons per agent:** Qwen Coder, Claude, gpt-oss-120b (GroqCloud). GroqCloud's free tier allows 8,000 tokens
+  a minute and per request, and 200,000 a day: too little for a whole delivery.
+- **Any other OpenAI-compatible service**, such as a provider's free tier: Admin → Keys → "Another OpenAI-compatible
+  service", with its address (ending in `/v1`) and key. Then on the agent's row choose More…, that provider, and type
+  the model name. Check the service's terms before you send it client files: many free tiers log or train on what
+  they receive.
 
 **What the AI may and may not do.** It says where a table is and what its columns mean, and quotes facts. Code reads
 every number from the cells and checks every quote against the file. A quote that is not in the file, or a value that

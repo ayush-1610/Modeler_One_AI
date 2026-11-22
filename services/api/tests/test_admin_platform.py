@@ -314,3 +314,25 @@ def test_a_groqcloud_key_test_lists_its_models_and_asks_none(monkeypatch):
     monkeypatch.setattr(llm.OpenAICompatChat, "list_models", lambda self: [])
     ok, message = agent_jobs.test_key("groq", {"api_key": FAKE_GROQ})
     assert not ok and "check the key" in message
+
+
+
+def test_another_openai_compatible_service_runs_an_agent_with_its_own_address_key_and_model(client, tmp_path):
+    """For a free or cheaper service the owner chooses (Cerebras, NVIDIA's API catalog …): no code change, a key and a
+    model on the agent's row."""
+    key = "c" * 20
+    keys = client.get("/api/v1/admin/keys", headers=_as("owner")).json()["data"]
+    (other,) = [p for p in keys["providers"] if p["id"] == "openai_compat"]
+    assert [f["name"] for f in other["fields"]] == ["base_url", "api_key"]
+    key_id = client.post("/api/v1/admin/keys", json={"provider": "openai_compat", "reason": "free tier",
+                                                     "fields": {"base_url": "https://api.example.ai/v1", "api_key": key}},
+                         headers=_as("owner")).json()["data"]["keys"][0]["id"]
+    client.post(f"/api/v1/admin/keys/{key_id}:activate", json={"reason": "in use"}, headers=_as("owner"))
+    client.put("/api/v1/admin/agents/A8", json={"provider": "openai_compat", "model": "gpt-oss-120b", "reason": "try it"},
+               headers=_as("owner"))
+    assert ps.model_env(str(tmp_path), MASTER, "A8") == {
+        "MODELER_LLM_PROVIDER": "openai_compat", "OPENAI_COMPAT_BASE": "https://api.example.ai/v1", "OPENAI_COMPAT_KEY": key,
+        "MODELER_LLM_MODEL": "gpt-oss-120b"}
+    model, problem = agent_jobs.chat_model("A8")
+    assert problem is None and (model.provider, model.base_url, model.model) == (
+        "openai_compat", "https://api.example.ai/v1", "gpt-oss-120b")
