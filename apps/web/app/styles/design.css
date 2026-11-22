@@ -32,7 +32,7 @@ body::before { content: ""; position: fixed; inset: 0; pointer-events: none; z-i
 .sidebar.pinned.open { box-shadow: none; }
 .sidebar .brand { position: relative; display: flex; align-items: center; gap: 10px; height: 40px; min-height: 0; margin: 0;
   padding: 0 5px; white-space: nowrap; font-size: 17px; font-weight: 600; letter-spacing: -0.03em; }
-.brand-logo { flex: none; filter: drop-shadow(0 4px 14px color-mix(in srgb, var(--sim) 35%, transparent)); }
+.brand-logo { flex: none; }      /* a line on the bench, no box and no glow (plan 2026-11-21 v2 §10) */
 .nav-text, .nav-heading-text { opacity: 0; transform: translateX(-8px);
   transition: opacity 320ms var(--ease), transform 500ms var(--ease); }
 .sidebar.open .nav-text, .sidebar.open .nav-heading-text { opacity: 1; transform: none; }
@@ -287,9 +287,9 @@ td.num, th.num { white-space: nowrap; }
 /* press and lift: every button presses on a spring; tiles lift */
 .btn, .nav a, .nav-action, .dash-seg button, .tabs button, .tabs a { -webkit-tap-highlight-color: transparent; }
 .dash-kpi:hover, .pcard:hover { box-shadow: var(--shadow-hover); }
-.btn.primary:hover:not(:disabled) { background: var(--blue-deep); }
+.btn.primary:hover:not(:disabled) { background: var(--brand-indigo); }   /* the brand's deeper indigo (plan 2026-11-21 v2 §10) */
 .btn:disabled { opacity: 0.4; cursor: not-allowed; }
-:where(a, button, input, select, textarea, [tabindex]):focus-visible { outline: 2px solid #0071e3; outline-offset: 2px; }
+:where(a, button, input, select, textarea, [tabindex]):focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 
 /* rows: a list row slides a little toward where it leads */
 .attention a { transition: transform 300ms var(--ease), opacity 200ms; }

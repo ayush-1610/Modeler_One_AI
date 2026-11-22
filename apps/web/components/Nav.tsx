@@ -31,17 +31,21 @@ function Icon({ d }: { d: string }) {
 
 const PIN_KEY = "modeler-nav-pinned";
 
-/** The product's mark: a concentration–time curve over its axes, the observed points in amber. */
+/** The product's mark, "Dose to curve" (plan 2026-11-21 v2 §10, option A): a concentration curve rising from a dose
+ *  point and settling, one line through small nodes, indigo to magenta, on a transparent background (no box). The same
+ *  mark is the app's icon (app/icon.svg). */
 function Logo() {
   return (
-    <svg className="brand-logo" aria-hidden viewBox="0 0 32 32" width="30" height="30">
-      <defs><linearGradient id="mo-g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#2E9BFF" /><stop offset="1" stopColor="#0A4FA8" /></linearGradient></defs>
-      <rect width="32" height="32" rx="10" fill="url(#mo-g)" />
-      <path d="M6 8v16h20" fill="none" stroke="rgba(255,255,255,0.35)" strokeWidth="1.2" strokeLinecap="round" />
-      <path d="M6 23.5C9 23.5 9.5 9 13.5 9c4.5 0 4.5 13 12.5 14" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" />
-      <path d="M6 23.5C9 23.5 9.5 12.5 13.5 12.5c4 0 4.5 9.5 12.5 10.5" fill="none" stroke="rgba(255,255,255,0.45)" strokeWidth="1.2"
-            strokeDasharray="1.5 2.2" strokeLinecap="round" />
-      <g fill="#FFB340"><circle cx="9.5" cy="16" r="1.7" /><circle cx="13.5" cy="9.5" r="1.7" /><circle cx="19" cy="17" r="1.7" /><circle cx="25" cy="22.5" r="1.7" /></g>
+    <svg className="brand-logo" aria-hidden viewBox="0 0 64 64" width="28" height="28">
+      <defs>
+        <linearGradient id="mo-la" x1="0" y1="1" x2="1" y2="0">
+          <stop offset="0" stopColor="#3B1F7A" /><stop offset="1" stopColor="#C2307A" />
+        </linearGradient>
+      </defs>
+      <path d="M8 50 C 13 50, 15 17, 23 17 S 36 40, 58 46" fill="none" stroke="url(#mo-la)" strokeWidth="5" strokeLinecap="round" />
+      <circle cx="8" cy="50" r="5" fill="#3B1F7A" />
+      <circle cx="23" cy="17" r="4" fill="#fff" stroke="#5B2C9C" strokeWidth="3" />
+      <circle cx="42" cy="38.6" r="3.4" fill="#fff" stroke="#A8307F" strokeWidth="3" />
     </svg>
   );
 }

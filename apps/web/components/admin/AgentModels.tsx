@@ -2,7 +2,11 @@
 
 // Each agent's model, chosen in the console (docs/plans/2026-11-10-admin-console.md, C). A change needs a reason and a
 // fresh step-up (the API asks for it; the browser's session confirms the person and sends the change once more).
+// Each agent's row offers three one-click models (plan 2026-11-21 v2 §9): Qwen Coder, Claude and gpt-oss-120b on
+// GroqCloud; a click is kept with the reason "one-click switch" and who made it. "More…" keeps the detailed form for any
+// other choice (a model name, an effort, a fallback).
 
+import Link from "next/link";
 import { useState } from "react";
 
 import { Card } from "@/components/ui";
@@ -11,6 +15,10 @@ import { when } from "@/lib/admin";
 
 type Page = Schema<"AgentsPage">;
 type Row = Page["agents"][number];
+type Choice = Page["choices"][number];
+
+/** The reason a one-click change is kept with (the API records who made it). */
+const ONE_CLICK = "one-click switch";
 
 function RunsOn({ row }: { row: Row }) {
   const r = row.runs_on;
@@ -21,6 +29,72 @@ function RunsOn({ row }: { row: Row }) {
       </span>;
 }
 
+/** The efforts a provider takes: Claude's own, GroqCloud's (low, medium, high), none for the others. */
+function effortsFor(page: Page, provider: string): string[] {
+  return provider === "bedrock" ? page.efforts : provider === "groq" ? page.groq_efforts : [];
+}
+
+/** A provider's one-click model and effort, the form's starting point when the provider is changed in it. */
+function defaultsFor(page: Page, provider: string): { model: string; effort: string } {
+  const c = page.choices.find((x) => x.provider === provider);
+  return { model: c?.model ?? "", effort: c?.effort ?? "" };
+}
+
+/** What a model can do, in small marks: every one calls tools; only Claude reads a scanned page itself. */
+function Capabilities({ choice }: { choice: Choice }) {
+  return (
+    <span className="model-caps">
+      <span className="cap-yes">tools ✓</span>
+      {choice.reads_scans
+        ? <span className="cap-yes">reads scans ✓</span>
+        : <span title="Reads text only: a scanned page reaches it as the OCR's text">text only</span>}
+    </span>
+  );
+}
+
+/** The three one-click models on an agent's row. The active one is marked; one whose provider has no active key is
+ *  disabled and says where to add one. */
+function OneClick({ row, page, onSaved }: { row: Row; page: Page; onSaved: (p: Page) => void }) {
+  const [busy, setBusy] = useState<string | null>(null);
+  const [problem, setProblem] = useState<string | null>(null);
+
+  async function pick(c: Choice) {
+    if (c.id === row.choice) return;
+    setBusy(c.id);
+    setProblem(null);
+    const env = await send("put", "/api/v1/admin/agents/{agent}", { agent: row.agent },
+                           { provider: c.provider, model: c.model, effort: c.effort, fallback: "", reason: ONE_CLICK });
+    setBusy(null);
+    if (env.errors?.length || !env.data) { setProblem(env.errors?.[0]?.message ?? "no answer"); return; }
+    onSaved(env.data);
+  }
+
+  return (
+    <>
+      <div className="model-pick" role="group" aria-label={`Model for ${row.label}`} data-testid={`agent-choices-${row.agent}`}>
+        {page.choices.map((c) => {
+          const on = c.id === row.choice;
+          return (
+            <button key={c.id} type="button" className={`model-choice${on ? " on" : ""}`} aria-pressed={on}
+                    disabled={!c.has_active_key || busy !== null} onClick={() => void pick(c)}
+                    title={c.has_active_key ? `${c.model}${c.effort ? `, effort ${c.effort}` : ""}` : "Add a key under Keys"}
+                    data-testid={`agent-choice-${row.agent}-${c.id}`}>
+              <span className="model-choice-name">
+                {c.label}{on && <span className="model-choice-on"> · in use</span>}
+                {busy === c.id && <span className="model-choice-on"> · switching…</span>}
+              </span>
+              <Capabilities choice={c} />
+              {!c.has_active_key && <span className="model-choice-note">Add a key under Keys</span>}
+            </button>
+          );
+        })}
+      </div>
+      {problem && <span className="banner err" data-testid={`agent-choice-problem-${row.agent}`}>{problem}</span>}
+    </>
+  );
+}
+
+/** The detailed form behind "More…": any provider, a model name, an effort and (on Claude) a fallback, with a reason. */
 function AgentEditor({ row, page, onSaved }: { row: Row; page: Page; onSaved: (p: Page) => void }) {
   const [provider, setProvider] = useState(row.provider);
   const [model, setModel] = useState(row.model);
@@ -31,14 +105,23 @@ function AgentEditor({ row, page, onSaved }: { row: Row; page: Page; onSaved: (p
   const [problem, setProblem] = useState<string | null>(null);
   const needsModel = page.providers.find((p) => p.id === provider)?.needs_model ?? false;
   const claude = provider === "bedrock";
+  const efforts = effortsFor(page, provider);
   const changed = provider !== row.provider || (needsModel && model.trim() !== row.model)
-    || (claude && (effort !== row.effort || fallback !== row.fallback));
+    || (efforts.length > 0 && effort !== row.effort) || (claude && fallback !== row.fallback);
+
+  function changeProvider(next: string) {
+    setProvider(next);
+    const d = next === row.provider ? { model: row.model, effort: row.effort } : defaultsFor(page, next);
+    setModel(d.model);
+    setEffort(d.effort);
+    setFallback(next === row.provider ? row.fallback : "");
+  }
 
   async function save() {
     setBusy(true);
     setProblem(null);
     const env = await send("put", "/api/v1/admin/agents/{agent}", { agent: row.agent },
-                           { provider, model: needsModel ? model.trim() : "", effort: claude ? effort : "",
+                           { provider, model: needsModel ? model.trim() : "", effort: efforts.length ? effort : "",
                              fallback: claude ? fallback : "", reason: reason.trim() });
     setBusy(false);
     if (env.errors?.length || !env.data) { setProblem(env.errors?.[0]?.message ?? "no answer"); return; }
@@ -49,7 +132,7 @@ function AgentEditor({ row, page, onSaved }: { row: Row; page: Page; onSaved: (p
   return (
     <div className="admin-filter" data-testid={`agent-editor-${row.agent}`}>
       <label>Provider
-        <select value={provider} onChange={(e) => setProvider(e.target.value)} data-testid={`agent-provider-${row.agent}`}>
+        <select value={provider} onChange={(e) => changeProvider(e.target.value)} data-testid={`agent-provider-${row.agent}`}>
           {page.providers.map((p) => (
             <option key={p.id} value={p.id}>{p.label}{p.needs_model && !p.has_active_key ? " (no active key)" : ""}</option>
           ))}
@@ -57,24 +140,24 @@ function AgentEditor({ row, page, onSaved }: { row: Row; page: Page; onSaved: (p
       </label>
       {needsModel && (
         <label>Model<input value={model} onChange={(e) => setModel(e.target.value)}
-                           placeholder={claude ? page.claude_models[0] : "qwen-coder"} list={claude ? "claude-models" : undefined}
-                           data-testid={`agent-model-${row.agent}`} /></label>
+                           placeholder={defaultsFor(page, provider).model || "the model's name"}
+                           list={claude ? "claude-models" : undefined} data-testid={`agent-model-${row.agent}`} /></label>
+      )}
+      {efforts.length > 0 && (
+        <label>Effort
+          <select value={effort} onChange={(e) => setEffort(e.target.value)} data-testid={`agent-effort-${row.agent}`}>
+            <option value="">the model&apos;s default</option>
+            {efforts.map((e) => <option key={e} value={e}>{e}</option>)}
+          </select>
+        </label>
       )}
       {claude && (
-        <>
-          <label>Effort
-            <select value={effort} onChange={(e) => setEffort(e.target.value)} data-testid={`agent-effort-${row.agent}`}>
-              <option value="">the model&apos;s default</option>
-              {page.efforts.map((e) => <option key={e} value={e}>{e}</option>)}
-            </select>
-          </label>
-          <label>Fallback model
-            <select value={fallback} onChange={(e) => setFallback(e.target.value)} data-testid={`agent-fallback-${row.agent}`}>
-              <option value="">none</option>
-              {page.claude_models.filter((m) => m !== model.trim()).map((m) => <option key={m} value={m}>{m}</option>)}
-            </select>
-          </label>
-        </>
+        <label>Fallback model
+          <select value={fallback} onChange={(e) => setFallback(e.target.value)} data-testid={`agent-fallback-${row.agent}`}>
+            <option value="">none</option>
+            {page.claude_models.filter((m) => m !== model.trim()).map((m) => <option key={m} value={m}>{m}</option>)}
+          </select>
+        </label>
       )}
       <label>Why<input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="the reason, kept with the change"
                        data-testid={`agent-reason-${row.agent}`} /></label>
@@ -99,15 +182,24 @@ function SwitchEveryAgent({ page, onSaved }: { page: Page; onSaved: (p: Page) =>
   const chosen = page.providers.find((p) => p.id === provider);
   const needsModel = chosen?.needs_model ?? false;
   const claude = provider === "bedrock";
+  const efforts = effortsFor(page, provider);
   const usable = !needsModel || Boolean(chosen?.has_active_key);
   const now = [...new Set(page.agents.map((a) => (a.runs_on.enabled ? `${a.runs_on.provider} · ${a.runs_on.model}` : "off")))];
+
+  function changeProvider(next: string) {
+    setProvider(next);
+    const d = defaultsFor(page, next);
+    setModel(d.model);
+    setEffort(d.effort);
+    setFallback("");
+  }
 
   async function save() {
     setBusy(true);
     setProblem(null);
     setDone(null);
     const env = await send("put", "/api/v1/admin/agents", {},
-                           { provider, model: needsModel ? model.trim() : "", effort: claude ? effort : "",
+                           { provider, model: needsModel ? model.trim() : "", effort: efforts.length ? effort : "",
                              fallback: claude ? fallback : "", reason: reason.trim() });
     setBusy(false);
     if (env.errors?.length || !env.data) { setProblem(env.errors?.[0]?.message ?? "no answer"); return; }
@@ -125,7 +217,7 @@ function SwitchEveryAgent({ page, onSaved }: { page: Page; onSaved: (p: Page) =>
       </p>
       <form className="admin-filter" onSubmit={(e) => { e.preventDefault(); void save(); }} data-testid="switch-every-agent">
         <label>Provider
-          <select value={provider} onChange={(e) => setProvider(e.target.value)} data-testid="switch-provider">
+          <select value={provider} onChange={(e) => changeProvider(e.target.value)} data-testid="switch-provider">
             {page.providers.map((p) => (
               <option key={p.id} value={p.id}>{p.label}{p.needs_model && !p.has_active_key ? " (no active key: add one under Keys)" : ""}</option>
             ))}
@@ -133,23 +225,23 @@ function SwitchEveryAgent({ page, onSaved }: { page: Page; onSaved: (p: Page) =>
         </label>
         {needsModel && (
           <label>Model<input value={model} onChange={(e) => setModel(e.target.value)} list={claude ? "claude-models" : undefined}
-                             placeholder={claude ? page.claude_models[0] : "qwen-coder"} data-testid="switch-model" /></label>
+                             placeholder={defaultsFor(page, provider).model || "the model's name"} data-testid="switch-model" /></label>
+        )}
+        {efforts.length > 0 && (
+          <label>Effort
+            <select value={effort} onChange={(e) => setEffort(e.target.value)} data-testid="switch-effort">
+              <option value="">the model&apos;s default</option>
+              {efforts.map((e) => <option key={e} value={e}>{e}</option>)}
+            </select>
+          </label>
         )}
         {claude && (
-          <>
-            <label>Effort
-              <select value={effort} onChange={(e) => setEffort(e.target.value)} data-testid="switch-effort">
-                <option value="">the model&apos;s default</option>
-                {page.efforts.map((e) => <option key={e} value={e}>{e}</option>)}
-              </select>
-            </label>
-            <label>Fallback model
-              <select value={fallback} onChange={(e) => setFallback(e.target.value)} data-testid="switch-fallback">
-                <option value="">none</option>
-                {page.claude_models.filter((m) => m !== model.trim()).map((m) => <option key={m} value={m}>{m}</option>)}
-              </select>
-            </label>
-          </>
+          <label>Fallback model
+            <select value={fallback} onChange={(e) => setFallback(e.target.value)} data-testid="switch-fallback">
+              <option value="">none</option>
+              {page.claude_models.filter((m) => m !== model.trim()).map((m) => <option key={m} value={m}>{m}</option>)}
+            </select>
+          </label>
         )}
         <label>Why<input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="kept with each agent's change"
                          data-testid="switch-reason" /></label>
@@ -171,26 +263,38 @@ export function AgentModels({ initial }: { initial: Page }) {
       <SwitchEveryAgent page={page} onSaved={setPage} />
       <Card title="Each agent's model">
         <p className="muted mt-0">
-          An agent left &ldquo;as the server&apos;s environment says&rdquo; runs on{" "}
-          <strong>{env.enabled ? `${env.provider} · ${env.model}` : "nothing (agents off)"}</strong>. A provider chosen
-          here uses its active key (Keys). The next run takes the change; nothing restarts. On Claude, effort sets how
-          much the model thinks (and so its cost and speed); the fallback model answers when the first declines a request
-          or stays overloaded.
+          One click puts an agent on Qwen Coder (the in-house model), Claude or gpt-oss-120b (on GroqCloud); the change
+          is kept with who made it. Each uses its provider&apos;s active key (<Link href="/admin/keys">Keys</Link>), and the
+          next run takes it: nothing
+          restarts. Every one calls tools; only Claude reads a scanned page itself (the others read its OCR text).
+          &ldquo;More…&rdquo; sets any other model, its effort (how much the model thinks, and so its cost and speed) or,
+          on Claude, a fallback model. An agent left &ldquo;as the server&apos;s environment says&rdquo; runs on{" "}
+          <strong>{env.enabled ? `${env.provider} · ${env.model}` : "nothing (agents off)"}</strong>.
         </p>
         <div className="table-scroll">
           <table data-testid="admin-agents">
             <thead><tr><th>Agent</th><th>Set to</th><th>Runs on now</th><th>Last change</th></tr></thead>
             <tbody>
               {page.agents.map((a) => (
-                <tr key={a.agent}>
-                  <td>{a.label}<AgentEditor row={a} page={page} onSaved={setPage} /></td>
+                <tr key={a.agent} data-testid={`agent-row-${a.agent}`}>
+                  <td className="agent-cell">
+                    <strong>{a.label}</strong>
+                    <OneClick row={a} page={page} onSaved={setPage} />
+                    <details className="model-more">
+                      <summary data-testid={`agent-more-${a.agent}`}>More…</summary>
+                      {/* keyed by the setting, so the form starts again from it after a one-click change */}
+                      <AgentEditor key={`${a.provider}|${a.model}|${a.effort}|${a.fallback}|${a.set_at ?? ""}`}
+                                   row={a} page={page} onSaved={setPage} />
+                    </details>
+                  </td>
                   <td>
                     {a.provider_label}{a.model ? <div className="muted"><code>{a.model}</code></div> : null}
                     {a.effort ? <div className="muted">effort {a.effort}</div> : null}
                     {a.fallback ? <div className="muted">fallback <code>{a.fallback}</code></div> : null}
                   </td>
                   <td><RunsOn row={a} /></td>
-                  <td>{a.set_at ? <>{when(a.set_at)}<div className="muted">{a.reason}</div></> : <span className="muted">never</span>}</td>
+                  <td>{a.set_at ? <>{when(a.set_at)}<div className="muted">{a.reason}{a.set_by ? ` (${a.set_by})` : ""}</div></>
+                                : <span className="muted">never</span>}</td>
                 </tr>
               ))}
             </tbody>

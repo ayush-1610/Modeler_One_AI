@@ -36,13 +36,19 @@ from pbpk_domain.atomic_io import atomic_write_text, file_lock
 FOLDER = "_platform"
 ROTATE_AFTER_DAYS = 90
 
-# The agents a setting is kept for, by the prefix of their run names (`A4-sheet-reading` is A4).
+# The agents a setting is kept for, by the prefix of their run names (`A4-sheet-reading` is A4, `A10-writer` is A10).
+# A6 … A10 are the Data room's five (plan 2026-11-21 v2 §9), each switched on its own.
 AGENTS: dict[str, str] = {
     "A1": "A1 · reads the proposal (Start)",
     "A2": "A2 · searches the literature",
     "A3": "A3 · finds observed data",
     "A4": "A4 · reads the client's files",
     "A5": "A5 · drafts the model plan",
+    "A6": "A6 · Data room: the question",
+    "A7": "A7 · Data room: sorts the files",
+    "A8": "A8 · Data room: extracts",
+    "A9": "A9 · Data room: checks the extraction",
+    "A10": "A10 · Data room: writes findings and requests",
 }
 # Where an agent's model comes from: the server's environment, nowhere (agents off), or a provider with a console key.
 AGENT_PROVIDERS: dict[str, str] = {
@@ -50,10 +56,23 @@ AGENT_PROVIDERS: dict[str, str] = {
     "off": "Off (every step on its manual path)",
     "litellm": "In-house model (LiteLLM proxy)",
     "bedrock": "Claude on Amazon Bedrock",
+    "groq": "gpt-oss-120b on GroqCloud",
 }
 EFFORTS = ("low", "medium", "high", "xhigh", "max")          # Claude's `output_config.effort`
+GROQ_EFFORTS = ("low", "medium", "high")                     # gpt-oss's `reasoning_effort` (modeler_agents.llm)
+# The one-click choices on each agent's row (plan 2026-11-21 v2 §9): a provider, a model and an effort each. Every one
+# calls tools; `reads_scans`: the model reads a page image itself, which only Claude does (gpt-oss-120b and Qwen Coder
+# read text only, so a scanned page reaches them as the OCR's text).
+MODEL_CHOICES: tuple[dict[str, Any], ...] = (
+    {"id": "qwen-coder", "label": "Qwen Coder", "provider": "litellm", "model": "qwen-coder", "effort": "",
+     "tools": True, "reads_scans": False},
+    {"id": "claude", "label": "Claude", "provider": "bedrock", "model": "anthropic.claude-opus-5-5", "effort": "",
+     "tools": True, "reads_scans": True},
+    {"id": "gpt-oss-120b", "label": "gpt-oss-120b", "provider": "groq", "model": "openai/gpt-oss-120b", "effort": "medium",
+     "tools": True, "reads_scans": False},
+)
 # Each provider's key fields: (name, label, secret, required). Bedrock takes a Bedrock API key, or an AWS access key
-# with its secret (`anthropic.AnthropicBedrockMantle`); the region is not a secret.
+# with its secret (`anthropic.AnthropicBedrockMantle`); the region is not a secret. GroqCloud's address is fixed.
 KEY_PROVIDERS: dict[str, dict[str, Any]] = {
     "litellm": {"label": "In-house model (LiteLLM proxy)",
                 "fields": (("base_url", "Proxy address", False, True), ("key", "Proxy key", True, True))},
@@ -61,6 +80,7 @@ KEY_PROVIDERS: dict[str, dict[str, Any]] = {
                 "fields": (("aws_region", "AWS region", False, True), ("api_key", "Bedrock API key", True, False),
                            ("aws_access_key", "AWS access key ID", True, False),
                            ("aws_secret_key", "AWS secret access key", True, False))},
+    "groq": {"label": "gpt-oss-120b on GroqCloud", "fields": (("api_key", "GroqCloud API key", True, True),)},
     # the console's people and companies (F): the realm's service-account client, `keycloak_admin`
     "keycloak": {"label": "Keycloak service account (people and companies)",
                  "fields": (("client_id", "Client ID (modeler-admin-api)", False, True),
@@ -244,13 +264,15 @@ class AgentSettings:
             raise SettingsError(f"unknown provider {provider!r}; one of: {', '.join(AGENT_PROVIDERS)}")
         if provider in KEY_PROVIDERS and not model.strip():
             raise SettingsError(f"{AGENT_PROVIDERS[provider]} needs a model name")
-        claude = provider == "bedrock"
+        claude, groq = provider == "bedrock", provider == "groq"
         if claude and effort and effort not in EFFORTS:
             raise SettingsError(f"effort is one of {', '.join(EFFORTS)}")
+        if groq and effort and effort not in GROQ_EFFORTS:
+            raise SettingsError(f"effort on GroqCloud is one of {', '.join(GROQ_EFFORTS)}")
         if claude and fallback.strip() == model.strip():
             raise SettingsError("the fallback model must differ from the model")
         setting = {"provider": provider, "model": model.strip() if provider in KEY_PROVIDERS else "",
-                   "effort": effort if claude else "", "fallback": fallback.strip() if claude else "",
+                   "effort": effort if claude or groq else "", "fallback": fallback.strip() if claude else "",
                    "by": by, "at": _now(), "reason": reason.strip()}
         with file_lock(self.path):
             doc = _read(self.path, {"current": {}, "history": []})
@@ -262,7 +284,7 @@ class AgentSettings:
 
 
 def agent_of(run_agent: str) -> str | None:
-    """The console's agent for a run's agent name ("A4-sheet-reading" is A4)."""
+    """The console's agent for a run's agent name ("A4-sheet-reading" is A4, "A10-writer" is A10)."""
     head = run_agent.split("-", 1)[0]
     return head if head in AGENTS else None
 
@@ -290,6 +312,9 @@ def model_env(read_root: str, master_key: str, agent: str) -> dict[str, str] | N
         if key.get("api_key"):
             return env | {"BEDROCK_API_KEY": key["api_key"]}
         return env | {"AWS_ACCESS_KEY_ID": key["aws_access_key"], "AWS_SECRET_ACCESS_KEY": key["aws_secret_key"]}
+    if setting["provider"] == "groq":
+        return {"MODELER_LLM_PROVIDER": "groq", "GROQ_API_KEY": key["api_key"], "MODELER_LLM_MODEL": setting["model"],
+                "MODELER_LLM_EFFORT": setting.get("effort") or ""}
     raise SettingsError(f"{setting['provider']} cannot run an agent yet")
 
 

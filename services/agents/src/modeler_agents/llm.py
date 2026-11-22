@@ -24,6 +24,16 @@ or Claude on Amazon Bedrock (`modeler_agents.claude`; the admin console sets the
     MODELER_LLM_EFFORT=medium         low, medium, high, xhigh or max (unset: the model's own default)
     MODELER_LLM_FALLBACK=...          the model asked when the first declines or stays overloaded (optional)
 
+or gpt-oss-120b on GroqCloud (plan 2026-11-21 v2 §9: a third model, chosen per agent in the admin console), through
+Groq's OpenAI-compatible endpoint `https://api.groq.com/openai/v1` with the same client as the proxy:
+
+    MODELER_LLM_PROVIDER=groq
+    GROQ_API_KEY=...                  the GroqCloud API key
+    MODELER_LLM_MODEL=openai/gpt-oss-120b   (default)
+    MODELER_LLM_EFFORT=medium         low, medium or high, sent as `reasoning_effort` (unset: the model's own default)
+
+`gemini` stays refused: the hosted Gemini provider was removed on 2026-10-06 and has not come back.
+
 Web search (Ollama's cloud API, its own key) is a tool the agents may call: `modeler_agents.web_search`.
 """
 
@@ -50,11 +60,14 @@ class ProviderDefaults:
 
 
 # Defaults only: LITELLM_BASE / MODELER_LLM_MODEL override them per deployment. The owner replaced the hosted providers
-# (Gemini, Groq) with the in-house model on 2026-10-06: client documents then never leave the company's server.
+# (Gemini, Groq) with the in-house model on 2026-10-06, and brought GroqCloud back as a third model, chosen per agent, on
+# 2026-11-21 (plan 2026-11-21 v2 §9); Gemini stays out.
 PROVIDERS: dict[str, ProviderDefaults] = {
     "litellm": ProviderDefaults("http://127.0.0.1:4000/v1", "LITELLM_KEY", "qwen-coder"),
+    "groq": ProviderDefaults("https://api.groq.com/openai/v1", "GROQ_API_KEY", "openai/gpt-oss-120b"),
 }
-BASE_ENV = {"litellm": "LITELLM_BASE"}
+BASE_ENV = {"litellm": "LITELLM_BASE"}       # GroqCloud's address is fixed
+GROQ_EFFORTS = ("low", "medium", "high")      # gpt-oss's `reasoning_effort` on GroqCloud
 DEFAULT_TIMEOUT_S = 600.0
 
 _RETRY_STATUS = {408, 409, 429, 500, 502, 503, 504}
@@ -95,13 +108,15 @@ class LLMConfigError(RuntimeError):
 
 
 class OpenAICompatChat:
-    """Chat Completions on an OpenAI-compatible endpoint (the LiteLLM proxy in front of Ollama)."""
+    """Chat Completions on an OpenAI-compatible endpoint (the LiteLLM proxy in front of Ollama, or GroqCloud).
+    `reasoning_effort` is sent only when given (gpt-oss on GroqCloud); without it the request is the proxy's as before."""
 
     def __init__(self, *, provider: str, base_url: str, api_key: str, model: str, timeout_s: float = DEFAULT_TIMEOUT_S,
                  max_retries: int = 4, transport: httpx.BaseTransport | None = None,
-                 sleep: Callable[[float], None] = time.sleep):
+                 sleep: Callable[[float], None] = time.sleep, reasoning_effort: str | None = None):
         self.provider = provider
         self.model = model
+        self.reasoning_effort = reasoning_effort
         self.base_url = base_url.rstrip("/")
         self._url = self.base_url + "/chat/completions"
         self._headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
@@ -121,6 +136,8 @@ class OpenAICompatChat:
 
     def complete(self, messages: list[dict[str, Any]], tools: list[dict[str, Any]]) -> ChatResult:
         body: dict[str, Any] = {"model": self.model, "messages": messages, "temperature": 0, "stream": False}
+        if self.reasoning_effort:
+            body["reasoning_effort"] = self.reasoning_effort
         if tools:
             body["tools"] = tools
             body["tool_choice"] = "auto"
@@ -132,7 +149,9 @@ class OpenAICompatChat:
                 except httpx.TimeoutException:
                     last_error = f"no answer within {self._timeout:g} s (raise MODELER_LLM_TIMEOUT_S for long documents)"
                 except httpx.ConnectError as exc:
-                    last_error = f"cannot reach {self.base_url} ({exc}); is the LiteLLM proxy running and LITELLM_BASE right?"
+                    last_error = f"cannot reach {self.base_url} ({exc}); " + (
+                        "is the LiteLLM proxy running and LITELLM_BASE right?" if self.provider == "litellm"
+                        else "may the server reach it (its network's allowed hosts)?")
                 except httpx.HTTPError as exc:
                     last_error = f"{type(exc).__name__}: {exc}"
                 else:
@@ -154,7 +173,8 @@ def raise_refusal(chat: OpenAICompatChat, response: httpx.Response) -> None:
     if status in _RETRY_STATUS:
         return
     if status in (401, 403):
-        raise LLMUnavailableError(f"{chat.provider} rejected the key (HTTP {status}: {message}); check LITELLM_KEY")
+        key_env = PROVIDERS[chat.provider].key_env if chat.provider in PROVIDERS else "the provider's key"
+        raise LLMUnavailableError(f"{chat.provider} rejected the key (HTTP {status}: {message}); check {key_env}")
     lowered = message.lower()
     if status in (400, 404) and ("model" in lowered and any(w in lowered for w in ("not found", "invalid", "no such", "does not exist"))):
         served = chat.list_models()
@@ -230,10 +250,11 @@ def chat_model_from_env(env: Mapping[str, str] | None = None) -> ChatModel | Non
     provider = (env.get("MODELER_LLM_PROVIDER") or "").strip().lower()
     if provider in ("", "disabled", "none"):
         return None
-    if provider in ("gemini", "groq"):
-        raise LLMConfigError(f"MODELER_LLM_PROVIDER={provider} is no longer supported: since 2026-10-06 the agents use the "
-                             "in-house model. Set MODELER_LLM_PROVIDER=litellm with LITELLM_BASE and LITELLM_KEY in "
-                             "~/.modeler-secrets.env (template: deploy/server/modeler-secrets.env.example)")
+    if provider == "gemini":
+        raise LLMConfigError("MODELER_LLM_PROVIDER=gemini is no longer supported: since 2026-10-06 the agents use the "
+                             "in-house model, Claude on Bedrock or gpt-oss-120b on GroqCloud. Set MODELER_LLM_PROVIDER=litellm "
+                             "with LITELLM_BASE and LITELLM_KEY in ~/.modeler-secrets.env (template: "
+                             "deploy/server/modeler-secrets.env.example), or choose each agent's model in the admin console")
     if provider == "bedrock":
         return _bedrock(env)
     defaults = PROVIDERS.get(provider)
@@ -247,9 +268,15 @@ def chat_model_from_env(env: Mapping[str, str] | None = None) -> ChatModel | Non
         timeout = float(env.get("MODELER_LLM_TIMEOUT_S") or DEFAULT_TIMEOUT_S)
     except ValueError as exc:
         raise LLMConfigError(f"MODELER_LLM_TIMEOUT_S must be a number of seconds, not {env.get('MODELER_LLM_TIMEOUT_S')!r}") from exc
+    effort = None
+    if provider == "groq":           # the proxy's request stays as it was: no effort for it
+        effort = (env.get("MODELER_LLM_EFFORT") or "").strip().lower() or None
+        if effort and effort not in GROQ_EFFORTS:
+            raise LLMConfigError(f"MODELER_LLM_EFFORT for groq must be one of {', '.join(GROQ_EFFORTS)}, not {effort!r}")
+    base_env = BASE_ENV.get(provider)
     return OpenAICompatChat(
-        provider=provider, base_url=(env.get(BASE_ENV[provider]) or defaults.base_url).strip(), api_key=key,
-        model=(env.get("MODELER_LLM_MODEL") or defaults.model).strip(), timeout_s=timeout,
+        provider=provider, base_url=((env.get(base_env) if base_env else None) or defaults.base_url).strip(), api_key=key,
+        model=(env.get("MODELER_LLM_MODEL") or defaults.model).strip(), timeout_s=timeout, reasoning_effort=effort,
     )
 
 
@@ -281,7 +308,8 @@ def chat(messages: list[dict[str, Any]], tools: list[dict[str, Any]] | None = No
     """One chat completion on the configured model (raises LLMConfigError when agents are off)."""
     model = model or chat_model_from_env()
     if model is None:
-        raise LLMConfigError("agents are off: set MODELER_LLM_PROVIDER=litellm (with LITELLM_BASE and LITELLM_KEY)")
+        raise LLMConfigError("agents are off: set MODELER_LLM_PROVIDER=litellm (with LITELLM_BASE and LITELLM_KEY), bedrock "
+                             "or groq (with GROQ_API_KEY)")
     return model.complete(messages, tools or [])
 
 

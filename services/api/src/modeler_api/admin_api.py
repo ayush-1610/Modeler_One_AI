@@ -277,7 +277,7 @@ def usage(principal: Admin, settings: SettingsDep, since: date | None = None, te
 class AgentSet(BaseModel):
     provider: str
     model: str = ""
-    effort: str = ""          # Claude: low … max (empty: the model's own default)
+    effort: str = ""          # Claude: low … max; GroqCloud: low, medium, high (empty: the model's own default)
     fallback: str = ""        # Claude: the model asked when the first declines or stays overloaded
     reason: str = Field(min_length=1)
 
@@ -316,16 +316,21 @@ def _agents_page(settings: Settings) -> dict[str, Any]:
     for agent, label in ps.AGENTS.items():
         setting = doc["current"].get(agent) or {}
         provider = setting.get("provider", "environment")
+        # the one-click choice the setting is (its provider and model; an effort or fallback set under "More…" too)
+        choice = next((c["id"] for c in ps.MODEL_CHOICES
+                       if (c["provider"], c["model"]) == (provider, setting.get("model", ""))), None)
         rows.append({"agent": agent, "label": label, "provider": provider, "provider_label": ps.AGENT_PROVIDERS[provider],
                      "model": setting.get("model", ""), "effort": setting.get("effort", ""),
-                     "fallback": setting.get("fallback", ""), "set_by": setting.get("by"), "set_at": setting.get("at"),
-                     "reason": setting.get("reason"), "runs_on": agent_jobs.agents_status(agent, admin=True)})
+                     "fallback": setting.get("fallback", ""), "choice": choice, "set_by": setting.get("by"),
+                     "set_at": setting.get("at"), "reason": setting.get("reason"),
+                     "runs_on": agent_jobs.agents_status(agent, admin=True)})
     return envelope({
         "agents": rows,
         "providers": [{"id": p, "label": label, "needs_model": p in ps.KEY_PROVIDERS, "has_active_key": p in active}
                       for p, label in ps.AGENT_PROVIDERS.items()],
+        "choices": [c | {"has_active_key": c["provider"] in active} for c in ps.MODEL_CHOICES],
         "environment": agent_jobs.agents_status(admin=True),
-        "efforts": list(ps.EFFORTS), "claude_models": list(agent_jobs.CLAUDE_MODELS),
+        "efforts": list(ps.EFFORTS), "groq_efforts": list(ps.GROQ_EFFORTS), "claude_models": list(agent_jobs.CLAUDE_MODELS),
         "history": [{k: h[k] for k in ("agent", "provider", "model", "by", "at", "reason")}
                     for h in reversed(doc["history"][-50:])],
     })

@@ -23,6 +23,8 @@ test("a person who is not the platform's owner gets no console link and finds no
     await expect(page.getByTestId("usage-runs")).toHaveCount(0);
     await expect(page.getByTestId("admin-keys")).toHaveCount(0);
     await expect(page.getByTestId("admin-agents")).toHaveCount(0);
+    // nor an agent's one-click models (plan 2026-11-21 v2 §9)
+    await expect(page.getByTestId(/^agent-choices?-/)).toHaveCount(0);
     await expect(page.getByTestId("admin-limits")).toHaveCount(0);
     await expect(page.getByTestId("limit-warnings")).toHaveCount(0);
     await expect(page.getByTestId("pipeline-health")).toHaveCount(0);

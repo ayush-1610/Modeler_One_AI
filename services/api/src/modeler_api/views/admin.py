@@ -148,7 +148,8 @@ class UsagePage(View):
 
 class AgentRow(View):
     """One agent's model as the console sets it ("environment": the server's own configuration), and what it runs on
-    now (`runs_on`, the model the next run would take, or why none)."""
+    now (`runs_on`, the model the next run would take, or why none). `choice`: the one-click choice the setting is (its
+    provider and model), None for any other setting."""
 
     agent: str
     label: str
@@ -157,6 +158,7 @@ class AgentRow(View):
     model: str
     effort: str
     fallback: str
+    choice: str | None
     set_by: str | None
     set_at: str | None
     reason: str | None
@@ -170,6 +172,20 @@ class AgentProvider(View):
     has_active_key: bool
 
 
+class ModelChoice(View):
+    """A one-click choice on an agent's row (plan 2026-11-21 v2 §9): Qwen Coder, Claude or gpt-oss-120b. `tools`: it
+    calls tools; `reads_scans`: it reads a page image itself (Claude only); `has_active_key`: its provider has one."""
+
+    id: str
+    label: str
+    provider: str
+    model: str
+    effort: str
+    tools: bool
+    reads_scans: bool
+    has_active_key: bool
+
+
 class AgentChange(View):
     agent: str
     provider: str
@@ -180,13 +196,16 @@ class AgentChange(View):
 
 
 class AgentsPage(View):
-    """`efforts` and `claude_models`: the choices for an agent on Claude (Bedrock's model ids)."""
+    """`efforts` and `claude_models`: the choices for an agent on Claude (Bedrock's model ids); `groq_efforts`: on
+    GroqCloud; `choices`: the one-click choices each agent's row offers."""
 
     agents: list[AgentRow]
     providers: list[AgentProvider]
+    choices: list[ModelChoice]
     environment: AgentsStatus
     history: list[AgentChange]
     efforts: list[str]
+    groq_efforts: list[str]
     claude_models: list[str]
 
 

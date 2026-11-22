@@ -267,11 +267,22 @@
       },
       "AgentRow": {
         "additionalProperties": false,
-        "description": "One agent's model as the console sets it (\"environment\": the server's own configuration), and what it runs on\nnow (`runs_on`, the model the next run would take, or why none).",
+        "description": "One agent's model as the console sets it (\"environment\": the server's own configuration), and what it runs on\nnow (`runs_on`, the model the next run would take, or why none). `choice`: the one-click choice the setting is (its\nprovider and model), None for any other setting.",
         "properties": {
           "agent": {
             "title": "Agent",
             "type": "string"
+          },
+          "choice": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Choice"
           },
           "effort": {
             "title": "Effort",
@@ -342,6 +353,7 @@
           "model",
           "effort",
           "fallback",
+          "choice",
           "set_by",
           "set_at",
           "reason",
@@ -410,13 +422,20 @@
       },
       "AgentsPage": {
         "additionalProperties": false,
-        "description": "`efforts` and `claude_models`: the choices for an agent on Claude (Bedrock's model ids).",
+        "description": "`efforts` and `claude_models`: the choices for an agent on Claude (Bedrock's model ids); `groq_efforts`: on\nGroqCloud; `choices`: the one-click choices each agent's row offers.",
         "properties": {
           "agents": {
             "items": {
               "$ref": "#/components/schemas/AgentRow"
             },
             "title": "Agents",
+            "type": "array"
+          },
+          "choices": {
+            "items": {
+              "$ref": "#/components/schemas/ModelChoice"
+            },
+            "title": "Choices",
             "type": "array"
           },
           "claude_models": {
@@ -436,6 +455,13 @@
           "environment": {
             "$ref": "#/components/schemas/AgentsStatus"
           },
+          "groq_efforts": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Groq Efforts",
+            "type": "array"
+          },
           "history": {
             "items": {
               "$ref": "#/components/schemas/AgentChange"
@@ -454,9 +480,11 @@
         "required": [
           "agents",
           "providers",
+          "choices",
           "environment",
           "history",
           "efforts",
+          "groq_efforts",
           "claude_models"
         ],
         "title": "AgentsPage",
@@ -19264,6 +19292,56 @@
           "compounds"
         ],
         "title": "ModelBuildRequest",
+        "type": "object"
+      },
+      "ModelChoice": {
+        "additionalProperties": false,
+        "description": "A one-click choice on an agent's row (plan 2026-11-21 v2 §9): Qwen Coder, Claude or gpt-oss-120b. `tools`: it\ncalls tools; `reads_scans`: it reads a page image itself (Claude only); `has_active_key`: its provider has one.",
+        "properties": {
+          "effort": {
+            "title": "Effort",
+            "type": "string"
+          },
+          "has_active_key": {
+            "title": "Has Active Key",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "reads_scans": {
+            "title": "Reads Scans",
+            "type": "boolean"
+          },
+          "tools": {
+            "title": "Tools",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "provider",
+          "model",
+          "effort",
+          "tools",
+          "reads_scans",
+          "has_active_key"
+        ],
+        "title": "ModelChoice",
         "type": "object"
       },
       "ModelPlan": {
