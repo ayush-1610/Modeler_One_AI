@@ -291,3 +291,20 @@ def test_a_page_line_missing_a_cell_has_its_cells_placed_under_their_columns():
     assert not table.problems
     second = {c.time: c.text for c in table.rows[1].cells if c.role == "value"}
     assert second == {5: "80", 10: "", 15: "91"}
+
+
+def test_an_existing_projects_client_files_open_in_the_data_room_once(tmp_path):
+    from modeler_project.dataroom.reading import import_existing
+    from modeler_project.dataroom.store import DataRoomStore
+    from modeler_project.intake_files import open_delivery, record_arrival
+    from modeler_project.store import FileProjectStore
+    from modeler_project.workspace import Workspace
+
+    ws = Workspace(FileProjectStore(tmp_path), "t1", "p1")
+    delivery = open_delivery(ws, by="user:m")
+    for name, data in (("conc.tsv", CONC.encode()), ("synopsis.md", NOTES.encode()), ("again.tsv", CONC.encode())):
+        record_arrival(ws, data, name, delivery=delivery, by="user:m")
+    store = DataRoomStore(ws)
+    added = import_existing(store, by="user:m")
+    assert [u["name"] for u in added] == ["conc.tsv", "synopsis.md"]
+    assert import_existing(store, by="user:m") == [] and len(store.uploads()) == 2

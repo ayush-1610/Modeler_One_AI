@@ -92,3 +92,22 @@ def _text_sha(doc) -> str:
 
     text = "\n".join(line for _, lines in document_text(doc) for line in lines)
     return hashlib.sha256(_normal(text).encode()).hexdigest()
+
+
+def import_existing(store: DataRoomStore, *, by: str) -> list[dict]:
+    """An existing project's client files (as the Inputs page recorded them) added as the Data room's uploads (plan §4:
+    "Open in the Data room" reads their stored files again). A file a zip brought is imported with its zip, not twice;
+    the same bytes are one upload. Returns the uploads added."""
+    from modeler_project.intake_files import files as recorded
+
+    added = []
+    have = {u["sha256"] for u in store.uploads()}
+    for record in recorded(store.ws):
+        if record.repeat or record.container is not None or record.sha256 in have:
+            continue
+        path = store.ws.store.blob_path(store.ws.tenant_id, store.ws.project_id, record.sha256)
+        if path is None:
+            continue
+        added.append(store.add_upload(record.name, path.read_bytes(), by=by))
+        have.add(record.sha256)
+    return added
