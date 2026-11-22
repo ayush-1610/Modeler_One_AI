@@ -153,6 +153,35 @@ automatically, cell by cell. The data plan, derived from the brief, ticks off wh
      correct anything wrong and save: nothing is read in until you save.
 2. What the client sent that the checklist did not promise is listed under **Delivered, not in the data checklist**.
 
+## 6a. The Data room: drop the client's delivery, get the evidence and the PK-Sim inputs
+
+New projects use the Data room as their Inputs step (existing projects keep their Inputs page).
+
+1. **Drop the delivery.** Drag the zip, or many files, onto the Data room, then press **Run**. The progress panel
+   shows each stage: reading (scans go through our own OCR on the server), understanding the question, sorting the
+   files, extracting, checking every number, putting it together. You can leave and come back.
+2. **Confirm the question card.** It holds what must be answered, for whom, the products compared and the checklist of
+   inputs. Add or remove items, then confirm.
+3. **Read the sections.** Every value shows its source chip; click one to see the page with the line highlighted.
+   Statuses: Verified (two sources agree, or our recomputation reproduces the client's number), Sponsor data,
+   Literature, Calculated, Entered, Conflict, Missing.
+4. **Decide.** Each decision card has a suggestion and the reason: the analysis set, the population database, the meal
+   template, the reference solubility, the release profile per product. Choose, and add a reason when you change
+   the suggestion.
+5. **Send the data requests.** They are grouped A (formulation and manufacturing), B (in vitro), C (drug substance and
+   disposition) and D (clinical). Edit the wording, mark a request not needed, and export it.
+6. **Send to the model.** It is enabled when nothing blocks it, and it says what blocks it in plain words. It signs and
+   publishes the inputs into the stores Review & sign and Run already use.
+7. **Export the report.** It opens the evidence report as a printable page; save it as PDF.
+
+**Choosing the models.** Admin → Agents lists the Data room's five agents, A6 to A10. Each has three buttons: Qwen
+Coder, Claude, gpt-oss-120b. GroqCloud's free tier allows 8,000 tokens a minute and per request, and 200,000 a day.
+That is too little for a whole delivery, so use its Developer tier.
+
+**What the AI may and may not do.** It says where a table is and what its columns mean, and quotes facts. Code reads
+every number from the cells and checks every quote against the file. A quote that is not in the file, or a value that
+is not in its quote, is refused and never reaches the room.
+
 ## 7. Inputs (step 2): from every source to a ready CPF
 
 The Inputs page (`/projects/{id}/inputs`) is one workspace in PK-Sim's building blocks: **Compound**, **Formulations**,

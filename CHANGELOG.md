@@ -109,6 +109,8 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
 - **A spent daily limit is said at once.** A 429 for a daily budget is no longer waited on: the client used to retry it
   five times, 90 s apart. The free GroqCloud tier also caps 200,000 tokens a day. The page budget is now
   `run_room(focus_chars=…)`, not an environment variable, so the config-reads guard holds.
+- **Docs:** `docs/USING_THE_TOOL.md` §6a, the Data room for the owner, step by step. The question agent's form and
+  prompt now name the product's `role` (commit 779e1d6): gpt-oss-120b had written `type`.
 - **Known gap:** the agents are not yet scored on the real delivery; that is the next step. The report export follows.
 
 ### Added — the Data room's reader: every file of a real delivery read, scans included (plan 2026-11-21 v2 §9, build step 1)
