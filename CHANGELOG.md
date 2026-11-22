@@ -55,6 +55,8 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
     the window; elsewhere, a model with a longer context.
   - The same call with the same answer again comes back with a note saying so. A model that has lost its earlier
     turns otherwise searches the same words over and over: in an 8k window, Nemotron searched one phrase 50 times.
+    Five turns in a row of nothing but such repeats end the loop (`REPEAT_LIMIT`), so A1 goes on to its short passes,
+    which fit a small window, instead of spending its remaining turns.
   - A1 (`proposal_intake`) runs its passes and the ICH M15 draft after a read that ran out of turns.
   - The Data room's smaller retry also starts on the new message.
   - Start says why the read stopped, in plain words, never a setting's name (`lib/start.ts` `intakeStopped`), and how

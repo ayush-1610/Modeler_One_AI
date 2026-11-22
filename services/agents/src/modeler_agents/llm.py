@@ -476,6 +476,7 @@ def run_tool_loop(model: ChatModel, *, system: str, user: str, tools: list[Tool]
     window: int | None = None          # the model's context window, in tokens, once a refusal has said it
     share = FIT_SHARE
     made: dict[str, tuple[list[int], str]] = {}   # each call (name and arguments) -> its turns and its last answer
+    repeating = 0                      # turns in a row whose every call was made before with the same answer
     for turn in range(1, max_turns + 1):
         if window is not None:
             messages = _fitted(messages, schemas, window, share)
@@ -520,6 +521,7 @@ def run_tool_loop(model: ChatModel, *, system: str, user: str, tools: list[Tool]
         if result.native is not None:     # the provider's own turn, sent back unchanged (Claude's thinking blocks)
             turn_message["native"] = result.native
         messages.append(turn_message)
+        repeated = 0
         for call in result.tool_calls:
             tool = by_name.get(call.name)
             if tool is None:
@@ -539,12 +541,22 @@ def run_tool_loop(model: ChatModel, *, system: str, user: str, tools: list[Tool]
             turns_before, last = made.get(signature, ([], None))
             made[signature] = ([*turns_before, turn], str(answer))
             if turns_before and str(answer) == last:
+                repeated += 1
                 answer = (f"NOTE: you made this same call before (turn {', '.join(map(str, turns_before[-3:]))}) and its "
                           "answer is unchanged. Do not repeat it: use what it says, mark the field missing, or finish.\n"
                           + str(answer))
             log_step({"type": "tool_result", "turn": turn, "tool": call.name, "id": call.id, "result": answer})
             messages.append({"role": "tool", "tool_call_id": call.id, "content": answer})
+        repeating = repeating + 1 if repeated == len(result.tool_calls) else 0
+        if repeating >= REPEAT_LIMIT:
+            # going round in circles (on a small context window, it forgets what it found): stopped, so the caller's
+            # shorter steps can run instead of spending the remaining turns
+            return LoopOutcome("INCOMPLETE", "", turn, usage, error=(
+                f"stopped: it repeated the same calls with the same answers {REPEAT_LIMIT} turns in a row"))
     return LoopOutcome("INCOMPLETE", "", max_turns, usage, error=f"stopped after {max_turns} turns")
+
+
+REPEAT_LIMIT = 5      # turns in a row of nothing but calls already made, with the same answers, before the loop stops
 
 
 # fitting a conversation into a known context window: characters a token is taken to be (JSON, hashes and English run

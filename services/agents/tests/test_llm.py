@@ -214,7 +214,7 @@ class _SmallWindow:
         self.sent.append(messages)
         if _size(messages, tools) / 4 > self.window:
             raise ContextExceeded("cut", window=self.window)
-        read = sum(1 for m in messages if m["role"] == "tool")
+        read = len(self.sent)                       # a new page each turn (what it read is not counted back)
         done = len(self.sent) > self.pages + 6
         if done:
             return ChatResult("finished", (), "stop", {"input_tokens": 1, "output_tokens": 1}, "small")
@@ -454,3 +454,17 @@ def test_gemini_thought_signature_is_echoed_back_with_the_call():
     assert run_tool_loop(chat, system="s", user="u", tools=[tool]).status == "COMPLETED"
     echoed = next(m for m in sent[1]["messages"] if m["role"] == "assistant")["tool_calls"][0]
     assert echoed["extra_content"]["google"]["thought_signature"] == "SIG"
+
+
+def test_a_loop_going_round_in_circles_stops_so_shorter_steps_can_run():
+    # in an 8k window Nemotron searched one phrase 50 times (2026-11-22): five turns in a row of nothing but calls made
+    # before with the same answers end the loop
+    class Circles:
+        provider, model = "test", "c"
+
+        def complete(self, messages, tools):
+            return ChatResult("", (ToolCall(id=str(len(messages)), name="search", arguments={"q": "mw"}),), "tool_calls", {}, "c")
+
+    tool = Tool("search", "search", {"type": "object", "properties": {"q": {"type": "string"}}}, lambda q: "no matches")
+    outcome = run_tool_loop(Circles(), system="s", user="u", tools=[tool], max_turns=80)
+    assert outcome.status == "INCOMPLETE" and outcome.turns == 6 and "repeated the same calls" in outcome.error

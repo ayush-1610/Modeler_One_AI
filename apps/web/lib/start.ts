@@ -86,6 +86,10 @@ export function marks(view: BriefView, answer: Answer): Marks {
  *  server's log; this says what happened and who can change it. */
 export function intakeStopped(status: string, error: string | null | undefined): string {
   const e = (error ?? "").toLowerCase();
+  if (/repeated the same calls/.test(e)) {
+    return "it kept repeating the same searches (on a small context window it forgets what it found), so it was "
+      + "stopped and its short passes filled what Start still needed";
+  }
   if (status === "INCOMPLETE" || /stopped after \d+ turns/.test(e)) {
     return "it used all its turns, and its short passes then filled what Start still needed";
   }

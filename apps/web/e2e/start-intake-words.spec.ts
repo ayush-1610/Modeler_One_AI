@@ -6,6 +6,7 @@ import { intakeStopped } from "../lib/start";
 test("each way the intake agent stops is said in plain words, never with a setting's name", () => {
   const cases: [string, string, RegExp][] = [
     ["INCOMPLETE", "stopped after 80 turns", /used all its turns/],
+    ["INCOMPLETE", "stopped: it repeated the same calls with the same answers 5 turns in a row", /kept repeating/],
     ["LLM_UNAVAILABLE", "the agent's instructions and material do not fit the model's context window (4096 tokens) even with "
       + "its earlier turns left out; raise it on the server (Ollama: start it with OLLAMA_CONTEXT_LENGTH=32768 …)", /context window/],
     ["LLM_UNAVAILABLE", "the request is longer than the model takes (HTTP 413: Request too large …)", /longer than the AI model/],
