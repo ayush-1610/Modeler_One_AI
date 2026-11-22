@@ -92,6 +92,59 @@ def test_provider_selection_from_env_never_reads_keys_from_elsewhere():
     assert (model.model, model.base_url) == ("other", "http://srv:4000/v1")
 
 
+def test_groq_is_the_third_provider_gpt_oss_120b_with_its_reasoning_effort_in_the_body():
+    """Plan 2026-11-21 v2 §9: gpt-oss-120b on GroqCloud through the same OpenAI-compatible client. `reasoning_effort`
+    goes in the request body for it only; the proxy's request is unchanged. A mock transport answers: no test calls
+    GroqCloud."""
+    with pytest.raises(LLMConfigError, match="needs GROQ_API_KEY"):
+        chat_model_from_env({"MODELER_LLM_PROVIDER": "groq", "LITELLM_KEY": "k"})          # never the proxy's key
+    with pytest.raises(LLMConfigError, match="low, medium, high, not 'max'"):
+        chat_model_from_env({"MODELER_LLM_PROVIDER": "groq", "GROQ_API_KEY": "gk", "MODELER_LLM_EFFORT": "max"})
+    model = chat_model_from_env({"MODELER_LLM_PROVIDER": "Groq", "GROQ_API_KEY": "gk", "MODELER_LLM_EFFORT": "medium",
+                                 "LITELLM_BASE": "http://srv:4000/v1"})              # the proxy's address is not GroqCloud's
+    assert (model.provider, model.model, model.base_url, model.reasoning_effort) == (
+        "groq", "openai/gpt-oss-120b", "https://api.groq.com/openai/v1", "medium")
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.update(url=str(request.url), auth=request.headers["Authorization"], body=json.loads(request.content))
+        return httpx.Response(200, json=_completion([("record_dose", {"value": 10, "unit": "mg"})]))
+
+    model._transport = httpx.MockTransport(handler)
+    result = model.complete([{"role": "user", "content": "hi"}], [{"type": "function", "function": {"name": "record_dose"}}])
+    assert seen["url"] == "https://api.groq.com/openai/v1/chat/completions" and seen["auth"] == "Bearer gk"
+    assert (seen["body"]["model"], seen["body"]["reasoning_effort"], seen["body"]["tool_choice"]) == (
+        "openai/gpt-oss-120b", "medium", "auto")
+    assert [(c.name, c.arguments) for c in result.tool_calls] == [("record_dose", {"value": 10, "unit": "mg"})]
+    # no effort set: the model's own default (nothing sent); another model from MODELER_LLM_MODEL
+    other = chat_model_from_env({"MODELER_LLM_PROVIDER": "groq", "GROQ_API_KEY": "gk", "MODELER_LLM_MODEL": "openai/gpt-oss-20b"})
+    other._transport = httpx.MockTransport(handler)
+    other.complete([], [])
+    assert other.model == "openai/gpt-oss-20b" and "reasoning_effort" not in seen["body"]
+    # the proxy's request is unchanged, even with MODELER_LLM_EFFORT set (Claude's setting)
+    proxy = chat_model_from_env({"MODELER_LLM_PROVIDER": "litellm", "LITELLM_KEY": "k", "MODELER_LLM_EFFORT": "high"})
+    proxy._transport = httpx.MockTransport(handler)
+    proxy.complete([], [])
+    assert set(seen["body"]) == {"model", "messages", "temperature", "stream"} and seen["auth"] == "Bearer k"
+
+
+def test_a_rejected_or_unreachable_groqcloud_names_its_own_key_not_the_proxys():
+    groq = {"provider": "groq", "base_url": "https://api.groq.com/openai/v1", "api_key": "gk", "model": "openai/gpt-oss-120b",
+            "sleep": lambda s: None}
+    rejected = OpenAICompatChat(**groq, transport=httpx.MockTransport(
+        lambda r: httpx.Response(401, json={"error": {"message": "Invalid API Key", "code": "invalid_api_key"}})))
+    with pytest.raises(Exception, match="groq rejected the key .*check GROQ_API_KEY") as caught:
+        rejected.complete([], [])
+    assert "LITELLM" not in str(caught.value)
+
+    def refuse(request):
+        raise httpx.ConnectError("connection refused")
+
+    with pytest.raises(Exception, match="cannot reach https://api.groq.com/openai/v1") as caught:
+        OpenAICompatChat(**groq, max_retries=0, transport=httpx.MockTransport(refuse)).complete([], [])
+    assert "LITELLM" not in str(caught.value)
+
+
 def _chat(handler, **kw):
     return OpenAICompatChat(provider="litellm", base_url="http://llm:4000/v1", api_key="k", model="qwen-coder",
                             transport=httpx.MockTransport(handler), sleep=lambda s: None, **kw)

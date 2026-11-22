@@ -100,7 +100,7 @@ def test_rotation_a_new_key_made_active_retires_the_old_one_and_an_old_active_ke
 
 def test_an_agent_runs_on_the_model_and_active_key_the_console_sets_without_a_restart(client, tmp_path):
     page = client.get("/api/v1/admin/agents", headers=_as("owner")).json()["data"]
-    assert [a["provider"] for a in page["agents"]] == ["environment"] * 5      # as the server's environment says
+    assert [a["provider"] for a in page["agents"]] == ["environment"] * len(ps.AGENTS)   # as the server's environment says
     off = client.put("/api/v1/admin/agents/A1", json={"provider": "off", "reason": "A1 paused"}, headers=_as("owner"))
     assert off.json()["data"]["agents"][0]["runs_on"] == {"enabled": False, "problem": "off in the admin console (A1 paused)"}
     assert agent_jobs.chat_model("A1") == (None, None)
@@ -115,7 +115,7 @@ def test_an_agent_runs_on_the_model_and_active_key_the_console_sets_without_a_re
     assert agent_jobs.chat_model("A2")[0] is None        # A2 still follows the environment (no provider set in tests)
     history = client.get("/api/v1/admin/agents", headers=_as("owner")).json()["data"]["history"]
     assert [(h["agent"], h["provider"], h["reason"]) for h in history] == [("A1", "litellm", "back on"), ("A1", "off", "A1 paused")]
-    assert client.put("/api/v1/admin/agents/A9", json={"provider": "off", "reason": "x"},
+    assert client.put("/api/v1/admin/agents/A11", json={"provider": "off", "reason": "x"},
                       headers=_as("owner")).status_code == 409
 
 
@@ -218,9 +218,99 @@ def test_every_agent_switches_in_one_step_and_back_and_a_provider_without_an_act
     # Bedrock lost: every agent back on the server's own (in-house) model in one step, no key needed for that
     back = client.put("/api/v1/admin/agents", json={"provider": "environment", "reason": "Bedrock access lost"},
                       headers=_as("owner")).json()["data"]
-    assert [a["provider"] for a in back["agents"]] == ["environment"] * 5
+    assert [a["provider"] for a in back["agents"]] == ["environment"] * len(ps.AGENTS)
     events = [e for e in _audit(tmp_path) if e["action"] == "admin.agent.set"]
-    assert len(events) == 10 and {e["resource_id"] for e in events} == set(ps.AGENTS)
+    assert len(events) == 2 * len(ps.AGENTS) and {e["resource_id"] for e in events} == set(ps.AGENTS)
     assert events[-1]["after"] == {"provider": "environment", "model": "", "effort": "", "fallback": "", "every_agent": True}
     assert events[-1]["before"]["provider"] == "bedrock" and events[-1]["reason"] == "Bedrock access lost"
     assert client.put("/api/v1/admin/agents", json={"provider": "off", "reason": "x"}, headers=_as("ana")).status_code == 403
+
+
+FAKE_GROQ = "g" * 20                      # a made-up key, built so the secret scan does not read it as one
+GPT_OSS = {"provider": "groq", "model": "openai/gpt-oss-120b", "effort": "medium", "reason": "one-click switch"}
+
+
+def test_the_data_rooms_five_agents_are_switched_each_on_its_own_by_their_run_names():
+    """Plan 2026-11-21 v2 §9: A6 … A10, so a run named "A10-…" takes A10's setting, not A1's."""
+    assert list(ps.AGENTS)[5:] == ["A6", "A7", "A8", "A9", "A10"]
+    assert ps.AGENTS["A10"] == "A10 · Data room: writes findings and requests"
+    assert [ps.agent_of(name) for name in ("A10-writer", "A1-proposal", "A9", "A6-question", "A11-x", "B1-y")] == [
+        "A10", "A1", "A9", "A6", None, None]
+
+
+def test_gpt_oss_on_groqcloud_takes_one_key_its_effort_and_runs_an_agent_from_the_console(client, tmp_path):
+    keys = client.get("/api/v1/admin/keys", headers=_as("owner")).json()["data"]
+    (groq,) = [p for p in keys["providers"] if p["id"] == "groq"]
+    assert (groq["label"], groq["fields"]) == ("gpt-oss-120b on GroqCloud",
+                                               [{"name": "api_key", "label": "GroqCloud API key", "secret": True, "required": True}])
+    missing = client.post("/api/v1/admin/keys", json={"provider": "groq", "reason": "x", "fields": {}}, headers=_as("owner"))
+    assert missing.status_code == 409 and "GroqCloud API key" in missing.json()["detail"]
+    key_id = client.post("/api/v1/admin/keys", json={"provider": "groq", "fields": {"api_key": FAKE_GROQ}, "reason": "Groq"},
+                         headers=_as("owner")).json()["data"]["keys"][0]["id"]
+    assert FAKE_GROQ not in (tmp_path / "_platform" / "keys.json").read_text(encoding="utf-8")
+    client.post(f"/api/v1/admin/keys/{key_id}:activate", json={"reason": "in use"}, headers=_as("owner"))
+
+    row = next(a for a in client.put("/api/v1/admin/agents/A8", json=GPT_OSS, headers=_as("owner")).json()["data"]["agents"]
+               if a["agent"] == "A8")
+    assert (row["provider_label"], row["effort"], row["fallback"]) == ("gpt-oss-120b on GroqCloud", "medium", "")
+    assert row["runs_on"] == {"enabled": True, "provider": "groq", "model": "openai/gpt-oss-120b"}
+    assert ps.model_env(str(tmp_path), MASTER, "A8") == {"MODELER_LLM_PROVIDER": "groq", "GROQ_API_KEY": FAKE_GROQ,
+                                                         "MODELER_LLM_MODEL": "openai/gpt-oss-120b", "MODELER_LLM_EFFORT": "medium"}
+    model, problem = agent_jobs.chat_model("A8")
+    assert problem is None and (model.base_url, model.reasoning_effort) == ("https://api.groq.com/openai/v1", "medium")
+    # GroqCloud's efforts are its own (Claude's xhigh and max are not), and a fallback is Claude's alone
+    for effort in ("xhigh", "max", "extreme"):
+        refused = client.put("/api/v1/admin/agents/A8", json=GPT_OSS | {"effort": effort}, headers=_as("owner"))
+        assert refused.status_code == 409 and "effort on GroqCloud is one of low, medium, high" in refused.json()["detail"]
+    page = client.put("/api/v1/admin/agents/A8", json=GPT_OSS | {"effort": "", "fallback": "x", "reason": "its default"},
+                      headers=_as("owner")).json()["data"]
+    row = next(a for a in page["agents"] if a["agent"] == "A8")
+    assert (row["effort"], row["fallback"], row["choice"]) == ("", "", "gpt-oss-120b")
+    assert ps.model_env(str(tmp_path), MASTER, "A8")["MODELER_LLM_EFFORT"] == ""
+    assert page["groq_efforts"] == ["low", "medium", "high"] and "xhigh" in page["efforts"]
+
+
+def test_each_agent_row_offers_three_one_click_models_the_active_one_marked_and_a_keyless_one_said(client, tmp_path):
+    page = client.get("/api/v1/admin/agents", headers=_as("owner")).json()["data"]
+    choices = {c["id"]: c for c in page["choices"]}
+    assert [c["label"] for c in page["choices"]] == ["Qwen Coder", "Claude", "gpt-oss-120b"]
+    assert {i: (c["provider"], c["model"], c["effort"]) for i, c in choices.items()} == {
+        "qwen-coder": ("litellm", "qwen-coder", ""), "claude": ("bedrock", "anthropic.claude-opus-5-5", ""),
+        "gpt-oss-120b": ("groq", "openai/gpt-oss-120b", "medium")}
+    assert all(c["tools"] for c in page["choices"]) and [i for i, c in choices.items() if c["reads_scans"]] == ["claude"]
+    assert not any(c["has_active_key"] for c in page["choices"])          # no key yet: each button says "Add a key"
+    assert {a["choice"] for a in page["agents"]} == {None}
+
+    key_id = client.post("/api/v1/admin/keys", json={"provider": "groq", "fields": {"api_key": FAKE_GROQ}, "reason": "Groq"},
+                         headers=_as("owner")).json()["data"]["keys"][0]["id"]
+    client.post(f"/api/v1/admin/keys/{key_id}:activate", json={"reason": "in use"}, headers=_as("owner"))
+    page = client.put("/api/v1/admin/agents/A7", json=GPT_OSS, headers=_as("owner")).json()["data"]
+    assert {c["id"]: c["has_active_key"] for c in page["choices"]} == {"qwen-coder": False, "claude": False, "gpt-oss-120b": True}
+    rows = {a["agent"]: a for a in page["agents"]}
+    assert (rows["A7"]["choice"], rows["A7"]["set_by"], rows["A7"]["reason"]) == ("gpt-oss-120b", "owner", "one-click switch")
+    assert {a: r["choice"] for a, r in rows.items() if a != "A7"} == dict.fromkeys(set(ps.AGENTS) - {"A7"})
+    (event,) = [e for e in _audit(tmp_path) if e["action"] == "admin.agent.set"]
+    assert (event["actor"], event["resource_id"], event["reason"]) == ("owner", "A7", "one-click switch")
+    assert event["after"] == {"provider": "groq", "model": "openai/gpt-oss-120b", "effort": "medium", "fallback": ""}
+    assert page["history"][0] == {"agent": "A7", "provider": "groq", "model": "openai/gpt-oss-120b", "by": "owner",
+                                  "at": page["history"][0]["at"], "reason": "one-click switch"}
+    # a custom model chosen under "More…" is no one-click choice
+    custom = client.put("/api/v1/admin/agents/A7", json=GPT_OSS | {"model": "openai/gpt-oss-20b", "reason": "smaller"},
+                        headers=_as("owner")).json()["data"]
+    assert next(a for a in custom["agents"] if a["agent"] == "A7")["choice"] is None
+
+
+def test_a_groqcloud_key_test_lists_its_models_and_asks_none(monkeypatch):
+    """The test reads GroqCloud's list of models (no model is asked, so it costs nothing); here the list is faked."""
+    from modeler_agents import llm
+
+    seen: list[tuple[str, str]] = []
+    monkeypatch.setattr(llm.OpenAICompatChat, "list_models",
+                        lambda self: seen.append((self.base_url, self._headers["Authorization"])) or ["openai/gpt-oss-120b", "x"])
+    assert agent_jobs.test_key("groq", {"api_key": FAKE_GROQ}) == (True, "answers; serves openai/gpt-oss-120b")
+    assert seen == [("https://api.groq.com/openai/v1", f"Bearer {FAKE_GROQ}")]
+    monkeypatch.setattr(llm.OpenAICompatChat, "list_models", lambda self: ["llama"])
+    assert agent_jobs.test_key("groq", {"api_key": FAKE_GROQ}) == (False, "answers, but openai/gpt-oss-120b is not among its 1 models")
+    monkeypatch.setattr(llm.OpenAICompatChat, "list_models", lambda self: [])
+    ok, message = agent_jobs.test_key("groq", {"api_key": FAKE_GROQ})
+    assert not ok and "check the key" in message

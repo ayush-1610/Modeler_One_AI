@@ -1,8 +1,9 @@
 /* Modeler One — an instrument for building models a regulator will scrutinise.
  *
  * The look follows the "Modeler One App" design (plan docs/plans/2026-11-06-app-design-merge.md §5): a bright neutral
- * bench, one blue for action and for the predicted series, amber for the observed series and for what waits on a person,
- * green for done. The shared pieces' design-specific rules are in app/styles/design.css, loaded last.
+ * bench, the brand's deep indigo for action and links (plan 2026-11-21 v2 §10), one blue for the predicted series, amber
+ * for the observed series and for what waits on a person, green for done. The shared pieces' design-specific rules are in
+ * app/styles/design.css, loaded last.
  *
  * Verdict colours are separated in both hue and lightness so a pass/fail is never carried by hue alone, and every
  * verdict is also written out in words. Light only (the owner, 2026-11-07): every colour is a token in the block below. */
@@ -33,7 +34,20 @@
   --pass: #1e7b45;
   --warn: #ff9f0a;
   --fail: #ff3b30;
-  --brand-ink: #0066cc;
+
+  /* The brand palette from the kick-off deck (plan 2026-11-21 v2 §10). The deep indigo is the brand and the headings'
+   * colour, and the logo's; --brand-ink, the text-grade brand (links, active tabs), is it (12.6:1 on the surface). The
+   * three series are the Data room's products compared: the reference, the test (original) and the reformulated one;
+   * --sim and --obs above stay the model-against-observed series of the other charts. The status inks are the Data
+   * room's green, amber and red, each >= 4.8:1 on the surface and on the bench. */
+  --brand-indigo: #3B1F7A;
+  --brand-ink: #3B1F7A;
+  --series-ref: #4B2A99;
+  --series-test: #1A9AA6;
+  --series-reform: #C2307A;
+  --ok-ink: #1E7B45;
+  --amber-ink: #9A5B00;
+  --bad-ink: #B3261E;
 
   /* Text-grade twins of the series and verdict colours: the base colours above are for dots, fills and borders (they are
    * 3.4-4.5:1 on a tint and fail AA as small text); these are >= 4.5:1 on the surface and on their own tints (a chip's
@@ -43,9 +57,9 @@
   --warn-ink: #9a4500;
   --fail-ink: #a5381f;
   --ink-quiet: #6e6e73;
-  /* the filled primary button (white on it 5.2:1; --sim stays the chart colour) and the edge of a form control (3:1 on
-   * the surface and on the bench) */
-  --primary: #0071e3;
+  /* the filled primary button, in the brand's indigo (white on it 10:1, and 12.6:1 on its hover, the deep indigo; --sim
+   * stays the chart colour) and the edge of a form control (3:1 on the surface and on the bench) */
+  --primary: #4B2A99;
   --on-primary: #ffffff;
   --control-border: #8a8a8e;
 

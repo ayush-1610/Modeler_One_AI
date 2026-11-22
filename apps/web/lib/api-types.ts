@@ -3113,11 +3113,14 @@ export interface components {
         /**
          * AgentRow
          * @description One agent's model as the console sets it ("environment": the server's own configuration), and what it runs on
-         *     now (`runs_on`, the model the next run would take, or why none).
+         *     now (`runs_on`, the model the next run would take, or why none). `choice`: the one-click choice the setting is (its
+         *     provider and model), None for any other setting.
          */
         AgentRow: {
             /** Agent */
             agent: string;
+            /** Choice */
+            choice: string | null;
             /** Effort */
             effort: string;
             /** Fallback */
@@ -3173,16 +3176,21 @@ export interface components {
         };
         /**
          * AgentsPage
-         * @description `efforts` and `claude_models`: the choices for an agent on Claude (Bedrock's model ids).
+         * @description `efforts` and `claude_models`: the choices for an agent on Claude (Bedrock's model ids); `groq_efforts`: on
+         *     GroqCloud; `choices`: the one-click choices each agent's row offers.
          */
         AgentsPage: {
             /** Agents */
             agents: components["schemas"]["AgentRow"][];
+            /** Choices */
+            choices: components["schemas"]["ModelChoice"][];
             /** Claude Models */
             claude_models: string[];
             /** Efforts */
             efforts: string[];
             environment: components["schemas"]["AgentsStatus"];
+            /** Groq Efforts */
+            groq_efforts: string[];
             /** History */
             history: components["schemas"]["AgentChange"][];
             /** Providers */
@@ -9599,6 +9607,29 @@ export interface components {
             snapshot_version?: number;
             /** Subjects */
             subjects?: components["schemas"]["SubjectSpec"][];
+        };
+        /**
+         * ModelChoice
+         * @description A one-click choice on an agent's row (plan 2026-11-21 v2 §9): Qwen Coder, Claude or gpt-oss-120b. `tools`: it
+         *     calls tools; `reads_scans`: it reads a page image itself (Claude only); `has_active_key`: its provider has one.
+         */
+        ModelChoice: {
+            /** Effort */
+            effort: string;
+            /** Has Active Key */
+            has_active_key: boolean;
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /** Model */
+            model: string;
+            /** Provider */
+            provider: string;
+            /** Reads Scans */
+            reads_scans: boolean;
+            /** Tools */
+            tools: boolean;
         };
         /** ModelPlan */
         ModelPlan: {

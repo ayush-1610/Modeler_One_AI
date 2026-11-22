@@ -15,6 +15,37 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — GroqCloud gpt-oss-120b as a third model, one-click per agent; new logo and brand palette (plan 2026-11-21 v2 §8, §10)
+- **What.** (1) `MODELER_LLM_PROVIDER=groq` works again (`modeler_agents.llm`): the existing OpenAI-compatible client
+  posts to `https://api.groq.com/openai/v1` with `GROQ_API_KEY`, model `MODELER_LLM_MODEL` (default
+  `openai/gpt-oss-120b`), and `MODELER_LLM_EFFORT` (low, medium or high) sent as `reasoning_effort`, for GroqCloud only:
+  the LiteLLM proxy's request body is unchanged. A refused key or an unreachable host names `GROQ_API_KEY`, not
+  `LITELLM_KEY`; `gemini` stays refused. (2) The admin console (`platform_settings`, `/admin/agents`, `/admin/keys`):
+  GroqCloud is a provider ("gpt-oss-120b on GroqCloud") with one sealed key field ("GroqCloud API key"), its own efforts
+  (low, medium, high; Claude keeps its five), `model_env` for it, and a key test that reads GroqCloud's list of models
+  (no model is asked). The Data room's five agents are switchable on their own: A6 the question, A7 sorts the files, A8
+  extracts, A9 checks the extraction, A10 writes findings and requests (`agent_of("A10-…")` is A10). `AgentsPage` gains
+  `choices` (Qwen Coder · Claude · gpt-oss-120b: provider, model, effort, `tools`, `reads_scans`, `has_active_key`),
+  `groq_efforts` and each row's `choice` (OpenAPI snapshot and web types updated). On Models, each agent's row offers the
+  three as one-click buttons: the one in use is highlighted and says "in use"; one whose provider has no active key is
+  disabled and says "Add a key under Keys"; marks say "tools ✓" for all, "reads scans ✓" for Claude only ("text only"
+  for the others). A click is the existing PUT with the reason "one-click switch", kept with who made it and on the
+  owner's audit chain; "More…" keeps the detailed form (any model, effort, fallback), now with GroqCloud's efforts, and
+  a provider change in it starts from that provider's one-click model. (3) The logo is option A, "Dose to curve": an
+  indigo-to-magenta curve rising from a dose point through two nodes, no box and no glow (`Nav.tsx`, 28 px), and the
+  same mark is the app's icon (`app/icon.svg`). (4) Palette tokens from the kick-off deck in `globals.css`:
+  `--brand-indigo`, `--series-ref`/`-test`/`-reform`, `--ok-ink`/`--amber-ink`/`--bad-ink`; the filled button
+  (`--primary` #4B2A99, white on it 10:1, its hover the deep indigo at 12.6:1) and `--brand-ink` (#3B1F7A, links and
+  active tabs) are indigo; the focus ring follows `--primary`. `--sim`/`--obs` (model against observed) are unchanged.
+  On the console, a provider list's long choice no longer widens a phone's page.
+- **Why.** The owner's plan v2 (§9 "Agents and models", §10 "Design"): three models, switched per agent with one click,
+  GroqCloud for speed and as a second opinion; the blue square goes for the chosen mark and the kick-off palette.
+- **Impact.** No agent changes model until the owner clicks: every agent keeps its setting (unset: the server's
+  environment). Tests never call GroqCloud (mock transports; the key test's list is faked); one manual smoke call
+  through `chat_model_from_env` (effort low) returned gpt-oss-120b's tool call. **Known gap:** rules that colour text or
+  washes with `--sim` (link buttons in design.css, the sidebar's active wash, filter pills) still show the chart blue
+  beside the indigo; moving them to `--brand-ink` is a follow-up (this change kept `--sim` as it was).
+
 ### Fixed — final review round 7, what a blinded study still shows (round 6's blinding-follow skeptic and the quote the names-words fixer found; plan 2026-11-14 §5) — science-adjacent
 - **A group joined to a blinded study under another name has its datasets withheld everywhere
   (`BlindedSources.joined`, modeler_project.blinded_sources).** Round 6's one rule matched by name only. A sheet-form group

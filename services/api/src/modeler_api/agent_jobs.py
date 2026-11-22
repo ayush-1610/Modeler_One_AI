@@ -87,14 +87,23 @@ def agents_status(agent: str | None = None, *, admin: bool = False) -> dict[str,
 
 
 def test_key(provider: str, fields: dict[str, str]) -> tuple[bool, str]:
-    """Whether a stored key answers: the in-house proxy lists the models it serves with it."""
-    from modeler_agents.llm import OpenAICompatChat
+    """Whether a stored key answers: the in-house proxy and GroqCloud list the models they serve with it (no model is
+    asked, so a test costs nothing)."""
+    from modeler_agents.llm import PROVIDERS, OpenAICompatChat
 
     if provider == "litellm":
         served = OpenAICompatChat(provider="litellm", base_url=fields["base_url"], api_key=fields["key"], model="",
                                   timeout_s=30, max_retries=0).list_models()
         return (True, f"answers; serves {', '.join(served)}") if served else (
             False, f"no list of models from {fields['base_url']}: check the address and the key")
+    if provider == "groq":
+        groq = PROVIDERS["groq"]
+        served = OpenAICompatChat(provider="groq", base_url=groq.base_url, api_key=fields["api_key"], model="",
+                                  timeout_s=30, max_retries=0).list_models()
+        if not served:
+            return False, f"no list of models from {groq.base_url}: check the key (and that the server may reach it)"
+        return (True, f"answers; serves {groq.model}") if groq.model in served else (
+            False, f"answers, but {groq.model} is not among its {len(served)} models")
     if provider == "bedrock":
         return _test_bedrock(fields)
     return False, f"{provider} keys cannot be tested yet"
