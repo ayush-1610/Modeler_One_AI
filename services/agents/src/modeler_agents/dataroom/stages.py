@@ -62,6 +62,54 @@ def _outline(doc: SourceDocument, *, preview: int = 3, max_parts: int = 400) -> 
     return "\n".join(out) or "(nothing read)"
 
 
+# words that mark a page as holding a topic's inputs: code picks the pages an agent reads first (fewer tokens, the
+# same answer: the agent may still open any other page with its tools)
+TOPIC_WORDS: dict[str, tuple[str, ...]] = {
+    "clinical_design": ("crossover", "cross-over", "randomi", "period", "washout", "open label", "single dose", "sequence"),
+    "clinical_disposition": ("completed", "withdrawn", "dropout", "drop-out", "discontinu", "dosed in", "enrolled",
+                             "statistical analysis", "excluded"),
+    "clinical_demographics": ("age", "weight", "height", "bmi", "male", "female", "asian", "caucasian", "ethnic"),
+    "dosing_and_meals": ("fast", "meal", "breakfast", "lunch", "water", "administered", "dose"),
+    "bioanalysis": ("lloq", "loq", "quantitation", "lc-ms", "calibration", "analyte"),
+    "clinical_concentrations": ("concentration", "ng/ml", "time (h", "hrs"),
+    "clinical_pk": ("cmax", "auc", "tmax", "t1/2", "half-life"),
+    "be_statistics": ("90%", "confidence interval", "ratio", "geometric", "bioequivalen"),
+    "dissolution": ("dissolution", "rpm", "paddle", "basket", "% drug", "released", "vessel"),
+    "solubility": ("solubility", "mg/ml", "saturation"),
+    "particle_size": ("d10", "d50", "d90", "particle size", "psd"),
+    "composition": ("mg/tablet", "mg/tab", "composition", "excipient", "qty", "% w/w", "core", "quantity"),
+    "manufacturing": ("granulat", "blend", "compression", "coating", "process"),
+    "drug_substance": ("molecular weight", "pka", "log p", "logp", "melting", "polymorph", "bcs", "hydrochloride"),
+    "adme": ("bioavailability", "protein binding", "metaboli", "cyp", "half-life", "excreted", "volume of distribution",
+             "clearance", "food"),
+    "label": ("indications", "dosage", "pharmacokinetics", "absorption", "distribution", "metabolism", "elimination"),
+    "question": ("objective", "purpose", "scope", "pbbm", "pbpk", "bioequivalen", "reformulat", "health canada", "fda",
+                 "ema", "request", "deliverable", "context of use", "virtual"),
+}
+FOCUS_CHARS = 14000      # the pages shown to the extractor up front (about 3,500 tokens)
+
+
+def _focus(doc: SourceDocument, topics: Sequence[str], budget: int = FOCUS_CHARS) -> str:
+    """The lines of the pages most likely to hold the topics' inputs, best first, within the budget; the whole file
+    when it fits."""
+    parts = _parts(doc)
+    whole = [(p, "\n".join(f"{p.name} L{ln.number}: {ln.text}" for ln in p.lines)) for p in parts]
+    if sum(len(t) for _p, t in whole) <= budget:
+        return "\n\n".join(t for _p, t in whole)
+    words = [w for t in (topics or list(TOPIC_WORDS)) for w in TOPIC_WORDS.get(t, ())] or [w for ws in TOPIC_WORDS.values() for w in ws]
+    scored = sorted(((sum(t.lower().count(w) for w in words), i) for i, (_p, t) in enumerate(whole)), reverse=True)
+    chosen, used = [], 0
+    for score, i in scored:
+        if score == 0 or used >= budget:
+            break
+        text = whole[i][1][: budget - used]
+        chosen.append((i, text))
+        used += len(text)
+    if not any(i == 0 for i, _t in chosen) and used < budget:
+        chosen.append((0, whole[0][1][: max(0, budget - used)]))
+    return "\n\n".join(t for _i, t in sorted(chosen)) or "(no page names the topics; use the tools)"
+
+
 def _doc_tools(docs: dict[str, tuple[FileView, SourceDocument]]) -> list[Tool]:
     """Tools over the files (path -> (file, document))."""
 
@@ -159,6 +207,14 @@ def question(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, 
         return "the question card is already there" + (" and confirmed" if confirmed else "")
     docs = _used_files(store)
     listing = "\n".join(f"- {p} ({f.kind}, {f.pages or ''} pages)" for p, (f, _d) in docs.items())
+    # the files most likely to state the question first: the proposal, the request, files the triage tagged so
+    def weight(path: str, f: FileView) -> int:
+        t = store.triage(f.sha256)
+        name = path.lower()
+        return (3 * any(w in name for w in ("proposal", "request", "scope", "email", "pasted", "letter"))
+                + 2 * bool(t and set(t.topics) & {"question", "regulatory"}) + (f.kind in ("docx", "image")))
+    ranked = sorted(docs.items(), key=lambda kv: -weight(kv[0], kv[1][0]))[:4]
+    material = "\n\n".join(f"=== {p}\n{_focus(d, ['question'], budget=4000)}" for p, (_f, d) in ranked)
     saved: list[BaseModel] = []
 
     def check(answer: BaseModel) -> list[str]:
@@ -175,8 +231,9 @@ def question(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, 
     tools = _doc_tools(docs) + [_submit_tool("submit_question", QuestionCard, check, saved,
                                              "Submit the question card (with the quotes it rests on).")]
     step(0, 1, "reading the proposal and the request")
-    outcome = run_tool_loop(model, system=QUESTION_SYSTEM, user=f"The delivery's files:\n{listing}\n\nWrite the question card.",
-                            tools=tools, max_turns=30)
+    outcome = run_tool_loop(model, system=QUESTION_SYSTEM, tools=tools, max_turns=10, user=(
+        f"The delivery's files:\n{listing}\n\nThe pages most likely to state the question:\n{material}\n\n"
+        "Write the question card (each quote with its file)."))
     if not saved:
         return f"no question card ({outcome.status}{': ' + outcome.error if outcome.error else ''})"
     store.set_question(saved[0], by=f"agent:A6:{model.provider}/{model.model}", confirmed=False)  # type: ignore[arg-type]
@@ -268,11 +325,14 @@ def extract(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, s
                             lambda a, path=path, f=f, doc=doc: _extraction_problems(a, path, f, doc), saved,
                             "Submit this file's tables and facts.")
         tools = [x for x in _doc_tools({path: (f, doc)}) if x.name != "search"] + [_search_one(path, doc), tool]
+        topics = list(t.topics) if t else []
         user = (f"The question: {card.question if card else '(not set)'}\nThe products:\n{products or '(not set)'}\n"
                 f"The checklist:\n{checklist or '(not set)'}\n\nFile: {path} ({f.kind}; "
                 f"{'OCR on pages ' + ', '.join(map(str, f.ocr_pages)) if f.ocr_pages else 'text layer'})"
-                f"{'; the triage says: ' + t.reason if t else ''}\n\nIts outline:\n{_outline(doc, max_parts=120)}")
-        run_tool_loop(model, system=EXTRACT_SYSTEM, user=user, tools=tools, max_turns=40)
+                f"{'; the triage says: ' + t.reason if t else ''}\n\nIts parts: "
+                f"{', '.join(f'{p.name} ({len(p.lines)} lines)' for p in _parts(doc)[:200])}\n\n"
+                f"The pages most likely to hold what the checklist needs (open others with the tools):\n{_focus(doc, topics)}")
+        run_tool_loop(model, system=EXTRACT_SYSTEM, user=user, tools=tools, max_turns=14)
         if saved:
             answer = saved[0].model_copy(update={"file": path})
             store.put_extraction(answer, f.sha256, agent={"agent": "A8", "model": f"{model.provider}/{model.model}",  # type: ignore[arg-type]

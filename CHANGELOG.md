@@ -67,8 +67,23 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
   - Solubility: the dose/solubility volumes match the client's to rounding.
 
   Tests: `packages/project-model/tests/test_dataroom.py`, 10 on a synthetic delivery (T-47).
-- **Known gap:** the agents are not yet scored on the real delivery; that is the next step. Publishing into the existing
-  stores and the report export follow.
+- **Send to the model (`modeler_project.dataroom.publish`).** `plan_publication` builds everything and writes nothing;
+  `publish` writes it once (a second send skips what is there):
+  - the compound inputs with a value, as evidence items;
+  - each product's release: `form.<name>.type` Weibull and its t50, shape and lag, fitted to the chosen profile;
+  - one observed dataset per study arm: the arithmetic mean ± SD and the geometric mean of the chosen analysis set,
+    N per time, and its study record (design, dose, water per kg, meals, the individual when its demographics are
+    known).
+
+  Each item is proposed and then accepted under the publication. A value with no unit (a pH, a shape) is accepted as its
+  own PK-Sim value. Nothing is sent while a decision waits, the question card is unconfirmed, a unit cannot be
+  converted, or an arm's product has no release input: the plan lists what blocks it. On the sample delivery, the
+  reference product has no dissolution profile, so its arm is held back with its data request, as it should be.
+- **Agents are token-lean, and a rate limit is waited out.** The extractor first gets the pages code picks for the
+  file's topics (about 3,500 tokens) and has 14 turns to open others. The question agent gets the pages of the
+  proposal and the request. On HTTP 429 the client waits the `Retry-After` the provider gives (at most 90 s, test in
+  `test_llm.py`). The owner's GroqCloud key is on the free tier: 8,000 tokens a minute and 1,000 requests a day.
+- **Known gap:** the agents are not yet scored on the real delivery; that is the next step. The report export follows.
 
 ### Added — the Data room's reader: every file of a real delivery read, scans included (plan 2026-11-21 v2 §9, build step 1)
 - **Our own OCR engine (`modeler_intake.ocr.RapidOcr`).** RapidOCR's ONNX models run on the server's CPU, from the

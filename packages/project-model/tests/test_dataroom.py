@@ -180,3 +180,65 @@ def test_decisions_requests_and_inputs_say_what_is_proposed_and_what_is_missing(
     assert inputs[("compound", "", "phys.solubility.ref")].value == 0.2
     assert inputs[("protocol", "EX-01 · A", "InputDose")].value == 100.0
     assert any(p.code == "FACT_REFUSED" for p in view.problems)
+
+
+DISS_REF = "Unit\t5\t10\t15\t30\t45\n" + "".join(f"{u}\t{55 + u}\t{75 + u}\t{84 + u}\t{90 + u % 3}\t{97 + u % 3}\n" for u in range(1, 7))
+BATCHES = "Batches: LOT-1 is the test product; LOT-R is the reference product.\n"
+
+
+def _published_room(room):
+    files, docs, question, extractions = room
+    extra = []
+    for name, data in (("diss_ref.tsv", DISS_REF), ("batches.txt", BATCHES)):
+        view, doc = _file(name, data.encode())
+        files.append(view)
+        docs[view.sha256] = doc
+        extra.append((view, doc))
+    (_ref_view, ref_doc), _ = extra
+    extractions = list(extractions) + [
+        Extraction(file="D/diss_ref.tsv", tables=[TableDescription(
+            file="D/diss_ref.tsv", kind="dissolution", part=document_parts(ref_doc)[0].name, header_lines=[1], first_line=2,
+            last_line=7, time_unit="min", value_unit="%", constants={"medium": "pH 6.8 phosphate buffer"},
+            columns=[C(index=1, role="unit")] + [C(index=2 + i, role="value", time=t, group="LOT-R")
+                                                 for i, t in enumerate((5, 10, 15, 30, 45))])]),
+        Extraction(file="D/batches.txt", facts=[
+            Fact(field="product.batch", value="LOT-1", product="Exampleamide 100 mg", quote="LOT-1 is the test product"),
+            Fact(field="product.batch", value="LOT-R", product="Refamide 100 mg", quote="LOT-R is the reference product")])]
+    view = assemble(Inputs(files=files, docs=docs, question=question, question_confirmed=True, extractions=extractions))
+    decisions = {d.id: {"chosen": d.suggested, "reason": "as suggested", "by": "user:m"} for d in view.decisions}
+    return assemble(Inputs(files=files, docs=docs, question=question, question_confirmed=True, extractions=extractions,
+                           decisions=decisions))
+
+
+def test_nothing_is_sent_while_a_decision_waits_or_an_arm_has_no_release(room):
+    from modeler_project.dataroom.publish import plan_publication
+
+    files, docs, question, extractions = room
+    view = assemble(Inputs(files=files, docs=docs, question=question, question_confirmed=False, extractions=extractions))
+    blocked = " ".join(plan_publication(view, by="user:m").blocked)
+    assert "decisions waiting" in blocked and "not confirmed" in blocked and "has no release input" in blocked
+
+
+def test_send_to_the_model_lands_the_arms_profiles_and_the_release_once(room, tmp_path):
+    from modeler_project import dataset_register, evidence_register
+    from modeler_project.dataroom.publish import plan_publication, publish
+    from modeler_project.store import FileProjectStore
+    from modeler_project.workspace import Workspace
+
+    view = _published_room(room)
+    plan = plan_publication(view, by="user:m")
+    assert plan.blocked == ()
+    ws = Workspace(FileProjectStore(tmp_path), "t1", "p1")
+    first = publish(ws, view, by="user:m", reason="inputs confirmed")
+    assert first["datasets"] == 2 and first["evidence"] >= 8 and first["skipped"] == 0
+    assert publish(ws, view, by="user:m", reason="again") == {"evidence": 0, "datasets": 0, "skipped": first["evidence"] + 2}
+    landed = {d.study["study_id"]: d for d in dataset_register.datasets(ws)}
+    arm_a = landed["EX-01-A"]
+    assert arm_a.state == "ACCEPTED" and arm_a.study["n"] == 4 and arm_a.study["dose_mg"] == 100.0
+    # no demographics table: the individual is left for a person to give (D-29), never a silent default
+    assert arm_a.study["formulation_name"] == "Refamide_100_mg" and arm_a.study["demographics"] is None
+    assert arm_a.demographics_choice is None and arm_a.study["water_ml_per_kg"] is None
+    assert [s.statistic for s in arm_a.series] == ["arithmetic_mean", "geometric_mean"] and arm_a.series[0].values[0] is None
+    targets = {e.target: e for e in evidence_register.items(ws)}
+    assert targets["form.Refamide_100_mg.type"].value == "Weibull" and targets["phys.solubility.ref"].value == 0.2
+    assert all(e.state == "ACCEPTED" for e in targets.values())

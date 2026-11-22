@@ -162,9 +162,26 @@ class OpenAICompatChat:
                             raise LLMUnavailableError(f"{self.provider} answered with something that is not JSON: {exc}") from exc
                     raise_refusal(self, response)
                     last_error = f"HTTP {response.status_code}: {_error_message(response)}"
+                    wait = _retry_after(response)
+                    if wait is not None and attempt < self._max_retries:
+                        self._sleep(wait)   # a rate limit says when to come back (GroqCloud's per-minute token budget)
+                        continue
                 if attempt < self._max_retries:
                     self._sleep(min(2.0 ** (attempt + 1), 30.0))
         raise LLMUnavailableError(f"{self.provider} unavailable after {self._max_retries + 1} attempts: {last_error}")
+
+
+RETRY_AFTER_MAX_S = 90.0
+
+
+def _retry_after(response: httpx.Response) -> float | None:
+    """How long a 429 asks the client to wait (the Retry-After header, in seconds), at most RETRY_AFTER_MAX_S."""
+    if response.status_code != 429:
+        return None
+    try:
+        return min(max(float(response.headers.get("retry-after", "")), 0.5), RETRY_AFTER_MAX_S)
+    except ValueError:
+        return None
 
 
 def raise_refusal(chat: OpenAICompatChat, response: httpx.Response) -> None:

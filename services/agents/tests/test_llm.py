@@ -60,6 +60,16 @@ def test_client_retries_overload_then_gives_up_with_the_providers_message():
     assert len(calls) == 3
 
 
+def test_a_rate_limit_is_waited_out_as_long_as_the_provider_asks():
+    answers = [httpx.Response(429, headers={"retry-after": "7"}, json={"error": {"message": "rate limit: tokens per minute"}}),
+               httpx.Response(200, json={"choices": [{"message": {"content": "OK"}, "finish_reason": "stop"}],
+                                         "usage": {"prompt_tokens": 3, "completion_tokens": 1}, "model": "m"})]
+    waits = []
+    chat = OpenAICompatChat(provider="groq", base_url="https://x", api_key="k", model="m", max_retries=2,
+                            transport=httpx.MockTransport(lambda request: answers.pop(0)), sleep=waits.append)
+    assert chat.complete([], []).content == "OK" and waits == [7.0]
+
+
 def test_client_does_not_retry_a_refusal():
     calls = []
 
