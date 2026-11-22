@@ -221,7 +221,7 @@ reader, and the numbers must be right.
 **Principle.** The AI describes: where a table is and what each cell position means, and facts with verbatim quotes.
 Code reads every value, checks it and computes from it. The modeler decides. No model types a number into the room.
 
-**Where the work is:** branch `claude/stoic-bohr-9ymlx9`, not yet merged to `main`.
+**Where the work is:** on `main` (merged 2026-11-22 from `claude/stoic-bohr-9ymlx9`).
 - **Reader (L2, `modeler_intake.room`, `.ocr`):**
   - opens zips, drops leftovers, reads delimited exports as tables, images as scans;
   - turns pages whose text is drawn rotated before reading them;
@@ -258,8 +258,18 @@ repository):
 - Release: the reference product has no dissolution profile, so its arm is held back with a data request.
 - Reading the whole delivery takes 17 min on 4 CPUs (147 pages through OCR).
 
+**2026-11-22, later: the Start proposal reader (A1) fixed, NVIDIA added, Next.js 16.4.6 merged.**
+- A1 stopped on the in-house model's small context window (its conversation outgrows Ollama's default of about 4,000
+  tokens by turn 2). Now the client asks Ollama for a 32k window itself once it sees a cut prompt (LiteLLM passes
+  `num_ctx` on; checked against a real LiteLLM proxy). If that is refused, `run_tool_loop` shortens the earlier turns
+  and drops the oldest to fit. A1 also runs its short passes after a read that ran out of turns, and Start says why a
+  read stopped. CHANGELOG has the evidence.
+- NVIDIA's API catalog is a fourth one-click model (Nemotron Ultra). Its key is on this cloud environment for
+  evaluation only; on the server the owner adds their own under Admin → Keys.
+- Next.js 16.4.2 → 16.4.6 (two moderate cache-leak advisories) is merged; `npm audit` reports nothing.
+
 **Open, in order:**
-1. Score A6–A10 on the sample delivery per model.
+1. Score A6–A10 on the sample delivery per model (Nemotron Ultra started 2026-11-22; see the CHANGELOG).
    - The owner's GroqCloud key is on the free tier (8,000 tokens a minute and per request, 200,000 a day). The owner
      could not upgrade it (2026-11-22).
    - So the default is the in-house Qwen Coder, on the server, after Ollama's context window is raised to 32k. The

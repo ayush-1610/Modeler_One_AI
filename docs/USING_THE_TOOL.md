@@ -177,12 +177,18 @@ New projects use the Data room as their Inputs step (existing projects keep thei
 **Choosing the models.** Admin → Agents lists the Data room's five agents, A6 to A10.
 - **By default they run on the in-house Qwen Coder** (the server's LiteLLM proxy). An agent nobody clicked follows the
   server's environment. It is free, and client files never leave the server.
-- **One check on the server:** Ollama must give Qwen a context window of at least 32,000 tokens. Ollama's default is
-  much smaller, and it then cuts the agents' prompts without saying so. The Data room now refuses such an answer and
-  says what to change. To set it, start Ollama with `OLLAMA_CONTEXT_LENGTH=32768`, or create a model with
+- **One check on the server:** Ollama should give Qwen a context window of at least 32,000 tokens. Ollama's default
+  is much smaller (about 4,000), and it then cuts the agents' prompts without saying so. Every agent now notices a cut
+  prompt and first asks Ollama for a 32k window itself (LiteLLM passes the request's `num_ctx` on to Ollama). If the
+  server cannot give it, the agent shortens its earlier turns and leaves the oldest out (the instructions, the task
+  and the latest turn are kept; what its tool calls recorded is kept too) and asks again. So "Read the proposal" on Start still finishes on a small window, but it
+  reads less at a time and takes longer. A request that cannot fit even then (a Data room file's pages) fails and says
+  what to change. To set the window, start Ollama with `OLLAMA_CONTEXT_LENGTH=32768`, or create a model with
   `PARAMETER num_ctx 32768` and point the proxy's `qwen-coder` alias at it.
-- **Three buttons per agent:** Qwen Coder, Claude, gpt-oss-120b (GroqCloud). GroqCloud's free tier allows 8,000 tokens
-  a minute and per request, and 200,000 a day: too little for a whole delivery.
+- **Four buttons per agent:** Qwen Coder, Claude, gpt-oss-120b (GroqCloud) and Nemotron Ultra (NVIDIA's API
+  catalog). GroqCloud's free tier allows 8,000 tokens a minute and per request, and 200,000 a day: too little for a
+  whole delivery. For NVIDIA, create a key at build.nvidia.com (trial credits) and add it under Admin → Keys → "NVIDIA
+  API catalog"; the address is fixed. Check its trial terms before you send it client files.
 - **Any other OpenAI-compatible service**, such as a provider's free tier: Admin → Keys → "Another OpenAI-compatible
   service", with its address (ending in `/v1`) and key. Then on the agent's row choose More…, that provider, and type
   the model name. Check the service's terms before you send it client files: many free tiers log or train on what

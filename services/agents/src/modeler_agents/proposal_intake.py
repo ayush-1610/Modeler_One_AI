@@ -411,7 +411,10 @@ def run_proposal_intake(model: ChatModel, ctx: IntakeContext, *, context_note: s
     outcome: LoopOutcome = run_tool_loop(model, system=SYSTEM_PROMPT, user=user, tools=build_tools(ctx),
                                          max_turns=max_turns, log_step=log_step)
     notes, usage = [outcome.final_text], dict(outcome.usage)
-    text = _proposal_text(ctx) if not outcome.error else ""
+    # the short passes run after a general read that ran out of turns too (they fill what it left); not when the model
+    # could not be used at all
+    usable = outcome.status != "LLM_UNAVAILABLE"
+    text = _proposal_text(ctx) if usable else ""
     follow_ups: list[tuple[str, str]] = []
     for title, paths in PASSES:
         if text and (empty := _paths(ctx, paths)):
@@ -424,7 +427,7 @@ def run_proposal_intake(model: ChatModel, ctx: IntakeContext, *, context_note: s
     if before_risk is not None:
         ctx.brief = before_risk(ctx.brief)
     basis = [ctx.brief.get(p).value for p in ("qoi.text", "qoi.context_of_use")]
-    if not outcome.error and all(v not in (None, "") for v in basis) and ctx.brief.get("m15.influence_suggested").value is None:
+    if usable and all(v not in (None, "") for v in basis) and ctx.brief.get("m15.influence_suggested").value is None:
         done = run_tool_loop(model, system=SYSTEM_PROMPT, user=_risk_message(ctx), tools=build_tools(ctx), max_turns=4,
                              log_step=log_step)
         notes.append(f"the model risk: {done.final_text.strip()[:400]}")

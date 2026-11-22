@@ -9,6 +9,7 @@ import pytest
 
 from modeler_agents.llm import (
     ChatResult,
+    ContextExceeded,
     LLMConfigError,
     OpenAICompatChat,
     Tool,
@@ -111,17 +112,141 @@ def test_a_spent_daily_limit_is_said_at_once_not_waited_on():
     assert (len(calls), waits) == (1, [])
 
 
-def test_a_prompt_the_in_house_model_cut_is_refused_with_what_to_change():
+def test_a_prompt_the_in_house_model_cut_is_refused_as_too_long_for_its_window():
     def handler(request):
         return httpx.Response(200, json={"choices": [{"message": {"content": "ok"}, "finish_reason": "stop"}],
                                          "usage": {"prompt_tokens": 2048, "completion_tokens": 3}, "model": "m"})
 
     chat = OpenAICompatChat(provider="litellm", base_url="https://x", api_key="k", model="m",
                             transport=httpx.MockTransport(handler), sleep=lambda s: None)
-    with pytest.raises(Exception, match="OLLAMA_CONTEXT_LENGTH"):
+    with pytest.raises(ContextExceeded, match="OLLAMA_CONTEXT_LENGTH") as caught:
         chat.complete([{"role": "user", "content": "word " * 8000}], [])
+    assert caught.value.window == 2048
     assert chat.complete([{"role": "user", "content": "short"}], []).content == "ok"   # a short prompt read whole
 
+
+def test_the_in_house_model_is_asked_for_a_larger_window_once_it_cuts_a_prompt():
+    # LiteLLM passes `num_ctx` into Ollama's options (checked 2026-11-22 on its ollama_chat/ and ollama/ routes): the
+    # cut request is sent again asking for 32k, and every later request asks for it too
+    bodies = []
+
+    def handler(request):
+        body = json.loads(request.content)
+        bodies.append(body)
+        read = 9000 if body.get("num_ctx") == 32768 else 2048
+        return httpx.Response(200, json={"choices": [{"message": {"content": "ok"}, "finish_reason": "stop"}],
+                                         "usage": {"prompt_tokens": read, "completion_tokens": 3}, "model": "m"})
+
+    chat = OpenAICompatChat(provider="litellm", base_url="https://x", api_key="k", model="m",
+                            transport=httpx.MockTransport(handler), sleep=lambda s: None)
+    assert chat.complete([{"role": "user", "content": "word " * 8000}], []).content == "ok"
+    assert [b.get("num_ctx") for b in bodies] == [None, 32768]
+    chat.complete([{"role": "user", "content": "next"}], [])
+    assert bodies[-1]["num_ctx"] == 32768
+
+
+def test_a_larger_window_the_server_refuses_leaves_the_conversation_to_be_fitted():
+    def handler(request):
+        if json.loads(request.content).get("num_ctx"):
+            return httpx.Response(500, json={"error": {"message": "model requires more system memory than is available"}})
+        return httpx.Response(200, json={"choices": [{"message": {"content": "ok"}, "finish_reason": "stop"}],
+                                         "usage": {"prompt_tokens": 2048, "completion_tokens": 3}, "model": "m"})
+
+    chat = OpenAICompatChat(provider="litellm", base_url="https://x", api_key="k", model="m",
+                            transport=httpx.MockTransport(handler), sleep=lambda s: None)
+    with pytest.raises(ContextExceeded) as caught:
+        chat.complete([{"role": "user", "content": "word " * 8000}], [])
+    assert caught.value.window == 2048 and chat.num_ctx == -1          # not asked again
+    assert chat.complete([{"role": "user", "content": "short"}], []).content == "ok"
+
+
+def test_the_same_call_with_the_same_answer_says_so_and_a_changed_answer_does_not():
+    answers = iter(["no matches", "no matches", "REFUSED: record the dose first", "ACCEPTED"])
+    calls = [("search", {"q": "mw"}), ("search", {"q": "mw"}), ("save", {"v": 1}), ("save", {"v": 1})]
+
+    class Repeats:
+        provider, model = "test", "r"
+
+        def __init__(self):
+            self.n = 0
+
+        def complete(self, messages, tools):
+            self.n += 1
+            if self.n > len(calls):
+                return ChatResult("done", (), "stop", {}, "r")
+            name, args = calls[self.n - 1]
+            return ChatResult("", (ToolCall(id=str(self.n), name=name, arguments=args),), "tool_calls", {}, "r")
+
+    tools = [Tool(n, n, {"type": "object", "properties": {}}, lambda **kw: next(answers)) for n in ("search", "save")]
+    steps = []
+    run_tool_loop(Repeats(), system="s", user="u", tools=tools, log_step=steps.append)
+    results = [s["result"] for s in steps if s["type"] == "tool_result"]
+    assert results[1].startswith("NOTE: you made this same call before (turn 1)") and "NOTE" not in results[0]
+    assert results[3] == "ACCEPTED"                                     # its answer changed: it moved on
+
+
+@pytest.mark.parametrize(("status", "message", "window"), [
+    (413, ("Request too large for model `openai/gpt-oss-120b` on tokens per minute (TPM): Limit 8000, Requested 9512, "
+           "please reduce your message size and try again."), 8000),
+    (400, "This model's maximum context length is 32768 tokens. However, you requested 40100 tokens.", 32768),
+    (413, "payload too large", None),
+])
+def test_a_provider_saying_the_request_is_too_long_names_its_window(status, message, window):
+    chat = OpenAICompatChat(provider="groq", base_url="https://x", api_key="k", model="m", sleep=lambda s: None,
+                            transport=httpx.MockTransport(lambda r: httpx.Response(status, json={"error": {"message": message}})))
+    with pytest.raises(ContextExceeded) as caught:
+        chat.complete([{"role": "user", "content": "hi"}], [])
+    assert caught.value.window == window
+
+
+class _SmallWindow:
+    """A model whose context window holds `window` tokens (4 characters each here): a longer request is refused as the
+    in-house model's is; otherwise it reads a page per turn, then stops."""
+
+    provider, model = "litellm", "small"
+
+    def __init__(self, window: int, pages: int):
+        self.window, self.pages, self.sent = window, pages, []
+
+    def complete(self, messages, tools):
+        from modeler_agents.llm import _size
+
+        self.sent.append(messages)
+        if _size(messages, tools) / 4 > self.window:
+            raise ContextExceeded("cut", window=self.window)
+        read = sum(1 for m in messages if m["role"] == "tool")
+        done = len(self.sent) > self.pages + 6
+        if done:
+            return ChatResult("finished", (), "stop", {"input_tokens": 1, "output_tokens": 1}, "small")
+        call = ToolCall(id=f"c{len(self.sent)}", name="read_page", arguments={"page": read + 1})
+        return ChatResult("", (call,), "tool_calls", {"input_tokens": 1, "output_tokens": 1}, "small")
+
+
+def test_a_conversation_longer_than_the_window_leaves_its_oldest_turns_out_and_goes_on():
+    # the owner, 2026-11-22: "read the proposal" on Start stopped once its conversation outgrew the in-house model's
+    # window; the loop now keeps the instructions and the task and leaves the oldest pages out, saying so
+    model = _SmallWindow(window=4000, pages=20)
+    tool = Tool("read_page", "a page", {"type": "object", "properties": {"page": {"type": "integer"}}},
+                lambda page: f"page {page}: " + "text " * 600)
+    steps = []
+    outcome = run_tool_loop(model, system="SYSTEM", user="TASK", tools=[tool], max_turns=40, log_step=steps.append)
+    assert outcome.status == "COMPLETED", outcome.error
+    fitted = [s for s in steps if s["type"] == "context_fitted"]
+    assert len(fitted) == 1 and fitted[0]["window"] == 4000          # refused once, then fitted before every turn
+    last = model.sent[-1]
+    assert last[0]["content"] == "SYSTEM" and last[1]["content"].startswith("TASK") and "left out" in last[1]["content"]
+    tool_answers = [m["content"] for m in last if m["role"] == "tool"]
+    assert all(a.endswith("(shortened to fit the model's context window)") for a in tool_answers[:-1])  # earlier: a trace
+    assert len(tool_answers[-1]) > 2000                                                                    # latest: whole
+    assert all(m["role"] != "tool" or m["tool_call_id"] in {c["id"] for a in last if a["role"] == "assistant"
+                                                             for c in a["tool_calls"]} for m in last)   # pairs kept
+
+
+def test_a_request_that_cannot_fit_the_window_fails_with_what_to_change():
+    model = _SmallWindow(window=100, pages=3)
+    outcome = run_tool_loop(model, system="SYSTEM " * 200, user="TASK", tools=[], max_turns=5)
+    assert outcome.status == "LLM_UNAVAILABLE" and "do not fit the model's context window" in outcome.error
+    assert "OLLAMA_CONTEXT_LENGTH" in outcome.error
 
 def test_another_openai_compatible_service_needs_its_address_and_model():
     from modeler_agents.llm import chat_model_from_env

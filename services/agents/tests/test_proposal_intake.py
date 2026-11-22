@@ -234,3 +234,32 @@ def test_a1_fills_in_focused_passes_what_its_general_read_left_empty(library):
                  "scope.pbpk_model", "m15.influence_suggested", "m15.risk_justification"):
         assert b.get(path).value not in (None, "", []), path
     assert b.get("qoi.context_of_use").status is FieldStatus.DRAFTED and b.get("qoi.text").status is FieldStatus.EXTRACTED
+
+
+def test_a1_still_runs_its_passes_when_the_general_read_runs_out_of_turns(library):
+    # the owner, 2026-11-22: "read the proposal" on Start left the brief empty; a general read that ran out of turns
+    # (on a small context window the model reads and re-reads) skipped the passes that fill what it left
+    sha = library.documents()[0].content["sha256"]
+    passes: list[str] = []
+
+    class Wanders:
+        provider, model = "test", "wanders"
+
+        def complete(self, messages, tools):
+            user = messages[1]["content"]
+            if "Fill the Project Brief" in user:                       # the general read: lists the documents forever
+                return ChatResult(content="", finish_reason="", usage={}, model="w",
+                                  tool_calls=(ToolCall(id=str(len(messages)), name="list_documents", arguments={}),))
+            if any(m.get("role") == "tool" for m in messages):
+                return ChatResult(content="done", finish_reason="", tool_calls=(), usage={}, model="w")
+            passes.append(user)
+            calls = ([("propose_field", {"path": "qoi.text", "value": "predict the food effect of the 10 mg IR tablet",
+                                         "quote": "predict the food effect of the 10 mg immediate-release tablet",
+                                         "doc_sha256": sha, "page": 1})] if "Now fill the question" in user else [])
+            return ChatResult(content="" if calls else "done", finish_reason="", usage={}, model="w",
+                              tool_calls=tuple(ToolCall(id=str(i), name=n, arguments=a) for i, (n, a) in enumerate(calls)))
+
+    outcome = run_proposal_intake(Wanders(), IntakeContext(library=library, brief=empty_brief("Dapagliflozin", by="u1"),
+                                                           actor="agent:ar_8"), max_turns=3)
+    assert outcome.status == "INCOMPLETE" and len(passes) >= 3
+    assert outcome.brief.get("qoi.text").status is FieldStatus.EXTRACTED

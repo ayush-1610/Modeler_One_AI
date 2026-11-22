@@ -270,13 +270,14 @@ def test_gpt_oss_on_groqcloud_takes_one_key_its_effort_and_runs_an_agent_from_th
     assert page["groq_efforts"] == ["low", "medium", "high"] and "xhigh" in page["efforts"]
 
 
-def test_each_agent_row_offers_three_one_click_models_the_active_one_marked_and_a_keyless_one_said(client, tmp_path):
+def test_each_agent_row_offers_four_one_click_models_the_active_one_marked_and_a_keyless_one_said(client, tmp_path):
     page = client.get("/api/v1/admin/agents", headers=_as("owner")).json()["data"]
     choices = {c["id"]: c for c in page["choices"]}
-    assert [c["label"] for c in page["choices"]] == ["Qwen Coder", "Claude", "gpt-oss-120b"]
+    assert [c["label"] for c in page["choices"]] == ["Qwen Coder", "Claude", "gpt-oss-120b", "Nemotron Ultra"]
     assert {i: (c["provider"], c["model"], c["effort"]) for i, c in choices.items()} == {
         "qwen-coder": ("litellm", "qwen-coder", ""), "claude": ("bedrock", "anthropic.claude-opus-5-5", ""),
-        "gpt-oss-120b": ("groq", "openai/gpt-oss-120b", "medium")}
+        "gpt-oss-120b": ("groq", "openai/gpt-oss-120b", "medium"),
+        "nemotron-ultra": ("nvidia", "nvidia/nemotron-3-ultra-550b-a55b", "")}
     assert all(c["tools"] for c in page["choices"]) and [i for i, c in choices.items() if c["reads_scans"]] == ["claude"]
     assert not any(c["has_active_key"] for c in page["choices"])          # no key yet: each button says "Add a key"
     assert {a["choice"] for a in page["agents"]} == {None}
@@ -285,7 +286,8 @@ def test_each_agent_row_offers_three_one_click_models_the_active_one_marked_and_
                          headers=_as("owner")).json()["data"]["keys"][0]["id"]
     client.post(f"/api/v1/admin/keys/{key_id}:activate", json={"reason": "in use"}, headers=_as("owner"))
     page = client.put("/api/v1/admin/agents/A7", json=GPT_OSS, headers=_as("owner")).json()["data"]
-    assert {c["id"]: c["has_active_key"] for c in page["choices"]} == {"qwen-coder": False, "claude": False, "gpt-oss-120b": True}
+    assert {c["id"]: c["has_active_key"] for c in page["choices"]} == {"qwen-coder": False, "claude": False, "gpt-oss-120b": True,
+                                                                   "nemotron-ultra": False}
     rows = {a["agent"]: a for a in page["agents"]}
     assert (rows["A7"]["choice"], rows["A7"]["set_by"], rows["A7"]["reason"]) == ("gpt-oss-120b", "owner", "one-click switch")
     assert {a: r["choice"] for a, r in rows.items() if a != "A7"} == dict.fromkeys(set(ps.AGENTS) - {"A7"})
@@ -342,3 +344,20 @@ def test_another_openai_compatible_service_runs_an_agent_with_its_own_address_ke
             "has_active_key": True} in page["providers"]
     assert not any(c["provider"] == "openai_compat" for c in page["choices"])
     assert next(a for a in page["agents"] if a["agent"] == "A8")["model"] == "gpt-oss-120b"
+
+
+def test_an_nvidia_key_runs_an_agent_on_nemotron_ultra_with_one_click(client, tmp_path):
+    # the owner, 2026-11-22: NVIDIA's API catalog as a free cloud model; its address is fixed, so only the key is asked
+    key_id = client.post("/api/v1/admin/keys", json={"provider": "nvidia", "fields": {"api_key": "nvapi-test-0000"},
+                                                      "reason": "NVIDIA trial"}, headers=_as("owner")).json()["data"]["keys"][0]["id"]
+    client.post(f"/api/v1/admin/keys/{key_id}:activate", json={"reason": "in use"}, headers=_as("owner"))
+    page = client.put("/api/v1/admin/agents/A8", json={"provider": "nvidia", "model": "nvidia/nemotron-3-ultra-550b-a55b",
+                                                        "reason": "one-click switch"}, headers=_as("owner")).json()["data"]
+    assert next(a for a in page["agents"] if a["agent"] == "A8")["choice"] == "nemotron-ultra"
+    env = ps.model_env(str(tmp_path), MASTER, "A8")
+    assert env == {"MODELER_LLM_PROVIDER": "nvidia", "NVIDIA_API_KEY": "nvapi-test-0000",
+                   "MODELER_LLM_MODEL": "nvidia/nemotron-3-ultra-550b-a55b"}
+    from modeler_agents.llm import chat_model_from_env
+
+    model = chat_model_from_env(env)
+    assert (model.provider, model.base_url) == ("nvidia", "https://integrate.api.nvidia.com/v1")

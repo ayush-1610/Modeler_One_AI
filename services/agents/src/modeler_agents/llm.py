@@ -31,6 +31,12 @@ or any other OpenAI-compatible service (Cerebras, NVIDIA's API catalog, OpenRout
     OPENAI_COMPAT_KEY=...
     MODELER_LLM_MODEL=...
 
+or a model of NVIDIA's API catalog (its address is fixed; Nemotron Ultra by default):
+
+    MODELER_LLM_PROVIDER=nvidia
+    NVIDIA_API_KEY=...                the key from build.nvidia.com
+    MODELER_LLM_MODEL=nvidia/nemotron-3-ultra-550b-a55b   (default)
+
 or gpt-oss-120b on GroqCloud (plan 2026-11-21 v2 §9: a third model, chosen per agent in the admin console), through
 Groq's OpenAI-compatible endpoint `https://api.groq.com/openai/v1` with the same client as the proxy:
 
@@ -75,6 +81,8 @@ PROVIDERS: dict[str, ProviderDefaults] = {
     # any other service with an OpenAI-compatible Chat Completions endpoint (Cerebras, NVIDIA's API catalog,
     # OpenRouter, Together …): its address, key and model are the console's
     "openai_compat": ProviderDefaults("", "OPENAI_COMPAT_KEY", ""),
+    # NVIDIA's API catalog (build.nvidia.com): free trial credits, OpenAI-compatible; Nemotron Ultra by default
+    "nvidia": ProviderDefaults("https://integrate.api.nvidia.com/v1", "NVIDIA_API_KEY", "nvidia/nemotron-3-ultra-550b-a55b"),
 }
 BASE_ENV = {"litellm": "LITELLM_BASE", "openai_compat": "OPENAI_COMPAT_BASE"}       # GroqCloud's address is fixed
 GROQ_EFFORTS = ("low", "medium", "high")      # gpt-oss's `reasoning_effort` on GroqCloud
@@ -118,6 +126,16 @@ class ToolCallRejected(RuntimeError):
     answers HTTP 400): the loop tells the model why, and it calls again."""
 
 
+class ContextExceeded(LLMUnavailableError):
+    """The request is longer than the model takes: a provider's 413 or "maximum context length", or the in-house model
+    reporting that it read a cut prompt. `window`: the most it took, in tokens, when the answer says. The tool loop
+    leaves its oldest turns out and asks again (`run_tool_loop`); a request that cannot be made short enough fails."""
+
+    def __init__(self, message: str, window: int | None = None):
+        super().__init__(message)
+        self.window = window
+
+
 class LLMConfigError(RuntimeError):
     """A provider is selected but not usable (unknown name or missing key)."""
 
@@ -139,6 +157,10 @@ class OpenAICompatChat:
         self._max_retries = max_retries
         self._transport = transport
         self._sleep = sleep
+        # the context window asked of the in-house model (Ollama's `num_ctx`, which LiteLLM passes into its options)
+        # once it has cut a prompt; -1 once a larger window was refused. Kept for this client's later requests.
+        self.num_ctx = 0
+        self._cut: ContextExceeded | None = None
 
     def list_models(self) -> list[str]:
         """The model names the endpoint serves (GET /models); [] when it cannot say."""
@@ -156,6 +178,8 @@ class OpenAICompatChat:
         if tools:
             body["tools"] = tools
             body["tool_choice"] = "auto"
+        if self.num_ctx > 0:
+            body["num_ctx"] = self.num_ctx
         last_error = ""
         with httpx.Client(timeout=self._timeout, transport=self._transport) as client:
             for attempt in range(self._max_retries + 1):
@@ -175,8 +199,21 @@ class OpenAICompatChat:
                             result = _parse(response.json(), self.model, inline_tools=bool(tools))
                         except ValueError as exc:
                             raise LLMUnavailableError(f"{self.provider} answered with something that is not JSON: {exc}") from exc
-                        _check_context(self, body, result)
+                        try:
+                            _check_context(self, body, result)
+                        except ContextExceeded as cut:
+                            if self.provider != "litellm" or self.num_ctx:
+                                raise
+                            # the in-house model cut the prompt: ask Ollama for a larger window and send it again
+                            self.num_ctx, self._cut, body["num_ctx"] = LARGER_CONTEXT, cut, LARGER_CONTEXT
+                            continue
+                        self._cut = None
                         return result
+                    if self._cut is not None and "num_ctx" in body:
+                        # the larger window was refused (too little memory for it, say): the server's own window stays,
+                        # and the tool loop fits the conversation into it
+                        cut, self._cut, self.num_ctx = self._cut, None, -1
+                        raise cut
                     raise_refusal(self, response)
                     last_error = f"HTTP {response.status_code}: {_error_message(response)}"
                     wait = _retry_after(response)
@@ -195,17 +232,42 @@ CHARS_PER_TOKEN_MAX = 4.5
 CUT_PROMPT_SHARE = 0.5
 
 
+#: the window asked of the in-house model once it cuts a prompt (LiteLLM passes `num_ctx` into Ollama's options; checked
+#: 2026-11-22 against LiteLLM's `ollama_chat/` and `ollama/` routes, and an `openai/` route ignores it)
+LARGER_CONTEXT = 32768
+#: what the in-house model's context window is raised to, and how (said when even a fitted request does not fit)
+RAISE_CONTEXT = ("raise it on the server (Ollama: start it with OLLAMA_CONTEXT_LENGTH=32768, or a model with PARAMETER "
+                 "num_ctx 32768) and run again")
+
+
 def _check_context(chat: OpenAICompatChat, body: dict[str, Any], result: ChatResult) -> None:
     """The in-house model (Ollama behind the proxy) cuts a prompt longer than its context window without saying so, and
-    answers from what is left: an agent then works from half its instructions. A reported prompt much shorter than the
-    request is refused, with what to change."""
+    answers from what is left. A reported prompt much shorter than the request is refused as too long for the window
+    (`ContextExceeded`, the window being what it read): the tool loop then leaves the oldest turns out itself, keeping
+    the instructions and the task, and asks again."""
     seen = result.usage.get("input_tokens", 0)
     least = len(json.dumps(body, ensure_ascii=False)) / CHARS_PER_TOKEN_MAX
     if chat.provider == "litellm" and seen and least > 2000 and seen < CUT_PROMPT_SHARE * least:
-        raise LLMUnavailableError(
+        raise ContextExceeded(
             f"the model read {seen} tokens of a request of at least {least:.0f}: its context window is too small and "
-            "the prompt was cut. Raise it on the server (Ollama: start it with OLLAMA_CONTEXT_LENGTH=32768, or a "
-            "model with PARAMETER num_ctx 32768) and run again")
+            f"the prompt was cut; {RAISE_CONTEXT}", window=int(seen))
+
+
+_CONTEXT_WORDS = ("context length", "context_length", "context window", "maximum context", "too many tokens",
+                  "prompt is too long", "request too large", "reduce the length", "reduce your message size")
+_WINDOW_NUMBER = re.compile(r"(?:maximum context length is|context length of|context window of|limit)\D{0,12}(\d{3,7})",
+                            re.IGNORECASE)
+
+
+def _context_refusal(status: int, message: str) -> ContextExceeded | None:
+    """A provider's "the request is too long" (HTTP 413, or a 400 naming the context length), with the window it names
+    (GroqCloud: "Limit 8000, Requested 9512"; vLLM and NIM: "maximum context length is 8192 tokens")."""
+    lowered = message.lower()
+    if status != 413 and not (status == 400 and any(w in lowered for w in _CONTEXT_WORDS)):
+        return None
+    number = _WINDOW_NUMBER.search(message)
+    return ContextExceeded(f"the request is longer than the model takes (HTTP {status}: {message})",
+                           window=int(number.group(1)) if number else None)
 
 
 def _retry_after(response: httpx.Response) -> float | None:
@@ -229,6 +291,8 @@ def raise_refusal(chat: OpenAICompatChat, response: httpx.Response) -> None:
     if status == 400 and any(w in message.lower() for w in ("tool call validation failed", "failed to parse tool call",
                                                              "tool_use_failed")):
         raise ToolCallRejected(message)
+    if (too_long := _context_refusal(status, message)) is not None:
+        raise too_long
     if status in (401, 403):
         key_env = PROVIDERS[chat.provider].key_env if chat.provider in PROVIDERS else "the provider's key"
         raise LLMUnavailableError(f"{chat.provider} rejected the key (HTTP {status}: {message}); check {key_env}")
@@ -409,9 +473,32 @@ def run_tool_loop(model: ChatModel, *, system: str, user: str, tools: list[Tool]
     schemas = [t.schema() for t in tools]
     messages: list[dict[str, Any]] = [{"role": "system", "content": system}, {"role": "user", "content": user}]
     usage: dict[str, int] = {"input_tokens": 0, "output_tokens": 0}
+    window: int | None = None          # the model's context window, in tokens, once a refusal has said it
+    share = FIT_SHARE
+    made: dict[str, tuple[list[int], str]] = {}   # each call (name and arguments) -> its turns and its last answer
     for turn in range(1, max_turns + 1):
+        if window is not None:
+            messages = _fitted(messages, schemas, window, share)
         try:
             result = model.complete(messages, schemas)
+        except ContextExceeded as exc:
+            # too long for the model: the oldest turns are left out (what their tool calls recorded is kept) and the
+            # model is asked again; each further refusal fits tighter, and a request that cannot shrink fails
+            sent = _size(messages, schemas) / CHARS_PER_TOKEN_FIT
+            if window is not None:
+                share *= 0.75
+            window = min(window or exc.window or int(sent * 0.6), exc.window or int(sent * 0.6))
+            fitted = _fitted(messages, schemas, window, share)
+            log_step({"type": "context_fitted", "turn": turn, "window": window, "error": str(exc),
+                      "messages": [len(messages), len(fitted)]})
+            if (_size(fitted, schemas) >= _size(messages, schemas)
+                    or _size(fitted, schemas) > window * share * CHARS_PER_TOKEN_FIT):
+                tail = RAISE_CONTEXT if model.provider == "litellm" else "choose a model with a longer context for this agent"
+                return LoopOutcome("LLM_UNAVAILABLE", "", turn - 1, usage, error=(
+                    f"the agent's instructions and material do not fit the model's context window ({window} tokens) "
+                    f"even with its earlier turns left out; {tail} ({exc})"))
+            messages = fitted
+            continue
         except ToolCallRejected as exc:
             log_step({"type": "tool_call_rejected", "turn": turn, "error": str(exc)})
             messages.append({"role": "user", "content": f"Your last tool call was refused: {exc}. Call the tool again with "
@@ -446,6 +533,59 @@ def run_tool_loop(model: ChatModel, *, system: str, user: str, tools: list[Tool]
                     answer = f"ERROR: wrong arguments for {call.name}: {exc}"
                 except Exception as exc:  # noqa: BLE001 - the model must hear what went wrong, the run must go on
                     answer = f"ERROR: {type(exc).__name__}: {exc}"
+            # the same call with the same answer again (a model that has lost its earlier turns searches the same words
+            # over and over): the answer comes back, and says so; a call whose answer changed is a call that moved on
+            signature = call.name + json.dumps(call.arguments, sort_keys=True, default=str)
+            turns_before, last = made.get(signature, ([], None))
+            made[signature] = ([*turns_before, turn], str(answer))
+            if turns_before and str(answer) == last:
+                answer = (f"NOTE: you made this same call before (turn {', '.join(map(str, turns_before[-3:]))}) and its "
+                          "answer is unchanged. Do not repeat it: use what it says, mark the field missing, or finish.\n"
+                          + str(answer))
             log_step({"type": "tool_result", "turn": turn, "tool": call.name, "id": call.id, "result": answer})
             messages.append({"role": "tool", "tool_call_id": call.id, "content": answer})
     return LoopOutcome("INCOMPLETE", "", max_turns, usage, error=f"stopped after {max_turns} turns")
+
+
+# fitting a conversation into a known context window: characters a token is taken to be (JSON, hashes and English run
+# 2.5–4.5; the low end, so a fitted request is not refused again) and the window's share the request may fill (the rest
+# is the answer's and the chat template's)
+CHARS_PER_TOKEN_FIT = 3.0
+FIT_SHARE = 0.8
+LEFT_OUT = ("(Earlier turns of this conversation were shortened or left out to fit the model's context window. Everything "
+            "your tool calls recorded is kept; call a tool again for anything you need from them.)")
+STUB_CHARS = 240      # an earlier tool answer, shortened to fit: its first characters stay, so the model sees what it did
+STUB_TAIL = " … (shortened to fit the model's context window)"
+
+
+def _size(messages: list[dict[str, Any]], schemas: list[dict[str, Any]]) -> int:
+    return len(json.dumps([{k: v for k, v in m.items() if k != "native"} for m in messages], ensure_ascii=False,
+                          default=str)) + len(json.dumps(schemas, ensure_ascii=False))
+
+
+def _fitted(messages: list[dict[str, Any]], schemas: list[dict[str, Any]], window: int, share: float) -> list[dict[str, Any]]:
+    """The conversation within `share` of the `window`: the instructions and the task kept, the earlier turns' tool
+    answers shortened to their first lines (so the model still sees what it did and does not do it again), then the
+    oldest turns (each model turn with its tool answers, never split) left out until it fits, the latest turn always
+    kept. Unchanged when it fits; as short as it can be made when it does not."""
+    budget = window * share * CHARS_PER_TOKEN_FIT
+    if _size(messages, schemas) <= budget:
+        return messages
+    head, rest = messages[:2], messages[2:]
+    turns: list[list[dict[str, Any]]] = []
+    for message in rest:
+        if message["role"] == "tool" and turns:
+            turns[-1].append(message)
+        else:
+            turns.append([message])
+    task = head[1]
+    if LEFT_OUT not in str(task.get("content", "")):
+        head = [head[0], {**task, "content": f"{task.get('content', '')}\n\n{LEFT_OUT}"}]
+    for turn in turns[:-1]:
+        for i, m in enumerate(turn):
+            text = m.get("content")
+            if m["role"] == "tool" and isinstance(text, str) and len(text) > STUB_CHARS + len(STUB_TAIL):
+                turn[i] = {**m, "content": text[:STUB_CHARS] + STUB_TAIL}
+    while len(turns) > 1 and _size(head + [m for t in turns for m in t], schemas) > budget:
+        turns.pop(0)
+    return head + [m for t in turns for m in t]

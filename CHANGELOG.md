@@ -15,6 +15,59 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — NVIDIA's API catalog as a one-click model (2026-11-22, the owner's request: a free cloud model)
+- **What:** a fourth one-click choice on every agent's row in Admin → Agents, **Nemotron Ultra**
+  (`nvidia/nemotron-3-ultra-550b-a55b` on `https://integrate.api.nvidia.com/v1`). Its key goes under Admin → Keys →
+  "NVIDIA API catalog (build.nvidia.com)" (only the key: the address is fixed), and "Test" lists the catalog's models.
+  On the server's environment: `MODELER_LLM_PROVIDER=nvidia` with `NVIDIA_API_KEY`.
+- **Why:** GroqCloud's free tier is too small for a delivery and the owner could not upgrade it. NVIDIA's catalog gives
+  trial credits and serves large open models with tool calls. Of its eight chat models tried on 2026-11-22 with one
+  tool call, Nemotron Ultra answered in 4 s; Kimi K3.1 Pro and Mistral Large 4 took a minute or more; GLM 5.3 Flash
+  and Gemma 4 did not answer in two minutes.
+- **Impact:** a new choice only; nothing changes for an agent nobody switches. Check NVIDIA's trial terms before
+  sending it client files (the owner allowed the cinacalcet sample delivery, 2026-11-22).
+
+### Fixed — "Read the proposal" on Start stopped on the in-house model's small context window (2026-11-22, the owner's report)
+- **What the owner saw:** the intake agent (A1) on Start did not work: the read ended, the Start page said only "ended
+  llm unavailable" or "ended incomplete", and the fields it should have filled were left to code's drafts.
+- **Causes, found by running A1 on the owner's cinacalcet proposal on a real model (NVIDIA's hosted Nemotron Ultra):**
+  1. A1's conversation grows from about 4,000 tokens (its instructions and tools) to more than 12,000 by its 30th turn.
+     Ollama's default context window is about 4,000 tokens. Ollama used to drop the oldest turns without saying so.
+     Since 7aeb63d (2026-11-22) the client refuses a cut prompt, and that ended A1's read with an error. GroqCloud's
+     free tier refuses any request over 8,000 tokens (HTTP 413) the same way.
+  2. A read that ran out of turns (80; on Nemotron it had accepted 64 fields) skipped the short passes that fill the
+     question, the product, what is modelled and the disposition, and the ICH M15 draft. Only a read that could not
+     reach the model at all should skip them.
+  3. Start did not say why the read stopped.
+- **Fix:**
+  - `modeler_agents.llm`: a request too long for the model is `ContextExceeded`, with the window when the answer names
+    it. That covers the in-house model's cut prompt, an HTTP 413, and a 400 naming the context length (GroqCloud
+    "Limit 8000", vLLM and NIM "maximum context length is …").
+  - When the in-house model cuts a prompt, the client first asks Ollama for a 32k window itself (`num_ctx`, which
+    LiteLLM passes into Ollama's options: checked 2026-11-22 against a real LiteLLM proxy on its `ollama_chat/` and
+    `ollama/` routes; an `openai/` route ignores it). It keeps asking for that window on the client's later requests.
+    If the server refuses it (too little memory), the server's own window stays.
+  - Then `run_tool_loop` fits the conversation itself and asks again. The earlier turns' tool answers are shortened to
+    their first lines, so the model still sees what it did, and then the oldest turns are left out. The instructions,
+    the task and the latest turn are always kept, and a model turn is never split from its tool answers. A note in the
+    task says turns were shortened. What the tool calls recorded is kept outside the conversation. From then on every
+    turn is fitted to the window. A request that cannot fit even so fails, and says what to change: on the server,
+    the window; elsewhere, a model with a longer context.
+  - The same call with the same answer again comes back with a note saying so. A model that has lost its earlier
+    turns otherwise searches the same words over and over: in an 8k window, Nemotron searched one phrase 50 times.
+  - A1 (`proposal_intake`) runs its passes and the ICH M15 draft after a read that ran out of turns.
+  - The Data room's smaller retry also starts on the new message.
+  - Start says why the read stopped, in plain words, never a setting's name (`lib/start.ts` `intakeStopped`), and how
+    many fields it filled.
+- **Impact:** A1 finishes on any context window. On a small one it reads less at a time and takes longer, so raising
+  Ollama's window to 32k (`docs/USING_THE_TOOL.md` §6a) is still advised. No ruleset, field or check changed: every
+  value is still checked against its quote by code.
+- **Checked:** new tests in `test_llm.py` (a 4,000-token window: one refusal, then fitted on every turn, pairs kept; a
+  request that cannot fit; the window named in GroqCloud's, vLLM's and a bare 413) and in `test_proposal_intake.py`
+  (the passes run after a read that ran out of turns); `e2e/start-intake-words.spec.ts`; A1 on the real proposal,
+  on NVIDIA's Nemotron Ultra: 64 fields accepted and 7 refused by code's checks, the passes ran after its 80 turns,
+  and code had nothing left to draft (before: the same 64, then no passes and 9 fields left to code's drafts).
+
 ### Security — Next.js 16.4.2 → 16.4.6 (2026-11-19, the owner's request)
 - **What:** the web app's `next` (and its `@next/*` packages, nothing else in the lockfile) moves from 16.4.2 to 16.4.6.
 - **Why:** `npm audit` reported two moderate advisories for 16.2.0–16.4.4, both cache leaks across root params with

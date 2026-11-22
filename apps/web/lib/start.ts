@@ -80,3 +80,31 @@ export function marks(view: BriefView, answer: Answer): Marks {
     answer,
   };
 }
+
+/** Why the intake agent's last read stopped, in plain words, from its run's status and error (the owner, 2026-11-22:
+ *  "read the proposal" on Start stopped with no word why). The server's own settings stay in the admin console and the
+ *  server's log; this says what happened and who can change it. */
+export function intakeStopped(status: string, error: string | null | undefined): string {
+  const e = (error ?? "").toLowerCase();
+  if (status === "INCOMPLETE" || /stopped after \d+ turns/.test(e)) {
+    return "it used all its turns, and its short passes then filled what Start still needed";
+  }
+  if (/context window|context length|prompt was cut|too large|too long/.test(e)) {
+    return "the proposal and the agent's instructions are longer than the AI model on this server can read at once "
+      + "(its context window); an administrator can raise the window on the server, or choose another model for the "
+      + "intake agent in Admin → Agents";
+  }
+  if (/daily limit|per day/.test(e)) {
+    return "the AI model's daily allowance at its provider is used up; it renews within a day, or an administrator can "
+      + "choose another model for the intake agent in Admin → Agents";
+  }
+  if (/rejected the key|http 401|http 403/.test(e)) {
+    return "the AI provider refused the key; an administrator can check it in Admin → Keys";
+  }
+  if (/does not serve the model/.test(e)) {
+    return "the AI provider does not serve the model chosen for the intake agent; an administrator can choose another "
+      + "in Admin → Agents";
+  }
+  if (/unavailable|timed out|timeout|connect/.test(e)) return "the AI model could not be reached; read the proposal again later";
+  return "the AI model stopped with an error (the run's record has it)";
+}

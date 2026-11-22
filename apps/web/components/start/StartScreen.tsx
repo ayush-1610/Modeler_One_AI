@@ -13,7 +13,7 @@ import { narrow, send } from "@/lib/api";
 import type { BriefView, Citation, DocumentView } from "@/lib/brief";
 import { useMutation, useResource, type After } from "@/lib/hooks";
 import { STEP_ROUTES } from "@/lib/pipeline";
-import { LINEAR_DRAFT, marks as startMarks, recordOf, type BriefChange } from "@/lib/start";
+import { intakeStopped, LINEAR_DRAFT, marks as startMarks, recordOf, type BriefChange } from "@/lib/start";
 
 type Focus = { sha256: string; page: number; quote: string | null } | null;
 
@@ -162,10 +162,14 @@ function IntakeStatus({ view }: { view: BriefView }) {
     );
   }
   if (last && last.status !== "COMPLETED") {
+    // why it stopped, in plain words (the owner, 2026-11-22: it stopped with no word why), and what it still filled
+    const error = typeof last.summary?.error === "string" ? last.summary.error : "";
+    const accepted = typeof last.summary?.accepted === "number" ? last.summary.accepted : 0;
     return (
       <p className="start-notice muted" data-testid="start-intake">
-        The intake agent&apos;s last read ended {last.status.toLowerCase().replace(/_/g, " ")} ({last.model}): code drafted
-        what it left, and the ICH M15 rule (UNVERIFIED) the model risk if it had none.
+        The intake agent&apos;s last read ({last.model}) did not finish: {intakeStopped(last.status, error)}.
+        {accepted > 0 ? ` It filled ${accepted} ${accepted === 1 ? "field" : "fields"}, each checked against its quote.` : ""}
+        {" "}Code drafted what it left, and the ICH M15 rule (UNVERIFIED) the model risk if it had none.
       </p>
     );
   }

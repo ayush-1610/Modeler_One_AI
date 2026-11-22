@@ -97,14 +97,14 @@ def test_key(provider: str, fields: dict[str, str]) -> tuple[bool, str]:
                                   timeout_s=30, max_retries=0).list_models()
         return (True, f"answers; serves {', '.join(served)}") if served else (
             False, f"no list of models from {fields['base_url']}: check the address and the key")
-    if provider == "groq":
-        groq = PROVIDERS["groq"]
-        served = OpenAICompatChat(provider="groq", base_url=groq.base_url, api_key=fields["api_key"], model="",
+    if provider in ("groq", "nvidia"):     # a fixed address: the key answers with a list holding the default model
+        fixed = PROVIDERS[provider]
+        served = OpenAICompatChat(provider=provider, base_url=fixed.base_url, api_key=fields["api_key"], model="",
                                   timeout_s=30, max_retries=0).list_models()
         if not served:
-            return False, f"no list of models from {groq.base_url}: check the key (and that the server may reach it)"
-        return (True, f"answers; serves {groq.model}") if groq.model in served else (
-            False, f"answers, but {groq.model} is not among its {len(served)} models")
+            return False, f"no list of models from {fixed.base_url}: check the key (and that the server may reach it)"
+        return (True, f"answers; serves {fixed.model}") if fixed.model in served else (
+            False, f"answers, but {fixed.model} is not among its {len(served)} models")
     if provider == "openai_compat":
         served = OpenAICompatChat(provider="openai_compat", base_url=fields["base_url"], api_key=fields["api_key"], model="",
                                   timeout_s=30, max_retries=0).list_models()

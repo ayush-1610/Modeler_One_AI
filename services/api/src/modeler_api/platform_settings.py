@@ -57,6 +57,7 @@ AGENT_PROVIDERS: dict[str, str] = {
     "litellm": "In-house model (LiteLLM proxy)",
     "bedrock": "Claude on Amazon Bedrock",
     "groq": "gpt-oss-120b on GroqCloud",
+    "nvidia": "NVIDIA API catalog",
     "openai_compat": "Another OpenAI-compatible service",
 }
 EFFORTS = ("low", "medium", "high", "xhigh", "max")          # Claude's `output_config.effort`
@@ -71,6 +72,9 @@ MODEL_CHOICES: tuple[dict[str, Any], ...] = (
      "tools": True, "reads_scans": True},
     {"id": "gpt-oss-120b", "label": "gpt-oss-120b", "provider": "groq", "model": "openai/gpt-oss-120b", "effort": "medium",
      "tools": True, "reads_scans": False},
+    # NVIDIA's flagship on its API catalog (the owner, 2026-11-22: a free cloud model to score the agents with)
+    {"id": "nemotron-ultra", "label": "Nemotron Ultra", "provider": "nvidia", "model": "nvidia/nemotron-3-ultra-550b-a55b",
+     "effort": "", "tools": True, "reads_scans": False},
 )
 # Each provider's key fields: (name, label, secret, required). Bedrock takes a Bedrock API key, or an AWS access key
 # with its secret (`anthropic.AnthropicBedrockMantle`); the region is not a secret. GroqCloud's address is fixed.
@@ -82,6 +86,7 @@ KEY_PROVIDERS: dict[str, dict[str, Any]] = {
                            ("aws_access_key", "AWS access key ID", True, False),
                            ("aws_secret_key", "AWS secret access key", True, False))},
     "groq": {"label": "gpt-oss-120b on GroqCloud", "fields": (("api_key", "GroqCloud API key", True, True),)},
+    "nvidia": {"label": "NVIDIA API catalog (build.nvidia.com)", "fields": (("api_key", "NVIDIA API key", True, True),)},
     # any OpenAI-compatible Chat Completions service (Cerebras, NVIDIA's API catalog, OpenRouter …): its address and key;
     # the model is typed on the agent's row ("More…")
     "openai_compat": {"label": "Another OpenAI-compatible service",
@@ -321,6 +326,8 @@ def model_env(read_root: str, master_key: str, agent: str) -> dict[str, str] | N
     if setting["provider"] == "groq":
         return {"MODELER_LLM_PROVIDER": "groq", "GROQ_API_KEY": key["api_key"], "MODELER_LLM_MODEL": setting["model"],
                 "MODELER_LLM_EFFORT": setting.get("effort") or ""}
+    if setting["provider"] == "nvidia":
+        return {"MODELER_LLM_PROVIDER": "nvidia", "NVIDIA_API_KEY": key["api_key"], "MODELER_LLM_MODEL": setting["model"]}
     if setting["provider"] == "openai_compat":
         return {"MODELER_LLM_PROVIDER": "openai_compat", "OPENAI_COMPAT_BASE": key["base_url"],
                 "OPENAI_COMPAT_KEY": key["api_key"], "MODELER_LLM_MODEL": setting["model"]}

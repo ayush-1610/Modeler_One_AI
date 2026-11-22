@@ -90,7 +90,7 @@ FOCUS_CHARS = 14000      # the pages shown to the extractor up front (about 3,50
 
 
 def _too_large(error: str) -> bool:
-    return "413" in error or "too large" in error.lower() or "context length" in error.lower()
+    return "413" in error or any(w in error.lower() for w in ("too large", "context length", "context window"))
 
 
 def _focus(doc: SourceDocument, topics: Sequence[str], budget: int = FOCUS_CHARS) -> str:
