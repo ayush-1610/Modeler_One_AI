@@ -47,6 +47,9 @@ def _now() -> str:
     return datetime.now(UTC).isoformat(timespec="seconds")
 
 
+STEP_TEXT_LIMIT = 2000   # characters of a tool's answer the agents' record keeps
+
+
 class DataRoomStore:
     def __init__(self, ws: Workspace):
         self.ws = ws
@@ -75,6 +78,20 @@ class DataRoomStore:
         if not path.exists():
             return []
         return [json.loads(ln) for ln in path.read_text(encoding="utf-8").splitlines() if ln.strip().endswith("}")]
+
+    def log_agent_step(self, *, stage: str, file: str, model: str, step: dict[str, Any]) -> None:
+        """One turn of an agent (its model's answer, a tool's answer, a switch to another model), append-only: what the
+        run's record shows of who said what (21 CFR Part 11 §11.10(e); the governance review, 2026-11-22). A tool's
+        long answer (a file's lines) is kept to its first characters: the file itself is the record of its text."""
+        def short(value: Any) -> Any:
+            if isinstance(value, str) and len(value) > STEP_TEXT_LIMIT:
+                return value[:STEP_TEXT_LIMIT] + f" … ({len(value)} characters)"
+            return value
+        self._append("agent_steps.jsonl", {"at": _now(), "stage": stage, "file": file, "model": model,
+                                           **{k: short(v) for k, v in step.items()}})
+
+    def agent_steps(self) -> list[dict[str, Any]]:
+        return self._rows("agent_steps.jsonl")
 
     def audit(self, *, actor: str, action: str, resource_id: str, after: dict[str, Any], reason: str | None = None) -> None:
         self.ws.store.audit(self.ws.tenant_id).append(actor=actor, action=action, resource_type="dataroom",

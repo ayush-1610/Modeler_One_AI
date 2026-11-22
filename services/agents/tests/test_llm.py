@@ -21,6 +21,16 @@ from modeler_agents.llm import (
 pytestmark = pytest.mark.req("T-41")
 
 
+@pytest.fixture(autouse=True)
+def _rested_models_forgotten():
+    # the models a chain rests are shared by the process: each test starts with none resting
+    from modeler_agents.llm import HEALTH
+
+    HEALTH.reset()
+    yield
+    HEALTH.reset()
+
+
 def _completion(tool_calls=None, content=""):
     message = {"role": "assistant", "content": content}
     if tool_calls:
@@ -323,7 +333,8 @@ def test_groq_is_the_third_provider_gpt_oss_120b_with_its_reasoning_effort_in_th
     proxy = chat_model_from_env({"MODELER_LLM_PROVIDER": "litellm", "LITELLM_KEY": "k", "MODELER_LLM_EFFORT": "high"})
     proxy._transport = httpx.MockTransport(handler)
     proxy.complete([], [])
-    assert set(seen["body"]) == {"model", "messages", "temperature", "stream"} and seen["auth"] == "Bearer k"
+    assert set(seen["body"]) == {"model", "messages", "temperature", "stream", "stream_options"} and seen["auth"] == "Bearer k"
+    assert seen["body"]["stream"] is True                 # the in-house model streams (a slow CPU model is not cut off)
 
 
 def test_a_rejected_or_unreachable_groqcloud_names_its_own_key_not_the_proxys():
@@ -490,3 +501,209 @@ def test_an_agent_that_keeps_reading_is_told_to_submit_two_turns_before_its_last
     run_tool_loop(Reader(), system="s", user="u", tools=tools, max_turns=10)
     assert saved == [1]
     assert sum(1 for m in seen if m["role"] == "user" and "Two turns are left. Call submit_card now" in m["content"]) == 1
+
+
+def _client(provider, handler, **kw):
+    return OpenAICompatChat(provider=provider, base_url=f"https://{provider}", api_key="k", model=f"{provider}-m",
+                            transport=httpx.MockTransport(handler), sleep=lambda s: None, **kw)
+
+
+def test_a_chain_hands_a_request_the_first_model_cannot_answer_to_the_next_at_once():
+    # the owner, 2026-11-22: the question stage waited five times 600 s on the in-house model and produced nothing;
+    # "if any model is unavailable, switch at that moment to another, so the task continues"
+    from modeler_agents.llm import FallbackChat
+
+    slow_calls, fast_calls = [], []
+
+    def slow(request):
+        slow_calls.append(1)
+        raise httpx.ReadTimeout("no answer", request=request)
+
+    def fast(request):
+        fast_calls.append(json.loads(request.content))
+        return httpx.Response(200, json=_completion(content="the question card"))
+
+    chain = FallbackChat([_client("litellm", slow), _client("nvidia", fast)], labels=["Qwen Coder", "Nemotron Ultra"])
+    steps = []
+    outcome = run_tool_loop(chain, system="s", user="u", tools=[], log_step=steps.append)
+    assert outcome.status == "COMPLETED" and outcome.final_text == "the question card"
+    assert len(slow_calls) == 1                                   # handed over at once, not five waits
+    assert outcome.answered_by == "Nemotron Ultra"                # the conversation ended there
+    again = chain.conversation()                                  # the next conversation does not wait on it again
+    assert again.label == "Nemotron Ultra" and "resting" in again.switches[0]["why"]
+    (switch,) = [s for s in steps if s["type"] == "model_switch"]
+    assert (switch["from"], switch["to"]) == ("Qwen Coder", "Nemotron Ultra") and "no answer within" in switch["why"]
+
+
+@pytest.mark.parametrize(("status", "body"), [
+    (429, {"error": {"message": "Rate limit reached on tokens per day (TPD): Limit 200000, Used 199999"}}),
+    (502, {"error": {"message": "upstream request failed"}}),
+    (401, {"error": {"message": "invalid api key"}}),
+])
+def test_a_spent_daily_limit_an_outage_or_a_refused_key_hands_over_too(status, body):
+    from modeler_agents.llm import FallbackChat
+
+    first = _client("groq", lambda r: httpx.Response(status, json=body))
+    chain = FallbackChat([first, _client("nvidia", lambda r: httpx.Response(200, json=_completion(content="ok")))])
+    talk = chain.conversation()
+    assert talk.complete([{"role": "user", "content": "hi"}], []).content == "ok"
+    assert talk.provider == "nvidia" and len(talk.switches) == 1
+
+
+def test_a_models_own_refused_tool_call_stays_with_it_and_the_last_models_failure_is_said():
+    from modeler_agents.llm import FallbackChat, LLMUnavailableError, ToolCallRejected
+
+    refused = _client("groq", lambda r: httpx.Response(400, json={"error": {"message": "tool call validation failed"}}))
+    talk = FallbackChat([refused, _client("nvidia", lambda r: httpx.Response(200, json=_completion(content="ok")))]).conversation()
+    with pytest.raises(ToolCallRejected):
+        talk.complete([{"role": "user", "content": "hi"}], [])
+    assert talk.provider == "groq"
+    down = FallbackChat([_client("groq", lambda r: httpx.Response(503, json={})),
+                         _client("nvidia", lambda r: httpx.Response(503, json={}))]).conversation()
+    with pytest.raises(LLMUnavailableError, match="nvidia unavailable"):
+        down.complete([{"role": "user", "content": "hi"}], [])
+    assert [s["from"] for s in down.switches] == ["groq/groq-m"]
+
+
+def test_a_conversation_goes_on_with_another_provider_without_claudes_own_blocks():
+    seen = []
+    chat = _client("nvidia", lambda r: seen.append(json.loads(r.content)) or httpx.Response(200, json=_completion(content="ok")))
+    chat.complete([{"role": "user", "content": "u"},
+                   {"role": "assistant", "content": None, "tool_calls": [], "native": ("thinking block",)}], [])
+    assert all(set(m) <= {"role", "content", "tool_calls", "tool_call_id", "name"} for m in seen[0]["messages"])
+
+
+def test_without_a_chain_a_timeout_is_tried_twice_not_five_times():
+    calls = []
+
+    def slow(request):
+        calls.append(1)
+        raise httpx.ReadTimeout("no answer", request=request)
+
+    with pytest.raises(Exception, match="no answer within"):
+        _client("litellm", slow, max_retries=4).complete([{"role": "user", "content": "hi"}], [])
+    assert len(calls) == 2
+
+
+def test_a_conversation_under_way_starts_again_on_the_next_model_never_goes_on_there():
+    # the governance review, 2026-11-22: one model answers a whole conversation (one author per file), and the next
+    # provider is sent only what a fresh start sends
+    from modeler_agents.llm import FallbackChat
+
+    first_seen, second_seen = [], []
+
+    def first(request):
+        body = json.loads(request.content)
+        first_seen.append(len(body["messages"]))
+        if len(body["messages"]) > 2:
+            return httpx.Response(503, json={"error": {"message": "overloaded"}})
+        return httpx.Response(200, json=_completion([("read", {"page": 1})]))
+
+    def second(request):
+        second_seen.append(len(json.loads(request.content)["messages"]))
+        return httpx.Response(200, json=_completion(content="done"))
+
+    chain = FallbackChat([_client("litellm", first), _client("nvidia", second)], labels=["Qwen Coder", "Nemotron Ultra"])
+    tool = Tool("read", "a page", {"type": "object", "properties": {"page": {"type": "integer"}}}, lambda page: "page text")
+    steps = []
+    outcome = run_tool_loop(chain, system="s", user="u", tools=[tool], log_step=steps.append)
+    assert outcome.status == "COMPLETED" and outcome.final_text == "done"
+    assert second_seen == [2]                                   # a fresh start: the instructions and the task only
+    assert [s["type"] for s in steps if s["type"] in ("model_switch", "conversation_restarted")] == [
+        "model_switch", "conversation_restarted"]
+
+
+def test_parallel_conversations_keep_their_own_place_and_a_one_off_server_error_rests_nothing():
+    # the reliability review, 2026-11-22: one NVIDIA 502 on one document moved every later file off NVIDIA
+    from modeler_agents.llm import FallbackChat, ModelHealth
+
+    def nvidia(request):
+        text = json.loads(request.content)["messages"][-1]["content"]
+        return httpx.Response(502, json={"error": {"message": "upstream request failed"}}) if "dissolution" in text else \
+            httpx.Response(200, json=_completion(content="nvidia"))
+
+    chain = FallbackChat([_client("nvidia", nvidia), _client("groq", lambda r: httpx.Response(200, json=_completion(content="groq")))],
+                         labels=["Nemotron Ultra", "gpt-oss-120b"], health=ModelHealth())
+    a, b = chain.conversation(), chain.conversation()
+    assert a.complete([{"role": "user", "content": "the dissolution report"}], []).content == "groq"
+    assert b.complete([{"role": "user", "content": "the synopsis"}], []).content == "nvidia"   # b stayed on its model
+    assert chain.conversation().label == "Nemotron Ultra"                                     # nothing rests
+
+
+def test_a_request_too_long_for_one_window_goes_only_to_a_larger_one():
+    from modeler_agents.llm import ContextExceeded, FallbackChat, ModelHealth
+
+    def small(request):     # a window of 9,500 tokens: GroqCloud's 8,000 is smaller still
+        return httpx.Response(413, json={"error": {"message": "Request too large: Limit 9500, Requested 12000"}})
+
+    chain = FallbackChat([_client("litellm", small), _client("groq", small),
+                          _client("nvidia", lambda r: httpx.Response(200, json=_completion(content="large")))],
+                         health=ModelHealth())
+    talk = chain.conversation()
+    assert talk.complete([{"role": "user", "content": "x"}], []).content == "large"
+    assert [s["to"] for s in talk.switches] == ["nvidia/nvidia-m"]           # GroqCloud's 8k was skipped
+    only_small = FallbackChat([_client("litellm", small), _client("groq", small)], health=ModelHealth()).conversation()
+    with pytest.raises(ContextExceeded):                                       # none larger: the loop fits it
+        only_small.complete([{"role": "user", "content": "x"}], [])
+
+
+def test_a_model_without_tool_call_ids_gets_unique_ones_and_its_reasoning_is_dropped():
+    from modeler_agents.llm import _parse
+
+    data = {"choices": [{"message": {"content": "<think>the dose is 2 x 30</think>Here.", "tool_calls": [
+        {"type": "function", "function": {"name": "read", "arguments": "{}"}},
+        {"type": "function", "function": {"name": "read", "arguments": "{}"}}]}}]}
+    first, second = _parse(data, "m"), _parse(data, "m")
+    ids = [c.id for r in (first, second) for c in r.tool_calls]
+    assert len(set(ids)) == 4 and all(len(i) == 9 and i.isalnum() for i in ids)
+    assert first.content == "Here." and all(c.raw == {} for c in first.tool_calls)
+
+
+
+def _sse(*chunks) -> bytes:
+    return "".join(f"data: {json.dumps(c)}\n\n" for c in chunks).encode() + b"data: [DONE]\n\n"
+
+
+def test_a_streamed_answer_is_put_back_together_with_its_tool_calls_and_usage():
+    # the in-house model streams so that a slow but working CPU model is not cut off by the wait for the whole answer
+    stream = _sse(
+        {"model": "qwen", "choices": [{"index": 0, "delta": {"role": "assistant", "content": "Reading "}}]},
+        {"choices": [{"index": 0, "delta": {"content": "the page."}}]},
+        {"choices": [{"index": 0, "delta": {"tool_calls": [{"index": 0, "id": "c1", "type": "function",
+                                                            "function": {"name": "read_page", "arguments": "{\"pa"}}]}}]},
+        {"choices": [{"index": 0, "delta": {"tool_calls": [{"index": 0, "function": {"arguments": "ge\": 3}"}}]}}]},
+        {"choices": [{"index": 0, "delta": {}, "finish_reason": "tool_calls"}]},
+        {"choices": [], "usage": {"prompt_tokens": 120, "completion_tokens": 9}})
+    seen = []
+
+    def handler(request):
+        seen.append(json.loads(request.content))
+        return httpx.Response(200, content=stream, headers={"content-type": "text/event-stream"})
+
+    chat = chat_model_from_env({"MODELER_LLM_PROVIDER": "litellm", "LITELLM_KEY": "k"})
+    chat._transport = httpx.MockTransport(handler)
+    result = chat.complete([{"role": "user", "content": "go"}], [{"type": "function", "function": {"name": "read_page"}}])
+    assert result.content == "Reading the page." and result.finish_reason == "tool_calls"
+    (call,) = result.tool_calls
+    assert (call.id, call.name, call.arguments) == ("c1", "read_page", {"page": 3})
+    assert result.usage == {"input_tokens": 120, "output_tokens": 9}       # the cut-prompt check still has its count
+    assert seen[0]["stream_options"] == {"include_usage": True}
+
+
+def test_an_error_inside_a_stream_is_raised_and_a_server_that_cannot_stream_is_asked_again_whole():
+    broken = _sse({"choices": [{"index": 0, "delta": {"content": "half"}}]}, {"error": {"message": "model crashed"}})
+    chat = chat_model_from_env({"MODELER_LLM_PROVIDER": "litellm", "LITELLM_KEY": "k"})
+    chat._transport = httpx.MockTransport(lambda r: httpx.Response(200, content=broken))
+    with pytest.raises(Exception, match="the answer broke off: model crashed"):
+        chat.complete([{"role": "user", "content": "go"}], [])
+
+    def no_stream(request):
+        if json.loads(request.content).get("stream"):
+            return httpx.Response(400, json={"error": {"message": "stream is not supported with tools"}})
+        return httpx.Response(200, json=_completion(content="whole"))
+
+    plain = chat_model_from_env({"MODELER_LLM_PROVIDER": "litellm", "LITELLM_KEY": "k"})
+    plain._transport = httpx.MockTransport(no_stream)
+    assert plain.complete([{"role": "user", "content": "go"}], []).content == "whole" and plain.stream is False
+    off = chat_model_from_env({"MODELER_LLM_PROVIDER": "litellm", "LITELLM_KEY": "k", "MODELER_LLM_STREAM": "0"})
+    assert off.stream is False

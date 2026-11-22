@@ -268,6 +268,12 @@ repository):
   evaluation only; on the server the owner adds their own under Admin → Keys.
 - Next.js 16.4.2 → 16.4.6 (two moderate cache-leak advisories) is merged; `npm audit` reports nothing.
 
+**2026-11-22, last: model failover.** When an agent's model cannot answer, the task starts again on the next model
+in the admin's list (Admin → Agents; empty by default). A failing model rests for later tasks; the in-house model
+streams; every Data room turn and switch is recorded; each answer names the model that wrote it. Open from the
+governance review: consent per client and provider, an in-house-only project, the report's "how it was made"
+section, and keeping A9 off A8's model.
+
 **Open, in order:**
 1. Score A6–A10 on the sample delivery per model. Nemotron Ultra, 2026-11-22: 31 of 34 values on the key files
    (every set and exposure; the dissolution file failed on NVIDIA's 502s). Still to score: Qwen Coder on the server,

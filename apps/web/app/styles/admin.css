@@ -35,3 +35,12 @@
 .model-more { margin-top: 6px; }
 .model-more > summary { cursor: pointer; font-size: 13px; color: var(--brand-ink); min-height: 28px; display: inline-flex; align-items: center; }
 .model-more[open] > summary { margin-bottom: 6px; }
+
+/* the models an agent goes on with when its own cannot answer (the owner, 2026-11-22) */
+.chain-list { margin: 8px 0 12px; padding-left: 22px; display: grid; gap: 10px; }
+.chain-list li { line-height: 20px; }
+.chain-list .muted { font-size: 13px; margin: 2px 0 4px; }
+.chain-moves { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+.chain-add { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 12px; }
+.chain-save { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+.chain-save label { display: grid; gap: 4px; min-width: 240px; flex: 1; }

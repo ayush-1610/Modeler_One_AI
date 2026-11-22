@@ -183,6 +183,7 @@ class ModelChoice(View):
     effort: str
     tools: bool
     reads_scans: bool
+    terms: str
     has_active_key: bool
 
 
@@ -195,11 +196,24 @@ class AgentChange(View):
     reason: str
 
 
+class AgentChain(View):
+    """The one-click choices, in order, an agent goes on with when its own model fails (empty: none), who set them and
+    why, and the notice the console shows before they are saved."""
+
+    choices: list[str]
+    set_by: str | None
+    set_at: str | None
+    reason: str | None
+    notice: str
+
+
 class AgentsPage(View):
     """`efforts` and `claude_models`: the choices for an agent on Claude (Bedrock's model ids); `groq_efforts`: on
-    GroqCloud; `choices`: the one-click choices each agent's row offers."""
+    GroqCloud; `choices`: the one-click choices each agent's row offers; `chain`: what every agent goes on with when its
+    model fails."""
 
     agents: list[AgentRow]
+    chain: AgentChain
     providers: list[AgentProvider]
     choices: list[ModelChoice]
     environment: AgentsStatus

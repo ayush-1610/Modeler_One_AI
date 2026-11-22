@@ -65,16 +65,23 @@ GROQ_EFFORTS = ("low", "medium", "high")                     # gpt-oss's `reason
 # The one-click choices on each agent's row (plan 2026-11-21 v2 §9): a provider, a model and an effort each. Every one
 # calls tools; `reads_scans`: the model reads a page image itself, which only Claude does (gpt-oss-120b and Qwen Coder
 # read text only, so a scanned page reaches them as the OCR's text).
+# `terms`: what happens to what the model is sent, as each service states it (checked 2026-11-22; sources in
+# docs/USING_THE_TOOL.md §6a). Shown beside each choice and in the chain, so a cloud model is chosen knowingly.
 MODEL_CHOICES: tuple[dict[str, Any], ...] = (
     {"id": "qwen-coder", "label": "Qwen Coder", "provider": "litellm", "model": "qwen-coder", "effort": "",
-     "tools": True, "reads_scans": False},
+     "tools": True, "reads_scans": False, "terms": "On your server: client files stay there."},
     {"id": "claude", "label": "Claude", "provider": "bedrock", "model": "anthropic.claude-opus-5-5", "effort": "",
-     "tools": True, "reads_scans": True},
+     "tools": True, "reads_scans": True,
+     "terms": "Amazon Bedrock, in your AWS account: Bedrock does not use inputs to train models."},
     {"id": "gpt-oss-120b", "label": "gpt-oss-120b", "provider": "groq", "model": "openai/gpt-oss-120b", "effort": "medium",
-     "tools": True, "reads_scans": False},
+     "tools": True, "reads_scans": False,
+     "terms": "GroqCloud: does not train on inputs; turn on Zero Data Retention in its console before sending client "
+              "files. Free tier: 8,000 tokens a request."},
     # NVIDIA's flagship on its API catalog (the owner, 2026-11-22: a free cloud model to score the agents with)
     {"id": "nemotron-ultra", "label": "Nemotron Ultra", "provider": "nvidia", "model": "nvidia/nemotron-3-ultra-550b-a55b",
-     "effort": "", "tools": True, "reads_scans": False},
+     "effort": "", "tools": True, "reads_scans": False,
+     "terms": "NVIDIA's trial: inputs may be used to improve NVIDIA's products. For testing and made-up data, not "
+              "client files."},
 )
 # Each provider's key fields: (name, label, secret, required). Bedrock takes a Bedrock API key, or an AWS access key
 # with its secret (`anthropic.AnthropicBedrockMantle`); the region is not a secret. GroqCloud's address is fixed.
@@ -294,6 +301,58 @@ class AgentSettings:
         return setting
 
 
+# --- what an agent goes on with when its model fails (the owner, 2026-11-22) -------------------------------------------
+
+#: what the admin console says before the chain is saved: a model further down may be a cloud service, which then
+#: receives the client's files the agent was reading
+CHAIN_NOTICE = ("When an agent's model cannot answer (no answer in time, a daily limit spent, the service down), the "
+                "same request goes at once to the next model below, and the agent goes on there. A cloud model in this "
+                "list receives the client's files the agent is reading: list only services whose terms you accept for "
+                "client data.")
+
+
+def chain_doc(read_root: str) -> dict[str, Any]:
+    """The ordered one-click choices an agent goes on with when its own model fails (empty: none)."""
+    return AgentSettings(read_root).doc().get("chain") or {"choices": [], "by": None, "at": None, "reason": None}
+
+
+def set_chain(read_root: str, choices: list[str], *, by: str, reason: str) -> dict[str, Any]:
+    known = {c["id"] for c in MODEL_CHOICES}
+    unknown = [c for c in choices if c not in known]
+    if unknown:
+        raise SettingsError(f"unknown model choice {', '.join(unknown)}; one of: {', '.join(sorted(known))}")
+    if len(set(choices)) != len(choices):
+        raise SettingsError("a model is listed twice")
+    store = AgentSettings(read_root)
+    entry = {"choices": list(choices), "by": by, "at": _now(), "reason": reason.strip()}
+    with file_lock(store.path):
+        doc = _read(store.path, {"current": {}, "history": []})
+        doc["chain"] = entry
+        doc.setdefault("chain_history", []).append(entry)
+        _write(store.path, doc)
+    return entry
+
+
+def chain_envs(read_root: str, master_key: str, agent: str | None) -> list[tuple[str, dict[str, str]]]:
+    """The models an agent goes on with, in order, each as (label, configuration): the chain's choices whose provider has
+    an active key, without the agent's own model."""
+    if not read_root:
+        return []
+    own = AgentSettings(read_root).current(agent) if agent else None
+    keys = KeyStore(read_root, master_key)
+    out = []
+    for cid in chain_doc(read_root)["choices"]:
+        choice = next((c for c in MODEL_CHOICES if c["id"] == cid), None)
+        key = keys.active(choice["provider"]) if choice else None
+        if choice is None or key is None:
+            continue
+        if own and (own.get("provider"), own.get("model")) == (choice["provider"], choice["model"]):
+            continue
+        out.append((choice["label"], setting_env({"provider": choice["provider"], "model": choice["model"],
+                                                  "effort": choice["effort"]}, key)))
+    return out
+
+
 def agent_of(run_agent: str) -> str | None:
     """The console's agent for a run's agent name ("A4-sheet-reading" is A4, "A10-writer" is A10)."""
     head = run_agent.split("-", 1)[0]
@@ -314,6 +373,11 @@ def model_env(read_root: str, master_key: str, agent: str) -> dict[str, str] | N
     if key is None:
         raise SettingsError(f"{AGENTS[agent]} is set to {AGENT_PROVIDERS[setting['provider']]}, which has no active key: "
                             "add one in the admin console (Keys) and make it active")
+    return setting_env(setting, key)
+
+
+def setting_env(setting: dict[str, Any], key: dict[str, str]) -> dict[str, str]:
+    """The configuration a provider and model run on, with the provider's key."""
     if setting["provider"] == "litellm":
         return {"MODELER_LLM_PROVIDER": "litellm", "LITELLM_BASE": key["base_url"], "LITELLM_KEY": key["key"],
                 "MODELER_LLM_MODEL": setting["model"]}

@@ -34,14 +34,28 @@ def chat_model(agent: str | None = None) -> tuple[Any | None, str | None]:
     """The chat model `agent` (A1 … A5) runs on, or None with the configuration error (None too when agents are off):
     the admin console's setting for it with its provider's active key (`platform_settings`), else the server's
     environment. Read at each start, so a change in the console needs no restart."""
-    from modeler_agents.llm import LLMConfigError, chat_model_from_env
+    from modeler_agents.llm import FallbackChat, LLMConfigError, chat_model_from_env
 
+    settings = get_settings()
     try:
-        settings = get_settings()
         env = platform_settings.model_env(settings.read_root, settings.master_key, agent) if agent else None
-        return chat_model_from_env(env), None
+        model = chat_model_from_env(env)
     except (LLMConfigError, platform_settings.SettingsError) as exc:
         return None, str(exc)
+    if model is None:
+        return None, None              # off stays off: the chain is for a model that fails, not for one switched off
+    # the models it goes on with when its own fails (the owner, 2026-11-22), each built from the console's keys
+    chain = []
+    for label, chain_env in platform_settings.chain_envs(settings.read_root, settings.master_key, agent):
+        try:
+            if (other := chat_model_from_env(chain_env)) is not None:
+                chain.append((label, other))
+        except LLMConfigError:
+            continue
+    if not chain:
+        return model, None
+    return FallbackChat([model, *(m for _l, m in chain)],
+                        labels=[f"{model.provider}/{model.model}", *(label for label, _m in chain)]), None
 
 
 def require_chat_model(off: str, agent: str | None = None) -> Any:
@@ -84,7 +98,7 @@ def agents_status(agent: str | None = None, *, admin: bool = False) -> dict[str,
         if setting and setting["provider"] == "off":
             return {"enabled": False, "problem": f"off in the admin console ({setting['reason']})"}
         return {"enabled": False, "problem": "agents are off (MODELER_LLM_PROVIDER not set)" if admin else AGENTS_OFF}
-    return {"enabled": True, "provider": model.provider, "model": model.model}
+    return {"enabled": True, "provider": model.provider, "model": model.model, "then": list(getattr(model, "labels", [])[1:])}
 
 
 def test_key(provider: str, fields: dict[str, str]) -> tuple[bool, str]:

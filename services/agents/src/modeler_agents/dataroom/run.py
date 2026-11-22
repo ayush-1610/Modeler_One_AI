@@ -49,6 +49,22 @@ class _Run:
         self.save()
 
 
+def _why(error: str) -> str:
+    """A switch's reason in a few plain words."""
+    e = error.lower()
+    if "no answer within" in e:
+        return "no answer in time"
+    if "daily limit" in e or "per day" in e:
+        return "its daily limit was spent"
+    if "rejected the key" in e:
+        return "its key was refused"
+    if "longer than" in e or "context window" in e:
+        return "the request was too long for it"
+    if "resting" in e:
+        return "it failed a moment ago"
+    return "its service did not answer"
+
+
 def run_room(store: DataRoomStore, *, chat_for: Callable[[str], ChatModel | None], actor: str,
              stages: Sequence[str] | None = None, redo: Sequence[str] = (), use_ocr: bool = True,
              workers: int | None = None, files: Sequence[str] | None = None,
@@ -82,7 +98,15 @@ def run_room(store: DataRoomStore, *, chat_for: Callable[[str], ChatModel | None
                                               focus_chars=focus_chars or agent_stages.FOCUS_CHARS,
                                               step=lambda done, total, note="", _sid=sid: run.step(_sid, done=done, total=total,
                                                                                                     note=note))
-            run.step(sid, state="done", note=note or run.stage(sid)["note"])
+            note = note or run.stage(sid)["note"]
+            switches = getattr(model, "switches", [])
+            if switches:
+                # said where the run is shown (the governance review: the switch is told, with what went where)
+                run.doc["agents"][agent] = " then ".join(dict.fromkeys([switches[0]["from"], *(x["to"] for x in switches)]))
+                said = dict.fromkeys(f"{x['from']} could not answer ({_why(x['why'])}): went on with {x['to']}"
+                                     for x in switches)
+                note += "; " + "; ".join(said)
+            run.step(sid, state="done", note=note)
         run.doc["state"] = "done"
     except Exception as exc:  # noqa: BLE001 - a failed run is recorded with its reason, never left "running"
         run.doc["state"] = "failed"

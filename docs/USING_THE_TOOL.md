@@ -189,6 +189,26 @@ New projects use the Data room as their Inputs step (existing projects keep thei
   catalog). GroqCloud's free tier allows 8,000 tokens a minute and per request, and 200,000 a day: too little for a
   whole delivery. For NVIDIA, create a key at build.nvidia.com (trial credits) and add it under Admin → Keys → "NVIDIA
   API catalog"; the address is fixed. Check its trial terms before you send it client files.
+- **When a model cannot answer** (Admin → Agents → "When a model cannot answer"): list, in order, the models every
+  agent goes on with. When an agent's model gives no answer in time, has spent its daily limit, or its service is
+  down, refuses the key or does not serve the model, the agent starts that task again on the next model in the list.
+  A failure that will repeat rests the model for the next tasks too: 10 minutes after a timeout, 6 hours after a
+  spent daily limit. A one-off server error on one document rests nothing. Each switch is said on the run's stage and
+  kept in the agents' record. The list is empty until you fill it.
+  - **Data terms decide what may be listed.** A cloud model in the list receives the client's files the agent is
+    reading; each choice shows its service's terms:
+    - Qwen Coder runs on your server.
+    - GroqCloud says it does not train on inputs, and offers Zero Data Retention. Turn it on in the GroqCloud console
+      before you list it for client work.
+    - NVIDIA's trial terms let NVIDIA use inputs to improve its products. List NVIDIA only for made-up data, or for a
+      client who has agreed.
+  - **A sensible list for client work today:** gpt-oss-120b (GroqCloud, Zero Data Retention on) behind the in-house
+    Qwen Coder. For tests on made-up data, add Nemotron Ultra.
+  - The in-house model now streams its answer. A slow model that is still writing is no longer cut off at
+    `MODELER_LLM_TIMEOUT_S`, which now counts between pieces of the answer (three times it in all). If your proxy
+    cannot stream with tools, set `MODELER_LLM_STREAM=0`.
+  - A timeout is tried twice at most, not five times. During a long wait on the server, `ollama ps` shows whether an
+    earlier request is still running: Ollama serves one request at a time.
 - **Any other OpenAI-compatible service**, such as a provider's free tier: Admin → Keys → "Another OpenAI-compatible
   service", with its address (ending in `/v1`) and key. Then on the agent's row choose More…, that provider, and type
   the model name. Check the service's terms before you send it client files: many free tiers log or train on what

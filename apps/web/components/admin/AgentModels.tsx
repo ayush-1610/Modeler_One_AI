@@ -23,7 +23,8 @@ const ONE_CLICK = "one-click switch";
 function RunsOn({ row }: { row: Row }) {
   const r = row.runs_on;
   return r.enabled
-    ? <span className="chip low" data-testid={`runs-on-${row.agent}`}><span className="chip-dot" />{r.provider} · {r.model}</span>
+    ? <span className="chip low" data-testid={`runs-on-${row.agent}`}><span className="chip-dot" />{r.provider} · {r.model}
+        {(r.then ?? []).length > 0 && <span className="muted"> · then {(r.then ?? []).join(", ")}</span>}</span>
     : <span className="chip high" data-testid={`runs-on-${row.agent}`} title={r.problem ?? ""}>
         <span className="chip-dot" />{r.problem ?? "no model"}
       </span>;
@@ -254,6 +255,85 @@ function SwitchEveryAgent({ page, onSaved }: { page: Page; onSaved: (p: Page) =>
   );
 }
 
+/** What every agent goes on with when its own model cannot answer (the owner, 2026-11-22: "switch at that moment to
+ *  another, so the task continues"): an ordered list of the one-click models, each with what its service does with the
+ *  files it is sent. Saving needs a reason and the step-up: a cloud model here receives client files. */
+function FailoverChain({ page, onSaved }: { page: Page; onSaved: (p: Page) => void }) {
+  const [order, setOrder] = useState<string[]>(page.chain.choices);
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
+  const byId = new Map(page.choices.map((c) => [c.id, c]));
+  const left = page.choices.filter((c) => !order.includes(c.id));
+  const changed = order.join("|") !== page.chain.choices.join("|");
+
+  function move(i: number, by: number) {
+    const next = [...order];
+    const [x] = next.splice(i, 1);
+    next.splice(i + by, 0, x);
+    setOrder(next);
+  }
+
+  async function save() {
+    setBusy(true);
+    setProblem(null);
+    const env = await send("put", "/api/v1/admin/agent-chain", {}, { choices: order, reason });
+    setBusy(false);
+    if (env.errors?.length || !env.data) { setProblem(env.errors?.[0]?.message ?? "no answer"); return; }
+    setReason("");
+    onSaved(env.data);
+  }
+
+  return (
+    <Card title="When a model cannot answer">
+      <p className="muted mt-0" data-testid="chain-notice">{page.chain.notice}</p>
+      {order.length === 0
+        ? <p data-testid="chain-empty">No model is listed: an agent whose model cannot answer stops and says why.</p>
+        : (
+          <ol className="chain-list" data-testid="chain-list">
+            {order.map((id, i) => {
+              const c = byId.get(id);
+              return (
+                <li key={id} data-testid={`chain-${id}`}>
+                  <strong>{c?.label ?? id}</strong>
+                  {c && !c.has_active_key && <span className="chip high"><span className="chip-dot" />no active key: skipped</span>}
+                  <div className="muted">{c?.terms}</div>
+                  <span className="chain-moves">
+                    <button type="button" className="btn small" disabled={i === 0} onClick={() => move(i, -1)}
+                            aria-label={`Move ${c?.label ?? id} up`}>↑</button>
+                    <button type="button" className="btn small" disabled={i === order.length - 1} onClick={() => move(i, 1)}
+                            aria-label={`Move ${c?.label ?? id} down`}>↓</button>
+                    <button type="button" className="btn small" onClick={() => setOrder(order.filter((x) => x !== id))}
+                            aria-label={`Take ${c?.label ?? id} out`}>Take out</button>
+                  </span>
+                </li>
+              );
+            })}
+          </ol>
+        )}
+      {left.length > 0 && (
+        <div className="chain-add" role="group" aria-label="Add a model to the list">
+          {left.map((c) => (
+            <button key={c.id} type="button" className="btn small" data-testid={`chain-add-${c.id}`}
+                    onClick={() => setOrder([...order, c.id])} title={c.terms}>+ {c.label}</button>
+          ))}
+        </div>
+      )}
+      <div className="chain-save">
+        <label>Why<input value={reason} onChange={(e) => setReason(e.target.value)} data-testid="chain-reason"
+                         placeholder="kept with the change" /></label>
+        <button type="button" className="btn primary" disabled={busy || !changed || !reason.trim()} onClick={() => void save()}
+                data-testid="chain-save">Save the list</button>
+      </div>
+      {page.chain.set_at && (
+        <p className="muted" data-testid="chain-last">Last set {when(page.chain.set_at)}: {page.chain.reason}
+          {page.chain.set_by ? ` (${page.chain.set_by})` : ""}</p>
+      )}
+      {problem && <div className="banner err" style={{ marginTop: 10 }} data-testid="chain-problem">{problem}</div>}
+    </Card>
+  );
+}
+
 export function AgentModels({ initial }: { initial: Page }) {
   const [page, setPage] = useState(initial);
   const env = page.environment;
@@ -261,9 +341,11 @@ export function AgentModels({ initial }: { initial: Page }) {
     <>
       <datalist id="claude-models">{page.claude_models.map((m) => <option key={m} value={m} />)}</datalist>
       <SwitchEveryAgent page={page} onSaved={setPage} />
+      <FailoverChain key={page.chain.set_at ?? "none"} page={page} onSaved={setPage} />
       <Card title="Each agent's model">
         <p className="muted mt-0">
-          One click puts an agent on Qwen Coder (the in-house model), Claude or gpt-oss-120b (on GroqCloud); the change
+          One click puts an agent on Qwen Coder (the in-house model), Claude, gpt-oss-120b (on GroqCloud) or Nemotron
+          Ultra (NVIDIA&apos;s API catalog); the change
           is kept with who made it. Each uses its provider&apos;s active key (<Link href="/admin/keys">Keys</Link>), and the
           next run takes it: nothing
           restarts. Every one calls tools; only Claude reads a scanned page itself (the others read its OCR text).

@@ -186,7 +186,7 @@ def test_an_agent_on_claude_on_bedrock_takes_its_model_effort_fallback_and_the_a
             "fallback": "anthropic.claude-sonnet-5-5", "reason": "A1 on Claude"}
     row = client.put("/api/v1/admin/agents/A1", json=body, headers=_as("owner")).json()["data"]["agents"][0]
     assert (row["provider"], row["effort"], row["fallback"]) == ("bedrock", "high", "anthropic.claude-sonnet-5-5")
-    assert row["runs_on"] == {"enabled": True, "provider": "bedrock", "model": "anthropic.claude-opus-5-5"}
+    assert row["runs_on"] == {"enabled": True, "provider": "bedrock", "model": "anthropic.claude-opus-5-5", "then": []}
     model, problem = agent_jobs.chat_model("A1")
     assert problem is None and (model.effort, model.fallback) == ("high", "anthropic.claude-sonnet-5-5")
     page = client.get("/api/v1/admin/agents", headers=_as("owner")).json()["data"]
@@ -253,7 +253,7 @@ def test_gpt_oss_on_groqcloud_takes_one_key_its_effort_and_runs_an_agent_from_th
     row = next(a for a in client.put("/api/v1/admin/agents/A8", json=GPT_OSS, headers=_as("owner")).json()["data"]["agents"]
                if a["agent"] == "A8")
     assert (row["provider_label"], row["effort"], row["fallback"]) == ("gpt-oss-120b on GroqCloud", "medium", "")
-    assert row["runs_on"] == {"enabled": True, "provider": "groq", "model": "openai/gpt-oss-120b"}
+    assert row["runs_on"] == {"enabled": True, "provider": "groq", "model": "openai/gpt-oss-120b", "then": []}
     assert ps.model_env(str(tmp_path), MASTER, "A8") == {"MODELER_LLM_PROVIDER": "groq", "GROQ_API_KEY": FAKE_GROQ,
                                                          "MODELER_LLM_MODEL": "openai/gpt-oss-120b", "MODELER_LLM_EFFORT": "medium"}
     model, problem = agent_jobs.chat_model("A8")
@@ -361,3 +361,30 @@ def test_an_nvidia_key_runs_an_agent_on_nemotron_ultra_with_one_click(client, tm
 
     model = chat_model_from_env(env)
     assert (model.provider, model.base_url) == ("nvidia", "https://integrate.api.nvidia.com/v1")
+
+
+def test_the_models_every_agent_goes_on_with_are_set_in_order_and_an_agent_then_runs_on_a_chain(client, tmp_path, monkeypatch):
+    # the owner, 2026-11-22: "if any model is unavailable, switch at that moment to another, so the task continues"
+    from modeler_agents.llm import FallbackChat
+    from modeler_api import agent_jobs
+
+    page = client.get("/api/v1/admin/agents", headers=_as("owner")).json()["data"]
+    assert page["chain"]["choices"] == [] and "receives the client's files" in page["chain"]["notice"]
+    assert all(c["terms"] for c in page["choices"])
+    refused = client.put("/api/v1/admin/agent-chain", json={"choices": ["no-such-model"], "reason": "x"}, headers=_as("owner"))
+    assert refused.status_code == 409 and "unknown model choice" in refused.json()["detail"]
+    for provider, fields in (("groq", {"api_key": FAKE_GROQ}), ("nvidia", {"api_key": "nvapi-test-0000"})):
+        key_id = client.post("/api/v1/admin/keys", json={"provider": provider, "fields": fields, "reason": "keys"},
+                             headers=_as("owner")).json()["data"]["keys"][0]["id"]
+        client.post(f"/api/v1/admin/keys/{key_id}:activate", json={"reason": "in use"}, headers=_as("owner"))
+    client.put("/api/v1/admin/agents/A6", json=GPT_OSS, headers=_as("owner"))
+    page = client.put("/api/v1/admin/agent-chain", json={"choices": ["nemotron-ultra", "gpt-oss-120b"], "reason": "free tiers"},
+                      headers=_as("owner")).json()["data"]
+    assert page["chain"]["choices"] == ["nemotron-ultra", "gpt-oss-120b"] and page["chain"]["reason"] == "free tiers"
+    (event,) = [e for e in _audit(tmp_path) if e["action"] == "admin.agent.chain"]
+    assert event["after"] == {"choices": ["nemotron-ultra", "gpt-oss-120b"]} and event["before"] == {"choices": []}
+    model, problem = agent_jobs.chat_model("A6")
+    assert problem is None and isinstance(model, FallbackChat)
+    assert model.labels == ["groq/openai/gpt-oss-120b", "Nemotron Ultra"]     # its own model is not listed twice
+    row = next(a for a in page["agents"] if a["agent"] == "A6")
+    assert row["runs_on"]["then"] == ["Nemotron Ultra"]

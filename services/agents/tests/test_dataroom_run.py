@@ -124,3 +124,33 @@ def test_one_run_reads_the_files_and_then_sorts_every_one_of_them(tmp_path):
     assert doc["state"] == "done", doc["error"]
     assert {s["id"]: s["note"] for s in doc["stages"]}["triage"] == "2 files sorted"
     assert all(f.triage is not None for f in store.files())
+
+
+def test_a_stage_whose_model_does_not_answer_goes_on_with_the_next_and_says_so(tmp_path):
+    # the owner, 2026-11-22: "no question card (LLM_UNAVAILABLE: litellm … no answer within 600 s)"; the stage now goes
+    # on with the chain's next model, records who wrote the card, and says what happened
+    from modeler_agents.llm import HEALTH, FallbackChat
+    from modeler_agents.run import LLMUnavailableError
+
+    class Silent:
+        provider, model = "litellm", "qwen-coder"
+
+        def complete(self, messages, tools):
+            raise LLMUnavailableError("litellm unavailable: no answer within 600 s")
+
+    card = {"question": "Is EX-02's test product bioequivalent?", "products": [{"name": "test product", "role": "test"}],
+            "checklist": [], "quotes": []}
+    store = _store(tmp_path)
+    run_room(store, chat_for=lambda agent: None, actor="user:m", stages=["read"], use_ocr=False, workers=1)
+    HEALTH.reset()
+    chain = FallbackChat([Silent(), Scripted({"submit_question": [card]})], labels=["Qwen Coder", "Nemotron Ultra"])
+    doc = run_room(store, chat_for=lambda agent: chain, actor="user:m", stages=["question"], use_ocr=False)
+    note = {s["id"]: s["note"] for s in doc["stages"]}["question"]
+    assert note.startswith("question card drafted") and "Qwen Coder could not answer (no answer in time): went on with Nemotron Ultra" in note
+    assert doc["agents"]["A6"] == "Qwen Coder then Nemotron Ultra"
+    raw = store._read_json("question.json")
+    assert raw["by"] == "agent:A6:Nemotron Ultra"
+    steps = store.agent_steps()
+    assert any(s["type"] == "model_switch" and s["to"] == "Nemotron Ultra" for s in steps)
+    assert any(s["type"] == "model_turn" and s["stage"] == "question" for s in steps)
+    HEALTH.reset()

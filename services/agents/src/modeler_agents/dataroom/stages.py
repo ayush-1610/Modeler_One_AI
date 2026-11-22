@@ -89,6 +89,15 @@ TOPIC_WORDS: dict[str, tuple[str, ...]] = {
 FOCUS_CHARS = 14000      # the pages shown to the extractor up front (about 3,500 tokens); run_room(focus_chars=…)
 
 
+
+def _loop(store: DataRoomStore, stage: str, file: str, model: ChatModel, **kw: Any) -> Any:
+    """`run_tool_loop` with each turn written to the room's record of the agents' turns (which model answered, each
+    tool's answer, each switch to another model)."""
+    def log(step: dict[str, Any]) -> None:
+        store.log_agent_step(stage=stage, file=file, model=getattr(model, "label", f"{model.provider}/{model.model}"),
+                             step=step)
+    return run_tool_loop(model, log_step=log, **kw)
+
 def _too_large(error: str) -> bool:
     return "413" in error or any(w in error.lower() for w in ("too large", "context length", "context window"))
 
@@ -238,17 +247,18 @@ def question(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, 
     tools = _doc_tools(docs) + [_submit_tool("submit_question", QuestionCard, check, saved,
                                              "Submit the question card (with the quotes it rests on).")]
     step(0, 1, "reading the proposal and the request")
-    outcome = run_tool_loop(model, system=QUESTION_SYSTEM, tools=tools, max_turns=14, user=(
+    outcome = _loop(store, "question", "", model, system=QUESTION_SYSTEM, tools=tools, max_turns=14, user=(
         f"The delivery's files:\n{listing}\n\nThe pages most likely to state the question:\n{material}\n\n"
         "Write the question card (each quote with its file)."))
     if not saved and _too_large(outcome.error):
         material = "\n\n".join(f"=== {p}\n{_focus(d, ['question'], budget=per_file // 3)}" for p, (_f, d) in ranked[:2])
-        outcome = run_tool_loop(model, system=QUESTION_SYSTEM, tools=tools, max_turns=8, user=(
+        outcome = _loop(store, "question", "", model, system=QUESTION_SYSTEM, tools=tools, max_turns=8, user=(
             f"The delivery's files:\n{listing}\n\nThe pages most likely to state the question:\n{material}\n\n"
             "Write the question card (each quote with its file)."))
     if not saved:
         return f"no question card ({outcome.status}{': ' + outcome.error if outcome.error else ''})"
-    store.set_question(saved[0], by=f"agent:A6:{model.provider}/{model.model}", confirmed=False)  # type: ignore[arg-type]
+    # the model whose submission was saved: in a chain, the one the conversation ended on
+    store.set_question(saved[0], by=f"agent:A6:{outcome.answered_by}", confirmed=False)  # type: ignore[arg-type]
     step(1, 1, "question card drafted: confirm it")
     return "question card drafted: confirm it"
 
@@ -274,7 +284,7 @@ def triage(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, st
         tool = _submit_tool("submit_triage", FileTriage, lambda a, path=path: [] if a.path == path else
                             [f"path must be {path!r}"], saved, "Submit the file's triage.")
         text = "\n\n".join(_numbered(part, 1, PREVIEW_LINES) for part in _parts(doc)[:2])
-        run_tool_loop(model, system=TRIAGE_SYSTEM, tools=[tool], max_turns=4, user=(
+        _loop(store, "triage", path, model, system=TRIAGE_SYSTEM, tools=[tool], max_turns=4, user=(
             f"{context}File: {path} ({f.kind}, {f.pages} pages; parts: {len(_parts(doc))})\n\nIts first lines:\n{text}"))
         if saved:
             store.put_triage(saved[0], f.sha256)  # type: ignore[arg-type]
@@ -376,14 +386,16 @@ def extract(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, s
                     f"The pages most likely to hold what the checklist needs (open others with the tools):\n"
                     f"{_focus(doc, topics, budget=budget)}")
         budget = max(2000, focus_chars)
-        outcome = run_tool_loop(model, system=extract_system(topics), user=user(budget), tools=tools, max_turns=14)
+        outcome = _loop(store, "extract", path, model, system=extract_system(topics), user=user(budget), tools=tools,
+                        max_turns=14)
         if not saved and _too_large(outcome.error):      # a provider's per-request limit: the same, with fewer pages
-            outcome = run_tool_loop(model, system=extract_system(topics), user=user(budget // 3), tools=tools, max_turns=10)
+            outcome = _loop(store, "extract", path, model, system=extract_system(topics), user=user(budget // 3),
+                            tools=tools, max_turns=10)
         if not saved:
             failed.append(f"{path}: no answer ({outcome.status}{': ' + outcome.error[:200] if outcome.error else ''})")
         if saved:
             answer = saved[0].model_copy(update={"file": path})
-            store.put_extraction(answer, f.sha256, agent={"agent": "A8", "model": f"{model.provider}/{model.model}",  # type: ignore[arg-type]
+            store.put_extraction(answer, f.sha256, agent={"agent": "A8", "model": outcome.answered_by,  # type: ignore[arg-type]
                                                          "prompt": PROMPT_VERSION})
         step(done, len(todo), path)
     store.set_stage_notes("extract", failed)
@@ -432,11 +444,12 @@ def check(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, ste
             shown.append(f"Table {i} ({table.kind}, {table.part}, lines {table.first_line}–{table.last_line}):\n{head}\n{rows}")
         saved: list[BaseModel] = []
         tool = _submit_tool("submit_review", _Review, lambda a: [], saved, "Submit the review: {tables: [{table, ok, issue}]}.")
-        run_tool_loop(model, system=CHECK_SYSTEM, tools=[tool], max_turns=4, user=f"File: {path}\n\n" + "\n\n".join(shown))
+        done_check = _loop(store, "check", path, model, system=CHECK_SYSTEM, tools=[tool], max_turns=4,
+                           user=f"File: {path}\n\n" + "\n\n".join(shown))
         if saved:
             review = [t for t in saved[0].tables if not t.get("ok", True)]  # type: ignore[attr-defined]
             issues += len(review)
-            store.put_review(f.sha256, review, agent=f"{model.provider}/{model.model}")
+            store.put_review(f.sha256, review, agent=done_check.answered_by)
         step(done, len(todo), path)
     return f"{len(todo)} files checked, {issues} issues"
 
@@ -479,13 +492,13 @@ def write(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, ste
     tool = _submit_tool("submit_writing", _Writing, checked, saved,
                         "Submit {findings: {section id: line}, requests: {request title: wording}}.")
     step(0, 1, "writing")
-    run_tool_loop(model, system=WRITE_SYSTEM, tools=[tool], max_turns=6, user=material)
+    written = _loop(store, "write", "", model, system=WRITE_SYSTEM, tools=[tool], max_turns=6, user=material)
     if not saved:
         return "nothing written"
     a = saved[0]
     store.put_writing({k: v for k, v in a.findings.items() if _numbers_ok(v, material)},  # type: ignore[attr-defined]
                       {k: v for k, v in a.requests.items() if _numbers_ok(v, material)},  # type: ignore[attr-defined]
-                      agent=f"{model.provider}/{model.model}")
+                      agent=written.answered_by)
     step(1, 1, "written")
     return "findings and request wording written"
 

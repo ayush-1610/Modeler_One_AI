@@ -282,6 +282,11 @@ class AgentSet(BaseModel):
     reason: str = Field(min_length=1)
 
 
+class ChainSet(BaseModel):
+    choices: list[str] = Field(default_factory=list)   # one-click choice ids, in order; empty: no chain
+    reason: str = Field(min_length=1)
+
+
 class KeyAdd(BaseModel):
     """A key to store. Every field is optional to the validator and checked by the handler, so a refusal never echoes the
     request (FastAPI's 422 answer repeats the input it rejects, which here holds a secret)."""
@@ -324,8 +329,11 @@ def _agents_page(settings: Settings) -> dict[str, Any]:
                      "fallback": setting.get("fallback", ""), "choice": choice, "set_by": setting.get("by"),
                      "set_at": setting.get("at"), "reason": setting.get("reason"),
                      "runs_on": agent_jobs.agents_status(agent, admin=True)})
+    chain = ps.chain_doc(settings.read_root)
     return envelope({
         "agents": rows,
+        "chain": {"choices": chain["choices"], "set_by": chain["by"], "set_at": chain["at"], "reason": chain["reason"],
+                  "notice": ps.CHAIN_NOTICE},
         "providers": [{"id": p, "label": label, "needs_model": p in ps.KEY_PROVIDERS, "has_active_key": p in active}
                       for p, label in ps.AGENT_PROVIDERS.items()],
         "choices": [c | {"has_active_key": c["provider"] in active} for c in ps.MODEL_CHOICES],
@@ -339,6 +347,22 @@ def _agents_page(settings: Settings) -> dict[str, Any]:
 @router.get("/admin/agents", **answers(AgentsPage))
 def agents(principal: Admin, settings: SettingsDep) -> dict[str, Any]:
     _root(settings)
+    return _agents_page(settings)
+
+
+@router.put("/admin/agent-chain", **answers(AgentsPage))
+def set_agent_chain(body: ChainSet, principal: Admin, settings: SettingsDep) -> dict[str, Any]:
+    """What every agent goes on with when its own model fails, in order (the owner, 2026-11-22: "switch at that moment to
+    another, so the task continues"). Signed with the step-up and audited: a cloud model here receives client files."""
+    _root(settings)
+    ensure_step_up(principal)
+    before = ps.chain_doc(settings.read_root)["choices"]
+    try:
+        entry = ps.set_chain(settings.read_root, body.choices, by=principal.user_id, reason=body.reason)
+    except ps.SettingsError as exc:
+        raise _refused(exc) from exc
+    _changed(settings, principal, "admin.agent.chain", "chain", reason=body.reason, before={"choices": before},
+             after={"choices": entry["choices"]})
     return _agents_page(settings)
 
 

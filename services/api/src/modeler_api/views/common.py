@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from modeler_project.artifacts import ArtifactStatus
 
@@ -77,12 +77,14 @@ class ImpactView(View):
 
 
 class AgentsStatus(View):
-    """`agent_jobs.agents_status`: whether an LLM provider is configured (provider and model when it is)."""
+    """`agent_jobs.agents_status`: whether an LLM provider is configured (provider and model when it is); `then`: the
+    models it goes on with, in order, when that one fails (the admin console's chain)."""
 
     enabled: bool
     problem: str | None = None
     provider: str | None = None
     model: str | None = None
+    then: list[str] = Field(default_factory=list)
 
 
 class RunSummary(View):

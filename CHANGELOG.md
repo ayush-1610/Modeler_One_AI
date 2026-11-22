@@ -15,6 +15,60 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — when an agent's model cannot answer, the task goes on with the next model (2026-11-22, the owner's request)
+- **The incident:** on the server, the Data room's question stage ended with "no question card (litellm unavailable
+  after 5 attempts: no answer within 600 s)". The in-house model on CPU sends nothing until it has finished. Each of
+  five tries waited 600 s, about 50 minutes, and probably queued behind the abandoned one, since Ollama serves one
+  request at a time.
+- **What:**
+  - **A model chain.** Admin → Agents → "When a model cannot answer" lists, in order, the one-click models every agent
+    goes on with (`PUT /admin/agent-chain`, step-up and audited). It is empty by default.
+    - `modeler_agents.llm.FallbackChat`: each conversation takes its own place in the chain. It starts on the first
+      model that is not resting.
+    - When its model gives no answer in time, has a spent daily limit, a provider down, a refused key, a model not
+      served, or a request too long for it, the task starts again from the beginning on the next model
+      (`ModelSwitched`). It never goes on mid-conversation, so each file has one author and the next provider is sent
+      only what a fresh start sends.
+    - A model's own malformed tool call stays with it.
+    - A request too long for one window goes only to a larger one: never to GroqCloud's 8,000 tokens a request.
+  - **Shared model health (`ModelHealth`).** A failure that will repeat rests the model for every conversation: 10
+    minutes after a timeout or no connection, 6 hours after a spent daily limit, 1 hour after a refused key. A server
+    error on one request rests nothing, unless three come within 10 minutes. NVIDIA's 502 on one document no longer
+    moves every later file.
+  - **Fail fast inside a chain.** One retry, then the next model; a rate limit asking more than 20 s hands over. Claude
+    on Bedrock does the same. Without a chain, a timeout is tried twice, not five times.
+  - **Streaming for the in-house model.** `MODELER_LLM_TIMEOUT_S` now counts between pieces of the answer, three times
+    it in all, so a slow model that is still writing finishes. Checked against a real LiteLLM proxy streaming from
+    Ollama's format: tool calls are put back together, and the usage keeps Ollama's own prompt count, so the cut-prompt
+    check still works. A proxy that cannot stream is asked again whole; `MODELER_LLM_STREAM=0` turns it off.
+  - **Provenance.** Every Data room agent turn is now kept append-only in the room (`agent_steps.jsonl`), with each
+    switch. Until now no Data room turn was recorded. Each saved answer (question card, extraction, review, writing)
+    names the model that made the submission (`LoopOutcome.answered_by`), not the configured one. A stage that
+    switched says so ("Qwen Coder could not answer (no answer in time): went on with Nemotron Ultra").
+  - **Clean hand-over.** Messages sent to OpenAI-compatible services drop Claude's own blocks. Tool calls get ids
+    unique in the conversation (nine letters and digits). A model's `<think>` text is dropped.
+  - **Data terms on every choice.** Each choice shows what its service does with what it is sent: GroqCloud (no
+    training, Zero Data Retention to turn on); NVIDIA's trial (inputs may improve NVIDIA's products: for made-up data
+    only).
+- **Why:** the owner wants the work to go on with free resources whatever one model does.
+  - **Reviews:** an independent reliability review found the shared switch state, the lack of memory across stages, the
+    context-size rule, the provenance gaps and the repeated tool-call ids, all fixed here. A governance review (21 CFR
+    Part 11, client confidentiality) set the rules adopted here: off by default, start again rather than continue, say
+    and record every switch, record each turn.
+  - **Research** (sources in its report): NVIDIA's trial may use inputs, while GroqCloud offers Zero Data Retention.
+- **Impact:**
+  - With an empty list nothing changes except two things: a timeout costs 2 waits instead of 5, and the in-house model
+    streams.
+  - A cloud model in the list receives client files when the one before it fails: the notice says so before saving.
+- **Known gaps (from the governance review):**
+  - Consent is not yet recorded per client and per provider; the list is one for the platform.
+  - No project can yet be marked "in-house only".
+  - The evidence report has no "How this report was made" section naming each file's model.
+  - The checker (A9) is not yet kept off the extractor's model.
+- **Checked:** `test_llm.py` (the chain, health, context rule, restart, ids, streaming); `test_dataroom_run.py` (the
+  question stage going on after a timeout, naming its author, its steps kept); `test_admin_platform.py` (the setting,
+  its audit, an agent on a chain); the OpenAPI snapshot and web types regenerated.
+
 ### Fixed — a data row quoted as a statement, a dose with no mass, a counted subject list; the agents scored on the sample delivery (2026-11-22)
 - **How it was found:** Nemotron Ultra ran on the owner's cinacalcet delivery (key files, hand-written question card).
   The room was scored against the hand-written answers (kept outside the repository): 28 of 34 at first.

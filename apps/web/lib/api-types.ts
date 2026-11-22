@@ -4,6 +4,27 @@
  */
 
 export interface paths {
+    "/api/v1/admin/agent-chain": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set Agent Chain
+         * @description What every agent goes on with when its own model fails, in order (the owner, 2026-11-22: "switch at that moment to
+         *     another, so the task continues"). Signed with the step-up and audited: a cloud model here receives client files.
+         */
+        put: operations["set_agent_chain_api_v1_admin_agent_chain_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/agents": {
         parameters: {
             query?: never;
@@ -3355,6 +3376,23 @@ export interface components {
             ref: components["schemas"]["Ref"];
             status: components["schemas"]["ArtifactStatus"];
         };
+        /**
+         * AgentChain
+         * @description The one-click choices, in order, an agent goes on with when its own model fails (empty: none), who set them and
+         *     why, and the notice the console shows before they are saved.
+         */
+        AgentChain: {
+            /** Choices */
+            choices: string[];
+            /** Notice */
+            notice: string;
+            /** Reason */
+            reason: string | null;
+            /** Set At */
+            set_at: string | null;
+            /** Set By */
+            set_by: string | null;
+        };
         /** AgentChange */
         AgentChange: {
             /** Agent */
@@ -3448,11 +3486,13 @@ export interface components {
         /**
          * AgentsPage
          * @description `efforts` and `claude_models`: the choices for an agent on Claude (Bedrock's model ids); `groq_efforts`: on
-         *     GroqCloud; `choices`: the one-click choices each agent's row offers.
+         *     GroqCloud; `choices`: the one-click choices each agent's row offers; `chain`: what every agent goes on with when its
+         *     model fails.
          */
         AgentsPage: {
             /** Agents */
             agents: components["schemas"]["AgentRow"][];
+            chain: components["schemas"]["AgentChain"];
             /** Choices */
             choices: components["schemas"]["ModelChoice"][];
             /** Claude Models */
@@ -3469,7 +3509,8 @@ export interface components {
         };
         /**
          * AgentsStatus
-         * @description `agent_jobs.agents_status`: whether an LLM provider is configured (provider and model when it is).
+         * @description `agent_jobs.agents_status`: whether an LLM provider is configured (provider and model when it is); `then`: the
+         *     models it goes on with, in order, when that one fails (the admin console's chain).
          */
         AgentsStatus: {
             /** Enabled */
@@ -3480,6 +3521,8 @@ export interface components {
             problem?: string | null;
             /** Provider */
             provider?: string | null;
+            /** Then */
+            then?: string[];
         };
         /**
          * AlternativeView
@@ -4321,6 +4364,13 @@ export interface components {
             required: boolean;
             /** Section */
             section: string;
+        };
+        /** ChainSet */
+        ChainSet: {
+            /** Choices */
+            choices?: string[];
+            /** Reason */
+            reason: string;
         };
         /** ChangeView */
         ChangeView: {
@@ -10522,6 +10572,8 @@ export interface components {
             provider: string;
             /** Reads Scans */
             reads_scans: boolean;
+            /** Terms */
+            terms: string;
             /** Tools */
             tools: boolean;
         };
@@ -14870,6 +14922,41 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    set_agent_chain_api_v1_admin_agent_chain_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChainSet"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_AgentsPage_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     agents_api_v1_admin_agents_get: {
         parameters: {
             query?: never;

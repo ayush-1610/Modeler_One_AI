@@ -55,8 +55,10 @@ from __future__ import annotations
 import json
 import os
 import re
+import threading
 import time
-from collections.abc import Callable, Mapping
+import uuid
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal, Protocol
 
@@ -136,6 +138,12 @@ class ContextExceeded(LLMUnavailableError):
         self.window = window
 
 
+class ModelSwitched(LLMUnavailableError):
+    """A chain moved to its next model during a conversation: the tool loop starts the conversation again on it, so one
+    model answers the whole of it (a file's reading has one author, and the next provider is sent only what a fresh
+    start sends; the governance review, 2026-11-22)."""
+
+
 class LLMConfigError(RuntimeError):
     """A provider is selected but not usable (unknown name or missing key)."""
 
@@ -161,6 +169,23 @@ class OpenAICompatChat:
         # once it has cut a prompt; -1 once a larger window was refused. Kept for this client's later requests.
         self.num_ctx = 0
         self._cut: ContextExceeded | None = None
+        # in a chain of models (`FallbackChat`), a client that cannot answer says so at once instead of retrying for
+        # minutes: the next model takes the request (2026-11-22: five 600 s waits on the in-house model lost 50 minutes)
+        self.fail_fast = False
+        # the in-house model answers word by word (`stream`): a slow CPU model that is still writing is not cut off by
+        # the wait, which then counts between words (the incident's 600 s was a wait for the whole answer at once)
+        self.stream = False
+
+    def _post_streamed(self, client: httpx.Client, body: dict[str, Any]) -> tuple[httpx.Response, dict[str, Any] | None]:
+        """The request answered as a stream, put back together as one answer (None with an error status, whose body is
+        read for the refusal). The wait counts between pieces; the whole answer has STREAM_TOTAL_WAITS waits at most."""
+        sent = {**body, "stream": True, "stream_options": {"include_usage": True}}
+        with client.stream("POST", self._url, headers=self._headers, json=sent) as response:
+            if response.status_code != 200:
+                response.read()
+                return response, None
+            deadline = time.monotonic() + STREAM_TOTAL_WAITS * self._timeout
+            return response, _assembled(response.iter_lines(), deadline, self._timeout)
 
     def list_models(self) -> list[str]:
         """The model names the endpoint serves (GET /models); [] when it cannot say."""
@@ -172,7 +197,7 @@ class OpenAICompatChat:
             return []
 
     def complete(self, messages: list[dict[str, Any]], tools: list[dict[str, Any]]) -> ChatResult:
-        body: dict[str, Any] = {"model": self.model, "messages": messages, "temperature": 0, "stream": False}
+        body: dict[str, Any] = {"model": self.model, "messages": _plain(messages), "temperature": 0, "stream": False}
         if self.reasoning_effort:
             body["reasoning_effort"] = self.reasoning_effort
         if tools:
@@ -184,19 +209,27 @@ class OpenAICompatChat:
         with httpx.Client(timeout=self._timeout, transport=self._transport) as client:
             for attempt in range(self._max_retries + 1):
                 try:
-                    response = client.post(self._url, headers=self._headers, json=body)
+                    if self.stream:
+                        response, streamed = self._post_streamed(client, body)
+                    else:
+                        response, streamed = client.post(self._url, headers=self._headers, json=body), None
                 except httpx.TimeoutException:
                     last_error = f"no answer within {self._timeout:g} s (raise MODELER_LLM_TIMEOUT_S for long documents)"
+                    if self.fail_fast or attempt >= 1:
+                        break      # a model that took the whole wait once will take it again: no five-fold wait
                 except httpx.ConnectError as exc:
                     last_error = f"cannot reach {self.base_url} ({exc}); " + (
                         "is the LiteLLM proxy running and LITELLM_BASE right?" if self.provider == "litellm"
                         else "may the server reach it (its network's allowed hosts)?")
+                    if self.fail_fast:
+                        break
                 except httpx.HTTPError as exc:
                     last_error = f"{type(exc).__name__}: {exc}"
                 else:
                     if response.status_code == 200:
                         try:
-                            result = _parse(response.json(), self.model, inline_tools=bool(tools))
+                            result = _parse(streamed if streamed is not None else response.json(), self.model,
+                                            inline_tools=bool(tools))
                         except ValueError as exc:
                             raise LLMUnavailableError(f"{self.provider} answered with something that is not JSON: {exc}") from exc
                         try:
@@ -214,18 +247,80 @@ class OpenAICompatChat:
                         # and the tool loop fits the conversation into it
                         cut, self._cut, self.num_ctx = self._cut, None, -1
                         raise cut
+                    if self.stream and response.status_code in (400, 404, 422) and "stream" in _error_message(response).lower():
+                        self.stream = False         # a server that does not stream answers whole: asked again so
+                        continue
                     raise_refusal(self, response)
                     last_error = f"HTTP {response.status_code}: {_error_message(response)}"
                     wait = _retry_after(response)
-                    if wait is not None and attempt < self._max_retries:
+                    if wait is not None and attempt < self._max_retries and not (self.fail_fast and wait > FAIL_FAST_WAIT_S):
                         self._sleep(wait)   # a rate limit says when to come back (GroqCloud's per-minute token budget)
                         continue
+                    if self.fail_fast and attempt >= 1:
+                        break               # in a chain: one more try, then the next model
                 if attempt < self._max_retries:
                     self._sleep(min(2.0 ** (attempt + 1), 30.0))
-        raise LLMUnavailableError(f"{self.provider} unavailable after {self._max_retries + 1} attempts: {last_error}")
+        raise LLMUnavailableError(f"{self.provider} unavailable: {last_error}")
 
 
 RETRY_AFTER_MAX_S = 90.0
+STREAM_TOTAL_WAITS = 3      # a streamed answer may take three times the wait in all, as long as it keeps coming
+
+
+def _assembled(lines: Any, deadline: float, timeout_s: float) -> dict[str, Any]:
+    """A streamed answer (server-sent events of Chat Completions chunks) as the one answer a whole request returns:
+    the text joined, each tool call's pieces joined by its index, the last finish reason, the usage chunk. An error
+    sent inside the stream is raised; nothing half received is used."""
+    text: list[str] = []
+    calls: dict[int, dict[str, Any]] = {}
+    finish, usage, model = "", {}, ""
+    for raw in lines:
+        if time.monotonic() > deadline:
+            raise LLMUnavailableError(f"no answer within {STREAM_TOTAL_WAITS * timeout_s:g} s, though it was still writing")
+        line = raw.strip()
+        if not line.startswith("data:"):
+            continue
+        payload = line[5:].strip()
+        if payload == "[DONE]":
+            break
+        try:
+            chunk = json.loads(payload)
+        except json.JSONDecodeError:
+            continue
+        if chunk.get("error"):
+            error = chunk["error"]
+            raise LLMUnavailableError(f"the answer broke off: {error.get('message', error) if isinstance(error, dict) else error}")
+        model = chunk.get("model") or model
+        usage = chunk.get("usage") or usage
+        for choice in chunk.get("choices") or []:
+            delta = choice.get("delta") or {}
+            if delta.get("content"):
+                text.append(str(delta["content"]))
+            for piece in delta.get("tool_calls") or []:
+                slot = calls.setdefault(int(piece.get("index") or 0),
+                                        {"id": "", "type": "function", "function": {"name": "", "arguments": ""}})
+                if piece.get("id"):
+                    slot["id"] = piece["id"]
+                function = piece.get("function") or {}
+                if function.get("name"):
+                    slot["function"]["name"] = function["name"]
+                arguments = function.get("arguments")
+                if arguments:
+                    slot["function"]["arguments"] += arguments if isinstance(arguments, str) else json.dumps(arguments)
+            if choice.get("finish_reason"):
+                finish = choice["finish_reason"]
+    message: dict[str, Any] = {"role": "assistant", "content": "".join(text)}
+    if calls:
+        message["tool_calls"] = [calls[i] for i in sorted(calls)]
+    return {"model": model, "choices": [{"message": message, "finish_reason": finish}], "usage": usage}
+FAIL_FAST_WAIT_S = 20.0     # in a chain, a rate limit asking for a longer wait hands the request to the next model
+# what an OpenAI-compatible endpoint is sent of a message: a Claude turn's own blocks (`native`) stay with Claude, so a
+# conversation can go on with another provider
+_MESSAGE_KEYS = ("role", "content", "tool_calls", "tool_call_id", "name")
+
+
+def _plain(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [{k: v for k, v in m.items() if k in _MESSAGE_KEYS} for m in messages]
 # a request of this many characters or more is at least this many tokens (JSON and English run 3–4.5 characters a
 # token); a model that reports reading under half of that saw a cut prompt
 CHARS_PER_TOKEN_MAX = 4.5
@@ -319,6 +414,7 @@ def _error_message(response: httpx.Response) -> str:
 
 
 _INLINE_CALL = re.compile(r"<tool_call>\s*(\{.*?\})\s*</tool_call>", re.DOTALL)
+_THINK = re.compile(r"<think>.*?</think>", re.DOTALL)
 
 
 def _inline_calls(content: str) -> list[dict[str, Any]]:
@@ -330,7 +426,7 @@ def _inline_calls(content: str) -> list[dict[str, Any]]:
             call = json.loads(block)
         except json.JSONDecodeError:
             call = {"name": "", "arguments": block}
-        out.append({"id": f"inline_{index}", "type": "function",
+        out.append({"id": f"inline_{uuid.uuid4().hex[:8]}", "type": "function",
                     "function": {"name": call.get("name", ""), "arguments": call.get("arguments", {})}})
     return out
 
@@ -339,7 +435,7 @@ def _parse(data: dict[str, Any], model: str, *, inline_tools: bool = False) -> C
     choice = (data.get("choices") or [{}])[0]
     message = choice.get("message") or {}
     raw_calls = message.get("tool_calls") or []
-    content = str(message.get("content") or "")
+    content = _THINK.sub("", str(message.get("content") or "")).strip()   # a model's reasoning, never sent on
     if not raw_calls and inline_tools and "<tool_call>" in content:
         raw_calls = _inline_calls(content)
         content = _INLINE_CALL.sub("", content).strip()
@@ -351,11 +447,14 @@ def _parse(data: dict[str, Any], model: str, *, inline_tools: bool = False) -> C
             arguments = json.loads(raw) if isinstance(raw, str) else dict(raw)
         except json.JSONDecodeError:
             arguments = {"__unparsed__": raw}
-        inline = str(call.get("id", "")).startswith("inline_")
-        calls.append(ToolCall(id=str(call.get("id") or f"call_{index}"), name=str(function.get("name", "")),
+        # an id unique in the conversation (nine letters and digits: what every provider takes) when the provider gave
+        # none; such a call is sent back in the standard shape, under that id
+        given = str(call.get("id") or "")
+        rebuilt = not given or given.startswith("inline_")
+        calls.append(ToolCall(id=given or f"c{uuid.uuid4().hex[:8]}", name=str(function.get("name", "")),
                               arguments=arguments if isinstance(arguments, dict) else {"__unparsed__": raw},
                               raw_arguments=raw if isinstance(raw, str) else json.dumps(raw),
-                              raw={} if inline else dict(call)))
+                              raw={} if rebuilt else dict(call)))
     usage = data.get("usage") or {}
     return ChatResult(
         content=content, tool_calls=tuple(calls),
@@ -398,10 +497,13 @@ def chat_model_from_env(env: Mapping[str, str] | None = None) -> ChatModel | Non
     if provider == "openai_compat" and not ((env.get("OPENAI_COMPAT_BASE") or "").strip() and (env.get("MODELER_LLM_MODEL") or "").strip()):
         raise LLMConfigError("MODELER_LLM_PROVIDER=openai_compat needs OPENAI_COMPAT_BASE (the service's …/v1 address) and "
                              "MODELER_LLM_MODEL")
-    return OpenAICompatChat(
+    chat = OpenAICompatChat(
         provider=provider, base_url=((env.get(base_env) if base_env else None) or defaults.base_url).strip(), api_key=key,
         model=(env.get("MODELER_LLM_MODEL") or defaults.model).strip(), timeout_s=timeout, reasoning_effort=effort,
     )
+    # the in-house model streams unless MODELER_LLM_STREAM=0 (a proxy that cannot stream with tools)
+    chat.stream = provider == "litellm" and (env.get("MODELER_LLM_STREAM") or "1").strip() != "0"
+    return chat
 
 
 def _bedrock(env: Mapping[str, str]) -> ChatModel:
@@ -425,6 +527,167 @@ def _bedrock(env: Mapping[str, str]) -> ChatModel:
     return ClaudeBedrockChat(model=model, region=region, api_key=get("BEDROCK_API_KEY") or None,
                              aws_access_key=get("AWS_ACCESS_KEY_ID") or None, aws_secret_key=get("AWS_SECRET_ACCESS_KEY") or None,
                              effort=effort, fallback=get("MODELER_LLM_FALLBACK") or None, timeout_s=timeout)
+
+
+#: how long a model rests after it failed in a way that will repeat (seconds): no answer in time or no connection, a
+#: daily limit spent, a refused key or a model not served. A server error on one request rests nothing unless it
+#: repeats across conversations (NVIDIA answered 502 to one document only, 2026-11-22).
+REST_S = {"timeout": 600.0, "connect": 600.0, "daily": 6 * 3600.0, "key": 3600.0, "model": 3600.0, "server": 600.0}
+SERVER_ERRORS_TO_REST = 3            # server errors in different conversations within REST_S["server"] rest a model
+#: the largest request a provider takes (tokens) when it is fixed and small: GroqCloud's free tier
+REQUEST_CAP = {"groq": 8000}
+
+
+def failure_kind(exc: BaseException) -> str:
+    """What kind of failure an unavailable model's error is (timeout, connect, daily, key, model, context, server)."""
+    if isinstance(exc, ContextExceeded):
+        return "context"
+    e = str(exc).lower()
+    for kind, words in (("timeout", ("no answer within", "timed out")), ("connect", ("cannot reach",)),
+                        ("daily", ("daily limit", "per day")), ("key", ("rejected the key",)),
+                        ("model", ("does not serve the model",))):
+        if any(w in e for w in words):
+            return kind
+    return "server"
+
+
+class ModelHealth:
+    """Which models are resting after a failure that will repeat, shared by every conversation of the process: a model
+    that did not answer in time is not waited on again by the next stage or file (the incident cost 600 s a stage)."""
+
+    def __init__(self, clock: Callable[[], float] = time.monotonic):
+        self._clock = clock
+        self._lock = threading.Lock()
+        self._until: dict[str, float] = {}
+        self._server: dict[str, list[float]] = {}
+
+    def usable(self, key: str) -> bool:
+        with self._lock:
+            return self._until.get(key, 0.0) <= self._clock()
+
+    def failed(self, key: str, kind: str) -> None:
+        now = self._clock()
+        with self._lock:
+            if kind == "server":
+                recent = [t for t in self._server.get(key, []) if now - t < REST_S["server"]] + [now]
+                self._server[key] = recent
+                if len(recent) < SERVER_ERRORS_TO_REST:
+                    return
+            if kind in REST_S:
+                self._until[key] = max(self._until.get(key, 0.0), now + REST_S[kind])
+
+    def reset(self) -> None:
+        with self._lock:
+            self._until.clear()
+            self._server.clear()
+
+
+HEALTH = ModelHealth()
+
+
+class FallbackChat:
+    """Several chat models in order, the agent's own first (the owner, 2026-11-22: "if any model is unavailable, switch
+    at that moment to another, so the task continues"). Each conversation (`conversation()`, which the tool loop takes
+    once) starts on the first model that is not resting and keeps its own place in the chain, so parallel files never
+    move each other. When its model cannot answer (no answer in time, a daily limit spent, the provider down or refusing
+    the key, the model not served, a request longer than its window) the request goes to the next model that can take
+    it, and a conversation under way starts again there (`ModelSwitched`). A model's own malformed tool call stays with
+    it. A failure that will repeat rests the model for the next conversations too (`ModelHealth`)."""
+
+    def __init__(self, models: Sequence[ChatModel], labels: Sequence[str] | None = None,
+                 health: ModelHealth | None = None):
+        if not models:
+            raise ValueError("a chain needs at least one model")
+        self.models = list(models)
+        self.labels = list(labels) if labels else [f"{m.provider}/{m.model}" for m in self.models]
+        self.health = health or HEALTH
+        self.switches: list[dict[str, str]] = []     # every conversation's, for the stage that used the chain
+        self._lock = threading.Lock()
+        for m in self.models[:-1]:          # every model but the last hands over at once
+            if hasattr(m, "fail_fast"):
+                m.fail_fast = True
+
+    def key(self, i: int) -> str:
+        m = self.models[i]
+        return f"{m.provider}|{getattr(m, 'base_url', '')}|{m.model}"
+
+    @property
+    def provider(self) -> str:
+        return self.models[0].provider
+
+    @property
+    def model(self) -> str:
+        return self.models[0].model
+
+    @property
+    def label(self) -> str:
+        return self.labels[0]
+
+    def conversation(self) -> ChainConversation:
+        return ChainConversation(self)
+
+    def complete(self, messages: list[dict[str, Any]], tools: list[dict[str, Any]]) -> ChatResult:
+        return self.conversation().complete(messages, tools)      # one request on its own: a conversation of one
+
+
+class ChainConversation:
+    """One conversation's place in a chain: its model, the switches it made, and what each model answered."""
+
+    def __init__(self, chain: FallbackChat):
+        self.chain = chain
+        usable = [i for i in range(len(chain.models)) if chain.health.usable(chain.key(i))]
+        self.index = usable[0] if usable else 0
+        self.switches: list[dict[str, str]] = []
+        if self.index:
+            self._switched({"from": chain.labels[0], "to": chain.labels[self.index],
+                            "why": "it is resting after a recent failure"})
+
+    def _switched(self, change: dict[str, str]) -> None:
+        self.switches.append(change)
+        with self.chain._lock:
+            self.chain.switches.append(change)
+
+    @property
+    def provider(self) -> str:
+        return self.chain.models[self.index].provider
+
+    @property
+    def model(self) -> str:
+        return self.chain.models[self.index].model
+
+    @property
+    def label(self) -> str:
+        return self.chain.labels[self.index]
+
+    def _next(self, after: int, too_long: ContextExceeded | None) -> int | None:
+        for i in range(after + 1, len(self.chain.models)):
+            if not self.chain.health.usable(self.chain.key(i)):
+                continue
+            cap = REQUEST_CAP.get(self.chain.models[i].provider)
+            if too_long is not None and cap is not None and too_long.window is not None and cap <= too_long.window:
+                continue                    # a request too long for one window goes only to a larger one
+            return i
+        return None
+
+    def complete(self, messages: list[dict[str, Any]], tools: list[dict[str, Any]]) -> ChatResult:
+        while True:
+            try:
+                return self.chain.models[self.index].complete(messages, tools)
+            except ToolCallRejected:
+                raise
+            except LLMUnavailableError as exc:
+                kind = failure_kind(exc)
+                if kind != "context":
+                    self.chain.health.failed(self.chain.key(self.index), kind)
+                nxt = self._next(self.index, exc if isinstance(exc, ContextExceeded) else None)
+                if nxt is None:
+                    raise
+                self._switched({"from": self.chain.labels[self.index], "to": self.chain.labels[nxt], "why": str(exc)[:300]})
+                self.index = nxt
+                if len(messages) > 2:
+                    # a conversation under way starts again on the next model (`run_tool_loop`), never goes on there
+                    raise ModelSwitched(f"{self.switches[-1]['from']} could not answer; starting again on "
+                                        f"{self.switches[-1]['to']}") from exc
 
 
 def chat(messages: list[dict[str, Any]], tools: list[dict[str, Any]] | None = None, *,
@@ -461,6 +724,7 @@ class LoopOutcome:
     turns: int
     usage: dict[str, int] = field(default_factory=lambda: {"input_tokens": 0, "output_tokens": 0})
     error: str = ""
+    answered_by: str = ""          # the model that answered last (a chain's: the one the conversation ended on)
 
 
 def run_tool_loop(model: ChatModel, *, system: str, user: str, tools: list[Tool], max_turns: int = 30,
@@ -471,6 +735,10 @@ def run_tool_loop(model: ChatModel, *, system: str, user: str, tools: list[Tool]
     append-only step log. A handler that raises answers the model with the error instead of ending the run."""
     by_name = {t.name: t for t in tools}
     schemas = [t.schema() for t in tools]
+    model = model.conversation() if hasattr(model, "conversation") else model     # a chain: this loop's own place in it
+
+    def who() -> str:
+        return getattr(model, "label", "") or f"{model.provider}/{model.model}"
     messages: list[dict[str, Any]] = [{"role": "system", "content": system}, {"role": "user", "content": user}]
     usage: dict[str, int] = {"input_tokens": 0, "output_tokens": 0}
     window: int | None = None          # the model's context window, in tokens, once a refusal has said it
@@ -489,9 +757,16 @@ def run_tool_loop(model: ChatModel, *, system: str, user: str, tools: list[Tool]
             log_step({"type": "finish_reminder", "turn": turn, "tool": finish})
         if window is not None:
             messages = _fitted(messages, schemas, window, share)
+        switched = len(getattr(model, "switches", ()))
+
+        def log_switches(turn: int = turn, switched: int = switched) -> None:
+            for change in getattr(model, "switches", [])[switched:]:
+                log_step({"type": "model_switch", "turn": turn, **change})
+
         try:
             result = model.complete(messages, schemas)
         except ContextExceeded as exc:
+            log_switches()
             # too long for the model: the oldest turns are left out (what their tool calls recorded is kept) and the
             # model is asked again; each further refusal fits tighter, and a request that cannot shrink fails
             sent = _size(messages, schemas) / CHARS_PER_TOKEN_FIT
@@ -506,24 +781,35 @@ def run_tool_loop(model: ChatModel, *, system: str, user: str, tools: list[Tool]
                 tail = RAISE_CONTEXT if model.provider == "litellm" else "choose a model with a longer context for this agent"
                 return LoopOutcome("LLM_UNAVAILABLE", "", turn - 1, usage, error=(
                     f"the agent's instructions and material do not fit the model's context window ({window} tokens) "
-                    f"even with its earlier turns left out; {tail} ({exc})"))
+                    f"even with its earlier turns left out; {tail} ({exc})"), answered_by=who())
             messages = fitted
             continue
+        except ModelSwitched as exc:
+            # the chain's next model starts the conversation again, with a whole turn budget of its own; what the tool
+            # calls recorded so far (accepted fields, saved answers) stays
+            log_switches()
+            log_step({"type": "conversation_restarted", "turn": turn, "on": getattr(model, "label", ""), "why": str(exc)})
+            again = run_tool_loop(model, system=system, user=user, tools=tools, max_turns=max_turns, log_step=log_step)
+            merged = {k: usage.get(k, 0) + again.usage.get(k, 0) for k in {*usage, *again.usage}}
+            return LoopOutcome(again.status, again.final_text, turn - 1 + again.turns, merged, error=again.error,
+                               answered_by=again.answered_by)
         except ToolCallRejected as exc:
             log_step({"type": "tool_call_rejected", "turn": turn, "error": str(exc)})
             messages.append({"role": "user", "content": f"Your last tool call was refused: {exc}. Call the tool again with "
                                                         "arguments that match its schema exactly."})
             continue
         except LLMUnavailableError as exc:
+            log_switches()
             log_step({"type": "llm_unavailable", "turn": turn, "error": str(exc)})
-            return LoopOutcome("LLM_UNAVAILABLE", "", turn - 1, usage, error=str(exc))
+            return LoopOutcome("LLM_UNAVAILABLE", "", turn - 1, usage, error=str(exc), answered_by=who())
+        log_switches()
         for name, tokens in result.usage.items():     # the cache's reads and writes too, where the provider reports them
             usage[name] = usage.get(name, 0) + int(tokens or 0)
         log_step({"type": "model_turn", "turn": turn, "model": result.model, "content": result.content,
                   "tool_calls": [{"id": c.id, "name": c.name, "arguments": c.arguments} for c in result.tool_calls],
                   "usage": result.usage})
         if not result.tool_calls:
-            return LoopOutcome("COMPLETED", result.content, turn, usage)
+            return LoopOutcome("COMPLETED", result.content, turn, usage, answered_by=who())
         turn_message: dict[str, Any] = {"role": "assistant", "content": result.content or None, "tool_calls": [
             c.raw or {"id": c.id, "type": "function", "function": {"name": c.name, "arguments": c.raw_arguments or json.dumps(c.arguments)}}
             for c in result.tool_calls]}
@@ -562,8 +848,8 @@ def run_tool_loop(model: ChatModel, *, system: str, user: str, tools: list[Tool]
             # going round in circles (on a small context window, it forgets what it found): stopped, so the caller's
             # shorter steps can run instead of spending the remaining turns
             return LoopOutcome("INCOMPLETE", "", turn, usage, error=(
-                f"stopped: it repeated the same calls with the same answers {REPEAT_LIMIT} turns in a row"))
-    return LoopOutcome("INCOMPLETE", "", max_turns, usage, error=f"stopped after {max_turns} turns")
+                f"stopped: it repeated the same calls with the same answers {REPEAT_LIMIT} turns in a row"), answered_by=who())
+    return LoopOutcome("INCOMPLETE", "", max_turns, usage, error=f"stopped after {max_turns} turns", answered_by=who())
 
 
 REPEAT_LIMIT = 5      # turns in a row of nothing but calls already made, with the same answers, before the loop stops

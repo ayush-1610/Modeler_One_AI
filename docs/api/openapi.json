@@ -197,6 +197,65 @@
         "title": "AffectedView",
         "type": "object"
       },
+      "AgentChain": {
+        "additionalProperties": false,
+        "description": "The one-click choices, in order, an agent goes on with when its own model fails (empty: none), who set them and\nwhy, and the notice the console shows before they are saved.",
+        "properties": {
+          "choices": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Choices",
+            "type": "array"
+          },
+          "notice": {
+            "title": "Notice",
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "set_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Set At"
+          },
+          "set_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Set By"
+          }
+        },
+        "required": [
+          "choices",
+          "set_by",
+          "set_at",
+          "reason",
+          "notice"
+        ],
+        "title": "AgentChain",
+        "type": "object"
+      },
       "AgentChange": {
         "additionalProperties": false,
         "properties": {
@@ -422,7 +481,7 @@
       },
       "AgentsPage": {
         "additionalProperties": false,
-        "description": "`efforts` and `claude_models`: the choices for an agent on Claude (Bedrock's model ids); `groq_efforts`: on\nGroqCloud; `choices`: the one-click choices each agent's row offers.",
+        "description": "`efforts` and `claude_models`: the choices for an agent on Claude (Bedrock's model ids); `groq_efforts`: on\nGroqCloud; `choices`: the one-click choices each agent's row offers; `chain`: what every agent goes on with when its\nmodel fails.",
         "properties": {
           "agents": {
             "items": {
@@ -430,6 +489,9 @@
             },
             "title": "Agents",
             "type": "array"
+          },
+          "chain": {
+            "$ref": "#/components/schemas/AgentChain"
           },
           "choices": {
             "items": {
@@ -479,6 +541,7 @@
         },
         "required": [
           "agents",
+          "chain",
           "providers",
           "choices",
           "environment",
@@ -492,7 +555,7 @@
       },
       "AgentsStatus": {
         "additionalProperties": false,
-        "description": "`agent_jobs.agents_status`: whether an LLM provider is configured (provider and model when it is).",
+        "description": "`agent_jobs.agents_status`: whether an LLM provider is configured (provider and model when it is); `then`: the\nmodels it goes on with, in order, when that one fails (the admin console's chain).",
         "properties": {
           "enabled": {
             "title": "Enabled",
@@ -530,6 +593,13 @@
               }
             ],
             "title": "Provider"
+          },
+          "then": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Then",
+            "type": "array"
           }
         },
         "required": [
@@ -2711,6 +2781,27 @@
           "fields"
         ],
         "title": "CatalogGroup",
+        "type": "object"
+      },
+      "ChainSet": {
+        "properties": {
+          "choices": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Choices",
+            "type": "array"
+          },
+          "reason": {
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "title": "ChainSet",
         "type": "object"
       },
       "ChangeView": {
@@ -20734,6 +20825,10 @@
             "title": "Reads Scans",
             "type": "boolean"
           },
+          "terms": {
+            "title": "Terms",
+            "type": "string"
+          },
           "tools": {
             "title": "Tools",
             "type": "boolean"
@@ -20747,6 +20842,7 @@
           "effort",
           "tools",
           "reads_scans",
+          "terms",
           "has_active_key"
         ],
         "title": "ModelChoice",
@@ -32224,6 +32320,66 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/v1/admin/agent-chain": {
+      "put": {
+        "description": "What every agent goes on with when its own model fails, in order (the owner, 2026-11-22: \"switch at that moment to\nanother, so the task continues\"). Signed with the step-up and audited: a cloud model here receives client files.",
+        "operationId": "set_agent_chain_api_v1_admin_agent_chain_put",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChainSet"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_AgentsPage_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set Agent Chain",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/api/v1/admin/agents": {
       "get": {
         "operationId": "agents_api_v1_admin_agents_get",

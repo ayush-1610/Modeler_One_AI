@@ -110,6 +110,8 @@ class ClaudeBedrockChat:
             aws_region=region, api_key=api_key or None, aws_access_key=aws_access_key or None,
             aws_secret_key=aws_secret_key or None, timeout=timeout_s, max_retries=4, middleware=middleware)
         self._states: dict[str, BetaFallbackState] = {}
+        # in a chain of models (`llm.FallbackChat`), Claude hands over after one retry instead of the SDK's four
+        self.fail_fast = False
 
     def _state(self, system: str, first: Any) -> BetaFallbackState:
         """One fallback state per conversation (its system prompt and task), so a fallback pins only that conversation."""
@@ -125,10 +127,12 @@ class ClaudeBedrockChat:
             params["tools"] = [_tool(t) for t in tools]
         if self.effort:
             params["output_config"] = {"effort": self.effort}
+        client = self._client.with_options(max_retries=1) if self.fail_fast and hasattr(self._client, "with_options") \
+            else self._client
         if self.fallback:
             with self._state(system, messages[0]["content"] if messages else ""):
-                return self._client.beta.messages.create(**params)
-        return self._client.beta.messages.create(**params)
+                return client.beta.messages.create(**params)
+        return client.beta.messages.create(**params)
 
     def complete(self, messages: list[dict[str, Any]], tools: list[dict[str, Any]]):
         from modeler_agents.llm import ChatResult, ToolCall
