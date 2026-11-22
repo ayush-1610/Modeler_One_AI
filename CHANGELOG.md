@@ -15,6 +15,15 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Docs — redesign charter, Gate 1: product discovery (2026-11-22, the owner's request)
+- **What:** a read-only audit of the whole product for the AWS-console-inspired redesign charter, in a new isolated
+  folder `design-review/`: `PROJECT_AUDIT.md`, `FEATURE_INVENTORY.md`, `BLOATWARE_REPORT.md`, `PROPOSED_FEATURES.md`,
+  `UNKNOWN.md`, and eight screenshots of today's UI from the existing Playwright suite (stub engine, synthetic data).
+- **Why:** the charter's Gate 1 (product discovery) comes before any sitemap, wireframe or implementation.
+- **Impact:** none on behaviour. No production file, locked file, ruleset or API contract changed; nothing removed.
+  Findings that need the owner: the two intake paths (Inputs and the Data room), a cross-project work queue after the
+  inbox's removal, the light-only theme against a console look, and 21 API operations with no screen.
+
 ### Added — when an agent's model cannot answer, the task goes on with the next model (2026-11-22, the owner's request)
 - **The incident:** on the server, the Data room's question stage ended with "no question card (litellm unavailable
   after 5 attempts: no answer within 600 s)". The in-house model on CPU sends nothing until it has finished. Each of
@@ -10077,3 +10086,4 @@ record it here so a reader knows which context produced which work.
 | 2026-11-12 → 13 (same cloud session, continued after context resets) | per commit trailer | The owner's Decision Memo (plan revision 3); the build contracts and shared contract code; D0, D1a, D4, D5 and SD built in parallel worktrees, each reviewed from two lenses, fixed and squash-merged; D1b as its own locked-file draft PR (#173); D2, D3, W and D6 in progress |
 | 2026-11-14 (cloud session, branch `claude/stoic-bohr-9ymlx9`; the owner switched the model) | Claude Opus 5.5 | Recap of the intake rebuild (found #173 merged with its conditions unticked, and `main` CI red on one upload e2e); the intake line merged onto `main`'s head; the Inputs UX audit and the task-first plan; its build; its final review (four lenses and an owner-job e2e) and seven fix rounds, each checked by an independent skeptic (2026-11-15/16; continuation §4.0c) |
 | 2026-11-21 → 22 (same cloud session, branch `claude/stoic-bohr-9ymlx9`, continued after context resets) | Claude Opus 5.5 | The owner's second sample delivery explored; plan v2, the Data room (`2026-11-21-intelligent-client-data-intake.md`); GroqCloud gpt-oss-120b as a third model, one click per agent; the new logo and palette; the Data room reader (OCR, turned pages, delimited exports), engine (sets, means, NCA, dissolution, decisions, requests, PK-Sim inputs, Send to the model) and five agents; the API and page on `dataroom-api-web` |
+| 2026-11-22 (cloud session, branch `claude/inspiring-einstein-191gn3`; the owner switched the model mid-session) | per commit trailer | Redesign charter Gate 1: read-only product discovery in `design-review/` (audit, feature inventory, bloatware report, proposed features, unknowns, current-state screenshots) |
