@@ -13,7 +13,7 @@ import pytest
 from modeler_intake import synthetic
 from modeler_intake.anchors import sha256_of
 from modeler_intake.documents import MAX_BYTES
-from modeler_intake.source import parse, parse_document, parser_for
+from modeler_intake.source import SOURCE_VERSION, parse, parse_document, parser_for
 
 pytestmark = pytest.mark.req("T-47")
 
@@ -35,7 +35,7 @@ def test_a_format_with_no_parser_is_unsupported_with_its_reason(name, data):
     suffix = name[name.rindex("."):] if "." in name else None
     assert (doc.state, doc.parser, doc.format) == ("unsupported", "none", "other")
     assert doc.reason == (f"no parser for {suffix}" if suffix else "no parser for a file with no extension")
-    assert doc.regions == () and parser_for(data, name) == ("none", "1.0")
+    assert doc.regions == () and parser_for(data, name) == ("none", SOURCE_VERSION)
 
 
 def _png(width: int = 16, height: int = 16) -> bytes:

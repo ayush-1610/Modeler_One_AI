@@ -92,6 +92,7 @@ SAME_PLACE = 4.0           # a repeated line or image stands within this many po
 PIECE_GAP = 2.0            # a gap between two words of a line wider than this many line heights splits it into pieces
 CONTEXT_LINES = 3
 SCAN_AREA = 0.25           # an image covering at least this share of a page with text in its margins only is a scan
+DRAWN_TEXT_MIN_CURVES = 200  # a page with no text layer but this many drawn curves holds text printed as outlines: a scan
 
 _PAGE_NUMBER = re.compile(r"(?i)(?:page\s*)?[-–—]?\s*\d{1,4}\s*[-–—]?(?:\s*(?:of|/)\s*\d{1,4})?")
 _PAGE_TOKEN = re.compile(r"(?i)\bpage\s*\d{1,4}(?:\s*(?:of|/)\s*\d{1,4})?\b|\b\d{1,4}\s*(?:of|/)\s*\d{1,4}\b")
@@ -201,8 +202,12 @@ def _page(plumber_page, data: bytes, table_engines: Sequence[PdfTableEngine], oc
                                                    "engine": extra.engine or engine.name}))
             if box is not None:
                 raw[index] = tuple(float(v) for v in box)
-    needs_ocr = n_images > 0 and (n_chars <= needs_ocr_max_chars
-                                  or (_body_chars(plumber_page) <= needs_ocr_max_chars and _scan_sized(plumber_page)))
+    # a scan: an embedded image, or text printed as vector outlines (no characters, many drawn curves: a "print to PDF"
+    # of a scan or of an outlined-font report, as the cinacalcet delivery's demographics and protocol pages are)
+    drawn = len(plumber_page.curves) >= DRAWN_TEXT_MIN_CURVES
+    needs_ocr = (n_images > 0 or drawn) and (n_chars <= needs_ocr_max_chars
+                                             or (_body_chars(plumber_page) <= needs_ocr_max_chars
+                                                 and (drawn or _scan_sized(plumber_page))))
     if needs_ocr and ocr is not None:
         try:
             read = [w for w in ocr.words(data, number) if w.text.strip()]
@@ -210,6 +215,10 @@ def _page(plumber_page, data: bytes, table_engines: Sequence[PdfTableEngine], oc
             warnings.append(f"OCR_FAILED p:{number}: {ocr.name}: {type(exc).__name__}: {exc}")
             read = []
         words = tuple(Word(index=k, text=w.text, box=round_box(w.box)) for k, w in enumerate(read, start=1))
+        # a ruled table found on a scan has its grid but no text (its cells take the text layer's characters, which
+        # a scan has none of): each cell takes the OCR words whose centres fall inside it
+        tables = [_filled(t, words) if t.engine == "pdfplumber" and not any(c.text.strip() for c in t.cells) else t
+                  for t in tables]
     rotation = int(getattr(plumber_page, "rotation", 0) or 0)
     page = Page(number=number, width=float(plumber_page.width), height=float(plumber_page.height), rotation=rotation,
                 needs_ocr=needs_ocr, n_chars=n_chars, words=words, tables=tuple(tables), n_images=n_images)
@@ -257,6 +266,22 @@ def _plumber_table(found, index: int) -> PageTable:
     n_cols = max((len(row.cells) for row in rows), default=0)
     return PageTable(index=index, box=round_box(found.bbox), n_rows=len(rows), n_cols=n_cols, cells=tuple(cells),
                      engine="pdfplumber")
+
+
+def _filled(table: PageTable, words: Sequence[Word]) -> PageTable:
+    """The table with each cell's text from the words whose centres lie in its box, in reading order."""
+    def inside(word: Word, box: Box) -> bool:
+        cx, cy = (word.box[0] + word.box[2]) / 2, (word.box[1] + word.box[3]) / 2
+        return box[0] <= cx <= box[2] and box[1] <= cy <= box[3]
+
+    cells = []
+    for cell in table.cells:
+        if cell.box is None:
+            cells.append(cell)
+            continue
+        found = sorted((w for w in words if inside(w, cell.box)), key=lambda w: (round(w.box[1] / Y_TOLERANCE), w.box[0]))
+        cells.append(cell.model_copy(update={"text": " ".join(w.text for w in found)}))
+    return table.model_copy(update={"cells": tuple(cells)})
 
 
 def _cells_box(table: PageTable) -> Box | None:

@@ -15,6 +15,50 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — the Data room's reader: every file of a real delivery read, scans included (plan 2026-11-21 v2 §9, build step 1)
+- **Our own OCR engine (`modeler_intake.ocr.RapidOcr`).** RapidOCR's ONNX models run on the server's CPU, from the
+  wheel; nothing leaves the server (the owner's answer, 2026-11-22: "our engine"). It fills the PDF reader's existing
+  `OcrEngine` port: each word comes with its box in page points, so an OCR word is located and quoted like a text-layer
+  word. Pages are rendered at 180 dpi, the text is NFKC-normalised (the recogniser returns full-width digits such as
+  "５"), and a line's words take their characters' boxes. `image_to_pdf` reads a screenshot or a photographed table as a
+  one-page scan. New dependencies: rapidocr-onnxruntime, pypdfium2, pillow, and the headless OpenCV. The root
+  `pyproject.toml` swaps RapidOCR's `opencv-python` for `opencv-python-headless`, because the servers have no libGL and no
+  sudo to install it.
+- **A page of text printed as outlines is a scan (`pdf.DRAWN_TEXT_MIN_CURVES`, `SOURCE_VERSION` 1.0.1).** The
+  demographics, protocol and manufacturing pages of the owner's second sample delivery have no characters and no image:
+  their text is drawn as vector curves. The reader called them empty pages. A page with no text layer and at least 200
+  drawn curves now needs OCR. A ruled table found on such a page takes its cells' text from the OCR words whose centres
+  fall inside each cell, where before its cells were empty. The version bump re-reads stored files once and checks their
+  anchors. Tests that wrote the version as "1.0" now use `SOURCE_VERSION`.
+- **The delivery reader (`modeler_intake.room`, L2, no AI).** `read_delivery` takes a zip, files, or both, and returns
+  one `RoomFile` per real file:
+  - `__MACOSX/`, `._*` and `.DS_Store` are dropped;
+  - a damaged archive is listed with its reason;
+  - text exports that are tables (`.txt`, `.dat`, `.prn`, … split by tab, `;`, `,` or `|`) are read as delimited tables,
+    so every concentration has its cell;
+  - images are read as scans;
+  - pages whose text is drawn turned are rotated upright before reading. The sample delivery's dissolution report prints
+    its landscape tables turned on portrait pages, and read as printed every row came out backwards and transposed;
+  - duplicates are marked by bytes and by content in another format (the same table as `.txt` and `.dat`).
+
+  `document_text` gives the plain numbered lines the agents read and quotes are checked against. A wide gap is written
+  " | "; a gap counts as wide at 0.8 of the text height, so the rule follows the font size. `find_quote` finds a quote
+  across lines, whatever its spacing, dashes or trailing zeros. The numbers themselves are always read from the parsed
+  cells and words.
+- **What the Data room's agents may answer (`modeler_intake.room_specs`).** Only these forms:
+  - a question card;
+  - a file triage;
+  - a table description: grid cells, or page lines for a ruled table whose rows merge, as the dissolution vessels' do;
+  - a fact with its verbatim quote.
+
+  An agent never types a number; code reads the values the description points to. The field and role vocabularies are
+  open, so a new kind of delivery needs no code change.
+- Impact: on the sample delivery, the scanned demographics, the protocol's meal rules and the turned dissolution tables
+  now read correctly (checked by hand against the files; the client's numbers stay out of the repository). Tests:
+  `packages/data-intake/tests/test_room.py`, 21 tests (T-47), one of them on the real OCR engine. Data-intake and
+  project-model suites: same result as before this change (one known failure: the vault's read-only check fails when
+  run as root).
+
 ### Fixed — final review round 7, what a blinded study still shows (round 6's blinding-follow skeptic and the quote the names-words fixer found; plan 2026-11-14 §5) — science-adjacent
 - **A group joined to a blinded study under another name has its datasets withheld everywhere
   (`BlindedSources.joined`, modeler_project.blinded_sources).** Round 6's one rule matched by name only. A sheet-form group

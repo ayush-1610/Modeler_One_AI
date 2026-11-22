@@ -26,6 +26,9 @@ dev = [
 
 [tool.uv]
 package = false
+# RapidOCR (modeler_intake.ocr) asks for opencv-python, which loads libGL; the servers are headless (no sudo to
+# install it), so the headless build of the same cv2 module is used instead
+override-dependencies = ["opencv-python ; sys_platform == 'never'", "opencv-python-headless>=4.10"]
 
 [tool.uv.workspace]
 members = [

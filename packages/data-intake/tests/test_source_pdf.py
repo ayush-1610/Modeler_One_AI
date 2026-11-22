@@ -13,7 +13,7 @@ from pypdf import PdfWriter
 
 from modeler_intake import synthetic
 from modeler_intake.anchors import parse_locator, same_place
-from modeler_intake.source import paragraphs, parse_document, parser_for, region_grid
+from modeler_intake.source import SOURCE_VERSION, paragraphs, parse_document, parser_for, region_grid
 from modeler_intake.source.pdf import page_lines
 from modeler_intake.source_model import PageTable, TableCell, Word
 
@@ -68,7 +68,7 @@ class StubOcr:
 
 def test_words_carry_boxes_inside_the_page_numbered_as_extract_words_gives_them(report):
     file, doc = report
-    assert doc.state == "read" and doc.parser == "pdfplumber" and doc.parser_version.startswith("1.0+pdfplumber")
+    assert doc.state == "read" and doc.parser == "pdfplumber" and doc.parser_version.startswith(f"{SOURCE_VERSION}+pdfplumber")
     with pdfplumber.open(io.BytesIO(file.data)) as pdf:
         for page, plumber in zip(doc.pages, pdf.pages, strict=True):
             assert (page.number, page.width, page.height, page.rotation) == (plumber.page_number, 612.0, 792.0, 0)

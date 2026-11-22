@@ -11,6 +11,10 @@ dependencies = [
   "pbpk-domain",
   "xlrd>=2.0.1",
   "pdfplumber>=0.11",
+  "rapidocr-onnxruntime>=1.4.4",
+  "pypdfium2>=4.30",
+  "pillow>=10",
+  "opencv-python-headless>=4.10",
 ]
 
 [tool.uv.sources]

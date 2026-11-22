@@ -33,7 +33,7 @@ from modeler_intake.mapping.prose_check import ProseFactError
 from modeler_intake.mapping.rules import map_by_rule
 from modeler_intake.mapping_spec import MappingSpec
 from modeler_intake.source import parse as parse_module
-from modeler_intake.source import parse_document, region_grid, resolve
+from modeler_intake.source import SOURCE_VERSION, parse_document, region_grid, resolve
 from modeler_project import ArtifactKind, FileProjectStore, Workspace, intake_files, intake_pipeline
 from modeler_project.brief import empty_brief
 from modeler_project.client_data import ingest
@@ -404,7 +404,7 @@ def test_a_bumped_parser_version_reparses_checks_the_anchors_and_reports_the_cou
     _reparsed(monkeypatch, "1.1")
     assert [r.run_id for r in intake_pipeline.enqueue(ws, [record], by="code")] == ["run-4"]
     (second,) = _drain(ws)
-    assert second.state == "done" and second.parser_version.startswith("1.1+") and first.parser_version.startswith("1.0+")
+    assert second.state == "done" and second.parser_version.startswith("1.1+") and first.parser_version.startswith(f"{SOURCE_VERSION}+")
     assert (second.counters.anchors_checked, second.counters.anchors_unresolved) == (len(anchored), 0)
     assert second.coverage is not None and second.coverage.anchors_unresolved == 0
     assert store.coverage(record.sha256).anchor_problems == ()
@@ -473,7 +473,7 @@ def test_a_table_gone_after_a_reparse_is_retired_and_listed(ws, delivery, monkey
     assert "1 extracts retired" in {s.stage: s.detail for s in second.stages}["ledger"]
     # the tables still there keep their extracts (found again at their place), under their old anchors
     kept = [v for v in ledger.values(file_sha256=record.sha256) if "#" in v.id]
-    assert len(kept) == first.counters.values - len(gone) and all("@workbook/1.0+" in v.anchor for v in kept)
+    assert len(kept) == first.counters.values - len(gone) and all(f"@workbook/{SOURCE_VERSION}+" in v.anchor for v in kept)
 
 
 # --- mapping ---------------------------------------------------------------------------------------------------------

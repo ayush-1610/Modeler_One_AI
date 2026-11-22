@@ -16,7 +16,7 @@ from docx.oxml.parser import parse_xml
 
 from modeler_intake import synthetic
 from modeler_intake.anchors import anchor_text, parse_locator, same_place
-from modeler_intake.source import paragraphs, parse_document, region_grid, resolve
+from modeler_intake.source import SOURCE_VERSION, paragraphs, parse_document, region_grid, resolve
 from modeler_intake.source_model import has_number
 
 pytestmark = pytest.mark.req("T-47")
@@ -30,7 +30,7 @@ def report():
 
 def test_a_table_is_a_grid_with_a_merged_header_once_and_its_spans(report):
     file, doc = report
-    assert doc.state == "read" and doc.parser == "docx" and doc.parser_version.startswith("1.0+python-docx")
+    assert doc.state == "read" and doc.parser == "docx" and doc.parser_version.startswith(f"{SOURCE_VERSION}+python-docx")
     (table,) = [item.table for item in doc.body if item.kind == "table"]
     assert (table.index, table.n_rows, table.n_cols, table.engine, table.box) == (1, 8, 3, "python-docx", None)
     spans = {(c.row, c.column): (c.text, c.row_span, c.col_span) for c in table.cells}

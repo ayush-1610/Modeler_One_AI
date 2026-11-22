@@ -14,7 +14,7 @@ from openpyxl import Workbook
 from modeler_intake import synthetic
 from modeler_intake.anchors import anchor_text, parse_locator, same_place
 from modeler_intake.grid import read_workbook_bytes
-from modeler_intake.source import as_workbook_grid, parse_document, region_grid, resolve
+from modeler_intake.source import SOURCE_VERSION, as_workbook_grid, parse_document, region_grid, resolve
 from modeler_intake.source.regions import a1_place, parse_sheet_range
 from modeler_intake.source_model import has_number, is_numeric_text
 
@@ -76,7 +76,7 @@ def assert_located_exactly(file, doc) -> None:
 
 def test_every_table_of_the_messy_workbook_is_its_own_region_with_the_truths_range(messy):
     file, doc = messy
-    assert doc.state == "read" and doc.parser == "workbook" and doc.parser_version.startswith("1.0+openpyxl")
+    assert doc.state == "read" and doc.parser == "workbook" and doc.parser_version.startswith(f"{SOURCE_VERSION}+openpyxl")
     tables = [r for r in doc.regions if r.kind == "table"]
     assert sorted(r.where for r in tables) == sorted(t.where for t in file.tables)
     assert len([r for r in tables if r.where.startswith("s:'Fasting'!")]) == 2                       # two tables on one sheet
@@ -98,7 +98,7 @@ def test_the_template_and_the_legacy_workbook_are_located_too(template):
     assert_located_exactly(file, doc)
     legacy = (FIXTURES / "legacy-study.xls").read_bytes()
     xls = parse_document(legacy, "legacy-study.xls")
-    assert xls.state == "read" and xls.parser_version.startswith("1.0+xlrd")
+    assert xls.state == "read" and xls.parser_version.startswith(f"{SOURCE_VERSION}+xlrd")
     pk = _region(xls, "s:'PK'!A2:C6")
     assert pk.caption == "Study EX-101 plasma concentrations" and pk.caption_locator == "s:'PK'!A1"   # a merged title, once
 

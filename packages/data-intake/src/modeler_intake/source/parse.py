@@ -50,7 +50,7 @@ from modeler_intake.source_model import (
     SourceDocument,
 )
 
-SOURCE_VERSION = "1.0"
+SOURCE_VERSION = "1.0.1"   # 1.0.1: a page of text drawn as outlines needs OCR (pdf.DRAWN_TEXT_MIN_CURVES)
 MAX_MEMBERS = archive.MAX_MEMBERS
 MAX_MEMBER_BYTES = archive.MAX_MEMBER_BYTES          # documents.MAX_BYTES: also the limit of one file
 MAX_TOTAL_BYTES = archive.MAX_TOTAL_BYTES

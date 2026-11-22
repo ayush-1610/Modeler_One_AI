@@ -7,7 +7,7 @@ from __future__ import annotations
 import pytest
 
 from modeler_intake.anchors import AnchorError, anchor_text
-from modeler_intake.source import check_anchors, paragraphs, parse_document, resolve, source_view
+from modeler_intake.source import SOURCE_VERSION, check_anchors, paragraphs, parse_document, resolve, source_view
 
 pytestmark = pytest.mark.req("T-47")
 
@@ -35,7 +35,7 @@ def _anchor(doc, locator: str, version: str | None = None) -> str:
 def test_each_line_is_a_paragraph_and_headings_split_the_prose(notes):
     doc = notes
     assert (doc.state, doc.format, doc.parser, doc.encoding) == ("read", "markdown", "text", "utf-8")
-    assert doc.parser_version.startswith("1.0+python3.")
+    assert doc.parser_version.startswith(f"{SOURCE_VERSION}+python3.")
     assert [(item.paragraph.index, item.paragraph.text) for item in doc.body] == \
         list(enumerate(NOTES.split("\n")[:-1], start=1))
     assert [item.paragraph.style for item in doc.body if item.paragraph.style] == ["markdown-heading"] * 2
