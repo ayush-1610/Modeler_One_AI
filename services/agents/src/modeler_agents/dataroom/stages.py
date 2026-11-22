@@ -86,16 +86,7 @@ TOPIC_WORDS: dict[str, tuple[str, ...]] = {
     "question": ("objective", "purpose", "scope", "pbbm", "pbpk", "bioequivalen", "reformulat", "health canada", "fda",
                  "ema", "request", "deliverable", "context of use", "virtual"),
 }
-FOCUS_CHARS = 14000      # the pages shown to the extractor up front (about 3,500 tokens); MODELER_DATAROOM_FOCUS_CHARS
-
-
-def focus_chars() -> int:
-    import os
-
-    try:
-        return max(2000, int(os.environ.get("MODELER_DATAROOM_FOCUS_CHARS") or FOCUS_CHARS))
-    except ValueError:
-        return FOCUS_CHARS
+FOCUS_CHARS = 14000      # the pages shown to the extractor up front (about 3,500 tokens); run_room(focus_chars=…)
 
 
 def _too_large(error: str) -> bool:
@@ -214,7 +205,8 @@ D clinical: per study the design, dose, products and batches per treatment, fast
 Each checklist item gets topics from: """ + ", ".join(TOPICS) + "."
 
 
-def question(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, step: Step, only: set[str] | None = None) -> str:
+def question(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, step: Step, only: set[str] | None = None,
+             focus_chars: int = FOCUS_CHARS) -> str:
     card, confirmed = store.question()
     if card is not None and (confirmed or not redo):
         return "the question card is already there" + (" and confirmed" if confirmed else "")
@@ -227,7 +219,7 @@ def question(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, 
         return (3 * any(w in name for w in ("proposal", "request", "scope", "email", "pasted", "letter"))
                 + 2 * bool(t and set(t.topics) & {"question", "regulatory"}) + (f.kind in ("docx", "image")))
     ranked = sorted(docs.items(), key=lambda kv: -weight(kv[0], kv[1][0]))[:4]
-    per_file = max(800, focus_chars() // 4)
+    per_file = max(800, focus_chars // 4)
     material = "\n\n".join(f"=== {p}\n{_focus(d, ['question'], budget=per_file)}" for p, (_f, d) in ranked)
     saved: list[BaseModel] = []
 
@@ -270,7 +262,8 @@ declarations, a duplicate printout), with one plain sentence why. topics from: "
 study (its number) and the products the file is about, as written."""
 
 
-def triage(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, step: Step, only: set[str] | None = None) -> str:
+def triage(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, step: Step, only: set[str] | None = None,
+          focus_chars: int = FOCUS_CHARS) -> str:
     docs = {p: v for p, v in _used_files(store).items() if only is None or p in only}
     todo = [(p, f, d) for p, (f, d) in docs.items() if redo or store.triage(f.sha256) is None]
     card, _confirmed = store.question()
@@ -347,7 +340,8 @@ def _extraction_problems(answer: Extraction, path: str, f: FileView, doc: Source
     return problems
 
 
-def extract(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, step: Step, only: set[str] | None = None) -> str:
+def extract(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, step: Step, only: set[str] | None = None,
+            focus_chars: int = FOCUS_CHARS) -> str:
     docs = {p: v for p, v in _used_files(store).items() if only is None or p in only}
     card, _confirmed = store.question()
     checklist = "\n".join(f"- {c.id} [{c.area}] {c.label} (topics: {', '.join(c.topics)})" for c in (card.checklist if card else ()))
@@ -377,7 +371,7 @@ def extract(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, s
                     f"{', '.join(f'{p.name} ({len(p.lines)} lines)' for p in _parts(doc)[:120])}\n\n"
                     f"The pages most likely to hold what the checklist needs (open others with the tools):\n"
                     f"{_focus(doc, topics, budget=budget)}")
-        budget = focus_chars()
+        budget = max(2000, focus_chars)
         outcome = run_tool_loop(model, system=extract_system(topics), user=user(budget), tools=tools, max_turns=14)
         if not saved and _too_large(outcome.error):      # a provider's per-request limit: the same, with fewer pages
             outcome = run_tool_loop(model, system=extract_system(topics), user=user(budget // 3), tools=tools, max_turns=10)
@@ -417,7 +411,8 @@ class _Review(BaseModel):
     tables: list[dict[str, Any]]
 
 
-def check(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, step: Step, only: set[str] | None = None) -> str:
+def check(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, step: Step, only: set[str] | None = None,
+          focus_chars: int = FOCUS_CHARS) -> str:
     docs = {p: v for p, v in _used_files(store).items() if only is None or p in only}
     todo = [(p, f, d, got[0]) for p, (f, d) in docs.items() if (got := store.extraction(f.sha256)) and got[0].tables]
     issues = 0
@@ -460,7 +455,8 @@ def _numbers_ok(text: str, allowed: str) -> bool:
     return all(n in allowed for n in re.findall(r"\d+(?:\.\d+)?", text))
 
 
-def write(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, step: Step, only: set[str] | None = None) -> str:
+def write(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, step: Step, only: set[str] | None = None,
+          focus_chars: int = FOCUS_CHARS) -> str:
     view = room_view(store)
     material = json.dumps({
         "sections": [s.model_dump() for s in view.sections],

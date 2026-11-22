@@ -96,6 +96,21 @@ def test_a_tool_call_the_provider_refuses_is_sent_back_to_the_model_to_correct()
     assert "Your last tool call was refused" in bodies[1]["messages"][-1]["content"]
 
 
+def test_a_spent_daily_limit_is_said_at_once_not_waited_on():
+    calls, waits = [], []
+
+    def handler(request):
+        calls.append(1)
+        return httpx.Response(429, headers={"retry-after": "1580"}, json={"error": {
+            "message": "Rate limit reached for model on tokens per day (TPD): Limit 200000, Used 199093"}})
+
+    chat = OpenAICompatChat(provider="groq", base_url="https://x", api_key="k", model="m", max_retries=4,
+                            transport=httpx.MockTransport(handler), sleep=waits.append)
+    with pytest.raises(Exception, match="daily limit is reached"):
+        chat.complete([], [])
+    assert (len(calls), waits) == (1, [])
+
+
 def test_client_does_not_retry_a_refusal():
     calls = []
 

@@ -183,6 +183,9 @@ def _retry_after(response: httpx.Response) -> float | None:
     """How long a 429 asks the client to wait (the Retry-After header, in seconds), at most RETRY_AFTER_MAX_S."""
     if response.status_code != 429:
         return None
+    if "per day" in _error_message(response).lower():
+        # a daily budget is spent: waiting minutes does not help; say so at once
+        raise LLMUnavailableError(f"the provider's daily limit is reached: {_error_message(response)}")
     try:
         return min(max(float(response.headers.get("retry-after", "")), 0.5), RETRY_AFTER_MAX_S)
     except ValueError:

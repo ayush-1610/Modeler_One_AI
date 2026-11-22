@@ -51,9 +51,12 @@ class _Run:
 
 def run_room(store: DataRoomStore, *, chat_for: Callable[[str], ChatModel | None], actor: str,
              stages: Sequence[str] | None = None, redo: Sequence[str] = (), use_ocr: bool = True,
-             workers: int | None = None, files: Sequence[str] | None = None) -> dict[str, Any]:
+             workers: int | None = None, files: Sequence[str] | None = None,
+             focus_chars: int | None = None) -> dict[str, Any]:
     """Run the Data room's stages in order and return the run's record (also in `store.run()`). `files` limits the
-    agents' per-file stages (triage, extract, check) to those paths (a file added later, one to read again)."""
+    agents' per-file stages (triage, extract, check) to those paths (a file added later, one to read again).
+    `focus_chars` is the page budget an agent gets up front (default `stages.FOCUS_CHARS`; less for a model with a small
+    per-request limit, such as GroqCloud's free tier)."""
     from modeler_agents.dataroom import stages as agent_stages
 
     wanted = list(stages) if stages is not None else [sid for sid, _l, _a in RUN_STAGES]
@@ -75,6 +78,7 @@ def run_room(store: DataRoomStore, *, chat_for: Callable[[str], ChatModel | None
                 continue
             run.doc["agents"][agent] = f"{model.provider}/{model.model}"
             note = getattr(agent_stages, sid)(store, model, actor=actor, redo=sid in redo, only=set(files) if files else None,
+                                              focus_chars=focus_chars or agent_stages.FOCUS_CHARS,
                                               step=lambda done, total, note="", _sid=sid: run.step(_sid, done=done, total=total,
                                                                                                     note=note))
             run.step(sid, state="done", note=note or run.stage(sid)["note"])
