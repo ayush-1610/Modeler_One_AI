@@ -271,7 +271,8 @@ repository):
 **Open, in order:**
 1. Score A6–A10 on the sample delivery per model. Nemotron Ultra, 2026-11-22: 31 of 34 values on the key files
    (every set and exposure; the dissolution file failed on NVIDIA's 502s). Still to score: Qwen Coder on the server,
-   and StepFun Step-5 (running here). The A8 dissolution file on Nemotron is still to repeat.
+   and the dissolution report on Nemotron: NVIDIA answered HTTP 502 to it in three runs, at the full and half page
+   budget, while every other file went through. StepFun Step-5 failed every file with the same 502 and was stopped.
    - The owner's GroqCloud key is on the free tier (8,000 tokens a minute and per request, 200,000 a day). The owner
      could not upgrade it (2026-11-22).
    - So the default is the in-house Qwen Coder, on the server, after Ollama's context window is raised to 32k. The

@@ -32,7 +32,7 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
   - every subject set, every exposure (Cmax, AUC0–t, AUC0–∞, Tmax for both arms), the arms, the dose, water, LLOQ,
     ethnicity, the demographics and the six solubilities;
   - the remaining three are the sex written "Male" for "male" (the same decision), and the dissolution report, which
-    NVIDIA's service failed five times (HTTP 502).
+    NVIDIA's service answered with HTTP 502 in three runs, at the full and at half the page budget (not the size).
   - The question card on its own (A6, 14 turns with the submit reminder) named the question and the three products
     with the right roles.
 - **Impact:** facts an agent drew from data rows no longer change subject sets or counts; doses are masses. Rules file
