@@ -39,7 +39,7 @@ export type Rating = "low" | "medium" | "high";
 
 /** A route of the API, as the contract names it: "/api/v1/projects/{project_id}/brief". */
 export type Route = keyof paths;
-type Method = "get" | "post" | "put";
+type Method = "get" | "post" | "put" | "patch";
 type Operation<R extends Route, M extends Method> = NonNullable<paths[R][M]>;
 /** The routes that answer to a method. */
 export type RouteFor<M extends Method> = { [R in Route]: [Operation<R, M>] extends [never] ? never : R }[Route];
@@ -186,7 +186,7 @@ const UNREACHABLE = "The web server could not be reached. Check your connection 
  *  Error" of an error the API did not handle (a read sent once more for either changes nothing). */
 const fromApi = (res: Response) => (res.headers.get("content-type") ?? "").includes("application/json");
 
-async function request<T>(url: string, method: "GET" | "POST" | "PUT", body?: unknown): Promise<Envelope<T>> {
+async function request<T>(url: string, method: "GET" | "POST" | "PUT" | "PATCH", body?: unknown): Promise<Envelope<T>> {
   const call = () => withSession(() => fetch(url, {
     method,
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${BROWSER_TOKEN}` },
@@ -231,11 +231,12 @@ export function get<R extends RouteFor<"get">>(
   return request(path(route, params, query), "GET");
 }
 
-/** A typed browser write; the body is the route's request model (an empty object when the route takes none). */
-export function send<M extends "post" | "put", R extends RouteFor<M>>(
+/** A typed browser write (POST, PUT, or PATCH for a partial change); the body is the route's request model (an empty object
+ *  when the route takes none). */
+export function send<M extends "post" | "put" | "patch", R extends RouteFor<M>>(
   method: M, route: R, params: Params<R>, body?: Body<R, M>, query?: Record<string, string | undefined>,
 ): Promise<Envelope<Data<R, M>>> {
-  return request(path(route, params, query), method === "post" ? "POST" : "PUT", body ?? {});
+  return request(path(route, params, query), method === "post" ? "POST" : method === "put" ? "PUT" : "PATCH", body ?? {});
 }
 
 /** A typed multipart upload (files and form fields); the browser sets the multipart boundary itself. */

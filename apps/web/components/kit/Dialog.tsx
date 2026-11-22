@@ -20,8 +20,9 @@ export function Dialog({ title, onClose, size, above, dismiss, testId, returnFoc
   title: ReactNode;
   /** What Escape does. Leave it out for a dialog that must be answered with its buttons. */
   onClose?: () => void;
-  /** "peek": the source peek, in the centre over the dimmed, still-visible page (plan 2026-11-03 §3.3). */
-  size?: "narrow" | "wide" | "peek";
+  /** "peek": the source peek, in the centre over the dimmed, still-visible page (plan 2026-11-03 §3.3); "drawer": a
+   *  panel along the right edge, the page still in view (the Data room's source viewer, plan 2026-11-21 v2 §10). */
+  size?: "narrow" | "wide" | "peek" | "drawer";
   /** A click on the backdrop closes it too (the source peek: nothing in it is lost by closing). */
   dismiss?: boolean;
   /** Open over another dialog (the signing step-up opens over an escalation's decision). */
@@ -118,7 +119,7 @@ export function Dialog({ title, onClose, size, above, dismiss, testId, returnFoc
   // over the whole page, at the top of the document: an animated or sticky ancestor would otherwise hold a fixed dialog
   // inside its own box, under the sidebar
   return createPortal(
-    <div className={`dialog-backdrop${above ? " step-up" : ""}${size === "peek" ? " peek" : ""}`} data-testid={testId}
+    <div className={`dialog-backdrop${above ? " step-up" : ""}${size === "peek" || size === "drawer" ? ` ${size}` : ""}`} data-testid={testId}
          onKeyDown={onKeyDown} onMouseDown={dismiss ? (e) => { if (e.target === e.currentTarget) close.current?.(); } : undefined}>
       <div ref={panel} className={`dialog${size ? ` ${size}` : ""}`} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}>
         <h2 id={titleId} className="dialog-title">{title}</h2>

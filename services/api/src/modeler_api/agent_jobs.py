@@ -6,7 +6,8 @@ the agents package touches this file, not the HTTP layer. What is here:
 - the configured model (`chat_model`, `require_chat_model`, `agents_status`);
 - an agent run's record (`AgentRun`: started, each step logged, finished once) and the records a page lists;
 - one entry point per agent: A1 proposal intake, A2/A3 literature research, A4 sheet triage, sheet reading, client
-  documents, and the intake pipeline's table mapper and prose extractor, A5 planning.
+  documents, and the intake pipeline's table mapper and prose extractor, A5 planning, and the Data room's run (its
+  reading by code, then A6-A10, each on the model the console set for it).
 
 Each imports `modeler_agents` when called: the package brings the provider SDKs, which an API that runs with agents off
 never needs to load.
@@ -308,3 +309,22 @@ def planning(model, *, plan, cpf, rows, actor: str, exploratory: bool, drug: str
 
     ctx = PlanningContext(plan=plan, cpf=cpf, rows=rows, actor=actor, exploratory=exploratory)
     return ctx, run_planning(model, ctx, drug=drug, max_turns=max_turns, log_step=log_step)
+
+
+def dataroom_stages() -> tuple[tuple[str, str, str], ...]:
+    """The Data room run's stages: (id, what the page says while it runs, the agent that does it or "" for code)."""
+    from modeler_agents.dataroom import RUN_STAGES
+
+    return RUN_STAGES
+
+
+def dataroom_run(store, *, actor: str, stages=None, redo=(), files=None, use_ocr: bool = True) -> dict[str, Any]:
+    """The Data room's run on `store` (a `DataRoomStore`): the files read by code (OCR included), then A6 the question, A7
+    the files sorted, A8 the extraction, A9 the check and A10 the writing, each on the model the admin console set for it
+    (`chat_model`, read for each stage, so a change in the console applies to the next run); a stage whose agent has no
+    model is skipped and says so. `files`: the per-file stages for these paths only (one file extracted again). Its
+    progress is the store's `run.json`; the record is returned when it ends."""
+    from modeler_agents.dataroom import run_room
+
+    return run_room(store, chat_for=lambda agent: chat_model(agent)[0], actor=actor, stages=stages, redo=redo,
+                    files=files or None, use_ocr=use_ocr)

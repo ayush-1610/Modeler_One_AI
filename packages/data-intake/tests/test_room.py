@@ -17,8 +17,10 @@ from modeler_intake.room import (
     find_quote,
     is_junk,
     numbers_in,
+    page_png,
     read_delivery,
     read_file,
+    reading_pdf,
     sniff_delimiter,
     upright_pdf,
 )
@@ -155,6 +157,23 @@ def test_the_reader_reports_the_pages_it_turned_and_reads_the_copy():
     room = read_file("Part B/Dissolution.pdf", _pdf([_turned_page()]))
     assert room.turned_pages == (1,) and room.reading_copy and room.kind == "pdf" and room.state == "read"
     assert find_quote(room.document, "Avg 81 87 90") == ("p1", 4)
+
+
+def test_the_source_viewer_draws_the_page_as_it_was_read_where_each_box_falls():
+    # the turned page is shown as the reader read it: upright, with its size in points the document's own, so a cell's
+    # box (points, top-left origin) is highlighted on the page shown
+    data = _pdf([_turned_page()])
+    room = read_file("Dissolution.pdf", data)
+    copy = reading_pdf("Dissolution.pdf", data)
+    assert copy == upright_pdf(data)[0] and copy != data
+    page = room.document.pages[0]
+    png = page_png(copy, 1, scale=1.0)
+    assert png[:8] == b"\x89PNG\r\n\x1a\n"
+    width, height = int.from_bytes(png[16:20], "big"), int.from_bytes(png[20:24], "big")
+    assert (width, height) == (round(page.width), round(page.height)) == (H, W)
+    assert reading_pdf("conc.txt", b"a\tb\tc\n1\t2\t3\n4\t5\t6\n") is None and reading_pdf("notes.docx", b"PK") is None
+    with pytest.raises(IndexError):
+        page_png(copy, 2)
 
 
 # --- scans ------------------------------------------------------------------------------------------------------------

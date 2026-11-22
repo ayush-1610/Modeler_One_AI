@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { createPortal } from "react-dom";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -18,6 +18,7 @@ const ICONS = {
   add: "M12 5v14 M5 12h14",
   library: "M4 19.5A2.5 2.5 0 0 1 6.5 17H20 M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z",
   history: "M12 7v5l3 2 M21 12a9 9 0 1 1-3-6.7 M21 4v5h-5",
+  room: "M3 7.5 12 3l9 4.5-9 4.5z M3 7.5V17l9 4.5 9-4.5V7.5 M12 12v9.5",
   admin: "M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z M9 12l2 2 4-4",
   collapse: "M4 6h10 M4 12h6 M4 18h10 M20 8l-4 4 4 4",
 } as const;
@@ -34,15 +35,18 @@ const PIN_KEY = "modeler-nav-pinned";
 /** The product's mark, "Dose to curve" (plan 2026-11-21 v2 §10, option A): a concentration curve rising from a dose
  *  point and settling, one line through small nodes, indigo to magenta, on a transparent background (no box). The same
  *  mark is the app's icon (app/icon.svg). */
-function Logo() {
+export function Logo({ size = 28 }: { size?: number }) {
+  // each mark its own gradient: a second mark on the page (the report's cover) must not lean on the sidebar's, which
+  // print hides
+  const gradient = `mo-la-${useId().replace(/:/g, "")}`;
   return (
-    <svg className="brand-logo" aria-hidden viewBox="0 0 64 64" width="28" height="28">
+    <svg className="brand-logo" aria-hidden viewBox="0 0 64 64" width={size} height={size}>
       <defs>
-        <linearGradient id="mo-la" x1="0" y1="1" x2="1" y2="0">
+        <linearGradient id={gradient} x1="0" y1="1" x2="1" y2="0">
           <stop offset="0" stopColor="#3B1F7A" /><stop offset="1" stopColor="#C2307A" />
         </linearGradient>
       </defs>
-      <path d="M8 50 C 13 50, 15 17, 23 17 S 36 40, 58 46" fill="none" stroke="url(#mo-la)" strokeWidth="5" strokeLinecap="round" />
+      <path d="M8 50 C 13 50, 15 17, 23 17 S 36 40, 58 46" fill="none" stroke={`url(#${gradient})`} strokeWidth="5" strokeLinecap="round" />
       <circle cx="8" cy="50" r="5" fill="#3B1F7A" />
       <circle cx="23" cy="17" r="4" fill="#fff" stroke="#5B2C9C" strokeWidth="3" />
       <circle cx="42" cy="38.6" r="3.4" fill="#fff" stroke="#A8307F" strokeWidth="3" />
@@ -58,11 +62,12 @@ function useApiLive(): boolean | null {
   return esc.data !== null ? true : esc.problem ? false : null;
 }
 
-type Item = { href: string; label: string; icon: string; active: boolean; testId?: string };
+type Item = { href: string; label: string; icon: string; active: boolean; testId?: string; prefetch?: boolean };
 
 function NavLink({ l }: { l: Item }) {
   return (
-    <Link href={l.href} className={l.active ? "active" : ""} aria-current={l.active ? "page" : undefined} title={l.label} data-testid={l.testId}>
+    <Link href={l.href} className={l.active ? "active" : ""} aria-current={l.active ? "page" : undefined} title={l.label} data-testid={l.testId}
+          prefetch={l.prefetch}>
       <span className="nav-glyph"><Icon d={l.icon} /></span>
       <span className="nav-text">{l.label}</span>
     </Link>
@@ -153,6 +158,10 @@ export function Nav({ user }: { user?: string | null }) {
           <button type="button" className="nav-action" data-testid="nav-add-data" onClick={() => setAdding(true)} title="Add data">
             <span className="nav-glyph"><Icon d={ICONS.add} /></span><span className="nav-text">Add data</span>
           </button>
+          {/* the Inputs step's Data room (plan 2026-11-21 v2 §4: beside the earlier Inputs page); not prefetched, so a
+              page drawn again on the server asks for nothing more than before */}
+          <NavLink l={{ href: `${projectHref}/dataroom`, label: "Data room", icon: ICONS.room, active: path.includes("/dataroom"),
+                        testId: "nav-dataroom", prefetch: false }} />
           <NavLink l={{ href: `${projectHref}/library`, label: "Project Document Library", icon: ICONS.library,
                         active: path.endsWith("/library"), testId: "nav-library" }} />
           <NavLink l={{ href: `${projectHref}/history`, label: "History", icon: ICONS.history,

@@ -20,7 +20,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
-from modeler_project.dataroom.model import Chip, DataRoomView, InputRow, StudyView
+from modeler_project.dataroom.model import Chip, DataRoomView, InputRow, RoomStudy
 from modeler_project.datasets import ObservedDataset, Origin, Series, check_dataset
 from modeler_project.evidence import EvidenceItem, EvidenceState, Extraction, SourceRef, SourceType
 from modeler_project.workspace import Workspace
@@ -63,7 +63,7 @@ def _evidence(row: InputRow, target: str, value: float | str, *, by: str, note: 
         purpose="model_building", proposed_by=by, note=note)
 
 
-def _dataset(view: StudyView, treatment: str, set_name: str, *, rows: list[InputRow], by: str,
+def _dataset(view: RoomStudy, treatment: str, set_name: str, *, rows: list[InputRow], by: str,
              formulation_name: str | None) -> tuple[ObservedDataset | None, str]:
     owner = f"{view.study_id} · {treatment}"
     profile = next((p for p in view.profiles if p.treatment == treatment and p.analysis_set == set_name), None)

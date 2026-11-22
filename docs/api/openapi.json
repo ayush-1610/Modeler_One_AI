@@ -1070,6 +1070,81 @@
         "title": "ArchivedView",
         "type": "object"
       },
+      "Arm": {
+        "additionalProperties": false,
+        "properties": {
+          "meaning": {
+            "default": "",
+            "title": "Meaning",
+            "type": "string"
+          },
+          "product": {
+            "default": "",
+            "title": "Product",
+            "type": "string"
+          },
+          "role": {
+            "default": "",
+            "title": "Role",
+            "type": "string"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Chip"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "treatment": {
+            "title": "Treatment",
+            "type": "string"
+          }
+        },
+        "required": [
+          "treatment",
+          "meaning",
+          "product",
+          "role",
+          "source"
+        ],
+        "title": "Arm",
+        "type": "object"
+      },
+      "ArmProfile": {
+        "additionalProperties": false,
+        "properties": {
+          "analysis_set": {
+            "title": "Analysis Set",
+            "type": "string"
+          },
+          "n_subjects": {
+            "title": "N Subjects",
+            "type": "integer"
+          },
+          "points": {
+            "items": {
+              "$ref": "#/components/schemas/MeanPoint"
+            },
+            "title": "Points",
+            "type": "array"
+          },
+          "treatment": {
+            "title": "Treatment",
+            "type": "string"
+          }
+        },
+        "required": [
+          "treatment",
+          "analysis_set",
+          "n_subjects",
+          "points"
+        ],
+        "title": "ArmProfile",
+        "type": "object"
+      },
       "ArtifactKind": {
         "description": "What a phase produces (plan §5.2). Order follows the phases.",
         "enum": [
@@ -1501,6 +1576,23 @@
           "files"
         ],
         "title": "Body_upload_client_files_api_v1_projects__project_id__client_data_post",
+        "type": "object"
+      },
+      "Body_upload_dataroom_files_api_v1_projects__project_id__dataroom_uploads_post": {
+        "properties": {
+          "files": {
+            "items": {
+              "contentMediaType": "application/octet-stream",
+              "type": "string"
+            },
+            "title": "Files",
+            "type": "array"
+          }
+        },
+        "required": [
+          "files"
+        ],
+        "title": "Body_upload_dataroom_files_api_v1_projects__project_id__dataroom_uploads_post",
         "type": "object"
       },
       "Body_upload_documents_api_v1_projects__project_id__documents_post": {
@@ -2653,6 +2745,137 @@
         "title": "ChangeView",
         "type": "object"
       },
+      "ChecklistItem": {
+        "additionalProperties": false,
+        "properties": {
+          "area": {
+            "enum": [
+              "A",
+              "B",
+              "C",
+              "D"
+            ],
+            "title": "Area",
+            "type": "string"
+          },
+          "id": {
+            "description": "short id, e.g. B-dissolution-all-media",
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "required": {
+            "default": true,
+            "title": "Required",
+            "type": "boolean"
+          },
+          "topics": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Topics",
+            "type": "array"
+          },
+          "why": {
+            "default": "",
+            "title": "Why",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "area"
+        ],
+        "title": "ChecklistItem",
+        "type": "object"
+      },
+      "Chip": {
+        "additionalProperties": false,
+        "description": "Where a value was read: a file, a part (p3, sheet:Name, body), a line and a cell of it.",
+        "properties": {
+          "box": {
+            "anyOf": [
+              {
+                "maxItems": 4,
+                "minItems": 4,
+                "prefixItems": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ],
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Box"
+          },
+          "cell": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cell"
+          },
+          "file": {
+            "title": "File",
+            "type": "string"
+          },
+          "line": {
+            "title": "Line",
+            "type": "integer"
+          },
+          "part": {
+            "title": "Part",
+            "type": "string"
+          },
+          "ref": {
+            "default": "",
+            "title": "Ref",
+            "type": "string"
+          },
+          "sha256": {
+            "default": "",
+            "title": "Sha256",
+            "type": "string"
+          },
+          "text": {
+            "default": "",
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file",
+          "sha256",
+          "part",
+          "line",
+          "cell",
+          "text",
+          "box",
+          "ref"
+        ],
+        "title": "Chip",
+        "type": "object"
+      },
       "ChoiceRequest": {
         "properties": {
           "key": {
@@ -3173,6 +3396,49 @@
           "ki"
         ],
         "title": "CompetitiveInhibition",
+        "type": "object"
+      },
+      "CompositionRow": {
+        "additionalProperties": false,
+        "properties": {
+          "amounts": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Amounts",
+            "type": "object"
+          },
+          "changed": {
+            "default": false,
+            "title": "Changed",
+            "type": "boolean"
+          },
+          "component": {
+            "title": "Component",
+            "type": "string"
+          },
+          "function": {
+            "default": "",
+            "title": "Function",
+            "type": "string"
+          },
+          "sources": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/Chip"
+            },
+            "title": "Sources",
+            "type": "array"
+          }
+        },
+        "required": [
+          "component",
+          "function",
+          "amounts",
+          "changed",
+          "sources"
+        ],
+        "title": "CompositionRow",
         "type": "object"
       },
       "CompoundRow": {
@@ -4050,6 +4316,237 @@
           "status"
         ],
         "title": "DataPlanStatus",
+        "type": "object"
+      },
+      "DataRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "area": {
+            "enum": [
+              "A",
+              "B",
+              "C",
+              "D"
+            ],
+            "title": "Area",
+            "type": "string"
+          },
+          "checklist": {
+            "default": "",
+            "title": "Checklist",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "input": {
+            "default": "",
+            "title": "Input",
+            "type": "string"
+          },
+          "status": {
+            "default": "open",
+            "enum": [
+              "open",
+              "not_needed",
+              "answered"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "why": {
+            "title": "Why",
+            "type": "string"
+          },
+          "wording": {
+            "default": "",
+            "title": "Wording",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "area",
+          "title",
+          "why",
+          "wording",
+          "status",
+          "checklist",
+          "input"
+        ],
+        "title": "DataRequest",
+        "type": "object"
+      },
+      "DataRoomView": {
+        "additionalProperties": false,
+        "description": "The Data room of one project, as the page and the report show it.",
+        "properties": {
+          "adme": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/Value"
+            },
+            "title": "Adme",
+            "type": "array"
+          },
+          "composition": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/CompositionRow"
+            },
+            "title": "Composition",
+            "type": "array"
+          },
+          "decisions": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/RoomDecision"
+            },
+            "title": "Decisions",
+            "type": "array"
+          },
+          "dissolution": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/DissolutionView"
+            },
+            "title": "Dissolution",
+            "type": "array"
+          },
+          "f2": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/F2View"
+            },
+            "title": "F2",
+            "type": "array"
+          },
+          "files": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/FileView"
+            },
+            "title": "Files",
+            "type": "array"
+          },
+          "inputs": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/InputRow"
+            },
+            "title": "Inputs",
+            "type": "array"
+          },
+          "plan": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/PlanRow"
+            },
+            "title": "Plan",
+            "type": "array"
+          },
+          "problems": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/Problem"
+            },
+            "title": "Problems",
+            "type": "array"
+          },
+          "products": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/Value"
+            },
+            "title": "Products",
+            "type": "array"
+          },
+          "question": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/QuestionCard"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "question_confirmed": {
+            "default": false,
+            "title": "Question Confirmed",
+            "type": "boolean"
+          },
+          "requests": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/DataRequest"
+            },
+            "title": "Requests",
+            "type": "array"
+          },
+          "rules": {
+            "title": "Rules",
+            "type": "string"
+          },
+          "sections": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/Section"
+            },
+            "title": "Sections",
+            "type": "array"
+          },
+          "solubility": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/SolubilityRow"
+            },
+            "title": "Solubility",
+            "type": "array"
+          },
+          "studies": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/RoomStudy"
+            },
+            "title": "Studies",
+            "type": "array"
+          },
+          "substance": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/Value"
+            },
+            "title": "Substance",
+            "type": "array"
+          }
+        },
+        "required": [
+          "rules",
+          "files",
+          "question",
+          "question_confirmed",
+          "sections",
+          "substance",
+          "adme",
+          "products",
+          "composition",
+          "solubility",
+          "dissolution",
+          "f2",
+          "studies",
+          "decisions",
+          "requests",
+          "plan",
+          "inputs",
+          "problems"
+        ],
+        "title": "DataRoomView",
         "type": "object"
       },
       "DatasetBody": {
@@ -10731,6 +11228,206 @@
         "title": "DissolutionProfile",
         "type": "object"
       },
+      "DissolutionView": {
+        "additionalProperties": false,
+        "properties": {
+          "apparatus": {
+            "default": "",
+            "title": "Apparatus",
+            "type": "string"
+          },
+          "batch": {
+            "default": "",
+            "title": "Batch",
+            "type": "string"
+          },
+          "client_mean": {
+            "default": [],
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Client Mean",
+            "type": "array"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "mean": {
+            "default": [],
+            "items": {
+              "type": "number"
+            },
+            "title": "Mean",
+            "type": "array"
+          },
+          "medium": {
+            "default": "",
+            "title": "Medium",
+            "type": "string"
+          },
+          "n_units": {
+            "default": 0,
+            "title": "N Units",
+            "type": "integer"
+          },
+          "ph": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ph"
+          },
+          "plateau": {
+            "default": false,
+            "title": "Plateau",
+            "type": "boolean"
+          },
+          "problems": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/Problem"
+            },
+            "title": "Problems",
+            "type": "array"
+          },
+          "product": {
+            "default": "",
+            "title": "Product",
+            "type": "string"
+          },
+          "rpm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rpm"
+          },
+          "sd": {
+            "default": [],
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Sd",
+            "type": "array"
+          },
+          "sources": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/Chip"
+            },
+            "title": "Sources",
+            "type": "array"
+          },
+          "times_min": {
+            "default": [],
+            "items": {
+              "type": "number"
+            },
+            "title": "Times Min",
+            "type": "array"
+          },
+          "very_rapid": {
+            "default": false,
+            "title": "Very Rapid",
+            "type": "boolean"
+          },
+          "volume_ml": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Volume Ml"
+          },
+          "weibull": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Weibull",
+            "type": "object"
+          },
+          "weibull_curve": {
+            "default": [],
+            "items": {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            "title": "Weibull Curve",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "product",
+          "batch",
+          "medium",
+          "ph",
+          "apparatus",
+          "rpm",
+          "volume_ml",
+          "n_units",
+          "times_min",
+          "mean",
+          "sd",
+          "client_mean",
+          "weibull",
+          "weibull_curve",
+          "very_rapid",
+          "plateau",
+          "sources",
+          "problems"
+        ],
+        "title": "DissolutionView",
+        "type": "object"
+      },
       "DissolvedFormulationSpec": {
         "additionalProperties": false,
         "properties": {
@@ -11563,6 +12260,31 @@
           "errors"
         ],
         "title": "Envelope[CpfView]",
+        "type": "object"
+      },
+      "Envelope_DataRoomView_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/DataRoomView"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[DataRoomView]",
         "type": "object"
       },
       "Envelope_DeliveryMappingVocabulary_": {
@@ -12765,6 +13487,131 @@
         "title": "Envelope[ReviewPage]",
         "type": "object"
       },
+      "Envelope_RoomPublication_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/RoomPublication"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[RoomPublication]",
+        "type": "object"
+      },
+      "Envelope_RoomPublished_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/RoomPublished"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[RoomPublished]",
+        "type": "object"
+      },
+      "Envelope_RoomRun_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/RoomRun"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[RoomRun]",
+        "type": "object"
+      },
+      "Envelope_RoomUploaded_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/RoomUploaded"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[RoomUploaded]",
+        "type": "object"
+      },
+      "Envelope_RoomUploads_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/RoomUploads"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[RoomUploads]",
+        "type": "object"
+      },
       "Envelope_RunAccepted_": {
         "additionalProperties": false,
         "properties": {
@@ -12838,6 +13685,56 @@
           "errors"
         ],
         "title": "Envelope[SnapshotPreview]",
+        "type": "object"
+      },
+      "Envelope_SourceFile_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/SourceFile"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[SourceFile]",
+        "type": "object"
+      },
+      "Envelope_SourcePart_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/SourcePart"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[SourcePart]",
         "type": "object"
       },
       "Envelope_StaleArtifacts_": {
@@ -14340,6 +15237,82 @@
         "title": "EvidenceView",
         "type": "object"
       },
+      "Exposure": {
+        "additionalProperties": false,
+        "properties": {
+          "analysis_set": {
+            "title": "Analysis Set",
+            "type": "string"
+          },
+          "client": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client"
+          },
+          "difference_percent": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Difference Percent"
+          },
+          "metric": {
+            "title": "Metric",
+            "type": "string"
+          },
+          "n": {
+            "title": "N",
+            "type": "integer"
+          },
+          "statistic": {
+            "title": "Statistic",
+            "type": "string"
+          },
+          "treatment": {
+            "title": "Treatment",
+            "type": "string"
+          },
+          "unit": {
+            "default": "",
+            "title": "Unit",
+            "type": "string"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "treatment",
+          "analysis_set",
+          "n",
+          "metric",
+          "statistic",
+          "value",
+          "unit",
+          "client",
+          "difference_percent"
+        ],
+        "title": "Exposure",
+        "type": "object"
+      },
       "ExpressionSpec": {
         "additionalProperties": false,
         "description": "An enzyme, transporter or other-protein expression profile. Real OSP transporter profiles carry no\nLocalization (PK-Sim supplies it for the named transporter), so it is emitted only when set; enzymes keep\nthe standard intracellular localization by default.\n\n``harvested`` is a profile copied verbatim from an OSP reference snapshot (`pbpk_domain.expression`): its\nper-organ relative expressions, half-lives, transport directions and ontogeny. Without those every organ's\nrelative expression is zero and the protein's processes do nothing, so a campaign build always uses a\nharvested profile; the bare form (molecule and reference concentration only) exists for builder tests.",
@@ -14483,6 +15456,123 @@
           "problem"
         ],
         "title": "ExtractionStart",
+        "type": "object"
+      },
+      "F2View": {
+        "additionalProperties": false,
+        "properties": {
+          "applicable": {
+            "title": "Applicable",
+            "type": "boolean"
+          },
+          "reasons": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Reasons",
+            "type": "array"
+          },
+          "reference": {
+            "title": "Reference",
+            "type": "string"
+          },
+          "similar": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Similar"
+          },
+          "test": {
+            "title": "Test",
+            "type": "string"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "test",
+          "reference",
+          "value",
+          "similar",
+          "applicable",
+          "reasons"
+        ],
+        "title": "F2View",
+        "type": "object"
+      },
+      "Fact": {
+        "additionalProperties": false,
+        "properties": {
+          "field": {
+            "description": "a dotted field from the vocabulary, or a new dotted name",
+            "title": "Field",
+            "type": "string"
+          },
+          "file": {
+            "default": "",
+            "title": "File",
+            "type": "string"
+          },
+          "note": {
+            "default": "",
+            "title": "Note",
+            "type": "string"
+          },
+          "part": {
+            "default": "",
+            "description": "where: p<page>, sheet:<name> or body",
+            "title": "Part",
+            "type": "string"
+          },
+          "product": {
+            "default": "",
+            "description": "the product (as named on the question card) the fact concerns, if any",
+            "title": "Product",
+            "type": "string"
+          },
+          "quote": {
+            "description": "the verbatim text from the file that contains the value (one to three lines)",
+            "title": "Quote",
+            "type": "string"
+          },
+          "subject": {
+            "default": "",
+            "description": "what the fact is about, as written (a study, product, batch, code, subject)",
+            "title": "Subject",
+            "type": "string"
+          },
+          "unit": {
+            "default": "",
+            "title": "Unit",
+            "type": "string"
+          },
+          "value": {
+            "description": "the value exactly as written in the file",
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "field",
+          "value",
+          "quote"
+        ],
+        "title": "Fact",
         "type": "object"
       },
       "FeedbackEvidence": {
@@ -14767,6 +15857,155 @@
           "at"
         ],
         "title": "FileTagView",
+        "type": "object"
+      },
+      "FileTriage": {
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "products": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Products",
+            "type": "array"
+          },
+          "purpose": {
+            "enum": [
+              "used",
+              "context",
+              "not_needed"
+            ],
+            "title": "Purpose",
+            "type": "string"
+          },
+          "reason": {
+            "description": "one plain sentence: what the file is and why it is (not) needed",
+            "title": "Reason",
+            "type": "string"
+          },
+          "study": {
+            "default": "",
+            "title": "Study",
+            "type": "string"
+          },
+          "topics": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Topics",
+            "type": "array"
+          }
+        },
+        "required": [
+          "path",
+          "purpose",
+          "reason"
+        ],
+        "title": "FileTriage",
+        "type": "object"
+      },
+      "FileView": {
+        "additionalProperties": false,
+        "properties": {
+          "duplicate_of": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duplicate Of"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "ocr_pages": {
+            "default": [],
+            "items": {
+              "type": "integer"
+            },
+            "title": "Ocr Pages",
+            "type": "array"
+          },
+          "pages": {
+            "default": 0,
+            "title": "Pages",
+            "type": "integer"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "reason": {
+            "default": "",
+            "title": "Reason",
+            "type": "string"
+          },
+          "same_content_as": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Same Content As"
+          },
+          "sha256": {
+            "title": "Sha256",
+            "type": "string"
+          },
+          "state": {
+            "default": "read",
+            "title": "State",
+            "type": "string"
+          },
+          "triage": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FileTriage"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "turned_pages": {
+            "default": [],
+            "items": {
+              "type": "integer"
+            },
+            "title": "Turned Pages",
+            "type": "array"
+          }
+        },
+        "required": [
+          "path",
+          "name",
+          "sha256",
+          "kind",
+          "pages",
+          "ocr_pages",
+          "turned_pages",
+          "state",
+          "reason",
+          "duplicate_of",
+          "same_content_as",
+          "triage"
+        ],
+        "title": "FileView",
         "type": "object"
       },
       "FirstOrderMetabolism": {
@@ -15754,6 +16993,103 @@
           "emax"
         ],
         "title": "Induction",
+        "type": "object"
+      },
+      "InputRow": {
+        "additionalProperties": false,
+        "description": "One PK-Sim input: the building block, the PK-Sim (or CPF) name, the value, its source and status.",
+        "properties": {
+          "block": {
+            "enum": [
+              "compound",
+              "formulation",
+              "individual",
+              "protocol",
+              "event",
+              "observed",
+              "target"
+            ],
+            "title": "Block",
+            "type": "string"
+          },
+          "decision": {
+            "default": "",
+            "title": "Decision",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "note": {
+            "default": "",
+            "title": "Note",
+            "type": "string"
+          },
+          "owner": {
+            "default": "",
+            "title": "Owner",
+            "type": "string"
+          },
+          "sources": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/Chip"
+            },
+            "title": "Sources",
+            "type": "array"
+          },
+          "status": {
+            "default": "missing",
+            "enum": [
+              "verified",
+              "sponsor",
+              "literature",
+              "calculated",
+              "entered",
+              "conflict",
+              "missing"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "unit": {
+            "default": "",
+            "title": "Unit",
+            "type": "string"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "block",
+          "owner",
+          "name",
+          "label",
+          "value",
+          "unit",
+          "status",
+          "sources",
+          "decision",
+          "note"
+        ],
+        "title": "InputRow",
         "type": "object"
       },
       "InputStudyRow": {
@@ -18880,6 +20216,78 @@
         "title": "Meal",
         "type": "object"
       },
+      "MeanPoint": {
+        "additionalProperties": false,
+        "properties": {
+          "geomean": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Geomean"
+          },
+          "mean": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mean"
+          },
+          "n": {
+            "title": "N",
+            "type": "integer"
+          },
+          "n_blq": {
+            "default": 0,
+            "title": "N Blq",
+            "type": "integer"
+          },
+          "n_geo": {
+            "title": "N Geo",
+            "type": "integer"
+          },
+          "n_missing": {
+            "default": 0,
+            "title": "N Missing",
+            "type": "integer"
+          },
+          "sd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sd"
+          },
+          "time_h": {
+            "title": "Time H",
+            "type": "number"
+          }
+        },
+        "required": [
+          "time_h",
+          "n",
+          "mean",
+          "sd",
+          "n_geo",
+          "geomean",
+          "n_blq",
+          "n_missing"
+        ],
+        "title": "MeanPoint",
+        "type": "object"
+      },
       "Measured": {
         "additionalProperties": false,
         "description": "A value with its unit and provenance, as it will appear in the snapshot.",
@@ -19740,6 +21148,31 @@
           "values"
         ],
         "title": "ObservedProfile",
+        "type": "object"
+      },
+      "Option": {
+        "additionalProperties": false,
+        "properties": {
+          "detail": {
+            "default": "",
+            "title": "Detail",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "detail"
+        ],
+        "title": "Option",
         "type": "object"
       },
       "OralProtocolSpec": {
@@ -21335,6 +22768,47 @@
         "title": "PlanPage",
         "type": "object"
       },
+      "PlanRow": {
+        "additionalProperties": false,
+        "properties": {
+          "condition": {
+            "title": "Condition",
+            "type": "string"
+          },
+          "formulation": {
+            "title": "Formulation",
+            "type": "string"
+          },
+          "observed": {
+            "title": "Observed",
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "development",
+              "calibration",
+              "verification",
+              "prediction"
+            ],
+            "title": "Role",
+            "type": "string"
+          },
+          "why": {
+            "default": "",
+            "title": "Why",
+            "type": "string"
+          }
+        },
+        "required": [
+          "formulation",
+          "condition",
+          "observed",
+          "role",
+          "why"
+        ],
+        "title": "PlanRow",
+        "type": "object"
+      },
       "PlanSigned": {
         "additionalProperties": false,
         "description": "The page after `plan:sign`, and the signature the MAP carries.",
@@ -21548,6 +23022,47 @@
         "title": "PrepareRequest",
         "type": "object"
       },
+      "Problem": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "severity": {
+            "default": "warning",
+            "enum": [
+              "error",
+              "warning",
+              "info"
+            ],
+            "title": "Severity",
+            "type": "string"
+          },
+          "where": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Chip"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "code",
+          "message",
+          "severity",
+          "where"
+        ],
+        "title": "Problem",
+        "type": "object"
+      },
       "Product": {
         "additionalProperties": false,
         "properties": {
@@ -21565,6 +23080,39 @@
           "role"
         ],
         "title": "Product",
+        "type": "object"
+      },
+      "ProductRef": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "description": "as the files name it",
+            "title": "Name",
+            "type": "string"
+          },
+          "note": {
+            "default": "",
+            "title": "Note",
+            "type": "string"
+          },
+          "role": {
+            "description": "the product's part in the comparison: reference, test, original, reformulated or other",
+            "enum": [
+              "reference",
+              "test",
+              "original",
+              "reformulated",
+              "other"
+            ],
+            "title": "Role",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "role"
+        ],
+        "title": "ProductRef",
         "type": "object"
       },
       "ProjectArchiveState": {
@@ -22155,6 +23703,25 @@
         "title": "Provenance",
         "type": "object"
       },
+      "PublicationItem": {
+        "additionalProperties": false,
+        "properties": {
+          "target": {
+            "title": "Target",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "target",
+          "value"
+        ],
+        "title": "PublicationItem",
+        "type": "object"
+      },
       "PublishedIndividual": {
         "additionalProperties": false,
         "description": "The individual a published model simulates one study in, when it differs from the model's main individual\n(the OSP Rifampicin model's \"EHC off\" individual for its 7-day study; the Midazolam model's Korean individual,\nCYP3A5 *3/*3, for Yu 2004). ``parameters`` is that individual's complete set of physiology overrides (it replaces\nthe CPF's indiv.* records for this study: a value the main individual sets and this one does not is left at the\nPK-Sim default, never invented); ``expression`` holds its profile values that differ from the harvested library.\nPaths and units are copied from the snapshot.",
@@ -22302,6 +23869,57 @@
           }
         },
         "title": "QuestionAnswer",
+        "type": "object"
+      },
+      "QuestionCard": {
+        "additionalProperties": false,
+        "properties": {
+          "approach": {
+            "default": "",
+            "title": "Approach",
+            "type": "string"
+          },
+          "checklist": {
+            "items": {
+              "$ref": "#/components/schemas/ChecklistItem"
+            },
+            "title": "Checklist",
+            "type": "array"
+          },
+          "context_of_use": {
+            "default": "",
+            "title": "Context Of Use",
+            "type": "string"
+          },
+          "products": {
+            "items": {
+              "$ref": "#/components/schemas/ProductRef"
+            },
+            "title": "Products",
+            "type": "array"
+          },
+          "question": {
+            "title": "Question",
+            "type": "string"
+          },
+          "quotes": {
+            "description": "the facts the card rests on, each quoted",
+            "items": {
+              "$ref": "#/components/schemas/Fact"
+            },
+            "title": "Quotes",
+            "type": "array"
+          },
+          "regulator": {
+            "default": "",
+            "title": "Regulator",
+            "type": "string"
+          }
+        },
+        "required": [
+          "question"
+        ],
+        "title": "QuestionCard",
         "type": "object"
       },
       "QuestionOfInterest": {
@@ -24627,6 +26245,663 @@
         "title": "RiskView",
         "type": "object"
       },
+      "RoomChoice": {
+        "additionalProperties": false,
+        "properties": {
+          "chosen": {
+            "description": "the id of one of the decision's options",
+            "title": "Chosen",
+            "type": "string"
+          },
+          "reason": {
+            "default": "",
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "chosen"
+        ],
+        "title": "RoomChoice",
+        "type": "object"
+      },
+      "RoomDecision": {
+        "additionalProperties": false,
+        "description": "A modeling choice waiting for the modeler (named apart from the API's other decisions).",
+        "properties": {
+          "at": {
+            "default": "",
+            "title": "At",
+            "type": "string"
+          },
+          "by": {
+            "default": "",
+            "title": "By",
+            "type": "string"
+          },
+          "chosen": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chosen"
+          },
+          "evidence": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/Chip"
+            },
+            "title": "Evidence",
+            "type": "array"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "options": {
+            "items": {
+              "$ref": "#/components/schemas/Option"
+            },
+            "title": "Options",
+            "type": "array"
+          },
+          "question": {
+            "title": "Question",
+            "type": "string"
+          },
+          "reason": {
+            "default": "",
+            "title": "Reason",
+            "type": "string"
+          },
+          "suggested": {
+            "title": "Suggested",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "why": {
+            "default": "",
+            "title": "Why",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "question",
+          "options",
+          "suggested",
+          "why",
+          "evidence",
+          "chosen",
+          "reason",
+          "by",
+          "at"
+        ],
+        "title": "RoomDecision",
+        "type": "object"
+      },
+      "RoomEntered": {
+        "additionalProperties": false,
+        "properties": {
+          "key": {
+            "description": "the input it fills (a PK-Sim input's name)",
+            "pattern": "^[A-Za-z0-9_.:\\-\\[\\] ]{1,120}$",
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "reason": {
+            "description": "why this value: entered by a person, it needs one",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          },
+          "unit": {
+            "default": "",
+            "maxLength": 40,
+            "title": "Unit",
+            "type": "string"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "value",
+          "reason"
+        ],
+        "title": "RoomEntered",
+        "type": "object"
+      },
+      "RoomPublication": {
+        "additionalProperties": false,
+        "description": "What \"Send to the model\" would send now (`modeler_project.dataroom.publish.plan_publication`, nothing written),\nand what keeps it from being sent, in words.",
+        "properties": {
+          "blocked": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Blocked",
+            "type": "array"
+          },
+          "datasets": {
+            "items": {
+              "$ref": "#/components/schemas/PublicationItem"
+            },
+            "title": "Datasets",
+            "type": "array"
+          },
+          "evidence": {
+            "items": {
+              "$ref": "#/components/schemas/PublicationItem"
+            },
+            "title": "Evidence",
+            "type": "array"
+          }
+        },
+        "required": [
+          "evidence",
+          "datasets",
+          "blocked"
+        ],
+        "title": "RoomPublication",
+        "type": "object"
+      },
+      "RoomPublish": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "description": "why the inputs are sent now (kept with the signature)",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "title": "RoomPublish",
+        "type": "object"
+      },
+      "RoomPublished": {
+        "additionalProperties": false,
+        "description": "What was sent, signed: items written, items already in the project (skipped), and the signature.",
+        "properties": {
+          "datasets": {
+            "title": "Datasets",
+            "type": "integer"
+          },
+          "evidence": {
+            "title": "Evidence",
+            "type": "integer"
+          },
+          "manifestation": {
+            "title": "Manifestation",
+            "type": "string"
+          },
+          "signature_id": {
+            "title": "Signature Id",
+            "type": "string"
+          },
+          "skipped": {
+            "title": "Skipped",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "evidence",
+          "datasets",
+          "skipped",
+          "signature_id",
+          "manifestation"
+        ],
+        "title": "RoomPublished",
+        "type": "object"
+      },
+      "RoomQuestionBody": {
+        "additionalProperties": false,
+        "properties": {
+          "card": {
+            "$ref": "#/components/schemas/QuestionCard"
+          },
+          "confirmed": {
+            "default": false,
+            "title": "Confirmed",
+            "type": "boolean"
+          },
+          "reason": {
+            "default": "",
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "card"
+        ],
+        "title": "RoomQuestionBody",
+        "type": "object"
+      },
+      "RoomRequestEdit": {
+        "additionalProperties": false,
+        "properties": {
+          "status": {
+            "anyOf": [
+              {
+                "enum": [
+                  "open",
+                  "not_needed",
+                  "answered"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "wording": {
+            "anyOf": [
+              {
+                "maxLength": 4000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wording"
+          }
+        },
+        "title": "RoomRequestEdit",
+        "type": "object"
+      },
+      "RoomRun": {
+        "additionalProperties": false,
+        "description": "The Data room's background run (`modeler_agents.dataroom.run_room`): each stage with its live counts and note.",
+        "properties": {
+          "agents": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Agents",
+            "type": "object"
+          },
+          "error": {
+            "title": "Error",
+            "type": "string"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "stages": {
+            "items": {
+              "$ref": "#/components/schemas/RoomRunStage"
+            },
+            "title": "Stages",
+            "type": "array"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "state": {
+            "enum": [
+              "idle",
+              "running",
+              "done",
+              "failed"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "state",
+          "stages",
+          "agents",
+          "error",
+          "started_at",
+          "finished_at"
+        ],
+        "title": "RoomRun",
+        "type": "object"
+      },
+      "RoomRunStage": {
+        "additionalProperties": false,
+        "properties": {
+          "agent": {
+            "title": "Agent",
+            "type": "string"
+          },
+          "done": {
+            "title": "Done",
+            "type": "integer"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "note": {
+            "title": "Note",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "waiting",
+              "running",
+              "done",
+              "skipped",
+              "failed"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "agent",
+          "state",
+          "done",
+          "total",
+          "note"
+        ],
+        "title": "RoomRunStage",
+        "type": "object"
+      },
+      "RoomRunStart": {
+        "additionalProperties": false,
+        "properties": {
+          "files": {
+            "description": "the per-file stages for these files only (their paths)",
+            "items": {
+              "type": "string"
+            },
+            "title": "Files",
+            "type": "array"
+          },
+          "redo": {
+            "description": "stages whose kept answers are made again",
+            "items": {
+              "type": "string"
+            },
+            "title": "Redo",
+            "type": "array"
+          },
+          "stages": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "the stages to run (none named: every stage)",
+            "title": "Stages"
+          }
+        },
+        "title": "RoomRunStart",
+        "type": "object"
+      },
+      "RoomStudy": {
+        "additionalProperties": false,
+        "description": "One clinical study as the room shows it (named apart from the API's other study views).",
+        "properties": {
+          "arms": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/Arm"
+            },
+            "title": "Arms",
+            "type": "array"
+          },
+          "concentration_unit": {
+            "default": "",
+            "title": "Concentration Unit",
+            "type": "string"
+          },
+          "excluded": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Excluded",
+            "type": "object"
+          },
+          "exposures": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/Exposure"
+            },
+            "title": "Exposures",
+            "type": "array"
+          },
+          "facts": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/Value"
+            },
+            "title": "Facts",
+            "type": "array"
+          },
+          "lloq": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lloq"
+          },
+          "nca": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/SubjectNca"
+            },
+            "title": "Nca",
+            "type": "array"
+          },
+          "nca_method_client": {
+            "default": "",
+            "title": "Nca Method Client",
+            "type": "string"
+          },
+          "periods": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Periods",
+            "type": "array"
+          },
+          "problems": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/Problem"
+            },
+            "title": "Problems",
+            "type": "array"
+          },
+          "profiles": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/ArmProfile"
+            },
+            "title": "Profiles",
+            "type": "array"
+          },
+          "sets": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/SubjectSet"
+            },
+            "title": "Sets",
+            "type": "array"
+          },
+          "study_id": {
+            "title": "Study Id",
+            "type": "string"
+          },
+          "times_h": {
+            "default": [],
+            "items": {
+              "type": "number"
+            },
+            "title": "Times H",
+            "type": "array"
+          }
+        },
+        "required": [
+          "study_id",
+          "facts",
+          "arms",
+          "periods",
+          "times_h",
+          "sets",
+          "excluded",
+          "profiles",
+          "nca",
+          "exposures",
+          "nca_method_client",
+          "concentration_unit",
+          "lloq",
+          "problems"
+        ],
+        "title": "RoomStudy",
+        "type": "object"
+      },
+      "RoomUpload": {
+        "additionalProperties": false,
+        "description": "One upload as stored: a file or an archive, its bytes in the project's blobs.",
+        "properties": {
+          "at": {
+            "title": "At",
+            "type": "string"
+          },
+          "by": {
+            "title": "By",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "sha256": {
+            "title": "Sha256",
+            "type": "string"
+          },
+          "size_bytes": {
+            "title": "Size Bytes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "sha256",
+          "size_bytes",
+          "by",
+          "at"
+        ],
+        "title": "RoomUpload",
+        "type": "object"
+      },
+      "RoomUploaded": {
+        "additionalProperties": false,
+        "description": "What an upload added: `added` the uploads of this request (a file sent twice is stored once), `uploads` all.",
+        "properties": {
+          "added": {
+            "items": {
+              "$ref": "#/components/schemas/RoomUpload"
+            },
+            "title": "Added",
+            "type": "array"
+          },
+          "uploads": {
+            "items": {
+              "$ref": "#/components/schemas/RoomUpload"
+            },
+            "title": "Uploads",
+            "type": "array"
+          }
+        },
+        "required": [
+          "added",
+          "uploads"
+        ],
+        "title": "RoomUploaded",
+        "type": "object"
+      },
+      "RoomUploads": {
+        "additionalProperties": false,
+        "properties": {
+          "uploads": {
+            "items": {
+              "$ref": "#/components/schemas/RoomUpload"
+            },
+            "title": "Uploads",
+            "type": "array"
+          }
+        },
+        "required": [
+          "uploads"
+        ],
+        "title": "RoomUploads",
+        "type": "object"
+      },
       "RoundRecord": {
         "additionalProperties": false,
         "properties": {
@@ -25144,6 +27419,43 @@
           "supported"
         ],
         "title": "ScopeGateView",
+        "type": "object"
+      },
+      "Section": {
+        "additionalProperties": false,
+        "properties": {
+          "finding": {
+            "default": "",
+            "title": "Finding",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "status": {
+            "default": "empty",
+            "enum": [
+              "ok",
+              "attention",
+              "missing",
+              "empty"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "finding",
+          "status"
+        ],
+        "title": "Section",
         "type": "object"
       },
       "Series": {
@@ -26121,6 +28433,262 @@
           "snapshot"
         ],
         "title": "SnapshotPreview",
+        "type": "object"
+      },
+      "SolubilityRow": {
+        "additionalProperties": false,
+        "properties": {
+          "as_written": {
+            "default": "",
+            "title": "As Written",
+            "type": "string"
+          },
+          "fraction_in_glass": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fraction In Glass"
+          },
+          "fraction_in_medium": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fraction In Medium"
+          },
+          "medium": {
+            "title": "Medium",
+            "type": "string"
+          },
+          "ph": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ph"
+          },
+          "solubility_mg_ml": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Solubility Mg Ml"
+          },
+          "sources": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/Chip"
+            },
+            "title": "Sources",
+            "type": "array"
+          },
+          "volume_for_dose_ml": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Volume For Dose Ml"
+          }
+        },
+        "required": [
+          "medium",
+          "ph",
+          "solubility_mg_ml",
+          "as_written",
+          "volume_for_dose_ml",
+          "fraction_in_glass",
+          "fraction_in_medium",
+          "sources"
+        ],
+        "title": "SolubilityRow",
+        "type": "object"
+      },
+      "SourceCell": {
+        "additionalProperties": false,
+        "properties": {
+          "box": {
+            "anyOf": [
+              {
+                "maxItems": 4,
+                "minItems": 4,
+                "prefixItems": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ],
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Box"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text",
+          "ref",
+          "box"
+        ],
+        "title": "SourceCell",
+        "type": "object"
+      },
+      "SourceFile": {
+        "additionalProperties": false,
+        "description": "A delivered file as the source viewer opens it: its pages (with their size) or its parts of lines.",
+        "properties": {
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "pages": {
+            "items": {
+              "$ref": "#/components/schemas/SourcePage"
+            },
+            "title": "Pages",
+            "type": "array"
+          },
+          "parts": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Parts",
+            "type": "array"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "sha256": {
+            "title": "Sha256",
+            "type": "string"
+          }
+        },
+        "required": [
+          "sha256",
+          "name",
+          "path",
+          "kind",
+          "pages",
+          "parts"
+        ],
+        "title": "SourceFile",
+        "type": "object"
+      },
+      "SourceLine": {
+        "additionalProperties": false,
+        "properties": {
+          "cells": {
+            "items": {
+              "$ref": "#/components/schemas/SourceCell"
+            },
+            "title": "Cells",
+            "type": "array"
+          },
+          "number": {
+            "title": "Number",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "number",
+          "cells"
+        ],
+        "title": "SourceLine",
+        "type": "object"
+      },
+      "SourcePage": {
+        "additionalProperties": false,
+        "properties": {
+          "height": {
+            "title": "Height",
+            "type": "number"
+          },
+          "page": {
+            "title": "Page",
+            "type": "integer"
+          },
+          "width": {
+            "title": "Width",
+            "type": "number"
+          }
+        },
+        "required": [
+          "page",
+          "width",
+          "height"
+        ],
+        "title": "SourcePage",
+        "type": "object"
+      },
+      "SourcePart": {
+        "additionalProperties": false,
+        "description": "One part of a file (a sheet, a Word or text body, a page's lines), numbered as the agents read it.",
+        "properties": {
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/SourceLine"
+            },
+            "title": "Lines",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "sha256": {
+            "title": "Sha256",
+            "type": "string"
+          }
+        },
+        "required": [
+          "sha256",
+          "name",
+          "lines"
+        ],
+        "title": "SourcePart",
         "type": "object"
       },
       "SourceRef": {
@@ -27849,6 +30417,186 @@
         "title": "StudyWayView",
         "type": "object"
       },
+      "SubjectNca": {
+        "additionalProperties": false,
+        "properties": {
+          "auc_inf": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Auc Inf"
+          },
+          "auc_t": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Auc T"
+          },
+          "auc_t_linear": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Auc T Linear"
+          },
+          "client": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Client",
+            "type": "object"
+          },
+          "cmax": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cmax"
+          },
+          "differences": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Differences",
+            "type": "object"
+          },
+          "lambda_z": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lambda Z"
+          },
+          "period": {
+            "title": "Period",
+            "type": "string"
+          },
+          "subject": {
+            "title": "Subject",
+            "type": "string"
+          },
+          "t_half": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "T Half"
+          },
+          "tmax": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tmax"
+          },
+          "treatment": {
+            "title": "Treatment",
+            "type": "string"
+          }
+        },
+        "required": [
+          "subject",
+          "period",
+          "treatment",
+          "cmax",
+          "tmax",
+          "auc_t",
+          "auc_t_linear",
+          "auc_inf",
+          "t_half",
+          "lambda_z",
+          "client",
+          "differences"
+        ],
+        "title": "SubjectNca",
+        "type": "object"
+      },
+      "SubjectSet": {
+        "additionalProperties": false,
+        "properties": {
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "rule": {
+            "title": "Rule",
+            "type": "string"
+          },
+          "source": {
+            "default": "calculated",
+            "enum": [
+              "verified",
+              "sponsor",
+              "literature",
+              "calculated",
+              "entered",
+              "conflict",
+              "missing"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "sources": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/Chip"
+            },
+            "title": "Sources",
+            "type": "array"
+          },
+          "subjects": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Subjects",
+            "type": "array"
+          }
+        },
+        "required": [
+          "name",
+          "label",
+          "subjects",
+          "rule",
+          "source",
+          "sources"
+        ],
+        "title": "SubjectSet",
+        "type": "object"
+      },
       "SubjectSpec": {
         "additionalProperties": false,
         "properties": {
@@ -28962,6 +31710,98 @@
           "role"
         ],
         "title": "ValidationStudy",
+        "type": "object"
+      },
+      "Value": {
+        "additionalProperties": false,
+        "description": "One input or finding, as the report shows it: value, unit, source(s), status.",
+        "properties": {
+          "as_written": {
+            "default": "",
+            "title": "As Written",
+            "type": "string"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "note": {
+            "default": "",
+            "title": "Note",
+            "type": "string"
+          },
+          "others": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/Value"
+            },
+            "title": "Others",
+            "type": "array"
+          },
+          "rule": {
+            "default": "",
+            "title": "Rule",
+            "type": "string"
+          },
+          "sources": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/Chip"
+            },
+            "title": "Sources",
+            "type": "array"
+          },
+          "status": {
+            "default": "sponsor",
+            "enum": [
+              "verified",
+              "sponsor",
+              "literature",
+              "calculated",
+              "entered",
+              "conflict",
+              "missing"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "unit": {
+            "default": "",
+            "title": "Unit",
+            "type": "string"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "value",
+          "unit",
+          "as_written",
+          "status",
+          "sources",
+          "rule",
+          "note",
+          "others"
+        ],
+        "title": "Value",
         "type": "object"
       },
       "ValueOrigin": {
@@ -33879,6 +36719,1033 @@
         "summary": "Put Cpf",
         "tags": [
           "write"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/dataroom": {
+      "get": {
+        "description": "The whole Data room: files, the question, every section's values with their sources and statuses, the\ndecisions, data requests, simulation plan and PK-Sim inputs.",
+        "operationId": "get_dataroom_api_v1_projects__project_id__dataroom_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_DataRoomView_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Dataroom",
+        "tags": [
+          "dataroom"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/dataroom/decisions/{decision_id}": {
+      "post": {
+        "description": "Choose one of a decision's options, with the reason (a choice other than the suggestion needs one).",
+        "operationId": "decide_in_dataroom_api_v1_projects__project_id__dataroom_decisions__decision_id__post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "decision_id",
+            "required": true,
+            "schema": {
+              "title": "Decision Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RoomChoice"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_DataRoomView_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Decide In Dataroom",
+        "tags": [
+          "dataroom"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/dataroom/entered": {
+      "post": {
+        "description": "A value entered by a person, recorded as Entered with the reason.",
+        "operationId": "enter_dataroom_value_api_v1_projects__project_id__dataroom_entered_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RoomEntered"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_DataRoomView_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Enter Dataroom Value",
+        "tags": [
+          "dataroom"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/dataroom/files/{sha256}": {
+      "get": {
+        "description": "A delivered file as the source viewer opens it: its pages with their size in points, or its parts of lines.",
+        "operationId": "get_dataroom_file_api_v1_projects__project_id__dataroom_files__sha256__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "sha256",
+            "required": true,
+            "schema": {
+              "title": "Sha256",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_SourceFile_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Dataroom File",
+        "tags": [
+          "dataroom"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/dataroom/files/{sha256}/pages/{page}.png": {
+      "get": {
+        "description": "One page of a delivered file drawn as it was read: the reading copy (a PDF turned upright, an image as a scan)\nmade again from the file's bytes, so a chip's box falls where it is drawn.",
+        "operationId": "get_dataroom_page_api_v1_projects__project_id__dataroom_files__sha256__pages__page__png_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "sha256",
+            "required": true,
+            "schema": {
+              "title": "Sha256",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "page",
+            "required": true,
+            "schema": {
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "scale",
+            "required": false,
+            "schema": {
+              "default": 1.5,
+              "maximum": 4.0,
+              "minimum": 0.5,
+              "title": "Scale",
+              "type": "number"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "image/png": {}
+            },
+            "description": "the page as a PNG"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Dataroom Page",
+        "tags": [
+          "dataroom"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/dataroom/files/{sha256}/parts/{part}": {
+      "get": {
+        "description": "One part of a delivered file (a sheet, a Word or text body, a page's lines), numbered as the agents read it.",
+        "operationId": "get_dataroom_part_api_v1_projects__project_id__dataroom_files__sha256__parts__part__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "sha256",
+            "required": true,
+            "schema": {
+              "title": "Sha256",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "part",
+            "required": true,
+            "schema": {
+              "title": "Part",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_SourcePart_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Dataroom Part",
+        "tags": [
+          "dataroom"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/dataroom/import-existing": {
+      "post": {
+        "description": "An existing project's client files, as the earlier Inputs page recorded them, added as the Data room's uploads,\neach once (plan §4: \"Open in the Data room\" reads their stored files again). Run reads them.",
+        "operationId": "import_existing_files_api_v1_projects__project_id__dataroom_import_existing_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_RoomUploaded_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Import Existing Files",
+        "tags": [
+          "dataroom"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/dataroom/publication": {
+      "get": {
+        "description": "What \"Send to the model\" would send now (evidence items and observed datasets) and what blocks it; nothing is\nwritten.",
+        "operationId": "get_dataroom_publication_api_v1_projects__project_id__dataroom_publication_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_RoomPublication_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Dataroom Publication",
+        "tags": [
+          "dataroom"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/dataroom/publish": {
+      "post": {
+        "description": "Send the room's confirmed inputs to the model: compound and release values as accepted evidence, each arm's mean\nprofile as an accepted observed dataset, so Review & sign starts from them. Signed with the token's recent step-up\n(403 `STEP_UP_REQUIRED`); refused (409 with every reason, nothing signed) while anything blocks it. Sending again\nadds only what changed.",
+        "operationId": "publish_dataroom_api_v1_projects__project_id__dataroom_publish_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RoomPublish"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_RoomPublished_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Publish Dataroom",
+        "tags": [
+          "dataroom"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/dataroom/question": {
+      "put": {
+        "description": "The question card as the modeler confirms or edits it (a confirmation is audited with its checklist).",
+        "operationId": "put_dataroom_question_api_v1_projects__project_id__dataroom_question_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RoomQuestionBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_DataRoomView_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Dataroom Question",
+        "tags": [
+          "dataroom"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/dataroom/requests/{request_id}": {
+      "patch": {
+        "description": "A data request's wording to the client, or its status (open, not needed for this question, answered).",
+        "operationId": "edit_dataroom_request_api_v1_projects__project_id__dataroom_requests__request_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "request_id",
+            "required": true,
+            "schema": {
+              "title": "Request Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RoomRequestEdit"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_DataRoomView_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Edit Dataroom Request",
+        "tags": [
+          "dataroom"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/dataroom/run": {
+      "get": {
+        "operationId": "get_dataroom_run_api_v1_projects__project_id__dataroom_run_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_RoomRun_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Dataroom Run",
+        "tags": [
+          "dataroom"
+        ]
+      },
+      "post": {
+        "description": "Run the Data room in the background: the files read (OCR included), then the agents that have a model. Each\nstage's answers are kept per file, so a second run redoes only what is new, unless `redo` names the stage.",
+        "operationId": "start_dataroom_run_api_v1_projects__project_id__dataroom_run_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/RoomRunStart"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_RoomRun_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Start Dataroom Run",
+        "tags": [
+          "dataroom"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/dataroom/uploads": {
+      "get": {
+        "operationId": "get_dataroom_uploads_api_v1_projects__project_id__dataroom_uploads_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_RoomUploads_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Dataroom Uploads",
+        "tags": [
+          "dataroom"
+        ]
+      },
+      "post": {
+        "description": "Store the client's delivery as it came: many files, a zip, or both (an archive is unpacked when the files are\nread). A file sent twice is stored once.",
+        "operationId": "upload_dataroom_files_api_v1_projects__project_id__dataroom_uploads_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_dataroom_files_api_v1_projects__project_id__dataroom_uploads_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_RoomUploaded_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Upload Dataroom Files",
+        "tags": [
+          "dataroom"
         ]
       }
     },

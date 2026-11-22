@@ -21,8 +21,8 @@ from modeler_project.dataroom.model import (
     MeanPoint,
     Problem,
     ReadTable,
+    RoomStudy,
     Sample,
-    StudyView,
     SubjectNca,
     SubjectSet,
     Value,
@@ -227,7 +227,7 @@ def _mean_profile(members: Sequence[str], trt: str, keys_of: dict[str, list[tupl
 
 def study_view(study_id: str, *, concentrations: Sequence[ReadTable], pk_tables: Sequence[ReadTable] = (),
                facts: Sequence[CheckedFact] = (), arms: Sequence[Arm] = (), study_values: Sequence[Value] = (),
-               rules: Rules | None = None) -> StudyView:
+               rules: Rules | None = None) -> RoomStudy:
     """The study: samples → sets → mean profiles → NCA → exposure, every step's rule written on the view.
 
     A profile is one subject on one occasion: a period when the data names periods, else a treatment (a crossover
@@ -243,7 +243,7 @@ def study_view(study_id: str, *, concentrations: Sequence[ReadTable], pk_tables:
         problems += found
         unit = unit or table_unit
     if not raw:
-        return StudyView(study_id=study_id, facts=tuple(study_values), arms=tuple(arms), problems=(
+        return RoomStudy(study_id=study_id, facts=tuple(study_values), arms=tuple(arms), problems=(
             Problem(code="NO_CONCENTRATIONS", severity="error", message="no concentration table was read for this study"),
             *problems))
     if not unit:
@@ -492,7 +492,7 @@ def study_view(study_id: str, *, concentrations: Sequence[ReadTable], pk_tables:
                                       client=None if client is None else round(client, 4),
                                       difference_percent=_pct(value, client)))
     lloq_facts = _facts(facts, "study.lloq")
-    return StudyView(study_id=study_id, facts=tuple(study_values), arms=tuple(arms), periods=tuple(periods),
+    return RoomStudy(study_id=study_id, facts=tuple(study_values), arms=tuple(arms), periods=tuple(periods),
                      times_h=tuple(times), sets=tuple(sets), excluded={s: r for s, r in excluded.items() if r},
                      profiles=tuple(profiles), nca=tuple(checked), exposures=tuple(exposures), nca_method_client=method,
                      concentration_unit=unit, lloq=lloq_facts[0].number if lloq_facts else None, problems=tuple(problems))

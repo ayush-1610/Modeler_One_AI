@@ -22,6 +22,8 @@ import "./styles/cards.css";
 import "./styles/batch.css";
 // the "Modeler One App" look over the shared pieces; last, so it wins (plan 2026-11-06-app-design-merge)
 import "./styles/design.css";
+// the Data room and its report (plan 2026-11-21 v2 §10): after the look, so its drawer and print layout hold
+import "./styles/dataroom.css";
 // target sizes (WCAG 2.2 2.5.8): after the look, so its hit areas and sizes hold
 import "./styles/targets.css";
 // the utilities that replaced the static inline styles (item 10); last, so each holds as the inline style did

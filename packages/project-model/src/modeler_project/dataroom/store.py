@@ -20,6 +20,7 @@ what, why). No path is built from input that is not a checked sha256.
 from __future__ import annotations
 
 import gzip
+import hashlib
 import json
 import re
 from datetime import UTC, datetime
@@ -99,6 +100,23 @@ class DataRoomStore:
         if path is None:
             raise KeyError(sha256)
         return path.read_bytes()
+
+    def file_bytes(self, sha256: str) -> bytes:
+        """A delivered file's bytes (KeyError when no upload holds them): its own upload, else the member of an uploaded
+        archive it was unpacked from (`modeler_intake.room.expand_uploads`, as the read stage unpacks them)."""
+        from modeler_intake.room import expand_uploads
+
+        wanted = _sha(sha256)
+        if any(u["sha256"] == wanted for u in self.uploads()):
+            return self.upload_bytes(wanted)
+        for u in self.uploads():
+            if not u["name"].lower().endswith(".zip"):
+                continue
+            expanded, _unreadable = expand_uploads([(u["name"], self.upload_bytes(u["sha256"]))])
+            for _path, data in expanded:
+                if hashlib.sha256(data).hexdigest() == wanted:
+                    return data
+        raise KeyError(sha256)
 
     def set_files(self, files: list[FileView]) -> None:
         atomic_write_text(self._path("files.json"), json.dumps([f.model_dump(mode="json") for f in files], indent=1,

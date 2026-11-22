@@ -336,3 +336,9 @@ def test_another_openai_compatible_service_runs_an_agent_with_its_own_address_ke
     model, problem = agent_jobs.chat_model("A8")
     assert problem is None and (model.provider, model.base_url, model.model) == (
         "openai_compat", "https://api.example.ai/v1", "gpt-oss-120b")
+    # the Models page's "More…" form offers it with the model typed: a provider that needs a model, no one-click model
+    page = client.get("/api/v1/admin/agents", headers=_as("owner")).json()["data"]
+    assert {"id": "openai_compat", "label": "Another OpenAI-compatible service", "needs_model": True,
+            "has_active_key": True} in page["providers"]
+    assert not any(c["provider"] == "openai_compat" for c in page["choices"])
+    assert next(a for a in page["agents"] if a["agent"] == "A8")["model"] == "gpt-oss-120b"

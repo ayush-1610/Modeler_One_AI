@@ -1174,6 +1174,277 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project_id}/dataroom": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Dataroom
+         * @description The whole Data room: files, the question, every section's values with their sources and statuses, the
+         *     decisions, data requests, simulation plan and PK-Sim inputs.
+         */
+        get: operations["get_dataroom_api_v1_projects__project_id__dataroom_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/dataroom/decisions/{decision_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Decide In Dataroom
+         * @description Choose one of a decision's options, with the reason (a choice other than the suggestion needs one).
+         */
+        post: operations["decide_in_dataroom_api_v1_projects__project_id__dataroom_decisions__decision_id__post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/dataroom/entered": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Enter Dataroom Value
+         * @description A value entered by a person, recorded as Entered with the reason.
+         */
+        post: operations["enter_dataroom_value_api_v1_projects__project_id__dataroom_entered_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/dataroom/files/{sha256}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Dataroom File
+         * @description A delivered file as the source viewer opens it: its pages with their size in points, or its parts of lines.
+         */
+        get: operations["get_dataroom_file_api_v1_projects__project_id__dataroom_files__sha256__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/dataroom/files/{sha256}/pages/{page}.png": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Dataroom Page
+         * @description One page of a delivered file drawn as it was read: the reading copy (a PDF turned upright, an image as a scan)
+         *     made again from the file's bytes, so a chip's box falls where it is drawn.
+         */
+        get: operations["get_dataroom_page_api_v1_projects__project_id__dataroom_files__sha256__pages__page__png_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/dataroom/files/{sha256}/parts/{part}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Dataroom Part
+         * @description One part of a delivered file (a sheet, a Word or text body, a page's lines), numbered as the agents read it.
+         */
+        get: operations["get_dataroom_part_api_v1_projects__project_id__dataroom_files__sha256__parts__part__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/dataroom/import-existing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Import Existing Files
+         * @description An existing project's client files, as the earlier Inputs page recorded them, added as the Data room's uploads,
+         *     each once (plan §4: "Open in the Data room" reads their stored files again). Run reads them.
+         */
+        post: operations["import_existing_files_api_v1_projects__project_id__dataroom_import_existing_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/dataroom/publication": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Dataroom Publication
+         * @description What "Send to the model" would send now (evidence items and observed datasets) and what blocks it; nothing is
+         *     written.
+         */
+        get: operations["get_dataroom_publication_api_v1_projects__project_id__dataroom_publication_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/dataroom/publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Publish Dataroom
+         * @description Send the room's confirmed inputs to the model: compound and release values as accepted evidence, each arm's mean
+         *     profile as an accepted observed dataset, so Review & sign starts from them. Signed with the token's recent step-up
+         *     (403 `STEP_UP_REQUIRED`); refused (409 with every reason, nothing signed) while anything blocks it. Sending again
+         *     adds only what changed.
+         */
+        post: operations["publish_dataroom_api_v1_projects__project_id__dataroom_publish_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/dataroom/question": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Put Dataroom Question
+         * @description The question card as the modeler confirms or edits it (a confirmation is audited with its checklist).
+         */
+        put: operations["put_dataroom_question_api_v1_projects__project_id__dataroom_question_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/dataroom/requests/{request_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Edit Dataroom Request
+         * @description A data request's wording to the client, or its status (open, not needed for this question, answered).
+         */
+        patch: operations["edit_dataroom_request_api_v1_projects__project_id__dataroom_requests__request_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/dataroom/run": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Dataroom Run */
+        get: operations["get_dataroom_run_api_v1_projects__project_id__dataroom_run_get"];
+        put?: never;
+        /**
+         * Start Dataroom Run
+         * @description Run the Data room in the background: the files read (OCR included), then the agents that have a model. Each
+         *     stage's answers are kept per file, so a second run redoes only what is new, unless `redo` names the stage.
+         */
+        post: operations["start_dataroom_run_api_v1_projects__project_id__dataroom_run_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/dataroom/uploads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Dataroom Uploads */
+        get: operations["get_dataroom_uploads_api_v1_projects__project_id__dataroom_uploads_get"];
+        put?: never;
+        /**
+         * Upload Dataroom Files
+         * @description Store the client's delivery as it came: many files, a zip, or both (an archive is unpacked when the files are
+         *     read). A file sent twice is stored once.
+         */
+        post: operations["upload_dataroom_files_api_v1_projects__project_id__dataroom_uploads_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project_id}/datasets": {
         parameters: {
             query?: never;
@@ -3393,6 +3664,38 @@ export interface components {
             /** Reason */
             reason: string;
         };
+        /** Arm */
+        Arm: {
+            /**
+             * Meaning
+             * @default
+             */
+            meaning: string;
+            /**
+             * Product
+             * @default
+             */
+            product: string;
+            /**
+             * Role
+             * @default
+             */
+            role: string;
+            source: components["schemas"]["Chip"] | null;
+            /** Treatment */
+            treatment: string;
+        };
+        /** ArmProfile */
+        ArmProfile: {
+            /** Analysis Set */
+            analysis_set: string;
+            /** N Subjects */
+            n_subjects: number;
+            /** Points */
+            points: components["schemas"]["MeanPoint"][];
+            /** Treatment */
+            treatment: string;
+        };
         /**
          * ArtifactKind
          * @description What a phase produces (plan §5.2). Order follows the phases.
@@ -3593,6 +3896,11 @@ export interface components {
              * @default
              */
             task?: string;
+        };
+        /** Body_upload_dataroom_files_api_v1_projects__project_id__dataroom_uploads_post */
+        Body_upload_dataroom_files_api_v1_projects__project_id__dataroom_uploads_post: {
+            /** Files */
+            files: string[];
         };
         /** Body_upload_documents_api_v1_projects__project_id__documents_post */
         Body_upload_documents_api_v1_projects__project_id__documents_post: {
@@ -4028,6 +4336,69 @@ export interface components {
             /** Path */
             path: string;
         };
+        /** ChecklistItem */
+        ChecklistItem: {
+            /**
+             * Area
+             * @enum {string}
+             */
+            area: "A" | "B" | "C" | "D";
+            /**
+             * Id
+             * @description short id, e.g. B-dissolution-all-media
+             */
+            id: string;
+            /** Label */
+            label: string;
+            /**
+             * Required
+             * @default true
+             */
+            required?: boolean;
+            /** Topics */
+            topics?: string[];
+            /**
+             * Why
+             * @default
+             */
+            why?: string;
+        };
+        /**
+         * Chip
+         * @description Where a value was read: a file, a part (p3, sheet:Name, body), a line and a cell of it.
+         */
+        Chip: {
+            /** Box */
+            box: [
+                number,
+                number,
+                number,
+                number
+            ] | null;
+            /** Cell */
+            cell: number | null;
+            /** File */
+            file: string;
+            /** Line */
+            line: number;
+            /** Part */
+            part: string;
+            /**
+             * Ref
+             * @default
+             */
+            ref: string;
+            /**
+             * Sha256
+             * @default
+             */
+            sha256: string;
+            /**
+             * Text
+             * @default
+             */
+            text: string;
+        };
         /** ChoiceRequest */
         ChoiceRequest: {
             /** Key */
@@ -4208,6 +4579,30 @@ export interface components {
             kind: "CompetitiveInhibition";
             /** Molecule */
             molecule: string;
+        };
+        /** CompositionRow */
+        CompositionRow: {
+            /** Amounts */
+            amounts: {
+                [key: string]: string;
+            };
+            /**
+             * Changed
+             * @default false
+             */
+            changed: boolean;
+            /** Component */
+            component: string;
+            /**
+             * Function
+             * @default
+             */
+            function: string;
+            /**
+             * Sources
+             * @default []
+             */
+            sources: components["schemas"]["Chip"][];
         };
         /**
          * CompoundRow
@@ -4478,6 +4873,130 @@ export interface components {
             status: string;
             /** Version */
             version: number;
+        };
+        /** DataRequest */
+        DataRequest: {
+            /**
+             * Area
+             * @enum {string}
+             */
+            area: "A" | "B" | "C" | "D";
+            /**
+             * Checklist
+             * @default
+             */
+            checklist: string;
+            /** Id */
+            id: string;
+            /**
+             * Input
+             * @default
+             */
+            input: string;
+            /**
+             * Status
+             * @default open
+             * @enum {string}
+             */
+            status: "open" | "not_needed" | "answered";
+            /** Title */
+            title: string;
+            /** Why */
+            why: string;
+            /**
+             * Wording
+             * @default
+             */
+            wording: string;
+        };
+        /**
+         * DataRoomView
+         * @description The Data room of one project, as the page and the report show it.
+         */
+        DataRoomView: {
+            /**
+             * Adme
+             * @default []
+             */
+            adme: components["schemas"]["Value"][];
+            /**
+             * Composition
+             * @default []
+             */
+            composition: components["schemas"]["CompositionRow"][];
+            /**
+             * Decisions
+             * @default []
+             */
+            decisions: components["schemas"]["RoomDecision"][];
+            /**
+             * Dissolution
+             * @default []
+             */
+            dissolution: components["schemas"]["DissolutionView"][];
+            /**
+             * F2
+             * @default []
+             */
+            f2: components["schemas"]["F2View"][];
+            /**
+             * Files
+             * @default []
+             */
+            files: components["schemas"]["FileView"][];
+            /**
+             * Inputs
+             * @default []
+             */
+            inputs: components["schemas"]["InputRow"][];
+            /**
+             * Plan
+             * @default []
+             */
+            plan: components["schemas"]["PlanRow"][];
+            /**
+             * Problems
+             * @default []
+             */
+            problems: components["schemas"]["Problem"][];
+            /**
+             * Products
+             * @default []
+             */
+            products: components["schemas"]["Value"][];
+            question: components["schemas"]["QuestionCard"] | null;
+            /**
+             * Question Confirmed
+             * @default false
+             */
+            question_confirmed: boolean;
+            /**
+             * Requests
+             * @default []
+             */
+            requests: components["schemas"]["DataRequest"][];
+            /** Rules */
+            rules: string;
+            /**
+             * Sections
+             * @default []
+             */
+            sections: components["schemas"]["Section"][];
+            /**
+             * Solubility
+             * @default []
+             */
+            solubility: components["schemas"]["SolubilityRow"][];
+            /**
+             * Studies
+             * @default []
+             */
+            studies: components["schemas"]["RoomStudy"][];
+            /**
+             * Substance
+             * @default []
+             */
+            substance: components["schemas"]["Value"][];
         };
         /** DatasetBody */
         DatasetBody: {
@@ -6619,6 +7138,94 @@ export interface components {
             /** Release Model */
             release_model: string | null;
         };
+        /** DissolutionView */
+        DissolutionView: {
+            /**
+             * Apparatus
+             * @default
+             */
+            apparatus: string;
+            /**
+             * Batch
+             * @default
+             */
+            batch: string;
+            /**
+             * Client Mean
+             * @default []
+             */
+            client_mean: (number | null)[];
+            /** Id */
+            id: string;
+            /**
+             * Mean
+             * @default []
+             */
+            mean: number[];
+            /**
+             * Medium
+             * @default
+             */
+            medium: string;
+            /**
+             * N Units
+             * @default 0
+             */
+            n_units: number;
+            /** Ph */
+            ph: number | null;
+            /**
+             * Plateau
+             * @default false
+             */
+            plateau: boolean;
+            /**
+             * Problems
+             * @default []
+             */
+            problems: components["schemas"]["Problem"][];
+            /**
+             * Product
+             * @default
+             */
+            product: string;
+            /** Rpm */
+            rpm: number | null;
+            /**
+             * Sd
+             * @default []
+             */
+            sd: (number | null)[];
+            /**
+             * Sources
+             * @default []
+             */
+            sources: components["schemas"]["Chip"][];
+            /**
+             * Times Min
+             * @default []
+             */
+            times_min: number[];
+            /**
+             * Very Rapid
+             * @default false
+             */
+            very_rapid: boolean;
+            /** Volume Ml */
+            volume_ml: number | null;
+            /** Weibull */
+            weibull: {
+                [key: string]: number | string | boolean | null;
+            };
+            /**
+             * Weibull Curve
+             * @default []
+             */
+            weibull_curve: [
+                number,
+                number
+            ][];
+        };
         /** DissolvedFormulationSpec */
         DissolvedFormulationSpec: {
             /**
@@ -6896,6 +7503,13 @@ export interface components {
         /** Envelope[CpfView] */
         Envelope_CpfView_: {
             data: components["schemas"]["CpfView"];
+            /** Errors */
+            errors: components["schemas"]["ErrorItem"][];
+            meta: components["schemas"]["Meta"];
+        };
+        /** Envelope[DataRoomView] */
+        Envelope_DataRoomView_: {
+            data: components["schemas"]["DataRoomView"];
             /** Errors */
             errors: components["schemas"]["ErrorItem"][];
             meta: components["schemas"]["Meta"];
@@ -7236,6 +7850,41 @@ export interface components {
             errors: components["schemas"]["ErrorItem"][];
             meta: components["schemas"]["Meta"];
         };
+        /** Envelope[RoomPublication] */
+        Envelope_RoomPublication_: {
+            data: components["schemas"]["RoomPublication"];
+            /** Errors */
+            errors: components["schemas"]["ErrorItem"][];
+            meta: components["schemas"]["Meta"];
+        };
+        /** Envelope[RoomPublished] */
+        Envelope_RoomPublished_: {
+            data: components["schemas"]["RoomPublished"];
+            /** Errors */
+            errors: components["schemas"]["ErrorItem"][];
+            meta: components["schemas"]["Meta"];
+        };
+        /** Envelope[RoomRun] */
+        Envelope_RoomRun_: {
+            data: components["schemas"]["RoomRun"];
+            /** Errors */
+            errors: components["schemas"]["ErrorItem"][];
+            meta: components["schemas"]["Meta"];
+        };
+        /** Envelope[RoomUploaded] */
+        Envelope_RoomUploaded_: {
+            data: components["schemas"]["RoomUploaded"];
+            /** Errors */
+            errors: components["schemas"]["ErrorItem"][];
+            meta: components["schemas"]["Meta"];
+        };
+        /** Envelope[RoomUploads] */
+        Envelope_RoomUploads_: {
+            data: components["schemas"]["RoomUploads"];
+            /** Errors */
+            errors: components["schemas"]["ErrorItem"][];
+            meta: components["schemas"]["Meta"];
+        };
         /** Envelope[RunAccepted] */
         Envelope_RunAccepted_: {
             data: components["schemas"]["RunAccepted"];
@@ -7253,6 +7902,20 @@ export interface components {
         /** Envelope[SnapshotPreview] */
         Envelope_SnapshotPreview_: {
             data: components["schemas"]["SnapshotPreview"];
+            /** Errors */
+            errors: components["schemas"]["ErrorItem"][];
+            meta: components["schemas"]["Meta"];
+        };
+        /** Envelope[SourceFile] */
+        Envelope_SourceFile_: {
+            data: components["schemas"]["SourceFile"];
+            /** Errors */
+            errors: components["schemas"]["ErrorItem"][];
+            meta: components["schemas"]["Meta"];
+        };
+        /** Envelope[SourcePart] */
+        Envelope_SourcePart_: {
+            data: components["schemas"]["SourcePart"];
             /** Errors */
             errors: components["schemas"]["ErrorItem"][];
             meta: components["schemas"]["Meta"];
@@ -7731,6 +8394,30 @@ export interface components {
             /** Value Pksim */
             value_pksim: number | null;
         };
+        /** Exposure */
+        Exposure: {
+            /** Analysis Set */
+            analysis_set: string;
+            /** Client */
+            client: number | null;
+            /** Difference Percent */
+            difference_percent: number | null;
+            /** Metric */
+            metric: string;
+            /** N */
+            n: number;
+            /** Statistic */
+            statistic: string;
+            /** Treatment */
+            treatment: string;
+            /**
+             * Unit
+             * @default
+             */
+            unit: string;
+            /** Value */
+            value: number | null;
+        };
         /**
          * ExpressionSpec
          * @description An enzyme, transporter or other-protein expression profile. Real OSP transporter profiles carry no
@@ -7794,6 +8481,75 @@ export interface components {
             problem: string | null;
             /** Started */
             started: boolean;
+        };
+        /** F2View */
+        F2View: {
+            /** Applicable */
+            applicable: boolean;
+            /**
+             * Reasons
+             * @default []
+             */
+            reasons: string[];
+            /** Reference */
+            reference: string;
+            /** Similar */
+            similar: boolean | null;
+            /** Test */
+            test: string;
+            /** Value */
+            value: number | null;
+        };
+        /** Fact */
+        Fact: {
+            /**
+             * Field
+             * @description a dotted field from the vocabulary, or a new dotted name
+             */
+            field: string;
+            /**
+             * File
+             * @default
+             */
+            file?: string;
+            /**
+             * Note
+             * @default
+             */
+            note?: string;
+            /**
+             * Part
+             * @description where: p<page>, sheet:<name> or body
+             * @default
+             */
+            part?: string;
+            /**
+             * Product
+             * @description the product (as named on the question card) the fact concerns, if any
+             * @default
+             */
+            product?: string;
+            /**
+             * Quote
+             * @description the verbatim text from the file that contains the value (one to three lines)
+             */
+            quote: string;
+            /**
+             * Subject
+             * @description what the fact is about, as written (a study, product, batch, code, subject)
+             * @default
+             */
+            subject?: string;
+            /**
+             * Unit
+             * @default
+             */
+            unit?: string;
+            /**
+             * Value
+             * @description the value exactly as written in the file
+             */
+            value: string;
         };
         /**
          * FeedbackEvidence
@@ -7916,6 +8672,71 @@ export interface components {
             kind: "formulation" | "clinical" | "bioanalytical" | "in_vitro" | "other";
             /** Study */
             study: string;
+        };
+        /** FileTriage */
+        FileTriage: {
+            /** Path */
+            path: string;
+            /** Products */
+            products?: string[];
+            /**
+             * Purpose
+             * @enum {string}
+             */
+            purpose: "used" | "context" | "not_needed";
+            /**
+             * Reason
+             * @description one plain sentence: what the file is and why it is (not) needed
+             */
+            reason: string;
+            /**
+             * Study
+             * @default
+             */
+            study?: string;
+            /** Topics */
+            topics?: string[];
+        };
+        /** FileView */
+        FileView: {
+            /** Duplicate Of */
+            duplicate_of: string | null;
+            /** Kind */
+            kind: string;
+            /** Name */
+            name: string;
+            /**
+             * Ocr Pages
+             * @default []
+             */
+            ocr_pages: number[];
+            /**
+             * Pages
+             * @default 0
+             */
+            pages: number;
+            /** Path */
+            path: string;
+            /**
+             * Reason
+             * @default
+             */
+            reason: string;
+            /** Same Content As */
+            same_content_as: string | null;
+            /** Sha256 */
+            sha256: string;
+            /**
+             * State
+             * @default read
+             */
+            state: string;
+            triage: components["schemas"]["FileTriage"] | null;
+            /**
+             * Turned Pages
+             * @default []
+             */
+            turned_pages: number[];
         };
         /** FirstOrderMetabolism */
         FirstOrderMetabolism: {
@@ -8349,6 +9170,54 @@ export interface components {
             kind: "Induction";
             /** Molecule */
             molecule: string;
+        };
+        /**
+         * InputRow
+         * @description One PK-Sim input: the building block, the PK-Sim (or CPF) name, the value, its source and status.
+         */
+        InputRow: {
+            /**
+             * Block
+             * @enum {string}
+             */
+            block: "compound" | "formulation" | "individual" | "protocol" | "event" | "observed" | "target";
+            /**
+             * Decision
+             * @default
+             */
+            decision: string;
+            /** Label */
+            label: string;
+            /** Name */
+            name: string;
+            /**
+             * Note
+             * @default
+             */
+            note: string;
+            /**
+             * Owner
+             * @default
+             */
+            owner: string;
+            /**
+             * Sources
+             * @default []
+             */
+            sources: components["schemas"]["Chip"][];
+            /**
+             * Status
+             * @default missing
+             * @enum {string}
+             */
+            status: "verified" | "sponsor" | "literature" | "calculated" | "entered" | "conflict" | "missing";
+            /**
+             * Unit
+             * @default
+             */
+            unit: string;
+            /** Value */
+            value: number | string | null;
         };
         /**
          * InputStudyRow
@@ -9476,6 +10345,31 @@ export interface components {
             /** Time H */
             time_h: number;
         };
+        /** MeanPoint */
+        MeanPoint: {
+            /** Geomean */
+            geomean: number | null;
+            /** Mean */
+            mean: number | null;
+            /** N */
+            n: number;
+            /**
+             * N Blq
+             * @default 0
+             */
+            n_blq: number;
+            /** N Geo */
+            n_geo: number;
+            /**
+             * N Missing
+             * @default 0
+             */
+            n_missing: number;
+            /** Sd */
+            sd: number | null;
+            /** Time H */
+            time_h: number;
+        };
         /**
          * Measured
          * @description A value with its unit and provenance, as it will appear in the snapshot.
@@ -9822,6 +10716,18 @@ export interface components {
             unit?: string;
             /** Values */
             values: number[];
+        };
+        /** Option */
+        Option: {
+            /**
+             * Detail
+             * @default
+             */
+            detail: string;
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
         };
         /** OralProtocolSpec */
         OralProtocolSpec: {
@@ -10383,6 +11289,25 @@ export interface components {
             /** Violations */
             violations: components["schemas"]["Violation"][];
         };
+        /** PlanRow */
+        PlanRow: {
+            /** Condition */
+            condition: string;
+            /** Formulation */
+            formulation: string;
+            /** Observed */
+            observed: string;
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "development" | "calibration" | "verification" | "prediction";
+            /**
+             * Why
+             * @default
+             */
+            why: string;
+        };
         /**
          * PlanSigned
          * @description The page after `plan:sign`, and the signature the MAP carries.
@@ -10462,12 +11387,45 @@ export interface components {
             /** Stages */
             stages?: string[] | null;
         };
+        /** Problem */
+        Problem: {
+            /** Code */
+            code: string;
+            /** Message */
+            message: string;
+            /**
+             * Severity
+             * @default warning
+             * @enum {string}
+             */
+            severity: "error" | "warning" | "info";
+            where: components["schemas"]["Chip"] | null;
+        };
         /** Product */
         Product: {
             /** Name */
             name: string;
             /** Role */
             role: string;
+        };
+        /** ProductRef */
+        ProductRef: {
+            /**
+             * Name
+             * @description as the files name it
+             */
+            name: string;
+            /**
+             * Note
+             * @default
+             */
+            note?: string;
+            /**
+             * Role
+             * @description the product's part in the comparison: reference, test, original, reformulated or other
+             * @enum {string}
+             */
+            role: "reference" | "test" | "original" | "reformulated" | "other";
         };
         /** ProjectArchiveState */
         ProjectArchiveState: {
@@ -10677,6 +11635,13 @@ export interface components {
             /** Supersedes */
             supersedes?: string | null;
         };
+        /** PublicationItem */
+        PublicationItem: {
+            /** Target */
+            target: string;
+            /** Value */
+            value: string;
+        };
         /**
          * PublishedIndividual
          * @description The individual a published model simulates one study in, when it differs from the model's main individual
@@ -10753,6 +11718,35 @@ export interface components {
              * @enum {string}
              */
             status?: "answered" | "accepted_as_limitation" | "open";
+        };
+        /** QuestionCard */
+        QuestionCard: {
+            /**
+             * Approach
+             * @default
+             */
+            approach?: string;
+            /** Checklist */
+            checklist?: components["schemas"]["ChecklistItem"][];
+            /**
+             * Context Of Use
+             * @default
+             */
+            context_of_use?: string;
+            /** Products */
+            products?: components["schemas"]["ProductRef"][];
+            /** Question */
+            question: string;
+            /**
+             * Quotes
+             * @description the facts the card rests on, each quoted
+             */
+            quotes?: components["schemas"]["Fact"][];
+            /**
+             * Regulator
+             * @default
+             */
+            regulator?: string;
         };
         /**
          * QuestionOfInterest
@@ -11554,6 +12548,303 @@ export interface components {
                 [key: string]: number;
             };
         };
+        /** RoomChoice */
+        RoomChoice: {
+            /**
+             * Chosen
+             * @description the id of one of the decision's options
+             */
+            chosen: string;
+            /**
+             * Reason
+             * @default
+             */
+            reason?: string;
+        };
+        /**
+         * RoomDecision
+         * @description A modeling choice waiting for the modeler (named apart from the API's other decisions).
+         */
+        RoomDecision: {
+            /**
+             * At
+             * @default
+             */
+            at: string;
+            /**
+             * By
+             * @default
+             */
+            by: string;
+            /** Chosen */
+            chosen: string | null;
+            /**
+             * Evidence
+             * @default []
+             */
+            evidence: components["schemas"]["Chip"][];
+            /** Id */
+            id: string;
+            /** Options */
+            options: components["schemas"]["Option"][];
+            /** Question */
+            question: string;
+            /**
+             * Reason
+             * @default
+             */
+            reason: string;
+            /** Suggested */
+            suggested: string;
+            /** Title */
+            title: string;
+            /**
+             * Why
+             * @default
+             */
+            why: string;
+        };
+        /** RoomEntered */
+        RoomEntered: {
+            /**
+             * Key
+             * @description the input it fills (a PK-Sim input's name)
+             */
+            key: string;
+            /** Label */
+            label: string;
+            /**
+             * Reason
+             * @description why this value: entered by a person, it needs one
+             */
+            reason: string;
+            /**
+             * Unit
+             * @default
+             */
+            unit?: string;
+            /** Value */
+            value: number | string;
+        };
+        /**
+         * RoomPublication
+         * @description What "Send to the model" would send now (`modeler_project.dataroom.publish.plan_publication`, nothing written),
+         *     and what keeps it from being sent, in words.
+         */
+        RoomPublication: {
+            /** Blocked */
+            blocked: string[];
+            /** Datasets */
+            datasets: components["schemas"]["PublicationItem"][];
+            /** Evidence */
+            evidence: components["schemas"]["PublicationItem"][];
+        };
+        /** RoomPublish */
+        RoomPublish: {
+            /**
+             * Reason
+             * @description why the inputs are sent now (kept with the signature)
+             */
+            reason: string;
+        };
+        /**
+         * RoomPublished
+         * @description What was sent, signed: items written, items already in the project (skipped), and the signature.
+         */
+        RoomPublished: {
+            /** Datasets */
+            datasets: number;
+            /** Evidence */
+            evidence: number;
+            /** Manifestation */
+            manifestation: string;
+            /** Signature Id */
+            signature_id: string;
+            /** Skipped */
+            skipped: number;
+        };
+        /** RoomQuestionBody */
+        RoomQuestionBody: {
+            card: components["schemas"]["QuestionCard"];
+            /**
+             * Confirmed
+             * @default false
+             */
+            confirmed?: boolean;
+            /**
+             * Reason
+             * @default
+             */
+            reason?: string;
+        };
+        /** RoomRequestEdit */
+        RoomRequestEdit: {
+            /** Status */
+            status?: ("open" | "not_needed" | "answered") | null;
+            /** Wording */
+            wording?: string | null;
+        };
+        /**
+         * RoomRun
+         * @description The Data room's background run (`modeler_agents.dataroom.run_room`): each stage with its live counts and note.
+         */
+        RoomRun: {
+            /** Agents */
+            agents: {
+                [key: string]: string;
+            };
+            /** Error */
+            error: string;
+            /** Finished At */
+            finished_at: string | null;
+            /** Stages */
+            stages: components["schemas"]["RoomRunStage"][];
+            /** Started At */
+            started_at: string | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "idle" | "running" | "done" | "failed";
+        };
+        /** RoomRunStage */
+        RoomRunStage: {
+            /** Agent */
+            agent: string;
+            /** Done */
+            done: number;
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /** Note */
+            note: string;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "waiting" | "running" | "done" | "skipped" | "failed";
+            /** Total */
+            total: number;
+        };
+        /** RoomRunStart */
+        RoomRunStart: {
+            /**
+             * Files
+             * @description the per-file stages for these files only (their paths)
+             */
+            files?: string[];
+            /**
+             * Redo
+             * @description stages whose kept answers are made again
+             */
+            redo?: string[];
+            /**
+             * Stages
+             * @description the stages to run (none named: every stage)
+             */
+            stages?: string[] | null;
+        };
+        /**
+         * RoomStudy
+         * @description One clinical study as the room shows it (named apart from the API's other study views).
+         */
+        RoomStudy: {
+            /**
+             * Arms
+             * @default []
+             */
+            arms: components["schemas"]["Arm"][];
+            /**
+             * Concentration Unit
+             * @default
+             */
+            concentration_unit: string;
+            /** Excluded */
+            excluded: {
+                [key: string]: string;
+            };
+            /**
+             * Exposures
+             * @default []
+             */
+            exposures: components["schemas"]["Exposure"][];
+            /**
+             * Facts
+             * @default []
+             */
+            facts: components["schemas"]["Value"][];
+            /** Lloq */
+            lloq: number | null;
+            /**
+             * Nca
+             * @default []
+             */
+            nca: components["schemas"]["SubjectNca"][];
+            /**
+             * Nca Method Client
+             * @default
+             */
+            nca_method_client: string;
+            /**
+             * Periods
+             * @default []
+             */
+            periods: string[];
+            /**
+             * Problems
+             * @default []
+             */
+            problems: components["schemas"]["Problem"][];
+            /**
+             * Profiles
+             * @default []
+             */
+            profiles: components["schemas"]["ArmProfile"][];
+            /**
+             * Sets
+             * @default []
+             */
+            sets: components["schemas"]["SubjectSet"][];
+            /** Study Id */
+            study_id: string;
+            /**
+             * Times H
+             * @default []
+             */
+            times_h: number[];
+        };
+        /**
+         * RoomUpload
+         * @description One upload as stored: a file or an archive, its bytes in the project's blobs.
+         */
+        RoomUpload: {
+            /** At */
+            at: string;
+            /** By */
+            by: string;
+            /** Name */
+            name: string;
+            /** Sha256 */
+            sha256: string;
+            /** Size Bytes */
+            size_bytes: number;
+        };
+        /**
+         * RoomUploaded
+         * @description What an upload added: `added` the uploads of this request (a file sent twice is stored once), `uploads` all.
+         */
+        RoomUploaded: {
+            /** Added */
+            added: components["schemas"]["RoomUpload"][];
+            /** Uploads */
+            uploads: components["schemas"]["RoomUpload"][];
+        };
+        /** RoomUploads */
+        RoomUploads: {
+            /** Uploads */
+            uploads: components["schemas"]["RoomUpload"][];
+        };
         /** RoundRecord */
         RoundRecord: {
             /** Action */
@@ -11741,6 +13032,24 @@ export interface components {
             supported: string;
             /** Values */
             values: string[];
+        };
+        /** Section */
+        Section: {
+            /**
+             * Finding
+             * @default
+             */
+            finding: string;
+            /** Id */
+            id: string;
+            /**
+             * Status
+             * @default empty
+             * @enum {string}
+             */
+            status: "ok" | "attention" | "missing" | "empty";
+            /** Title */
+            title: string;
         };
         /** Series */
         Series: {
@@ -12107,6 +13416,91 @@ export interface components {
             snapshot_sha256: string;
             /** Snapshot Version */
             snapshot_version: number;
+        };
+        /** SolubilityRow */
+        SolubilityRow: {
+            /**
+             * As Written
+             * @default
+             */
+            as_written: string;
+            /** Fraction In Glass */
+            fraction_in_glass: number | null;
+            /** Fraction In Medium */
+            fraction_in_medium: number | null;
+            /** Medium */
+            medium: string;
+            /** Ph */
+            ph: number | null;
+            /** Solubility Mg Ml */
+            solubility_mg_ml: number | null;
+            /**
+             * Sources
+             * @default []
+             */
+            sources: components["schemas"]["Chip"][];
+            /** Volume For Dose Ml */
+            volume_for_dose_ml: number | null;
+        };
+        /** SourceCell */
+        SourceCell: {
+            /** Box */
+            box: [
+                number,
+                number,
+                number,
+                number
+            ] | null;
+            /** Ref */
+            ref: string;
+            /** Text */
+            text: string;
+        };
+        /**
+         * SourceFile
+         * @description A delivered file as the source viewer opens it: its pages (with their size) or its parts of lines.
+         */
+        SourceFile: {
+            /** Kind */
+            kind: string;
+            /** Name */
+            name: string;
+            /** Pages */
+            pages: components["schemas"]["SourcePage"][];
+            /** Parts */
+            parts: string[];
+            /** Path */
+            path: string;
+            /** Sha256 */
+            sha256: string;
+        };
+        /** SourceLine */
+        SourceLine: {
+            /** Cells */
+            cells: components["schemas"]["SourceCell"][];
+            /** Number */
+            number: number;
+        };
+        /** SourcePage */
+        SourcePage: {
+            /** Height */
+            height: number;
+            /** Page */
+            page: number;
+            /** Width */
+            width: number;
+        };
+        /**
+         * SourcePart
+         * @description One part of a file (a sheet, a Word or text body, a page's lines), numbered as the agents read it.
+         */
+        SourcePart: {
+            /** Lines */
+            lines: components["schemas"]["SourceLine"][];
+            /** Name */
+            name: string;
+            /** Sha256 */
+            sha256: string;
         };
         /** SourceRef */
         SourceRef: {
@@ -12787,6 +14181,59 @@ export interface components {
              */
             way: "use_profile" | "add_dissolution" | "add_product" | "choose";
         };
+        /** SubjectNca */
+        SubjectNca: {
+            /** Auc Inf */
+            auc_inf: number | null;
+            /** Auc T */
+            auc_t: number | null;
+            /** Auc T Linear */
+            auc_t_linear: number | null;
+            /** Client */
+            client: {
+                [key: string]: number;
+            };
+            /** Cmax */
+            cmax: number | null;
+            /** Differences */
+            differences: {
+                [key: string]: number;
+            };
+            /** Lambda Z */
+            lambda_z: number | null;
+            /** Period */
+            period: string;
+            /** Subject */
+            subject: string;
+            /** T Half */
+            t_half: number | null;
+            /** Tmax */
+            tmax: number | null;
+            /** Treatment */
+            treatment: string;
+        };
+        /** SubjectSet */
+        SubjectSet: {
+            /** Label */
+            label: string;
+            /** Name */
+            name: string;
+            /** Rule */
+            rule: string;
+            /**
+             * Source
+             * @default calculated
+             * @enum {string}
+             */
+            source: "verified" | "sponsor" | "literature" | "calculated" | "entered" | "conflict" | "missing";
+            /**
+             * Sources
+             * @default []
+             */
+            sources: components["schemas"]["Chip"][];
+            /** Subjects */
+            subjects: string[];
+        };
         /** SubjectSpec */
         SubjectSpec: {
             /** Age Years */
@@ -13206,6 +14653,54 @@ export interface components {
             role: ("S1" | "S2" | "S3" | "S5" | "S6" | "SUPPORTIVE") | null;
             /** Study Id */
             study_id: string;
+        };
+        /**
+         * Value
+         * @description One input or finding, as the report shows it: value, unit, source(s), status.
+         */
+        Value: {
+            /**
+             * As Written
+             * @default
+             */
+            as_written: string;
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /**
+             * Note
+             * @default
+             */
+            note: string;
+            /**
+             * Others
+             * @default []
+             */
+            others: components["schemas"]["Value"][];
+            /**
+             * Rule
+             * @default
+             */
+            rule: string;
+            /**
+             * Sources
+             * @default []
+             */
+            sources: components["schemas"]["Chip"][];
+            /**
+             * Status
+             * @default sponsor
+             * @enum {string}
+             */
+            status: "verified" | "sponsor" | "literature" | "calculated" | "entered" | "conflict" | "missing";
+            /**
+             * Unit
+             * @default
+             */
+            unit: string;
+            /** Value */
+            value: number | string | null;
         };
         /** ValueOrigin */
         ValueOrigin: {
@@ -15774,6 +17269,538 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Envelope_CpfView_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_dataroom_api_v1_projects__project_id__dataroom_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_DataRoomView_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    decide_in_dataroom_api_v1_projects__project_id__dataroom_decisions__decision_id__post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+                decision_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RoomChoice"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_DataRoomView_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    enter_dataroom_value_api_v1_projects__project_id__dataroom_entered_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RoomEntered"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_DataRoomView_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_dataroom_file_api_v1_projects__project_id__dataroom_files__sha256__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+                sha256: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_SourceFile_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_dataroom_page_api_v1_projects__project_id__dataroom_files__sha256__pages__page__png_get: {
+        parameters: {
+            query?: {
+                scale?: number;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+                sha256: string;
+                page: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description the page as a PNG */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/png": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_dataroom_part_api_v1_projects__project_id__dataroom_files__sha256__parts__part__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+                sha256: string;
+                part: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_SourcePart_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    import_existing_files_api_v1_projects__project_id__dataroom_import_existing_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_RoomUploaded_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_dataroom_publication_api_v1_projects__project_id__dataroom_publication_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_RoomPublication_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    publish_dataroom_api_v1_projects__project_id__dataroom_publish_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RoomPublish"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_RoomPublished_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_dataroom_question_api_v1_projects__project_id__dataroom_question_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RoomQuestionBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_DataRoomView_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    edit_dataroom_request_api_v1_projects__project_id__dataroom_requests__request_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+                request_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RoomRequestEdit"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_DataRoomView_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_dataroom_run_api_v1_projects__project_id__dataroom_run_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_RoomRun_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    start_dataroom_run_api_v1_projects__project_id__dataroom_run_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["RoomRunStart"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_RoomRun_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_dataroom_uploads_api_v1_projects__project_id__dataroom_uploads_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_RoomUploads_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_dataroom_files_api_v1_projects__project_id__dataroom_uploads_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_dataroom_files_api_v1_projects__project_id__dataroom_uploads_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_RoomUploaded_"];
                 };
             };
             /** @description Validation Error */

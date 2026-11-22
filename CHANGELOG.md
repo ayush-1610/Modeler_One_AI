@@ -15,6 +15,78 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — the Data room's API and page, and its printable evidence report (plan 2026-11-21 v2 §4, §5, §6, §10; build steps 2–6 on screen)
+- **The API (`modeler_api.dataroom_api`, L6), under `/api/v1/projects/{id}/dataroom`.** Every route is typed (the
+  engine's own models; the OpenAPI snapshot and `apps/web/lib/api-types.ts` are regenerated). Members read; the roles
+  that edit Inputs, and only the project's owner, change. Every change is audited as the signed-in person.
+  - Uploads: many files or a zip, each stored once.
+  - `import-existing`: an existing project's recorded client files added as uploads (plan §4, "Open in the Data
+    room").
+  - The run, in the background through `agent_jobs.dataroom_run` (rule B4): one per project, 409 while one runs. Its
+    first record is written at the start, and a run left "running" by a restart reads as failed. An optional per-file
+    filter (`files`) is passed on.
+  - The whole room. It is kept per project until a file of the store changes, so the page does not assemble it on
+    every read.
+  - The question card, a decision (400 for an option it does not offer; another option than the suggestion needs a
+    reason), a value entered with its reason, and a request's wording or status (PATCH). Each answers the room as it
+    now is, with each decision's maker named.
+  - "Send to the model": `publication` (what would be sent and what blocks it, nothing written) and `publish`. Publish
+    is signed with the token's recent step-up (never a password), audited, and refused with 409 and every reason
+    while anything blocks it.
+  - The source viewer: a delivered file's page drawn again from its reading copy (`modeler_intake.room.reading_pdf`:
+    the PDF turned upright, or an image as a scan, exactly as `read_file` made it), with each page's size in points,
+    so a chip's box lands where it was read. A sheet's or a body's numbered lines are given with each cell's place.
+- **The page (`/projects/[id]/dataroom`, L7).** It is reached from the project's sidebar ("Data room") and from the
+  earlier Inputs page ("Open in the Data room"); nothing was removed.
+  - A drop zone and Run; the progress stage by stage, with live counts and each stage's note.
+  - A rail of sections, each with its status dot and word; a content column of at most 1120 px; the one-line finding
+    on top; source chips that open a drawer with the page and the place highlighted (or the sheet's cell).
+  - Overview: the question card to confirm or edit, four headline numbers, conflicts first, the sections.
+  - Files; drug substance and ADME (Property · Value · Source · Status); the composition side by side; solubility on a
+    log scale with the dose volume; dissolution per medium (reference indigo, test teal, reformulated magenta, mean ±
+    SD, the Weibull fit dashed, the client's mean row checked, f2 or the very-rapid rule, the plateau flag).
+  - The clinical study's facts, demographics and subject flow, with who is out and why; the observed mean profiles
+    (arithmetic or geometric, linear or log, N on hover, meals marked) and our exposure beside the client's.
+  - Decisions folded to their suggestion; data requests A–D with editable wording and status, copy or print; the
+    simulation plan; the PK-Sim inputs by building block (the one place PK-Sim's names are shown), ending with "Send
+    to the model".
+  - Status words of plan §6 in colour and in words; phones get a section picker and stacked tables, with no sideways
+    scroll at 390 px.
+- **The evidence report (`/projects/[id]/dataroom/report`).** "Export report" opens it and the browser's print dialog
+  saves a PDF; no PDF library on the server. It has a cover (logo, project, question card, headline numbers), one page
+  per section with its sources written out, the decisions with who chose what, when and why, the requests' wording,
+  and the PK-Sim inputs. The pages are A4, with a footer of the rules' label, the date and "page n of m".
+- **Engine changes the screens needed (L3/L4, with tests).**
+  - `StudyView` and `Decision` are renamed `RoomStudy` and `RoomDecision`. The API already has schemas of those names,
+    and two would have renamed both in the contract.
+  - Every field is marked required in the contract.
+  - Each dissolution profile carries its fitted curve (`weibull_curve`, from `pbpk_domain.dissolution.weibull_fraction`).
+  - Observed PK and the simulation plan are sections of their own.
+  - A request for a missing compound input names the input a person may enter (`input`).
+  - The population and meal options are in words: the PK-Sim names stay their ids and show in PK-Sim inputs.
+  - A refused fact's message names its field in words.
+  - `DataRoomStore.file_bytes` finds a file inside an uploaded zip.
+  - `modeler_intake.room.reading_pdf` / `page_png`.
+  - A synthetic delivery for tests and the browser flows: `modeler_project.dataroom.synthetic`, made-up Exampleamide.
+- **Fixed (science-adjacent).**
+  - The fraction unbound converted from "% bound" kept the "%" unit on the PK-Sim input. It now carries its own unit
+    (fraction).
+  - `run_room` replaced its per-file filter with the files the read stage returned. A run that read and then sorted
+    or extracted therefore did nothing per file. Tested.
+- **On the engine's review fixes (560bccb):** the page draws the mean profiles of the analysis set the modeler chose
+  (the modeling set until then), and the meals at the event's times. "Enter" is offered only for an input a data
+  request names. The admin Models page's "More…" form offers "Another OpenAI-compatible service" with a typed model;
+  `test_admin_platform` checks the page's answer.
+- **Checks (2026-11-22):**
+  - `make lint` clean; `npm --prefix apps/web run typecheck` and `build` pass.
+  - The Data room's API tests: 7 passed. With `tests/architecture`, the engine, reader and run tests and the admin
+    platform tests: 282 passed.
+  - The whole suite: 3265 passed, 16 failed, none in this change. 14 need the Temporal test server, whose download
+    this sandbox blocks. One expects a read-only file to refuse root. One delivery test failed under load and passes
+    alone and in its file (70 of 70).
+  - e2e: `dataroom.spec.ts` (2), `inputs-a11y.spec.ts` (9) and `dashboard.spec.ts` (1) pass.
+  - The API tests use the synthetic delivery with agents off; the e2e flows run it in the browser.
+
 ### Added — the Data room's engine: code reads, checks and computes; five agents describe (plan 2026-11-21 v2 §6–§9, build steps 3–6) — science
 - **Code reads what an agent describes (`modeler_project.dataroom.extract`).** An agent says where a table is (a part
   of a file, a range of lines, the role of each cell position) and quotes facts. `read_table` reads every cell it names

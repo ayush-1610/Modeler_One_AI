@@ -18,7 +18,8 @@ Role = Literal["development", "calibration", "verification", "prediction"]
 
 
 class _B(BaseModel):
-    model_config = ConfigDict(frozen=True, extra="forbid")
+    # every field is in every answer (the API serves these as they are), so the contract marks each one required
+    model_config = ConfigDict(frozen=True, extra="forbid", json_schema_serialization_defaults_required=True)
 
 
 class Chip(_B):
@@ -169,7 +170,9 @@ class Exposure(_B):
     difference_percent: float | None = None
 
 
-class StudyView(_B):
+class RoomStudy(_B):
+    """One clinical study as the room shows it (named apart from the API's other study views)."""
+
     study_id: str
     facts: tuple[Value, ...] = ()
     arms: tuple[Arm, ...] = ()
@@ -204,6 +207,7 @@ class DissolutionView(_B):
     sd: tuple[float | None, ...] = ()
     client_mean: tuple[float | None, ...] = ()
     weibull: dict[str, float | str | bool | None] = Field(default_factory=dict)
+    weibull_curve: tuple[tuple[float, float], ...] = ()   # the fitted curve: (min, % dissolved), drawn beside the means
     very_rapid: bool = False         # ≥ 85 % within 15 min
     plateau: bool = False
     sources: tuple[Chip, ...] = ()
@@ -247,7 +251,9 @@ class Option(_B):
     detail: str = ""
 
 
-class Decision(_B):
+class RoomDecision(_B):
+    """A modeling choice waiting for the modeler (named apart from the API's other decisions)."""
+
     id: str                          # stable: e.g. analysis-set:17-06-138
     title: str
     question: str
@@ -269,6 +275,7 @@ class DataRequest(_B):
     wording: str = ""
     status: Literal["open", "not_needed", "answered"] = "open"
     checklist: str = ""
+    input: str = ""                  # the PK-Sim input it would fill (an InputRow name), when a person may enter it
 
 
 class PlanRow(_B):
@@ -331,8 +338,8 @@ class DataRoomView(_B):
     solubility: tuple[SolubilityRow, ...] = ()
     dissolution: tuple[DissolutionView, ...] = ()
     f2: tuple[F2View, ...] = ()
-    studies: tuple[StudyView, ...] = ()
-    decisions: tuple[Decision, ...] = ()
+    studies: tuple[RoomStudy, ...] = ()
+    decisions: tuple[RoomDecision, ...] = ()
     requests: tuple[DataRequest, ...] = ()
     plan: tuple[PlanRow, ...] = ()
     inputs: tuple[InputRow, ...] = ()

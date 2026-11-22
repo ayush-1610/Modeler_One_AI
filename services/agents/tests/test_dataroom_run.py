@@ -114,3 +114,13 @@ def test_the_writer_may_not_bring_a_number_of_its_own(tmp_path):
     run_room(store, chat_for=lambda agent: model, actor="user:m", stages=["write"], use_ocr=False)
     assert any("a number that is not in the material" in seen for seen in model.seen)
     assert store.writing()["findings"] == {"files": "2 files read."}
+
+
+def test_one_run_reads_the_files_and_then_sorts_every_one_of_them(tmp_path):
+    # the read stage's files once replaced the run's per-file filter, so a run that read and then sorted sorted nothing
+    store = _store(tmp_path)
+    doc = run_room(store, chat_for=lambda agent: Scripted({}) if agent == "A7" else None, actor="user:m",
+                   stages=["read", "triage"], use_ocr=False, workers=1)
+    assert doc["state"] == "done", doc["error"]
+    assert {s["id"]: s["note"] for s in doc["stages"]}["triage"] == "2 files sorted"
+    assert all(f.triage is not None for f in store.files())

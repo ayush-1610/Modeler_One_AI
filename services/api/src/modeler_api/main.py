@@ -19,6 +19,7 @@ from modeler_api.brief_api import router as brief_router
 from modeler_api.campaign_api import router as campaign_router
 from modeler_api.client_api import router as client_router
 from modeler_api.config import check_auth, check_part11, get_settings
+from modeler_api.dataroom_api import router as dataroom_router
 from modeler_api.escalations import router as escalations_router
 from modeler_api.evidence_api import router as evidence_router
 from modeler_api.inputs_api import router as inputs_router
@@ -79,6 +80,7 @@ app.include_router(requirements_router, dependencies=OWNER_ONLY_WRITES)
 app.include_router(evidence_router, dependencies=OWNER_ONLY_WRITES)
 app.include_router(client_router, dependencies=OWNER_ONLY_WRITES)
 app.include_router(inputs_router, dependencies=OWNER_ONLY_WRITES)
+app.include_router(dataroom_router, dependencies=OWNER_ONLY_WRITES)
 app.include_router(plan_router, dependencies=OWNER_ONLY_WRITES)
 app.include_router(system_router)
 app.include_router(members_router, dependencies=OWNER_ONLY_WRITES)

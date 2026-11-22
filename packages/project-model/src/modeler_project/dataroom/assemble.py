@@ -29,7 +29,6 @@ from modeler_project.dataroom.model import (
     Chip,
     DataRequest,
     DataRoomView,
-    Decision,
     DissolutionView,
     FileView,
     InputRow,
@@ -37,8 +36,9 @@ from modeler_project.dataroom.model import (
     PlanRow,
     Problem,
     ReadTable,
+    RoomDecision,
+    RoomStudy,
     Section,
-    StudyView,
     Value,
 )
 from modeler_project.dataroom.rules import Rules, load_rules
@@ -53,6 +53,11 @@ _ETHNICITY = (("japanese", "Japanese_Population"), ("mexican", "MexicanAmericanW
               ("white american", "WhiteAmerican_NHANES_1997"), ("asian", "Asian_Tanaka_1996"),
               ("indian", "Asian_Tanaka_1996"), ("chinese", "Asian_Tanaka_1996"), ("korean", "Asian_Tanaka_1996"),
               ("caucasian", "European_ICRP_2002"), ("european", "European_ICRP_2002"), ("white", "European_ICRP_2002"))
+# How a decision names each database to a person (the option's id is the harvested name, which the PK-Sim inputs show)
+POPULATION_LABELS = {"European_ICRP_2002": "European (ICRP 2002)", "Asian_Tanaka_1996": "Asian (Tanaka 1996)",
+                     "Japanese_Population": "Japanese", "WhiteAmerican_NHANES_1997": "White American (NHANES 1997)",
+                     "BlackAmerican_NHANES_1997": "Black American (NHANES 1997)",
+                     "MexicanAmericanWhite_NHANES_1997": "Mexican American (NHANES 1997)"}
 # The PK-Sim meal templates (harvested: catalog.json "event_templates")
 MEAL_STANDARD, MEAL_HIGH_FAT = "Meal: Standard (Human)", "Meal: High-fat breakfast (Human)"
 # Compound parameters: CPF id, PK-Sim name (pbpk_domain/parameters/registry.yaml), the fact field, the unit stored
@@ -271,7 +276,7 @@ def _arms(facts: Sequence[CheckedFact], question: QuestionCard | None) -> list[A
     return sorted(out.values(), key=lambda a: a.treatment)
 
 
-def _decision(decisions: Mapping[str, Mapping[str, str]], d: Decision) -> Decision:
+def _decision(decisions: Mapping[str, Mapping[str, str]], d: RoomDecision) -> RoomDecision:
     made = decisions.get(d.id)
     if made and made.get("chosen") in {o.id for o in d.options}:
         return d.model_copy(update={"chosen": made["chosen"], "reason": made.get("reason", ""), "by": made.get("by", ""),
@@ -279,7 +284,7 @@ def _decision(decisions: Mapping[str, Mapping[str, str]], d: Decision) -> Decisi
     return d
 
 
-def _pick(d: Decision) -> str:
+def _pick(d: RoomDecision) -> str:
     return d.chosen or d.suggested
 
 
@@ -318,7 +323,8 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
             facts.append(check_fact(fact.model_copy(update={"file": path}), doc, file=path, sha256=file.sha256))
     for f in facts:
         if not f.ok:
-            problems.append(Problem(code="FACT_REFUSED", message=f"{f.fact.field} = {f.fact.value!r} ({f.fact.file}): {f.problem}"))
+            problems.append(Problem(code="FACT_REFUSED", message=f"{_field_label(f.fact.field)} “{f.fact.value}” ({f.fact.file}): "
+                                    f"{f.problem}"))
     for path, issues in inputs.reviews.items():
         for issue in issues:
             problems.append(Problem(code="CHECKER_ISSUE", message=f"{path}, table {issue.get('table', '?')}: {issue.get('issue', '')}"))
@@ -341,8 +347,8 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
         sid = t.description.about or t.description.constants.get("study", "") or "study"
         if not any(_same_study(sid, s) for s in study_ids):
             study_ids.append(sid)
-    studies: list[StudyView] = []
-    decisions: list[Decision] = []
+    studies: list[RoomStudy] = []
+    decisions: list[RoomDecision] = []
     for sid in study_ids:
         def mine(kind: str, sid: str = sid) -> list[ReadTable]:
             return [t for t in by_kind[kind] if not t.description.about or _same_study(t.description.about, sid)
@@ -359,7 +365,7 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
         options = [Option(id=name, label=f"{sets[name].label}: {len(sets[name].subjects)} subjects", detail=sets[name].rule)
                    for name in ("modeling", "client_statistical", "completed", "dosed") if name in sets]
         if options:
-            decisions.append(_decision(inputs.decisions, Decision(
+            decisions.append(_decision(inputs.decisions, RoomDecision(
                 id=f"analysis-set:{sid}", title=f"Analysis set for {sid}'s observed profiles",
                 question="Which subjects make the observed mean profiles the model is compared with?", options=tuple(options),
                 suggested="modeling", why="; ".join(f"subject {s}: {r}" for s, r in sorted(
@@ -368,10 +374,10 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
         dem = _demographics(mine("demographics"), sets["modeling"].subjects if "modeling" in sets else ())
         ethnicity = _first(sfacts, "study.ethnicity")
         guess = (population_of(ethnicity.fact.value) if ethnicity else None) or "European_ICRP_2002"
-        decisions.append(_decision(inputs.decisions, Decision(
+        decisions.append(_decision(inputs.decisions, RoomDecision(
             id=f"population:{sid}", title=f"Population for {sid}",
             question="Which PK-Sim population database stands for the study's subjects?",
-            options=tuple(Option(id=p, label=p) for p in POPULATIONS), suggested=guess,
+            options=tuple(Option(id=p, label=POPULATION_LABELS[p]) for p in POPULATIONS), suggested=guess,
             why=(f"the study's subjects are {ethnicity.fact.value}" if ethnicity else "no ethnicity found: the reference European")
             + ("; no Indian population exists in PK-Sim yet (backlog): the Asian database is the closest" if ethnicity and
                "indian" in ethnicity.fact.value.lower() else ""), evidence=(ethnicity.chip,) if ethnicity and ethnicity.chip else ())))
@@ -379,7 +385,7 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
         males, females = int(dem.get("male", 0) or 0), int(dem.get("female", 0) or 0)
         stated = sex_of(sex_fact.fact.value) if sex_fact else None
         if (males and females) or stated == "MIXED":
-            decisions.append(_decision(inputs.decisions, Decision(
+            decisions.append(_decision(inputs.decisions, RoomDecision(
                 id=f"sex:{sid}", title=f"Sex of {sid}'s individual",
                 question="The study has men and women; a PK-Sim individual is one sex. Which stands for the study?",
                 options=(Option(id="MALE", label="Male"), Option(id="FEMALE", label="Female")),
@@ -389,10 +395,10 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
         meal = _first(sfacts, "study.meal_composition") or _first(sfacts, "study.fed") or _first(sfacts, "study.meal_times")
         if meal:
             high_fat = "high" in meal.fact.value.lower() and "fat" in meal.fact.value.lower()
-            decisions.append(_decision(inputs.decisions, Decision(
+            decisions.append(_decision(inputs.decisions, RoomDecision(
                 id=f"meal:{sid}", title=f"Meal template for {sid}",
                 question="Which PK-Sim meal stands for the study's meals?",
-                options=(Option(id="standard", label=MEAL_STANDARD), Option(id="high_fat", label=MEAL_HIGH_FAT)),
+                options=(Option(id="standard", label="Standard meal"), Option(id="high_fat", label="High-fat breakfast")),
                 suggested="high_fat" if high_fat else "standard",
                 why=("the composition says high-fat" if high_fat else
                      "the meal's composition is not given: the standard meal, until the client confirms it"),
@@ -421,7 +427,7 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
     for product in sorted({d.product or d.batch for d in diss}):
         views = [d for d in diss if (d.product or d.batch) == product]
         qc = next((d for d in views if "qc" in d.medium.lower()), None)
-        decisions.append(_decision(inputs.decisions, Decision(
+        decisions.append(_decision(inputs.decisions, RoomDecision(
             id=f"release:{product}", title=f"Release of {product}",
             question="Which dissolution profile gives the product's release in the model (a Weibull fit to it)?",
             options=tuple(Option(id=d.id, label=f"{d.medium or 'medium not stated'} · batch {d.batch}",
@@ -433,7 +439,7 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
 
     if solubility:
         water = next((r for r in solubility if "water" in r.medium.lower()), None)
-        decisions.append(_decision(inputs.decisions, Decision(
+        decisions.append(_decision(inputs.decisions, RoomDecision(
             id="solubility-ref", title="Reference solubility",
             question="Which measured solubility is the compound's reference solubility (PK-Sim scales it with pH from the pKa)?",
             options=tuple(Option(id=f"sol-{i}", label=f"{r.as_written} in {r.medium}" + (f" (pH {r.ph:g})" if r.ph is not None else ""))
@@ -445,7 +451,7 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
     for product in sorted({d.product or d.batch for d in diss}):
         view = next((d for d in diss if d.id == chosen.get(f"release:{product}")), None)
         if view is not None and view.plateau:
-            decisions.append(_decision(inputs.decisions, Decision(
+            decisions.append(_decision(inputs.decisions, RoomDecision(
                 id=f"release-model:{product}", title=f"Release model for {product}",
                 question="The chosen profile levels off below 100 %. How should the model release the drug?",
                 options=(Option(id="weibull", label="Weibull fitted to the profile as measured",
@@ -460,13 +466,13 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
     # --- data requests -------------------------------------------------------------------------------------------------
     requests: list[DataRequest] = []
 
-    def request(area: str, title: str, why: str, checklist: str = "") -> None:
+    def request(area: str, title: str, why: str, checklist: str = "", input: str = "") -> None:
         n = sum(1 for r in requests if r.area == area) + 1
         rid = f"{area}-{n:02d}"
         edit = inputs.request_edits.get(rid, {})
         wording = edit.get("wording") or inputs.writing.get("requests", {}).get(title, "")
         requests.append(DataRequest(id=rid, area=area, title=title, why=why, wording=wording,  # type: ignore[arg-type]
-                                    status=edit.get("status", "open"), checklist=checklist))  # type: ignore[arg-type]
+                                    status=edit.get("status", "open"), checklist=checklist, input=input))  # type: ignore[arg-type]
 
     covered_topics: set[str] = set()
     for topic, prefixes in _TOPIC_FIELDS.items():
@@ -507,7 +513,7 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
         found = any(v.key.startswith(field) for v in substance + adme) or (key == "phys.solubility.ref" and solubility)
         if not found and key not in entered and not asked:
             request("C", label, "a compound input of the model, not in the delivery: from the client, or from literature (marked so)",
-                    field)
+                    field, input=key)
 
     # --- PK-Sim inputs ---------------------------------------------------------------------------------------------------
     inputs_rows: list[InputRow] = []
@@ -665,12 +671,20 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
 
     n_ocr = sum(len(f.ocr_pages) for f in inputs.files)
     open_requests = [r for r in requests if r.status == "open"]
+    # the exposure numbers recomputed beside the client's: how many agree within the NCA tolerance
+    compared = [e.difference_percent for s in studies for e in s.exposures
+                if e.difference_percent is not None and e.metric != "tmax"]
+    agree = sum(1 for d in compared if abs(d) <= rules.nca.tolerance_percent)
+    # the arms of each study in its chosen analysis set (a profile is kept per set and arm)
+    arms = sum(1 for s in studies for p in s.profiles if p.analysis_set == chosen.get(f"analysis-set:{s.study_id}", "modeling"))
+    observed_finding = (f"{arms} mean profiles; {agree} of {len(compared)} of the client's exposure numbers reproduced within "
+                        f"{rules.nca.tolerance_percent:g} %" if compared else f"{arms} mean profiles; no client exposure to compare")
     sections = [
         section("files", "Files", f"{len(inputs.files)} files read" + (f", {n_ocr} scanned pages read by our OCR" if n_ocr else ""),
                 all(f.state in ("read", "partly_read") for f in inputs.files), not inputs.files),
-        section("substance", "Drug substance", f"{len(substance)} properties found", not any(v.status == "conflict" for v in substance),
-                not substance),
-        section("adme", "ADME and disposition", f"{len(adme)} facts found", True, not adme),
+        section("substance", "Drug substance", f"{len(substance)} {'property' if len(substance) == 1 else 'properties'} found",
+                not any(v.status == "conflict" for v in substance), not substance),
+        section("adme", "ADME and disposition", f"{len(adme)} {'fact' if len(adme) == 1 else 'facts'} found", True, not adme),
         section("formulation", "Formulation", f"{len(composition)} components, {sum(1 for c in composition if c.changed)} changed",
                 True, not composition),
         section("solubility", "Solubility", f"{len(solubility)} media", True, not solubility),
@@ -679,9 +693,14 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
         section("clinical", "Clinical studies", "; ".join(
             f"{s.study_id}: {len(next((x.subjects for x in s.sets if x.name == 'modeling'), ()))} subjects in the modeling set"
             for s in studies), not any(p.severity == "error" for s in studies for p in s.problems), not studies),
+        section("observed", "Observed PK", observed_finding, all(abs(d) <= rules.nca.tolerance_percent for d in compared),
+                not any(s.profiles for s in studies)),
         section("decisions", "Decisions", f"{sum(1 for d in decisions if not d.chosen)} waiting", all(d.chosen for d in decisions),
                 not decisions),
         section("requests", "Data requests", f"{len(open_requests)} open", not open_requests, not requests),
+        section("plan", "Simulation plan", f"{len(plan)} simulations: " + ", ".join(
+            f"{n} {role}" for role in ("calibration", "verification", "prediction")
+            if (n := sum(1 for r in plan if r.role == role))), True, not plan),
         section("inputs", "PK-Sim inputs", f"{sum(1 for r in inputs_rows if r.status != 'missing')} of {len(inputs_rows)} filled",
                 not any(r.status == "missing" for r in inputs_rows), not inputs_rows),
     ]
@@ -690,6 +709,13 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
                         adme=tuple(adme), products=tuple(products), composition=tuple(composition), solubility=tuple(solubility),
                         dissolution=tuple(diss), f2=tuple(f2s), studies=tuple(studies), decisions=tuple(decisions),
                         requests=tuple(requests), plan=tuple(plan), inputs=tuple(inputs_rows), problems=tuple(problems))
+
+
+def _field_label(field: str) -> str:
+    """A fact's field as a person reads it: the vocabulary's words ("molecular weight"), else its last name part."""
+    from modeler_intake.room_specs import FIELDS
+
+    return FIELDS.get(field) or field.rsplit(".", 1)[-1].replace("_", " ")
 
 
 def _pka_rows(facts: Sequence[CheckedFact], substance: Sequence[Value]) -> list[InputRow]:

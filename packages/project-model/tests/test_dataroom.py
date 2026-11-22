@@ -182,6 +182,30 @@ def test_decisions_requests_and_inputs_say_what_is_proposed_and_what_is_missing(
     assert any(p.code == "FACT_REFUSED" for p in view.problems)
 
 
+def test_the_room_says_what_each_screen_needs_in_a_persons_words(room):
+    # the Data room's page (plan §5, §10): every section in the rail, the fitted release curve to draw over the means,
+    # decisions and problems in words, and the input a person may enter for a missing compound value
+    files, docs, question, extractions = room
+    view = assemble(Inputs(files=files, docs=docs, question=question, extractions=extractions))
+    assert [s.id for s in view.sections] == ["files", "substance", "adme", "formulation", "solubility", "dissolution",
+                                             "clinical", "observed", "decisions", "requests", "plan", "inputs"]
+    sections = {s.id: s for s in view.sections}
+    assert sections["observed"].finding.startswith("2 mean profiles")
+    assert sections["plan"].finding == "3 simulations: 1 calibration, 1 verification, 1 prediction"
+    (profile,) = view.dissolution
+    curve = dict(profile.weibull_curve)
+    assert curve[0.0] == 0.0 and max(curve) == profile.times_min[-1]
+    t50 = profile.weibull["t50_min"]
+    below, above = max(t for t in curve if t <= t50), min(t for t in curve if t >= t50)
+    assert curve[below] <= 50.0 <= curve[above]                       # half the dose dissolved at t50, as fitted
+    population = next(d for d in view.decisions if d.id == "population:EX-01")
+    assert {o.id: o.label for o in population.options}["Asian_Tanaka_1996"] == "Asian (Tanaka 1996)"
+    mw = next(r for r in view.requests if r.title == "Molecular weight")
+    assert mw.input == "phys.mw"
+    refused = [p.message for p in view.problems if p.code == "FACT_REFUSED"]
+    assert any(m.startswith("molecular weight “412.5”") for m in refused) and not any("substance.mw" in m for m in refused)
+
+
 DISS_REF = "Unit\t5\t10\t15\t30\t45\n" + "".join(f"{u}\t{55 + u}\t{75 + u}\t{84 + u}\t{90 + u % 3}\t{97 + u % 3}\n" for u in range(1, 7))
 BATCHES = "Batches: LOT-1 is the test product; LOT-R is the reference product.\n"
 

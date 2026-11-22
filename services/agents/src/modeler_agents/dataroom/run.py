@@ -67,10 +67,11 @@ def run_room(store: DataRoomStore, *, chat_for: Callable[[str], ChatModel | None
                 continue
             run.step(sid, state="running")
             if sid == "read":
-                files = read_uploads(store, use_ocr=use_ocr, workers=workers,
-                                     progress=lambda done, total, path: run.step("read", done=done, total=total, note=path))
-                run.step("read", state="done", done=len(files), total=len(files),
-                         note=f"{len(files)} files, {sum(len(f.ocr_pages) for f in files)} scanned pages read by OCR")
+                # its own name: `files` is the caller's filter of the agents' stages, which the files read must not replace
+                read = read_uploads(store, use_ocr=use_ocr, workers=workers,
+                                    progress=lambda done, total, path: run.step("read", done=done, total=total, note=path))
+                run.step("read", state="done", done=len(read), total=len(read),
+                         note=f"{len(read)} files, {sum(len(f.ocr_pages) for f in read)} scanned pages read by OCR")
                 continue
             model = chat_for(agent)
             if model is None:

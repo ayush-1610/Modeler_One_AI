@@ -23,7 +23,9 @@ from modeler_project.dataroom.model import (
     SolubilityRow,
 )
 from modeler_project.dataroom.rules import Rules, load_rules
-from pbpk_domain.dissolution import Profile, ProfileKey, f2, fit_weibull
+from pbpk_domain.dissolution import Profile, ProfileKey, WeibullFit, f2, fit_weibull, weibull_fraction
+
+CURVE_POINTS = 61       # points of a fitted curve drawn beside the means (0 to the last time)
 
 _PH = re.compile(r"\bpH\s*([0-9]+(?:\.[0-9]+)?)", re.IGNORECASE)
 _SOLUBILITY_UNITS = {"mg/ml": 1.0, "g/l": 1.0, "mg/l": 1e-3, "µg/ml": 1e-3, "ug/ml": 1e-3, "mcg/ml": 1e-3,
@@ -43,6 +45,18 @@ def _ph_of(*texts: str) -> float | None:
 
 def _decimals(text: str) -> int:
     return len(text.split(".")[1]) if "." in text else 0
+
+
+def weibull_curve(fit: WeibullFit, last_min: float) -> tuple[tuple[float, float], ...]:
+    """The fitted Weibull curve from 0 to the last time (min, % dissolved), for drawing it over the means; none when the
+    fit did not converge. The fraction is `pbpk_domain.dissolution.weibull_fraction`, the release PK-Sim's tablet uses."""
+    if not fit.converged or fit.t50_min is None or fit.shape is None or last_min <= 0:
+        return ()
+    import numpy as np
+
+    times = np.linspace(0.0, last_min, CURVE_POINTS)
+    percent = 100.0 * weibull_fraction(times, fit.t50_min, fit.shape, fit.lag_min)
+    return tuple((round(float(t), 4), round(float(y), 3)) for t, y in zip(times, percent, strict=True))
 
 
 def _quantity(text: str, units: dict[str, float], *, bare: bool = False) -> float | None:
@@ -155,6 +169,7 @@ def dissolution_views(table: ReadTable, *, products: dict[str, str] | None = Non
             id=_view_id(table.id, group), product=product, batch=batch, medium=medium, ph=ph,
             apparatus=const.get("apparatus", ""), rpm=rpm, volume_ml=volume, n_units=n_units, times_min=tuple(times),
             mean=tuple(means), sd=tuple(sds), client_mean=tuple(client_mean), weibull=fit.to_content(),
+            weibull_curve=weibull_curve(fit, times[-1] if times else 0.0),
             very_rapid=very_rapid, plateau=plateau, sources=tuple(chips[:1] + [c for c in (mean_row.get(times[0], ("", None))[1],) if c]),
             problems=tuple(own)))
     return views, problems

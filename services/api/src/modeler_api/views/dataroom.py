@@ -1,0 +1,111 @@
+"""The Data room's answers beside the room itself (plan 2026-11-21 v2 §9 "API"): its uploads, its background run, and
+the source viewer's file, part and page. The room is the engine's own model (`modeler_project.dataroom.DataRoomView`).
+"""
+
+from __future__ import annotations
+
+from typing import Literal
+
+from modeler_api.views.common import View
+
+
+class RoomUpload(View):
+    """One upload as stored: a file or an archive, its bytes in the project's blobs."""
+
+    name: str
+    sha256: str
+    size_bytes: int
+    by: str
+    at: str
+
+
+class RoomUploads(View):
+    uploads: list[RoomUpload]
+
+
+class RoomUploaded(View):
+    """What an upload added: `added` the uploads of this request (a file sent twice is stored once), `uploads` all."""
+
+    added: list[RoomUpload]
+    uploads: list[RoomUpload]
+
+
+class RoomRunStage(View):
+    id: str
+    label: str
+    agent: str                       # the console's agent that does it (A6 … A10), "" for code
+    state: Literal["waiting", "running", "done", "skipped", "failed"]
+    done: int
+    total: int
+    note: str
+
+
+class RoomRun(View):
+    """The Data room's background run (`modeler_agents.dataroom.run_room`): each stage with its live counts and note."""
+
+    state: Literal["idle", "running", "done", "failed"]
+    stages: list[RoomRunStage]
+    agents: dict[str, str]           # agent -> provider/model it ran on
+    error: str
+    started_at: str | None
+    finished_at: str | None
+
+
+class SourcePage(View):
+    page: int
+    width: float                     # points: a chip's box (points, top-left origin) is drawn on this
+    height: float
+
+
+class SourceFile(View):
+    """A delivered file as the source viewer opens it: its pages (with their size) or its parts of lines."""
+
+    sha256: str
+    name: str
+    path: str
+    kind: str
+    pages: list[SourcePage]
+    parts: list[str]
+
+
+class SourceCell(View):
+    text: str
+    ref: str                         # a sheet cell's A1 address, a Word table cell (t1/r2/c3), a paragraph
+    box: tuple[float, float, float, float] | None   # a page cell: its words' box, points, top-left origin
+
+
+class SourceLine(View):
+    number: int
+    cells: list[SourceCell]
+
+
+class SourcePart(View):
+    """One part of a file (a sheet, a Word or text body, a page's lines), numbered as the agents read it."""
+
+    sha256: str
+    name: str
+    lines: list[SourceLine]
+
+
+class PublicationItem(View):
+    target: str                      # the input it sets: a CPF id (phys.mw, form.<name>.weibull.t50) or a dataset's study
+    value: str                       # as it will be sent, with its unit
+
+
+class RoomPublication(View):
+    """What "Send to the model" would send now (`modeler_project.dataroom.publish.plan_publication`, nothing written),
+    and what keeps it from being sent, in words."""
+
+    evidence: list[PublicationItem]
+    datasets: list[PublicationItem]
+    blocked: list[str]
+
+
+class RoomPublished(View):
+    """What was sent, signed: items written, items already in the project (skipped), and the signature."""
+
+    evidence: int
+    datasets: int
+    skipped: int
+    signature_id: str
+    manifestation: str

@@ -189,6 +189,37 @@ def read_file(path: str, data: bytes, *, ocr: OcrEngine | None = None) -> RoomFi
                     turned_pages=turned, reading_copy=payload is not data, document=doc)
 
 
+def reading_pdf(name: str, data: bytes) -> bytes | None:
+    """The PDF whose pages `read_file` read, made again from the file's bytes exactly as it made it (a PDF turned upright,
+    an image as a one-page scan), so a cell's box (points, top-left origin) falls on the same place of the page shown;
+    None for a file read as sheets or a body (a delimited export, a workbook, a Word or text file)."""
+    suffix = PurePosixPath(name.replace("\\", "/")).suffix.lower()
+    if suffix in TABLE_TEXT_SUFFIXES:
+        return None
+    if suffix == ".pdf" or data[:5] == b"%PDF-":
+        return upright_pdf(data)[0]
+    if suffix in IMAGE_SUFFIXES:
+        return image_to_pdf(data)
+    return None
+
+
+def page_png(pdf: bytes, page: int, *, scale: float = 1.5) -> bytes:
+    """One page (1-based) of a PDF drawn as a PNG at `scale` × 72 dpi (pdfium, as the OCR engine draws it); IndexError
+    for a page the PDF does not have."""
+    import pypdfium2 as pdfium
+
+    document = pdfium.PdfDocument(pdf)
+    try:
+        if not 1 <= page <= len(document):
+            raise IndexError(f"the file has {len(document)} pages, not page {page}")
+        image = document[page - 1].render(scale=scale).to_pil()
+    finally:
+        document.close()
+    out = io.BytesIO()
+    image.save(out, format="PNG", optimize=True)
+    return out.getvalue()
+
+
 def expand_uploads(uploads: Iterable[tuple[str, bytes]]) -> tuple[list[tuple[str, bytes]], list[RoomFile]]:
     """The real files of the uploads (archives unpacked, leftovers dropped), and the archives that could not be opened."""
     expanded: list[tuple[str, bytes]] = []
