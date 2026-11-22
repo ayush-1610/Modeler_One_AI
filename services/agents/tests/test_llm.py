@@ -70,6 +70,32 @@ def test_a_rate_limit_is_waited_out_as_long_as_the_provider_asks():
     assert chat.complete([], []).content == "OK" and waits == [7.0]
 
 
+def test_a_tool_call_the_provider_refuses_is_sent_back_to_the_model_to_correct():
+    from modeler_agents.llm import Tool, run_tool_loop
+
+    bodies = []
+
+    def handler(request):
+        bodies.append(json.loads(request.content))
+        if len(bodies) == 1:
+            return httpx.Response(400, json={"error": {"message": "Tool call validation failed: parameters for tool submit "
+                                                                  "did not match schema: missing properties: 'role'"}})
+        if len(bodies) == 2:
+            return httpx.Response(200, json={"choices": [{"message": {"content": "", "tool_calls": [{"id": "c1", "type": "function",
+                                  "function": {"name": "submit", "arguments": json.dumps({"role": "test"})}}]},
+                                  "finish_reason": "tool_calls"}], "usage": {}, "model": "m"})
+        return httpx.Response(200, json={"choices": [{"message": {"content": "DONE"}, "finish_reason": "stop"}], "usage": {},
+                                         "model": "m"})
+
+    got = []
+    chat = OpenAICompatChat(provider="groq", base_url="https://x", api_key="k", model="m",
+                            transport=httpx.MockTransport(handler), sleep=lambda s: None)
+    tool = Tool("submit", "submit", {"type": "object", "properties": {"role": {"type": "string"}}}, lambda **a: got.append(a) or "saved")
+    outcome = run_tool_loop(chat, system="s", user="u", tools=[tool])
+    assert outcome.status == "COMPLETED" and got == [{"role": "test"}]
+    assert "Your last tool call was refused" in bodies[1]["messages"][-1]["content"]
+
+
 def test_client_does_not_retry_a_refusal():
     calls = []
 

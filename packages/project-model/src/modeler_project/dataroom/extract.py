@@ -139,7 +139,28 @@ def check_fact(fact: Fact, doc: SourceDocument, *, file: str, sha256: str) -> Ch
     if not _value_in_quote(fact.value, fact.quote):
         return CheckedFact(fact=fact, ok=False, problem=f"the value {fact.value!r} is not in its quote")
     part, line = found
-    numbers = numbers_in(fact.value)
-    number = numbers[0] if len(numbers) == 1 else None
-    return CheckedFact(fact=fact, ok=True, number=number,
+    return CheckedFact(fact=fact, ok=True, number=number_of(fact.value, fact.unit),
                        chip=Chip(file=file, sha256=sha256, part=part, line=line, text=fact.quote.strip()))
+
+
+_UNIT_AFTER = r"\s*(?:mg|g|µg|μg|mcg|ng|ml|mL|l|L|h|hr|hrs|hours|min|kg|cm|m|%|ng/ml|ng/mL|mg/ml|mg/mL)\b"
+
+
+def number_of(value: str, unit: str = "") -> float | None:
+    """The one number a value holds: "90" -> 90; "1 x 90 mg" -> 90 (the number before its unit); "0.00 / 0.50 / …" or
+    "18-44" -> None (several numbers, none of them the value)."""
+    text = unicodedata.normalize("NFKC", value)
+    # a tolerance or spread written after the value ("240±2 mL", "30 +/- 6") is not the value
+    text = re.sub(r"\s*(?:±|\+/-|\+-)\s*\d+(?:\.\d+)?", "", text)
+    numbers = numbers_in(text)
+    if len(numbers) == 1:
+        return numbers[0]
+    if unit.strip():
+        hits = re.findall(r"(\d+(?:\.\d+)?)\s*" + re.escape(unit.strip()) + r"\b", text)
+        if len(hits) == 1:
+            return float(hits[0])
+    hits = re.findall(r"(\d+(?:\.\d+)?)" + _UNIT_AFTER, text)
+    if len(hits) == 1 and re.fullmatch(r"\s*\d+\s*[x×]\s*\d+(?:\.\d+)?\s*\S+\s*", text):
+        return float(hits[0])   # "1 x 90 mg": one unit of 90 mg
+    return None
+

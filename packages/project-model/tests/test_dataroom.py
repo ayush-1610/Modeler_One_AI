@@ -242,3 +242,21 @@ def test_send_to_the_model_lands_the_arms_profiles_and_the_release_once(room, tm
     targets = {e.target: e for e in evidence_register.items(ws)}
     assert targets["form.Refamide_100_mg.type"].value == "Weibull" and targets["phys.solubility.ref"].value == 0.2
     assert all(e.state == "ACCEPTED" for e in targets.values())
+
+
+def test_a_facts_number_is_the_value_not_a_count_or_a_tolerance():
+    from modeler_project.dataroom.extract import number_of
+
+    cases = [("1 x 90 mg", "mg"), ("240±2 mL", "mL"), ("30 +/- 6", "years"), ("0.500", ""), ("18-44", ""), ("0 / 0.5 / 1", "h")]
+    assert [number_of(v, u) for v, u in cases] == [90.0, 240.0, 30.0, 0.5, None, None]
+
+
+def test_one_sentence_defining_several_treatment_codes_gives_one_arm_per_code(room):
+    files, docs, question, extractions = room
+    synopsis = Extraction(file="D/synopsis.md", facts=[Fact(
+        field="study.treatment_code", value="A = reference product (Refamide 100 mg); B = test product",
+        quote="Treatments: A = reference product (Refamide 100 mg); B = test product.")])
+    view = assemble(Inputs(files=files, docs=docs, question=question, extractions=[extractions[0], synopsis]))
+    (study,) = view.studies
+    assert [(a.treatment, a.role, a.product) for a in study.arms] == [
+        ("A", "reference", "Refamide 100 mg"), ("B", "test", "Exampleamide 100 mg")]

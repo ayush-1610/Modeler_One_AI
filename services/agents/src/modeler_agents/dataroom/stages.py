@@ -319,6 +319,7 @@ def extract(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, s
             continue
         if redo or store.extraction(f.sha256) is None:
             todo.append((path, f, doc, t))
+    failed: list[str] = []
     for done, (path, f, doc, t) in enumerate(todo, start=1):
         saved: list[BaseModel] = []
         tool = _submit_tool("submit_extraction", Extraction,
@@ -332,13 +333,16 @@ def extract(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, s
                 f"{'; the triage says: ' + t.reason if t else ''}\n\nIts parts: "
                 f"{', '.join(f'{p.name} ({len(p.lines)} lines)' for p in _parts(doc)[:200])}\n\n"
                 f"The pages most likely to hold what the checklist needs (open others with the tools):\n{_focus(doc, topics)}")
-        run_tool_loop(model, system=EXTRACT_SYSTEM, user=user, tools=tools, max_turns=14)
+        outcome = run_tool_loop(model, system=EXTRACT_SYSTEM, user=user, tools=tools, max_turns=14)
+        if not saved:
+            failed.append(f"{path}: no answer ({outcome.status}{': ' + outcome.error[:200] if outcome.error else ''})")
         if saved:
             answer = saved[0].model_copy(update={"file": path})
             store.put_extraction(answer, f.sha256, agent={"agent": "A8", "model": f"{model.provider}/{model.model}",  # type: ignore[arg-type]
                                                          "prompt": PROMPT_VERSION})
         step(done, len(todo), path)
-    return f"{len(todo)} files extracted"
+    store.set_stage_notes("extract", failed)
+    return f"{len(todo) - len(failed)} of {len(todo)} files extracted" + (f"; {len(failed)} gave no answer" if failed else "")
 
 
 def _search_one(path: str, doc: SourceDocument) -> Tool:

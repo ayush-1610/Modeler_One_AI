@@ -173,6 +173,30 @@ def _demographics(tables: Sequence[ReadTable], members: Sequence[str]) -> dict[s
     return out
 
 
+_CODE = re.compile(r"(?<![A-Za-z0-9])([A-Z][A-Z0-9]{0,2}|\d{1,2})\s*[=:]\s*([^;,\n]+)")
+
+
+def _arms(facts: Sequence[CheckedFact], question: QuestionCard | None) -> list[Arm]:
+    """The study's treatment codes and what each stands for: one fact per code (its subject the code), or one sentence
+    defining several ("B = test product; A = reference product"). A code's product is the fact's product, else the
+    question card's only product of the role its meaning names (reference, test), shown as such."""
+    out: dict[str, Arm] = {}
+    by_role: dict[str, list[str]] = defaultdict(list)
+    for p in (question.products if question else ()):
+        by_role[p.role].append(p.name)
+    for f in facts:
+        pairs = [(f.fact.subject.strip(), f.fact.value.strip())] if f.fact.subject.strip() else [
+            (m.group(1), m.group(2).strip()) for m in _CODE.finditer(f.fact.value)]
+        for code, meaning in pairs:
+            product = f.fact.product if f.fact.subject.strip() else ""
+            if not product:
+                role = next((r for r in ("reference", "reformulated", "test") if r in meaning.lower()), "")
+                product = by_role[role][0] if role and len(by_role[role]) == 1 else ""
+            role = next((p.role for p in (question.products if question else ()) if p.name == product), "")
+            out.setdefault(code, Arm(treatment=code, meaning=meaning, product=product, role=role, source=f.chip))
+    return sorted(out.values(), key=lambda a: a.treatment)
+
+
 def _decision(decisions: Mapping[str, Mapping[str, str]], d: Decision) -> Decision:
     made = decisions.get(d.id)
     if made and made.get("chosen") in {o.id for o in d.options}:
@@ -252,11 +276,7 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
 
         sfacts = [f for f in facts if f.fact.field.startswith("study.") and (not f.fact.subject or len(study_ids) == 1
                                                                               or _same_study(f.fact.subject, sid))]
-        arms = []
-        for f in [f for f in sfacts if f.ok and f.fact.field == "study.treatment_code"]:
-            code = f.fact.subject.strip() or f.fact.value.strip()[:1]
-            arms.append(Arm(treatment=code, meaning=f.fact.value, product=f.fact.product, role=roles.get(f.fact.product, ""),
-                            source=f.chip))
+        arms = _arms([f for f in sfacts if f.ok and f.fact.field == "study.treatment_code"], question)
         study_values = _values([f for f in sfacts if f.fact.field != "study.treatment_code"], "study.", FIELDS,
                                literature_files, rules)
         view = study_view(sid, concentrations=mine("concentrations"), pk_tables=mine("pk_parameters"), facts=sfacts,

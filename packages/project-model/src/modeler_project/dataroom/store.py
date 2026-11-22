@@ -222,6 +222,15 @@ class DataRoomStore:
 
     # --- the background run -----------------------------------------------------------------------------------------------
 
+    def set_stage_notes(self, stage: str, notes: list[str]) -> None:
+        """What a stage could not do, file by file (shown with the run)."""
+        if not re.fullmatch(r"[a-z]+", stage):
+            raise ValueError("not a stage")
+        atomic_write_text(self._path("notes", f"{stage}.json"), json.dumps(notes, indent=1, ensure_ascii=False))
+
+    def stage_notes(self, stage: str) -> list[str]:
+        return (self._read_json("notes", f"{stage}.json") or []) if re.fullmatch(r"[a-z]+", stage) else []
+
     def set_run(self, run: dict[str, Any]) -> None:
         atomic_write_text(self._path("run.json"), json.dumps(run, indent=1, ensure_ascii=False, default=str))
 

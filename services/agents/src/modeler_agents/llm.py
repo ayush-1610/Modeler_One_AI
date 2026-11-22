@@ -103,6 +103,11 @@ class ChatModel(Protocol):
     def complete(self, messages: list[dict[str, Any]], tools: list[dict[str, Any]]) -> ChatResult: ...
 
 
+class ToolCallRejected(RuntimeError):
+    """The provider refused the model's own tool call (GroqCloud checks the arguments against the tool's schema and
+    answers HTTP 400): the loop tells the model why, and it calls again."""
+
+
 class LLMConfigError(RuntimeError):
     """A provider is selected but not usable (unknown name or missing key)."""
 
@@ -189,6 +194,9 @@ def raise_refusal(chat: OpenAICompatChat, response: httpx.Response) -> None:
     status, message = response.status_code, _error_message(response)
     if status in _RETRY_STATUS:
         return
+    if status == 400 and any(w in message.lower() for w in ("tool call validation failed", "failed to parse tool call",
+                                                             "tool_use_failed")):
+        raise ToolCallRejected(message)
     if status in (401, 403):
         key_env = PROVIDERS[chat.provider].key_env if chat.provider in PROVIDERS else "the provider's key"
         raise LLMUnavailableError(f"{chat.provider} rejected the key (HTTP {status}: {message}); check {key_env}")
@@ -369,6 +377,11 @@ def run_tool_loop(model: ChatModel, *, system: str, user: str, tools: list[Tool]
     for turn in range(1, max_turns + 1):
         try:
             result = model.complete(messages, schemas)
+        except ToolCallRejected as exc:
+            log_step({"type": "tool_call_rejected", "turn": turn, "error": str(exc)})
+            messages.append({"role": "user", "content": f"Your last tool call was refused: {exc}. Call the tool again with "
+                                                        "arguments that match its schema exactly."})
+            continue
         except LLMUnavailableError as exc:
             log_step({"type": "llm_unavailable", "turn": turn, "error": str(exc)})
             return LoopOutcome("LLM_UNAVAILABLE", "", turn - 1, usage, error=str(exc))
