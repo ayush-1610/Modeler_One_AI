@@ -14,6 +14,7 @@ import hashlib
 import re
 import statistics
 import unicodedata
+from itertools import pairwise
 
 from modeler_intake.room import Line, Part, document_parts, find_quote, numbers_in, unmarked
 from modeler_intake.room_specs import Fact, TableDescription
@@ -69,6 +70,27 @@ def _placed(line: Line, centres: list[float] | None, n: int) -> tuple[list[int |
     return placed, ""
 
 
+def _header_cells(desc: TableDescription, by_number: dict[int, Line], centres: list[float] | None, n: int) -> dict[int, list[str]]:
+    """The header texts above each column: by position on a sheet or in a Word table; on a page, each header cell under
+    the data column it stands over (a header written on a line of its own, as a lone "5" above a block, still counts)."""
+    out: dict[int, list[str]] = {}
+    for k in desc.header_lines:
+        line = by_number.get(k)
+        if line is None:
+            continue
+        if centres is None or any(c.box is None for c in line.cells):
+            for i, cell in enumerate(line.cells, start=1):
+                out.setdefault(i, []).append(cell.text)
+            continue
+        spacing = min((b - a for a, b in pairwise(centres) if b > a), default=50.0)
+        for cell in line.cells:
+            x = _centre(cell.box)  # type: ignore[arg-type]
+            i = min(range(n), key=lambda j: abs(centres[j] - x))
+            if abs(centres[i] - x) <= spacing / 2 + 1:
+                out.setdefault(i + 1, []).append(cell.text)
+    return out
+
+
 def read_table(desc: TableDescription, doc: SourceDocument, *, file: str, sha256: str) -> ReadTable:
     """Every cell the description names, line by line, each with its place."""
     tid = table_id(sha256, desc)
@@ -92,13 +114,19 @@ def read_table(desc: TableDescription, doc: SourceDocument, *, file: str, sha256
             and all(c.box is not None for c in by_number[k].cells)]
     centres = ([statistics.median(_centre(line.cells[i].box) for line in full) for i in range(n)]  # type: ignore[arg-type]
                if full and part.page is not None else None)
-    # a time the description gives a column must be written in the header lines (code does not take the agent's word)
-    header_numbers = {x for k in desc.header_lines if k in by_number for x in numbers_in(by_number[k].text)}
+    # a time the description gives a column must be written in that column's own header cells (code does not take the
+    # agent's word, and a description shifted by one column is caught here)
+    above = _header_cells(desc, by_number, centres, n)
     for spec in desc.columns:
-        if spec.time is not None and desc.header_lines and spec.time not in header_numbers:
+        if spec.time is None:
+            continue
+        if not desc.header_lines:
+            problems.append(Problem(code="TIME_NOT_CHECKED", message=(
+                f"column {spec.index}: no header lines are named, so its time {spec.time:g} is not checked")))
+        elif spec.time not in {x for text in above.get(spec.index, ()) for x in numbers_in(text)}:
             problems.append(Problem(code="TIME_NOT_IN_HEADER", severity="error", message=(
-                f"column {spec.index}: the time {spec.time:g} is not written in header lines "
-                f"{', '.join(map(str, desc.header_lines))}")))
+                f"column {spec.index}: the time {spec.time:g} is not written above it "
+                f"(header lines {', '.join(map(str, desc.header_lines))})")))
     rows: list[ReadRow] = []
     for k in sorted(set(wanted)):
         line = by_number.get(k)
@@ -127,11 +155,14 @@ def read_table(desc: TableDescription, doc: SourceDocument, *, file: str, sha256
 
 
 def _value_in_quote(value: str, quote: str) -> bool:
+    """The value is written in its quote: as whole words (so "10" is not found in "100 mg"), or, for a value written
+    with other spacing or punctuation, every one of its numbers is one of the quote's numbers."""
     want, text = unmarked(value), unmarked(quote)
-    if want and want in text:
+    if want and re.search(r"(?<![\w.])" + re.escape(want) + r"(?![\w])", text):
         return True
     numbers = numbers_in(value)
-    return bool(numbers) and all(x in numbers_in(quote) for x in numbers)
+    in_quote = numbers_in(quote)
+    return bool(numbers) and all(x in in_quote for x in numbers)
 
 
 def check_fact(fact: Fact, doc: SourceDocument, *, file: str, sha256: str) -> CheckedFact:
@@ -148,15 +179,17 @@ def check_fact(fact: Fact, doc: SourceDocument, *, file: str, sha256: str) -> Ch
                        chip=Chip(file=file, sha256=sha256, part=part, line=line, text=fact.quote.strip()))
 
 
-_UNIT_AFTER = r"\s*(?:mg|g|µg|μg|mcg|ng|ml|mL|l|L|h|hr|hrs|hours|min|kg|cm|m|%|ng/ml|ng/mL|mg/ml|mg/mL)\b"
-
-
 def number_of(value: str, unit: str = "") -> float | None:
-    """The one number a value holds: "90" -> 90; "1 x 90 mg" -> 90 (the number before its unit); "0.00 / 0.50 / …" or
-    "18-44" -> None (several numbers, none of them the value)."""
+    """The one number a value holds: "90" -> 90; "2 x 50 mg" -> 100; "240±2 mL" -> 240; "0.00 / 0.50 / …", "18-44" and
+    "2,5" -> None (several numbers, none of them the value, or a decimal comma)."""
     text = unicodedata.normalize("NFKC", value)
+    if re.search(r"\d,(?:\d{1,2}|\d{4,})(?!\d)", text):
+        return None   # a decimal comma ("2,5 mg") is not guessed
     # a tolerance or spread written after the value ("240±2 mL", "30 +/- 6") is not the value
     text = re.sub(r"\s*(?:±|\+/-|\+-)\s*\d+(?:\.\d+)?", "", text)
+    times = re.fullmatch(r"\s*(\d+)\s*[x×]\s*(\d+(?:\.\d+)?)\s*(\S+)?\s*", text)
+    if times:   # "2 x 50 mg": two units of 50 mg
+        return float(times.group(1)) * float(times.group(2))
     numbers = numbers_in(text)
     if len(numbers) == 1:
         return numbers[0]
@@ -164,8 +197,5 @@ def number_of(value: str, unit: str = "") -> float | None:
         hits = re.findall(r"(\d+(?:\.\d+)?)\s*" + re.escape(unit.strip()) + r"\b", text)
         if len(hits) == 1:
             return float(hits[0])
-    hits = re.findall(r"(\d+(?:\.\d+)?)" + _UNIT_AFTER, text)
-    if len(hits) == 1 and re.fullmatch(r"\s*\d+\s*[x×]\s*\d+(?:\.\d+)?\s*\S+\s*", text):
-        return float(hits[0])   # "1 x 90 mg": one unit of 90 mg
     return None
 

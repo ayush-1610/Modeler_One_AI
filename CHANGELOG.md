@@ -114,6 +114,30 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
   as one upload. The old page and its data are untouched.
 - **Docs:** `docs/USING_THE_TOOL.md` §6a, the Data room for the owner, step by step. The question agent's form and
   prompt now name the product's `role` (commit 779e1d6): gpt-oss-120b had written `type`.
+- **Fixed: the independent review of the science (2026-11-22, 15 findings, each reproduced on synthetic data). Part 1:
+  the reader and the clinical engine.** Each fix has a regression test in `test_dataroom.py`.
+  - **Profiles are keyed by occasion.** An occasion is a period when the data names periods, else a treatment. A
+    crossover listed without its period column had merged A and B into one profile per subject; it now keeps them apart.
+  - **Replicate and parallel designs.** In a replicate design, a subject's profiles of one treatment are averaged
+    within the subject before the arm's mean, so each subject counts once (N was the number of profiles). A parallel
+    study expects each subject on its own treatment.
+  - **Missing samples are counted against the times scheduled for the treatment**, so a long listing that simply lacks
+    a withdrawn subject's later rows no longer makes that subject a completer.
+  - **The same samples in two files count once.** Two different values for one sample are a conflict that blocks the
+    study; before, both were averaged into the mean.
+  - **The client's PK rows join by treatment when the file has no period**; before, no comparison was made at all. A PK
+    file that matches nothing is an error.
+  - **Subject ids and lists.** "S06", "007" and "Subj-7" are one id form; site-subject ids ("101-001") stay ids, not
+    ranges; "35 38" (a missing comma) is two subjects. A listed subject absent from the data is reported.
+  - **Exposure N** counts the values used.
+  - **Time units.** A unit written with words ("min post-dose") is read. An unknown one, or a missing concentration
+    unit, is an error that blocks sending to the model.
+  - **The value-in-quote check matches whole numbers and words**: "10" is no longer found in "100 mg".
+  - **Numbers.** "2 x 50 mg" is 100 mg; a decimal comma ("2,5 mg") is refused, not read as 5.
+  - **Header times.** A column's time must be written in its own header cell. On a page, the cell is found by its
+    position above the column, so a header on a line of its own still counts. A description shifted by one column is
+    caught.
+  - A concentration table may name an `actual_time` column; the nominal `time` makes the means.
 - **Known gap:** the agents are not yet scored on the real delivery; that is the next step. The report export follows.
 
 ### Added — the Data room's reader: every file of a real delivery read, scans included (plan 2026-11-21 v2 §9, build step 1)

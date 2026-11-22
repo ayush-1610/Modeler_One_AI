@@ -37,21 +37,35 @@ _LABEL = {"cmax": "Cmax", "tmax": "Tmax", "auc_t": "AUC0–t", "auc_inf": "AUC0�
 
 
 def subject_id(text: str) -> str:
-    """A subject as one id however it is written: "007" and "7" are one subject; "S-07" stays as written."""
-    raw = text.strip()
-    return str(int(raw)) if raw.isdigit() else raw
+    """A subject as one id however it is written: "007", "7", "S07", "Subj-7" are subject 7; a site-subject id keeps its
+    parts ("101-001" is 101-1); anything else stays as written."""
+    raw = re.sub(r"\s+", " ", text.strip())
+    if re.fullmatch(r"\d+", raw):
+        return str(int(raw))
+    m = re.fullmatch(r"(?i)(?:s|sub|subj|subject|pt|patient|id)?[\s._#-]*0*(\d+)", raw)
+    if m:
+        return str(int(m.group(1)))
+    m = re.fullmatch(r"(\d+)\s*[-/]\s*(\d+)", raw)
+    if m:
+        return f"{int(m.group(1))}-{int(m.group(2))}"
+    return raw
 
 
 def subjects_in(text: str) -> list[str]:
-    """The subject numbers a fact lists: "1, 3, 5-7 and 12" -> 1, 3, 5, 6, 7, 12 (a fact's value holds the numbers only;
-    its reason is its note)."""
+    """The subjects a fact lists, as `subject_id` writes them: "03-05, 07, 11 to 13 and 20" -> 3, 4, 5, 7, 11, 12, 13,
+    20; "S06, S09"; "101-001, 101-005" (site-subject ids, not a range); "34, 35 38" (a missing comma). A fact's value
+    holds the subjects only; its reason is its note."""
     out: list[str] = []
-    for m in re.finditer(r"(\d+)\s*(?:[-–—]|to)\s*(\d+)|(?<![\d.])(\d+)(?![\d.])", text):
-        if m.group(1):
-            a, b = int(m.group(1)), int(m.group(2))
-            out.extend(str(k) for k in range(a, b + 1)) if 0 <= b - a < 500 else out.extend((str(a), str(b)))
-        else:
-            out.append(str(int(m.group(3))))
+    for token in re.split(r"[,;&]|\band\b", text):
+        token = token.strip()
+        if not token:
+            continue
+        rng = re.fullmatch(r"(?i)[a-z]*\s*0*(\d+)\s*(?:-|–|—|to)\s*[a-z]*\s*0*(\d+)", token)
+        if rng and 0 < int(rng.group(2)) - int(rng.group(1)) < 500 and not re.fullmatch(r"\d{3,}-0\d+", token):
+            out.extend(str(k) for k in range(int(rng.group(1)), int(rng.group(2)) + 1))
+            continue
+        pieces = token.split() if all(re.fullmatch(r"[A-Za-z]*\d+", w) for w in token.split()) else [token]
+        out.extend(subject_id(w) for w in pieces if re.search(r"\d", w))
     return list(dict.fromkeys(out))
 
 
@@ -70,7 +84,9 @@ def _period_named(text: str, periods: Sequence[str]) -> str:
 
 
 def _time_factor(unit: str) -> float | None:
-    return _TIME_FACTOR.get(unit.strip().lower().rstrip("."))
+    """The factor to hours of a time unit as a file writes it ("h", "hours post-dose", "min after dosing")."""
+    words = re.findall(r"[a-z]+", unit.lower())
+    return _TIME_FACTOR.get(words[0]) if words else None
 
 
 def samples_from(table: ReadTable) -> tuple[list[Sample], list[Problem], str]:
@@ -81,14 +97,16 @@ def samples_from(table: ReadTable) -> tuple[list[Sample], list[Problem], str]:
     factor = _time_factor(desc.time_unit) if desc.time_unit else None
     if factor is None:
         factor = 1.0
-        problems.append(Problem(code="TIME_UNIT_NOT_STATED", message=f"the table on {desc.part} of {desc.file} states no time "
-                                f"unit{'' if not desc.time_unit else f' it knows ({desc.time_unit!r})'}: hours are assumed, confirm"))
+        problems.append(Problem(code="TIME_UNIT_NOT_STATED", severity="error", message=(
+            f"the table on {desc.part} of {desc.file} states no time unit"
+            f"{'' if not desc.time_unit else f' code knows ({desc.time_unit!r})'}: shown in hours, not sent to the model")))
     missing = {t.strip().lower() for t in desc.missing_tokens}
     blq = {t.strip().lower() for t in desc.blq_tokens}
     out: list[Sample] = []
     for row in table.rows:
         if row.summary:
             continue
+        # "time" is the nominal (scheduled) time; an "actual_time" column is kept by the file, not used for the means
         one = {c.role: c for c in row.cells if c.role in ("subject", "period", "treatment", "sequence", "time")}
         subject = subject_id(one["subject"].text) if "subject" in one else ""
         if not subject:
@@ -155,9 +173,9 @@ def _facts(facts: Sequence[CheckedFact], field: str) -> list[CheckedFact]:
     return [f for f in facts if f.ok and f.fact.field == field]
 
 
-def _client_pk(tables: Sequence[ReadTable]) -> dict[tuple[str, str], tuple[dict[str, float], dict[str, Chip], str]]:
-    """The client's NCA values per (subject, period), and the treatment they name."""
-    out: dict[tuple[str, str], tuple[dict[str, float], dict[str, Chip], str]] = {}
+def _client_pk(tables: Sequence[ReadTable]) -> dict[tuple[str, str], dict[str, float]]:
+    """The client's NCA values, keyed by (subject, period) and, when the file names it, also by (subject, treatment)."""
+    out: dict[tuple[str, str], dict[str, float]] = {}
     for table in tables:
         for row in table.rows:
             if row.summary:
@@ -165,106 +183,197 @@ def _client_pk(tables: Sequence[ReadTable]) -> dict[tuple[str, str], tuple[dict[
             one = {c.role: c for c in row.cells}
             if "subject" not in one:
                 continue
-            values, chips = {}, {}
-            for role in _PK_ROLES:
-                if role in one and (x := parse_number(one[role].text)) is not None:
-                    values[role], chips[role] = x, one[role].chip
-            key = (subject_id(one["subject"].text), one["period"].text.strip() if "period" in one else "")
-            out[key] = (values, chips, one["treatment"].text.strip() if "treatment" in one else "")
+            values = {role: x for role in _PK_ROLES if role in one and (x := parse_number(one[role].text)) is not None}
+            subject = subject_id(one["subject"].text)
+            for role in ("period", "treatment"):
+                if role in one and one[role].text.strip():
+                    out[(subject, f"{role}:{one[role].text.strip()}")] = values
     return out
+
+
+def _sort(ids: Iterable[str]) -> list[str]:
+    def key(x: str) -> tuple:
+        return tuple((0, int(p)) if p.isdigit() else (1, p) for p in re.split(r"(\d+)", x) if p)
+    return sorted(ids, key=key)
+
+
+def _mean_profile(members: Sequence[str], trt: str, keys_of: dict[str, list[tuple[str, str]]],
+                  by_profile: dict[tuple[str, str], dict[float, Sample]], times: Sequence[float]) -> tuple[list[MeanPoint], int]:
+    """An arm's mean profile over the members: each subject counts once (a replicate design's profiles of one
+    treatment are averaged within the subject first); below the LLOQ is 0 in the arithmetic mean and left out of the
+    geometric mean; a missing sample is left out of both."""
+    subjects = [s for s in members if any(k for k in keys_of.get(s, ()) if k[1] == trt)]
+    points = []
+    for t in times:
+        arith, quant, n_blq, n_missing = [], [], 0, 0
+        for s in subjects:
+            got = [by_profile.get((s, occ), {}).get(t) for occ, t_ in keys_of[s] if t_ == trt]
+            present = [x for x in got if x is not None and not x.missing]
+            if not present:
+                n_missing += 1
+                continue
+            values = [0.0 if x.value is None else x.value for x in present]
+            arith.append(statistics.fmean(values))
+            positive = [x.value for x in present if x.value is not None and x.value > 0]
+            if positive:
+                quant.append(math.exp(statistics.fmean(math.log(v) for v in positive)))
+            if all(x.blq for x in present):
+                n_blq += 1
+        points.append(MeanPoint(time_h=t, n=len(arith), mean=round(statistics.fmean(arith), 6) if arith else None,
+                                sd=round(statistics.stdev(arith), 6) if len(arith) > 1 else None, n_geo=len(quant),
+                                geomean=round(_geomean(quant), 6) if quant else None, n_blq=n_blq, n_missing=n_missing))
+    return points, len(subjects)
 
 
 def study_view(study_id: str, *, concentrations: Sequence[ReadTable], pk_tables: Sequence[ReadTable] = (),
                facts: Sequence[CheckedFact] = (), arms: Sequence[Arm] = (), study_values: Sequence[Value] = (),
                rules: Rules | None = None) -> StudyView:
-    """The study: samples → sets → mean profiles → NCA → exposure, every step's rule written on the view."""
+    """The study: samples → sets → mean profiles → NCA → exposure, every step's rule written on the view.
+
+    A profile is one subject on one occasion: a period when the data names periods, else a treatment (a crossover
+    listed without its periods, or a parallel study). A crossover expects every subject on every occasion; a parallel
+    study (each subject on one treatment) expects each subject on its own."""
     rules = rules or load_rules()
     problems: list[Problem] = []
-    samples: list[Sample] = []
+    raw: list[Sample] = []
     unit = ""
     for table in concentrations:
         got, found, table_unit = samples_from(table)
-        samples += got
+        raw += got
         problems += found
         unit = unit or table_unit
-    if not samples:
+    if not raw:
         return StudyView(study_id=study_id, facts=tuple(study_values), arms=tuple(arms), problems=(
             Problem(code="NO_CONCENTRATIONS", severity="error", message="no concentration table was read for this study"),
             *problems))
-    by_profile: dict[tuple[str, str], list[Sample]] = defaultdict(list)
-    for s in samples:
-        by_profile[(s.subject, s.period)].append(s)
-    periods = sorted({s.period for s in samples}, key=lambda p: (parse_number(p) is None, parse_number(p) or 0, p))
-    times = sorted({s.time_h for s in samples})
-    treatment_of = {key: next((s.treatment for s in got if s.treatment), "") for key, got in by_profile.items()}
-    subjects = sorted({s.subject for s in samples}, key=lambda x: (not x.isdigit(), int(x) if x.isdigit() else 0, x))
+    if not unit:
+        problems.append(Problem(code="UNIT_NOT_STATED", severity="error",
+                                message="the concentrations' unit is not stated: shown, not sent to the model"))
+    by_period = any(s.period for s in raw)
 
-    def dosed_in(subject: str, period: str) -> bool:
-        return any(not s.missing for s in by_profile.get((subject, period), ()))
+    def occasion(x: Sample) -> str:
+        return f"period:{x.period}" if by_period else f"treatment:{x.treatment}"
 
-    def n_missing(subject: str, period: str) -> int:
-        return sum(1 for s in by_profile.get((subject, period), ()) if s.missing)
+    # one sample per subject, occasion and time: the same sample in two files is one, two values for it a conflict
+    samples: dict[tuple[str, str, float], Sample] = {}
+    for x in raw:
+        key = (x.subject, occasion(x), x.time_h)
+        first = samples.get(key)
+        if first is None:
+            samples[key] = x
+        elif (first.value, first.blq, first.missing) != (x.value, x.blq, x.missing) and not x.missing:
+            if first.missing:
+                samples[key] = x
+            else:
+                problems.append(Problem(code="SAMPLE_CONFLICT", severity="error", where=x.chip, message=(
+                    f"subject {x.subject}, {occasion(x).split(':', 1)[1]}, {x.time_h:g} h: {first.text!r} in "
+                    f"{first.chip.file if first.chip else '?'} and {x.text!r} in {x.chip.file if x.chip else '?'}")))
+    by_profile: dict[tuple[str, str], dict[float, Sample]] = defaultdict(dict)
+    for (subject, occ, t), x in samples.items():
+        by_profile[(subject, occ)][t] = x
+    treatment_of = {key: next((x.treatment for x in got.values() if x.treatment), key[1].split(":", 1)[1] if not by_period else "")
+                    for key, got in by_profile.items()}
+    occasions = sorted({k[1] for k in by_profile}, key=lambda o: (parse_number(o.split(":", 1)[1]) is None,
+                                                                  parse_number(o.split(":", 1)[1]) or 0, o))
+    periods = [o.split(":", 1)[1] for o in occasions]
+    subjects = _sort({k[0] for k in by_profile})
+    keys_of: dict[str, list[tuple[str, str]]] = defaultdict(list)
+    for (subject, occ) in sorted(by_profile):
+        keys_of[subject].append((occ, treatment_of[(subject, occ)]))
+    crossover = by_period and len(occasions) > 1 or any(len({t for _o, t in v}) > 1 for v in keys_of.values())
+    # the times scheduled for each treatment: every time any of its profiles was sampled at (nominal times)
+    schedule: dict[str, list[float]] = defaultdict(list)
+    for (_s, occ), got in by_profile.items():
+        schedule[treatment_of[(_s, occ)]].extend(got)
+    schedule = {t: sorted(set(v)) for t, v in schedule.items()}
+    times = sorted({t for v in schedule.values() for t in v})
 
-    def quantifiable(subject: str, period: str) -> int:
-        return sum(1 for s in by_profile.get((subject, period), ()) if s.time_h > 0 and s.value is not None and s.value > 0)
+    def profile(subject: str, occ: str) -> dict[float, Sample]:
+        return by_profile.get((subject, occ), {})
 
-    def has_last(subject: str, period: str) -> bool:
-        last = [s for s in by_profile.get((subject, period), ()) if s.time_h == times[-1]]
-        return bool(last) and not last[0].missing
+    def dosed_in(subject: str, occ: str) -> bool:
+        return any(not x.missing for x in profile(subject, occ).values())
 
+    def n_missing(subject: str, occ: str) -> int:
+        got = profile(subject, occ)
+        return sum(1 for t in schedule.get(treatment_of.get((subject, occ), ""), ()) if t not in got or got[t].missing)
+
+    def quantifiable(subject: str, occ: str) -> int:
+        return sum(1 for x in profile(subject, occ).values() if x.time_h > 0 and x.value is not None and x.value > 0)
+
+    def has_last(subject: str, occ: str) -> bool:
+        last = schedule.get(treatment_of.get((subject, occ), ""), [None])[-1]
+        x = profile(subject, occ).get(last) if last is not None else None
+        return x is not None and not x.missing
+
+    def expected(subject: str) -> list[str]:
+        return occasions if crossover else [o for o, _t in keys_of[subject]]
+
+    label = "period" if by_period else "treatment"
     sets: list[SubjectSet] = []
     excluded: dict[str, str] = {}
-    dosed = [s for s in subjects if any(dosed_in(s, p) for p in periods)]
-    sets.append(SubjectSet(name="dosed", label="Dosed", subjects=tuple(dosed),
-                           rule="a concentration in at least one period"))
-    for p in periods:
-        sets.append(SubjectSet(name=f"dosed:{p}", label=f"Dosed, period {p}",
-                               subjects=tuple(s for s in subjects if dosed_in(s, p)), rule=f"a concentration in period {p}"))
-    all_periods = [s for s in dosed if all(dosed_in(s, p) for p in periods)]
-    # completed: dosed in every period and sampled through each (at most two scheduled samples missing), and not one
-    # the client lists as withdrawn or excluded; the client's own list of completers, when given, is compared with it
-    sampled = [s for s in all_periods if all(n_missing(s, p) <= 2 for p in periods)]
+    dosed = [s for s in subjects if any(dosed_in(s, o) for o in expected(s))]
+    sets.append(SubjectSet(name="dosed", label="Dosed", subjects=tuple(dosed), rule=f"a concentration in at least one {label}"))
+    if crossover:
+        for o, p in zip(occasions, periods, strict=True):
+            sets.append(SubjectSet(name=f"dosed:{p}", label=f"Dosed, {label} {p}",
+                                   subjects=tuple(s for s in subjects if dosed_in(s, o)), rule=f"a concentration in {label} {p}"))
+    all_occasions = [s for s in dosed if all(dosed_in(s, o) for o in expected(s))]
+    # completed: dosed on every occasion the design gives it and sampled through each (at most two scheduled samples
+    # missing), and not one the client lists as withdrawn or excluded; the client's own list is compared with it
+    sampled = [s for s in all_occasions if all(n_missing(s, o) <= 2 for o in expected(s))]
     listed = _facts(facts, "study.completed_subjects")
     excluded_facts = _facts(facts, "study.excluded_subjects")
     out = {s: f.fact.note or f.fact.value for f in excluded_facts for s in subjects_in(f.fact.value)}
+    unknown = [s for s in out if s not in subjects]
+    for f in listed:
+        unknown += [s for s in subjects_in(f.fact.value) if s not in subjects]
+    if unknown:
+        problems.append(Problem(code="SUBJECTS_NOT_IN_DATA", message=(
+            f"the client lists subject{'s' if len(unknown) > 1 else ''} {', '.join(_sort(set(unknown)))}, not in the "
+            "concentration data")))
     completed = [s for s in sampled if s not in out]
-    rule = "dosed in every period, sampled through each (at most two scheduled samples missing)"
+    rule = (f"dosed in every {label}" if crossover else "dosed") + \
+        f", sampled through {'each' if crossover else 'it'} (at most two scheduled samples missing)"
     chips: tuple[Chip, ...] = ()
     if excluded_facts:
         rule += ", and not withdrawn or excluded by the client"
         chips = tuple(f.chip for f in excluded_facts if f.chip)
-    for s in all_periods:
+    for s in all_occasions:
         if s in out:
             excluded[s] = f"the client lists it: {out[s]}"
         elif s not in sampled:
-            excluded[s] = "sampling stopped early in a period (withdrawn or dropped out)"
+            excluded[s] = f"sampling stopped early in a {label} (withdrawn or dropped out)"
     if listed:
         theirs = set(subjects_in(listed[0].fact.value))
-        for s in sorted(theirs ^ set(completed), key=lambda x: int(x) if x.isdigit() else 0):
+        for s in _sort(theirs ^ set(completed)):
             problems.append(Problem(code="COMPLETERS_DIFFER", where=listed[0].chip, message=(
                 f"subject {s}: the client lists it as completed, the data does not" if s in theirs
                 else f"subject {s}: completed by the data, not on the client's list")))
         chips += tuple(f.chip for f in listed if f.chip)
     source = "sponsor" if (listed or excluded_facts) else "calculated"
     for s in dosed:
-        if s not in all_periods:
-            excluded.setdefault(s, "not dosed in every period")
+        if s not in all_occasions:
+            excluded.setdefault(s, f"not dosed in every {label}")
     sets.append(SubjectSet(name="completed", label="Completed", subjects=tuple(completed), rule=rule, source=source,
                            sources=chips))
     k = rules.analysis_sets.evaluable_min_quantifiable
-    evaluable = [s for s in completed if all(quantifiable(s, p) >= k for p in periods)]
+    evaluable = [s for s in completed if all(quantifiable(s, o) >= k for o in expected(s))]
     for s in completed:
         if s not in evaluable:
-            bad = [p for p in periods if quantifiable(s, p) < k]
-            all_blq = all(quantifiable(s, p) == 0 for p in bad)
-            excluded[s] = (f"every sample below the LLOQ in period {', '.join(bad)}: a possible non-absorber or dosing error"
-                           if all_blq else f"fewer than {k} quantifiable concentrations in period {', '.join(bad)}")
+            bad = [o for o in expected(s) if quantifiable(s, o) < k]
+            names = ", ".join(o.split(":", 1)[1] for o in bad)
+            all_blq = all(quantifiable(s, o) == 0 for o in bad)
+            excluded[s] = (f"every sample below the LLOQ in {label} {names}: a possible non-absorber or dosing error"
+                           if all_blq else f"fewer than {k} quantifiable concentrations in {label} {names}")
     modeling = evaluable
     sets.append(SubjectSet(name="modeling", label="Proposed modeling set", subjects=tuple(modeling),
-                           rule=f"completed, and at least {k} quantifiable concentrations after the dose in every period"))
-    auc = [s for s in modeling if all(has_last(s, p) for p in periods)]
-    sets.append(SubjectSet(name="auc", label=f"AUC set (complete to {times[-1]:g} h)", subjects=tuple(auc),
-                           rule=f"the modeling set with the {times[-1]:g} h sample present in every period"))
+                           rule=f"completed, and at least {k} quantifiable concentrations after the dose"
+                           + (f" in every {label}" if crossover else "")))
+    auc = [s for s in modeling if all(has_last(s, o) for o in expected(s))]
+    last = times[-1] if times else 0
+    sets.append(SubjectSet(name="auc", label=f"AUC set (complete to {last:g} h)", subjects=tuple(auc),
+                           rule="the modeling set with its last scheduled sample present" + (f" in every {label}" if crossover else "")))
     statistical = _facts(facts, "study.statistical_set")
     client_pk = _client_pk(pk_tables)
     if statistical:
@@ -272,9 +381,12 @@ def study_view(study_id: str, *, concentrations: Sequence[ReadTable], pk_tables:
                                subjects=tuple(s for s in subjects if s in set(subjects_in(statistical[0].fact.value))),
                                rule="as the client lists it", sources=tuple(f.chip for f in statistical if f.chip)))
     elif client_pk:
-        in_pk = sorted({s for s, _ in client_pk}, key=lambda x: (not x.isdigit(), int(x) if x.isdigit() else 0, x))
-        sets.append(SubjectSet(name="client_statistical", label="Client's PK set", source="sponsor", subjects=tuple(in_pk),
+        sets.append(SubjectSet(name="client_statistical", label="Client's PK set", source="sponsor",
+                               subjects=tuple(s for s in subjects if any(key[0] == s for key in client_pk)),
                                rule="the subjects of the client's PK parameter file"))
+    if client_pk and not any(key[0] in subjects for key in client_pk):
+        problems.append(Problem(code="PK_ROWS_MATCH_NOTHING", severity="error",
+                                message="no subject of the client's PK file is in the concentration data"))
     for f in _facts(facts, "study.n_dosed"):
         if f.number is None:
             continue
@@ -284,47 +396,43 @@ def study_view(study_id: str, *, concentrations: Sequence[ReadTable], pk_tables:
             problems.append(Problem(code="DOSED_DIFFERS", where=f.chip, message=(
                 f"the client says {f.fact.value} dosed{f' in period {period}' if period else ''}; the concentration data has "
                 f"a concentration for {len(ours.subjects)}")))
+    if any(len([o for o, t in v if t == trt]) > 1 for v in keys_of.values() for trt in {t for _o, t in v}):
+        problems.append(Problem(code="REPLICATE_DESIGN", severity="info", message=(
+            "a subject has the same treatment in more than one period: its profiles of a treatment are averaged before "
+            "the arm's mean, and each subject counts once")))
 
-    # mean profiles per arm on the modeling set
+    # mean profiles per arm for every set a person may choose
     treatments = sorted({t for t in treatment_of.values() if t})
     profiles: list[ArmProfile] = []
-    for set_name, members in (("modeling", modeling),):
-        for trt in treatments:
-            keys = [(s, p) for s in members for p in periods if treatment_of.get((s, p)) == trt]
-            points = []
-            for t in times:
-                at = [x for key in keys for x in by_profile[key] if x.time_h == t]
-                present = [x for x in at if not x.missing]
-                arith = [0.0 if x.value is None else x.value for x in present]
-                quant = [x.value for x in present if x.value is not None and x.value > 0]
-                points.append(MeanPoint(
-                    time_h=t, n=len(arith), mean=round(statistics.fmean(arith), 6) if arith else None,
-                    sd=round(statistics.stdev(arith), 6) if len(arith) > 1 else None, n_geo=len(quant),
-                    geomean=round(_geomean(quant), 6) if quant else None, n_blq=sum(1 for x in present if x.blq),
-                    n_missing=len(at) - len(present)))
-            profiles.append(ArmProfile(treatment=trt, analysis_set=set_name, n_subjects=len(keys), points=tuple(points)))
+    for s_ in sets:
+        if s_.name in ("modeling", "completed", "client_statistical", "auc", "dosed"):
+            for trt in treatments:
+                points, n = _mean_profile(s_.subjects, trt, keys_of, by_profile, schedule.get(trt, times))
+                profiles.append(ArmProfile(treatment=trt, analysis_set=s_.name, n_subjects=n, points=tuple(points)))
 
     # NCA per profile, beside the client's
     tol, tmax_tol = rules.nca.tolerance_percent, rules.nca.tmax_tolerance_h
     rows: list[SubjectNca] = []
     log_diffs, lin_diffs = [], []
-    for (subject, period), got in sorted(by_profile.items()):
-        ts, cs = _nca_points(got)
+    for (subject, occ), got in sorted(by_profile.items()):
+        ts, cs = _nca_points(list(got.values()))
         if sum(1 for c in cs if c > 0) < 3:
             continue
         res = nca(ts, cs)
-        ours = {"cmax": res.c_max, "tmax": res.t_max, "auc_t": res.auc_last, "auc_inf": res.auc_inf, "t_half": res.t_half,
-                "lambda_z": res.lambda_z}
-        client, _chips, _trt = client_pk.get((subject, period), ({}, {}, ""))
+        trt = treatment_of[(subject, occ)]
+        client = client_pk.get((subject, occ)) or client_pk.get((subject, f"treatment:{trt}"), {})
         lin = _linear_auc(ts, cs)
         if "auc_t" in client:
             log_diffs.append(_pct(res.auc_last, client["auc_t"]))
             lin_diffs.append(_pct(lin, client["auc_t"]))
-        rows.append(SubjectNca(subject=subject, period=period, treatment=treatment_of.get((subject, period), ""),
+        rows.append(SubjectNca(subject=subject, period=occ.split(":", 1)[1], treatment=trt,
                                cmax=res.c_max, tmax=res.t_max, auc_t=round(res.auc_last, 6), auc_t_linear=round(lin, 6),
                                auc_inf=None if res.auc_inf is None else round(res.auc_inf, 6),
                                t_half=None if res.t_half is None else round(res.t_half, 6),
                                lambda_z=None if res.lambda_z is None else round(res.lambda_z, 8), client=client))
+    if client_pk and rows and not any(r.client for r in rows):
+        problems.append(Problem(code="PK_ROWS_MATCH_NOTHING", severity="error", message=(
+            "the client's PK rows match no profile (by subject and period, or subject and treatment)")))
     method = ""
     if lin_diffs:
         med_log = statistics.median(abs(d) for d in log_diffs if d is not None)
@@ -346,7 +454,7 @@ def study_view(study_id: str, *, concentrations: Sequence[ReadTable], pk_tables:
         off = [r for r, d in diffs.items() if (abs(d) > tmax_tol if r == "tmax" else abs(d) > tol and r in ("cmax", "auc_t"))]
         if off:
             problems.append(Problem(code="NCA_DIFFERS", message=(
-                f"subject {row.subject}, period {row.period}: " + "; ".join(
+                f"subject {row.subject}, {label} {row.period}: " + "; ".join(
                     f"{_LABEL[r]} ours {('%.4g' % (ours.get(r) if r != 'tmax' else row.tmax))} vs the client's {row.client[r]:.4g}"
                     + (" (both by the linear trapezoidal rule, ours at the nominal times)" if r == "auc_t" and use_linear else "")
                     for r in off))))
@@ -356,34 +464,30 @@ def study_view(study_id: str, *, concentrations: Sequence[ReadTable], pk_tables:
             f"{statistics.median(abs(d) for d in lin_diffs if d is not None):.2f} %); ours is linear-up/log-down, shown "
             "beside it")))
 
-    # exposure per arm: Cmax and Tmax on the modeling set, AUC on the AUC set; geometric means
+    # exposure per arm: Cmax and Tmax on the modeling set, AUC on the AUC set; each subject once (a replicate's
+    # profiles of one treatment averaged within the subject, geometrically for Cmax and AUC); N counts the values
     exposures: list[Exposure] = []
-    by_key = {(r.subject, r.period): r for r in checked}
     for trt in treatments:
         for metric, members, stat in (("cmax", modeling, "geometric_mean"), ("auc_t", auc, "geometric_mean"),
                                       ("auc_inf", auc, "geometric_mean"), ("tmax", modeling, "arithmetic_mean"),
                                       ("tmax", modeling, "median")):
-            got = [by_key[(s, p)] for s in members for p in periods
-                   if (s, p) in by_key and by_key[(s, p)].treatment == trt]
-            if metric == "auc_t" and use_linear:
-                ours_v = [r.auc_t_linear for r in got]
-            else:
-                ours_v = [getattr(r, metric) for r in got]
-            theirs = [r.client.get(metric) for r in got]
-            if stat == "geometric_mean":
-                value, client = _geomean(ours_v), _geomean(theirs) if all(t is not None for t in theirs) and theirs else None
-            elif stat == "median":
-                xs = [v for v in ours_v if v is not None]
-                value = statistics.median(xs) if xs else None
-                ys = [t for t in theirs if t is not None]
-                client = statistics.median(ys) if ys and len(ys) == len(theirs) else None
-            else:
-                xs = [v for v in ours_v if v is not None]
-                value = statistics.fmean(xs) if xs else None
-                ys = [t for t in theirs if t is not None]
-                client = statistics.fmean(ys) if ys and len(ys) == len(theirs) else None
-            exposures.append(Exposure(treatment=trt, analysis_set="auc" if members is auc else "modeling", n=len(got),
-                                      metric=metric, statistic=stat, value=None if value is None else round(value, 4),
+            ours_v, theirs_v = [], []
+            for s in members:
+                got = [r for r in checked if r.subject == s and r.treatment == trt]
+                vals = [r.auc_t_linear if metric == "auc_t" and use_linear else getattr(r, metric) for r in got]
+                vals = [v for v in vals if v is not None]
+                theirs = [r.client[metric] for r in got if metric in r.client]
+                if vals:
+                    ours_v.append(_geomean(vals) if stat == "geometric_mean" else statistics.fmean(vals))
+                if theirs:
+                    theirs_v.append(_geomean(theirs) if stat == "geometric_mean" else statistics.fmean(theirs))
+            agg = {"geometric_mean": _geomean, "median": lambda xs: statistics.median(xs) if xs else None,
+                   "arithmetic_mean": lambda xs: statistics.fmean(xs) if xs else None}[stat]
+            value = agg([v for v in ours_v if v is not None])
+            client = agg(theirs_v) if theirs_v and len(theirs_v) == len(ours_v) else None
+            exposures.append(Exposure(treatment=trt, analysis_set="auc" if members is auc else "modeling",
+                                      n=len([v for v in ours_v if v is not None]), metric=metric, statistic=stat,
+                                      value=None if value is None else round(value, 4),
                                       unit=("h" if metric == "tmax" else (unit if metric == "cmax" else f"{unit}·h")),
                                       client=None if client is None else round(client, 4),
                                       difference_percent=_pct(value, client)))

@@ -129,7 +129,7 @@ def test_the_sets_follow_the_rules_and_say_why_each_subject_is_out(room):
 def test_mean_profiles_count_below_the_lloq_as_zero_and_leave_it_out_of_the_geometric_mean(room):
     files, docs, question, extractions = room
     (study,) = assemble(Inputs(files=files, docs=docs, question=question, extractions=extractions)).studies
-    arm_a = next(p for p in study.profiles if p.treatment == "A")
+    arm_a = next(p for p in study.profiles if p.treatment == "A" and p.analysis_set == "modeling")
     at_1h = next(p for p in arm_a.points if p.time_h == 1)
     assert (arm_a.n_subjects, at_1h.n, at_1h.mean, round(at_1h.geomean, 6)) == (4, 4, 12.0, 12.0)
     predose = next(p for p in arm_a.points if p.time_h == 0)
@@ -308,3 +308,123 @@ def test_an_existing_projects_client_files_open_in_the_data_room_once(tmp_path):
     added = import_existing(store, by="user:m")
     assert [u["name"] for u in added] == ["conc.tsv", "synopsis.md"]
     assert import_existing(store, by="user:m") == [] and len(store.uploads()) == 2
+
+
+# --- the independent review's cases (2026-11-22) -------------------------------------------------------------------
+
+
+def _study(conc: str, columns: list, *, pk: str = "", pk_columns: list | None = None, facts: list | None = None,
+           time_unit: str = "h", value_unit: str = "ng/mL", extra: tuple[str, str] | None = None):
+    """A study view from tab-separated concentration (and PK) text and its column roles."""
+    from modeler_project.dataroom.clinical import study_view
+    from modeler_project.dataroom.model import CheckedFact
+
+    def table(text: str, cols: list, kind: str, name: str):
+        doc = parse_document(text.encode(), name)
+        part = document_parts(doc)[0]
+        desc = TableDescription(file=name, kind=kind, about="EX", part=part.name, header_lines=[1], first_line=2,
+                                last_line=len(part.lines), time_unit=time_unit, value_unit=value_unit, zero_means_blq=True,
+                                columns=cols)
+        return read_table(desc, doc, file=name, sha256=doc.file_sha256)
+
+    tables = [table(conc, columns, "concentrations", "conc.tsv")]
+    if extra:
+        tables.append(table(extra[0], columns, "concentrations", extra[1]))
+    pk_tables = [table(pk, pk_columns, "pk_parameters", "pk.tsv")] if pk else []
+    checked = [CheckedFact(fact=f, ok=True, number=None) for f in (facts or [])]
+    return study_view("EX", concentrations=tables, pk_tables=pk_tables, facts=checked)
+
+
+def _wide(header: str, n_fixed: int, times: tuple) -> list:
+    roles = header.split("\t")[:n_fixed]
+    return [C(index=i + 1, role=r) for i, r in enumerate(roles)] + [C(index=n_fixed + 1 + i, role="value", time=t)
+                                                                      for i, t in enumerate(times)]
+
+
+T6 = (0, 1, 2, 4, 8, 12)
+P_A, P_B = "0\t10\t20\t15\t8\t3", "0\t14\t24\t18\t9\t4"
+
+
+def test_a_crossover_listed_without_periods_keeps_each_treatment_a_profile_of_its_own():
+    rows = "".join(f"{s}\tA\t{P_A}\n{s}\tB\t{P_B if s != 3 else '0\t0\t0\t0\t0\t0'}\n" for s in (1, 2, 3, 4))
+    view = _study("subject\ttreatment\t" + "\t".join(map(str, T6)) + "\n" + rows, _wide("subject\ttreatment", 2, T6))
+    sets = {s.name: s.subjects for s in view.sets}
+    assert sets["modeling"] == ("1", "2", "4")                       # 3 is below the LLOQ throughout B
+    arm_a = next(p for p in view.profiles if p.treatment == "A" and p.analysis_set == "modeling")
+    at_1h = next(p for p in arm_a.points if p.time_h == 1)
+    assert (arm_a.n_subjects, at_1h.n, at_1h.mean) == (3, 3, 10.0)
+    assert {(r.subject, r.treatment) for r in view.nca} >= {("1", "A"), ("1", "B")}
+
+
+def test_a_replicate_design_counts_each_subject_once_per_arm():
+    rows = "".join(f"{s}\t{p}\t{'A' if (p + s) % 2 else 'B'}\t{P_A if (p + s) % 2 else P_B}\n" for s in (1, 2) for p in (1, 2, 3, 4))
+    view = _study("subject\tperiod\ttreatment\t" + "\t".join(map(str, T6)) + "\n" + rows, _wide("subject\tperiod\ttreatment", 3, T6))
+    arm_a = next(p for p in view.profiles if p.treatment == "A" and p.analysis_set == "modeling")
+    assert arm_a.n_subjects == 2 and next(p for p in arm_a.points if p.time_h == 2).n == 2
+    assert any(p.code == "REPLICATE_DESIGN" for p in view.problems)
+    assert next(e for e in view.exposures if e.treatment == "A" and e.metric == "cmax").n == 2
+
+
+def test_a_long_listing_counts_a_withdrawn_subjects_absent_rows_as_missing():
+    long = "subject\ttreatment\ttime\tconc\n"
+    for s in (1, 2, 3):
+        for t, c in zip(T6, P_A.split("\t"), strict=True):
+            if s == 3 and t > 2:
+                continue   # subject 3 withdrew after 2 h: its later rows are not in the listing at all
+            long += f"{s}\tA\t{t}\t{c}\n"
+    cols = [C(index=1, role="subject"), C(index=2, role="treatment"), C(index=3, role="time"), C(index=4, role="value")]
+    view = _study(long, cols)
+    sets = {s.name: s.subjects for s in view.sets}
+    assert sets["completed"] == ("1", "2") and "stopped early" in view.excluded["3"]
+
+
+def test_the_same_samples_in_two_files_count_once_and_a_differing_value_is_a_conflict():
+    head = "subject\tperiod\ttreatment\t" + "\t".join(map(str, T6)) + "\n"
+    one = head + "".join(f"{s}\t1\tA\t{P_A}\n" for s in (1, 2, 3, 4))
+    other = head + "".join(f"{s}\t1\tA\t{P_A if s != 2 else '0\t2.0\t20\t15\t8\t3'}\n" for s in (1, 2, 3, 4))
+    view = _study(one, _wide("subject\tperiod\ttreatment", 3, T6), extra=(other, "appendix.tsv"))
+    at_1h = next(p for p in next(p for p in view.profiles if p.analysis_set == "modeling").points if p.time_h == 1)
+    assert at_1h.n == 4 and at_1h.mean == 10.0
+    (conflict,) = [p for p in view.problems if p.code == "SAMPLE_CONFLICT"]
+    assert "subject 2" in conflict.message and "appendix.tsv" in conflict.message
+
+
+def test_the_clients_pk_rows_keyed_by_treatment_are_compared_and_prefixed_ids_join():
+    from modeler_project.dataroom.clinical import subjects_in
+
+    conc = "subject\ttreatment\t" + "\t".join(map(str, T6)) + "\n" + "".join(f"S0{s}\tA\t{P_A}\n" for s in (1, 2, 3))
+    pk = "subject\ttreatment\tCmax\n" + "".join(f"S0{s}\tA\t{30 if s == 2 else 20}\n" for s in (1, 2, 3))
+    view = _study(conc, _wide("subject\ttreatment", 2, T6), pk=pk,
+                  pk_columns=[C(index=1, role="subject"), C(index=2, role="treatment"), C(index=3, role="cmax")],
+                  facts=[Fact(field="study.excluded_subjects", value="S03", note="vomited", quote="x")])
+    assert {s.name: s.subjects for s in view.sets}["modeling"] == ("1", "2")   # S03 excluded, as the client says
+    assert [p.message.split(":")[0] for p in view.problems if p.code == "NCA_DIFFERS"] == ["subject 2, treatment A"]
+    assert subjects_in("101-001, 101-005") == ["101-1", "101-5"] and subjects_in("S06, S09") == ["6", "9"]
+    assert subjects_in("34, 35 38, 40") == ["34", "35", "38", "40"] and subjects_in("03-05") == ["3", "4", "5"]
+
+
+def test_a_time_unit_written_with_words_is_read_and_an_unknown_one_blocks():
+    head = "subject\tperiod\ttreatment\t" + "\t".join(f"{t * 60:g}" for t in T6) + "\n"
+    rows = "".join(f"{s}\t1\tA\t{P_A}\n" for s in (1, 2, 3))
+    minutes = _study(head + rows, _wide("subject\tperiod\ttreatment", 3, tuple(t * 60 for t in T6)), time_unit="min post-dose")
+    assert minutes.times_h == T6
+    unknown = _study(head + rows, _wide("subject\tperiod\ttreatment", 3, tuple(t * 60 for t in T6)), time_unit="ticks")
+    assert any(p.code == "TIME_UNIT_NOT_STATED" and p.severity == "error" for p in unknown.problems)
+
+
+def test_a_value_is_in_its_quote_only_as_a_whole_number_or_word():
+    from modeler_project.dataroom.extract import _value_in_quote, number_of
+
+    assert not _value_in_quote("10", "Each subject received 100 mg with 240 mL of water")
+    assert _value_in_quote("100", "Each subject received 100 mg") and _value_in_quote("0.500", "LOQ : 0.5")
+    assert [number_of(v, u) for v, u in (("2 x 50 mg", "mg"), ("2,5 mg", "mg"), ("0,25 mg/mL", ""))] == [100.0, None, None]
+
+
+def test_a_description_shifted_by_one_column_is_caught_by_each_columns_own_header():
+    doc = parse_document((b"Unit\t0\t0.5\t1\t2\n1\t0\t5.1\t12\t20\n"), "d.tsv")
+    part = document_parts(doc)[0].name
+    shifted = [C(index=1, role="subject")] + [C(index=3 + i, role="value", time=t) for i, t in enumerate((0, 0.5, 1))]
+    desc = TableDescription(file="d.tsv", kind="concentrations", part=part, header_lines=[1], first_line=2, last_line=2,
+                            columns=shifted)
+    problems = read_table(desc, doc, file="d.tsv", sha256=doc.file_sha256).problems
+    assert [p.code for p in problems] == ["TIME_NOT_IN_HEADER"] * 3
