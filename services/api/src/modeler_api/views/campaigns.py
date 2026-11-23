@@ -18,8 +18,14 @@ class Campaigns(View):
     campaigns: list[CampaignRecord]
 
 
+class EscalationItem(EscalationRecord):
+    """An open escalation as one person reads it: the stored record, and whether this person may decide it."""
+
+    can_decide: bool
+
+
 class Escalations(View):
-    escalations: list[EscalationRecord]
+    escalations: list[EscalationItem]
 
 
 class ReportIssue(View):

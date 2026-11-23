@@ -15,6 +15,16 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — the console redesign, slice 1: each open escalation says whether this person may decide it (2026-11-23)
+- **What:** every item of `GET /escalations` carries `can_decide`, computed with the rule `escalation:resolve` applies:
+  the project's owner, or a reviewer the project is shared with (an escalation whose campaign is not recorded yet has no
+  project to check and stays decidable, as the route allows). `ownership.may_change` is that rule as an answer;
+  `ensure_owner` now uses it, unchanged in behaviour.
+- **Why:** redesign review R-S02. The decision pop-up asked people who may not sign; the route then refused them.
+- **Contract:** additive. `Escalations.escalations` items are `EscalationItem` (the stored `EscalationRecord` plus
+  `can_decide`); `docs/api/openapi.json` and `apps/web/lib/api-types.ts` regenerated. Test:
+  `test_project_ownership.py::test_each_open_escalation_says_whether_this_person_may_decide_it`.
+
 ### Docs — redesign charter, Phase 9: the archive and the implementation plan (2026-11-23, the owner's request)
 - **Archive:** tag `pre-aws-redesign-20261123-1601` and branch `archive/stylish-frontend-20261123-1601` at `49907a6`
   (local until the owner says to push them), and a file copy of all 292 files of `apps/web` with its OpenAPI contract
