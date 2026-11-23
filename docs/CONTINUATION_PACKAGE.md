@@ -213,6 +213,17 @@ T-05 → T-07 → T-08 → T-18 and T-09 in parallel.
 
 ## 4. Where things stand (2026-11-22)
 
+### 4.0e 2026-11-22 → 23: redesign charter (design only so far)
+The owner's charter: an AWS-console-inspired redesign, design first, through four approval gates; no production change
+before Gate 4 and a separate go-ahead. Everything is in `design-review/` (start at its `README.md`). Gate 1 (discovery)
+is approved; Gate 2 (sitemap, page inventory, flows, remediation plan) waits for the owner.
+- **Defects found, not fixed yet** (`design-review/REMEDIATION_PLAN.md` §1): tenant-wide `GET /campaigns` and
+  `GET /escalations` ignore project membership (R-S01); viewers get 403 on Review & sign (R-S03); two system routes
+  take no authentication (R-S04); `modeler-qa` grants nothing (R-S05); Temporal-path signing routes take a password
+  in the body (R-S06, inert while Temporal is not deployed).
+- Decisions that bind the redesign: `design-review/DECISIONS.md` (one Data section with the Data room and Inputs;
+  accent `#001B94`; light only, dark-ready; "Your work" links only).
+
 ### 4.0d 2026-11-21 → 22: the Data room (read this first)
 Plan `docs/plans/2026-11-21-intelligent-client-data-intake.md` (v2; the owner's answers in §1). The owner's ask: one
 generic, intelligent path from any client delivery to an evidence report and traced PK-Sim inputs. Not a per-case

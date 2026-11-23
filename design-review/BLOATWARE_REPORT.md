@@ -1,5 +1,7 @@
 # Bloatware Report (Phase 2, identification only)
 
+> **Gate 2 update:** every candidate now has a verified verdict in [`REMEDIATION_PLAN.md`](REMEDIATION_PLAN.md) §3, which supersedes the recommendations below where they differ.
+
 **Nothing has been removed.** Each candidate needs verification and the owner's authorisation (Phase 9/10). Locked
 files are marked; they change only in their own PR with the owner's approval.
 
@@ -10,7 +12,7 @@ Confidence: **High** = proven by search or test; **Medium** = strong evidence, o
 | ID | Candidate | Class | Confidence | Recommended action |
 |---|---|---|---|---|
 | B-01 | Two parallel intake UIs (Inputs task-first vs Data room) | duplicate workflow | High | Owner decision; then retire one path in the UI |
-| B-02 | 21 API operations with no UI caller | unused routes | High (no caller) / Medium (no other consumer) | Keep, expose, or deprecate each (table below) |
+| B-02 | 22 API operations with no UI caller (Gate 2 correction) | unused routes | High (no caller) / Medium (no other consumer) | Keep, expose, or deprecate each (table below) |
 | B-03 | `escalation:decide` beside `escalation:resolve` | duplicate route | Medium | Confirm no client; deprecate in OpenAPI |
 | B-04 | `/review` page that only redirects | obsolete route | High | Keep the redirect until bookmarks age out; no action |
 | B-05 | `components/ui.tsx` beside `components/kit` | duplicate primitives | High | Merge into one kit in the redesign |
@@ -56,7 +58,7 @@ Confidence: **High** = proven by search or test; **Medium** = strong evidence, o
 | `plan:view` | none found | Use for a reviewer's read-only plan |
 | `projects/{id}/impact` | none found | Expose as an impact preview |
 | `requirements` (3 ops) | none found | Expose as the data-plan matrix |
-| `templates` (2 ops) | none found | Expose as the analysis template catalogue |
+| `templates` (2 ops) | none found | Project starting points (reference models), not analysis templates; owner question Q2 |
 
 ### B-03 Duplicate escalation routes
 `escalations.py:139` (`:decide`) and `:231` (`:resolve`); the web calls `:resolve` twice and `:decide` never (grep).
@@ -90,7 +92,7 @@ Found by a scripted import scan, then a text search for each name outside tests.
 | `pbpk_domain.snapshot.parameter_transfer` | 50 | No consumer found outside tests; CONTINUATION D3 says transfer updates the CPF instead. Medium: verify, then remove |
 | `modeler_agents.literature`, `modeler_agents.parameter_curation` | 244 / 237 | Only tests import them. Medium: verify superseded by `evidence:research`, then remove or wire |
 | `modeler_intake.pksim` | 185 | Used by `services/engine-worker/golden/make_example_snapshot.py` (locked golden). Keep |
-| `pbpk_domain.requirement_drafts` | 22 | Package with no importer outside itself. Low: verify |
+| `pbpk_domain.requirement_drafts` | 22 | **Keep**: inert by the owner's decision (drafts await a named scientist). Verified at Gate 2 |
 
 ### B-14 / B-15 Performance
 - Dashboard: one `GET /projects/{id}/steps` per project (app-design-merge plan §4 gap 3).

@@ -15,6 +15,22 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Docs — redesign charter, Gate 2: information architecture (2026-11-23, the owner's request)
+- **What:** the owner approved Gate 1 (one Data section holding the Data room and Inputs; the AWS-style look replaces
+  the 7 Nov look, light only and dark-ready; a "Your work" list of links; existing records reused) and gave the brand
+  accent `#001B94`. Added `design-review/PRODUCT_SITEMAP.md`, `PAGE_INVENTORY.md` (34 pages), `USER_FLOWS.md`,
+  `REMEDIATION_PLAN.md` and `DECISIONS.md`; Gate 1 files corrected where verification changed them.
+- **Found while verifying, not fixed (no production change without the owner's go-ahead):** `GET /campaigns` and
+  `GET /escalations` list items of projects the person is not a member of (R-S01); the escalation pop-up shows
+  decisions to people who cannot sign them (R-S02); a viewer gets 403 on Review & sign because the page reads
+  `GET /plan`, not `plan:view` (R-S03); `POST /model-versions/preview` and `POST /m15/validate` take no
+  authentication (R-S04); `modeler-qa` grants nothing (R-S05); the Temporal-path `escalation:decide` and
+  `/deviations` take a password in the body, inert today (R-S06).
+- **Corrected:** 22 operations have no screen, not 21 (`/deviations` was miscounted); `GET /templates` serves project
+  starting points (the published Dapagliflozin model), not the VBE/DDI analysis templates; `GET /proposals` is always
+  empty (nothing in production writes it).
+- **Impact:** none on behaviour. No production, locked or contract file changed.
+
 ### Docs — redesign charter, Gate 1: product discovery (2026-11-22, the owner's request)
 - **What:** a read-only audit of the whole product for the AWS-console-inspired redesign charter, in a new isolated
   folder `design-review/`: `PROJECT_AUDIT.md`, `FEATURE_INVENTORY.md`, `BLOATWARE_REPORT.md`, `PROPOSED_FEATURES.md`,

@@ -123,13 +123,24 @@ Roles: V viewer · C curator (owner of the project) · R reviewer · A platform 
 
 ---
 
+### 2.1 Defects found at Gate 2 (details in `REMEDIATION_PLAN.md` §1)
+| Id | Defect |
+|---|---|
+| R-S01 | `GET /campaigns` and `GET /escalations` list every project's items in the company, members or not |
+| R-S02 | The escalation pop-up (every 5 s, every page) shows decisions to people who cannot sign them |
+| R-S03 | A viewer gets 403 on Review & sign (`GET /plan` needs a writer; `plan:view` unused) |
+| R-S04 | `POST /model-versions/preview` and `POST /m15/validate` take no authentication |
+| R-S05 | `modeler-qa` grants nothing |
+| R-S06 | Temporal-path signing routes take a password in the body (inert today) |
+
 ## 3. Backend-supported, not exposed in the UI (class 3)
 
-21 of 183 operations have no caller in `apps/web` (VERIFIED by contract cross-check plus a text search per path):
+22 of 183 operations have no caller in `apps/web` (VERIFIED by contract cross-check plus a text search per path; Gate 1 said 21 and missed `POST /campaigns/{id}/deviations`). *(Corrected at Gate 2: see [`REMEDIATION_PLAN.md`](REMEDIATION_PLAN.md).)*
+
 
 | Operation | What it offers | Likely reason / UX opportunity |
 |---|---|---|
-| `GET /api/v1/proposals` | Agent parameter proposals across projects | Review inbox removed 2026-11-11; no decide route either |
+| `GET /api/v1/proposals` | Agent parameter proposals across projects | Always empty: nothing in production writes it (dead chain, R-B13) |
 | `GET /escalations/decision-options` | MS-01 decision options | UI hard-codes or reads them elsewhere (INFERRED) |
 | `POST /campaigns/{id}/stages/{s}/escalation:decide` | Signed decision (older route) | UI uses `:resolve`; candidate duplicate (Bloatware B-03) |
 | `POST /campaigns/{id}/feedback:decide` | Feedback decision | INFERRED replaced by `:resolve` with payload |
@@ -144,7 +155,8 @@ Roles: V viewer · C curator (owner of the project) · R reviewer · A platform 
 | `GET /plan:view` | Read-only plan | Could back a reviewer's read-only view |
 | `POST /projects/{id}/impact` | Preview what a change makes stale | Impact preview before an edit is missing |
 | `GET /requirements`, `PUT /requirements/{r}`, `POST /requirements:derive` | Data plan requirements per application (SME templates) | The requirements matrix has no screen of its own |
-| `GET /templates`, `GET /templates/{id}` | Analysis templates (DDI CYP3A4 victim, VBE crossover) | Their wizard was removed; templates are invisible |
+| `GET /templates`, `GET /templates/{id}` | Project starting points of the removed create-project wizard: the published Dapagliflozin model and an illustrative Aciclovir set (**not** the VBE/DDI analysis templates, as Gate 1 said) | Owner question Q2 |
+| `POST /campaigns/{id}/deviations` | Signed MAP deviation on the Temporal path (password in the body) | Inert today; R-S06 |
 
 Domain capabilities with no API route (VERIFIED: no production importer):
 - `pbpk_domain.ddi_static` (static DDI screening, ruleset `ddi_static_screening.yaml`).
