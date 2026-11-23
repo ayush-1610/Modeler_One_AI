@@ -558,7 +558,10 @@ export interface paths {
         };
         /**
          * List Escalations
-         * @description Open campaign escalations awaiting a signed decision (review inbox).
+         * @description Open campaign escalations awaiting a signed decision, of the projects this person is a member of. An escalation
+         *     names its campaign, not its project, so its project is its campaign's; one whose campaign is not (yet) recorded has
+         *     no project to check and stays listed, as a campaign with no project does (the decision pop-up reads this list alone,
+         *     so a decision is asked even before its campaign's record can be read).
          */
         get: operations["list_escalations_api_v1_escalations_get"];
         put?: never;
@@ -595,7 +598,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Validate M15 Table */
+        /**
+         * Validate M15 Table
+         * @description Check an ICH M15 assessment table for completeness and the model risk its ratings allow (a curator or reviewer).
+         */
         post: operations["validate_m15_table_api_v1_m15_validate_post"];
         delete?: never;
         options?: never;
@@ -631,7 +637,7 @@ export interface paths {
         put?: never;
         /**
          * Preview Model Version
-         * @description Build and validate a snapshot without persisting it.
+         * @description Build and validate a snapshot without persisting it (a curator or reviewer: redesign review R-S04).
          */
         post: operations["preview_model_version_api_v1_model_versions_preview_post"];
         delete?: never;
@@ -16272,7 +16278,9 @@ export interface operations {
     validate_m15_table_api_v1_m15_validate_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                authorization?: string | null;
+            };
             path?: never;
             cookie?: never;
         };
@@ -16336,7 +16344,9 @@ export interface operations {
     preview_model_version_api_v1_model_versions_preview_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                authorization?: string | null;
+            };
             path?: never;
             cookie?: never;
         };

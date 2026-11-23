@@ -213,6 +213,27 @@ T-05 → T-07 → T-08 → T-18 and T-09 in parallel.
 
 ## 4. Where things stand (2026-11-22)
 
+### 4.0e 2026-11-22 → 23: redesign charter (design only so far)
+The owner's charter: an AWS-console-inspired redesign, design first, through four approval gates; no production change
+before Gate 4 and a separate go-ahead. Everything is in `design-review/` (start at its `README.md`). Gate 1 (discovery),
+Gate 2 (sitemap, page inventory, flows, remediation plan) and Gate 3 (the low-fidelity prototype) are approved;
+Gate 4 (`DESIGN_SYSTEM.md`, `prototype-hifi/index.html`, `API_PAGE_MAPPING.md`, `BACKEND_CHANGE_REQUIREMENTS.md`)
+are approved too (2026-11-23). **Phase 9 is ready for review:** the frontend is archived and verified
+(`design-review/ARCHIVE.md`) and the plan is `docs/plans/2026-11-23-console-redesign-implementation.md`. Implementation
+waits for the owner's explicit go-ahead and the five decisions in that plan's §10.
+- **To confirm with a test (R-N09):** escalation-decision signatures may be missing from a project's History, because
+  `GET /projects/{id}/audit` keeps only resource ids prefixed by the project.
+- **Defects found** (`design-review/REMEDIATION_PLAN.md` §1). **Fixed 2026-11-23** at the owner's go-ahead: the
+  campaign and escalation lists ignored project membership (R-S01); viewers got 403 on Review & sign (R-S03); two
+  modelling routes took no sign-in (R-S04). **Open:** a member who may not sign still sees the escalation pop-up
+  (R-S02, into the redesign); `modeler-qa` grants nothing (R-S05; the owner's default: QA reads every project of its
+  company); Temporal-path signing routes take a password in the body (R-S06, before any Temporal deployment).
+- Gate 2 answers (2026-11-23): a read-only Data plan page under Data; no reference-model start on Create project, the
+  `/templates` routes retire only after the campaign-monitor e2e and the showcase script stop using them (the
+  importer stays: Inputs' published-model source and the T-56 kit use it); the logo stays.
+- Decisions that bind the redesign: `design-review/DECISIONS.md` (one Data section with the Data room and Inputs;
+  accent `#001B94`; light only, dark-ready; "Your work" links only).
+
 ### 4.0d 2026-11-21 → 22: the Data room (read this first)
 Plan `docs/plans/2026-11-21-intelligent-client-data-intake.md` (v2; the owner's answers in §1). The owner's ask: one
 generic, intelligent path from any client delivery to an evidence report and traced PK-Sim inputs. Not a per-case

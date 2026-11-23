@@ -1,0 +1,284 @@
+/* P4 model inputs: what stops readiness. */
+.todo { border-color: color-mix(in srgb, var(--warn) 45%, var(--line)); }
+.todo-item { border: 1px solid var(--line); border-left: 3px solid var(--warn); border-radius: var(--radius-sm); padding: 10px 12px;
+  display: grid; gap: 6px; }
+.todo-item + .todo-item { margin-top: 10px; }
+.todo-row { border-top: 1px solid var(--line-soft); padding-top: 8px; }
+.todo-table td, .todo-table th { padding: 6px 8px; }
+.todo-table tr { cursor: pointer; }
+.todo-table tr.picked { background: color-mix(in srgb, var(--sim) 10%, transparent); }
+
+/* Step 2 · Inputs (redesign §3.2): one row per model input, the studies and their individuals, what is still missing. */
+.input-row { border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 10px 12px; background: var(--surface);
+  display: grid; gap: 6px; }
+.input-row + .input-row { margin-top: 8px; }
+.input-row.conflict, .input-row.missing { border-left: 3px solid var(--fail); }
+.input-row.held { border-left: 3px solid var(--warn); }
+.input-head { display: grid; grid-template-columns: minmax(150px, 1.3fr) minmax(90px, 0.8fr) minmax(140px, 1.6fr) auto 32px; gap: 10px;
+  align-items: baseline; }
+.input-peek { align-self: start; justify-self: end; margin: -4px -6px 0 0; }
+.source-line-head { display: flex; gap: 8px; align-items: flex-start; justify-content: space-between; }
+.input-name { display: grid; min-width: 0; }
+.input-name code { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.input-value { font-variant-numeric: tabular-nums; }
+.input-source { font-size: 13px; min-width: 0; }
+.input-source .chip { margin-left: 6px; }
+.input-state { text-align: right; }
+.input-fix { border-top: 1px solid var(--line-soft); padding-top: 8px; display: grid; gap: 6px; }
+.input-row .sources { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.source-line { border-top: 1px solid var(--line-soft); padding-top: 6px; }
+.add-value, .typed-table { border-top: 1px dashed var(--line); padding-top: 8px; }
+.add-value { display: grid; gap: 6px; }
+.add-value .row { align-items: flex-end; }
+.add-field { display: grid; gap: 2px; font-size: 12px; font-weight: 600; color: var(--ink-dim); min-width: 0; }
+.add-field > input { width: 100%; }   /* a sized field (.w-110) keeps its width */
+/* a tab's count is a neutral numeral: amber is kept for what the person must decide (plan 2026-11-14 §2, rule 5) */
+.tabs .tab-count { margin-left: 6px; padding: 0 7px; border-radius: 999px; font-size: 11.5px; font-weight: 600;
+  background: color-mix(in srgb, var(--ink) 8%, transparent); color: var(--ink); }
+.area-bar .tabs .chip { margin-left: 6px; }
+.missing-list, .checks { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 13px; }
+.individual { border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 10px 12px; background: var(--surface); }
+.individual + .individual { margin-top: 8px; }
+.studies-table td { vertical-align: top; }
+.studies-table tr.left-out td { opacity: 0.6; }
+.add-data { margin-top: 16px; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 10px 12px; }
+.add-data h3 { margin: 0 0 6px; }
+.add-data ul { margin: 0 0 6px; padding-left: 18px; display: grid; gap: 4px; font-size: 14px; }
+@media (max-width: 720px) {
+  .input-head { grid-template-columns: 1fr 1fr; }
+  .input-peek { grid-row: 1; grid-column: 2; }
+  .input-state { text-align: left; }
+}
+.observed { margin-top: 18px; }
+.observed > .spread h3 { margin: 0; }
+.observed .card { margin: 10px 0; }
+.access-requests { margin: 0; padding-left: 18px; font-size: 13.5px; }
+.access-requests li { margin: 4px 0; }
+/* Inputs before Start is done (page review 1, decision 7) */
+.inputs-blocked { max-width: 760px; }
+.inputs-blocked h1 { margin-top: 0; }
+.inputs-blocked ul { margin: 6px 0 14px; padding-left: 18px; color: var(--ink-dim); }
+/* the brief's products and populations, shown where they are used (components/brief/BriefList.tsx, page review 1) */
+.brief-list .note-item { border-top: 1px solid var(--line); padding: 8px 0; }
+.brief-list .note-item.adding { background: color-mix(in srgb, var(--sim) 5%, var(--surface)); padding: 8px; border-radius: var(--radius-sm); }
+.brief-list > .btn { margin-top: 6px; }
+
+/* the status line (plan 2026-11-14 slice 1): the to-do by status word, "To confirm", the delivery's open work and the
+   page's one primary button, "Next"; on a phone "Next" takes its own row */
+.inputs-status { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin: 0 0 8px; }
+.status-counts { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; flex: 1 1 320px; min-width: 0; }
+.status-count, .to-confirm-btn { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; white-space: nowrap; }
+.status-num { padding: 0 7px; border-radius: 999px; font-size: 11.5px; font-weight: 600;
+  background: color-mix(in srgb, var(--ink) 8%, transparent); color: var(--ink); }
+.status-ready { color: var(--pass-ink); }
+.status-next { flex: 0 1 auto; max-width: 100%; min-height: 40px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 600px) { .status-next { flex: 1 1 100%; } }
+/* "To confirm" filters the areas to what waits for you: amber while anything does (the button only, not the cards) */
+.to-confirm-btn .chip { background: var(--surface); color: var(--ink); }
+.to-confirm-btn.waiting { background: color-mix(in srgb, var(--warn) 14%, var(--surface)); color: var(--warn-ink); }
+.to-confirm-btn.waiting .chip { background: var(--warn-ink); color: var(--surface); }
+.to-confirm-btn[aria-pressed="true"] { outline: 2px solid var(--warn-ink); outline-offset: 1px; }
+
+/* the areas in one bar across the top (plan 2026-11-14 slice 1): it stays in view, opaque over what scrolls under it;
+   below 900 px it is one row that scrolls sideways (under the phone's top bar), never a block of wrapped tabs. The area
+   under it takes only its content's height: no dead band under a short area. */
+.area-bar { position: sticky; top: 0; z-index: 18; display: flex; align-items: center; gap: 10px; margin: 0 -12px;
+  padding: 10px 12px; background: var(--bg); border-bottom: 1px solid var(--hairline); }
+/* positioned, so a count's screen-reader text (absolute) stays inside the row that scrolls, not beyond the page's edge */
+.area-bar .tabs.area-tabs { position: relative; flex: 1 1 auto; min-width: 0; margin: 0; }
+.area-bar .tabs.area-tabs { gap: 2px; }
+.area-bar .tabs.area-tabs button { display: inline-flex; align-items: center; min-height: 36px; padding: 8px 12px; white-space: nowrap; }
+@media (max-width: 900px) {
+  .area-bar { top: 60px; margin: 0 -16px; padding: 8px 16px; }
+  .area-bar .tabs.area-tabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: thin; width: auto; }
+  .area-bar .tabs.area-tabs button { flex: none; }
+}
+/* the page's one filled primary is the status line's "Next" (plan 2026-11-14 §2): a form's own main button inside an area
+   is drawn tinted, still the strongest button of its form, so two filled buttons never compete (final review OWN-16);
+   a dialog over the page keeps its filled primary */
+[id^="inputs-panel-"] .btn.primary { background: color-mix(in srgb, var(--primary) 10%, var(--surface)); color: var(--brand-ink);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary) 45%, transparent); }
+[id^="inputs-panel-"] .btn.primary:hover:not(:disabled) { background: color-mix(in srgb, var(--primary) 18%, var(--surface)); color: var(--brand-ink); }
+html:has(.area-bar) { scroll-padding-top: 76px; }
+@media (max-width: 900px) { html:has(.area-bar) { scroll-padding-top: 136px; } }
+.input-block { display: grid; gap: 10px; margin-bottom: 18px; }
+.input-block-title { margin: 4px 0 0; font-size: 13px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-dim); }
+/* the rows to fill of a block, folded under "+ n more you can fill in" (plan 2026-11-14 §3 API 1) */
+.input-fill { display: grid; gap: 8px; }
+.input-fill-toggle { justify-self: start; }
+.input-fill-rows { display: grid; gap: 8px; }
+.input-fill-rows .input-row + .input-row { margin-top: 0; }
+.input-row.empty { border-style: dashed; }
+
+/* the client's data, confirmed inline (plan 2026-11-03 §3.3) */
+.confirm-groups { display: grid; gap: 14px; margin-bottom: 20px; }
+.confirm-group { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); padding: 14px 16px; display: grid; gap: 10px; }
+/* a card's wide content (a chart, code's NCA table, the client's reported PK, the table of points, the form of what a
+   sheet does not say) fits or scrolls inside the card, never the page: the grid and flex items give up their content's
+   width, and the one table not already in a scroll box gets one */
+.confirm-groups > *, .confirm-group > *, .confirm-items > li, .confirm-head > *, .dataset-view > *, .dataset-stats > *,
+.draft-item > *, .draft-form > * { min-width: 0; }
+.dataset-stats > table { display: block; max-width: 100%; overflow-x: auto; }
+.confirm-group.to-confirm { border-color: color-mix(in srgb, var(--warn) 55%, var(--line)); }
+.confirm-head { display: flex; gap: 10px; align-items: flex-start; justify-content: space-between; }
+.confirm-title { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.confirm-title h3 { margin: 0; font-size: 17px; }
+.confirm-facts, .confirm-items { margin: 0; padding: 0; list-style: none; border: 1px solid var(--line-soft, var(--line)); border-radius: var(--radius-sm); }
+.confirm-row { display: grid; grid-template-columns: minmax(120px, 0.9fr) minmax(0, 2fr) 32px; gap: 10px; align-items: center;
+  padding: 6px 10px; border-bottom: 1px solid var(--line-soft, var(--line)); }
+.confirm-row:last-child { border-bottom: 0; }
+.confirm-row dt, .confirm-item-label { color: var(--ink-dim); font-size: 13px; }
+.confirm-row dd { margin: 0; }
+.confirm-item-value { overflow-wrap: anywhere; font-size: 14px; }
+.issue { border-radius: var(--radius-sm); padding: 10px 12px; display: grid; gap: 8px; border: 1.5px solid var(--line); }
+.issue.conflict { border-color: color-mix(in srgb, var(--fail) 55%, var(--line)); background: color-mix(in srgb, var(--fail) 6%, var(--surface)); }
+.issue.difference { border-color: color-mix(in srgb, var(--warn) 55%, var(--line)); background: color-mix(in srgb, var(--warn) 7%, var(--surface)); }
+.issue.question { border-color: color-mix(in srgb, var(--sim) 45%, var(--line)); background: color-mix(in srgb, var(--sim) 6%, var(--surface)); }
+.issue.settled { border-style: solid; border-color: var(--line); background: var(--raised); }
+.issue-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.issue-text { font-weight: 600; font-size: 14px; }
+.chip.issue-chip.conflict { color: var(--surface); background: var(--fail-ink); }
+.chip.issue-chip.difference { color: var(--surface); background: var(--warn-ink); }
+.chip.issue-chip.question { color: var(--surface); background: var(--brand-ink); }
+.issue-options { border: 0; margin: 0; padding: 0; display: grid; gap: 6px; }
+.issue-option { display: grid; grid-template-columns: auto minmax(0, 1fr) 32px; gap: 8px; align-items: center; padding: 6px 8px;
+  border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); cursor: pointer; min-height: 44px; }
+.issue-option.on { border-color: var(--sim); box-shadow: 0 0 0 1px var(--sim) inset; }
+.issue-answer { display: grid; gap: 4px; font-size: 13px; max-width: 16em; }
+.issue-answer input { font: inherit; padding: 6px 8px; border: 1px solid var(--control-border); border-radius: var(--radius-sm); }
+.issue-final { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.issue-alternatives { margin: 0; padding-left: 18px; font-size: 13px; }
+.issue-alternatives li { display: flex; gap: 6px; align-items: center; }
+.confirm-foot { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; padding-top: 8px;
+  border-top: 1px solid var(--line-soft, var(--line)); }
+.confirm-foot .btn { min-height: 44px; }
+.confirm-notes { margin: 0; padding: 8px 12px 8px 28px; border-radius: var(--radius-sm); background: color-mix(in srgb, var(--sim) 7%, var(--surface));
+  font-size: 13px; display: grid; gap: 2px; }
+/* the Client files area (plan 2026-11-14 slice 1): its head, then one row per file, which opens on its sheets */
+.files-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
+.files-head h2 { margin-right: auto; }
+/* the files table's own rows and cells only (child combinators): an open file's detail holds tables of its own (its
+   sheets, its tables and texts), which these rules must not reach (final review round 5, OWN-16) */
+.files-table > tbody > tr > td { vertical-align: top; }
+.files-table .file-tag { margin: 0; }
+.files-name { display: inline-flex; gap: 6px; align-items: baseline; min-height: 28px; padding: 4px 0; border: 0; background: none; font: inherit;
+  font-weight: 600; text-align: left; overflow-wrap: break-word; color: var(--ink); cursor: pointer; }
+.files-table > tbody > tr > td:first-child { min-width: 14ch; }
+.files-name:hover { color: var(--brand-ink); text-decoration: underline; }
+.files-caret { color: var(--ink-dim); font-size: 11px; }
+.files-table > tbody > tr.open > td { border-bottom-color: transparent; }
+.files-table > tbody > tr.files-detail > td { padding: 0 8px 12px 22px; background: var(--surface); }
+.files-detail .file-card { margin: 0; }
+/* an open file's own tables fit the file's box: the kit's `.table-scroll table { min-width: 560px }` is for a table in a
+   scroll box of its own, and it reached them through the files table's box, which kept the file's sheet table 560 px wide
+   on a phone and cut its long lines (final review round 5, OWN-16). A table in its own scroll box there (a values table,
+   the sheet grid) keeps its width and scrolls in that box */
+.files-table .files-detail table:not(.files-detail .table-scroll table, .sheet-grid table) { min-width: 0; }
+/* on a phone each file is a block, its parts one under the other with their column's name, so a file's name breaks
+   between its words, never inside one, and no column is cut off (final review OWN-16). After the rules above and as
+   specific as the kit's `.table-scroll table { min-width: 560px }`, which kept each block 560 px wide in a 358 px box
+   and cut its long lines (final review round 4); the files table's own rows only, never the tables of an open file
+   (round 5): those stay tables, each scrolling sideways in its own box when it is wider than the screen. Up to 700 px: the
+   files table needs 626 px, so from 601 px its box scrolled sideways, with no file open (round 6) */
+@media (max-width: 700px) {
+  .files-table, .table-scroll table.files-table, .files-table > tbody, .files-table > tbody > tr, .files-table > tbody > tr > td,
+  .files-table > tbody > tr > td:first-child { display: block; width: 100%; min-width: 0; }
+  .files-table > thead { display: none; }
+  .files-table > tbody > tr:not(.files-detail) { padding: 8px 0; border-bottom: 1px solid var(--line-soft, var(--line)); }
+  .files-table > tbody > tr:not(.files-detail) > td { padding: 2px 0; border: 0; }
+  .files-table > tbody > tr > td[data-label]::before { content: attr(data-label); display: block; font-size: 12px; font-weight: 600; color: var(--ink-dim); }
+  .files-table > tbody > tr.files-detail > td { padding: 0 0 12px; }
+  .files-table .files-detail table:not(.files-detail .table-scroll table, .sheet-grid table) { display: block; max-width: 100%; overflow-x: auto; }
+}
+.client-files h3 { margin: 4px 0 6px; font-size: 15px; color: var(--ink); }
+.file-card { scroll-margin-top: 80px; }
+/* on a phone a file's sheet table scrolls inside its card, never the page */
+@media (max-width: 900px) { .file-card > table { display: block; overflow-x: auto; } }
+/* on a tablet a sheet's state and its last cell wrap, so the sheet table never sets the open file wider than its box (round
+   6: at 768 px on the owner's project "blinded until the plan is signed" and "read by code · 2 to give on its card" kept
+   their line, and the files box scrolled sideways by 47 px with messy-delivery.xlsx open) */
+@media (max-width: 900px) { .sheet-table .chip, .sheet-table td.num { white-space: normal; } }
+/* on a phone each sheet of a file is a block, its parts under their column's name, as the files are above: its four
+   columns needed 550 px, so its state and its button were off the screen (final review round 5, OWN-16) */
+@media (max-width: 600px) {
+  .file-card > table.sheet-table, .sheet-table > tbody, .sheet-table > tbody > tr, .sheet-table > tbody > tr > td { display: block; width: 100%; min-width: 0; }
+  .sheet-table > thead { display: none; }
+  .sheet-table > tbody > tr { padding: 6px 0; border-bottom: 1px solid var(--line-soft, var(--line)); }
+  .sheet-table > tbody > tr > td { padding: 2px 0; border: 0; text-align: left; }
+  .sheet-table > tbody > tr > td[data-label]::before { content: attr(data-label); display: block; font-size: 12px; font-weight: 600; color: var(--ink-dim); }
+  .sheet-table .chip { white-space: normal; }
+}
+/* To do (plan 2026-11-14 slice 1): what is still missing to run, by area, full width; then the checks, folded */
+.todo-area + .todo-area { margin-top: 12px; }
+.todo-area h3 { margin: 0 0 6px; font-size: 14px; color: var(--ink); }
+.todo-missing .client-request-download { margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--hairline); }
+/* what the structured sources gave the compound at the project's start (plan 2026-11-05 §3.3) */
+.sources-read { border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 10px 12px; margin: 0 0 12px; }
+.sources-read h3 { margin: 0 0 6px; font-size: 14px; }
+.sources-read ul:not(.flags) { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 13px; }
+/* a dataset's row with its data below it (build C): the row keeps its rule, the data sits inside the item */
+.confirm-items > li:not(:last-child) { border-bottom: 1px solid var(--line-soft, var(--line)); }
+.confirm-items > li > .confirm-row { border-bottom: 0; }
+.confirm-dataset .dataset-view { margin: 0 10px 10px; }
+/* a sheet read by code, not saved yet (build C2): what it needs, asked on its card */
+.draft-item { display: grid; gap: 8px; margin: 0 10px 10px; }
+.draft-item .dataset-view { margin: 0; }
+.draft-notes summary { cursor: pointer; font-size: 13px; color: var(--ink-dim); }
+.draft-notes ul { margin: 4px 0 0; padding-left: 18px; font-size: 12px; color: var(--ink-dim); }
+.draft-form { border: 1px solid color-mix(in srgb, var(--warn) 45%, var(--line)); border-radius: var(--radius-sm); padding: 8px 10px;
+              display: grid; gap: 8px; background: color-mix(in srgb, var(--warn) 6%, var(--surface)); }
+.draft-form legend { font-size: 13px; font-weight: 600; padding: 0 4px; }
+.draft-need { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 13px; }
+.draft-need label { min-width: 180px; color: var(--ink-dim); }
+.draft-need input, .draft-need select { min-width: 160px; }
+.draft-offer { display: inline-flex; align-items: center; gap: 2px; }
+
+/* build I: the same drug's values in the person's other projects, reused with their consent */
+.value-reuse { margin: 12px 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.value-reuse h3 { margin: 0 0 4px; font-size: 14px; }
+.value-reuse ul { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 6px; }
+
+/* the one list of work (plan 2026-11-14 slice 2): To do's groups, each row one line that opens where it is settled; an
+   area's one-line head; a status-line count pressed; a file's own work in Client files */
+.status-count[aria-pressed="true"] { outline: 2px solid var(--ink); outline-offset: 1px; }
+.status-note { font-size: 13px; white-space: nowrap; }
+@media (max-width: 600px) { .status-note { white-space: normal; } }
+.area-head { margin: 0 0 12px; font-size: 13.5px; color: var(--ink-dim); }
+.area-head-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 16px; margin: 6px 0 8px; }
+.area-head-row .area-head { margin: 0; }
+.todo-group > h3 .chip { vertical-align: 1px; margin-right: 2px; }
+.todo-gate { margin: 0; font-size: 13px; padding: 6px 10px; border-radius: var(--radius-sm); background: var(--raised); }
+.only-mine { display: inline-flex; align-items: center; gap: 6px; font-size: 13.5px; min-height: 36px; cursor: pointer; }
+.todo-work { display: grid; gap: 16px; }
+.todo-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 10px 16px; }
+.todo-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+.todo-filters .table-chips button { min-height: 36px; }
+.todo-group { display: grid; gap: 6px; padding-top: 12px; border-top: 1px solid var(--hairline); }
+.todo-group > h3 { margin: 0; font-size: 15px; color: var(--ink); }
+.todo-group-lede { margin: 0; font-size: 13px; }
+.todo-lines { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.todo-line { display: grid; gap: 2px; padding: 4px 0; }
+.todo-line + .todo-line { border-top: 1px solid var(--line-soft, var(--line)); }
+.todo-line-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; min-height: 32px; }
+.todo-line-head > .chip { flex: none; }
+.todo-line-label { text-align: left; font-size: 14px; overflow-wrap: anywhere; }
+.todo-line-head .btn.small { margin-left: auto; }
+.todo-line-detail { margin: 0; font-size: 12.5px; }
+.todo-line.quiet .todo-line-label { color: var(--ink-dim); }
+.todo-line-inline { padding: 6px 0 4px; }
+.todo-fold > summary { cursor: pointer; list-style: none; min-height: 32px; display: flex; align-items: center; gap: 6px; }
+.todo-fold > summary::-webkit-details-marker { display: none; }
+/* a fold says it opens: ▸ closed, ▾ open */
+.todo-caret::before { content: "▸"; display: inline-block; width: 1em; color: var(--ink-dim); }
+.todo-fold[open] > summary .todo-caret::before { content: "▾"; }
+/* an area's cards that are signed on the delivery and open in Client files until slice 3 */
+.area-elsewhere { margin: -2px 0 10px; font-size: 13px; }
+.todo-ready { padding: 12px 14px; border-radius: var(--radius-sm); background: color-mix(in srgb, var(--pass) 8%, var(--surface)); }
+.checks-passed summary { cursor: pointer; color: var(--ink-dim); }
+.todo-group .client-request-download { margin-top: 6px; }
+.file-needs { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; font-size: 13px; }
+.file-delivery { margin: 0 0 8px; }
+.file-ai-reading { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 0 0 8px; font-size: 13px; }
+.delivery-details > summary { cursor: pointer; font-size: 13px; color: var(--ink-dim); min-height: 28px; }
+/* what a To do row or "Next" opened, marked a moment */
+.just-opened { outline: 2px solid var(--sim); outline-offset: 3px; border-radius: var(--radius-sm); transition: outline-color 1.2s; }

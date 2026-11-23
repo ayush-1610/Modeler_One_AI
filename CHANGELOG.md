@@ -58,6 +58,89 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
     - no admin registry of clients' agreements yet;
     - A9's second opinion needs a second model in the chain.
 
+### Docs — redesign charter, Phase 9: the archive and the implementation plan (2026-11-23, the owner's request)
+- **Archive:** tag `pre-aws-redesign-20261123-1601` and branch `archive/stylish-frontend-20261123-1601` at `49907a6`
+  (local until the owner says to push them), and a file copy of all 292 files of `apps/web` with its OpenAPI contract
+  in `design-review/archive/stylish-frontend/`. Verified: identical to the tag (`diff -r`), and a restored copy installs
+  from its lockfile, typechecks and builds. `design-review/ARCHIVE.md` says how to restore.
+- **Plan:** `docs/plans/2026-11-23-console-redesign-implementation.md`: architecture (no new dependency; test ids kept
+  as a contract), component map, backend changes in order, permissions, testing, ten slices with exit criteria,
+  rollback, bloatware removal, risks, and the five decisions needed before implementation starts.
+- **Impact:** none on behaviour. Implementation needs the owner's separate authorisation.
+
+### Docs — redesign charter, Gate 4: design system, high-fidelity prototype, API mapping (2026-11-23, the owner's request)
+- **What:** Gate 3 approved. `design-review/DESIGN_SYSTEM.md`; `design-review/prototype-hifi/index.html` (the approved
+  wireframe with the design system applied, IBM Plex embedded under its OFL, one offline file, mock data only);
+  `API_PAGE_MAPPING.md` (100 page actions on the 183 operations; handlers, models and permissions read from the code);
+  `BACKEND_CHANGE_REQUIREMENTS.md`.
+- **Chart palette:** `#001B94` is too dark for chart marks, so charts use `#2E4BC6`, `#B25000`, `#1BAF7A`, validated
+  for lightness, chroma and colour-blind separation; every chart has direct labels and a table view.
+- **Corrected:** 25 operations have no screen (Gate 1 said 21, Gate 2 22): a path-only match had counted
+  `POST /projects`, `PUT …/cpf` and `POST …/studies` as used; scripts and tests call them, the web app does not.
+- **Found (not fixed):** a signature on a record not named after its project (an escalation decision,
+  `{campaign}-{stage}`) is on the company's audit chain but not in `GET /projects/{id}/audit`, which keeps only
+  resource ids prefixed by the project (R-N09, inferred from the code; to confirm with a test).
+- **Checked:** 295 prototype addresses for six roles at two widths, 118 dialogs, every page's states, accessible names.
+- **Impact:** none on behaviour.
+
+### Docs — redesign charter, Gate 3: the low-fidelity prototype (2026-11-23, the owner's request)
+- **What:** Gate 2 approved. `design-review/prototype/index.html`, one self-contained page (no build, no dependency, no
+  API call) that draws all 34 pages of the approved sitemap in the AWS-style shell (top bar, fixed side navigation per
+  context, breadcrumbs, compact headers, flash bar, help and side panels), with prototype controls for the signed-in
+  role and the page state (empty, loading, error), and `design-review/WIREFRAMES.md` documenting every page.
+- **Mock data only,** labelled MOCK, with invented compounds; charts and the MS-01 canvas are placeholders and no curve
+  is drawn (the owner's rule of 6–7 Nov).
+- **Checked in a headless browser:** 295 addresses for six roles at 1440 and 390 px, with no script error, dead link
+  or sideways scroll; 90 dialogs, 9 side panels and every page's three states.
+- **Impact:** none on behaviour; nothing in `apps/web` or the API changed.
+
+### Fixed — a person sees only their own projects' campaigns and escalations; viewers read the plan; the modelling tools need a sign-in (2026-11-23, the owner's go-ahead)
+Found while verifying the redesign's remediation plan (`design-review/REMEDIATION_PLAN.md` §1); the owner asked for
+them to be fixed now, ahead of the redesign.
+- **R-S01, the lists:** `GET /campaigns` and `GET /escalations` listed every campaign and open escalation of the
+  company, including projects the person is not a member of (their detail routes already refused them). Both now
+  apply the detail routes' rule (`read_api._member_of`): a member's projects, every project for the `*` principal, and
+  an item with no project. An escalation's project is its campaign's; one whose campaign is not recorded yet stays
+  listed, so the decision pop-up still asks for it (`escalation-popup.spec.ts`, unchanged). Side effect: the pop-up
+  (every page, every 5 s) no longer shows other projects' decisions. Still open (R-S02): a member who may not sign
+  sees the pop-up and is refused in words; the redesign moves the decision to the project's own pages.
+- **R-S03, Review & sign for a viewer:** the page read `GET /plan`, which needs a curator or reviewer, so a viewer got
+  403. It now reads the reader's `GET /plan:view` when `/me` names no writing role, says "You can read this plan.
+  Changing it and signing it take a curator or a reviewer.", and offers no signature (`PlanCanvas.tsx`; new
+  `e2e/plan-viewer.spec.ts`).
+- **R-S04, two routes with no sign-in:** `POST /model-versions/preview` and `POST /m15/validate` built and checked
+  models for anyone who reached the API. They now need a curator or reviewer (401 without a token, 403 for a viewer).
+  No client in the repository called them.
+- **API contract:** the two routes gain the `authorization` header parameter; `GET /escalations` has a new
+  description. `docs/api/openapi.json` and `apps/web/lib/api-types.ts` regenerated. No response shape changed.
+- **Not changed:** R-S06 (the Temporal-path signing routes that take a password in the body) waits for the
+  multi-server setup, at the owner's word. No locked file changed.
+
+### Docs — redesign charter, Gate 2: information architecture (2026-11-23, the owner's request)
+- **What:** the owner approved Gate 1 (one Data section holding the Data room and Inputs; the AWS-style look replaces
+  the 7 Nov look, light only and dark-ready; a "Your work" list of links; existing records reused) and gave the brand
+  accent `#001B94`. Added `design-review/PRODUCT_SITEMAP.md`, `PAGE_INVENTORY.md` (34 pages), `USER_FLOWS.md`,
+  `REMEDIATION_PLAN.md` and `DECISIONS.md`; Gate 1 files corrected where verification changed them.
+- **Found while verifying, not fixed (no production change without the owner's go-ahead):** `GET /campaigns` and
+  `GET /escalations` list items of projects the person is not a member of (R-S01); the escalation pop-up shows
+  decisions to people who cannot sign them (R-S02); a viewer gets 403 on Review & sign because the page reads
+  `GET /plan`, not `plan:view` (R-S03); `POST /model-versions/preview` and `POST /m15/validate` take no
+  authentication (R-S04); `modeler-qa` grants nothing (R-S05); the Temporal-path `escalation:decide` and
+  `/deviations` take a password in the body, inert today (R-S06).
+- **Corrected:** 22 operations have no screen, not 21 (`/deviations` was miscounted); `GET /templates` serves project
+  starting points (the published Dapagliflozin model), not the VBE/DDI analysis templates; `GET /proposals` is always
+  empty (nothing in production writes it).
+- **Impact:** none on behaviour. No production, locked or contract file changed.
+
+### Docs — redesign charter, Gate 1: product discovery (2026-11-22, the owner's request)
+- **What:** a read-only audit of the whole product for the AWS-console-inspired redesign charter, in a new isolated
+  folder `design-review/`: `PROJECT_AUDIT.md`, `FEATURE_INVENTORY.md`, `BLOATWARE_REPORT.md`, `PROPOSED_FEATURES.md`,
+  `UNKNOWN.md`, and eight screenshots of today's UI from the existing Playwright suite (stub engine, synthetic data).
+- **Why:** the charter's Gate 1 (product discovery) comes before any sitemap, wireframe or implementation.
+- **Impact:** none on behaviour. No production file, locked file, ruleset or API contract changed; nothing removed.
+  Findings that need the owner: the two intake paths (Inputs and the Data room), a cross-project work queue after the
+  inbox's removal, the light-only theme against a console look, and 21 API operations with no screen.
+
 ### Added — when an agent's model cannot answer, the task goes on with the next model (2026-11-22, the owner's request)
 - **The incident:** on the server, the Data room's question stage ended with "no question card (litellm unavailable
   after 5 attempts: no answer within 600 s)". The in-house model on CPU sends nothing until it has finished. Each of
@@ -10120,3 +10203,4 @@ record it here so a reader knows which context produced which work.
 | 2026-11-12 → 13 (same cloud session, continued after context resets) | per commit trailer | The owner's Decision Memo (plan revision 3); the build contracts and shared contract code; D0, D1a, D4, D5 and SD built in parallel worktrees, each reviewed from two lenses, fixed and squash-merged; D1b as its own locked-file draft PR (#173); D2, D3, W and D6 in progress |
 | 2026-11-14 (cloud session, branch `claude/stoic-bohr-9ymlx9`; the owner switched the model) | Claude Opus 5.5 | Recap of the intake rebuild (found #173 merged with its conditions unticked, and `main` CI red on one upload e2e); the intake line merged onto `main`'s head; the Inputs UX audit and the task-first plan; its build; its final review (four lenses and an owner-job e2e) and seven fix rounds, each checked by an independent skeptic (2026-11-15/16; continuation §4.0c) |
 | 2026-11-21 → 22 (same cloud session, branch `claude/stoic-bohr-9ymlx9`, continued after context resets) | Claude Opus 5.5 | The owner's second sample delivery explored; plan v2, the Data room (`2026-11-21-intelligent-client-data-intake.md`); GroqCloud gpt-oss-120b as a third model, one click per agent; the new logo and palette; the Data room reader (OCR, turned pages, delimited exports), engine (sets, means, NCA, dissolution, decisions, requests, PK-Sim inputs, Send to the model) and five agents; the API and page on `dataroom-api-web` |
+| 2026-11-22 (cloud session, branch `claude/inspiring-einstein-191gn3`; the owner switched the model mid-session) | per commit trailer | Redesign charter Gate 1: read-only product discovery in `design-review/` (audit, feature inventory, bloatware report, proposed features, unknowns, current-state screenshots) |

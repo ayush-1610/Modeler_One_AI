@@ -23,25 +23,48 @@ MODEL_REQUEST = {
 }
 
 
-def test_preview_returns_hash_and_snapshot():
-    response = client.post("/api/v1/model-versions/preview", json=MODEL_REQUEST)
+AUTH = {"Authorization": "Bearer tok"}
+
+
+def _principal(*roles: str):
+    import time
+
+    from modeler_api.auth import get_verifier
+
+    class _V:
+        def verify(self, token):
+            return {"sub": "u1", "name": "Dr Lead", "tenant_id": "t1", "realm_access": {"roles": list(roles)},
+                    "projects": ["proj-1"], "acr": "loa2", "auth_time": int(time.time())}
+
+    app.dependency_overrides[get_verifier] = lambda: _V()
+
+
+@pytest.fixture
+def curator():
+    _principal("modeler-curator")
+    yield
+    app.dependency_overrides.clear()
+
+
+def test_preview_returns_hash_and_snapshot(curator):
+    response = client.post("/api/v1/model-versions/preview", json=MODEL_REQUEST, headers=AUTH)
     assert response.status_code == 200, response.text
     body = response.json()
     assert len(body["data"]["snapshot_sha256"]) == 64
     assert body["data"]["snapshot"]["Simulations"][0]["Individual"] == "Adult"
-    again = client.post("/api/v1/model-versions/preview", json=MODEL_REQUEST).json()
+    again = client.post("/api/v1/model-versions/preview", json=MODEL_REQUEST, headers=AUTH).json()
     assert again["data"]["snapshot_sha256"] == body["data"]["snapshot_sha256"]
 
 
-def test_preview_reports_reference_issues():
+def test_preview_reports_reference_issues(curator):
     broken = {**MODEL_REQUEST, "simulations": [{**MODEL_REQUEST["simulations"][0], "protocol": "missing"}]}
-    response = client.post("/api/v1/model-versions/preview", json=broken)
+    response = client.post("/api/v1/model-versions/preview", json=broken, headers=AUTH)
     assert response.status_code == 422
     assert response.json()["errors"][0]["code"] == "UNKNOWN_PROTOCOL"
 
 
 @pytest.mark.req("F-401")
-def test_m15_validation_reports_allowed_model_risk():
+def test_m15_validation_reports_allowed_model_risk(curator):
     response = client.post(
         "/api/v1/m15/validate",
         json={
@@ -52,10 +75,27 @@ def test_m15_validation_reports_allowed_model_risk():
                 "consequence_of_wrong_decision": {"rating": "low"},
             },
         },
+        headers=AUTH,
     )
     data = response.json()["data"]
     assert data["complete"] is False
     assert data["allowed_model_risk"] == ["low", "medium", "high"]
+
+
+M15_BODY = {"stage": "planning", "table": {"question_of_interest": "Q", "model_influence": {"rating": "high"},
+                                            "consequence_of_wrong_decision": {"rating": "low"}}}
+
+
+@pytest.mark.req("T-06")
+@pytest.mark.parametrize("route, body", [("/api/v1/model-versions/preview", MODEL_REQUEST), ("/api/v1/m15/validate", M15_BODY)])
+def test_system_tools_need_a_signed_in_modeler(route, body):
+    # redesign review R-S04: these built and validated snapshots for anyone who reached the API
+    _principal("modeler-viewer")
+    try:
+        assert client.post(route, json=body).status_code == 401                 # no token
+        assert client.post(route, json=body, headers=AUTH).status_code == 403   # a viewer does not build models
+    finally:
+        app.dependency_overrides.clear()
 
 
 def _fake_curator():

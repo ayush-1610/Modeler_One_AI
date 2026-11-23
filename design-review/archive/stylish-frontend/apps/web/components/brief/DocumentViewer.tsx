@@ -1,0 +1,71 @@
+"use client";
+
+import { useEffect, useState } from "react";
+
+import type { DocumentView } from "@/lib/brief";
+import { useResource } from "@/lib/hooks";
+
+/** Highlight `quote` inside `text`, tolerating whitespace differences (the citation check normalizes whitespace). */
+function highlight(text: string, quote: string | null) {
+  if (!quote) return [text];
+  const pattern = quote.trim().split(/\s+/).map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("\\s+");
+  const match = new RegExp(pattern).exec(text);
+  if (!match) return [text];
+  return [text.slice(0, match.index), <mark key="q">{match[0]}</mark>, text.slice(match.index + match[0].length)];
+}
+
+/** The source beside the brief: any uploaded document, page by page, with the cited quote marked. */
+export function DocumentViewer({
+  projectId, documents, focus,
+}: {
+  projectId: string;
+  documents: DocumentView[];
+  focus: { sha256: string; page: number; quote: string | null } | null;
+}) {
+  const [sha, setSha] = useState<string | null>(focus?.sha256 ?? documents[0]?.sha256 ?? null);
+  const [pageNo, setPageNo] = useState<number>(focus?.page ?? 1);
+
+  useEffect(() => {
+    if (focus) {
+      setSha(focus.sha256);
+      setPageNo(focus.page);
+    }
+  }, [focus]);
+
+  useEffect(() => {
+    if (!sha && documents[0]) setSha(documents[0].sha256);
+  }, [documents, sha]);
+
+  const { data: page, problem } = useResource("/api/v1/projects/{project_id}/documents/{sha256}/pages/{page}",
+    { project_id: projectId, sha256: sha ?? "", page: String(pageNo) }, { enabled: sha !== null, keepPrevious: true });
+
+  const doc = documents.find((d) => d.sha256 === sha);
+  const quote = focus && focus.sha256 === sha && focus.page === pageNo ? focus.quote : null;
+
+  return (
+    <section className="card doc-viewer" data-testid="start-document">
+      <div className="spread mb-8">
+        <select value={sha ?? ""} onChange={(e) => { setSha(e.target.value); setPageNo(1); }} aria-label="Document">
+          {documents.map((d) => (
+            <option key={d.sha256} value={d.sha256}>{d.name} · {d.role.replace("_", " ")}</option>
+          ))}
+        </select>
+        {doc && (
+          <span className="row gap-6">
+            <button className="btn" disabled={pageNo <= 1} onClick={() => setPageNo(pageNo - 1)}>‹</button>
+            <span className="muted tnum">p. {pageNo} / {doc.n_pages}</span>
+            <button className="btn" disabled={pageNo >= doc.n_pages} onClick={() => setPageNo(pageNo + 1)}>›</button>
+            {/* a file that holds a blinded study's values (D-15): its pages come with their digits masked, and its
+                original is not served until the plan is signed */}
+            {doc.blinded ? <span className="muted fs-13" data-testid="document-original-withheld">original withheld (blinded)</span>
+              : <a className="btn" href={`/api/v1/projects/${projectId}/documents/${doc.sha256}/raw`} target="_blank"
+                   rel="noreferrer">Original</a>}
+          </span>
+        )}
+      </div>
+      {doc?.warnings.map((w) => <div key={w} className="banner warn mb-8">{w}</div>)}
+      {problem && <div className="banner err">{problem}</div>}
+      <pre className="doc-page">{page ? highlight(page.text, quote) : "…"}</pre>
+    </section>
+  );
+}

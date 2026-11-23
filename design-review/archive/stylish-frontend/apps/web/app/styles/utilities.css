@@ -1,0 +1,114 @@
+/* ---------- utilities: the static inline styles, as classes (2026-11-11 audit, item 10) ----------
+   Each class is one property at the exact value the inline style had, so this move changes no pixel; folding the values
+   into a smaller scale (12.5 -> 12 or 13, gap 14, the 60-100 input widths) is a separate, reviewable pass.
+   Loaded last (app/layout.tsx, after targets.css). Every rule is !important on purpose: an inline style beats every
+   non-important rule, and some page rules are more specific than one class (`.card .row`, `.field input`,
+   `.start-block .row > select`), so without it a converted element could render differently from before.
+   Only data-driven values stay inline (meter and band widths, layout x/y, per-series colours, the stagger delay).
+   Names avoid the existing modifiers `.note` (`.inline-issue.note`) and `.small` (`.btn.small`). Nothing here moves. */
+
+/* type */
+.fs-11 { font-size: 11px !important; }
+.fs-12 { font-size: 12px !important; }
+.fs-12-5 { font-size: 12.5px !important; }
+.fs-13 { font-size: 13px !important; }
+.fs-15 { font-size: 15px !important; }
+.fw-400 { font-weight: 400 !important; }
+.fw-500 { font-weight: 500 !important; }
+.tnum { font-variant-numeric: tabular-nums !important; }
+.nowrap { white-space: nowrap !important; }
+.text-right { text-align: right !important; }
+
+/* colour, from the tokens only */
+.text-ink { color: var(--ink) !important; }
+.text-fail { color: var(--fail-ink) !important; }
+.text-series-1 { color: var(--series-1) !important; }
+.text-series-2 { color: var(--series-2) !important; }
+.bg-series-1 { background: var(--series-1) !important; }
+.bg-series-2 { background: var(--series-2) !important; }
+.bg-series-neutral { background: var(--series-neutral) !important; }
+
+/* flex: `.row` (globals.css) is already flex, centred, wrapping, gap 10px; these adjust it */
+.inline-flex { display: inline-flex !important; }
+.flex-1 { flex: 1 !important; }
+.flex-wrap { flex-wrap: wrap !important; }
+.items-center { align-items: center !important; }
+.items-start { align-items: flex-start !important; }
+.self-start { align-self: flex-start !important; }
+.justify-end { justify-content: flex-end !important; }
+.gap-4 { gap: 4px !important; }
+.gap-6 { gap: 6px !important; }
+.gap-8 { gap: 8px !important; }
+.gap-10 { gap: 10px !important; }
+.gap-12 { gap: 12px !important; }
+.gap-14 { gap: 14px !important; }
+
+/* margin: m-<top>-<sides>-<bottom> follows the CSS shorthand, in px */
+.m-0 { margin: 0 !important; }
+.m-0-0-4 { margin: 0 0 4px !important; }
+.m-0-0-6 { margin: 0 0 6px !important; }
+.m-0-0-8 { margin: 0 0 8px !important; }
+.m-2-0 { margin: 2px 0 !important; }
+.m-2-0-4 { margin: 2px 0 4px !important; }
+.m-4-0 { margin: 4px 0 !important; }
+.m-4-0-0 { margin: 4px 0 0 !important; }
+.m-6-0 { margin: 6px 0 !important; }
+.m-6-0-0 { margin: 6px 0 0 !important; }
+.m-8-0 { margin: 8px 0 !important; }
+.m-8-0-0 { margin: 8px 0 0 !important; }
+.m-12-0-0 { margin: 12px 0 0 !important; }
+.m-12-0-4 { margin: 12px 0 4px !important; }
+.m-14-0-4 { margin: 14px 0 4px !important; }
+.mt-0 { margin-top: 0 !important; }
+.mt-4 { margin-top: 4px !important; }
+.mt-6 { margin-top: 6px !important; }
+.mt-8 { margin-top: 8px !important; }
+.mt-10 { margin-top: 10px !important; }
+.mt-12 { margin-top: 12px !important; }
+.mt-14 { margin-top: 14px !important; }
+.mt-16 { margin-top: 16px !important; }
+.mt-18 { margin-top: 18px !important; }
+.mt-32 { margin-top: 32px !important; }
+.mb-0 { margin-bottom: 0 !important; }
+.mb-4 { margin-bottom: 4px !important; }
+.mb-6 { margin-bottom: 6px !important; }
+.mb-8 { margin-bottom: 8px !important; }
+.mb-10 { margin-bottom: 10px !important; }
+.mb-12 { margin-bottom: 12px !important; }
+.mb-14 { margin-bottom: 14px !important; }
+.mb-16 { margin-bottom: 16px !important; }
+.ml-8 { margin-left: 8px !important; }
+.ml-12 { margin-left: 12px !important; }
+
+/* sizes: control widths, grow minimums, the chart boxes */
+.w-50 { width: 50px !important; }
+.w-60 { width: 60px !important; }
+.w-64 { width: 64px !important; }
+.w-70 { width: 70px !important; }
+.w-80 { width: 80px !important; }
+.w-90 { width: 90px !important; }
+.w-95 { width: 95px !important; }
+.w-100 { width: 100px !important; }
+.w-110 { width: 110px !important; }
+.w-120 { width: 120px !important; }
+.w-130 { width: 130px !important; }
+.w-140 { width: 140px !important; }
+.w-150 { width: 150px !important; }
+.w-160 { width: 160px !important; }
+.w-170 { width: 170px !important; }
+.w-200 { width: 200px !important; }
+.w-full { width: 100% !important; }
+.minw-0 { min-width: 0 !important; }
+.minw-100 { min-width: 100px !important; }
+.minw-110 { min-width: 110px !important; }
+.minw-140 { min-width: 140px !important; }
+.minw-160 { min-width: 160px !important; }
+.minw-180 { min-width: 180px !important; }
+.minw-200 { min-width: 200px !important; }
+.minw-220 { min-width: 220px !important; }
+.minw-260 { min-width: 260px !important; }
+.h-360 { height: 360px !important; }
+.h-420 { height: 420px !important; }
+
+/* pointer */
+.cursor-crosshair { cursor: crosshair !important; }

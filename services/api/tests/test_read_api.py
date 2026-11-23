@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import tempfile
 
+import pytest
 from fastapi.testclient import TestClient
 
 from modeler_api.auth import AuthError, get_verifier
@@ -273,3 +274,43 @@ def test_artifacts_outside_the_object_store_are_never_served(tmp_path):
 def test_package_needs_project_membership(tmp_path):
     c = client_with(claims(projects=("other",)), _package_store(tmp_path))
     assert c.get("/api/v1/campaigns/camp-101/package", headers={"Authorization": "Bearer t"}).status_code == 403
+
+
+# --- membership on the tenant-wide lists (redesign review R-S01) -----------------------------------
+# A company holds many projects; a person sees only those they are a member of. The detail routes already check
+# (`test_get_campaign_non_member_project_is_403`); the lists must not show another project's campaigns or escalations.
+
+
+class TwoProjectStore(FakeStore):
+    def list_campaigns(self, tenant_id):
+        return [_campaign(), {**_campaign(), "id": "camp-202", "project": "renal-drug", "compound": "Renal-B"},
+                {**_campaign(), "id": "camp-303", "project": ""}]   # a campaign recorded with no project
+
+    def list_escalations(self, tenant_id):
+        esc = super().list_escalations(tenant_id)[0]
+        return [esc, {**esc, "id": "esc-2", "campaignId": "camp-202"}, {**esc, "id": "esc-3", "campaignId": "ghost"},
+                {**esc, "id": "esc-4", "campaignId": "camp-303"}]
+
+
+@pytest.mark.req("T-06")
+def test_campaign_list_shows_only_the_members_projects():
+    c = client_with(claims(projects=("example-a",)), TwoProjectStore())
+    ids = [x["id"] for x in c.get("/api/v1/campaigns", headers=_auth()).json()["data"]["campaigns"]]
+    assert ids == ["camp-101", "camp-303"]   # not renal-drug's; one with no project stays, as its detail route allows
+    other = c.get("/api/v1/campaigns", params={"project": "renal-drug"}, headers=_auth()).json()["data"]["campaigns"]
+    assert other == []
+
+
+@pytest.mark.req("T-06")
+def test_escalation_list_shows_only_the_members_projects():
+    c = client_with(claims(projects=("example-a",)), TwoProjectStore())
+    ids = [x["id"] for x in c.get("/api/v1/escalations", headers=_auth()).json()["data"]["escalations"]]
+    # renal-drug's escalation is hidden; one whose campaign is not recorded yet has no project to check and stays
+    assert ids == ["esc-1", "esc-3", "esc-4"]
+
+
+@pytest.mark.req("T-06")
+def test_every_project_principal_still_sees_every_campaign_and_escalation():
+    c = client_with(claims(projects=("*",)), TwoProjectStore())
+    assert len(c.get("/api/v1/campaigns", headers=_auth()).json()["data"]["campaigns"]) == 3
+    assert len(c.get("/api/v1/escalations", headers=_auth()).json()["data"]["escalations"]) == 4

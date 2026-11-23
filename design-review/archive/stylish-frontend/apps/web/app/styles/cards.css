@@ -1,0 +1,202 @@
+/* One card per study, product and compound on Inputs (plan 2026-11-14 slice 3; components/inputs/cards): the card's
+ * head where it is not a row of a list, its body in the card's order, the gate line, what is to do on it, the typed
+ * facts form, the decisions made on it, the confirm paths side by side, the other reader's view folded; the Clinical
+ * studies list by design, its rows opening on their cards (stacked on a phone, never scrolled sideways); a product's
+ * dissolution; the charts drawn at their box's width, observed in amber and the fit in blue. Theme tokens only. */
+
+.area-section-title { margin: 18px 0 8px; font-size: 16px; color: var(--ink); }
+.area-section-title .muted { font-weight: 400; }
+.subject-cards { display: grid; gap: 12px; margin: 0 0 18px; min-width: 0; }
+.subject-card { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); min-width: 0; }
+.subject-card .delivery-card { border-top: 0; padding: 0; }
+
+/* the head of a product's or the compound's card: its name opens it */
+.card-head { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; padding: 10px 14px; }
+.card-toggle { display: inline-flex; align-items: baseline; gap: 6px; min-height: 36px; padding: 4px 0; border: 0; background: none; font: inherit;
+  text-align: left; color: var(--ink); cursor: pointer; }
+.card-toggle::before { content: "▸"; display: inline-block; width: 1em; color: var(--ink-dim); }
+.card-toggle[aria-expanded="true"]::before { content: "▾"; }
+.card-toggle:hover .card-title { color: var(--brand-ink); text-decoration: underline; }
+.card-title { font-size: 17px; font-weight: 600; overflow-wrap: anywhere; }
+.card-path { margin-left: auto; }
+.card-body { display: grid; gap: 16px; padding: 4px 14px 16px; min-width: 0; }
+.card-body > * { min-width: 0; }
+.card-section { display: grid; gap: 8px; min-width: 0; }
+.card-section-title, .card-section .delivery-block-head h3 { margin: 0; font-size: 14px; color: var(--ink); }
+
+/* what holds the signature: the delivery's clean-up, said once */
+.card-gate { margin: 0; padding: 8px 12px; border-radius: var(--radius-sm); background: color-mix(in srgb, var(--warn) 8%, var(--surface));
+  box-shadow: inset 3px 0 0 var(--warn); font-size: 13.5px; }
+.card-blockers { margin: 0; font-size: 13.5px; }
+.card-todo { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 13.5px; }
+.card-todo li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }
+.card-todo li.quiet .link-btn { color: var(--ink-dim); }
+.card-todo .link-btn { text-align: left; }
+.card-loaded { margin: 0; padding: 8px 12px; border-radius: var(--radius-sm); font-size: 13.5px;
+  background: color-mix(in srgb, var(--pass) 8%, var(--surface)); }
+.card-loaded.changed { background: color-mix(in srgb, var(--warn) 8%, var(--surface)); box-shadow: inset 3px 0 0 var(--warn); }
+.card-files .link-btn { font-size: 13px; }
+
+/* the confirm paths, side by side (plan §2.2.1) */
+.confirm-paths { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+.confirm-paths .btn.primary { min-height: 40px; }
+.sheet-path { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.delivery-card.reading .delivery-check.open { background: var(--raised); box-shadow: none; }
+
+/* the other reader's view, folded */
+.how-read { border-top: 1px solid var(--hairline); padding-top: 6px; }
+.how-read > summary { cursor: pointer; list-style: none; min-height: 36px; display: flex; align-items: center; gap: 6px; font-size: 14px;
+  font-weight: 600; color: var(--ink-dim); }
+.how-read > summary::-webkit-details-marker { display: none; }
+.how-read[open] > summary .todo-caret::before { content: "▾"; }
+.how-read-body { display: grid; gap: 12px; margin-top: 8px; min-width: 0; }
+.confirm-group.reading { background: var(--raised); }
+
+/* the facts no file states, typed */
+.facts-form { display: grid; gap: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius-sm); min-width: 0; }
+.facts-lede { margin: 0; font-size: 13.5px; }
+.facts-rows { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.facts-row { display: grid; grid-template-columns: minmax(150px, 220px) minmax(0, 1fr); gap: 4px 12px; align-items: center; }
+.facts-label { font-size: 13.5px; font-weight: 600; color: var(--ink-2, var(--ink)); }
+.facts-input { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
+.facts-control { display: inline-flex; gap: 6px; }
+.facts-control input[type="number"] { width: 9em; }
+.facts-unit { width: 7em; }
+.facts-why { grid-column: 2; }
+.facts-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(170px, 100%), 1fr)); gap: 8px 12px; min-width: 0; }
+/* a field fills its column and no more: the last one no longer runs past the form's edge (final review CODE-6) */
+.facts-field { display: grid; gap: 4px; min-width: 0; font-size: 12.5px; font-weight: 600; color: var(--ink-dim); }
+.facts-field > input, .facts-field > select { width: 100%; min-width: 0; box-sizing: border-box; }
+.facts-read { font-weight: 400; color: var(--ink); font-size: 13.5px; min-height: 30px; display: flex; align-items: center; }
+.facts-individual { margin: 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); min-width: 0; }
+.facts-individual legend { padding: 0 4px; font-size: 13px; font-weight: 600; }
+.facts-check + .facts-check { margin-top: 2px; }
+.facts-accept { margin-top: 4px; color: var(--ink); font-size: 13px; }
+.fact-labels { color: var(--ink-dim); }
+.chip-btn { display: inline-flex; align-items: center; gap: 4px; min-height: 30px; padding: 2px 10px; border: 1px solid var(--line);
+  border-radius: 999px; background: var(--surface); font: inherit; font-size: 12.5px; color: var(--ink); cursor: pointer; }
+.chip-btn:hover { border-color: var(--sim); }
+.chip-btn.on { border-color: var(--sim); box-shadow: 0 0 0 1px var(--sim) inset; }
+@media (max-width: 600px) {
+  .facts-row { grid-template-columns: minmax(0, 1fr); }
+  .facts-why { grid-column: 1; }
+}
+.subject-facts { margin: 0; }
+.subject-facts dd .link-btn { margin-left: 8px; font-size: 12.5px; }
+
+/* the decisions made on a card, before its signature */
+.decision-list { list-style: none; margin: 0; padding: 0; display: grid; font-size: 13.5px; }
+.decision-list li { display: grid; gap: 2px; padding: 6px 0; border-top: 1px solid var(--line-soft, var(--line)); }
+.decision-list li:first-child { border-top: 0; }
+/* the clean-up of the delivery's other files, which the signature binds too: folded */
+.decisions-delivery { border-top: 1px solid var(--hairline); padding-top: 6px; margin-top: 4px; }
+.decisions-delivery > summary { cursor: pointer; list-style: none; min-height: 36px; display: flex; align-items: center; gap: 6px;
+  font-size: 13.5px; color: var(--ink-dim); }
+.decisions-delivery > summary::-webkit-details-marker { display: none; }
+.decisions-delivery[open] > summary .todo-caret::before { content: "▾"; }
+/* what changed after a confirmation was signed */
+.card-changed-since { display: grid; gap: 4px; margin-top: 8px; font-size: 13.5px; }
+
+/* Clinical studies: the client's studies by design, a row opening on its card */
+.studies-list { display: grid; gap: 10px; margin: 0 0 20px; min-width: 0; }
+.studies-list-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 14px; }
+.studies-list-head .area-section-title { margin: 6px 0 0; }
+.studies-design-title { font-size: 14px; font-weight: 600; color: var(--ink); }
+.table-scroll table.studies-cards { table-layout: fixed; width: 100%; min-width: 0; }
+/* the list's own rows and cells only (child combinators): a card's tables of values are nested in a row's detail */
+.studies-cards > thead > tr > th:nth-child(1) { width: 20%; }
+.studies-cards > thead > tr > th:nth-child(2) { width: 22%; }
+.studies-cards > thead > tr > th:nth-child(3) { width: 16%; }
+.studies-cards > thead > tr > th:nth-child(4) { width: 11%; }
+.studies-cards > thead > tr > th:nth-child(5) { width: 13%; }
+.studies-cards > thead > tr > th:nth-child(6) { width: 11%; }
+.studies-cards > thead > tr > th:nth-child(7) { width: 92px; }
+.studies-cards > tbody > tr > td { vertical-align: top; }
+/* a long name wraps in the list's own cells; never in a card's (overflow-wrap is inherited: a card's tables and its
+   scale toggle would shrink to one letter a line on a phone) */
+.studies-cards > tbody > tr:not(.row-detail) > td { overflow-wrap: anywhere; }
+.studies-cards > tbody > tr.row-detail > td { overflow-wrap: normal; }
+.studies-cards > tbody > tr.row-group > th { padding: 16px 8px 6px; text-align: left; background: transparent; border-bottom: 1px solid var(--line);
+  text-transform: none; letter-spacing: 0; color: var(--ink); }
+.studies-cards > tbody > tr.row-group:first-child > th { padding-top: 8px; }
+.studies-cards > tbody > tr.open > td { background: color-mix(in srgb, var(--sim) 4%, var(--surface)); border-bottom-color: transparent; }
+.studies-cards > tbody > tr.row-detail > td { padding: 0 0 16px; background: var(--surface); }
+.study-card { border: 1px solid color-mix(in srgb, var(--sim) 30%, var(--line)); border-radius: var(--radius); padding-top: 10px; }
+@media (max-width: 760px) {
+  .studies-cards > thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  table.studies-cards, .studies-cards > tbody, .studies-cards > tbody > tr, .studies-cards > tbody > tr > td, .studies-cards > tbody > tr > th { display: block; width: 100%; }
+  .studies-cards > tbody > tr:not(.row-detail) { padding: 8px 0; border-top: 1px solid var(--line); }
+  .studies-cards > tbody > tr > td { padding: 2px 10px; border: 0; }
+  .studies-cards > tbody > tr.row-detail > td { padding: 0 0 12px; }
+}
+.studies-in-model { margin: 8px 0 16px; }
+
+/* a product's dissolution, and a study's datasets */
+.profile-lines, .dataset-lines { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; min-width: 0; }
+.profile-line { display: grid; gap: 6px; padding-top: 8px; border-top: 1px solid var(--line-soft, var(--line)); min-width: 0; }
+.profile-line:first-child { border-top: 0; padding-top: 0; }
+.profile-use { align-items: center; }
+.dataset-lines { gap: 6px; }
+.dataset-line { padding: 6px 10px; border: 1px solid var(--line-soft, var(--line)); border-radius: var(--radius-sm); }
+.dataset-line-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 13px; }
+
+/* each study's individual; the studies sharing one, on one line */
+.individual.shared .link-btn { font-size: 14px; }
+.individuals-pending { margin-top: 12px; display: grid; gap: 8px; }
+.individuals-pending .individual + .individual { margin-top: 0; }
+
+/* Simulation settings: one line, the settings behind "Change…" */
+.settings-line { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin: 0 0 12px; padding: 12px 14px;
+  border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); }
+.settings-line p { flex: 1 1 320px; font-size: 14px; }
+
+/* the charts: as wide as their box (labels stay 11 px on a phone), the scale toggle on one line; observed in amber, the
+   fit (the model's) in blue, the same in every dissolution plot */
+.profile-chart .chart-box { width: 100%; max-width: 980px; overflow: hidden; }
+.profile-chart .chart-box svg { display: block; width: auto; max-width: none; height: auto; }
+.profile-chart .seg { flex: none; flex-wrap: nowrap; }
+/* the chart's title and its scale toggle: the toggle keeps its width and goes under a long title on a phone */
+.profile-chart-bar { flex-wrap: wrap; }
+.profile-chart .series.observed-obs { color: var(--obs); }
+.profile-chart .series.fit-sim { color: var(--sim); }
+.profile-legend .swatch.swatch-obs { background: var(--obs); }
+.profile-legend .swatch.swatch-sim { background: var(--sim); }
+.release-plot .fit { stroke: var(--sim); }
+.release-plot .pt { fill: var(--obs); }
+
+/* a subject's values: one set of columns for every table on a card */
+.delivery-values { table-layout: fixed; width: 100%; }
+.delivery-values col.c-field { width: 15%; }
+.delivery-values col.c-value { width: 12%; }
+.delivery-values col.c-unit { width: 8%; }
+.delivery-values col.c-time { width: 7%; }
+.delivery-values col.c-stat { width: 10%; }
+.delivery-values col.c-verbatim { width: 10%; }
+.delivery-values col.c-level { width: 12%; }
+.delivery-values col.c-source { width: 10%; }
+.delivery-values td { overflow-wrap: anywhere; }
+/* in fixed columns a long value ("below the LLOQ (0.5 ng/mL)") wraps inside its cell, never over the next one */
+.delivery-values td.num, .delivery-values th.num { white-space: normal; }
+
+/* a table of a card's values, folded to its one line unless a row needs the person */
+.table-toggle { display: inline-flex; align-items: baseline; gap: 6px; min-height: 30px; padding: 2px 0; border: 0; background: none; font: inherit;
+  color: var(--ink); cursor: pointer; text-align: left; }
+.table-toggle::before { content: "▸"; display: inline-block; width: 1em; color: var(--ink-dim); }
+.table-toggle[aria-expanded="true"]::before { content: "▾"; }
+.table-toggle:hover strong { color: var(--brand-ink); text-decoration: underline; }
+
+/* on a phone: a study's row is a few short lines (its name first), its card full width with less padding */
+@media (max-width: 760px) {
+  .studies-cards > tbody > tr:not(.row-detail):not(.row-group) { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 10px; }
+  .studies-cards > tbody > tr:not(.row-detail):not(.row-group) > td { width: auto; padding: 2px 10px; }
+  .studies-cards > tbody > tr:not(.row-detail):not(.row-group) > td:first-child { flex: 1 1 100%; }
+  .studies-cards > tbody > tr:not(.row-detail):not(.row-group) > td:last-child { margin-left: auto; }
+  .card-body { padding: 4px 8px 12px; gap: 12px; }
+  .subject-card .confirm-group { padding: 10px; }
+  .card-head { padding: 8px 10px; }
+  .facts-form { padding: 8px; }
+}
+
+/* a sheet's head: its chip ("Missing: the product, the product's role, the medium, the batch") wraps on a phone */
+.confirm-title { min-width: 0; }
+.confirm-title .chip { white-space: normal; max-width: 100%; }

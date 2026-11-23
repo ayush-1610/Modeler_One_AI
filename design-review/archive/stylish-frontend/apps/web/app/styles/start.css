@@ -1,0 +1,145 @@
+/* Step 1 · Start (components/start): numbered blocks of field rows, the model-risk picker and the scope gates; what still
+ * needs the person is marked red where it is (page review 1). Built only from the theme tokens in globals.css, so it works
+ * on every page. */
+
+.start-block { display: grid; gap: 12px; }
+.card + .start-block, .start-block + .card { margin-top: 0; }
+.start-block-head { display: flex; gap: 12px; align-items: flex-start; }
+.start-block-head h2 { margin: 0; font-size: 17px; letter-spacing: -0.01em; }
+.start-block-head p { margin: 3px 0 0; font-size: 13.5px; }
+.start-block-n { flex-shrink: 0; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center;
+  font: 600 12.5px/1 var(--font-mono, ui-monospace, monospace); color: var(--brand-ink);
+  background: color-mix(in srgb, var(--sim) 12%, var(--surface)); border: 1px solid color-mix(in srgb, var(--sim) 35%, var(--line)); }
+.start-sub { margin: 6px 0 0; font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-quiet); }
+.start-hint { font-size: 12.5px; margin: 0; }
+
+/* a field: label, value with its source, and the change button */
+.sb-rows { display: grid; }
+.sb-row { display: grid; grid-template-columns: 190px minmax(0, 1fr) auto; gap: 12px; align-items: baseline;
+  padding: 9px 0; border-bottom: 1px solid var(--line); }
+.sb-rows > .sb-row:last-child { border-bottom: 0; }
+.sb-label { font-size: 13px; font-weight: 600; color: var(--ink-dim); }
+.sb-value { min-width: 0; display: grid; gap: 4px; }
+.sb-text { overflow-wrap: anywhere; }
+.sb-missing { color: var(--warn-ink); font-size: 13px; font-weight: 500; }
+.sb-row.missing .sb-label { color: var(--ink); }
+.sb-source { display: flex; flex-wrap: wrap; gap: 4px; align-items: baseline; font-size: 12px; }
+.sb-quote { color: var(--ink-dim); font-style: italic; font-size: 12.5px; overflow-wrap: anywhere; }
+.sb-actions { display: flex; gap: 6px; align-items: baseline; }
+.sb-actions .btn.primary { padding: 5px 11px; font-size: 13px; }
+.sb-editor { display: grid; gap: 8px; }
+.sb-editor input, .sb-editor select, .sb-editor textarea, .chip-list input, .route-row select, .start-question input,
+.risk-row textarea, .start-block .row > select {
+  font: inherit; font-size: 14px; padding: 7px 9px; border-radius: var(--radius-sm); border: 1px solid var(--line);
+  background: var(--surface); color: var(--ink); min-width: 0; }
+.sb-editor textarea, .risk-row textarea { width: 100%; resize: vertical; }
+@media (max-width: 700px) {
+  .sb-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .sb-row .sb-value { grid-column: 1 / -1; grid-row: 2; }
+}
+
+/* choices */
+.seg { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--line); border-radius: var(--radius-sm); overflow: hidden;
+  max-width: 100%; justify-self: start; }
+.seg button { font: inherit; font-size: 13px; padding: 6px 12px; border: 0; background: var(--surface); color: var(--ink-dim);
+  cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-pressed="true"] { background: color-mix(in srgb, var(--sim) 14%, var(--surface)); color: var(--brand-ink);
+  font-weight: 600; }
+.seg button:disabled { cursor: default; opacity: 0.55; }
+.choice-grid { display: flex; flex-wrap: wrap; gap: 6px; }
+.choice-grid label { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; padding: 5px 10px;
+  border: 1px solid var(--line); border-radius: 999px; background: var(--surface); cursor: pointer; }
+.choice-grid label.on { border-color: color-mix(in srgb, var(--sim) 50%, var(--line));
+  background: color-mix(in srgb, var(--sim) 10%, var(--surface)); }
+.chip-list { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.chip-list .chip button { border: 0; background: none; color: inherit; cursor: pointer; padding: 0 0 0 2px; font: inherit; }
+.chip-list input { width: 160px; }
+
+/* files */
+.start-files { margin: 0; font-size: 14px; overflow-wrap: anywhere; }
+.start-add-hint { margin: 8px 0 0; font-size: 13px; }
+
+/* the model risk */
+.risk-grid { display: grid; gap: 10px; margin-top: 4px; }
+.risk-row { display: grid; grid-template-columns: 190px minmax(0, 1fr); gap: 12px; align-items: center; }
+@media (max-width: 700px) { .risk-row { grid-template-columns: minmax(0, 1fr); gap: 6px; } }
+
+/* the scope gates */
+.gates { display: grid; gap: 10px; }
+.gate { border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px; display: grid; gap: 8px;
+  background: var(--surface); }
+.gate.not_supported { border-color: color-mix(in srgb, var(--fail) 45%, var(--line)); }
+.gate.limited { border-color: color-mix(in srgb, var(--warn) 45%, var(--line)); }
+.gate-head { display: flex; justify-content: space-between; gap: 10px; align-items: center; }
+.gate-body { display: grid; gap: 6px; }
+.gate-supported { margin: 0; font-size: 12.5px; }
+.gate-na { font-size: 13px; color: var(--ink-dim); }
+.route-rows { display: grid; gap: 6px; justify-items: start; }
+.route-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.route-dose { font-size: 12.5px; }
+
+/* questions and notes */
+.start-questions { display: grid; gap: 8px; }
+.start-question { border-left: 3px solid var(--warn); padding: 4px 0 4px 10px; display: grid; gap: 6px; }
+.start-question p { margin: 0; font-size: 14px; }
+.start-question input { flex: 1; min-width: 180px; }
+
+/* one upload for the proposal and the client's files (components/start/FilePicker): each file says what it is */
+.file-picker { display: grid; gap: 10px; }
+.picked { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.picked li { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 6px 10px; border-radius: var(--radius-sm);
+  background: var(--raised); font-size: 13.5px; }
+.picked-name { font-weight: 600; overflow-wrap: anywhere; }
+.picked select { font: inherit; font-size: 13px; padding: 4px 8px; border: 1px solid var(--line); border-radius: var(--radius-sm);
+  background: var(--surface); color: var(--ink); }
+.link-btn { all: unset; cursor: pointer; font-size: 13px; color: var(--brand-ink); text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--sim) 45%, transparent); text-underline-offset: 2px; }
+.link-btn:hover { text-decoration-color: currentColor; }
+.link-btn:focus-visible { outline: 2px solid var(--sim); outline-offset: 2px; border-radius: 3px; }
+
+/* page review 1: no side panel. What still needs the person is marked red on its own box, and Start is left from the bar
+ * at the bottom only when nothing is. */
+.start-screen { display: grid; gap: 16px; }
+.start-top { display: grid; gap: 6px; justify-items: start; }
+.start-notice { margin: 0; font-size: 13px; }
+.sb-row.needs-you, .gate.needs-you, .risk-grid.needs-you, .risk-row.needs-you {
+  border-left: 3px solid var(--fail); padding-left: 10px; background: color-mix(in srgb, var(--fail) 4%, transparent); }
+.needs-you > .inline-issue { margin: 2px 0; }
+.start-question.needs-you { border-left-color: var(--fail); }
+.start-continue { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between;
+  padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); font-size: 14px; }
+.start-continue.needs-you { border-color: color-mix(in srgb, var(--fail) 45%, var(--line)); color: var(--fail-ink, var(--ink)); }
+.app-adds, .pathway-list { margin: 2px 0 0; padding-left: 18px; font-size: 13px; display: grid; gap: 2px; }
+.pathway-edit { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.pathway-edit select, .pathway-edit input, .route-dose input { font: inherit; font-size: 14px; padding: 6px 8px;
+  border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
+.pathway-edit input { flex: 1; min-width: 160px; }
+.client-request { margin: 0 0 10px; padding-left: 18px; display: grid; gap: 4px; font-size: 14px; }
+/* the intake agent's suggested rating, once the person has rated (components/start/RiskPicker.tsx, 2026-11-02) */
+.risk-suggestion { display: block; margin-top: 4px; font-size: 12.5px; }
+.risk-differs { display: grid; gap: 6px; margin-top: 6px; padding: 8px 10px; border-radius: var(--radius-sm);
+  border: 1px solid var(--line); font-size: 13.5px; }
+.risk-differs.needs-you { border-color: var(--fail); background: color-mix(in srgb, var(--fail) 5%, transparent); }
+.risk-differs textarea { width: 100%; }
+
+/* tags at upload (plan 2026-11-03 §3.1): the tag and, for a clinical study, which one; the proposals after the upload */
+.tag-lede { margin: 0; font-size: 13px; max-width: var(--measure); }
+.tag-fields { display: inline-flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.tag-fields select, .tag-fields input { font: inherit; font-size: 13px; padding: 4px 8px; border: 1px solid var(--control-border, var(--line));
+  border-radius: var(--radius-sm); background: var(--surface); color: var(--ink); min-height: 32px; }
+.tag-fields input { width: 15em; }
+.tag-proposals { list-style: none; margin: 8px 0; padding: 0; display: grid; gap: 8px; }
+.tag-proposals li { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 8px 10px; border-radius: var(--radius-sm);
+  background: var(--surface); border: 1px solid var(--line); font-size: 13.5px; }
+.tag-proposal { display: grid; gap: 6px; flex: 1 1 320px; }
+.btn.small { padding: 4px 10px; font-size: 13px; min-height: 32px; }
+.start-check { display: grid; gap: 8px; justify-items: start; }
+
+/* build D: what the intake agent proposed, pre-selected, with the words it rests on and a Confirm */
+.drafted { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.risk-preselected { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12.5px; color: var(--ink-dim); }
+.risk-preselected strong { color: var(--ink); }
+.risk-preselected > .chip { flex: none; }
+.risk-preselected > span:last-child { flex: 1 1 220px; min-width: 0; }
+.risk-preselected.risk-default > span:last-child { flex: 0 1 auto; }

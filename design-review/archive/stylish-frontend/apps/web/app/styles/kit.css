@@ -1,0 +1,216 @@
+/* The redesign's kit (components/kit): the step bar, page shell, side panel, empty state, inline issue, table box and
+ * dialog. Built only from the theme tokens in globals.css. */
+
+/* ---- the four steps ---- */
+.stepper-wrap { margin: 2px 0 22px; }
+.stepper { display: flex; align-items: stretch; gap: 10px; }
+.stepper ol { list-style: none; margin: 0; padding: 0; flex: 1; min-width: 0; display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr)); counter-reset: step; position: relative; }
+.stepper .step { position: relative; min-width: 0; }
+/* the line that joins one step to the next */
+.stepper .step + .step::before { content: ""; position: absolute; top: 19px; left: -8px; width: 16px; height: 2px;
+  background: var(--line); }
+.stepper .step.done + .step::before { background: var(--pass); }
+.stepper .step a { display: flex; gap: 10px; align-items: center; padding: 9px 12px; margin: 0 8px 0 0; min-width: 0;
+  border-radius: var(--radius); border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+  text-decoration: none; transition: border-color 120ms var(--ease), background 120ms var(--ease); }
+.stepper .step a:hover { border-color: color-mix(in srgb, var(--sim) 45%, var(--line)); }
+.stepper .step-n { flex-shrink: 0; background: transparent; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center;
+  font: 600 12px/1 var(--font-mono, ui-monospace, monospace); border: 1.5px solid var(--ink-faint); color: var(--ink-dim); }
+.stepper .step-text { display: grid; min-width: 0; }
+.stepper .step-label { font-weight: 600; font-size: 13.5px; letter-spacing: -0.01em; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; }
+.stepper .step-state { font-size: 12px; color: var(--ink-dim); }
+.stepper .step.done .step-n { background: var(--pass); border-color: var(--pass); color: var(--surface); }
+.stepper .step.done .step-state { color: var(--pass-ink); }
+.stepper .step.needs_you .step-n { border-color: var(--warn); color: var(--warn-ink); background: color-mix(in srgb, var(--warn) 14%, transparent); }
+.stepper .step.needs_you .step-state { color: var(--warn-ink); font-weight: 600; }
+.stepper .step.running .step-n { border-color: var(--sim); color: var(--sim); }
+.stepper .step.running .step-state { color: var(--brand-ink); font-weight: 600; }
+.stepper .step.current a { border-color: var(--sim); background: color-mix(in srgb, var(--sim) 8%, var(--surface));
+  box-shadow: inset 0 -2px 0 var(--sim); }
+/* a step after an unfinished Start: shown, not opened (page review 1) */
+.stepper .step-locked { display: flex; gap: 10px; align-items: center; padding: 9px 12px; margin: 0 8px 0 0; min-width: 0;
+  border-radius: var(--radius); border: 1px dashed var(--line); background: var(--surface); color: var(--ink);
+  cursor: not-allowed; opacity: 0.6; }
+.step-waiting { margin: 10px 0 0; font-size: 13px; color: var(--ink-dim); max-width: none; }
+.step-waiting strong { color: var(--warn-ink); font-weight: 600; }
+@media (max-width: 760px) {
+  .stepper { flex-direction: column; }
+  .stepper ol { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 8px; }
+  .stepper .step + .step::before { display: none; }
+}
+
+/* ---- a step's page ---- */
+.eyebrow { display: block; font: 500 11.5px/1.2 var(--font-mono, ui-monospace, monospace); letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--ink-quiet); margin-bottom: 6px; }
+.shell-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; margin-bottom: 18px; }
+.shell-title { min-width: 0; }
+.shell-title .lede { color: var(--ink-dim); margin: 4px 0 0; font-size: 15px; }
+.shell-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.shell-body.with-side { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 20px; align-items: start; }
+.shell-main { min-width: 0; display: grid; gap: 16px; align-content: start; }
+.shell-side { display: grid; gap: 12px; position: sticky; top: 16px; }
+@media (max-width: 1000px) { .shell-body.with-side { grid-template-columns: minmax(0, 1fr); } .shell-side { position: static; } }
+
+.side-panel { border: 1px solid var(--line); border-radius: var(--radius); background: var(--raised); padding: 12px 14px; display: grid; gap: 8px; }
+.side-panel h3 { margin: 0; text-transform: uppercase; font-size: 11px; letter-spacing: 0.06em; }
+.side-panel.warn { border-color: color-mix(in srgb, var(--warn) 45%, var(--line)); background: color-mix(in srgb, var(--warn) 7%, var(--surface)); }
+.side-panel.ok { border-color: color-mix(in srgb, var(--pass) 45%, var(--line)); background: color-mix(in srgb, var(--pass) 7%, var(--surface)); }
+
+.empty-state { display: grid; gap: 6px; justify-items: start; padding: 18px; border: 1.5px dashed var(--line);
+  border-radius: var(--radius); color: var(--ink-dim); }
+.empty-state strong { color: var(--ink); }
+.empty-state p { margin: 0; }
+
+.inline-issue { margin: 4px 0; padding: 6px 10px; border-radius: var(--radius-sm); font-size: 13px; max-width: none;
+  border-left: 3px solid var(--warn); background: color-mix(in srgb, var(--warn) 9%, transparent); color: var(--ink); }
+.inline-issue.error { border-left-color: var(--fail); background: color-mix(in srgb, var(--fail) 9%, transparent); }
+.inline-issue.note { border-left-color: var(--ink-faint); background: var(--raised); }
+
+.table-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+.table-scroll table { min-width: 560px; }
+
+/* ---- the dialog (components/kit/Dialog.tsx; the backdrop and panel base rules are shared with Review & sign's) ---- */
+.dialog:focus { outline: none; }
+/* every dialog fits the screen and scrolls inside itself (a long "Add data" file list ran off the bottom); the wheel
+   stays in the dialog instead of scrolling the page behind it, and the page is held still while a dialog is open */
+.dialog { max-height: calc(100dvh - 32px); overflow-y: auto; overscroll-behavior: contain; }
+.dialog-backdrop { overscroll-behavior: contain; }
+/* the page under an open dialog is held still: the Dialog component sets data-dialogs while one is open and removes it
+   when the last one closes (an `html:has(.dialog-backdrop)` rule was not re-checked by Safari after a dialog closed,
+   leaving the page unable to scroll) */
+html[data-dialogs] { overflow: hidden; }
+.dialog.narrow { width: min(460px, 100%); }
+.dialog.wide { width: min(760px, 100%); max-height: 90vh; }
+.dialog-title { margin: 0 0 8px; }
+.dialog-title + .muted { margin-top: 0; }
+.dialog-actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; margin-top: 14px; }
+tr.project-archived td { color: var(--ink-faint); }
+
+/* ---- tabs, a table's labelled scroller, text for screen readers only ---- */
+.tabpanel { display: grid; gap: 16px; align-content: start; min-width: 0; }
+.tabs button:focus-visible { outline-offset: -3px; }
+.table-scroll:focus-visible { outline: 2px solid var(--sim); outline-offset: 2px; }
+.sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0);
+  white-space: nowrap; border: 0; }
+
+/* ---- the project document library (components/library/LibraryTable.tsx) ---- */
+.library-tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
+.library-tools input[type="search"] { flex: 1 1 240px; min-width: 0; }
+.library-table td { vertical-align: top; }
+.library-uses { margin: 0; padding: 0; list-style: none; display: grid; gap: 3px; font-size: 13px; }
+.library-uses code { font-size: 12px; overflow-wrap: anywhere; }
+.library-table tr.withdrawn td { color: var(--ink-dim); }
+.library-table tr.withdrawn .link-btn { text-decoration: line-through; }
+.library-withdrawn { margin-top: 4px; font-size: 12px; }
+.library-retrieved { margin-top: 4px; font-size: 12px; overflow-wrap: anywhere; }
+.library-retrieved .chip { margin-top: 3px; font-size: 11px; }
+/* "Add data" (components/library/AddData.tsx): the card opened from the sidebar */
+.add-data-lede { margin: 0 0 12px; font-size: 14px; }
+.add-data-field { display: grid; gap: 4px; margin-bottom: 10px; font-size: 14px; }
+.add-data-field > span { font-weight: 600; }
+.add-data-field textarea, .add-data-field input[type="text"], .add-data-field select { width: 100%; }
+.add-data-list { margin: 0 0 12px; padding: 0; list-style: none; display: grid; gap: 6px; }
+.add-data-list li { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
+.add-data-name { font-size: 14px; overflow-wrap: anywhere; min-width: 0; }
+.add-data-read { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; white-space: nowrap; }
+.add-data-relates { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 10px; }
+@media (max-width: 560px) { .add-data-relates { grid-template-columns: 1fr; } }
+.add-data-done { margin-top: 10px; font-size: 14px; }
+
+/* ---- the source peek (components/kit/SourcePeek.tsx; plan 2026-11-03 §3.3): centre of the screen, the page dimmed behind ---- */
+.dialog-backdrop.peek { background: rgba(0, 0, 0, 0.28); }
+.dialog.peek { width: min(980px, 100%); height: min(82vh, 900px); display: flex; flex-direction: column; gap: 8px;
+  box-shadow: 0 40px 100px -30px rgba(0, 0, 0, 0.4); }
+.dialog.peek .dialog-actions { margin-top: 4px; }
+.peek-where { margin: 0; font-size: 13px; }
+.peek-body { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 8px; }
+.peek-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
+.peek-file { font-family: var(--font-mono), monospace; font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
+.peek-body .doc-page { margin: 0; flex: 1; }
+.peek-quote { margin: 0; padding: 10px 14px; border-radius: var(--radius-sm); background: var(--raised); font-size: 14px; line-height: 1.6; }
+.peek-grid { overflow: auto; border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.peek-grid table { border-collapse: collapse; font-family: var(--font-mono), monospace; font-size: 12.5px; min-width: 100%; }
+.peek-grid th, .peek-grid td { border: 1px solid var(--line); padding: 4px 8px; white-space: nowrap; text-align: left; }
+.peek-grid thead th, .peek-grid tbody th { background: var(--raised); color: var(--ink-dim); font-weight: 500; position: sticky; top: 0; }
+.peek-grid tbody th { position: sticky; left: 0; top: auto; }
+.peek-grid td.cited { background: color-mix(in srgb, var(--obs) 22%, var(--surface)); outline: 2px solid var(--obs); outline-offset: -2px;
+  color: var(--ink); font-weight: 600; }
+.peek-btn { display: inline-grid; place-items: center; width: 32px; height: 32px; border-radius: var(--radius-sm); border: 1px solid transparent;
+  background: none; color: var(--ink-dim); cursor: pointer; flex: none; }
+.peek-btn:hover { color: var(--brand-ink); background: var(--raised); border-color: var(--line); }
+.peek-btn:focus-visible { outline: 2px solid var(--sim); outline-offset: 1px; }
+/* a client file's tag in the library (plan 2026-11-03 §3.1, option D) */
+.library-tag { display: grid; gap: 4px; margin-top: 4px; }
+.library-tag select { font: inherit; font-size: 12.5px; padding: 3px 6px; border: 1px solid var(--line); border-radius: var(--radius-sm);
+  background: var(--surface); color: var(--ink); max-width: 15em; }
+.library-tag-proposal { font-size: 12px; color: var(--warn-ink); max-width: 28em; }
+
+/* ---- the reading tray (components/inputs/ReadingTray.tsx; plan 2026-11-10, R3) ---- */
+.reading-tray { margin: 0 0 14px; padding: 10px 14px; border: 1px solid var(--line); border-radius: var(--radius-sm);
+  background: var(--surface); font-size: 14px; }
+.reading-tray.has-failed { border-color: color-mix(in srgb, var(--fail) 40%, var(--line)); }
+.reading-tray-head { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: baseline; }
+.reading-tray-head .link-btn { margin-left: auto; }
+.reading-tray-off, .reading-tray-problem { margin: 8px 0 0; }
+.reading-tray-backlog { margin: 10px 0 0; display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; justify-content: space-between; }
+.reading-tray-problem { color: var(--fail-ink); }
+.reading-tray-list { margin: 10px 0 0; padding: 0; list-style: none; display: grid; gap: 6px; max-height: 340px;
+  overflow-y: auto; }   /* at its end, the wheel scrolls the page on (no overscroll containment on the page itself) */
+.reading-tray-list li { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; }
+.reading-tray-file { overflow-wrap: anywhere; min-width: 0; font-weight: 500; }
+.reading-tray-why { flex-basis: 100%; color: var(--fail-ink); font-size: 13px; }
+.reading-tray-map { flex-basis: 100%; font-size: 13px; color: var(--ink-dim); }
+.reading-tray-figures { margin: 10px 0 0; }
+.reading-tray-figures ul { margin: 6px 0 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+.reading-tray-figures li { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; }
+.add-data-reading { margin: 8px 0 0; font-size: 14px; }
+
+/* ---- a long table: sortable heads, its filter and its "Show more" footer (components/kit/SortableTable.tsx,
+ *      lib/tableView.ts; the 2026-11-11 audit, item 11) ---- */
+.sort-th { all: unset; box-sizing: border-box; display: inline-flex; align-items: center; gap: 4px; min-height: 24px;
+  cursor: pointer; border-radius: var(--radius-sm); }
+.sort-th:hover { color: var(--brand-ink); }
+.sort-th:focus-visible { outline: 2px solid var(--sim); outline-offset: 2px; }
+th.num .sort-th { flex-direction: row-reverse; }
+.sort-ind { display: inline-block; width: 0.9em; text-align: center; color: var(--ink-faint); font-size: 0.85em; }
+.sort-ind::after { content: "↕"; opacity: 0.55; }
+th[aria-sort="ascending"] .sort-ind::after { content: "▲"; opacity: 1; color: var(--sim); }
+th[aria-sort="descending"] .sort-ind::after { content: "▼"; opacity: 1; color: var(--sim); }
+.table-tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 10px; }
+.table-tools input[type="search"] { flex: 1 1 220px; min-width: 0; max-width: 420px; }
+.table-chips { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+.table-chips button { font: inherit; font-size: 12.5px; min-height: 24px; padding: 3px 10px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--line); background: var(--surface); color: var(--ink-dim); }
+.table-chips button[aria-pressed="true"] { border-color: var(--sim); color: var(--brand-ink);
+  background: color-mix(in srgb, var(--sim) 10%, var(--surface)); }
+.table-chips button:focus-visible { outline: 2px solid var(--sim); outline-offset: 1px; }
+.table-more { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0 0; font-size: 13px; color: var(--ink-dim);
+  max-width: none; }
+.table-more:focus { outline: none; }
+.table-more:focus-visible { outline: 2px solid var(--sim); outline-offset: 2px; border-radius: 4px; }
+.table-attention { color: var(--warn-ink); font-weight: 600; }
+.table-none { margin: 8px 0 0; font-size: 13px; }
+/* a row shown by "Show more" or a cleared filter fades in where it stands: opacity only, nothing moves under the pointer */
+.sortable tbody tr, .paged-rows > tr, .paged-cards > * { animation: table-row-in 220ms var(--ease, ease-out) both; }
+@keyframes table-row-in { from { opacity: 0; } to { opacity: 1; } }
+/* the CPF's parameters: a long reference or value wraps in its own column, so a row stays short */
+.cpf-table td.cpf-ref { max-width: 32ch; overflow-wrap: anywhere; }
+.cpf-table td.num { white-space: normal; overflow-wrap: anywhere; max-width: 16ch; }
+.cpf-table code { overflow-wrap: anywhere; }
+
+/* ---- a menu of actions behind one button (components/kit/Menu.tsx; plan 2026-11-14 slice 1): a popover in the top
+ *      layer, placed under its button by the component ---- */
+.menu { display: inline-block; }
+.menu-caret { font-size: 11px; margin-left: 2px; }
+.menu-panel { position: fixed; inset: auto; margin: 0; min-width: 260px; max-width: min(380px, calc(100vw - 16px));
+  max-height: calc(100vh - 32px); overflow-y: auto; padding: 6px; border: 1px solid var(--hairline); border-radius: 14px;
+  background: var(--surface); color: var(--ink); box-shadow: var(--shadow-card-compact); text-align: left; }
+.menu-panel:popover-open { display: grid; gap: 2px; animation: mo-fade 160ms var(--ease) both; }
+.menu-heading { margin: 6px 10px 2px; font-size: 11.5px; font-weight: 600; letter-spacing: 0.04em; color: var(--ink-quiet); }
+.menu-item { display: block; width: 100%; min-height: 36px; padding: 8px 10px; border: 0; border-radius: 9px; background: none;
+  color: var(--ink); font: inherit; font-size: 14px; text-align: left; cursor: pointer; }
+.menu-item:hover:not(:disabled), .menu-item:focus-visible { background: var(--fill-btn); }
+.menu-item:disabled { opacity: 0.5; cursor: not-allowed; }
+.menu-item .muted { font-size: 12.5px; }
