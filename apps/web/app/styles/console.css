@@ -186,6 +186,16 @@ tbody tr:hover { background: #FAFBFD; }
   .card, .start-block, .input-block { padding: var(--sp-3); }
 }
 @media (prefers-reduced-motion: reduce) { .sidenav, .btn { transition: none; } }
+/* Sticky parts of a page stick below the top bar, which stays at the top of the window (otherwise they slide under it) */
+.area-bar { top: var(--topbar-h); }
+html:has(.area-bar) { scroll-padding-top: calc(var(--topbar-h) + 76px); }
+.dr-rail, .dash-side, .shell-side, .brief-side { top: calc(var(--topbar-h) + 16px); }
+.overall-data { top: calc(var(--topbar-h) + 12px); max-height: calc(100vh - var(--topbar-h) - 24px); }
+@media (max-width: 900px) {
+  .area-bar { top: var(--topbar-h); }
+  html:has(.area-bar) { scroll-padding-top: calc(var(--topbar-h) + 76px); }
+}
+
 @media print {
   .topbar, .sidenav, .crumbs, .page-actions, .skip-link, .mo-toast, .decision-waiting { display: none !important; }
   .content { padding: 0; }

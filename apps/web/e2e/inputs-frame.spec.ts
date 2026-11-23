@@ -56,8 +56,8 @@ test("the area bar is high on every area, stays in view, and the page opens on T
   await expect(page.getByTestId("tab-todo")).toHaveAttribute("aria-selected", "true");     // something is missing to run
   await expect(page.getByTestId("still-missing")).toBeVisible();
   await expect(page.locator(".hero-lede")).toHaveText("Fill in what the model needs and confirm the client's data.");
-  // the step bar scrolls away with the page; the area bar is what stays
-  await expect(page.locator(".stepper-wrap")).toHaveCSS("position", "static");
+  // the steps live in the side navigation now (the console shell, redesign slice 1); the area bar is what stays
+  await expect(page.locator(".stepper-wrap")).toHaveCount(0);
   await expect(bar).toHaveCSS("position", "sticky");
   // the status line: what is missing, to decide and to confirm, and the page's one primary button
   await expect(page.getByTestId("inputs-status")).toBeVisible();
@@ -75,10 +75,12 @@ test("the area bar is high on every area, stays in view, and the page opens on T
     if (area !== "files") await expect(page.getByTestId("delivery-section")).toHaveCount(0);
   }
 
-  // scrolled down a long area, the bar is still at the top of the window, and nothing below the fold is faded out
+  // scrolled down a long area, the bar is still at the top of the window, just under the top bar (which stays), and
+  // nothing below the fold is faded out
   await page.getByTestId("tab-compound").click();
   await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
-  await expect.poll(async () => (await bar.boundingBox())!.y).toBeLessThanOrEqual(1);
+  const topbar = (await page.locator(".topbar").boundingBox())!;
+  await expect.poll(async () => Math.abs((await bar.boundingBox())!.y - (topbar.y + topbar.height))).toBeLessThanOrEqual(1);
   const faded = await page.evaluate(() => [...document.querySelectorAll<HTMLElement>("[data-no-reveal] section, [data-no-reveal] .card")]
     .filter((el) => el.style.opacity === "0").length);
   expect(faded).toBe(0);
