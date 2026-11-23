@@ -43,22 +43,22 @@ what failed in words ("The API did not answer; nothing on this page is current")
 | Actions | Create project (primary); Archive / Restore with a reason (owner) |
 | Backend | `GET /projects`, `/steps`, `POST /projects/{id}:archive`, `:restore`, `GET /members` (owner name) |
 
-### P-04 Create project · `/projects/start` · R (+ Q2)
+### P-04 Create project · `/projects/start` · R
 | | |
 |---|---|
 | Users | C, Rv |
 | Purpose | Start a project from the client's proposal and files in one upload |
-| Shows | Form: drug, project name; drop zone with per-file tag; tag proposals; [Q2] option "Start from a published reference model" (Dapagliflozin, Aciclovir illustrative, labelled as such) |
+| Shows | Form: drug, project name; drop zone with per-file tag; tag proposals. No reference-model start (owner, Q2: this is where real client work starts) |
 | Actions | Create project (primary), Cancel |
-| Backend | `POST /projects:initiate`, `POST /documents/{sha}:tag`; [Q2] `GET /templates`, `GET /templates/{id}`, `POST /projects` |
+| Backend | `POST /projects:initiate`, `POST /documents/{sha}:tag` |
 
-### P-05 Campaigns (all projects) · `/campaigns` · N·be
+### P-05 Campaigns (all projects) · `/campaigns` · N
 | | |
 |---|---|
 | Users | Everyone, own projects only |
 | Purpose | See every running and finished campaign without opening each project |
 | Shows | Table: campaign, project, compound, status, current stage, verdict, started, budget used |
-| Backend | `GET /campaigns` **after** it filters by membership (R-S01) |
+| Backend | `GET /campaigns` (filters by membership since R-S01 was fixed, 2026-11-23) |
 
 ### P-30 Help · `/help` · N
 | | |
@@ -114,14 +114,14 @@ Print layout of the Data room; light only. Backend `GET /dataroom`.
 | New | Impact preview before re-confirming a signed card (`POST /impact`) |
 | Backend | `inputs*`, `client-data*`, `client-review*`, `delivery*`, `evidence*`, `datasets*`, `value-reuse`, `reading-queue`, `GET/PUT /system` |
 
-### P-13b Data plan · `/projects/{id}/data-plan` · Q1
+### P-13b Data plan · `/projects/{id}/data-plan` · N (owner, Q1: yes, read-mostly)
 | | |
 |---|---|
 | Purpose | Which data each application (VBE, DDI, food effect, FIH, special populations) requires, who provides each item, and what is covered |
 | Shows | Requirements table: item, application, provider, purpose, status, linked study or product |
-| Actions | Override provider or purpose (C) |
-| Backend | `GET /requirements`, `PUT /requirements/{r}`, `POST requirements:derive` |
-| Note | The owner removed the data checklist from Start on 2026-10-23; requirements now show inside cards. Q1 asks whether this page comes back |
+| Actions | Open the card where an item is settled. **No edits here**: they stay on the cards (one place per decision) |
+| Backend | `GET /requirements` (the matrix is re-derived on every brief save) |
+| Note | The 23 Oct removal from Start was about 27 rows of "—" linked to nothing; this page shows real status with links (owner, 2026-11-23) |
 
 ### P-14 Review & sign · `/projects/{id}/plan` · R
 | | |
@@ -223,7 +223,6 @@ Owner; archive / restore with a reason; blinding state (read-only, links to Revi
 |---|---|---|
 | E kept | 8 | P-12b, P-24b, P-25, P-26, P-27, P-28, P-29, P-31 |
 | R redesigned or moved | 15 | P-01, P-03, P-04, P-11, P-12, P-13, P-14, P-15, P-16, P-17b, P-18, P-20, P-21, P-22, P-24 |
-| N new on existing routes | 7 | P-02 (step state later N·be), P-10, P-17, P-19b, P-23, P-30, P-32 |
-| N·be new, backend change | 2 | P-05 (membership filter), P-19 (list route) |
-| Q owner question | 1 | P-13b (Q1); P-04 has a Q2 option inside it |
+| N new on existing routes | 9 | P-02 (step state later N·be), P-05, P-10, P-13b, P-17, P-19b, P-23, P-30, P-32 |
+| N·be new, backend change | 1 | P-19 (list route) |
 | F future | 1 | P-33 |

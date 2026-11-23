@@ -91,10 +91,17 @@ def get_compound_cpf(project_id: str, compound: str, principal: PrincipalDep, st
     return envelope(project_cpf_view(cpf))
 
 
+def _member_of(principal: Principal, project: str | None) -> bool:
+    """Whether a tenant-wide list may show an item of `project` to this person: the same rule as the detail routes'
+    `require_project` (a campaign with no project stays visible, as its own page is), so a list never shows what its
+    detail route refuses (redesign review R-S01: the lists showed every project's campaigns and escalations)."""
+    return not project or "*" in principal.projects or project in principal.projects
+
+
 @router.get("/campaigns", **answers(Campaigns))
 def list_campaigns(principal: PrincipalDep, store: StoreDep, project: str | None = None):
     """List the tenant's campaigns (summary + stage/round detail); ``?project=`` narrows to one project."""
-    campaigns = store.list_campaigns(principal.tenant_id)
+    campaigns = [c for c in store.list_campaigns(principal.tenant_id) if _member_of(principal, c.get("project"))]
     if project:
         campaigns = [c for c in campaigns if c.get("project") == project]
     return envelope({"campaigns": campaigns})
@@ -243,8 +250,13 @@ def get_system(project_id: str, principal: PrincipalDep, store: StoreDep):
 
 @router.get("/escalations", **answers(Escalations))
 def list_escalations(principal: PrincipalDep, store: StoreDep):
-    """Open campaign escalations awaiting a signed decision (review inbox)."""
-    return envelope({"escalations": store.list_escalations(principal.tenant_id)})
+    """Open campaign escalations awaiting a signed decision, of the projects this person is a member of. An escalation
+    names its campaign, not its project, so its project is its campaign's; one whose campaign is not (yet) recorded has
+    no project to check and stays listed, as a campaign with no project does (the decision pop-up reads this list alone,
+    so a decision is asked even before its campaign's record can be read)."""
+    projects = {c.get("id"): c.get("project") for c in store.list_campaigns(principal.tenant_id)}
+    return envelope({"escalations": [e for e in store.list_escalations(principal.tenant_id)
+                                     if _member_of(principal, projects.get(e.get("campaignId")))]})
 
 
 @router.get("/proposals", **answers(Proposals))

@@ -51,7 +51,7 @@ Status labels: **[E]** existing page, kept as is · **[R]** existing, redesigned
 graph TD
   H[Home P-01] --- W[Your work P-02]
   H --- PR[Projects P-03] --> NP[Create project P-04]
-  H --- CA[Campaigns P-05 N·be]
+  H --- CA[Campaigns P-05 N]
   H --- HELP[Help P-30 N]
   H --- ADM[Admin console P-20.. admin only]
 ```
@@ -62,8 +62,7 @@ graph TD
 | Your work | `/work` | P-02 Your work: links to every decision, signature and to-confirm item, by project | [N·api], step state per project later [N·be] |
 | Projects | `/projects` | P-03 Projects table (cards view kept as an option) with archive / restore | [R] (today part of `/`) |
 | — (button "Create project") | `/projects/start` | P-04 Create project from a proposal | [R] |
-| — (option on P-04) | `/projects/start?from=reference` | Create from a published reference model | [Q2] |
-| Campaigns | `/campaigns` | P-05 Campaigns across my projects | [N·be]: `GET /campaigns` must filter by membership first (R-S01) |
+| Campaigns | `/campaigns` | P-05 Campaigns across my projects | [N·api]: `GET /campaigns` filters by membership since 2026-11-23 (R-S01, fixed) |
 | Help | `/help` | P-30 Help and documentation (from `docs/USING_THE_TOOL.md`) | [N] |
 | PLATFORM → Admin console | `/admin` | P-20 | [E] admin only |
 
@@ -77,7 +76,7 @@ graph TD
     subgraph D[2 Data]
       DR[Data room P-12 R] --> REP[Evidence report P-12b E]
       IN[Inputs P-13 R]
-      DP[Data plan P-13b Q1]
+      DP[Data plan P-13b N·api]
     end
     RS[3 Review & sign P-14 R]
     subgraph RUN[4 Run]
@@ -103,7 +102,7 @@ graph TD
 | WORKFLOW | 2 Data → Data room | `/projects/{id}/dataroom` | P-12 | [R] | What the client sent and whether it is right (G1-1) |
 | | 2 Data → Data room → Evidence report | `/projects/{id}/dataroom/report` | P-12b | [E] | Print layout, light |
 | | 2 Data → Inputs | `/projects/{id}/inputs` | P-13 | [R] | What goes into the model (G1-1) |
-| | 2 Data → Data plan | `/projects/{id}/data-plan` | P-13b | [Q1] | Requirements per application (`/requirements`, 3 routes) |
+| | 2 Data → Data plan | `/projects/{id}/data-plan` | P-13b | [N·api] | Read-mostly: each requirement, who provides it, its status, a link to the card where it is settled (owner, Q1) |
 | WORKFLOW | 3 Review & sign | `/projects/{id}/plan` | P-14 | [R] | MAP; read-only view for viewers through `plan:view` (R-S03) |
 | WORKFLOW | 4 Run → Campaigns | `/projects/{id}/campaigns` | P-15 | [R] | Today's Run page content, without the duplicates |
 | | 4 Run → Campaign | `/campaigns/{cid}` (kept) | P-16 | [R] | Tabs: Stages · Fit · Rounds · Feedback · Package; breadcrumb under its project |
@@ -176,9 +175,10 @@ All 22 (Gate 1 said 21; `POST /campaigns/{id}/deviations` was wrongly counted as
 | `GET /projects/{id}/agent-runs/{run}` | P-19b Agent run | **Expose** (+ list route) |
 | `GET /campaigns/{id}/package` | P-16 Package tab (hashes, files, PK-Sim projects, report issues) | **Expose** |
 | `GET /health` | P-32 System status; top bar dot | **Expose** |
-| `GET/PUT /requirements`, `POST requirements:derive` | P-13b Data plan | **[Q1]** |
-| `GET /templates`, `GET /templates/{id}` | P-04 "from a published reference model" | **[Q2]** |
-| `POST /model-versions/preview`, `POST /m15/validate` | none (API-only) | **Keep, add authentication** (R-S04) |
+| `GET /requirements` | P-13b Data plan (read-mostly) | **Expose** (Q1: yes) |
+| `PUT /requirements/{r}`, `POST requirements:derive` | none: edits stay on the cards; derive already runs on every brief save | **Keep API-only** |
+| `GET /templates`, `GET /templates/{id}` | none (owner, Q2) | **Retire, after** the campaign-monitor e2e and the showcase script stop using them; the importer stays |
+| `POST /model-versions/preview`, `POST /m15/validate` | none (API-only) | **Keep**; authentication added 2026-11-23 (R-S04, fixed) |
 | `POST /runs`, `GET /runs/{id}/results` | P-16 Runs tab once the distributed deployment exists | **Keep for Temporal** |
 | `POST escalation:decide`, `POST /campaigns/{id}/deviations` | none | **Rewrite to token step-up before any Temporal deployment** (R-S06) |
 | `GET /escalations/decision-options` | none | **Retire or extend with the rewrite** (R-S06) |

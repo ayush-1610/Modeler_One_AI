@@ -217,10 +217,14 @@ T-05 → T-07 → T-08 → T-18 and T-09 in parallel.
 The owner's charter: an AWS-console-inspired redesign, design first, through four approval gates; no production change
 before Gate 4 and a separate go-ahead. Everything is in `design-review/` (start at its `README.md`). Gate 1 (discovery)
 is approved; Gate 2 (sitemap, page inventory, flows, remediation plan) waits for the owner.
-- **Defects found, not fixed yet** (`design-review/REMEDIATION_PLAN.md` §1): tenant-wide `GET /campaigns` and
-  `GET /escalations` ignore project membership (R-S01); viewers get 403 on Review & sign (R-S03); two system routes
-  take no authentication (R-S04); `modeler-qa` grants nothing (R-S05); Temporal-path signing routes take a password
-  in the body (R-S06, inert while Temporal is not deployed).
+- **Defects found** (`design-review/REMEDIATION_PLAN.md` §1). **Fixed 2026-11-23** at the owner's go-ahead: the
+  campaign and escalation lists ignored project membership (R-S01); viewers got 403 on Review & sign (R-S03); two
+  modelling routes took no sign-in (R-S04). **Open:** a member who may not sign still sees the escalation pop-up
+  (R-S02, into the redesign); `modeler-qa` grants nothing (R-S05; the owner's default: QA reads every project of its
+  company); Temporal-path signing routes take a password in the body (R-S06, before any Temporal deployment).
+- Gate 2 answers (2026-11-23): a read-only Data plan page under Data; no reference-model start on Create project, the
+  `/templates` routes retire only after the campaign-monitor e2e and the showcase script stop using them (the
+  importer stays: Inputs' published-model source and the T-56 kit use it); the logo stays.
 - Decisions that bind the redesign: `design-review/DECISIONS.md` (one Data section with the Data room and Inputs;
   accent `#001B94`; light only, dark-ready; "Your work" links only).
 

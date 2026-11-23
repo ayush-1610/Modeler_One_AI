@@ -7,7 +7,7 @@ no file in this folder is imported, built or deployed, and no production file wa
 | Gate | Phases | State |
 |---|---|---|
 | 1 Product discovery | 0–2 | **Approved** 2026-11-23 (decisions in [`DECISIONS.md`](DECISIONS.md)) |
-| 2 Information architecture | 3 | **Ready for review** |
+| 2 Information architecture | 3 | **Ready for review**; the owner's answers to Q1–Q4 applied 2026-11-23 |
 | 3 Wireframes | 4 | Not started (waits for Gate 2 approval) |
 | 4 Final design and technical | 5–7 | Not started |
 | Implementation | 9–10 | Needs separate explicit authorisation |
@@ -35,3 +35,4 @@ stub engine with synthetic data; no number in them is a PBPK result). Gate 2 cor
 | 2026-11-23 | Gate 1 approved; merge intake as one Data section (Data room + Inputs); AWS look replaces the 7 Nov look, light only, dark-ready; Your work as links only; reuse existing records | Sitemap, all project pages | Gate 2 package | Owner's decisions G1-1 … G1-4 |
 | 2026-11-23 | Accent `#001B94` with 60-30-10 | Shell, design system | Palette recorded with contrast checks; light top bar; `#475569` for secondary text on tints | Owner's palette brief (D-P1) |
 | 2026-11-23 | Fix the screenless operations and the bloatware, diligently | All | Every item verified in code; 22 operations (not 21); six defects found (R-S01 … R-S06) | Owner's request G1-5 |
+| 2026-11-23 | Q1 Data plan yes (read-mostly); Q2 no reference start, retire `/templates` after verifying; Q3 fix security now; Q4 keep logo | P-04, P-13b, remediation | Applied; `/templates` consumers verified (2 must move first); R-S01, R-S03, R-S04 fixed in code with tests | Owner's answers (DECISIONS D-G2) |

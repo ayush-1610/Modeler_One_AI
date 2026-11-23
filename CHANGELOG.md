@@ -15,6 +15,28 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Fixed — a person sees only their own projects' campaigns and escalations; viewers read the plan; the modelling tools need a sign-in (2026-11-23, the owner's go-ahead)
+Found while verifying the redesign's remediation plan (`design-review/REMEDIATION_PLAN.md` §1); the owner asked for
+them to be fixed now, ahead of the redesign.
+- **R-S01, the lists:** `GET /campaigns` and `GET /escalations` listed every campaign and open escalation of the
+  company, including projects the person is not a member of (their detail routes already refused them). Both now
+  apply the detail routes' rule (`read_api._member_of`): a member's projects, every project for the `*` principal, and
+  an item with no project. An escalation's project is its campaign's; one whose campaign is not recorded yet stays
+  listed, so the decision pop-up still asks for it (`escalation-popup.spec.ts`, unchanged). Side effect: the pop-up
+  (every page, every 5 s) no longer shows other projects' decisions. Still open (R-S02): a member who may not sign
+  sees the pop-up and is refused in words; the redesign moves the decision to the project's own pages.
+- **R-S03, Review & sign for a viewer:** the page read `GET /plan`, which needs a curator or reviewer, so a viewer got
+  403. It now reads the reader's `GET /plan:view` when `/me` names no writing role, says "You can read this plan.
+  Changing it and signing it take a curator or a reviewer.", and offers no signature (`PlanCanvas.tsx`; new
+  `e2e/plan-viewer.spec.ts`).
+- **R-S04, two routes with no sign-in:** `POST /model-versions/preview` and `POST /m15/validate` built and checked
+  models for anyone who reached the API. They now need a curator or reviewer (401 without a token, 403 for a viewer).
+  No client in the repository called them.
+- **API contract:** the two routes gain the `authorization` header parameter; `GET /escalations` has a new
+  description. `docs/api/openapi.json` and `apps/web/lib/api-types.ts` regenerated. No response shape changed.
+- **Not changed:** R-S06 (the Temporal-path signing routes that take a password in the body) waits for the
+  multi-server setup, at the owner's word. No locked file changed.
+
 ### Docs — redesign charter, Gate 2: information architecture (2026-11-23, the owner's request)
 - **What:** the owner approved Gate 1 (one Data section holding the Data room and Inputs; the AWS-style look replaces
   the 7 Nov look, light only and dark-ready; a "Your work" list of links; existing records reused) and gave the brand

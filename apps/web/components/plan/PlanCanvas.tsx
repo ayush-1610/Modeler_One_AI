@@ -156,12 +156,24 @@ function BlindingPanel({ projectId }: { projectId: string }) {
   );
 }
 
+/** The roles that change and sign a plan (the API's `deps.WRITE_ROLES`); any other role reads it. */
+const WRITE_ROLES = ["modeler-curator", "modeler-reviewer"];
+
 /** Step 3 · Review & sign (redesign §3.3; plan §11): the one review D-27 relies on. The signature on top; the studies and
  *  their roles on the MS-01 canvas (the three diagrams, "Overall Data"); every input with its source in the review
  *  table; the estimation plan and the validation plan (R4b); credibility (the model risk, the tier's acceptance
  *  criteria, the budget split, the limitations); the live validator and the diff. */
 export function PlanCanvas({ projectId, steps }: { projectId: string; steps?: ReactNode }) {
-  const page = useResource("/api/v1/projects/{project_id}/plan", { project_id: projectId }, { poll: (d) => d.running });
+  // A viewer reads the plan through `plan:view`: `GET /plan` is a writer's (it makes the MS-01 default plan when there is
+  // none), and a viewer got its 403 instead of the plan (redesign review R-S03). The roles are the API's own answer.
+  // (unknown until /me answers; if /me fails, the writer's read runs and its own answer says what is wrong)
+  const me = useResource("/api/v1/me", {}, { select: (d) => d.roles });
+  const writer = me.data ? me.data.some((r) => WRITE_ROLES.includes(r)) : me.problem ? true : null;
+  const edit = useResource("/api/v1/projects/{project_id}/plan", { project_id: projectId },
+                           { poll: (d) => d.running, enabled: writer === true });
+  const read = useResource("/api/v1/projects/{project_id}/plan:view", { project_id: projectId },
+                           { poll: (d) => d.running, enabled: writer === false });
+  const page = writer === false ? read : edit;
   const review = useResource("/api/v1/projects/{project_id}/plan/review", { project_id: projectId }, { enabled: page.data !== null });
   const mutation = useMutation();
   const [tab, setTab] = useState<(typeof TABS)[number]>(TABS[0]);
@@ -179,8 +191,10 @@ export function PlanCanvas({ projectId, steps }: { projectId: string; steps?: Re
           // study): say what Inputs still waits on and go there, in words, not an error on an empty page (round 3, OWN-8)
           ? <StepBlocked projectId={projectId} step="review" title="Review & sign opens when the inputs are ready"
                          detail={page.problem} testId="plan-blocked" />
+          : page.problem && writer === false && /no model plan yet/i.test(page.problem)
+          ? <p className="muted" data-testid="plan-none-yet">No model plan yet. It is made by a curator once the inputs are ready.</p>
           : page.problem ? <div className="banner err" data-testid="plan-problem">{page.problem}</div>
-          : <p className="muted">Computing the MS-01 default plan…</p>}
+          : <p className="muted">{writer === false ? "Reading the model plan…" : "Computing the MS-01 default plan…"}</p>}
       </PageShell>
     );
   }
@@ -231,7 +245,11 @@ export function PlanCanvas({ projectId, steps }: { projectId: string; steps?: Re
         <p className="muted m-0-0-8 fs-13">
           {view.plan.structure.objective} · {view.plan.structure.context_of_use}
         </p>
-        <div className="row">
+        {writer === false && (
+          <div className="banner warn mb-8" data-testid="plan-read-only">
+            You can read this plan. Changing it and signing it take a curator or a reviewer.</div>
+        )}
+        {writer !== false && <div className="row">
           <button className="btn" disabled={!view.agents.enabled || view.running || signed}
                   onClick={async () => setMessage(await apply(() => planApi.draft(projectId)) ?? "A5 is drafting the rationale; proposals appear in the diff.")}>
             Draft with A5</button>
@@ -256,7 +274,7 @@ export function PlanCanvas({ projectId, steps }: { projectId: string; steps?: Re
               else setMessage(`The campaign did not start: ${started.error ?? "no campaign id returned"}`);
             }}>Run the campaign (P6)</button>
           )}
-        </div>
+        </div>}
         {!canSign && !signed && view.blocking > 0 && (
           <p className="muted fs-12 m-6-0-0">
             <a href="#review-validator">The live validator</a> lists what is still open.</p>

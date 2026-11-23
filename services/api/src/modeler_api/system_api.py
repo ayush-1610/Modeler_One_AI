@@ -45,9 +45,13 @@ class ModelBuildRequest(BaseModel):
     simulations: list[SimulationSpec] = Field(default_factory=list)
 
 
+# The modelling tools build and check models: a signed-in curator or reviewer (they answered anyone before, R-S04).
+Modeler = Annotated[Principal, Depends(require_role("modeler-curator", "modeler-reviewer"))]
+
+
 @router.post("/api/v1/model-versions/preview", **answers(SnapshotPreview))
-def preview_model_version(request: ModelBuildRequest):
-    """Build and validate a snapshot without persisting it."""
+def preview_model_version(request: ModelBuildRequest, _principal: Modeler):
+    """Build and validate a snapshot without persisting it (a curator or reviewer: redesign review R-S04)."""
     builder = SnapshotBuilder(snapshot_version=request.snapshot_version)
     try:
         for compound in request.compounds:
@@ -83,7 +87,8 @@ class M15ValidationRequest(BaseModel):
 
 
 @router.post("/api/v1/m15/validate", **answers(M15Validation))
-def validate_m15_table(request: M15ValidationRequest):
+def validate_m15_table(request: M15ValidationRequest, _principal: Modeler):
+    """Check an ICH M15 assessment table for completeness and the model risk its ratings allow (a curator or reviewer)."""
     issues = validate_table(request.table, request.stage)
     influence = request.table.model_influence.rating
     consequence = request.table.consequence_of_wrong_decision.rating

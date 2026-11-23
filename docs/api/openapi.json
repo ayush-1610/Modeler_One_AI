@@ -34408,7 +34408,7 @@
     },
     "/api/v1/escalations": {
       "get": {
-        "description": "Open campaign escalations awaiting a signed decision (review inbox).",
+        "description": "Open campaign escalations awaiting a signed decision, of the projects this person is a member of. An escalation\nnames its campaign, not its project, so its project is its campaign's; one whose campaign is not (yet) recorded has\nno project to check and stays listed, as a campaign with no project does (the decision pop-up reads this list alone,\nso a decision is asked even before its campaign's record can be read).",
         "operationId": "list_escalations_api_v1_escalations_get",
         "parameters": [
           {
@@ -34479,7 +34479,26 @@
     },
     "/api/v1/m15/validate": {
       "post": {
+        "description": "Check an ICH M15 assessment table for completeness and the model risk its ratings allow (a curator or reviewer).",
         "operationId": "validate_m15_table_api_v1_m15_validate_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -34566,8 +34585,26 @@
     },
     "/api/v1/model-versions/preview": {
       "post": {
-        "description": "Build and validate a snapshot without persisting it.",
+        "description": "Build and validate a snapshot without persisting it (a curator or reviewer: redesign review R-S04).",
         "operationId": "preview_model_version_api_v1_model_versions_preview_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
