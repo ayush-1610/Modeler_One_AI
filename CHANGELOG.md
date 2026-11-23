@@ -15,6 +15,17 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Docs — redesign charter, Gate 3: the low-fidelity prototype (2026-11-23, the owner's request)
+- **What:** Gate 2 approved. `design-review/prototype/index.html`, one self-contained page (no build, no dependency, no
+  API call) that draws all 34 pages of the approved sitemap in the AWS-style shell (top bar, fixed side navigation per
+  context, breadcrumbs, compact headers, flash bar, help and side panels), with prototype controls for the signed-in
+  role and the page state (empty, loading, error), and `design-review/WIREFRAMES.md` documenting every page.
+- **Mock data only,** labelled MOCK, with invented compounds; charts and the MS-01 canvas are placeholders and no curve
+  is drawn (the owner's rule of 6–7 Nov).
+- **Checked in a headless browser:** 295 addresses for six roles at 1440 and 390 px, with no script error, dead link
+  or sideways scroll; 90 dialogs, 9 side panels and every page's three states.
+- **Impact:** none on behaviour; nothing in `apps/web` or the API changed.
+
 ### Fixed — a person sees only their own projects' campaigns and escalations; viewers read the plan; the modelling tools need a sign-in (2026-11-23, the owner's go-ahead)
 Found while verifying the redesign's remediation plan (`design-review/REMEDIATION_PLAN.md` §1); the owner asked for
 them to be fixed now, ahead of the redesign.

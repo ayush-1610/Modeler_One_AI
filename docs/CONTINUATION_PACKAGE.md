@@ -216,7 +216,8 @@ T-05 → T-07 → T-08 → T-18 and T-09 in parallel.
 ### 4.0e 2026-11-22 → 23: redesign charter (design only so far)
 The owner's charter: an AWS-console-inspired redesign, design first, through four approval gates; no production change
 before Gate 4 and a separate go-ahead. Everything is in `design-review/` (start at its `README.md`). Gate 1 (discovery)
-is approved; Gate 2 (sitemap, page inventory, flows, remediation plan) waits for the owner.
+and Gate 2 (sitemap, page inventory, flows, remediation plan) are approved; Gate 3 (the low-fidelity prototype
+`design-review/prototype/index.html` and `WIREFRAMES.md`) waits for the owner.
 - **Defects found** (`design-review/REMEDIATION_PLAN.md` §1). **Fixed 2026-11-23** at the owner's go-ahead: the
   campaign and escalation lists ignored project membership (R-S01); viewers got 403 on Review & sign (R-S03); two
   modelling routes took no sign-in (R-S04). **Open:** a member who may not sign still sees the escalation pop-up

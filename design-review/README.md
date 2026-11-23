@@ -7,12 +7,18 @@ no file in this folder is imported, built or deployed, and no production file wa
 | Gate | Phases | State |
 |---|---|---|
 | 1 Product discovery | 0–2 | **Approved** 2026-11-23 (decisions in [`DECISIONS.md`](DECISIONS.md)) |
-| 2 Information architecture | 3 | **Ready for review**; the owner's answers to Q1–Q4 applied 2026-11-23 |
-| 3 Wireframes | 4 | Not started (waits for Gate 2 approval) |
+| 2 Information architecture | 3 | **Approved** 2026-11-23 |
+| 3 Wireframes | 4 | **Ready for review**: [`prototype/index.html`](prototype/index.html), [`WIREFRAMES.md`](WIREFRAMES.md) |
 | 4 Final design and technical | 5–7 | Not started |
 | Implementation | 9–10 | Needs separate explicit authorisation |
 
-## Gate 2 documents
+## Gate 3 documents
+- [`prototype/index.html`](prototype/index.html): the navigable low-fidelity prototype of all 34 pages, with prototype
+  controls for role and page state. Opens directly in a browser; mock data only.
+- [`WIREFRAMES.md`](WIREFRAMES.md): how to review it, the shell, role differences, every page's layout and states,
+  verification, and three questions.
+
+## Gate 2 documents (approved)
 - [`PRODUCT_SITEMAP.md`](PRODUCT_SITEMAP.md): the shell, navigation per context (portfolio, project, admin), who sees
   what, old to new URLs, and where each screenless API operation lands.
 - [`PAGE_INVENTORY.md`](PAGE_INVENTORY.md): all 34 pages (and 5 system items) with users, purpose, content, actions,
@@ -36,3 +42,4 @@ stub engine with synthetic data; no number in them is a PBPK result). Gate 2 cor
 | 2026-11-23 | Accent `#001B94` with 60-30-10 | Shell, design system | Palette recorded with contrast checks; light top bar; `#475569` for secondary text on tints | Owner's palette brief (D-P1) |
 | 2026-11-23 | Fix the screenless operations and the bloatware, diligently | All | Every item verified in code; 22 operations (not 21); six defects found (R-S01 … R-S06) | Owner's request G1-5 |
 | 2026-11-23 | Q1 Data plan yes (read-mostly); Q2 no reference start, retire `/templates` after verifying; Q3 fix security now; Q4 keep logo | P-04, P-13b, remediation | Applied; `/templates` consumers verified (2 must move first); R-S01, R-S03, R-S04 fixed in code with tests | Owner's answers (DECISIONS D-G2) |
+| 2026-11-23 | Gate 2 approved | All pages | Gate 3 prototype and wireframe documentation | Charter Phase 4 |

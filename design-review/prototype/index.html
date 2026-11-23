@@ -1,0 +1,1253 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Modeler One Wireframes</title>
+<meta name="description" content="Gate 3 low-fidelity wireframe prototype of the redesigned Modeler One. Mock data only; not connected to any API.">
+<!--
+  Modeler One · Gate 3 wireframe prototype (design-review/prototype/index.html)
+  Low fidelity: layout, navigation, content and states. Mock data only. It calls no API, stores nothing but the
+  prototype controls' choices in this browser, and is independent of apps/web. Documentation: design-review/WIREFRAMES.md.
+-->
+<style>
+:root {
+  color-scheme: light;
+  /* the approved palette (design-review/DECISIONS.md D-P1): 60 % neutral, 30 % structure, 10 % accent */
+  --canvas: #F8FAFC; --surface: #FFFFFF; --surface-2: #F1F5F9;
+  --border: #E2E8F0; --border-2: #CBD5E1; --control-edge: #7C8798;
+  --ink: #0F172A; --ink-2: #334155; --ink-3: #475569; --ink-muted: #64748B;
+  --accent: #001B94; --accent-hover: #00136B; --accent-tint: #EEF2FF; --on-accent: #FFFFFF;
+  --pass: #17663A; --pass-bg: #E7F4EC; --warn: #9A4500; --warn-bg: #FDF1E4; --fail: #B3261E; --fail-bg: #FBEAE8;
+  --info-bg: #EEF2FF;
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --top: 48px; --nav: 240px; --strip: 24px;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--canvas); color: var(--ink); font: 14px/1.45 var(--font); }
+a { color: var(--accent); }
+a:hover { color: var(--accent-hover); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+code, .mono { font-family: var(--mono); font-size: 12.5px; }
+h1 { font-size: 20px; line-height: 1.3; margin: 0; font-weight: 650; }
+h2 { font-size: 15px; margin: 0 0 8px; font-weight: 650; }
+h3 { font-size: 13.5px; margin: 0 0 6px; font-weight: 650; }
+p { margin: 0 0 8px; }
+.muted { color: var(--ink-3); }
+.small { font-size: 12.5px; }
+.skip { position: absolute; left: -9999px; top: 0; z-index: 100; background: var(--surface); padding: 8px 12px; border: 1px solid var(--accent); }
+.skip:focus { left: 8px; top: 8px; }
+
+/* prototype-only furniture: hatched yellow, never part of the product */
+.proto-strip { height: var(--strip); white-space: nowrap; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 12px;
+  background: repeating-linear-gradient(135deg, #FFF6C9 0 10px, #FFF0B0 10px 20px); color: #4A3B00; border-bottom: 1px solid #E6D27A; }
+.proto-tag { display: inline-block; font: 600 11px/1 var(--mono); color: #4A3B00; background: #FFF6C9; border: 1px dashed #C9A800; padding: 3px 6px; border-radius: 3px; }
+
+/* top bar */
+.topbar { position: sticky; top: 0; z-index: 30; height: var(--top); display: flex; align-items: center; gap: 12px; padding: 0 16px;
+  background: var(--surface); border-bottom: 1px solid var(--border); }
+.brand { display: flex; align-items: center; gap: 8px; color: var(--ink); text-decoration: none; font-weight: 650; white-space: nowrap; }
+.logo-box { width: 22px; height: 22px; border: 1.5px dashed var(--control-edge); border-radius: 4px; display: grid; place-items: center; font-size: 9px; color: var(--ink-3); }
+.topbar .grow { flex: 1; }
+.tb-btn { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 10px; border: 1px solid transparent; border-radius: 4px;
+  background: none; color: var(--ink-2); font: inherit; text-decoration: none; cursor: pointer; white-space: nowrap; }
+.tb-btn:hover { background: var(--surface-2); color: var(--ink); }
+.tb-btn.outline { border-color: var(--border-2); }
+.count { display: inline-grid; place-items: center; min-width: 20px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--accent); color: var(--on-accent); font-size: 11px; font-weight: 650; }
+.count.zero { background: var(--surface-2); color: var(--ink-3); }
+.count.neutral { background: var(--surface-2); color: var(--ink-2); border: 1px solid var(--border); }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--pass); display: inline-block; }
+.dot.off { background: var(--control-edge); }
+.menu-btn { display: none; }
+.popover { position: absolute; z-index: 40; background: var(--surface); border: 1px solid var(--border-2); border-radius: 6px; padding: 6px; min-width: 260px;
+  box-shadow: 0 6px 20px rgba(15,23,42,.08); }
+.popover a, .popover button.item { display: block; width: 100%; text-align: left; padding: 7px 10px; border-radius: 4px; color: var(--ink); text-decoration: none; background: none; border: 0; font: inherit; cursor: pointer; }
+.popover a:hover, .popover button.item:hover { background: var(--surface-2); }
+.popover input { width: 100%; margin-bottom: 6px; }
+.popover .sep { border-top: 1px solid var(--border); margin: 6px 0; }
+
+/* shell */
+.shell { display: flex; min-height: calc(100vh - var(--top) - var(--strip)); }
+.sidenav { width: var(--nav); flex: 0 0 var(--nav); background: var(--surface); border-right: 1px solid var(--border); padding: 12px 0 24px;
+  position: sticky; top: var(--top); height: calc(100vh - var(--top)); overflow-y: auto; }
+.sidenav .back { display: block; padding: 4px 16px 8px; font-size: 12.5px; text-decoration: none; }
+.sidenav .proj { padding: 0 16px 10px; border-bottom: 1px solid var(--border); margin-bottom: 8px; }
+.sidenav .proj strong { display: block; font-size: 14px; }
+.sidenav .group { padding: 10px 16px 4px; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); font-weight: 650; }
+.sidenav a.item { display: flex; align-items: center; gap: 8px; padding: 6px 16px 6px 13px; border-left: 3px solid transparent; color: var(--ink-2); text-decoration: none; }
+.sidenav a.item:hover { background: var(--surface-2); color: var(--ink); }
+.sidenav a.item[aria-current="page"] { border-left-color: var(--accent); background: var(--accent-tint); color: var(--accent); font-weight: 600; }
+.sidenav a.item.sub { padding-left: 37px; }
+.sidenav .si { width: 16px; text-align: center; font-size: 12px; color: var(--ink-3); flex: 0 0 16px; }
+.sidenav a.item[aria-current="page"] .si { color: var(--accent); }
+.si.done { color: var(--pass); } .si.needs { color: var(--warn); }
+main { flex: 1; min-width: 0; padding: 0 24px 64px; }
+main:focus { outline: none; }
+
+/* page frame */
+.crumbs { display: flex; flex-wrap: wrap; gap: 6px; padding: 12px 0 6px; font-size: 12.5px; color: var(--ink-3); }
+.crumbs a { text-decoration: none; }
+.crumbs span.sep { color: var(--border-2); }
+.page-head { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 12px; padding: 4px 0 12px; border-bottom: 1px solid var(--border); margin-bottom: 12px; }
+.page-head .titles { flex: 1 1 360px; min-width: 0; }
+.page-head .title-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.page-head .desc { color: var(--ink-3); margin: 4px 0 0; max-width: 80ch; }
+.page-head .actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.info-link { font-size: 12.5px; background: none; border: 0; color: var(--accent); cursor: pointer; padding: 0 4px; font: inherit; text-decoration: underline; }
+
+/* flash bar */
+.flash { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border: 1px solid; border-radius: 4px; margin-bottom: 8px; }
+.flash .x { margin-left: auto; background: none; border: 0; cursor: pointer; color: inherit; font-size: 16px; line-height: 1; }
+.flash.info { background: var(--info-bg); border-color: #C7D2FE; color: var(--ink); }
+.flash.ok { background: var(--pass-bg); border-color: #B7DEC5; }
+.flash.warn { background: var(--warn-bg); border-color: #F1CFA6; }
+.flash.err { background: var(--fail-bg); border-color: #F0BDB7; }
+.flash strong { white-space: nowrap; }
+
+/* buttons and controls */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 32px; padding: 0 12px; border: 1px solid var(--control-edge);
+  border-radius: 4px; background: var(--surface); color: var(--ink); font: inherit; font-weight: 550; cursor: pointer; text-decoration: none; white-space: nowrap; }
+.btn:hover { background: var(--surface-2); color: var(--ink); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.btn.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); color: var(--on-accent); }
+.btn.link { border-color: transparent; background: none; color: var(--accent); padding: 0 6px; }
+.btn.danger { color: var(--fail); border-color: var(--fail); }
+.btn.small { min-height: 26px; padding: 0 8px; font-size: 12.5px; }
+.btn[disabled], .btn[aria-disabled="true"] { opacity: .5; cursor: not-allowed; }
+input[type=text], input[type=search], input[type=number], input[type=email], input:not([type]), select, textarea {
+  font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--control-edge); border-radius: 4px; padding: 5px 8px; min-height: 32px; max-width: 100%; }
+textarea { min-height: 72px; width: 100%; }
+input[type=checkbox], input[type=radio] { accent-color: var(--accent); width: 16px; height: 16px; }
+label.field { display: block; margin-bottom: 12px; }
+label.field > span { display: block; font-weight: 600; margin-bottom: 4px; }
+label.field .hint { display: block; color: var(--ink-3); font-size: 12.5px; font-weight: 400; margin-top: 2px; }
+.err-text { color: var(--fail); font-size: 12.5px; }
+
+/* containers */
+.panel { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; margin-bottom: 16px; }
+.panel > .ph { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--border); }
+.panel > .ph h2 { margin: 0; flex: 1; }
+.panel > .pb { padding: 12px 14px; }
+.panel > .pb.flush { padding: 0; }
+.cols { display: grid; grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr); gap: 16px; }
+.cols.even { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.kv { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 0; }
+.kv dt { color: var(--ink-3); }
+.kv dd { margin: 0; }
+.toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px 14px; border-bottom: 1px solid var(--border); }
+.toolbar .grow { flex: 1; }
+.toolbar input[type=search] { min-width: 220px; }
+
+/* tables */
+.tablewrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; }
+th, td { text-align: left; padding: 7px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+th { background: var(--surface-2); color: var(--ink-2); font-size: 12.5px; font-weight: 650; white-space: nowrap; }
+th[data-sort] { cursor: pointer; user-select: none; }
+th[data-sort]::after { content: " ↕"; color: var(--border-2); }
+th[aria-sort="ascending"]::after { content: " ↑"; color: var(--accent); }
+th[aria-sort="descending"]::after { content: " ↓"; color: var(--accent); }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+tr.clickable { cursor: pointer; }
+tr.clickable:hover td { background: var(--surface-2); }
+tr.selected td { background: var(--accent-tint); }
+.table-foot { display: flex; justify-content: space-between; gap: 8px; padding: 8px 14px; color: var(--ink-3); font-size: 12.5px; }
+
+/* badges */
+.badge { display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; border-radius: 10px; font-size: 12px; font-weight: 600; white-space: nowrap; border: 1px solid transparent; }
+.b-missing { background: var(--fail-bg); color: var(--fail); }
+.b-confirm, .b-decide { background: var(--warn-bg); color: var(--warn); }
+.b-done, .b-pass, .b-low { background: var(--pass-bg); color: var(--pass); }
+.b-medium { background: var(--warn-bg); color: var(--warn); }
+.b-high, .b-fail { background: var(--fail-bg); color: var(--fail); }
+.b-neutral { background: var(--surface-2); color: var(--ink-2); }
+.b-accent { background: var(--accent-tint); color: var(--accent); }
+.b-outline { border-color: var(--border-2); color: var(--ink-3); background: none; }
+.chip { display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; border: 1px solid var(--border-2); border-radius: 4px; font-size: 12px; color: var(--accent); background: var(--surface); cursor: pointer; font-family: var(--font); }
+.chip:hover { background: var(--accent-tint); }
+.steps-mini { display: inline-flex; gap: 3px; vertical-align: middle; }
+.steps-mini i { width: 18px; height: 6px; border-radius: 2px; background: var(--border); display: inline-block; }
+.steps-mini i.done { background: var(--pass); } .steps-mini i.needs { background: var(--warn); } .steps-mini i.prog { background: var(--accent); }
+
+/* tabs and in-page nav */
+.tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--border); margin-bottom: 12px; overflow-x: auto; }
+.tabs a { padding: 8px 12px; color: var(--ink-2); text-decoration: none; border-bottom: 3px solid transparent; white-space: nowrap; display: inline-flex; gap: 6px; align-items: center; }
+.tabs a:hover { color: var(--ink); background: var(--surface-2); }
+.tabs a[aria-current="page"] { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+.inpage { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 16px; align-items: start; }
+.inpage nav { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 6px 0; position: sticky; top: calc(var(--top) + 12px); }
+.inpage nav a { display: flex; justify-content: space-between; gap: 6px; padding: 6px 12px; color: var(--ink-2); text-decoration: none; border-left: 3px solid transparent; }
+.inpage nav a:hover { background: var(--surface-2); }
+.inpage nav a[aria-current="page"] { border-left-color: var(--accent); background: var(--accent-tint); color: var(--accent); font-weight: 600; }
+
+/* placeholders: what the wireframe does not draw */
+.ph-box { border: 1.5px dashed var(--control-edge); border-radius: 6px; min-height: 180px; display: grid; place-items: center; text-align: center; padding: 16px; color: var(--ink-3);
+  background: repeating-linear-gradient(45deg, transparent 0 12px, rgba(100,116,139,.06) 12px 24px); }
+.ph-box strong { display: block; color: var(--ink-2); margin-bottom: 4px; }
+
+/* states */
+.skel { height: 14px; border-radius: 3px; background: linear-gradient(90deg, var(--surface-2), var(--border), var(--surface-2)); background-size: 200% 100%; animation: sk 1.4s linear infinite; margin: 10px 0; }
+@keyframes sk { to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) { .skel { animation: none; } }
+.empty { text-align: center; padding: 40px 16px; color: var(--ink-3); }
+.empty h2 { color: var(--ink); }
+
+/* help panel and split panel */
+.help { width: 320px; flex: 0 0 320px; background: var(--surface); border-left: 1px solid var(--border); padding: 12px 16px; position: sticky; top: var(--top); height: calc(100vh - var(--top)); overflow-y: auto; }
+.help header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.split { position: fixed; right: 0; top: calc(var(--top) + var(--strip)); bottom: 0; width: min(480px, 100vw); z-index: 25; background: var(--surface); border-left: 1px solid var(--border-2);
+  box-shadow: -6px 0 18px rgba(15,23,42,.06); display: flex; flex-direction: column; }
+.split header { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--border); }
+.split header h2 { margin: 0; flex: 1; }
+.split .body { padding: 12px 14px; overflow-y: auto; flex: 1; }
+
+/* dialogs */
+.backdrop { position: fixed; inset: 0; background: rgba(15,23,42,.35); z-index: 50; display: grid; place-items: center; padding: 16px; }
+.dialog { background: var(--surface); border-radius: 6px; width: min(560px, 100%); max-height: calc(100vh - 32px); display: flex; flex-direction: column; border: 1px solid var(--border-2); }
+.dialog header { padding: 14px 16px 8px; }
+.dialog .body { padding: 4px 16px 12px; overflow-y: auto; }
+.dialog footer { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--border); }
+
+/* prototype controls */
+.proto-strip { position: relative; z-index: 45; }
+.proto-controls { position: relative; display: inline-block; }
+.proto-controls summary { cursor: pointer; font-weight: 650; text-decoration: underline; list-style: none; }
+.proto-controls summary::-webkit-details-marker { display: none; }
+.proto-controls summary::after { content: " ▾"; }
+.proto-drop { position: absolute; right: 0; top: 20px; width: min(300px, calc(100vw - 16px)); background: #FFF9DB; border: 1.5px dashed #C9A800; border-radius: 6px; padding: 8px 10px;
+  font-size: 12.5px; color: #3A2F00; box-shadow: 0 6px 20px rgba(15,23,42,.12); }
+@media (max-width: 640px) { .proto-strip { overflow: hidden; } .proto-drop { position: fixed; right: 8px; top: 26px; } }
+.proto-controls .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 8px; }
+.proto-controls select { min-height: 28px; padding: 2px 6px; }
+
+.grid-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+.card { border: 1px solid var(--border); border-radius: 6px; padding: 12px; background: var(--surface); }
+.list-plain { list-style: none; padding: 0; margin: 0; }
+.list-plain li { padding: 8px 0; border-bottom: 1px solid var(--border); display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.list-plain li:last-child { border-bottom: 0; }
+.bar { height: 6px; background: var(--surface-2); border-radius: 3px; overflow: hidden; min-width: 80px; }
+.bar > i { display: block; height: 100%; background: var(--accent); }
+.bar.warn > i { background: var(--warn); }
+.print-page { max-width: 820px; margin: 0 auto; background: var(--surface); border: 1px solid var(--border); padding: 40px 48px; }
+.mb0 { margin-bottom: 0; } .mt8 { margin-top: 8px; } .mt16 { margin-top: 16px; } .gap8 { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+
+@media (max-width: 1100px) { .help { position: fixed; right: 0; top: calc(var(--top) + var(--strip)); bottom: 0; height: auto; z-index: 26; box-shadow: -6px 0 18px rgba(15,23,42,.08); } }
+@media (max-width: 1024px) {
+  .menu-btn { display: inline-flex; }
+  .sidenav { position: fixed; left: 0; top: calc(var(--top) + var(--strip)); height: calc(100vh - var(--top) - var(--strip)); z-index: 35; transform: translateX(-100%); transition: transform .15s; }
+  .sidenav.open { transform: none; box-shadow: 6px 0 18px rgba(15,23,42,.12); }
+  .cols, .cols.even { grid-template-columns: minmax(0, 1fr); }
+  .inpage { grid-template-columns: minmax(0, 1fr); }
+  .inpage nav { position: static; display: flex; overflow-x: auto; padding: 0; }
+  .inpage nav a { border-left: 0; border-bottom: 3px solid transparent; white-space: nowrap; }
+  .inpage nav a[aria-current="page"] { border-bottom-color: var(--accent); }
+}
+@media (max-width: 640px) {
+  main { padding: 0 16px 96px; }
+  .topbar { padding: 0 8px; gap: 4px; }
+  .topbar .hide-sm, .proto-strip .hide-sm { display: none; }
+  .toolbar input[type=search] { min-width: 0; width: 100%; }
+  .print-page { padding: 20px 16px; }
+}
+@media print { .proto-strip, .topbar, .sidenav, .proto-controls, .crumbs, .page-head .actions, .help { display: none !important; } main { padding: 0; } .print-page { border: 0; } }
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to the page</a>
+<div class="proto-strip" role="note"><span>Wireframe<span class="hide-sm"> prototype</span> · mock data<span class="hide-sm"> · nothing is saved or sent</span></span> · <a href="#/_index">All pages</a> ·
+<details class="proto-controls" id="protoControls">
+  <summary>Prototype controls</summary>
+  <div class="proto-drop">
+    <p class="small" style="margin:0 0 6px">Not part of the product.</p>
+    <div class="row"><label>Signed in as <select id="roleSel"></select></label></div>
+    <div class="row"><label>Page state <select id="stateSel">
+      <option value="normal">Normal</option><option value="empty">Empty</option><option value="loading">Loading</option><option value="error">Error (API down)</option>
+    </select></label></div>
+    <div class="row"><span id="roleNow" class="small"></span><button class="btn small" id="resetBtn" type="button">Reset</button></div>
+  </div>
+</details></div>
+<header class="topbar">
+  <button class="tb-btn menu-btn" id="menuBtn" aria-controls="sidenav" aria-expanded="false" aria-label="Open the navigation">☰</button>
+  <a class="brand" href="#/"><span class="logo-box" aria-hidden="true">logo</span><span>Modeler One</span></a>
+  <button class="tb-btn outline hide-sm" id="switcherBtn" aria-haspopup="true" aria-expanded="false">Go to project… ▾</button>
+  <span class="grow"></span>
+  <a class="tb-btn" id="workLink" href="#/work">Your work <span class="count" id="workCount">0</span></a>
+  <a class="tb-btn hide-sm" href="#/help">Help</a>
+  <button class="tb-btn hide-sm" id="apiDot" title="The API answers. Select to check again"><span class="dot"></span> API</button>
+  <button class="tb-btn" id="userBtn" aria-haspopup="true" aria-expanded="false"><span id="userName">Asha Rao</span> ▾</button>
+</header>
+<div class="shell">
+  <nav class="sidenav" id="sidenav" aria-label="Main"></nav>
+  <main id="main" tabindex="-1"><div id="page"></div></main>
+  <aside class="help" id="help" hidden aria-label="Help for this page"></aside>
+</div>
+<div id="split-root"></div>
+<div id="dialog-root"></div>
+<div id="popover-root"></div>
+
+<script>
+"use strict";
+/* ============================================================================================================
+   Core: helpers, roles, mock data, shell, router, behaviours. Pages are in the next section.
+   ============================================================================================================ */
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const store = {
+  get(k, d) { try { return localStorage.getItem(k) ?? d; } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch { /* private window: this visit only */ } },
+};
+
+/* ---------- roles (prototype control) ---------- */
+const ROLES = {
+  owner:    { label: "Curator · owner of the project", can: { edit: 1, sign: 1, create: 1 } },
+  shared:   { label: "Curator · project shared with you", can: { create: 1 } },
+  reviewer: { label: "Reviewer · project shared with you", can: { sign: 1, create: 1 } },
+  viewer:   { label: "Viewer", can: {} },
+  qa:       { label: "QA (proposed: reads every project)", can: {} },
+  admin:    { label: "Platform admin (also an owner)", can: { edit: 1, sign: 1, create: 1, admin: 1 } },
+};
+let ROLE = ROLES[store.get("mo-proto-role", "owner")] ? store.get("mo-proto-role", "owner") : "owner";
+let STATE = "normal";
+const can = (k) => Boolean(ROLES[ROLE].can[k]);
+const ownerName = (p) => (ROLE === "owner" || ROLE === "admin") ? "You" : p.ownerOther;
+
+/* ---------- mock data (invented; no number here is a result) ---------- */
+const M = {
+  me: "Asha Rao", company: "Northwind CRO",
+  projects: [
+    { id: "exa", name: "Exampleamide reformulation", drug: "Exampleamide", app: "Virtual bioequivalence", risk: "medium", ownerOther: "Mei Chen",
+      steps: ["done", "needs", "todo", "todo"], next: "Decide 3 table layouts on Inputs", nextHref: "#/projects/exa/inputs", openQ: 1, updated: "2026-11-21", members: 3 },
+    { id: "pla", name: "Planamide first-in-human", drug: "Planamide", app: "First-in-human dose", risk: "high", ownerOther: "Mei Chen",
+      steps: ["done", "done", "needs", "todo"], next: "Sign the model analysis plan", nextHref: "#/projects/pla/plan", openQ: 0, updated: "2026-11-20", members: 4 },
+    { id: "ren", name: "Renalide renal impairment", drug: "Renalide", app: "Special populations", risk: "medium", ownerOther: "Tomás Ortiz",
+      steps: ["done", "done", "done", "needs"], next: "Decide the S1 escalation", nextHref: "#/campaigns/camp-7f3a", openQ: 1, updated: "2026-11-22", members: 2 },
+    { id: "ped", name: "Pedamide paediatric extrapolation", drug: "Pedamide", app: "Special populations", risk: "low", ownerOther: "Priya Nair",
+      steps: ["needs", "todo", "todo", "todo"], next: "Confirm the brief on Start", nextHref: "#/projects/ped/start", openQ: 2, updated: "2026-11-18", members: 2 },
+    { id: "old", name: "Pilot 2026-Q3", drug: "Testamide", app: "Food effect", risk: "low", ownerOther: "Mei Chen", archived: "2026-10-30 · superseded by the reformulation project",
+      steps: ["done", "done", "todo", "todo"], next: "Archived", nextHref: "#/projects/old", openQ: 0, updated: "2026-10-30", members: 2 },
+  ],
+  campaigns: [
+    { id: "camp-7f3a", project: "ren", compound: "Renalide", status: "Escalated", stage: "S1 · IV disposition", started: "2026-11-22 09:14", budget: 18 },
+    { id: "camp-3d20", project: "ren", compound: "Renalide", status: "Running", stage: "S2 · oral fasted", started: "2026-11-22 11:02", budget: 41 },
+    { id: "camp-55c0", project: "ren", compound: "Renalide", status: "Stopped", stage: "S1 · IV disposition", started: "2026-11-19 16:40", budget: 100 },
+  ],
+  stepNames: ["Start", "Data", "Review & sign", "Run"],
+  agents: [
+    ["A1", "reads the proposal (Start)"], ["A2", "searches the literature"], ["A3", "finds observed data"], ["A4", "reads the client's files"],
+    ["A5", "drafts the model plan"], ["A6", "Data room: the question"], ["A7", "Data room: sorts the files"], ["A8", "Data room: extracts"],
+    ["A9", "Data room: checks the extraction"], ["A10", "Data room: writes findings and requests"],
+  ],
+};
+const P = (id) => M.projects.find((p) => p.id === id) || null;
+const C = (id) => M.campaigns.find((c) => c.id === id) || null;
+const activeProjects = () => M.projects.filter((p) => !p.archived);
+
+/* Your work: links only, per role (owner decision G1-3) */
+function workItems() {
+  const owner = [
+    { kind: "To decide", what: "Check how 3 tables are read", project: "exa", step: "Data · Inputs", since: "2026-11-21", href: "#/projects/exa/inputs/todo" },
+    { kind: "Missing", what: "Fill in 6 compound values", project: "exa", step: "Data · Inputs", since: "2026-11-21", href: "#/projects/exa/inputs/todo" },
+    { kind: "To decide", what: "9 Data room decisions", project: "exa", step: "Data · Data room", since: "2026-11-21", href: "#/projects/exa/dataroom/decisions" },
+    { kind: "To confirm", what: "Confirm study EX-01", project: "exa", step: "Data · Inputs", since: "2026-11-21", href: "#/projects/exa/inputs/studies" },
+    { kind: "To confirm", what: "Confirm the brief", project: "ped", step: "Start", since: "2026-11-18", href: "#/projects/ped/start" },
+  ];
+  const sign = [
+    { kind: "To sign", what: "Sign the model analysis plan", project: "pla", step: "Review & sign", since: "2026-11-20", href: "#/projects/pla/plan" },
+    { kind: "To decide", what: "Decide the S1 escalation (signed)", project: "ren", step: "Run · camp-7f3a", since: "2026-11-22", href: "#/campaigns/camp-7f3a" },
+  ];
+  if (ROLE === "owner") return [...sign, ...owner];
+  if (ROLE === "admin") return [...sign, ...owner, { kind: "To decide", what: "A provider key is 97 days old: rotate it", project: null, step: "Admin · Keys", since: "2026-11-23", href: "#/admin/keys" }];
+  if (ROLE === "reviewer") return sign;
+  return [];
+}
+
+/* ---------- small builders ---------- */
+const STATUS_CLASS = { "Missing": "b-missing", "To confirm": "b-confirm", "To decide": "b-decide", "To sign": "b-decide", "Done": "b-done" };
+const badge = (text, cls) => `<span class="badge ${cls || STATUS_CLASS[text] || "b-neutral"}">${esc(text)}</span>`;
+const riskBadge = (r) => badge(`${r[0].toUpperCase()}${r.slice(1)} risk`, `b-${r}`);
+const runBadge = (s) => badge(s, { Escalated: "b-decide", Running: "b-accent", Stopped: "b-neutral", Passed: "b-pass", Failed: "b-fail", Proposed: "b-outline", Done: "b-done" }[s] || "b-neutral");
+const STEP_ICON = { done: ["✓", "done", "Done"], needs: ["●", "needs", "Needs you"], prog: ["◐", "", "In progress"], todo: ["○", "", "Not started"] };
+const stepsMini = (steps) => `<span class="steps-mini" role="img" aria-label="${steps.map((s, i) => `${M.stepNames[i]}: ${STEP_ICON[s][2]}`).join(", ")}">${steps.map((s) => `<i class="${s === "todo" ? "" : s === "prog" ? "prog" : s}"></i>`).join("")}</span>`;
+const mock = (t = "MOCK") => `<span class="badge b-outline" title="Invented for the wireframe">${t}</span>`;
+const src = (label, key) => `<button class="chip" data-split="src" data-arg="${esc(key || label)}">▤ ${esc(label)}</button>`;
+const ph = (title, text) => `<div class="ph-box"><div><strong>${esc(title)}</strong>${esc(text)}</div></div>`;
+const kv = (pairs) => `<dl class="kv">${pairs.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${v}</dd>`).join("")}</dl>`;
+const btn = (label, opts = {}) => {
+  const cls = `btn ${opts.kind || ""} ${opts.small ? "small" : ""}`;
+  const data = opts.dialog ? `data-dialog="${opts.dialog}" data-arg="${esc(opts.arg || "")}"` : opts.split ? `data-split="${opts.split}" data-arg="${esc(opts.arg || "")}"` : "";
+  if (opts.href) return `<a class="${cls}" href="${opts.href}">${esc(label)}</a>`;
+  return `<button type="button" class="${cls}" ${data} ${opts.disabled ? `disabled title="${esc(opts.why || "")}"` : ""}>${esc(label)}</button>`;
+};
+const panel = (title, body, opts = {}) =>
+  `<section class="panel"${opts.id ? ` id="${opts.id}"` : ""}>${title ? `<div class="ph"><h2>${title}</h2>${opts.actions || ""}</div>` : ""}<div class="pb ${opts.flush ? "flush" : ""}">${body}</div></section>`;
+let TID = 0;
+/** A table with optional filter box, sortable headers and clickable rows (data-split on a row opens the split panel). */
+function table(cols, rows, opts = {}) {
+  const id = `t${++TID}`;
+  const head = cols.map((c) => `<th scope="col" ${c.sort === false ? "" : `data-sort="${c.num ? "num" : "text"}"`} class="${c.num ? "num" : ""}">${esc(c.label)}</th>`).join("");
+  const body = rows.length ? rows.map((r) => {
+    const cells = Array.isArray(r) ? r : r.cells;
+    const attrs = Array.isArray(r) ? "" : `class="clickable" tabindex="0" data-split="${r.split}" data-arg="${esc(r.arg)}"`;
+    return `<tr ${attrs}>${cells.map((c, i) => `<td class="${cols[i] && cols[i].num ? "num" : ""}">${c}</td>`).join("")}</tr>`;
+  }).join("") : `<tr><td colspan="${cols.length}" class="empty">${esc(opts.empty || "Nothing here yet.")}</td></tr>`;
+  const tools = opts.filter || opts.tools ? `<div class="toolbar">${opts.filter ? `<input type="search" placeholder="${esc(opts.filter)}" data-filter="${id}" aria-label="${esc(opts.filter)}">` : ""}${opts.tools || ""}</div>` : "";
+  const foot = opts.foot !== false && rows.length ? `<div class="table-foot"><span>${rows.length} ${rows.length === 1 ? "row" : "rows"}</span>${opts.footRight || ""}</div>` : "";
+  return `${tools}<div class="tablewrap"><table id="${id}" aria-label="${esc(opts.label || "")}"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>${foot}`;
+}
+function tabs(items, current, base) {
+  return `<nav class="tabs" aria-label="Sections">${items.map(([key, label, count]) =>
+    `<a href="${base}/${key}" ${key === current ? 'aria-current="page"' : ""}>${esc(label)}${count != null ? ` <span class="count neutral">${count}</span>` : ""}</a>`).join("")}</nav>`;
+}
+const flash = (type, html, dismiss = true) => `<div class="flash ${type}" role="${type === "err" ? "alert" : "status"}">${html}${dismiss ? '<button class="x" aria-label="Dismiss" data-dismiss>×</button>' : ""}</div>`;
+
+/* ---------- router ---------- */
+const ROUTES = [];
+const route = (pattern, fn) => ROUTES.push([new RegExp(`^${pattern.replace(/:(\w+)/g, "(?<$1>[^/]+)")}$`), fn]);
+function resolve(path) {
+  for (const [re, fn] of ROUTES) { const m = re.exec(path); if (m) return fn(m.groups || {}) || null; }
+  return null;
+}
+let pendingFlash = [];
+function pushFlash(type, html) { const f = $("#flashes"); if (f) f.insertAdjacentHTML("beforeend", flash(type, html)); else pendingFlash.push(flash(type, html)); }
+
+/* ---------- shell ---------- */
+function navProject(p, key) {
+  const step = (i, label, href, k, sub) => {
+    const s = p.steps[i];
+    const [icon, cls, word] = STEP_ICON[s];
+    return `<a class="item ${sub ? "sub" : ""}" href="${href}" ${key === k ? 'aria-current="page"' : ""}><span class="si ${cls}" aria-label="${word}">${sub ? "" : icon}</span>${label}</a>`;
+  };
+  const item = (label, href, k, icon = "") => `<a class="item" href="${href}" ${key === k ? 'aria-current="page"' : ""}><span class="si" aria-hidden="true">${icon}</span>${label}</a>`;
+  const b = `#/projects/${p.id}`;
+  return `<a class="back" href="#/projects">← All projects</a>
+    <div class="proj"><strong>${esc(p.name)}</strong><span class="muted small">${esc(p.drug)} · ${esc(p.app)}</span><div class="mt8">${riskBadge(p.risk)} ${p.archived ? badge("Archived", "b-neutral") : ""}</div></div>
+    ${item("Overview", b, "overview", "⌂")}
+    <div class="group">Workflow</div>
+    ${step(0, "1 · Start", `${b}/start`, "start")}
+    ${step(1, "2 · Data", `${b}/dataroom`, "data-head")}
+    ${step(1, "Data room", `${b}/dataroom`, "dataroom", true)}
+    ${step(1, "Inputs", `${b}/inputs`, "inputs", true)}
+    ${step(1, "Data plan", `${b}/data-plan`, "data-plan", true)}
+    ${step(2, "3 · Review &amp; sign", `${b}/plan`, "plan")}
+    ${step(3, "4 · Run", `${b}/campaigns`, "campaigns")}
+    <div class="group">Records</div>
+    ${item("Compounds", `${b}/compounds`, "compounds")}
+    ${item("Documents", `${b}/library`, "library")}
+    ${item("Agent activity", `${b}/agent-activity`, "agents")}
+    ${item("History", `${b}/history`, "history")}
+    <div class="group">Project</div>
+    ${item("Members", `${b}/members`, "members")}
+    ${item("Settings", `${b}/settings`, "settings")}`;
+}
+function navPortfolio(key) {
+  const item = (label, href, k, icon) => `<a class="item" href="${href}" ${key === k ? 'aria-current="page"' : ""}><span class="si" aria-hidden="true">${icon}</span>${label}</a>`;
+  return `<div class="group">Modeler One</div>
+    ${item("Home", "#/", "home", "⌂")}
+    ${item(`Your work <span class="count ${workItems().length ? "" : "zero"}">${workItems().length}</span>`, "#/work", "work", "☰")}
+    ${item("Projects", "#/projects", "projects", "▦")}
+    ${item("Campaigns", "#/campaigns", "campaigns", "▶")}
+    ${item("Help", "#/help", "help", "?")}
+    ${can("admin") ? `<div class="group">Platform</div>${item("Admin console", "#/admin", "admin", "⚙")}` : ""}`;
+}
+function navAdmin(key) {
+  const item = (label, href, k) => `<a class="item" href="${href}" ${key === k ? 'aria-current="page"' : ""}><span class="si" aria-hidden="true"></span>${label}</a>`;
+  return `<a class="back" href="#/">← Modeler One</a><div class="group">Platform administration</div>
+    ${item("Overview", "#/admin", "overview")}${item("Companies", "#/admin/companies", "companies")}${item("People", "#/admin/people", "people")}
+    ${item("Usage and cost", "#/admin/usage", "usage")}${item("Agents and models", "#/admin/models", "models")}${item("Keys", "#/admin/keys", "keys")}
+    ${item("Limits", "#/admin/limits", "limits")}${item("Intake pipeline", "#/admin/pipeline", "pipeline")}${item("System status", "#/admin/system", "system")}
+    <div class="group">Future</div>${item("Platform audit log", "#/admin/audit", "audit")}`;
+}
+
+function stateBody(page) {
+  if (STATE === "loading") return `<div class="panel"><div class="pb" aria-busy="true" aria-label="Loading">${Array.from({ length: 6 }, (_, i) => `<div class="skel" style="width:${92 - i * 9}%"></div>`).join("")}</div></div>`;
+  if (STATE === "error") return flash("err", "<strong>The API did not answer.</strong> Nothing on this page is current. <button class='btn small' data-retry>Try again</button>", false) +
+    `<div class="empty"><h2>No data to show</h2><p>The page shows nothing rather than an old or sample copy.</p></div>`;
+  if (STATE === "empty") return `<div class="panel"><div class="empty"><h2>${esc(page.emptyTitle || "Nothing here yet")}</h2><p>${esc(page.empty || "When there is something to show, it appears here.")}</p>${page.emptyAction || ""}</div></div>`;
+  return page.body;
+}
+
+function render() {
+  const path = (location.hash.replace(/^#/, "") || "/").replace(/\/+$/, "") || "/";
+  let page = resolve(path) || resolve("/404");
+  closeSplit(); closePopover();
+  const ctx = page.ctx || "portfolio";
+  const nav = ctx === "project" ? navProject(page.project, page.nav) : ctx === "admin" ? navAdmin(page.nav) : navPortfolio(page.nav);
+  $("#sidenav").innerHTML = nav;
+  $("#sidenav").setAttribute("aria-label", ctx === "project" ? "This project" : ctx === "admin" ? "Platform administration" : "Main");
+  const crumbs = (page.crumbs || []).map(([l, h], i, a) => i === a.length - 1 ? `<span aria-current="page">${esc(l)}</span>` : `<a href="${h}">${esc(l)}</a><span class="sep">/</span>`).join("");
+  const ro = ctx === "project" && !can("edit") && !page.noReadOnly
+    ? flash("info", `<span><strong>Shared with you to read.</strong> Only the owner, ${esc(page.project.ownerOther)}, changes this project${can("sign") ? "; as a reviewer you may sign where a signature is asked" : ""}.</span>`, false) : "";
+  const esc1 = ctx === "project" && page.project.id === "ren" && can("sign") && !page.isCampaign
+    ? flash("warn", `<span><strong>A decision is waiting.</strong> Campaign camp-7f3a stopped at S1 · IV disposition and needs a signed decision.</span> <a class="btn small" href="#/campaigns/camp-7f3a">Open the campaign</a>`, false) : "";
+  const arch = ctx === "project" && page.project.archived ? flash("info", `<strong>Archived</strong> ${esc(page.project.archived)}. Restore it from Settings to change it.`, false) : "";
+  $("#page").innerHTML = `
+    ${crumbs ? `<nav class="crumbs" aria-label="Breadcrumbs">${crumbs}</nav>` : '<div style="height:12px"></div>'}
+    ${page.bare ? "" : `<div class="page-head">
+      <div class="titles"><div class="title-row"><h1>${page.title}</h1>${page.badge || ""}${page.help ? '<button class="info-link" data-help>Info</button>' : ""}</div>
+      ${page.desc ? `<p class="desc">${page.desc}</p>` : ""}</div>
+      <div class="actions">${STATE === "normal" ? (page.actions || "") : ""}<span class="proto-tag" title="Page id in design-review/PAGE_INVENTORY.md">${esc(page.id || "")}</span></div></div>`}
+    <div id="flashes">${arch}${ro}${esc1}${pendingFlash.join("")}</div>
+    ${stateBody(page)}`;
+  pendingFlash = [];
+  const help = $("#help");
+  help.innerHTML = page.help ? `<header><h2>${page.title}</h2><button class="btn small" data-help-close aria-label="Close help">Close</button></header><div class="small">${page.help}</div>` : "";
+  if (!page.help) help.hidden = true;
+  $("#workCount").textContent = workItems().length;
+  $("#workCount").className = `count ${workItems().length ? "" : "zero"}`;
+  $("#userName").textContent = `${M.me}`;
+  $("#roleNow").textContent = `Now: ${ROLES[ROLE].label}`;
+  document.title = `${page.titleText || page.title.replace(/<[^>]+>/g, "")} · Modeler One Wireframes`;
+  $("#sidenav").classList.remove("open"); $("#menuBtn").setAttribute("aria-expanded", "false");
+  if (page.after) page.after();
+}
+
+/* ---------- split panel, dialogs, popovers ---------- */
+const SPLITS = {};
+function openSplit(name, arg) {
+  const fn = SPLITS[name]; if (!fn) return;
+  const s = fn(arg);
+  $("#split-root").innerHTML = `<aside class="split" role="complementary" aria-label="${esc(s.title)}"><header><h2>${esc(s.title)}</h2>${s.actions || ""}<button class="btn small" data-split-close>Close</button></header><div class="body">${s.body}</div></aside>`;
+  $("#split-root .split [data-split-close]").focus();
+}
+function closeSplit() { $("#split-root").innerHTML = ""; $$("tr.selected").forEach((r) => r.classList.remove("selected")); }
+
+const DIALOGS = {};
+let lastFocus = null;
+function openDialog(name, arg) {
+  const fn = DIALOGS[name]; if (!fn) return;
+  const d = fn(arg);
+  lastFocus = document.activeElement;
+  $("#dialog-root").innerHTML = `<div class="backdrop" data-backdrop><div class="dialog" role="dialog" aria-modal="true" aria-labelledby="dlg-title">
+    <header><h2 id="dlg-title">${esc(d.title)}</h2></header><div class="body">${d.body}<p class="err-text" id="dlg-err" hidden></p></div>
+    <footer><button class="btn" data-dialog-cancel>${esc(d.cancel || "Cancel")}</button>${d.primary === false ? "" : `<button class="btn ${d.danger ? "danger" : "primary"}" data-dialog-ok>${esc(d.primary || "Save")}</button>`}</footer></div></div>`;
+  const first = $("#dialog-root .dialog input, #dialog-root .dialog select, #dialog-root .dialog textarea, #dialog-root .dialog button");
+  (first || $("#dialog-root .dialog")).focus();
+  $("#dialog-root").dataset.name = name; $("#dialog-root").dataset.arg = arg || "";
+}
+function closeDialog() { $("#dialog-root").innerHTML = ""; if (lastFocus && lastFocus.focus) lastFocus.focus(); }
+function dialogOk() {
+  const name = $("#dialog-root").dataset.name; const d = DIALOGS[name]($("#dialog-root").dataset.arg);
+  const reason = $("#dialog-root [data-required]");
+  if (reason && !reason.value.trim()) { const e = $("#dlg-err"); e.hidden = false; e.textContent = reason.dataset.required; reason.focus(); return; }
+  closeDialog();
+  if (d.then) { d.then(); return; }
+  pushFlash("ok", `<span><strong>${esc(d.done || "Done")}.</strong> Prototype only: nothing was saved or sent.</span>`);
+}
+function closePopover() { $("#popover-root").innerHTML = ""; $("#switcherBtn").setAttribute("aria-expanded", "false"); $("#userBtn").setAttribute("aria-expanded", "false"); }
+function openPopover(anchor, html) {
+  const r = anchor.getBoundingClientRect();
+  $("#popover-root").innerHTML = `<div class="popover" style="top:${r.bottom + window.scrollY + 4}px;left:${Math.max(8, Math.min(r.left, window.innerWidth - 280))}px">${html}</div>`;
+  anchor.setAttribute("aria-expanded", "true");
+  const f = $("#popover-root input, #popover-root a, #popover-root button"); if (f) f.focus();
+}
+
+/* ---------- behaviours (event delegation) ---------- */
+document.addEventListener("click", (e) => {
+  const t = e.target.closest("[data-dialog],[data-split],[data-split-close],[data-dialog-cancel],[data-dialog-ok],[data-backdrop],[data-help],[data-help-close],[data-dismiss],[data-retry],th[data-sort],#switcherBtn,#userBtn,#apiDot,#menuBtn,#resetBtn,[data-proto]");
+  if (!t) { if (!e.target.closest(".popover")) closePopover(); return; }
+  if (t.matches("[data-backdrop]") && e.target !== t) return;
+  if (t.matches("[data-dialog]")) { e.preventDefault(); openDialog(t.dataset.dialog, t.dataset.arg); }
+  else if (t.matches("[data-split]")) { e.preventDefault(); $$("tr.selected").forEach((r) => r.classList.remove("selected")); if (t.tagName === "TR") t.classList.add("selected"); openSplit(t.dataset.split, t.dataset.arg); }
+  else if (t.matches("[data-split-close]")) closeSplit();
+  else if (t.matches("[data-dialog-cancel],[data-backdrop]")) closeDialog();
+  else if (t.matches("[data-dialog-ok]")) dialogOk();
+  else if (t.matches("[data-help]")) { $("#help").hidden = false; $("#help [data-help-close]").focus(); }
+  else if (t.matches("[data-help-close]")) { $("#help").hidden = true; }
+  else if (t.matches("[data-dismiss]")) t.closest(".flash").remove();
+  else if (t.matches("[data-retry]")) { STATE = "normal"; $("#stateSel").value = "normal"; render(); }
+  else if (t.matches("th[data-sort]")) sortBy(t);
+  else if (t.id === "menuBtn") { const o = $("#sidenav").classList.toggle("open"); t.setAttribute("aria-expanded", String(o)); }
+  else if (t.id === "apiDot") pushFlash("ok", "<span><strong>The API answers.</strong> (Prototype: no request was made.)</span>");
+  else if (t.id === "resetBtn") { store.set("mo-proto-role", "owner"); ROLE = "owner"; STATE = "normal"; $("#roleSel").value = "owner"; $("#stateSel").value = "normal"; location.hash = "#/"; render(); }
+  else if (t.id === "switcherBtn") {
+    if ($("#popover-root .popover")) { closePopover(); return; }
+    openPopover(t, `<input type="search" placeholder="Find a project or drug" aria-label="Find a project" id="swq"><div id="swl">${switcherList("")}</div><div class="sep"></div><a href="#/projects">All projects</a>`);
+  } else if (t.id === "userBtn") {
+    if ($("#popover-root .popover")) { closePopover(); return; }
+    openPopover(t, `<div class="small" style="padding:6px 10px"><strong>${esc(M.me)}</strong><br>${esc(M.company)}<br>${esc(ROLES[ROLE].label)}</div><div class="sep"></div><a href="#/help">Help</a><a href="#/signed-out">Sign out</a>`);
+  }
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") { if ($("#dialog-root").innerHTML) closeDialog(); else if ($("#popover-root").innerHTML) closePopover(); else if ($("#split-root").innerHTML) closeSplit(); else if (!$("#help").hidden) $("#help").hidden = true; }
+  if (e.key === "Enter" && e.target.matches("tr[data-split]")) e.target.click();
+  if (e.key === "Tab" && $("#dialog-root").innerHTML) {
+    const f = $$("#dialog-root input, #dialog-root select, #dialog-root textarea, #dialog-root button").filter((x) => !x.disabled);
+    if (!f.length) return;
+    if (e.shiftKey && document.activeElement === f[0]) { e.preventDefault(); f[f.length - 1].focus(); }
+    else if (!e.shiftKey && document.activeElement === f[f.length - 1]) { e.preventDefault(); f[0].focus(); }
+  }
+});
+document.addEventListener("input", (e) => {
+  if (e.target.matches("[data-filter]")) {
+    const q = e.target.value.toLowerCase(); const tb = $(`#${e.target.dataset.filter} tbody`);
+    $$("tr", tb).forEach((r) => { r.hidden = q && !r.textContent.toLowerCase().includes(q); });
+  }
+  if (e.target.id === "swq") $("#swl").innerHTML = switcherList(e.target.value);
+});
+function switcherList(q) {
+  const list = activeProjects().filter((p) => `${p.name} ${p.drug}`.toLowerCase().includes(q.toLowerCase()));
+  return list.length ? list.map((p) => `<a href="#/projects/${p.id}">${esc(p.name)} <span class="muted small">· ${esc(p.drug)}</span></a>`).join("") : '<p class="muted small" style="padding:6px 10px">No project matches.</p>';
+}
+function sortBy(th) {
+  const table = th.closest("table"); const i = Array.from(th.parentNode.children).indexOf(th);
+  const dir = th.getAttribute("aria-sort") === "ascending" ? "descending" : "ascending";
+  $$("th", table).forEach((x) => x.removeAttribute("aria-sort")); th.setAttribute("aria-sort", dir);
+  const rows = $$("tbody tr", table); const num = th.dataset.sort === "num";
+  rows.sort((a, b) => {
+    const x = a.children[i]?.textContent.trim() ?? ""; const y = b.children[i]?.textContent.trim() ?? "";
+    const r = num ? (parseFloat(x.replace(/[^\d.-]/g, "")) || 0) - (parseFloat(y.replace(/[^\d.-]/g, "")) || 0) : x.localeCompare(y);
+    return dir === "ascending" ? r : -r;
+  });
+  rows.forEach((r) => table.tBodies[0].appendChild(r));
+}
+
+/* ---------- shared dialogs ---------- */
+DIALOGS.stepup = (what) => ({
+  title: "Sign with your identity provider",
+  body: `<p>You are signing: <strong>${esc(what || "this record")}</strong>.</p>
+    <p>Meaning of the signature: <strong>Approved</strong> (21 CFR Part 11). Your name, the time and the record's fingerprint are kept with it.</p>
+    ${flash("info", "<span>Your identity provider opens next and asks you to confirm (password and authenticator code). <strong>They are entered there, never in Modeler One.</strong></span>", false)}`,
+  primary: "Continue to sign", done: "Signed (mock signature)",
+});
+DIALOGS.reason = (what) => ({
+  title: what || "Give a reason",
+  body: `<label class="field"><span>Reason</span><textarea data-required="Give a reason: it is kept in the audit trail." placeholder="Why, in a sentence"></textarea><span class="hint">Kept in the project's audit trail with your name and the time.</span></label>`,
+  primary: "Confirm", done: what || "Done",
+});
+DIALOGS.impact = (what) => ({
+  title: "What this changes",
+  body: `<p>Saving <strong>${esc(what || "this value")}</strong> makes these out of date. Nothing is changed until you save.</p>
+    ${table([{ label: "Record" }, { label: "Status now" }, { label: "After saving" }], [
+      ["Model inputs (signed confirmation, study EX-01)", badge("Done"), badge("To confirm")],
+      ["Model analysis plan v2 (signed)", badge("Done"), badge("Out of date", "b-decide")],
+    ], { foot: false })}<p class="small muted mt8">From <code>POST /projects/{id}/impact</code>, which saves nothing.</p>`,
+  primary: "Save anyway", done: "Saved; 2 records are now out of date",
+});
+DIALOGS.archive = (name) => ({
+  title: `Archive ${name || "this project"}`,
+  body: `<p>An archived project is kept as a record and can be restored. Nothing is deleted.</p><label class="field"><span>Reason</span><textarea data-required="Give a reason: it is kept in the audit trail."></textarea></label>`,
+  primary: "Archive", danger: true, done: "Project archived",
+});
+DIALOGS.escalation = (cid) => ({
+  title: `Decide: ${cid} stopped at S1 · IV disposition`,
+  body: `<h3>What happened</h3><p>Exposure is off with no specific diagnosis after 4 rounds; no permitted action is left (MS-01 §4). ${mock()}</p>
+    <fieldset style="border:0;padding:0;margin:8px 0"><legend class="small muted">Decision</legend>
+    <label class="gap8"><input type="radio" name="d" checked> Retry the stage (after adding data or relaxing a bound)</label>
+    <label class="gap8"><input type="radio" name="d"> Accept the best so far and continue</label>
+    <label class="gap8"><input type="radio" name="d"> Stop the campaign</label></fieldset>
+    <label class="field"><span>Note</span><textarea placeholder="Optional"></textarea></label>
+    <p class="small muted">A decision resumes the campaign only with your signature (step-up next).</p>`,
+  primary: "Sign and decide", then: () => openDialog("stepup", `the S1 decision on ${cid}`),
+});
+
+/* ============================================================================================================
+   Portfolio pages (P-01 … P-05, P-30) and system pages
+   ============================================================================================================ */
+const projLink = (p) => `<a href="#/projects/${p.id}">${esc(p.name)}</a>`;
+const workTable = (items, opts = {}) => table(
+  [{ label: "Item" }, { label: "Project" }, { label: "Step" }, { label: "Status" }, { label: "Waiting since" }, { label: "", sort: false }],
+  items.map((w) => [esc(w.what), w.project ? projLink(P(w.project)) : '<span class="muted">Platform</span>', esc(w.step), badge(w.kind), esc(w.since), `<a class="btn small" href="${w.href}">Open</a>`]),
+  { empty: "Nothing waits on you.", label: "Your work", ...opts });
+
+route("/", () => {
+  const items = workItems(); const act = activeProjects();
+  const counts = [["Projects", act.length], ["Running campaigns", M.campaigns.filter((c) => c.status === "Running").length],
+    ["Waiting on a person", act.filter((p) => p.steps.includes("needs")).length], ["Open questions", act.reduce((n, p) => n + p.openQ, 0)]];
+  return {
+    id: "P-01", nav: "home", title: "Home", crumbs: [],
+    desc: "What waits on you, what is running, and where each program stands.",
+    actions: can("create") ? btn("Create project", { kind: "primary", href: "#/projects/start" }) : "",
+    help: "<p>Home summarises your work across projects. Nothing is decided here: each link opens the page where the decision is made (the owner's rule of 11 Nov).</p><p>Counters are filters into the Projects list.</p>",
+    empty: "You have no projects yet. Create one from a client's proposal.", emptyTitle: "No projects", emptyAction: can("create") ? btn("Create project", { kind: "primary", href: "#/projects/start" }) : "",
+    body: `<div class="cols"><div>
+      ${panel(`Your work <span class="count ${items.length ? "" : "zero"}">${items.length}</span>`, workTable(items.slice(0, 5), { foot: false }), { flush: true, actions: `<a href="#/work">View all</a>` })}
+      ${panel("Projects", table([{ label: "Project" }, { label: "Steps", sort: false }, { label: "Next action" }, { label: "Risk" }, { label: "Updated" }],
+        act.map((p) => [projLink(p), stepsMini(p.steps), `<a href="${p.nextHref}">${esc(p.next)}</a>`, riskBadge(p.risk), esc(p.updated)]), { foot: false }), { flush: true, actions: `<a href="#/projects">All projects</a>` })}
+    </div><div>
+      ${panel("Portfolio", kv(counts.map(([k, v]) => [k, `<a href="#/projects">${v}</a>`])) + `<p class="small muted mt8">${mock("MOCK counts")}</p>`)}
+      ${panel("Risk across programs", table([{ label: "Model risk" }, { label: "Projects", num: true }], [["Low", 1], ["Medium", 2], ["High", 1]].map(([r, n]) => [riskBadge(r.toLowerCase()), n]), { foot: false }), { flush: true })}
+      ${panel("Recent campaigns", `<ul class="list-plain">${M.campaigns.map((c) => `<li><a href="#/campaigns/${c.id}"><code>${c.id}</code></a> ${runBadge(c.status)} <span class="muted small">${esc(P(c.project).name)} · ${esc(c.stage)}</span></li>`).join("")}</ul>`)}
+    </div></div>`,
+  };
+});
+
+route("/work", () => {
+  const items = workItems();
+  return {
+    id: "P-02", nav: "work", title: "Your work", crumbs: [["Home", "#/"], ["Your work", ""]],
+    desc: "Everything that waits on you, across projects. Nothing is decided here: Open goes to the page where it is decided.",
+    help: "<p>A list of links (owner's decision G1-3). Filters: project, kind and status word. Signing and decisions happen on the project's own page, with the step-up.</p><p>Later, the project list carries each project's step state, so this list loads in one request.</p>",
+    empty: "Nothing waits on you.", emptyTitle: "All clear",
+    body: panel("", table([{ label: "Item" }, { label: "Project" }, { label: "Step" }, { label: "Status" }, { label: "Waiting since" }, { label: "", sort: false }],
+      items.map((w) => [esc(w.what), w.project ? projLink(P(w.project)) : '<span class="muted">Platform</span>', esc(w.step), badge(w.kind), esc(w.since), `<a class="btn small" href="${w.href}">Open</a>`]),
+      { filter: "Filter by text", tools: `<select aria-label="Kind"><option>All kinds</option><option>To sign</option><option>To decide</option><option>To confirm</option><option>Missing</option></select><select aria-label="Project"><option>All projects</option>${activeProjects().map((p) => `<option>${esc(p.name)}</option>`).join("")}</select>`, empty: "Nothing waits on you." }), { flush: true }),
+  };
+});
+
+route("/projects", () => {
+  const rows = M.projects.map((p) => [projLink(p) + (p.archived ? ` ${badge("Archived", "b-neutral")}` : ""), esc(p.drug), stepsMini(p.steps), `<a href="${p.nextHref}">${esc(p.next)}</a>`, riskBadge(p.risk), String(p.openQ), esc(ownerName(p)), esc(p.updated),
+    can("edit") ? btn(p.archived ? "Restore" : "Archive", { small: true, dialog: p.archived ? "reason" : "archive", arg: p.archived ? `Restore ${p.name}` : p.name }) : '<span class="muted small">—</span>']);
+  return {
+    id: "P-03", nav: "projects", title: "Projects", crumbs: [["Home", "#/"], ["Projects", ""]],
+    desc: ROLE === "qa" ? "Every project of your company (QA reads all; proposed default)." : "The projects you own or that are shared with you.",
+    actions: can("create") ? btn("Create project", { kind: "primary", href: "#/projects/start" }) : "",
+    help: "<p>Sort by any column; filter by text. Archive keeps the project as a record (never deleted) and asks for a reason.</p><p>Cards view stays available as an option.</p>",
+    empty: "No projects yet. Create one from a client's proposal.", emptyTitle: "No projects",
+    body: panel("", table([{ label: "Project" }, { label: "Drug" }, { label: "Steps", sort: false }, { label: "Next action" }, { label: "Risk" }, { label: "Open questions", num: true }, { label: "Owner" }, { label: "Updated" }, { label: "", sort: false }],
+      rows, { filter: "Find a project or drug", tools: `<label class="gap8 small"><input type="checkbox" checked> Show archived</label><span class="grow"></span><span class="small muted">View:</span> <button class="btn small" aria-pressed="true">Table</button><button class="btn small" aria-pressed="false" title="Cards view: same data as cards (not drawn in the wireframe)">Cards</button>` }), { flush: true }),
+  };
+});
+
+route("/projects/start", () => ({
+  id: "P-04", nav: "projects", title: "Create project", crumbs: [["Home", "#/"], ["Projects", "#/projects"], ["Create project", ""]],
+  desc: "Start from the client's proposal and files, in one upload. Nothing is approved here.",
+  help: "<p>Each file gets a tag (proposal, client data, literature, other). When a file's content contradicts its tag, a proposal appears and is decided in one click.</p><p>There is no 'start from a reference model' option (owner, Q2).</p>",
+  body: !can("create") ? flash("info", "Your role cannot create projects.", false) : `<div class="cols"><div>${panel("Project", `
+    <label class="field"><span>Drug <span class="err-text">*</span></span><input value="Exampleamide" aria-required="true"><span class="hint">As the proposal names it.</span></label>
+    <label class="field"><span>Project name</span><input placeholder="Exampleamide reformulation"><span class="hint">Optional; the drug name is used if empty.</span></label>`)}
+    ${panel("Files", `<div class="ph-box" style="min-height:110px"><div><strong>Drop the proposal and the client's files here</strong>or <button class="btn small">choose files</button> · up to 250 MB a file</div></div>
+    <div class="mt16">${table([{ label: "File" }, { label: "Size", num: true }, { label: "Tag" }, { label: "Note" }], [
+      ["proposal.pdf", "1.2 MB", `<select aria-label="Tag of proposal.pdf"><option>Proposal</option><option>Client data</option><option>Literature</option><option>Other</option></select>`, ""],
+      ["EX-01 PK listing.xlsx", "340 KB", `<select aria-label="Tag of EX-01 PK listing.xlsx"><option>Other</option><option>Client data</option></select>`, `<span class="badge b-decide">To decide</span> Its content reads as client data. <button class="btn small">Tag as client data</button> <button class="btn small link">Keep</button>`],
+      ["Smith 2019.pdf", "2.8 MB", `<select aria-label="Tag of Smith 2019.pdf"><option>Literature</option></select>`, ""],
+    ], { foot: false })}</div>`)}
+    <div class="gap8">${btn("Create project", { kind: "primary", dialog: "create" })}${btn("Cancel", { href: "#/projects" })}</div></div>
+    <div>${panel("What happens next", `<ol class="small" style="padding-left:18px;margin:0"><li>The proposal reader (A1) drafts the brief.</li><li>You confirm it on <strong>Start</strong>.</li><li>The client's files go to the <strong>Data room</strong>.</li></ol>`)}</div></div>`,
+}));
+DIALOGS.create = () => ({ title: "Create the project?", body: "<p>Exampleamide · 3 files. The proposal reader drafts the brief; nothing is approved.</p>", primary: "Create project", then: () => { location.hash = "#/projects/exa/start"; } });
+
+route("/campaigns", () => ({
+  id: "P-05", nav: "campaigns", title: "Campaigns", crumbs: [["Home", "#/"], ["Campaigns", ""]],
+  desc: "Every campaign of the projects you are a member of.",
+  help: "<p>Lists only your projects' campaigns (the membership filter fixed on 23 Nov, R-S01).</p>",
+  empty: "No campaign has run yet.", emptyTitle: "No campaigns",
+  body: panel("", table([{ label: "Campaign" }, { label: "Project" }, { label: "Compound" }, { label: "Status" }, { label: "Current stage" }, { label: "Started" }, { label: "Budget used", num: true }],
+    M.campaigns.map((c) => [`<a href="#/campaigns/${c.id}"><code>${c.id}</code></a>`, projLink(P(c.project)), esc(c.compound), runBadge(c.status), esc(c.stage), esc(c.started), `${c.budget} %`]),
+    { filter: "Filter campaigns", tools: `<select aria-label="Status"><option>All statuses</option><option>Running</option><option>Escalated</option><option>Stopped</option><option>Passed</option></select>` }), { flush: true }),
+}));
+
+const HELP_TOPICS = [
+  ["start", "Getting started", "<p>A project starts from a client's proposal. It moves through four steps: <strong>Start</strong> (the brief), <strong>Data</strong> (the Data room: what the client sent; Inputs: what goes into the model), <strong>Review &amp; sign</strong> (the model analysis plan, MAP) and <strong>Run</strong> (campaigns).</p>"],
+  ["words", "Status words", "<p>Four words, everywhere: <span class='badge b-missing'>Missing</span> no file or source gives it; <span class='badge b-confirm'>To confirm</span> the client's data wait for your sign-off; <span class='badge b-decide'>To decide</span> a choice only you can make; <span class='badge b-done'>Done</span>.</p>"],
+  ["sign", "Signatures", "<p>Signatures follow 21 CFR Part 11: they come from your identity provider's step-up. Modeler One never asks for your password.</p>"],
+  ["blind", "Blinding", "<p>External-validation studies are withheld until the MAP is signed, on every page.</p>"],
+  ["stages", "MS-01 stages", "<p>S0 readiness · S1 IV · S2 oral fasted · S3 formulation/fed · SJ joint refinement · S4 internal validation · S5 external validation · S6 prediction · S7 report and package.</p>"],
+  ["agents", "AI agents", "<p>Agents describe; code reads and checks every value; you decide. No agent types a number into the model.</p>"],
+];
+route("/help", () => ({ id: "P-30", nav: "help", title: "Help", crumbs: [["Home", "#/"], ["Help", ""]], desc: "How Modeler One works, in plain words.", body: helpBody("start") }));
+route("/help/:topic", ({ topic }) => ({ id: "P-30", nav: "help", title: "Help", crumbs: [["Home", "#/"], ["Help", "#/help"], [HELP_TOPICS.find((t) => t[0] === topic)?.[1] || "", ""]], desc: "How Modeler One works, in plain words.", body: helpBody(topic) }));
+function helpBody(topic) {
+  const t = HELP_TOPICS.find((x) => x[0] === topic) || HELP_TOPICS[0];
+  return `<div class="inpage"><nav aria-label="Help topics">${HELP_TOPICS.map(([k, l]) => `<a href="#/help/${k}" ${k === t[0] ? 'aria-current="page"' : ""}>${l}</a>`).join("")}</nav>${panel(t[1], t[2])}</div>`;
+}
+
+/* system pages */
+route("/404", () => ({ id: "SYS-404", title: "There is no page here", crumbs: [["Home", "#/"]], desc: "The address may be old or mistyped.", body: `<p><a class="btn primary" href="#/">Go to Home</a> <a class="btn" href="#/projects">Projects</a></p>` }));
+route("/error", () => ({ id: "SYS-ERR", title: "Something went wrong", crumbs: [["Home", "#/"]], desc: "The page could not be drawn.", body: flash("err", "<span><strong>Error.</strong> Reload the page; if it happens again, give the support reference <code>req-7c1e</code>.</span>", false) }));
+route("/signed-out", () => ({ id: "SYS-OUT", title: "You are signed out", crumbs: [], desc: "Sign in again through your company's identity provider.", body: btn("Sign in", { kind: "primary", href: "#/" }) }));
+
+/* index of every page (prototype only) */
+const INDEX = [
+  ["P-01", "Home", "#/", "R"], ["P-02", "Your work", "#/work", "N"], ["P-03", "Projects", "#/projects", "R"], ["P-04", "Create project", "#/projects/start", "R"],
+  ["P-05", "Campaigns (all projects)", "#/campaigns", "N"], ["P-30", "Help", "#/help", "N"],
+  ["P-10", "Project overview", "#/projects/exa", "N"], ["P-11", "Start", "#/projects/exa/start", "R"], ["P-12", "Data room", "#/projects/exa/dataroom", "R"],
+  ["P-12b", "Evidence report", "#/projects/exa/dataroom/report", "E"], ["P-13", "Inputs", "#/projects/exa/inputs", "R"], ["P-13b", "Data plan", "#/projects/exa/data-plan", "N"],
+  ["P-14", "Review & sign", "#/projects/pla/plan", "R"], ["P-15", "Campaigns (Run)", "#/projects/ren/campaigns", "R"], ["P-16", "Campaign", "#/campaigns/camp-7f3a", "R"],
+  ["P-17", "Compounds", "#/projects/exa/compounds", "N"], ["P-17b", "Compound (CPF)", "#/projects/exa/compounds/Exampleamide", "R"], ["P-18", "Documents", "#/projects/exa/library", "R"],
+  ["P-19", "Agent activity", "#/projects/exa/agent-activity", "N·be"], ["P-19b", "Agent run", "#/projects/exa/agent-activity/run-a8-0412", "N"], ["P-21", "History", "#/projects/exa/history", "R"],
+  ["P-22", "Members", "#/projects/exa/members", "R"], ["P-23", "Settings", "#/projects/exa/settings", "N"],
+  ["P-20", "Admin overview", "#/admin", "R"], ["P-24", "Companies", "#/admin/companies", "R"], ["P-24b", "Company", "#/admin/companies/northwind", "E"], ["P-25", "People", "#/admin/people", "E"],
+  ["P-26", "Usage and cost", "#/admin/usage", "E"], ["P-27", "Agents and models", "#/admin/models", "E"], ["P-28", "Keys", "#/admin/keys", "E"], ["P-29", "Limits", "#/admin/limits", "E"],
+  ["P-31", "Intake pipeline", "#/admin/pipeline", "E"], ["P-32", "System status", "#/admin/system", "N"], ["P-33", "Platform audit log (future)", "#/admin/audit", "F"],
+  ["SYS-404", "Not found", "#/no-such-page", "R"], ["SYS-ERR", "Error", "#/error", "R"], ["SYS-OUT", "Signed out", "#/signed-out", "E"],
+];
+route("/_index", () => ({
+  id: "INDEX", nav: "", title: "Index of all pages", crumbs: [["Home", "#/"], ["Index", ""]], noReadOnly: true,
+  desc: "Prototype only. Every page in design-review/PAGE_INVENTORY.md, with a link. Admin pages need the 'Platform admin' role in the prototype controls.",
+  body: panel("", table([{ label: "Id" }, { label: "Page" }, { label: "Status" }, { label: "Open", sort: false }], INDEX.map(([id, n, h, s]) => [`<code>${id}</code>`, esc(n), badge(s, "b-outline"), `<a href="${h}">${esc(h)}</a>`]), { filter: "Filter pages" }), { flush: true }),
+}));
+
+/* ============================================================================================================
+   Project pages (P-10 … P-23)
+   ============================================================================================================ */
+function pageOf(id, nav, crumbs, extra) {
+  const p = P(id); if (!p) return resolve("/404");
+  return { ctx: "project", project: p, nav, crumbs: [["Projects", "#/projects"], [p.name, `#/projects/${p.id}`], ...crumbs], ...extra };
+}
+const edit = (label, opts = {}) => (can("edit") && !opts.force) || (opts.sign && can("sign")) ? btn(label, opts) : "";
+
+/* P-10 Overview */
+route("/projects/:id", ({ id }) => {
+  const p = P(id); if (!p) return null;
+  const stepRows = M.stepNames.map((n, i) => {
+    const [icon, cls, word] = STEP_ICON[p.steps[i]];
+    const href = [`start`, `dataroom`, `plan`, `campaigns`][i];
+    return [`<span class="si ${cls}" aria-hidden="true">${icon}</span> <a href="#/projects/${p.id}/${href}">${i + 1} · ${n}</a>`, badge(word, p.steps[i] === "done" ? "b-done" : p.steps[i] === "needs" ? "b-decide" : "b-outline"), p.steps[i] === "needs" ? `<a href="${p.nextHref}">${esc(p.next)}</a>` : '<span class="muted">—</span>'];
+  });
+  return pageOf(id, "overview", [], {
+    id: "P-10", title: esc(p.name), badge: riskBadge(p.risk),
+    desc: `${esc(p.drug)} · ${esc(p.app)} · Owner: ${esc(ownerName(p))}`,
+    actions: `${can("edit") && !p.archived ? btn("Add data ▾", { dialog: "adddata", arg: p.id }) : ""}${!p.archived ? btn(`Next: ${p.next}`, { kind: "primary", href: p.nextHref }) : ""}`,
+    help: "<p>The project's home: where it stands, what is next, the questions it answers and what happened recently. It replaces the old Run page as the project's first page.</p>",
+    body: `<div class="cols"><div>
+      ${panel("Steps", table([{ label: "Step" }, { label: "State" }, { label: "Next" }], stepRows, { foot: false }), { flush: true })}
+      ${panel("Questions of interest", table([{ label: "Question" }, { label: "Application" }, { label: "Model risk" }, { label: "Stage" }, { label: "Failing criteria", num: true }],
+        [["Does the reformulated tablet perform like the reference in vivo?", esc(p.app), riskBadge(p.risk), "Inputs", "0"]], { foot: false }), { flush: true })}
+      ${panel("Recent activity", table([{ label: "When" }, { label: "Who" }, { label: "What" }], [
+        ["2026-11-22 16:04", "A8 · Data room: extracts", "Read 10 files; 3 conflicts found"], ["2026-11-22 15:41", esc(ownerName(p)), "Uploaded a delivery (10 files)"],
+        ["2026-11-21 10:12", esc(ownerName(p)), "Confirmed the brief"], ["2026-11-21 09:58", "A1 · reads the proposal", "Drafted the brief"]], { foot: false }), { flush: true, actions: `<a href="#/projects/${p.id}/history">Full history</a>` })}
+    </div><div>
+      ${panel("Open items", kv([["Missing", "11"], ["To confirm", "4"], ["To decide", "5"], ["Done", "32"]]) + `<p class="mt8"><a href="#/projects/${p.id}/inputs/todo">Go to To do</a></p>`)}
+      ${panel("Latest campaign", p.id === "ren" ? kv([["Campaign", `<a href="#/campaigns/camp-7f3a"><code>camp-7f3a</code></a>`], ["Status", runBadge("Escalated")], ["Stage", "S1 · IV disposition"]]) : '<p class="muted mb0">No campaign yet. It runs after the plan is signed.</p>')}
+      ${panel("Members", `<p class="mb0">${p.members} people · <a href="#/projects/${p.id}/members">Manage</a></p>`)}
+    </div></div>`,
+  });
+});
+DIALOGS.adddata = (pid) => ({ title: "Add data", body: `<p>What are you adding?</p><ul class="list-plain"><li><a href="#/projects/${pid}/dataroom" data-dialog-cancel>A client delivery</a> <span class="muted small">→ Data room</span></li><li><a href="#/projects/${pid}/library" data-dialog-cancel>Papers and other documents</a> <span class="muted small">→ Documents</span></li></ul><p class="small muted">Two upload paths remain until the owner picks the official "send to the model" (decision G1-1).</p>`, primary: false, cancel: "Close" });
+
+/* P-11 Start */
+route("/projects/:id/start", ({ id }) => {
+  const p = P(id); if (!p) return null;
+  const row = (label, value, status) => [esc(label), value, badge(status), edit("Set", { small: true, dialog: "setfield", arg: label })];
+  return pageOf(id, "start", [["Start", ""]], {
+    id: "P-11", title: "Start", badge: p.steps[0] === "done" ? badge("Done") : badge("To confirm"),
+    desc: "Confirm what the proposal reader drafted and say what is modelled. Nothing is approved here: the one review is the plan's signature.",
+    actions: `${edit("Read the proposal again", { dialog: "reason", arg: "Read the proposal again" })}${btn("Continue to Data", { kind: "primary", href: `#/projects/${id}/dataroom` })}`,
+    help: "<p>Each field drafted by the proposal reader (A1) waits on you until you set or confirm it. Saving a field that a signed record depends on first shows <em>What this changes</em>.</p>",
+    body: `${panel("1 · The drug and the files", table([{ label: "Field" }, { label: "Value" }, { label: "Status" }, { label: "", sort: false }], [
+        row("Drug", esc(p.drug), "Done"), row("PubChem CID", '<span class="muted">not set</span>', "Missing"), row("SMILES", '<span class="muted">not set</span>', "Missing"),
+        ["Files", `3 files · <a href="#/projects/${id}/library">Documents</a>`, badge("Done"), ""]], { foot: false }), { flush: true })}
+      ${panel("2 · Question of interest", table([{ label: "Field" }, { label: "Value" }, { label: "Status" }, { label: "", sort: false }], [
+        row("Question", "Does the reformulated tablet perform like the reference in vivo?", "To confirm"), row("Application", esc(p.app), "Done"),
+        row("For whom", "Health Canada", "Done"), row("Context of use", "A virtual bioequivalence check of the reformulated tablet", "To confirm")], { foot: false }), { flush: true })}
+      ${panel(`3 · Model risk ${badge("UNVERIFIED rule", "b-outline")}`, table([{ label: "Field" }, { label: "Value" }, { label: "Status" }, { label: "", sort: false }], [
+        row("Model influence", "Medium", "To confirm"), row("Consequence of a wrong decision", "Medium", "To confirm"), row("Model risk (ICH M15)", riskBadge(p.risk), "To confirm")], { foot: false }), { flush: true })}
+      ${panel("4 · Scope", `<label class="gap8"><input type="checkbox" checked ${can("edit") ? "" : "disabled"}> Oral, immediate release</label><label class="gap8"><input type="checkbox" ${can("edit") ? "" : "disabled"}> Food effect in the question</label>`)}`,
+  });
+});
+DIALOGS.setfield = (label) => ({ title: `Set ${label}`, body: `<label class="field"><span>${esc(label)}</span><input data-required="Enter a value."></label><label class="field"><span>Source</span><input placeholder="Where it is stated (document, page)"></label><p class="small muted">If a signed record depends on this field, <em>What this changes</em> opens before saving.</p>`, primary: "Save", then: () => openDialog("impact", label) });
+
+/* P-12 Data room */
+const DR = [
+  ["overview", "Overview", "To decide"], ["files", "Files", "Done"], ["substance", "Drug substance", "Done"], ["adme", "ADME and disposition", "Done"],
+  ["formulation", "Formulation", "Done"], ["solubility", "Solubility", "Done"], ["dissolution", "Dissolution", "To decide"], ["clinical", "Clinical studies", "Done"],
+  ["pk", "Observed PK", "Done"], ["decisions", "Decisions", "To decide"], ["requests", "Data requests", "To decide"], ["simplan", "Simulation plan", "Done"], ["pksim", "PK-Sim inputs", "Missing"],
+];
+function drSection(id, s) {
+  const findings = (rows) => table([{ label: "Finding" }, { label: "Value" }, { label: "Source", sort: false }, { label: "Status" }], rows, { foot: false });
+  switch (s) {
+    case "overview": return `${panel(`The question ${badge("Done")}`, `<p><strong>Does the reformulated tablet perform like the reference product in vivo?</strong></p>${kv([["For whom", "Health Canada"], ["Approach", "PBBM"], ["Products", "Refamide 100 mg (reference) · Exampleamide 100 mg (test) · Exampleamide 100 mg reformulated"]])}<p class="mt8">${edit("Edit", { small: true, dialog: "reason", arg: "Edit the question" })}</p>`)}
+      ${panel("Where the delivery stands", kv([["Files read", "10"], ["Inputs found", "40 of 43"], ["Data requests open", "7"], ["Decisions waiting", "9"]]) + `<p class="small muted mt8">${mock()}</p>`)}
+      ${panel("Needs attention first", table([{ label: "Conflict" }, { label: "Ours" }, { label: "Client's" }, { label: "Source", sort: false }], [
+        ["EX-01 · subject 6, period 1 · AUC0–t", "120.6", "123.7", src("EX-01 PK listing.xlsx · row 18")],
+        ["Dissolution LOT-X, pH 6.8 · 30 min mean", "76.0 %", "77.5 %", src("Dissolution pH 6.8.tsv · Q15")]], { foot: false }), { flush: true })}`;
+    case "files": return panel("Files", table([{ label: "File" }, { label: "Kind" }, { label: "Pages", num: true }, { label: "Read by" }, { label: "Duplicate of" }, { label: "Status" }], [
+      ["EX-01 PK listing.xlsx", "Data table", "—", "Code", "", badge("Done")], ["Dissolution pH 6.8.tsv", "Data table", "—", "Code", "", badge("Done")],
+      ["CSR EX-01.pdf", "Report", "147", "OCR + code", "", badge("Done")], ["CSR EX-01 (copy).pdf", "Report", "147", "—", "CSR EX-01.pdf", badge("Done")],
+      ["Formulation summary.docx", "Document", "6", "Code", "", badge("Done")]], { filter: "Filter files" }), { flush: true });
+    case "dissolution": return `${panel("Dissolution profiles", table([{ label: "Product" }, { label: "Medium" }, { label: "Lot" }, { label: "Q at 15 min" }, { label: "f2 vs reference", num: true }, { label: "Source", sort: false }, { label: "Status" }], [
+      ["Exampleamide 100 mg (test)", "pH 6.8 phosphate", "LOT-X", "≥ 85 %", "61", src("Dissolution pH 6.8.tsv"), badge("Done")],
+      ["Exampleamide 100 mg reformulated", "pH 1.2", "LOT-R", "≥ 85 %", "58", src("Dissolution pH 1.2.tsv"), badge("Done")],
+      ["Refamide 100 mg (reference)", "—", "—", "—", "—", "", badge("Missing")]], { foot: false }), { flush: true })}
+      ${ph("Chart: dissolution profiles by product", "Wireframe placeholder: no data is drawn. Hi-fi draws the real profiles with their source.")}`;
+    case "decisions": return panel("Decisions", table([{ label: "Decision" }, { label: "Options" }, { label: "Status" }, { label: "", sort: false }], [
+      ["Subject 6 period 1: which AUC0–t enters the model?", "Ours (linear-up/log-down) · the client's (linear)", badge("To decide"), edit("Decide", { small: true, dialog: "decide", arg: "AUC0–t of subject 6" })],
+      ["Is fu 0.09 (CSR) or 0.11 (paper) used?", "CSR · paper", badge("To decide"), edit("Decide", { small: true, dialog: "decide", arg: "fu" })],
+      ["Reference product has no dissolution profile", "Hold its arm · ask the client", badge("To decide"), edit("Decide", { small: true, dialog: "decide", arg: "Reference dissolution" })]], { filter: "Filter decisions" }), { flush: true });
+    case "requests": return panel("Data requests to the client", table([{ label: "Category" }, { label: "Request" }, { label: "Why" }, { label: "Status" }], [
+      ["A · blocks the model", "Reference product dissolution profile (pH 1.2, 4.5, 6.8)", "No release data for the reference arm", badge("To decide")],
+      ["B · changes a number", "Dosing record of period 2 (38 vs 37 dosed)", "Counts disagree", badge("To decide")],
+      ["C · completes a record", "Units of RSD in the dissolution report", "Units unclear", badge("To decide")]], { tools: `${btn("Print", { small: true })}${btn("Copy as text", { small: true })}` }), { flush: true });
+    case "pksim": return `${panel("PK-Sim inputs", table([{ label: "Input" }, { label: "Value" }, { label: "Unit" }, { label: "Source", sort: false }, { label: "Status" }], [
+      ["Molecular weight", "408.9", "g/mol", src("Formulation summary.docx · p. 2"), badge("Done")], ["Lipophilicity", "2.1", "Log Units", src("CSR EX-01.pdf · p. 31"), badge("Done")],
+      ["Fraction unbound", "—", "", "", badge("To decide")], ["Intrinsic clearance (CYP3A4)", "—", "", "", badge("Missing")]], { filter: "Filter inputs" }), { flush: true })}
+      ${panel("Send to the model", `<p>Sends the confirmed inputs to Inputs (evidence and datasets). 40 of 43 are ready; 3 stay behind with their reason. ${mock()}</p>${edit("Send to the model", { kind: "primary", dialog: "stepup", arg: "Send the Data room's confirmed inputs to the model" })}<p class="small muted mt8">Which send is the official one (here or Inputs' signed confirmation) is still the owner's decision (G1-1).</p>`)}`;
+    default: return panel(DR.find((x) => x[0] === s)[1], findings([
+      ["A stated property", "value as written", src("CSR EX-01.pdf · p. 12"), badge("Done")], ["Another property", "value as written", src("Formulation summary.docx · p. 4"), badge("Done")]]) + `<p class="small muted" style="padding:8px 14px">${mock("MOCK findings")}</p>`, { flush: true });
+  }
+}
+route("/projects/:id/dataroom", ({ id }) => dataroom(id, "overview"));
+route("/projects/:id/dataroom/report", ({ id }) => {
+  const p = P(id); if (!p) return null;
+  return pageOf(id, "dataroom", [["Data", `#/projects/${id}/dataroom`], ["Data room", `#/projects/${id}/dataroom`], ["Evidence report", ""]], {
+    id: "P-12b", title: "Evidence report", desc: "The Data room as a printable report.", actions: btn("Print", { kind: "primary" }), noReadOnly: true,
+    body: `<article class="print-page"><p class="muted small">${mock("MOCK REPORT")} Rules: Data room rules 0.1 (UNVERIFIED)</p><h1>${esc(p.drug)} · evidence report</h1><p class="muted">Generated 2026-11-22 20:01 from 10 files.</p>
+      <h2 class="mt16">1. The question</h2><p>Does the reformulated tablet perform like the reference product in vivo?</p>
+      <h2 class="mt16">2. Conflicts</h2>${table([{ label: "Item" }, { label: "Ours" }, { label: "Client's" }], [["EX-01 subject 6 AUC0–t", "120.6", "123.7"]], { foot: false })}
+      <h2 class="mt16">3. Data requests</h2><ol><li>Reference dissolution profile.</li><li>Dosing record of period 2.</li></ol>
+      <h2 class="mt16">4. How it was made</h2><p>Files read by code and OCR; descriptions by agents A6–A10 (models named per answer); every value read and checked by code.</p></article>`,
+  });
+});
+route("/projects/:id/dataroom/:s", ({ id, s }) => DR.some((x) => x[0] === s) ? dataroom(id, s) : null);
+function dataroom(id, s) {
+  const p = P(id); if (!p) return null;
+  const sec = DR.find((x) => x[0] === s);
+  return pageOf(id, "dataroom", [["Data", `#/projects/${id}/dataroom`], ["Data room", s === "overview" ? "" : `#/projects/${id}/dataroom`], ...(s === "overview" ? [] : [[sec[1], ""]])], {
+    id: "P-12", title: "Data room", badge: badge("To decide"),
+    desc: "What the client sent, and whether it is right: every value with its source.",
+    actions: `${btn("Evidence report", { href: `#/projects/${id}/dataroom/report` })}${edit("Run again", { dialog: "reason", arg: "Run the reading again" })}${edit("Upload a delivery", { kind: "primary", dialog: "upload" })}`,
+    help: "<p>Data room = what the client sent and whether it is right (decision G1-1). Agents describe where tables are and quote facts; code reads every value, checks it and computes from it; you decide.</p><p>Source chips open the source in the side panel.</p>",
+    empty: "No delivery yet. Upload the client's files to read them.", emptyTitle: "No delivery", emptyAction: edit("Upload a delivery", { kind: "primary", dialog: "upload" }),
+    body: `${panel("", `<div class="gap8"><strong>Last run</strong><span class="muted">10 files · 0 scanned pages · 5 steps waited for an AI model · finished 2026-11-22 20:01</span><span class="grow"></span><button class="btn small link" data-dialog="runsteps">Show the steps</button></div>`)}
+      <div class="inpage"><nav aria-label="Data room sections">${DR.map(([k, l, st]) => `<a href="#/projects/${id}/dataroom/${k}" ${k === s ? 'aria-current="page"' : ""}><span>${l}</span>${badge(st)}</a>`).join("")}</nav><div>${drSection(id, s)}</div></div>`,
+  });
+}
+DIALOGS.upload = () => ({ title: "Upload a delivery", body: `<div class="ph-box" style="min-height:120px"><div><strong>Drop the client's files or a zip</strong>Scans are read with OCR; duplicates are marked.</div></div>`, primary: "Upload and read", done: "Delivery uploaded; reading starts" });
+DIALOGS.decide = (what) => ({ title: `Decide: ${what}`, body: `<fieldset style="border:0;padding:0"><legend class="small muted">Choose</legend><label class="gap8"><input type="radio" name="o" checked> Option A</label><label class="gap8"><input type="radio" name="o"> Option B</label></fieldset><label class="field"><span>Reason</span><textarea data-required="Give a reason: it is kept in the audit trail."></textarea></label>`, primary: "Decide", done: "Decision recorded" });
+DIALOGS.runsteps = () => ({ title: "The run, step by step", body: table([{ label: "Step" }, { label: "Took" }, { label: "Model" }, { label: "Status" }], [["Read the files", "3 min", "code + OCR", badge("Done")], ["A6 the question", "40 s", "Qwen Coder (in-house)", badge("Done")], ["A8 extracts", "9 min", "Nemotron Ultra (fallback)", badge("Done")], ["A9 checks", "2 min", "Claude (Bedrock)", badge("Done")]], { foot: false }), primary: false, cancel: "Close" });
+
+/* P-13 Inputs */
+const INPUT_TABS = [["todo", "To do", 20], ["compound", "Compound", 6], ["products", "Products and dissolution", 1], ["studies", "Clinical studies", 9], ["populations", "Populations and individuals", 0], ["settings", "Simulation settings", 0], ["files", "Client files", 5]];
+route("/projects/:id/inputs", ({ id }) => inputs(id, "todo"));
+route("/projects/:id/inputs/:t", ({ id, t }) => INPUT_TABS.some((x) => x[0] === t) ? inputs(id, t) : null);
+function inputsTab(id, t) {
+  switch (t) {
+    case "todo": return `${panel(`${badge("To decide")} Check how tables are read (1)`, table([{ label: "Table" }, { label: "Read as" }, { label: "", sort: false }], [["EX-01 PK listing.xlsx · Sheet1, A4:J10 and 2 more files", "Individual PK table (template rules v1)", `${btn("Its columns", { small: true, kind: "link", split: "layout", arg: "EX-01" })}${edit("Check layout", { small: true, split: "layout", arg: "EX-01" })}`]], { foot: false }), { flush: true })}
+      ${panel(`${badge("To decide")} Link values to a study or product (3)`, table([{ label: "", sort: false }, { label: "File" }, { label: "What it holds" }, { label: "Suggested" }, { label: "", sort: false }], [
+        ['<input type="checkbox" aria-label="Pick OJ-101 Reference">', "OJ-101 Reference.xlsx", "48 values · dose 50 mg · fasted", "Same study as OJ-101?", `${edit("Yes", { small: true })}${edit("No", { small: true })}`],
+        ['<input type="checkbox" aria-label="Pick OJ-101 Test">', "OJ-101 Test.xlsx", "48 values · dose 50 mg · fasted", "Same study as OJ-101?", `${edit("Yes", { small: true })}${edit("No", { small: true })}`],
+        ['<input type="checkbox" aria-label="Pick lab export">', "lab-export-0412.xlsx", "48 values · dose 25 mg · fed", "not chosen yet", edit("Link…", { small: true, dialog: "decide", arg: "link lab-export-0412.xlsx" })]], { foot: false }), { flush: true })}
+      ${panel(`${badge("Missing")} Fill in what is missing (11)`, table([{ label: "Value of" }, { label: "Value" }, { label: "Unit" }, { label: "The sentence that states it" }], [
+        ["Molecular weight", '<input aria-label="Molecular weight value" size="8">', '<input aria-label="unit" size="6" placeholder="as stated">', '<input aria-label="source sentence" placeholder="the sentence that states it">'],
+        ["Fraction unbound in plasma", '<input aria-label="fu value" size="8">', '<input aria-label="unit" size="6" placeholder="as stated">', '<input aria-label="source sentence" placeholder="the sentence that states it">'],
+        ["pKa", '<input aria-label="pKa value" size="8">', '<input aria-label="unit" size="6" placeholder="as stated">', '<input aria-label="source sentence" placeholder="the sentence that states it">']], { foot: false, tools: can("edit") ? `<span class="grow"></span>${btn("Add with one source", { small: true, kind: "primary" })}` : "" }), { flush: true })}
+      ${panel(`${badge("To confirm")} Confirm the client's data (4)`, `<ul class="list-plain"><li><a href="#/projects/${id}/inputs/studies">Study OJ-101</a><span class="muted small">2 things first, on its card</span></li><li><a href="#/projects/${id}/inputs/studies">Study OJ-101-REF</a><span class="muted small">1 thing first</span></li><li><a href="#/projects/${id}/inputs/products">Product Exampleamide 100 mg</a><span class="muted small">release data first</span></li></ul>`)}
+      ${panel("Ask the client (1)", `<p>Demographics of every study (age, sex, population, weight) · OJ-101</p>${btn("Download the request (.xlsx)", { small: true })}`)}`;
+    case "compound": return `${panel("Compound values", table([{ label: "Parameter" }, { label: "Value" }, { label: "Unit" }, { label: "Source", sort: false }, { label: "Status" }], [
+      ["Molecular weight", "408.9", "g/mol", src("Formulation summary.docx · p. 2"), badge("Done")], ["Lipophilicity", "2.1", "Log Units", src("CSR EX-01.pdf · p. 31"), badge("Done")],
+      ["Fraction unbound", "—", "", "", badge("To decide")], ["pKa (base)", "9.3", "", src("Smith 2019.pdf · p. 4"), badge("To confirm")], ["Solubility (reference)", "1.2", "mg/mL", src("CSR EX-01.pdf · p. 30"), badge("Done")],
+      ["Intrinsic clearance (CYP3A4)", "—", "", "", badge("Missing")]], { filter: "Filter values" }), { flush: true })}
+      ${panel("Model system", `<p>Single compound. ${edit("Relate compounds (parent, metabolite, enantiomer)", { small: true, dialog: "reason", arg: "Relate compounds" })}</p><p class="small muted mb0">Moved here from the Run page: it is a model input.</p>`)}`;
+    case "studies": return panel("Clinical studies", table([{ label: "Study" }, { label: "Design" }, { label: "Route" }, { label: "Dose" }, { label: "Food" }, { label: "Subjects", num: true }, { label: "Status" }], [
+      { cells: ["OJ-101", "Crossover, 2 periods", "Oral", "50 mg", "Fasted", "34", badge("To confirm")], split: "study", arg: "OJ-101" },
+      { cells: ["OJ-101-REF", "Arm of OJ-101", "Oral", "50 mg", "Fasted", "17", badge("To confirm")], split: "study", arg: "OJ-101-REF" },
+      { cells: ["EX-02", "Parallel", "Oral", "100 mg", "Fed", "24", badge("Done")], split: "study", arg: "EX-02" },
+      { cells: ["EX-03 (blinded)", "Parallel", "Oral", "100 mg", "Fasted", "—", badge("Done")], split: "study", arg: "EX-03" }], { filter: "Filter studies", footRight: "Select a study to open its card" }), { flush: true });
+    case "products": return panel("Products and dissolution", `<div class="grid-cards">${[["Exampleamide 100 mg (test)", "To confirm", "release data first"], ["Exampleamide 100 mg reformulated", "Done", "confirmed 2026-11-21"], ["Refamide 100 mg (reference)", "Missing", "no dissolution profile: asked of the client"]].map(([n, st, note]) =>
+      `<div class="card"><h3>${n}</h3><p>${badge(st)} <span class="muted small">${note}</span></p>${btn("Open the card", { small: true, split: "product", arg: n })}</div>`).join("")}</div>`);
+    case "files": return panel("Client files", table([{ label: "File" }, { label: "Area" }, { label: "Still needs you" }, { label: "Status" }], [
+      ["OJ-101 plasma means.xlsx", "Clinical studies", "1 number not read", badge("To decide")], ["OJ-101 Reference.xlsx", "Clinical studies", "link to a study", badge("To decide")],
+      ["Dissolution pH 6.8.tsv", "Products", "—", badge("Done")]], { filter: "Filter files", tools: '<label class="gap8 small"><input type="checkbox"> Only what needs me</label>' }), { flush: true });
+    default: return panel("", `<div class="empty"><h2>Nothing here yet</h2><p>This area fills in once the studies name their populations and the plan sets the simulations.</p></div>`);
+  }
+}
+function inputs(id, t) {
+  const p = P(id); if (!p) return null;
+  return pageOf(id, "inputs", [["Data", `#/projects/${id}/dataroom`], ["Inputs", t === "todo" ? "" : `#/projects/${id}/inputs`], ...(t === "todo" ? [] : [[INPUT_TABS.find((x) => x[0] === t)[1], ""]])], {
+    id: "P-13", title: "Inputs", badge: badge("To decide"),
+    desc: "What goes into the model, and its signed confirmation.",
+    actions: `${btn("Open the Data room", { href: `#/projects/${id}/dataroom` })}${edit("Next: check 1 table layout", { kind: "primary", split: "layout", arg: "EX-01" })}`,
+    help: "<p>Inputs = what goes into the model (decision G1-1). One list of work; four status words; one place per decision; one card per study or product; one row per file.</p>",
+    empty: "No inputs yet. They arrive from the Data room's send or from the client's files.", emptyTitle: "No inputs",
+    body: `${flash("info", "<span>In the model: <strong>0 studies · 0 formulations · 0 compound values</strong> · 4 client files · AI reading off</span>", false)}${tabs(INPUT_TABS, t, `#/projects/${id}/inputs`)}${inputsTab(id, t)}`,
+  });
+}
+SPLITS.layout = (f) => ({ title: `How ${f} is read`, body: `${kv([["Table", "Sheet1, A4:J10"], ["Rule", "Template rules v1 · used in 3 tables"]])}<h3 class="mt16">Columns</h3>${table([{ label: "Column" }, { label: "Read as" }], [["Time (h)", "time"], ["Conc (ng/mL)", "concentration"], ["Subject", "subject"]], { foot: false })}${ph("Sheet preview", "The sheet's cells with the table's box. Wireframe placeholder.")}`, actions: edit("Approve the layout", { small: true, kind: "primary" }) });
+SPLITS.study = (s) => ({ title: `Study ${s}`, actions: s === "EX-03" ? "" : edit("Confirm and sign", { small: true, kind: "primary", dialog: "stepup", arg: `the confirmation of study ${s}` }),
+  body: s === "EX-03" ? flash("info", "<span><strong>Blinded until the plan is signed.</strong> External-validation data are withheld from every page (ICH M15 §4.1).</span>", false)
+    : `<h3>To do on this study</h3><ul class="list-plain"><li>${badge("Missing")} Number of subjects per arm</li><li>${badge("To decide")} Same study as OJ-101-REF?</li></ul>
+      <h3 class="mt16">Facts</h3>${kv([["Design", "Crossover, 2 periods"], ["Route", "Oral"], ["Dose", "50 mg"], ["Food", "Fasted"], ["Analyte", "Exampleamide in plasma"], ["LLOQ", "0.5 ng/mL"]])}
+      <h3 class="mt16">Observed data</h3>${ph("Observed profile", "Placeholder: the observed concentrations with their cells.")}
+      <h3 class="mt16">Files and tables</h3><p>${src("OJ-101 Reference.xlsx · Sheet1")} ${src("CSR EX-01.pdf · p. 44")}</p>
+      <h3 class="mt16">Checks</h3><p>${badge("Done")} NCA within 1 % of the client's values · ${badge("To decide")} 1 count differs</p>` });
+SPLITS.product = (n) => ({ title: n, actions: edit("Confirm and sign", { small: true, kind: "primary", dialog: "stepup", arg: `the confirmation of ${n}` }), body: `${kv([["Strength", "100 mg"], ["Dosage form", "Tablet"], ["Batches", "LOT-X"]])}<h3 class="mt16">Dissolution</h3>${ph("Dissolution profile", "Placeholder.")}` });
+SPLITS.src = (key) => ({ title: "Source", body: `${kv([["Where", esc(key)], ["Read by", "Code (the value) · agent A8 (where the table is)"], ["Quote", "<em>“… as stated in the source …”</em>"]])}<div class="mt16">${ph("The page or sheet, with the value's box", "Wireframe placeholder for the source viewer.")}</div>` });
+
+/* P-13b Data plan */
+route("/projects/:id/data-plan", ({ id }) => {
+  const p = P(id); if (!p) return null;
+  const card = (label, href) => `<a href="${href}">${esc(label)}</a>`;
+  return pageOf(id, "data-plan", [["Data", `#/projects/${id}/dataroom`], ["Data plan", ""]], {
+    id: "P-13b", title: "Data plan", desc: `What a ${esc(p.app)} application requires, who provides each item, and whether we have it. Change an item on its card.`,
+    help: "<p>Read-mostly (owner, Q1): this page shows status; every edit stays on the card where the item is settled (one place per decision). The list is re-derived each time the brief is saved.</p>",
+    empty: "The data plan appears once Start names the application.", emptyTitle: "No data plan yet",
+    body: panel("", table([{ label: "Requirement" }, { label: "Application" }, { label: "Who provides it" }, { label: "Status" }, { label: "Settled on" }], [
+      ["Individual plasma concentrations, test and reference", esc(p.app), "Client", badge("To confirm"), card("Study OJ-101", `#/projects/${id}/inputs/studies`)],
+      ["Dissolution profiles in 3 media, every product", esc(p.app), "Client", badge("Missing"), card("Product Refamide 100 mg", `#/projects/${id}/inputs/products`)],
+      ["Solubility over the physiological pH range", "Core small molecule", "Client or literature", badge("Done"), card("Compound", `#/projects/${id}/inputs/compound`)],
+      ["Fraction unbound in plasma", "Core small molecule", "Literature", badge("To decide"), card("Compound", `#/projects/${id}/inputs/compound`)],
+      ["Demographics of every study", esc(p.app), "Client", badge("Missing"), card("Ask the client", `#/projects/${id}/inputs/todo`)]],
+      { filter: "Filter requirements", tools: `<select aria-label="Application"><option>All applications</option><option>${esc(p.app)}</option><option>Core small molecule</option></select><select aria-label="Status"><option>All statuses</option><option>Missing</option><option>To confirm</option><option>To decide</option><option>Done</option></select>` }), { flush: true }),
+  });
+});
+
+/* P-14 Review & sign */
+const PLAN_TABS = [["studies", "Studies and roles"], ["inputs", "The inputs"], ["estimation", "The estimation plan"], ["validation", "The validation plan"], ["applications", "Applications"], ["credibility", "Credibility"], ["validator", "Validator and changes"]];
+route("/projects/:id/plan", ({ id }) => plan(id, "studies"));
+route("/projects/:id/plan/:t", ({ id, t }) => PLAN_TABS.some((x) => x[0] === t) ? plan(id, t) : null);
+function planTab(id, t) {
+  switch (t) {
+    case "studies": return `${ph("MS-01 canvas: the studies placed on stages S1 → S6", "Wireframe placeholder. Drag a study onto a stage; the validator checks the move before you give the reason.")}
+      <div class="mt16">${panel("Studies", table([{ label: "Study" }, { label: "Role" }, { label: "Purpose" }, { label: "Origin" }, { label: "", sort: false }], [
+        ["iv-250", "S1 · IV disposition", "Model building", "Literature", edit("Move…", { small: true, dialog: "reason", arg: "Move iv-250" })],
+        ["po-10", "S5 · external validation <span class='badge b-outline'>moved</span>", "External validation", "Literature", `${edit("Back to the MS-01 default", { small: true, kind: "link", dialog: "reason", arg: "Put po-10 back to the MS-01 default" })}`],
+        ["po-50", "S2 · oral absorption", "Model building", "Client", edit("Move…", { small: true, dialog: "reason", arg: "Move po-50" })]], { foot: false }), { flush: true })}</div>`;
+    case "estimation": return panel("Estimated parameters", table([{ label: "Parameter" }, { label: "Start value" }, { label: "Source" }, { label: "Fitted or fixed" }, { label: "Bounds" }, { label: "", sort: false }], [
+      ["Lipophilicity", "2.1 Log Units", "CSR EX-01 · grade A", "Estimated at S2", "[1, 3] linear", edit("Change", { small: true, dialog: "reason", arg: "Change the fit of Lipophilicity" })],
+      ["Intrinsic clearance (CYP3A4)", "—", "fitted", "Estimated at S1", "[0.1×, 10×] log", edit("Change", { small: true, dialog: "reason", arg: "Change the fit of CLint" })],
+      ["Fraction unbound", "0.09", "CSR EX-01 · grade A", "Fixed", "—", edit("Estimate", { small: true, dialog: "reason", arg: "Estimate fu" })]], { foot: false }), { flush: true }) + `<p class="small muted">${mock("MOCK values")}</p>`;
+    case "credibility": return `${panel("Model risk (ICH M15)", kv([["Model influence", "Medium"], ["Consequence of a wrong decision", "Medium"], ["Model risk", riskBadge("medium")], ["Time budget", "8 h"]]))}
+      ${panel(`Acceptance criteria ${badge("PROVISIONAL (SME)", "b-outline")}`, table([{ label: "Quantity" }, { label: "Limit" }, { label: "Source" }], [["AUC", "within 1.5-fold", "EMA guideline on PBPK reporting (2018)"], ["Cmax", "within 1.5-fold", "EMA guideline on PBPK reporting (2018)"]], { foot: false }), { flush: true })}
+      ${panel("Time budget by stage", table([{ label: "Stage" }, { label: "Share", num: true }, { label: "Time" }], [["S0", "1 %", "5 min"], ["S1", "20 %", "1 h 36 min"], ["S2", "20 %", "1 h 36 min"], ["S4", "5 %", "24 min"]], { foot: false }), { flush: true })}`;
+    case "validator": return `${panel("Live validator (MS-01)", flash("ok", "<span><strong>No open MS-01 rule violation.</strong> 1 warning acknowledged.</span>", false))}
+      ${panel("Changes from the MS-01 default", table([{ label: "Change" }, { label: "Default" }, { label: "Plan" }, { label: "By · why" }], [["po-10 role", "S2", "S5", "Asha Rao · validates the dose range externally"]], { foot: false }), { flush: true })}`;
+    default: return panel(PLAN_TABS.find((x) => x[0] === t)[1], `<p>${{ inputs: "Every input with its source and grade, as Inputs confirmed it.", validation: "S4 internal validation (studies kept out of fitting) and S5 external validation (blinded until signing), with what happens if each fails.", applications: "The applications the brief names (here: virtual bioequivalence) and what each requires of the model." }[t]}</p>${ph("Table", "Wireframe placeholder: the section's table in the hi-fi design.")}`);
+  }
+}
+function plan(id, t) {
+  const p = P(id); if (!p) return null;
+  const signer = can("sign");
+  return pageOf(id, "plan", [["Review & sign", t === "studies" ? "" : `#/projects/${id}/plan`], ...(t === "studies" ? [] : [[PLAN_TABS.find((x) => x[0] === t)[1], ""]])], {
+    id: "P-14", title: "Review &amp; sign", titleText: "Review & sign", badge: badge("Validator: no open violation", "b-done"),
+    desc: "The model analysis plan (MAP): the one review before the run. Each change from the MS-01 default has a reason.",
+    actions: `${edit("Draft with A5", {})}${signer ? btn("Approve and sign", { kind: "primary", dialog: "stepup", arg: "Model analysis plan v2" }) : ""}`,
+    help: "<p>Viewers read the plan through the read-only route; only a curator (owner) or a reviewer it is shared with signs. After signing, a change is a MAP deviation and needs its own signature.</p>",
+    empty: "Review & sign opens when the inputs are ready.", emptyTitle: "No plan yet", emptyAction: btn("Go to Inputs", { href: `#/projects/${id}/inputs` }),
+    body: `${tabs(PLAN_TABS.map(([k, l]) => [k, l]), t, `#/projects/${id}/plan`)}${planTab(id, t)}`,
+  });
+}
+
+/* P-15 Campaigns (Run) */
+route("/projects/:id/campaigns", ({ id }) => {
+  const p = P(id); if (!p) return null;
+  const list = M.campaigns.filter((c) => c.project === id);
+  const ready = p.steps[2] === "done";
+  return pageOf(id, "campaigns", [["Run", ""]], {
+    id: "P-15", title: "Run", desc: "Run a modelling campaign (MS-01 S0 → S7) on PK-Sim and follow it.",
+    actions: ready ? edit("Run campaign", { kind: "primary", dialog: "runcampaign" }) : "",
+    help: "<p>A campaign builds the model from the CPF, simulates on PK-Sim, scores it against the acceptance tier, and either passes or stops for a signed decision.</p>",
+    empty: "No campaign yet.", emptyTitle: "No campaigns",
+    body: `${ready ? "" : panel("A campaign can run once these are in place", `<ul class="list-plain"><li>${badge("Missing")} A signed model analysis plan · <a href="#/projects/${id}/plan">Review &amp; sign</a></li><li>${badge("To confirm")} Confirmed inputs · <a href="#/projects/${id}/inputs">Inputs</a></li></ul>`)}
+      ${panel("Campaigns", table([{ label: "Campaign" }, { label: "Status" }, { label: "Current stage" }, { label: "Compound" }, { label: "Started" }, { label: "Budget used", num: true }],
+        list.map((c) => [`<a href="#/campaigns/${c.id}"><code>${c.id}</code></a>`, runBadge(c.status), esc(c.stage), esc(c.compound), esc(c.started), `${c.budget} %`]), { empty: "No campaign yet: it runs once the plan is signed." }), { flush: true })}`,
+  });
+});
+DIALOGS.runcampaign = () => ({ title: "Run a campaign", body: `<p>From the signed MAP v2 and the confirmed inputs. The campaign runs unattended and stops only for a signed decision.</p>${kv([["Engine", "PK-Sim 12.3 on the server"], ["Budget", "8 h"]])}`, primary: "Run campaign", done: "Campaign queued" });
+
+/* P-16 Campaign */
+const CAMP_TABS = [["stages", "Stages"], ["fit", "Fit"], ["rounds", "Rounds"], ["feedback", "Feedback"], ["package", "Package"], ["runs", "Runs"]];
+route("/campaigns/:cid", ({ cid }) => campaign(cid, "stages"));
+route("/campaigns/:cid/:t", ({ cid, t }) => CAMP_TABS.some((x) => x[0] === t) ? campaign(cid, t) : null);
+function campaign(cid, t) {
+  const c = C(cid); if (!c) return null;
+  const stages = [["S0", "Readiness", "Passed"], ["S1", "IV disposition", c.status === "Escalated" ? "Escalated" : "Passed"], ["S2", "Oral fasted", c.status === "Running" ? "Running" : "Proposed"], ["S3", "Formulation / fed", "Proposed"], ["SJ", "Joint refinement", "Proposed"], ["S4", "Internal validation", "Proposed"], ["S5", "External validation", "Proposed"], ["S6", "Prediction", "Proposed"], ["S7", "Report and package", "Proposed"]];
+  const body = {
+    stages: panel("Stages", table([{ label: "Stage" }, { label: "Name" }, { label: "Verdict" }, { label: "Rounds", num: true }, { label: "Limits" }], stages.map(([s, n, v]) => [s, n, runBadge(v), v === "Proposed" ? "—" : "2", v === "Proposed" ? "—" : "96 min · 4 rounds (signed MAP)"]), { foot: false }), { flush: true }) + panel("Time budget", `<div class="gap8"><div class="bar" style="flex:1"><i style="width:${c.budget}%"></i></div><span class="small">${c.budget} % of 8 h</span></div>`),
+    fit: `<div class="gap8" style="margin-bottom:8px"><label class="gap8"><input type="checkbox" checked> Log scale</label></div>${ph("Chart: goodness of fit, predicted against observed", "Wireframe placeholder: no curve is drawn. The hi-fi design draws only the campaign's real results.")}`,
+    rounds: panel("Rounds", table([{ label: "Stage" }, { label: "Round", num: true }, { label: "Action" }, { label: "AUC vs observed" }, { label: "Cmax vs observed" }, { label: "Verdict" }], [["S1", "1", "fit CLint", "2.4-fold", "1.9-fold", runBadge("Failed")], ["S1", "2", "fit CLint, fu", "2.1-fold", "1.7-fold", runBadge("Failed")]], { foot: false }), { flush: true }) + `<p class="small muted">${mock("MOCK rounds")}</p>`,
+    feedback: panel("External-validation feedback", '<p class="muted mb0">No feedback cycle: S5 has not run.</p>'),
+    package: panel("Report and package (S7)", `${kv([["Reproduction", '<span class="muted">not run yet</span>'], ["Package fingerprint", "—"], ["Exportable", "No: the package is offered only when every bundled simulation re-runs identically"]])}<p class="small muted mt8">From <code>GET /campaigns/{id}/package</code> (now on a screen).</p>`),
+    runs: panel("Runs", '<p class="muted mb0">Raw run results appear here once the multi-server (Temporal) deployment exists. Not available on the single server.</p>'),
+  }[t];
+  const decide = c.status === "Escalated" && can("sign");
+  return {
+    ctx: "project", project: P(c.project), nav: "campaigns", isCampaign: true, id: "P-16",
+    crumbs: [["Projects", "#/projects"], [P(c.project).name, `#/projects/${c.project}`], ["Run", `#/projects/${c.project}/campaigns`], [cid, ""]],
+    title: `<code>${esc(cid)}</code>`, titleText: cid, badge: `${runBadge(c.status)} ${riskBadge(P(c.project).risk)}`,
+    desc: `${esc(c.compound)} · acceptance within 1.5-fold at medium model risk · current stage ${esc(c.stage)}`,
+    actions: decide ? btn("Decide the escalation", { kind: "primary", dialog: "escalation", arg: cid }) : "",
+    help: "<p>A campaign that stops asks for a signed decision here (and in Your work). Only the project's owner or a reviewer it is shared with may decide.</p>",
+    body: `${flash("warn", "<span><strong>Not a PBPK result:</strong> this campaign ran on a software test fixture. Its numbers check the software path only. (Kept, mandatory.)</span>", false)}
+      ${c.status === "Escalated" ? flash(decide ? "warn" : "info", decide ? "<span><strong>A decision is waiting.</strong> S1 stopped: no permitted action is left.</span>" : "<span>This campaign waits for a signed decision by the project's owner or a reviewer.</span>", false) : ""}
+      ${tabs(CAMP_TABS.map(([k, l]) => [k, l]), t, `#/campaigns/${cid}`)}${body}`,
+  };
+}
+
+/* P-17 Compounds, P-17b Compound */
+route("/projects/:id/compounds", ({ id }) => P(id) && pageOf(id, "compounds", [["Compounds", ""]], {
+  id: "P-17", title: "Compounds", desc: "The compounds this project models and how complete each one's parameters are.",
+  body: panel("", table([{ label: "Compound" }, { label: "Role" }, { label: "Complete", num: true }, { label: "Version", num: true }], [[`<a href="#/projects/${id}/compounds/${P(id).drug}">${esc(P(id).drug)}</a>`, "Parent", "5 of 6", "4"]]), { flush: true }),
+}));
+route("/projects/:id/compounds/:c", ({ id, c }) => P(id) && pageOf(id, "compounds", [["Compounds", `#/projects/${id}/compounds`], [c, ""]], {
+  id: "P-17b", title: esc(c), badge: badge("5 of 6 complete", "b-neutral"), desc: "The Compound Parameter Framework (CPF): the record every simulation is built from. Values change on Inputs.",
+  body: panel("", table([{ label: "Parameter" }, { label: "Value" }, { label: "Unit" }, { label: "Provenance" }, { label: "Reference" }, { label: "Fittable at" }], [
+    ["Molecular weight", "408.9", "g/mol", badge("measured", "b-neutral"), "Formulation summary", "—"], ["Lipophilicity", "2.1", "Log Units", badge("fitted", "b-accent"), "S2 round 3", "S2"],
+    ["Fraction unbound", "0.09", "", badge("measured", "b-neutral"), "CSR EX-01", "—"], ["pKa (base)", "—", "", badge("missing", "b-missing"), "", "—"]], { filter: "Filter parameters", tools: '<select aria-label="Provenance"><option>All provenance</option><option>measured</option><option>fitted</option><option>assumed</option></select>' }), { flush: true }) + `<p class="small muted">${mock("MOCK CPF")}</p>`,
+}));
+
+/* P-18 Documents */
+route("/projects/:id/library", ({ id }) => P(id) && pageOf(id, "library", [["Documents", ""]], {
+  id: "P-18", title: "Documents", desc: "Every document of the project, with what cites it.",
+  actions: edit("Add documents", { kind: "primary", dialog: "upload" }),
+  help: "<p>Select a document to preview it in the side panel. Withdrawing keeps the document as a record and asks for a reason; it can be restored.</p>",
+  empty: "No documents yet.", emptyTitle: "No documents",
+  body: panel("", table([{ label: "Document" }, { label: "Tags" }, { label: "Cited by", num: true }, { label: "Added" }, { label: "State" }], [
+    { cells: ["proposal.pdf", badge("Proposal", "b-neutral"), "4", "2026-11-21 · Asha Rao", "In use"], split: "doc", arg: "proposal.pdf" },
+    { cells: ["Smith 2019.pdf", badge("Literature", "b-neutral"), "2", "2026-11-21 · A2 agent", "In use"], split: "doc", arg: "Smith 2019.pdf" },
+    { cells: ["Old CSR draft.pdf", badge("Client data", "b-neutral"), "0", "2026-11-19 · Asha Rao", badge("Withdrawn", "b-outline")], split: "doc", arg: "Old CSR draft.pdf" }],
+    { filter: "Find a document", tools: '<select aria-label="Tag"><option>All tags</option><option>Proposal</option><option>Client data</option><option>Literature</option></select>' }), { flush: true }),
+}));
+SPLITS.doc = (d) => ({ title: d, actions: edit("Withdraw", { small: true, dialog: "reason", arg: `Withdraw ${d}` }), body: `${kv([["Tags", "Proposal"], ["Cited by", "Start · Inputs (4 values)"], ["Read for data", "Yes"]])}<div class="mt16">${ph("Page preview", "Page 1 of 12. Wireframe placeholder.")}</div>` });
+
+/* P-19 Agent activity, P-19b Agent run */
+route("/projects/:id/agent-activity", ({ id }) => P(id) && pageOf(id, "agents", [["Agent activity", ""]], {
+  id: "P-19", title: "Agent activity", desc: "What each AI agent did on this project: which model, who started it, what it read and what was refused.",
+  help: "<p>Needs one new API route (a list of the project's agent runs); each run's detail already exists. Costs are shown only in the admin console.</p>",
+  empty: "No agent has run on this project.", emptyTitle: "No agent runs",
+  body: panel("", table([{ label: "Agent" }, { label: "Model" }, { label: "Started by" }, { label: "Started" }, { label: "Took" }, { label: "Status" }, { label: "Tokens in / out", num: true }, { label: "Refusals", num: true }], [
+    [`<a href="#/projects/${id}/agent-activity/run-a8-0412">A8 · Data room: extracts</a>`, "Nemotron Ultra (fallback from Qwen Coder)", "Asha Rao", "2026-11-22 15:52", "9 min", runBadge("Done"), "182k / 9k", "3"],
+    [`<a href="#/projects/${id}/agent-activity/run-a1-0099">A1 · reads the proposal</a>`, "Qwen Coder (in-house)", "Asha Rao", "2026-11-21 09:55", "3 min", runBadge("Done"), "31k / 2k", "0"]], { filter: "Filter runs" }), { flush: true }) + `<p class="small muted">${mock()}</p>`,
+}));
+route("/projects/:id/agent-activity/:run", ({ id, run }) => P(id) && pageOf(id, "agents", [["Agent activity", `#/projects/${id}/agent-activity`], [run, ""]], {
+  id: "P-19b", title: esc(run), badge: runBadge("Done"), desc: "Every turn of the run: what was read, which tool was called, what code refused, and the model that wrote each answer.",
+  body: panel("Turns", table([{ label: "#", num: true }, { label: "Kind" }, { label: "What" }, { label: "Model" }], [
+    ["1", "read", "CSR EX-01.pdf, lines 1–400", "Qwen Coder"], ["2", "model switch", "Qwen Coder did not answer in 600 s; next in the admin's list", "—"],
+    ["3", "tool call", "submit_table(EX-01 PK listing, Sheet1 A4:J10)", "Nemotron Ultra"], ["4", "refusal by code", "Quote not found on page 31: re-asked", "—"], ["5", "answer", "Table described; 48 values read by code", "Nemotron Ultra"]], { foot: false }), { flush: true }),
+}));
+
+/* P-21 History */
+const HIST_TABS = [["audit", "Audit trail"], ["signatures", "Signatures"], ["versions", "Versions"], ["stale", "Out of date"]];
+route("/projects/:id/history", ({ id }) => history(id, "audit"));
+route("/projects/:id/history/:t", ({ id, t }) => HIST_TABS.some((x) => x[0] === t) ? history(id, t) : null);
+function history(id, t) {
+  if (!P(id)) return null;
+  const b = {
+    audit: table([{ label: "When" }, { label: "Who" }, { label: "Event" }, { label: "Record" }, { label: "Reason" }], [
+      ["2026-11-22 16:04", "A8 agent", "Data room run finished", "dataroom/main v6", "—"], ["2026-11-21 10:12", "Asha Rao", "Brief confirmed", "BRIEF/main v3", "—"],
+      ["2026-11-19 11:20", "Asha Rao", "Document withdrawn", "Old CSR draft.pdf", "superseded by the final CSR"]], { filter: "Filter events", tools: '<select aria-label="Who"><option>Everyone</option><option>People</option><option>Agents</option></select>' }),
+    signatures: table([{ label: "When" }, { label: "Signer" }, { label: "Meaning" }, { label: "Record" }, { label: "Fingerprint" }], [["2026-11-20 17:45", "Mei Chen", "Approved", "MAP v1", "<code>9f2c…e01a</code>"]], { empty: "No signature yet." }),
+    versions: table([{ label: "Record" }, { label: "Version", num: true }, { label: "Status" }, { label: "Made by" }, { label: "When" }], [["BRIEF/main", "3", badge("Done"), "Asha Rao", "2026-11-21"], ["INPUTS/main", "2", badge("To confirm"), "code", "2026-11-22"]]),
+    stale: table([{ label: "Record" }, { label: "Why it is out of date" }, { label: "Made from" }], [["MAP v1", "The inputs changed after signing", "INPUTS/main v1"]], { empty: "Nothing is out of date." }),
+  }[t];
+  return pageOf(id, "history", [["History", t === "audit" ? "" : `#/projects/${id}/history`], ...(t === "audit" ? [] : [[HIST_TABS.find((x) => x[0] === t)[1], ""]])], {
+    id: "P-21", title: "History", desc: "The project's record: every event, signature and version. Append-only; nothing is erased.",
+    body: `${tabs(HIST_TABS.map(([k, l]) => [k, l]), t, `#/projects/${id}/history`)}${panel("", b, { flush: true })}`,
+  });
+}
+
+/* P-22 Members, P-23 Settings */
+route("/projects/:id/members", ({ id }) => P(id) && pageOf(id, "members", [["Members", ""]], {
+  id: "P-22", title: "Members", desc: "Who can open this project. The owner changes it; members it is shared with read it; a reviewer may also sign.",
+  actions: edit("Add a member", { kind: "primary", dialog: "addmember" }),
+  body: panel("", table([{ label: "Person" }, { label: "Role" }, { label: "Access" }, { label: "Since" }, { label: "", sort: false }], [
+    [esc(ownerName(P(id))), "Curator", badge("Owner", "b-accent"), "2026-11-21", ""], ["Mei Chen", "Reviewer", "Reads · signs", "2026-11-21", edit("Remove", { small: true, dialog: "reason", arg: "Remove Mei Chen from the project" })],
+    ["Priya Nair", "Viewer", "Reads", "2026-11-22", edit("Remove", { small: true, dialog: "reason", arg: "Remove Priya Nair from the project" })]]), { flush: true }),
+}));
+DIALOGS.addmember = () => ({ title: "Add a member", body: `<label class="field"><span>Person</span><select><option>Tomás Ortiz</option><option>Priya Nair</option></select><span class="hint">People of your company who have signed in once.</span></label><p class="small muted">They read the project; only the owner changes it.</p>`, primary: "Add", done: "Member added" });
+route("/projects/:id/settings", ({ id }) => {
+  const p = P(id); if (!p) return null;
+  return pageOf(id, "settings", [["Settings", ""]], {
+    id: "P-23", title: "Settings", desc: "The project's owner, its blinding and archiving.",
+    body: `${panel("Owner", kv([["Owner", esc(ownerName(p))], ["Company", esc(M.company)]]) + '<p class="small muted mt8">The platform administrator can make another person the owner.</p>')}
+      ${panel("Blinding", kv([["External-validation studies", "1 blinded (EX-03)"], ["Until", "the model analysis plan is signed"]]) + `<p class="mt8"><a href="#/projects/${id}/plan">Set on Review &amp; sign</a></p>`)}
+      ${panel("Archive", `<p>An archived project is kept as a record, read-only, and can be restored. Nothing is deleted.</p>${can("edit") ? btn(p.archived ? "Restore" : "Archive this project", { kind: p.archived ? "" : "danger", dialog: p.archived ? "reason" : "archive", arg: p.archived ? `Restore ${p.name}` : p.name }) : '<p class="muted small mb0">Only the owner archives the project.</p>'}`)}`,
+  });
+});
+
+/* ============================================================================================================
+   Admin console (P-20 … P-33): the platform administrator only. Anyone else finds no page here, as today.
+   ============================================================================================================ */
+function adminPage(nav, crumbs, extra) {
+  if (!can("admin")) return resolve("/404");
+  return { ctx: "admin", nav, crumbs: [["Admin console", "#/admin"], ...crumbs], ...extra };
+}
+const stepUpNote = '<p class="small muted mt8">Every change here asks for a fresh step-up and is recorded on the platform audit chain.</p>';
+const COMPANIES = [["northwind", "Northwind CRO", 12, "9 · 2", 214, 3, "Active"], ["contoso", "Contoso Pharma", 4, "3 · 0", 37, 0, "Active"], ["fabrikam", "Fabrikam Bio", 2, "1 · 1", 0, 0, "Disabled"]];
+
+route("/admin", () => adminPage("overview", [], {
+  id: "P-20", title: "Admin console", crumbs: [["Admin console", ""]], desc: "Every company, its people, projects and agent use; the platform's health.",
+  help: "<p>Only the platform's owner (role <code>modeler-admin</code>) sees this console. Every look into a company's data is an audit event.</p>",
+  body: `${flash("warn", "<span><strong>Limit warning:</strong> Northwind CRO has used 82 % of its monthly agent token limit. <a href='#/admin/limits'>Limits</a></span>")}
+    <div class="cols"><div>${panel("Companies", table([{ label: "Company" }, { label: "People", num: true }, { label: "Projects (active · archived)" }, { label: "Agent runs", num: true }, { label: "Failed", num: true }, { label: "State" }],
+      COMPANIES.map(([k, n, ppl, pr, runs, f, st]) => [`<a href="#/admin/companies/${k}">${n}</a>`, ppl, pr, runs, f, badge(st, st === "Active" ? "b-done" : "b-neutral")]), { foot: false }), { flush: true, actions: '<a href="#/admin/companies">All companies</a>' })}</div>
+    <div>${panel("The platform", kv([["Deployment", "single server"], ["Campaigns run", "in-process (local)"], ["Engine", "PK-Sim 12.3 · ospsuite 12.4.4"], ["Agents", "Qwen Coder (in-house) · failover: Nemotron Ultra, Claude"]]) + `<p class="mt8"><a href="#/admin/system">System status</a></p>`)}
+      ${panel("This month", kv([["Agent runs", "251"], ["Tokens", "38.2 M"], ["Estimated cost", "USD 412"]]) + `<p class="small muted mt8">${mock()}</p>`)}</div></div>`,
+}));
+route("/admin/companies", () => adminPage("companies", [["Companies", ""]], {
+  id: "P-24", title: "Companies", desc: "Each company (tenant) and what it holds. Companies are disabled, never deleted.",
+  actions: btn("Add company", { kind: "primary", dialog: "addcompany" }),
+  body: panel("", table([{ label: "Company" }, { label: "People", num: true }, { label: "Projects (active · archived)" }, { label: "Agent runs", num: true }, { label: "Failed", num: true }, { label: "State" }, { label: "", sort: false }],
+    COMPANIES.map(([k, n, ppl, pr, runs, f, st]) => [`<a href="#/admin/companies/${k}">${n}</a>`, ppl, pr, runs, f, badge(st, st === "Active" ? "b-done" : "b-neutral"), btn(st === "Active" ? "Disable" : "Enable", { small: true, dialog: "reason", arg: `${st === "Active" ? "Disable" : "Enable"} ${n}` })]), { filter: "Find a company" }), { flush: true }),
+}));
+DIALOGS.addcompany = () => ({ title: "Add a company", body: `<label class="field"><span>Name</span><input data-required="Name the company."></label>${stepUpNote}`, primary: "Add company", done: "Company added" });
+route("/admin/companies/:t", ({ t }) => {
+  const c = COMPANIES.find((x) => x[0] === t); if (!c) return null;
+  return adminPage("companies", [["Companies", "#/admin/companies"], [c[1], ""]], {
+    id: "P-24b", title: c[1], badge: badge(c[6], c[6] === "Active" ? "b-done" : "b-neutral"), desc: "Its people with their projects and use; its projects with their members.",
+    actions: btn("Give a person projects", { kind: "primary", dialog: "giveprojects" }),
+    body: `${panel("People", table([{ label: "Person" }, { label: "Roles" }, { label: "Projects", num: true }, { label: "Agent runs", num: true }, { label: "Tokens", num: true }], [["Asha Rao", "curator", "3", "121", "17.4 M"], ["Mei Chen", "curator, reviewer", "4", "80", "12.1 M"], ["Priya Nair", "viewer", "2", "0", "0"]]), { flush: true })}
+      ${panel("Projects", table([{ label: "Project" }, { label: "Owner" }, { label: "Members", num: true }, { label: "State" }], activeProjects().map((p) => [esc(p.name), esc(p.ownerOther), p.members, "Active"])), { flush: true })}`,
+  });
+});
+DIALOGS.giveprojects = () => ({ title: "Give a person projects", body: `<label class="field"><span>Person</span><select><option>Tomás Ortiz</option></select><span class="hint">Someone who has signed in once.</span></label><label class="field"><span>Projects</span><select multiple size="4">${activeProjects().map((p) => `<option>${esc(p.name)}</option>`).join("")}</select></label><label class="gap8"><input type="checkbox"> Make them the owner</label>${stepUpNote}`, primary: "Give projects", done: "Projects given" });
+route("/admin/people", () => adminPage("people", [["People", ""]], {
+  id: "P-25", title: "People", desc: "People of every company, through the identity provider. People are disabled, never deleted; nobody acts as another person.",
+  actions: btn("Add a person", { kind: "primary", dialog: "addperson" }),
+  body: panel("", table([{ label: "Person" }, { label: "Company" }, { label: "Roles" }, { label: "State" }, { label: "Last sign-in" }, { label: "", sort: false }], [
+    ["Asha Rao", "Northwind CRO", "curator", badge("Active", "b-done"), "2026-11-23", btn("Change", { small: true, dialog: "addperson", arg: "Asha Rao" })],
+    ["Mei Chen", "Northwind CRO", "curator, reviewer", badge("Active", "b-done"), "2026-11-22", btn("Change", { small: true, dialog: "addperson", arg: "Mei Chen" })],
+    ["Jon Park", "Contoso Pharma", "qa", badge("Active", "b-done"), "2026-11-10", btn("Change", { small: true, dialog: "addperson", arg: "Jon Park" })],
+    ["Lee Wu", "Fabrikam Bio", "viewer", badge("Disabled", "b-neutral"), "2026-09-30", btn("Enable", { small: true, dialog: "reason", arg: "Enable Lee Wu" })]], { filter: "Find a person", tools: '<select aria-label="Company"><option>All companies</option><option>Northwind CRO</option><option>Contoso Pharma</option></select>' }), { flush: true }),
+}));
+DIALOGS.addperson = (who) => ({ title: who ? `Change ${who}` : "Add a person", body: `${who ? "" : '<label class="field"><span>Name</span><input data-required="Name the person."></label><label class="field"><span>Email</span><input type="email" placeholder="name@company.example"></label>'}
+  <label class="field"><span>Company</span><select><option>Northwind CRO</option><option>Contoso Pharma</option></select></label>
+  <fieldset style="border:0;padding:0"><legend class="small" style="font-weight:600">Roles</legend>${["viewer", "curator", "reviewer", "qa"].map((r) => `<label class="gap8"><input type="checkbox" ${r === "curator" ? "checked" : ""}> ${r}</label>`).join("")}</fieldset>
+  ${flash("info", "<span>The identity provider emails them to set their own password and authenticator. <strong>Modeler One never sets or sees a password.</strong></span>", false)}${who ? `<p class="mt8">${btn("Reset their authenticator", { small: true })} ${btn("Disable", { small: true, kind: "danger" })}</p>` : ""}${stepUpNote}`, primary: who ? "Save" : "Add person", done: who ? "Person changed" : "Person added" });
+route("/admin/usage", () => usage("agent"));
+route("/admin/usage/:by", ({ by }) => ["agent", "person", "project", "company", "day"].includes(by) ? usage(by) : null);
+const usage = (by) => adminPage("usage", [["Usage and cost", ""]], {
+  id: "P-26", title: "Usage and cost", desc: "Each agent run's model and tokens, priced at the model's list price.",
+  actions: btn("Download CSV", {}),
+  body: `${panel("", `<div class="gap8"><label>Since <input type="text" value="2026-11-01" size="10"></label><label>Company <select><option>All</option><option>Northwind CRO</option></select></label><label>Priced as <select><option>Opus 5.5</option><option>Sonnet 5.5</option></select></label></div>`)}
+    ${tabs([["agent", "By agent"], ["person", "By person"], ["project", "By project"], ["company", "By company"], ["day", "By day"]], by, "#/admin/usage")}
+    ${panel("", table([{ label: "Agent" }, { label: "Runs", num: true }, { label: "Input tokens", num: true }, { label: "Output tokens", num: true }, { label: "Cache read", num: true }, { label: "Estimated cost", num: true }],
+      M.agents.slice(0, 6).map(([a, d], i) => [`${a} · ${esc(d)}`, String(40 - i * 5), `${(9.1 - i).toFixed(1)} M`, `${(0.6 - i * 0.05).toFixed(2)} M`, `${(3.2 - i * 0.3).toFixed(1)} M`, `USD ${110 - i * 12}`])), { flush: true })}<p class="small muted">${mock("MOCK usage")}</p>`,
+});
+route("/admin/models", () => adminPage("models", [["Agents and models", ""]], {
+  id: "P-27", title: "Agents and models", desc: "Each agent's provider and model; the failover list used when a model cannot answer.",
+  actions: `${btn("Put every agent on one model", { dialog: "setall" })}`,
+  body: `${panel("Agents", table([{ label: "Agent" }, { label: "Provider" }, { label: "Model" }, { label: "Effort" }, { label: "", sort: false }],
+      M.agents.map(([a, d], i) => [`${a} · ${esc(d)}`, i % 3 === 0 ? "In-house (LiteLLM)" : i % 3 === 1 ? "Claude on Amazon Bedrock" : "NVIDIA API catalog", i % 3 === 0 ? "Qwen Coder" : i % 3 === 1 ? "Claude" : "Nemotron Ultra", i % 3 === 1 ? "high" : "—", btn("Change", { small: true, dialog: "setall", arg: a })]), { foot: false }), { flush: true })}
+    ${panel("Failover list", `<ol style="margin:0;padding-left:18px"><li>Nemotron Ultra (NVIDIA)</li><li>Claude (Bedrock)</li></ol><p class="small muted mt8">A failing model rests for later tasks; each answer names the model that wrote it.</p>${btn("Edit the list", { small: true, dialog: "setall", arg: "failover" })}`)}`,
+}));
+DIALOGS.setall = (a) => ({ title: a ? `Change ${a}` : "Put every agent on one model", body: `<label class="field"><span>Provider</span><select><option>In-house (LiteLLM)</option><option>Claude on Amazon Bedrock</option><option>gpt-oss-120b on GroqCloud</option><option>NVIDIA API catalog</option></select></label><label class="field"><span>Model</span><select><option>Qwen Coder</option><option>Claude</option></select></label><label class="field"><span>Reason</span><textarea data-required="Give a reason: it is kept on the platform audit chain."></textarea></label>${stepUpNote}`, primary: "Save", done: "Model settings changed" });
+route("/admin/keys", () => adminPage("keys", [["Keys", ""]], {
+  id: "P-28", title: "Keys", desc: "Provider credentials, encrypted and write-only: shown by their last 4 characters. Rotate without a restart.",
+  actions: btn("Add a key", { kind: "primary", dialog: "addkey" }),
+  body: panel("", table([{ label: "Provider" }, { label: "Key" }, { label: "Added" }, { label: "Age" }, { label: "State" }, { label: "", sort: false }], [
+    ["Claude on Amazon Bedrock", "<code>…9F2A</code>", "2026-10-20 · owner", "34 days", badge("Active", "b-done"), `${btn("Test", { small: true })} ${btn("Retire", { small: true, dialog: "reason", arg: "Retire the Bedrock key" })}`],
+    ["gpt-oss-120b on GroqCloud", "<code>…K7Q1</code>", "2026-08-18 · owner", `97 days ${badge("Rotate", "b-decide")}`, badge("Active", "b-done"), `${btn("Test", { small: true })} ${btn("Retire", { small: true, dialog: "reason", arg: "Retire the GroqCloud key" })}`],
+    ["NVIDIA API catalog", "<code>…XX10</code>", "2026-11-01 · owner", "22 days", badge("Retired", "b-neutral"), ""]], { filter: "Filter keys" }), { flush: true }),
+}));
+DIALOGS.addkey = () => ({ title: "Add a key", body: `<label class="field"><span>Provider</span><select><option>Claude on Amazon Bedrock</option><option>gpt-oss-120b on GroqCloud</option><option>NVIDIA API catalog</option><option>Another OpenAI-compatible service</option></select></label><label class="field"><span>Key</span><input type="password" autocomplete="off" data-required="Paste the key." placeholder="write-only: never shown again"></label><p class="small muted">Then: Test → Activate (the previous key retires).</p>${stepUpNote}`, primary: "Add key", done: "Key added (not active yet)" });
+route("/admin/limits", () => adminPage("limits", [["Limits", ""]], {
+  id: "P-29", title: "Limits", desc: "Monthly limits on the agents' estimated spend and tokens. They warn at 80 % and 100 %; nothing is ever stopped.",
+  actions: btn("Set a limit", { kind: "primary", dialog: "setlimit" }),
+  body: panel("", table([{ label: "Scope" }, { label: "Measure" }, { label: "Limit", num: true }, { label: "Used this month" }, { label: "", sort: false }], [
+    ["Company · Northwind CRO", "Tokens", "40 M", `<div class="gap8"><div class="bar warn" style="width:120px"><i style="width:82%"></i></div>82 %</div>`, btn("Remove", { small: true, dialog: "reason", arg: "Remove the limit" })],
+    ["Project · Planamide first-in-human", "Spend (USD)", "150", `<div class="gap8"><div class="bar" style="width:120px"><i style="width:31%"></i></div>31 %</div>`, btn("Remove", { small: true, dialog: "reason", arg: "Remove the limit" })]], { empty: "No limits set." }), { flush: true }),
+}));
+DIALOGS.setlimit = () => ({ title: "Set a limit", body: `<label class="field"><span>Scope</span><select><option>Company</option><option>Project</option><option>Person</option></select></label><label class="field"><span>Measure</span><select><option>Tokens</option><option>Spend (USD)</option></select></label><label class="field"><span>Monthly limit</span><input type="number"></label><label class="field"><span>Reason</span><textarea data-required="Give a reason: it is kept on the platform audit chain."></textarea></label>${stepUpNote}`, primary: "Set limit", done: "Limit set" });
+route("/admin/pipeline", () => adminPage("pipeline", [["Intake pipeline", ""]], {
+  id: "P-31", title: "Intake pipeline", desc: "The reading queue of every company: what waits, what runs, how long each stage takes.",
+  body: panel("", table([{ label: "Stage" }, { label: "Waiting", num: true }, { label: "Running", num: true }, { label: "Failed today", num: true }, { label: "Median time" }], [["Arrival", "0", "0", "0", "2 s"], ["Read (code + OCR)", "2", "1", "0", "3 min"], ["Map (agents)", "4", "1", "1", "6 min"], ["Checks", "0", "0", "0", "20 s"]]), { flush: true }),
+}));
+route("/admin/system", () => adminPage("system", [["System status", ""]], {
+  id: "P-32", title: "System status", desc: "Each part of the platform and whether it answers.",
+  actions: btn("Check again", {}),
+  body: panel("", table([{ label: "Part" }, { label: "State" }, { label: "Detail" }, { label: "Checked" }], [
+    ["API", badge("Answers", "b-done"), "/health ok", "just now"], ["Campaign execution", badge("Answers", "b-done"), "in-process (local)", "just now"],
+    ["Engine (PK-Sim)", badge("Not checked", "b-outline"), "needs a new engine check route (backend change)", "—"], ["Agents", badge("Degraded", "b-decide"), "Qwen Coder slow; failover in use", "2 min ago"],
+    ["Keys", badge("Attention", "b-decide"), "1 key older than 90 days", "today"], ["Intake pipeline", badge("Answers", "b-done"), "7 waiting", "just now"]], { foot: false }), { flush: true }),
+}));
+route("/admin/audit", () => adminPage("audit", [["Platform audit log", ""]], {
+  id: "P-33", title: "Platform audit log", badge: badge("Future", "b-outline"), desc: "Every look into a company's data and every change made from the console.",
+  body: `<div class="panel"><div class="empty"><h2>Not available yet</h2><p>The platform's audit chain is recorded today, but the API has no route to read it. Planned as backend change R-N07.</p></div></div>`,
+}));
+
+/* ============================================================================================================
+   Start-up
+   ============================================================================================================ */
+(function init() {
+  $("#roleSel").innerHTML = Object.entries(ROLES).map(([k, r]) => `<option value="${k}" ${k === ROLE ? "selected" : ""}>${esc(r.label)}</option>`).join("");
+  $("#roleSel").addEventListener("change", (e) => { ROLE = e.target.value; store.set("mo-proto-role", ROLE); render(); });
+  $("#stateSel").addEventListener("change", (e) => { STATE = e.target.value; render(); });
+  window.addEventListener("hashchange", () => { render(); $("#main").focus({ preventScroll: true }); window.scrollTo(0, 0); });
+  render();
+})();
+</script>
+</body>
+</html>
