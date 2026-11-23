@@ -15,6 +15,21 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Docs — redesign charter, Gate 4: design system, high-fidelity prototype, API mapping (2026-11-23, the owner's request)
+- **What:** Gate 3 approved. `design-review/DESIGN_SYSTEM.md`; `design-review/prototype-hifi/index.html` (the approved
+  wireframe with the design system applied, IBM Plex embedded under its OFL, one offline file, mock data only);
+  `API_PAGE_MAPPING.md` (100 page actions on the 183 operations; handlers, models and permissions read from the code);
+  `BACKEND_CHANGE_REQUIREMENTS.md`.
+- **Chart palette:** `#001B94` is too dark for chart marks, so charts use `#2E4BC6`, `#B25000`, `#1BAF7A`, validated
+  for lightness, chroma and colour-blind separation; every chart has direct labels and a table view.
+- **Corrected:** 25 operations have no screen (Gate 1 said 21, Gate 2 22): a path-only match had counted
+  `POST /projects`, `PUT …/cpf` and `POST …/studies` as used; scripts and tests call them, the web app does not.
+- **Found (not fixed):** a signature on a record not named after its project (an escalation decision,
+  `{campaign}-{stage}`) is on the company's audit chain but not in `GET /projects/{id}/audit`, which keeps only
+  resource ids prefixed by the project (R-N09, inferred from the code; to confirm with a test).
+- **Checked:** 295 prototype addresses for six roles at two widths, 118 dialogs, every page's states, accessible names.
+- **Impact:** none on behaviour.
+
 ### Docs — redesign charter, Gate 3: the low-fidelity prototype (2026-11-23, the owner's request)
 - **What:** Gate 2 approved. `design-review/prototype/index.html`, one self-contained page (no build, no dependency, no
   API call) that draws all 34 pages of the approved sitemap in the AWS-style shell (top bar, fixed side navigation per

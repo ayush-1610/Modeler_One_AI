@@ -8,11 +8,23 @@ no file in this folder is imported, built or deployed, and no production file wa
 |---|---|---|
 | 1 Product discovery | 0–2 | **Approved** 2026-11-23 (decisions in [`DECISIONS.md`](DECISIONS.md)) |
 | 2 Information architecture | 3 | **Approved** 2026-11-23 |
-| 3 Wireframes | 4 | **Ready for review**: [`prototype/index.html`](prototype/index.html), [`WIREFRAMES.md`](WIREFRAMES.md) |
-| 4 Final design and technical | 5–7 | Not started |
+| 3 Wireframes | 4 | **Approved** 2026-11-23 |
+| 4 Final design and technical | 5–7 | **Ready for review** |
 | Implementation | 9–10 | Needs separate explicit authorisation |
 
-## Gate 3 documents
+## Gate 4 documents
+- [`prototype-hifi/index.html`](prototype-hifi/index.html): the high-fidelity prototype. Same pages, routes, controls and
+  behaviour as the approved wireframe, with the design system applied: IBM Plex, the token palette, icons, status
+  indicators, collection tables (preferences, pagination, stacked rows on phones), charts with a table view and a
+  crosshair, the MS-01 canvas, the document and sheet source viewers. Opens offline; mock data only.
+- [`DESIGN_SYSTEM.md`](DESIGN_SYSTEM.md): principles, colour (with the validated chart palette), type, space, layout,
+  page templates, components, content rules, accessibility, dark-mode readiness, and the map from today's code.
+- [`API_PAGE_MAPPING.md`](API_PAGE_MAPPING.md): 100 page actions mapped to the 183 operations, with handlers, models and
+  permissions read from the code; appendix of every operation's permissions.
+- [`BACKEND_CHANGE_REQUIREMENTS.md`](BACKEND_CHANGE_REQUIREMENTS.md): what the design needs from the API, proposed
+  contracts, retirements and their prerequisites.
+
+## Gate 3 documents (approved)
 - [`prototype/index.html`](prototype/index.html): the navigable low-fidelity prototype of all 34 pages, with prototype
   controls for role and page state. Opens directly in a browser; mock data only.
 - [`WIREFRAMES.md`](WIREFRAMES.md): how to review it, the shell, role differences, every page's layout and states,
@@ -43,3 +55,4 @@ stub engine with synthetic data; no number in them is a PBPK result). Gate 2 cor
 | 2026-11-23 | Fix the screenless operations and the bloatware, diligently | All | Every item verified in code; 22 operations (not 21); six defects found (R-S01 … R-S06) | Owner's request G1-5 |
 | 2026-11-23 | Q1 Data plan yes (read-mostly); Q2 no reference start, retire `/templates` after verifying; Q3 fix security now; Q4 keep logo | P-04, P-13b, remediation | Applied; `/templates` consumers verified (2 must move first); R-S01, R-S03, R-S04 fixed in code with tests | Owner's answers (DECISIONS D-G2) |
 | 2026-11-23 | Gate 2 approved | All pages | Gate 3 prototype and wireframe documentation | Charter Phase 4 |
+| 2026-11-23 | Gate 3 approved (left-hand Data room sections, side-panel study card, count in both places) | Design system, all pages | Gate 4 package; screenless count corrected to 25; a signature-visibility gap found (R-N09) | Charter Phases 5–7 |

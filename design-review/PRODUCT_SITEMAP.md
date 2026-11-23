@@ -164,7 +164,7 @@ Placement changes inside the project (each keeps the capability, rule 6 "nothing
 
 ## 7. Where each screenless API operation lands
 
-All 22 (Gate 1 said 21; `POST /campaigns/{id}/deviations` was wrongly counted as used). Detail and evidence in
+All 25 (corrected at Gate 4; Gate 1 said 21, Gate 2 22). Detail and evidence in
 [`REMEDIATION_PLAN.md`](REMEDIATION_PLAN.md) §2.
 
 | Operation | Lands in | Verdict |
@@ -186,3 +186,4 @@ All 22 (Gate 1 said 21; `POST /campaigns/{id}/deviations` was wrongly counted as
 | `POST /questions/{q}/map:generate` | none | **Retire** (stateless; the plan canvas persists the MAP) |
 | `POST /client-review:edit` | none | **Verify, then retire** |
 | `GET /proposals` | none | **Retire with its dead chain** |
+| `POST /projects`, `PUT /projects/{id}/compounds/{compound}/cpf`, `POST /projects/{id}/studies` | none | **Keep API-only**: the reference runs, case studies, showcase and tests use them |

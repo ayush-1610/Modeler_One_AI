@@ -135,7 +135,7 @@ Roles: V viewer · C curator (owner of the project) · R reviewer · A platform 
 
 ## 3. Backend-supported, not exposed in the UI (class 3)
 
-22 of 183 operations have no caller in `apps/web` (VERIFIED by contract cross-check plus a text search per path; Gate 1 said 21 and missed `POST /campaigns/{id}/deviations`). *(Corrected at Gate 2: see [`REMEDIATION_PLAN.md`](REMEDIATION_PLAN.md).)*
+**25** of 183 operations have no caller in `apps/web` (corrected at Gate 4 with a method-aware check: Gate 1 said 21, Gate 2 22; the three added are `POST /projects`, `PUT …/cpf` and `POST …/studies`, which scripts and tests call). Full list and verdicts: `REMEDIATION_PLAN.md` §2 and `API_PAGE_MAPPING.md` §3. *(Corrected at Gate 2: see [`REMEDIATION_PLAN.md`](REMEDIATION_PLAN.md).)*
 
 
 | Operation | What it offers | Likely reason / UX opportunity |

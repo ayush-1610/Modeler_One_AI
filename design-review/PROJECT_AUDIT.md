@@ -141,8 +141,8 @@ Run) are not in the sidebar**; they live in a step bar under each page's hero.
 | escalations | 5 | `escalations.py` | decision options, decide, resolve, deviations, feedback |
 | others | 27 | write, inputs, members, requirements, templates, campaigns, archive, signatures, results, system | CPF write, system, studies, campaign prepare/start, members, archive/restore, signatures, run results, health |
 
-Cross-check of the UI against the contract (script in session scratchpad): **161 of 183 operations are called by
-the web app; 22 are not** (Gate 2 correction: `deviations` was miscounted as used) (listed in `FEATURE_INVENTORY.md` §3). No web call targets a path missing from the
+Cross-check of the UI against the contract (script in session scratchpad): **158 of 183 operations are called by
+the web app; 25 are not** (corrected at Gate 4; see `API_PAGE_MAPPING.md` §1) (listed in `FEATURE_INVENTORY.md` §3). No web call targets a path missing from the
 contract. VERIFIED.
 
 Asynchronous work is **polled**, not streamed: the sidebar polls `/escalations` every 30 s; reading queues, Data room

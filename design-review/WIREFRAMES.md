@@ -126,7 +126,7 @@ A headless-browser run over the prototype:
 - Dialog choices are not carried into the page (nothing is saved).
 - Phone tables scroll inside their panel; Gate 4 proposes a stacked-row pattern for the busiest ones.
 
-## 8. Questions for Gate 3 (defaults used in the wireframe)
+## 8. Questions for Gate 3 (answered 2026-11-23: all three defaults kept)
 1. **Data room sections:** left in-page navigation (as wired, like the current page) or tabs? Default: left navigation,
    13 sections do not fit a tab row.
 2. **Inputs study card:** in the side panel (as wired) or as its own page? Default: side panel, so the list stays in

@@ -2,6 +2,19 @@
 
 Every owner decision on the redesign, verbatim where possible, with what it changes. Newest first.
 
+## D-G3 · Gate 3 approved, with its three answers (2026-11-23)
+| # | Owner's answer | Effect |
+|---|---|---|
+| 1 | Data room sections: the left-hand list | As wired; DESIGN_SYSTEM §4.1 "Workspace with sections" |
+| 2 | Inputs study card: the side panel | As wired; DESIGN_SYSTEM §5.7 |
+| 3 | "Your work" count in the top bar and the portfolio menu | As wired |
+
+## D-P2 · Chart palette (2026-11-23, derived; follows D-P1)
+`#001B94` is too dark for chart marks (OKLCH lightness 0.33, below the 0.43 band floor), so charts use its lighter step
+`#2E4BC6` as series 1 with `#B25000` and `#1BAF7A`. Validated with the data-viz skill's validator on white: all checks
+pass; slot 3 is 2.82:1, so every chart carries direct labels and a table view. Magenta/teal pairs failed colour-blind
+separation (ΔE 3–6) and were rejected. Details: DESIGN_SYSTEM.md §2.1.
+
 ## D-G2 · Answers to the Gate 2 questions (2026-11-23; Gate 2 itself not yet approved)
 
 | # | Owner's answer | What it changes |

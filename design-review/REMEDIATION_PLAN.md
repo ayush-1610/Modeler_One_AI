@@ -23,10 +23,11 @@ Effort: S < 1 day · M 1–3 days · L > 3 days. Locked = needs its own PR with 
 | **R-S06** ⏸ waits for the multi-server setup (owner) | `escalation:decide` and `/deviations` (the Temporal path) take **`password` and `second_factor` in the request body**, the signer's id from the body and the tenant from a header, with no bearer token. CLAUDE.md: "signatures come from the token's step-up, never a password in a request". Inert today: their verifier always answers 503 | `escalations.py:84-118`, `:121-130`, `get_verifier` | Before any Temporal deployment: rewrite both on the token step-up as `escalation:resolve` does, or remove them with `decision-options`. Until then, mark deprecated in OpenAPI | `escalations.py` (no); `compliance/signatures.py` **locked** if `sign_record(password=…)` is removed | M |
 | R-S07 | Not a defect, a design note: each agent run record starts with `cost_usd: 0.0`; cost is priced at read time in `/admin/usage` | `run_store.py:45`; admin plan §1, §4 | Agent activity (P-19) shows tokens; cost only in the admin console | — | — |
 
-## 2. The 22 screenless API operations
+## 2. The 25 screenless API operations
 
-Gate 1 counted 21; `POST /campaigns/{id}/deviations` was miscounted as used (the plan canvas only reads a `deviation`
-flag on placement answers). No count reaches 25.
+**Corrected at Gate 4:** 25, as the owner said at Gate 1. Gate 1 counted 21 and Gate 2 22: a path-only match took
+`POST /projects`, `PUT /projects/{id}/compounds/{compound}/cpf` and `POST /projects/{id}/studies` as used because a GET
+shares their path (#23–#25), and `/deviations` was miscounted as used (the plan canvas only reads a `deviation` flag).
 
 | # | Operation | What it does (verified) | Verdict | Home in the sitemap | Change needed |
 |---|---|---|---|---|---|
@@ -50,6 +51,9 @@ flag on placement answers). No count reaches 25.
 | 20 | `POST /questions/{q}/map:generate` | Stateless MAP JSON from a client-supplied CPF; persists nothing | **Retire** (the plan canvas persists and signs the MAP) | — | OpenAPI + tests + CHANGELOG |
 | 21 | `POST /client-review:edit` | Edit one study fact on the sheet-form path before confirming | **Verify, then retire**: the sheet-form card takes facts through `client-review:finish`; confirm no fact can only be corrected through `:edit` | — | OpenAPI + tests |
 | 22 | `GET /proposals` | Tenant-wide agent parameter proposals | **Retire with its dead chain**: `FileReadStore.upsert_proposal` has no production caller, so the list is always empty; its only writers are the unwired `literature` and `parameter_curation` agents. Plan proposals (A5) are separate and in use | — | see R-B13 |
+| 23 | `POST /projects` | Create a project from a CPF (the scripted campaign path) | **Keep API-only**: `deploy/reference/run_reference.py`, case studies, showcase, e2e and API tests build projects with it | — | — |
+| 24 | `PUT /projects/{id}/compounds/{compound}/cpf` | Write a CPF directly | **Keep API-only** (same scripts and tests); the product writes values through Inputs | — | — |
+| 25 | `POST /projects/{id}/studies` | Upload observed studies (scripted path) | **Keep API-only** (same scripts and tests); the product's data arrive through the Data room and Inputs | — | — |
 
 ## 3. Bloatware: verdicts after verification
 
