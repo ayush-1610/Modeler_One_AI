@@ -1,0 +1,297 @@
+// The web app's one API client (phase 7, rule B6). Server components read with `serverGet` (server to server); the
+// browser uses `get` / `send` / `upload` / `post` on same-origin "/api/..." paths that next.config proxies to the
+// backend, and `apiFile` for a download. A call names its route as the contract does
+// ("/api/v1/projects/{project_id}/brief"): the path parameters, the body and the answer's type follow from the route,
+// so a page cannot call a route that does not exist or read a shape the API does not send. Every JSON route is typed
+// (phase 9), so there is no call by bare URL.
+
+import type { components, paths } from "./api-types";
+import { COOKIE, type OidcConfig, type TokenSet } from "./oidc";
+import { requestStepUp, STEP_UP_CODES } from "./step-up";
+
+/** A response model of the API, generated from docs/api/openapi.json into lib/api-types.ts (`npm run api-types`;
+ *  `npm run typecheck` fails when the file is older than the snapshot). Use it instead of hand-writing an answer's
+ *  shape: `Schema<"BriefPage">`. Stored content the API sends as an open object (a redacted dataset, a template's CPF)
+ *  is narrowed by the page that reads it. */
+export type Schema<Name extends keyof components["schemas"]> = components["schemas"][Name];
+
+/** A generated answer with some of its open-object fields (stored content the API sends untyped) typed by the page.
+ *  Only fields the answer has can be narrowed, so a field the API drops or renames fails the typecheck:
+ *  `Narrow<Schema<"BriefPage">, { brief: Brief }>`. */
+export type Narrow<S, N extends { [K in keyof N]: K extends keyof S ? unknown : never }> = Omit<S, keyof N> & N;
+
+export type ApiError = {
+  code: string; location?: string; message: string;
+  /** What a coded refusal ({code, message, ...}) carries beside its message: a refused mapping's findings, the blockers
+   *  of a refused confirmation. The page that asked reads it; the message alone is what every other page shows. */
+  detail?: Record<string, unknown>;
+};
+
+export type Envelope<T> = {
+  data: T | null;
+  meta: { request_id: string; timestamp: string; api_version: string };
+  errors: ApiError[];
+};
+
+export type Rating = "low" | "medium" | "high";
+
+// --- routes, as the contract names them ---------------------------------------------------------------------
+
+/** A route of the API, as the contract names it: "/api/v1/projects/{project_id}/brief". */
+export type Route = keyof paths;
+type Method = "get" | "post" | "put" | "patch";
+type Operation<R extends Route, M extends Method> = NonNullable<paths[R][M]>;
+/** The routes that answer to a method. */
+export type RouteFor<M extends Method> = { [R in Route]: [Operation<R, M>] extends [never] ? never : R }[Route];
+type Success<O> = O extends { responses: infer Rs } ? Rs[Extract<keyof Rs, 200 | 201 | 202>] : never;
+type Json<X> = X extends { content: { "application/json": infer J } } ? J : never;
+/** The JSON a route answers with on success (the envelope, for a route that sends one). */
+export type Answer<R extends Route, M extends Method> = Json<Success<Operation<R, M>>>;
+/** The `data` of a route's envelope. */
+export type Data<R extends Route, M extends Method> = Answer<R, M> extends { data: infer D } ? D : never;
+/** The JSON body a route takes. */
+export type Body<R extends Route, M extends Method> =
+  Operation<R, M> extends { requestBody?: { content: { "application/json": infer B } } } ? B : never;
+type ParamNames<R extends string> = R extends `${string}{${infer P}}${infer Rest}` ? P | ParamNames<Rest> : never;
+/** The path parameters a route names: `{ project_id: string }`. */
+export type Params<R extends string> = { [K in ParamNames<R>]: string };
+/** Read a typed answer as the page's narrowed view of it (`Narrow<…>`), where the stored content the API sends as an
+ *  open object is the page's to type. The answer must have every key of the view: `narrow<BriefView>(env.data)`. */
+export function narrow<T>(data: { [K in keyof T]: unknown }): T {
+  return data as T;
+}
+
+/** The URL of a route: its parameters filled in (each encoded) and the query appended (undefined values left out). */
+export function path<R extends Route>(route: R, params: Params<R>, query?: Record<string, string | undefined>): string {
+  let out: string = route;
+  for (const [name, value] of Object.entries(params as Record<string, string>)) {
+    out = out.replace(`{${name}}`, encodeURIComponent(value));
+  }
+  const pairs = Object.entries(query ?? {}).filter((pair): pair is [string, string] => pair[1] !== undefined);
+  return pairs.length ? `${out}?${new URLSearchParams(pairs).toString()}` : out;
+}
+
+// --- server components: server-to-server reads --------------------------------------------------------------
+
+/** A server-side read: the data, or what went wrong. Pages show the problem; they never substitute sample data,
+ *  because a page that looks live but is not hides the real fault (and fake numbers must never pass as results). */
+export type Live<T> = { data: T | null; problem: string | null; notFound: boolean };
+
+const SERVER_API_BASE = process.env.MODELER_API_BASE ?? "http://127.0.0.1:8000";
+// The DEV sign-in's bearer (development and pilot only); with Keycloak the person's own access token is used.
+const SERVER_TOKEN = process.env.MODELER_WEB_TOKEN ?? "dev";
+
+/** The bearer of a server-side read: the person's own access token with Keycloak (the proxy keeps it fresh), else the
+ *  DEV sign-in's. `next/headers` is loaded only here, on the server, so the browser's bundle never contains it. */
+async function serverBearer(): Promise<string> {
+  if (!process.env.MODELER_OIDC_ISSUER) return SERVER_TOKEN;
+  const { cookies } = await import("next/headers");
+  return (await cookies()).get(COOKIE.access)?.value ?? "";
+}
+
+/** A typed server-side read of a route: `serverGet("/api/v1/projects/{project_id}/phases", { project_id })`. */
+export async function serverGet<R extends RouteFor<"get">>(
+  route: R, params: Params<R>, query?: Record<string, string | undefined>,
+): Promise<Live<Data<R, "get">>> {
+  let response: Response;
+  try {
+    response = await fetch(`${SERVER_API_BASE}${path(route, params, query)}`, {
+      headers: { Authorization: `Bearer ${await serverBearer()}` },
+      cache: "no-store",
+    });
+  } catch (err) {
+    const cause = (err as { cause?: { code?: string } })?.cause?.code ?? (err as Error)?.message ?? "no answer";
+    return { data: null, notFound: false,
+             problem: `The API at ${SERVER_API_BASE} is not reachable (${cause}). Start it, or point MODELER_API_BASE at it.` };
+  }
+  if (response.status === 404) return { data: null, notFound: true, problem: null };
+  if (!response.ok) {
+    let detail = "";
+    try { detail = ((await response.json()) as { detail?: string }).detail ?? ""; } catch { /* not JSON */ }
+    return { data: null, notFound: false, problem: `The API answered HTTP ${response.status}${detail ? `: ${detail}` : ""}` };
+  }
+  const env = (await response.json()) as Envelope<Data<R, "get">>;
+  if (env.errors?.length) return { data: null, notFound: false, problem: env.errors[0].message };
+  return { data: env.data, notFound: false, problem: null };
+}
+
+// --- the browser: same-origin calls with the user's bearer ----------------------------------------------------
+
+// The DEV sign-in's bearer. With Keycloak the web server's proxy (proxy.ts) replaces it with the person's own access
+// token, which the browser's code never holds.
+export const BROWSER_TOKEN = process.env.NEXT_PUBLIC_DEMO_TOKEN ?? "dev";
+
+/** Send a call; if the API wants a signing step-up, ask the person to confirm their identity and send it once more.
+ *  If the session has ended, go to the sign-in and come back to this page. Neither happens with the DEV sign-in. */
+async function withSession(call: () => Promise<Response>): Promise<Response> {
+  const res = await call();
+  if (res.status === 401 && typeof window !== "undefined") {
+    const here = window.location.pathname + window.location.search;
+    window.location.assign(`/auth/login?return=${encodeURIComponent(here)}`);
+    return res;
+  }
+  if (res.status !== 403) return res;
+  let code: unknown;
+  try { code = ((await res.clone().json()) as { detail?: { code?: unknown } }).detail?.code; } catch { /* not JSON */ }
+  if (!STEP_UP_CODES.includes(code as string) || !(await requestStepUp())) return res;
+  return call();
+}
+
+/** Turn any non-success answer into a readable message: the API's own `detail` when it sent one, else the HTTP
+ *  status, with a hint when the web server's proxy could not reach the API at all. */
+async function failure(res: Response): Promise<string> {
+  const text = await res.text().catch(() => "");
+  try {
+    const body = JSON.parse(text) as { detail?: unknown; errors?: { message: string }[] };
+    if (body.errors?.length) return body.errors[0].message;
+    if (typeof body.detail === "string") return body.detail;
+    // a coded refusal ({code, message}), such as a signature without a recent step-up
+    if (body.detail && typeof body.detail === "object" && "message" in body.detail) {
+      return String((body.detail as { message: unknown }).message);
+    }
+    if (Array.isArray(body.detail)) {
+      // FastAPI validation errors: [{loc: [...], msg}] -> "studies.0.dose_mg: field required"
+      return body.detail
+        .map((d: { loc?: unknown[]; msg?: string }) => `${(d.loc ?? []).slice(1).join(".")}: ${d.msg ?? "invalid"}`)
+        .join("; ");
+    }
+  } catch {
+    // not JSON: the proxy's own error page
+  }
+  if (res.status >= 500) {
+    // the web server's proxy answers a bare 500 when the API is down, failed, or took longer than the proxy waits
+    return `The API did not answer (HTTP ${res.status}): it failed, took too long, or is not running. Try fewer files ` +
+      "at once; if it keeps happening, check the API log and that the web server's MODELER_API_BASE points at it.";
+  }
+  return `HTTP ${res.status} ${res.statusText}`.trim();
+}
+
+function errorEnvelope<T>(message: string, detail?: Record<string, unknown>): Envelope<T> {
+  return { data: null, meta: { request_id: "", timestamp: "", api_version: "" },
+           errors: [{ code: "HTTP", message, ...(detail ? { detail } : {}) }] };
+}
+
+/** The `detail` of a coded refusal ({code, message, ...}), kept beside the message for the page that asked. */
+async function coded(res: Response): Promise<Record<string, unknown> | undefined> {
+  try {
+    const detail = ((await res.clone().json()) as { detail?: unknown }).detail;
+    if (detail && typeof detail === "object" && !Array.isArray(detail) && "code" in detail) return detail as Record<string, unknown>;
+  } catch { /* not JSON */ }
+  return undefined;
+}
+
+const UNREACHABLE = "The web server could not be reached. Check your connection to it.";
+
+/** Whether an answer is the API's own (JSON): not the web server's proxy's bare error page, nor the plain "Internal Server
+ *  Error" of an error the API did not handle (a read sent once more for either changes nothing). */
+const fromApi = (res: Response) => (res.headers.get("content-type") ?? "").includes("application/json");
+
+async function request<T>(url: string, method: "GET" | "POST" | "PUT" | "PATCH", body?: unknown): Promise<Envelope<T>> {
+  const call = () => withSession(() => fetch(url, {
+    method,
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${BROWSER_TOKEN}` },
+    body: body === undefined ? undefined : JSON.stringify(body),
+    cache: "no-store",
+  }));
+  let res: Response;
+  try {
+    res = await call();
+    // a read the web server's proxy could not complete is sent once more, at once: a read changes nothing, and the proxy
+    // answers a bare 500 when the API closed the connection it was about to reuse (a kept-alive socket the API had just
+    // closed: "socket hang up"). With no retries otherwise, one such answer left the page without what it read until a
+    // reload (final review round 7: the delivery's first read failed so under load and no card came). A write is never
+    // sent twice; the API's own refusals (JSON) are said at once, as before
+    if (method === "GET" && res.status >= 500 && !fromApi(res)) res = await call();
+  } catch {
+    return errorEnvelope(UNREACHABLE);
+  }
+  if (!res.ok) {
+    const detail = await coded(res);
+    return errorEnvelope(await failure(res), detail);
+  }
+  return (await res.json()) as Envelope<T>;
+}
+
+async function multipart<T>(url: string, form: FormData): Promise<Envelope<T>> {
+  let res: Response;
+  try {
+    res = await withSession(() => fetch(url, {
+      method: "POST", headers: { Authorization: `Bearer ${BROWSER_TOKEN}` }, body: form, cache: "no-store" }));
+  } catch {
+    return errorEnvelope(UNREACHABLE);
+  }
+  if (!res.ok) return errorEnvelope(await failure(res));
+  return (await res.json()) as Envelope<T>;
+}
+
+/** A typed browser read: `get("/api/v1/projects/{project_id}/brief", { project_id })`. */
+export function get<R extends RouteFor<"get">>(
+  route: R, params: Params<R>, query?: Record<string, string | undefined>,
+): Promise<Envelope<Data<R, "get">>> {
+  return request(path(route, params, query), "GET");
+}
+
+/** A typed browser write (POST, PUT, or PATCH for a partial change); the body is the route's request model (an empty object
+ *  when the route takes none). */
+export function send<M extends "post" | "put" | "patch", R extends RouteFor<M>>(
+  method: M, route: R, params: Params<R>, body?: Body<R, M>, query?: Record<string, string | undefined>,
+): Promise<Envelope<Data<R, M>>> {
+  return request(path(route, params, query), method === "post" ? "POST" : method === "put" ? "PUT" : "PATCH", body ?? {});
+}
+
+/** A typed multipart upload (files and form fields); the browser sets the multipart boundary itself. */
+export function upload<R extends RouteFor<"post">>(route: R, params: Params<R>, form: FormData): Promise<Envelope<Data<R, "post">>> {
+  return multipart(path(route, params), form);
+}
+
+/** A browser download of a file the API serves (a package artifact, the client-data template, a stored figure): the
+ *  file, or the readable reason it could not be fetched. */
+export async function apiFile(url: string): Promise<{ file: Blob | null; problem: string | null }> {
+  let res: Response;
+  try {
+    res = await withSession(() => fetch(url, { headers: { Authorization: `Bearer ${BROWSER_TOKEN}` }, cache: "no-store" }));
+  } catch {
+    return { file: null, problem: UNREACHABLE };
+  }
+  if (!res.ok) return { file: null, problem: await failure(res) };
+  return { file: await res.blob(), problem: null };
+}
+
+/** A typed write to a route that answers without the envelope (a signature, a campaign start, an escalation
+ *  decision): the answer is wrapped in an envelope here, so it reads and composes (`useMutation`) like every other call. */
+export async function post<R extends RouteFor<"post">>(route: R, params: Params<R>, body: Body<R, "post">):
+    Promise<Envelope<Answer<R, "post">>> {
+  let res: Response;
+  try {
+    res = await withSession(() => fetch(path(route, params), {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${BROWSER_TOKEN}` },
+      body: JSON.stringify(body),
+      cache: "no-store",
+    }));
+  } catch {
+    return errorEnvelope(UNREACHABLE);
+  }
+  if (!res.ok) return errorEnvelope(await failure(res));
+  return { data: (await res.json()) as Answer<R, "post">, meta: { request_id: "", timestamp: "", api_version: "" }, errors: [] };
+}
+
+// --- the identity provider (web server only) ----------------------------------------------------------------------
+
+/** The configured realm's token endpoint over the back channel (lib/oidc.ts): a code exchange or a refresh. The one call
+ *  this client makes that is not to the API; it takes no address, only the realm the web is configured for. */
+export async function identityToken(config: OidcConfig, form: Record<string, string>): Promise<TokenSet | null> {
+  try {
+    const res = await fetch(`${config.backchannel}/protocol/openid-connect/token`, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ client_id: config.clientId, ...form }),
+      cache: "no-store",
+    });
+    if (!res.ok) return null;
+    const tokens = (await res.json()) as TokenSet;
+    return tokens.access_token ? tokens : null;
+  } catch {
+    return null;
+  }
+}

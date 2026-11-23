@@ -1,0 +1,7343 @@
+{
+ "unassigned": [
+  {
+   "id": "tx-c2a1401cb90a89de#0",
+   "file": "230-23 Fasting Reference.xlsx",
+   "file_sha256": "d26e8242224d6a4039d67289032cbb90b4c0592d26968d24017e5f950624b914",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": null,
+   "unit": "ng/mL",
+   "verbatim": "BLQ",
+   "labels": {
+    "subject": "001",
+    "period": "I",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-c2a1401cb90a89de#1",
+   "file": "230-23 Fasting Reference.xlsx",
+   "file_sha256": "d26e8242224d6a4039d67289032cbb90b4c0592d26968d24017e5f950624b914",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 34.14,
+   "unit": "ng/mL",
+   "verbatim": "34.14",
+   "labels": {
+    "subject": "001",
+    "period": "I",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-c2a1401cb90a89de#2",
+   "file": "230-23 Fasting Reference.xlsx",
+   "file_sha256": "d26e8242224d6a4039d67289032cbb90b4c0592d26968d24017e5f950624b914",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 56.21,
+   "unit": "ng/mL",
+   "verbatim": "56.21",
+   "labels": {
+    "subject": "001",
+    "period": "I",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-c2a1401cb90a89de#3",
+   "file": "230-23 Fasting Reference.xlsx",
+   "file_sha256": "d26e8242224d6a4039d67289032cbb90b4c0592d26968d24017e5f950624b914",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 77.76,
+   "unit": "ng/mL",
+   "verbatim": "77.76",
+   "labels": {
+    "subject": "001",
+    "period": "I",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-c2a1401cb90a89de#4",
+   "file": "230-23 Fasting Reference.xlsx",
+   "file_sha256": "d26e8242224d6a4039d67289032cbb90b4c0592d26968d24017e5f950624b914",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 82.83,
+   "unit": "ng/mL",
+   "verbatim": "82.83",
+   "labels": {
+    "subject": "001",
+    "period": "I",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-c2a1401cb90a89de#5",
+   "file": "230-23 Fasting Reference.xlsx",
+   "file_sha256": "d26e8242224d6a4039d67289032cbb90b4c0592d26968d24017e5f950624b914",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 80.35,
+   "unit": "ng/mL",
+   "verbatim": "80.35",
+   "labels": {
+    "subject": "001",
+    "period": "I",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-c2a1401cb90a89de#6",
+   "file": "230-23 Fasting Reference.xlsx",
+   "file_sha256": "d26e8242224d6a4039d67289032cbb90b4c0592d26968d24017e5f950624b914",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 67.93,
+   "unit": "ng/mL",
+   "verbatim": "67.93",
+   "labels": {
+    "subject": "001",
+    "period": "I",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-c2a1401cb90a89de#7",
+   "file": "230-23 Fasting Reference.xlsx",
+   "file_sha256": "d26e8242224d6a4039d67289032cbb90b4c0592d26968d24017e5f950624b914",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 34.09,
+   "unit": "ng/mL",
+   "verbatim": "34.09",
+   "labels": {
+    "subject": "001",
+    "period": "I",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-c2a1401cb90a89de#8",
+   "file": "230-23 Fasting Reference.xlsx",
+   "file_sha256": "d26e8242224d6a4039d67289032cbb90b4c0592d26968d24017e5f950624b914",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 16.61,
+   "unit": "ng/mL",
+   "verbatim": "16.61",
+   "labels": {
+    "subject": "001",
+    "period": "I",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-c2a1401cb90a89de#9",
+   "file": "230-23 Fasting Reference.xlsx",
+   "file_sha256": "d26e8242224d6a4039d67289032cbb90b4c0592d26968d24017e5f950624b914",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 8.08,
+   "unit": "ng/mL",
+   "verbatim": "8.08",
+   "labels": {
+    "subject": "001",
+    "period": "I",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-c2a1401cb90a89de#10",
+   "file": "230-23 Fasting Reference.xlsx",
+   "file_sha256": "d26e8242224d6a4039d67289032cbb90b4c0592d26968d24017e5f950624b914",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 1.92,
+   "unit": "ng/mL",
+   "verbatim": "1.92",
+   "labels": {
+    "subject": "001",
+    "period": "I",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-c2a1401cb90a89de#11",
+   "file": "230-23 Fasting Reference.xlsx",
+   "file_sha256": "d26e8242224d6a4039d67289032cbb90b4c0592d26968d24017e5f950624b914",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": null,
+   "unit": "ng/mL",
+   "verbatim": "BLQ",
+   "labels": {
+    "subject": "002",
+    "period": "II",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-c2a1401cb90a89de#12",
+   "file": "230-23 Fasting Reference.xlsx",
+   "file_sha256": "d26e8242224d6a4039d67289032cbb90b4c0592d26968d24017e5f950624b914",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 36.04,
+   "unit": "ng/mL",
+   "verbatim": "36.04",
+   "labels": {
+    "subject": "002",
+    "period": "II",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-c2a1401cb90a89de#13",
+   "file": "230-23 Fasting Reference.xlsx",
+   "file_sha256": "d26e8242224d6a4039d67289032cbb90b4c0592d26968d24017e5f950624b914",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 59.33,
+   "unit": "ng/mL",
+   "verbatim": "59.33",
+   "labels": {
+    "subject": "002",
+    "period": "II",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-c2a1401cb90a89de#14",
+   "file": "230-23 Fasting Reference.xlsx",
+   "file_sha256": "d26e8242224d6a4039d67289032cbb90b4c0592d26968d24017e5f950624b914",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 82.08,
+   "unit": "ng/mL",
+   "verbatim": "82.08",
+   "labels": {
+    "subject": "002",
+    "period": "II",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-c2a1401cb90a89de#15",
+   "file": "230-23 Fasting Reference.xlsx",
+   "file_sha256": "d26e8242224d6a4039d67289032cbb90b4c0592d26968d24017e5f950624b914",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 87.43,
+   "unit": "ng/mL",
+   "verbatim": "87.43",
+   "labels": {
+    "subject": "002",
+    "period": "II",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-c2a1401cb90a89de#16",
+   "file": "230-23 Fasting Reference.xlsx",
+   "file_sha256": "d26e8242224d6a4039d67289032cbb90b4c0592d26968d24017e5f950624b914",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 84.81,
+   "unit": "ng/mL",
+   "verbatim": "84.81",
+   "labels": {
+    "subject": "002",
+    "period": "II",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-c2a1401cb90a89de#17",
+   "file": "230-23 Fasting Reference.xlsx",
+   "file_sha256": "d26e8242224d6a4039d67289032cbb90b4c0592d26968d24017e5f950624b914",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 71.71,
+   "unit": "ng/mL",
+   "verbatim": "71.71",
+   "labels": {
+    "subject": "002",
+    "period": "II",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-c2a1401cb90a89de#18",
+   "file": "230-23 Fasting Reference.xlsx",
+   "file_sha256": "d26e8242224d6a4039d67289032cbb90b4c0592d26968d24017e5f950624b914",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 35.98,
+   "unit": "ng/mL",
+   "verbatim": "35.98",
+   "labels": {
+    "subject": "002",
+    "period": "II",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-c2a1401cb90a89de#19",
+   "file": "230-23 Fasting Reference.xlsx",
+   "file_sha256": "d26e8242224d6a4039d67289032cbb90b4c0592d26968d24017e5f950624b914",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 17.53,
+   "unit": "ng/mL",
+   "verbatim": "17.53",
+   "labels": {
+    "subject": "002",
+    "period": "II",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-c2a1401cb90a89de#20",
+   "file": "230-23 Fasting Reference.xlsx",
+   "file_sha256": "d26e8242224d6a4039d67289032cbb90b4c0592d26968d24017e5f950624b914",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 8.53,
+   "unit": "ng/mL",
+   "verbatim": "8.53",
+   "labels": {
+    "subject": "002",
+    "period": "II",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-c2a1401cb90a89de#21",
+   "file": "230-23 Fasting Reference.xlsx",
+   "file_sha256": "d26e8242224d6a4039d67289032cbb90b4c0592d26968d24017e5f950624b914",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 2.02,
+   "unit": "ng/mL",
+   "verbatim": "2.02",
+   "labels": {
+    "subject": "002",
+    "period": "II",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-c2a1401cb90a89de#22",
+   "file": "230-23 Fasting Reference.xlsx",
+   "file_sha256": "d26e8242224d6a4039d67289032cbb90b4c0592d26968d24017e5f950624b914",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": null,
+   "unit": "ng/mL",
+   "verbatim": "BLQ",
+   "labels": {
+    "subject": "003",
+    "period": "I",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-c2a1401cb90a89de#23",
+   "file": "230-23 Fasting Reference.xlsx",
+   "file_sha256": "d26e8242224d6a4039d67289032cbb90b4c0592d26968d24017e5f950624b914",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 37.93,
+   "unit": "ng/mL",
+   "verbatim": "37.93",
+   "labels": {
+    "subject": "003",
+    "period": "I",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-c2a1401cb90a89de#24",
+   "file": "230-23 Fasting Reference.xlsx",
+   "file_sha256": "d26e8242224d6a4039d67289032cbb90b4c0592d26968d24017e5f950624b914",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 62.45,
+   "unit": "ng/mL",
+   "verbatim": "62.45",
+   "labels": {
+    "subject": "003",
+    "period": "I",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-c2a1401cb90a89de#25",
+   "file": "230-23 Fasting Reference.xlsx",
+   "file_sha256": "d26e8242224d6a4039d67289032cbb90b4c0592d26968d24017e5f950624b914",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 86.4,
+   "unit": "ng/mL",
+   "verbatim": "86.4",
+   "labels": {
+    "subject": "003",
+    "period": "I",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-c2a1401cb90a89de#26",
+   "file": "230-23 Fasting Reference.xlsx",
+   "file_sha256": "d26e8242224d6a4039d67289032cbb90b4c0592d26968d24017e5f950624b914",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 92.04,
+   "unit": "ng/mL",
+   "verbatim": "92.04",
+   "labels": {
+    "subject": "003",
+    "period": "I",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-c2a1401cb90a89de#27",
+   "file": "230-23 Fasting Reference.xlsx",
+   "file_sha256": "d26e8242224d6a4039d67289032cbb90b4c0592d26968d24017e5f950624b914",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 89.28,
+   "unit": "ng/mL",
+   "verbatim": "89.28",
+   "labels": {
+    "subject": "003",
+    "period": "I",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-c2a1401cb90a89de#28",
+   "file": "230-23 Fasting Reference.xlsx",
+   "file_sha256": "d26e8242224d6a4039d67289032cbb90b4c0592d26968d24017e5f950624b914",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 75.48,
+   "unit": "ng/mL",
+   "verbatim": "75.48",
+   "labels": {
+    "subject": "003",
+    "period": "I",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-c2a1401cb90a89de#29",
+   "file": "230-23 Fasting Reference.xlsx",
+   "file_sha256": "d26e8242224d6a4039d67289032cbb90b4c0592d26968d24017e5f950624b914",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 37.87,
+   "unit": "ng/mL",
+   "verbatim": "37.87",
+   "labels": {
+    "subject": "003",
+    "period": "I",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-c2a1401cb90a89de#30",
+   "file": "230-23 Fasting Reference.xlsx",
+   "file_sha256": "d26e8242224d6a4039d67289032cbb90b4c0592d26968d24017e5f950624b914",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": null,
+   "unit": "ng/mL",
+   "verbatim": "NS",
+   "labels": {
+    "subject": "003",
+    "period": "I",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-c2a1401cb90a89de#31",
+   "file": "230-23 Fasting Reference.xlsx",
+   "file_sha256": "d26e8242224d6a4039d67289032cbb90b4c0592d26968d24017e5f950624b914",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 8.98,
+   "unit": "ng/mL",
+   "verbatim": "8.98",
+   "labels": {
+    "subject": "003",
+    "period": "I",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-c2a1401cb90a89de#32",
+   "file": "230-23 Fasting Reference.xlsx",
+   "file_sha256": "d26e8242224d6a4039d67289032cbb90b4c0592d26968d24017e5f950624b914",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 2.13,
+   "unit": "ng/mL",
+   "verbatim": "2.13",
+   "labels": {
+    "subject": "003",
+    "period": "I",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-c2a1401cb90a89de#33",
+   "file": "230-23 Fasting Reference.xlsx",
+   "file_sha256": "d26e8242224d6a4039d67289032cbb90b4c0592d26968d24017e5f950624b914",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": null,
+   "unit": "ng/mL",
+   "verbatim": "BLQ",
+   "labels": {
+    "subject": "004",
+    "period": "II",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-c2a1401cb90a89de#34",
+   "file": "230-23 Fasting Reference.xlsx",
+   "file_sha256": "d26e8242224d6a4039d67289032cbb90b4c0592d26968d24017e5f950624b914",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 39.83,
+   "unit": "ng/mL",
+   "verbatim": "39.83",
+   "labels": {
+    "subject": "004",
+    "period": "II",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-c2a1401cb90a89de#35",
+   "file": "230-23 Fasting Reference.xlsx",
+   "file_sha256": "d26e8242224d6a4039d67289032cbb90b4c0592d26968d24017e5f950624b914",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 65.58,
+   "unit": "ng/mL",
+   "verbatim": "65.58",
+   "labels": {
+    "subject": "004",
+    "period": "II",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-c2a1401cb90a89de#36",
+   "file": "230-23 Fasting Reference.xlsx",
+   "file_sha256": "d26e8242224d6a4039d67289032cbb90b4c0592d26968d24017e5f950624b914",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 90.73,
+   "unit": "ng/mL",
+   "verbatim": "90.73",
+   "labels": {
+    "subject": "004",
+    "period": "II",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-c2a1401cb90a89de#37",
+   "file": "230-23 Fasting Reference.xlsx",
+   "file_sha256": "d26e8242224d6a4039d67289032cbb90b4c0592d26968d24017e5f950624b914",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 96.64,
+   "unit": "ng/mL",
+   "verbatim": "96.64",
+   "labels": {
+    "subject": "004",
+    "period": "II",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-c2a1401cb90a89de#38",
+   "file": "230-23 Fasting Reference.xlsx",
+   "file_sha256": "d26e8242224d6a4039d67289032cbb90b4c0592d26968d24017e5f950624b914",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 93.74,
+   "unit": "ng/mL",
+   "verbatim": "93.74",
+   "labels": {
+    "subject": "004",
+    "period": "II",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-c2a1401cb90a89de#39",
+   "file": "230-23 Fasting Reference.xlsx",
+   "file_sha256": "d26e8242224d6a4039d67289032cbb90b4c0592d26968d24017e5f950624b914",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 79.26,
+   "unit": "ng/mL",
+   "verbatim": "79.26",
+   "labels": {
+    "subject": "004",
+    "period": "II",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-c2a1401cb90a89de#40",
+   "file": "230-23 Fasting Reference.xlsx",
+   "file_sha256": "d26e8242224d6a4039d67289032cbb90b4c0592d26968d24017e5f950624b914",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 39.77,
+   "unit": "ng/mL",
+   "verbatim": "39.77",
+   "labels": {
+    "subject": "004",
+    "period": "II",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-c2a1401cb90a89de#41",
+   "file": "230-23 Fasting Reference.xlsx",
+   "file_sha256": "d26e8242224d6a4039d67289032cbb90b4c0592d26968d24017e5f950624b914",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 19.37,
+   "unit": "ng/mL",
+   "verbatim": "19.37",
+   "labels": {
+    "subject": "004",
+    "period": "II",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-c2a1401cb90a89de#42",
+   "file": "230-23 Fasting Reference.xlsx",
+   "file_sha256": "d26e8242224d6a4039d67289032cbb90b4c0592d26968d24017e5f950624b914",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 9.43,
+   "unit": "ng/mL",
+   "verbatim": "9.43",
+   "labels": {
+    "subject": "004",
+    "period": "II",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-c2a1401cb90a89de#43",
+   "file": "230-23 Fasting Reference.xlsx",
+   "file_sha256": "d26e8242224d6a4039d67289032cbb90b4c0592d26968d24017e5f950624b914",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 2.23,
+   "unit": "ng/mL",
+   "verbatim": "2.23",
+   "labels": {
+    "subject": "004",
+    "period": "II",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-c2a1401cb90a89de#44",
+   "file": "230-23 Fasting Reference.xlsx",
+   "file_sha256": "d26e8242224d6a4039d67289032cbb90b4c0592d26968d24017e5f950624b914",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": null,
+   "unit": "ng/mL",
+   "verbatim": "BLQ",
+   "labels": {
+    "subject": "005",
+    "period": "I",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-c2a1401cb90a89de#45",
+   "file": "230-23 Fasting Reference.xlsx",
+   "file_sha256": "d26e8242224d6a4039d67289032cbb90b4c0592d26968d24017e5f950624b914",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 41.73,
+   "unit": "ng/mL",
+   "verbatim": "41.73",
+   "labels": {
+    "subject": "005",
+    "period": "I",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-c2a1401cb90a89de#46",
+   "file": "230-23 Fasting Reference.xlsx",
+   "file_sha256": "d26e8242224d6a4039d67289032cbb90b4c0592d26968d24017e5f950624b914",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 68.7,
+   "unit": "ng/mL",
+   "verbatim": "68.7",
+   "labels": {
+    "subject": "005",
+    "period": "I",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-c2a1401cb90a89de#47",
+   "file": "230-23 Fasting Reference.xlsx",
+   "file_sha256": "d26e8242224d6a4039d67289032cbb90b4c0592d26968d24017e5f950624b914",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 95.05,
+   "unit": "ng/mL",
+   "verbatim": "95.05",
+   "labels": {
+    "subject": "005",
+    "period": "I",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-c2a1401cb90a89de#48",
+   "file": "230-23 Fasting Reference.xlsx",
+   "file_sha256": "d26e8242224d6a4039d67289032cbb90b4c0592d26968d24017e5f950624b914",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 101.24,
+   "unit": "ng/mL",
+   "verbatim": "101.24",
+   "labels": {
+    "subject": "005",
+    "period": "I",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-c2a1401cb90a89de#49",
+   "file": "230-23 Fasting Reference.xlsx",
+   "file_sha256": "d26e8242224d6a4039d67289032cbb90b4c0592d26968d24017e5f950624b914",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 98.2,
+   "unit": "ng/mL",
+   "verbatim": "98.2",
+   "labels": {
+    "subject": "005",
+    "period": "I",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-c2a1401cb90a89de#50",
+   "file": "230-23 Fasting Reference.xlsx",
+   "file_sha256": "d26e8242224d6a4039d67289032cbb90b4c0592d26968d24017e5f950624b914",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 83.03,
+   "unit": "ng/mL",
+   "verbatim": "83.03",
+   "labels": {
+    "subject": "005",
+    "period": "I",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-c2a1401cb90a89de#51",
+   "file": "230-23 Fasting Reference.xlsx",
+   "file_sha256": "d26e8242224d6a4039d67289032cbb90b4c0592d26968d24017e5f950624b914",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 41.66,
+   "unit": "ng/mL",
+   "verbatim": "41.66",
+   "labels": {
+    "subject": "005",
+    "period": "I",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-c2a1401cb90a89de#52",
+   "file": "230-23 Fasting Reference.xlsx",
+   "file_sha256": "d26e8242224d6a4039d67289032cbb90b4c0592d26968d24017e5f950624b914",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 20.3,
+   "unit": "ng/mL",
+   "verbatim": "20.3",
+   "labels": {
+    "subject": "005",
+    "period": "I",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-c2a1401cb90a89de#53",
+   "file": "230-23 Fasting Reference.xlsx",
+   "file_sha256": "d26e8242224d6a4039d67289032cbb90b4c0592d26968d24017e5f950624b914",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 9.88,
+   "unit": "ng/mL",
+   "verbatim": "9.88",
+   "labels": {
+    "subject": "005",
+    "period": "I",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-c2a1401cb90a89de#54",
+   "file": "230-23 Fasting Reference.xlsx",
+   "file_sha256": "d26e8242224d6a4039d67289032cbb90b4c0592d26968d24017e5f950624b914",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 2.34,
+   "unit": "ng/mL",
+   "verbatim": "2.34",
+   "labels": {
+    "subject": "005",
+    "period": "I",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-c2a1401cb90a89de#55",
+   "file": "230-23 Fasting Reference.xlsx",
+   "file_sha256": "d26e8242224d6a4039d67289032cbb90b4c0592d26968d24017e5f950624b914",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": null,
+   "unit": "ng/mL",
+   "verbatim": "BLQ",
+   "labels": {
+    "subject": "006",
+    "period": "II",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-c2a1401cb90a89de#56",
+   "file": "230-23 Fasting Reference.xlsx",
+   "file_sha256": "d26e8242224d6a4039d67289032cbb90b4c0592d26968d24017e5f950624b914",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 43.62,
+   "unit": "ng/mL",
+   "verbatim": "43.62",
+   "labels": {
+    "subject": "006",
+    "period": "II",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-c2a1401cb90a89de#57",
+   "file": "230-23 Fasting Reference.xlsx",
+   "file_sha256": "d26e8242224d6a4039d67289032cbb90b4c0592d26968d24017e5f950624b914",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 71.82,
+   "unit": "ng/mL",
+   "verbatim": "71.82",
+   "labels": {
+    "subject": "006",
+    "period": "II",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-c2a1401cb90a89de#58",
+   "file": "230-23 Fasting Reference.xlsx",
+   "file_sha256": "d26e8242224d6a4039d67289032cbb90b4c0592d26968d24017e5f950624b914",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 99.37,
+   "unit": "ng/mL",
+   "verbatim": "99.37",
+   "labels": {
+    "subject": "006",
+    "period": "II",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-c2a1401cb90a89de#59",
+   "file": "230-23 Fasting Reference.xlsx",
+   "file_sha256": "d26e8242224d6a4039d67289032cbb90b4c0592d26968d24017e5f950624b914",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 105.84,
+   "unit": "ng/mL",
+   "verbatim": "105.84",
+   "labels": {
+    "subject": "006",
+    "period": "II",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-c2a1401cb90a89de#60",
+   "file": "230-23 Fasting Reference.xlsx",
+   "file_sha256": "d26e8242224d6a4039d67289032cbb90b4c0592d26968d24017e5f950624b914",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 102.67,
+   "unit": "ng/mL",
+   "verbatim": "102.67",
+   "labels": {
+    "subject": "006",
+    "period": "II",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-c2a1401cb90a89de#61",
+   "file": "230-23 Fasting Reference.xlsx",
+   "file_sha256": "d26e8242224d6a4039d67289032cbb90b4c0592d26968d24017e5f950624b914",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 86.8,
+   "unit": "ng/mL",
+   "verbatim": "86.8",
+   "labels": {
+    "subject": "006",
+    "period": "II",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-c2a1401cb90a89de#62",
+   "file": "230-23 Fasting Reference.xlsx",
+   "file_sha256": "d26e8242224d6a4039d67289032cbb90b4c0592d26968d24017e5f950624b914",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 43.55,
+   "unit": "ng/mL",
+   "verbatim": "43.55",
+   "labels": {
+    "subject": "006",
+    "period": "II",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-c2a1401cb90a89de#63",
+   "file": "230-23 Fasting Reference.xlsx",
+   "file_sha256": "d26e8242224d6a4039d67289032cbb90b4c0592d26968d24017e5f950624b914",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 21.22,
+   "unit": "ng/mL",
+   "verbatim": "21.22",
+   "labels": {
+    "subject": "006",
+    "period": "II",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-c2a1401cb90a89de#64",
+   "file": "230-23 Fasting Reference.xlsx",
+   "file_sha256": "d26e8242224d6a4039d67289032cbb90b4c0592d26968d24017e5f950624b914",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 10.33,
+   "unit": "ng/mL",
+   "verbatim": "10.33",
+   "labels": {
+    "subject": "006",
+    "period": "II",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-c2a1401cb90a89de#65",
+   "file": "230-23 Fasting Reference.xlsx",
+   "file_sha256": "d26e8242224d6a4039d67289032cbb90b4c0592d26968d24017e5f950624b914",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 2.45,
+   "unit": "ng/mL",
+   "verbatim": "2.45",
+   "labels": {
+    "subject": "006",
+    "period": "II",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-c2a1401cb90a89de#66",
+   "file": "230-23 Fasting Reference.xlsx",
+   "file_sha256": "d26e8242224d6a4039d67289032cbb90b4c0592d26968d24017e5f950624b914",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 1.0,
+   "unit": "ng/mL",
+   "verbatim": "1",
+   "labels": {
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-c2a1401cb90a89de#67",
+   "file": "230-23 Fasting Reference.xlsx",
+   "file_sha256": "d26e8242224d6a4039d67289032cbb90b4c0592d26968d24017e5f950624b914",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 1.0,
+   "unit": "ng/mL",
+   "verbatim": "1",
+   "labels": {
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-c2a1401cb90a89de#68",
+   "file": "230-23 Fasting Reference.xlsx",
+   "file_sha256": "d26e8242224d6a4039d67289032cbb90b4c0592d26968d24017e5f950624b914",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 1.0,
+   "unit": "ng/mL",
+   "verbatim": "1",
+   "labels": {
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-c2a1401cb90a89de#69",
+   "file": "230-23 Fasting Reference.xlsx",
+   "file_sha256": "d26e8242224d6a4039d67289032cbb90b4c0592d26968d24017e5f950624b914",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 1.0,
+   "unit": "ng/mL",
+   "verbatim": "1",
+   "labels": {
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-c2a1401cb90a89de#70",
+   "file": "230-23 Fasting Reference.xlsx",
+   "file_sha256": "d26e8242224d6a4039d67289032cbb90b4c0592d26968d24017e5f950624b914",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 1.0,
+   "unit": "ng/mL",
+   "verbatim": "1",
+   "labels": {
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-c2a1401cb90a89de#71",
+   "file": "230-23 Fasting Reference.xlsx",
+   "file_sha256": "d26e8242224d6a4039d67289032cbb90b4c0592d26968d24017e5f950624b914",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 1.0,
+   "unit": "ng/mL",
+   "verbatim": "1",
+   "labels": {
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-c2a1401cb90a89de#72",
+   "file": "230-23 Fasting Reference.xlsx",
+   "file_sha256": "d26e8242224d6a4039d67289032cbb90b4c0592d26968d24017e5f950624b914",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 1.0,
+   "unit": "ng/mL",
+   "verbatim": "1",
+   "labels": {
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-c2a1401cb90a89de#73",
+   "file": "230-23 Fasting Reference.xlsx",
+   "file_sha256": "d26e8242224d6a4039d67289032cbb90b4c0592d26968d24017e5f950624b914",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 1.0,
+   "unit": "ng/mL",
+   "verbatim": "1",
+   "labels": {
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-c2a1401cb90a89de#74",
+   "file": "230-23 Fasting Reference.xlsx",
+   "file_sha256": "d26e8242224d6a4039d67289032cbb90b4c0592d26968d24017e5f950624b914",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 1.0,
+   "unit": "ng/mL",
+   "verbatim": "1",
+   "labels": {
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-c2a1401cb90a89de#75",
+   "file": "230-23 Fasting Reference.xlsx",
+   "file_sha256": "d26e8242224d6a4039d67289032cbb90b4c0592d26968d24017e5f950624b914",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 1.0,
+   "unit": "ng/mL",
+   "verbatim": "1",
+   "labels": {
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "f-2",
+   "file": "230-23 Fasting Reference.xlsx",
+   "file_sha256": "d26e8242224d6a4039d67289032cbb90b4c0592d26968d24017e5f950624b914",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": null,
+   "field": "dose",
+   "value": 50.0,
+   "unit": "mg",
+   "verbatim": "Study 230-23: plasma concentrations of desvenlafaxine (ng/mL), Reference, 50 mg, fasting",
+   "labels": {},
+   "entity": {}
+  },
+  {
+   "id": "f-3",
+   "file": "230-23 Fasting Reference.xlsx",
+   "file_sha256": "d26e8242224d6a4039d67289032cbb90b4c0592d26968d24017e5f950624b914",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": null,
+   "field": "food_state",
+   "value": "fasted",
+   "unit": null,
+   "verbatim": "Study 230-23: plasma concentrations of desvenlafaxine (ng/mL), Reference, 50 mg, fasting",
+   "labels": {},
+   "entity": {}
+  },
+  {
+   "id": "f-4",
+   "file": "230-23 Fasting Reference.xlsx",
+   "file_sha256": "d26e8242224d6a4039d67289032cbb90b4c0592d26968d24017e5f950624b914",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": null,
+   "field": "lloq",
+   "value": 0.5,
+   "unit": "ng/mL",
+   "verbatim": "BLQ = below the lower limit of quantification (0.50 ng/mL); NS = no sample",
+   "labels": {
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-db7bd106713c6e6c#0",
+   "file": "230-23 Fasting Test.xlsx",
+   "file_sha256": "e1d45be9497ff83f7ee887d221b0d5bd84d5c8039413f18808eb93a45f276583",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": null,
+   "unit": "ng/mL",
+   "verbatim": "BLQ",
+   "labels": {
+    "subject": "001",
+    "period": "I",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-db7bd106713c6e6c#1",
+   "file": "230-23 Fasting Test.xlsx",
+   "file_sha256": "e1d45be9497ff83f7ee887d221b0d5bd84d5c8039413f18808eb93a45f276583",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 32.01,
+   "unit": "ng/mL",
+   "verbatim": "32.01",
+   "labels": {
+    "subject": "001",
+    "period": "I",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-db7bd106713c6e6c#2",
+   "file": "230-23 Fasting Test.xlsx",
+   "file_sha256": "e1d45be9497ff83f7ee887d221b0d5bd84d5c8039413f18808eb93a45f276583",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 52.7,
+   "unit": "ng/mL",
+   "verbatim": "52.7",
+   "labels": {
+    "subject": "001",
+    "period": "I",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-db7bd106713c6e6c#3",
+   "file": "230-23 Fasting Test.xlsx",
+   "file_sha256": "e1d45be9497ff83f7ee887d221b0d5bd84d5c8039413f18808eb93a45f276583",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 72.9,
+   "unit": "ng/mL",
+   "verbatim": "72.9",
+   "labels": {
+    "subject": "001",
+    "period": "I",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-db7bd106713c6e6c#4",
+   "file": "230-23 Fasting Test.xlsx",
+   "file_sha256": "e1d45be9497ff83f7ee887d221b0d5bd84d5c8039413f18808eb93a45f276583",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 77.65,
+   "unit": "ng/mL",
+   "verbatim": "77.65",
+   "labels": {
+    "subject": "001",
+    "period": "I",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-db7bd106713c6e6c#5",
+   "file": "230-23 Fasting Test.xlsx",
+   "file_sha256": "e1d45be9497ff83f7ee887d221b0d5bd84d5c8039413f18808eb93a45f276583",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 75.33,
+   "unit": "ng/mL",
+   "verbatim": "75.33",
+   "labels": {
+    "subject": "001",
+    "period": "I",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-db7bd106713c6e6c#6",
+   "file": "230-23 Fasting Test.xlsx",
+   "file_sha256": "e1d45be9497ff83f7ee887d221b0d5bd84d5c8039413f18808eb93a45f276583",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 63.69,
+   "unit": "ng/mL",
+   "verbatim": "63.69",
+   "labels": {
+    "subject": "001",
+    "period": "I",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-db7bd106713c6e6c#7",
+   "file": "230-23 Fasting Test.xlsx",
+   "file_sha256": "e1d45be9497ff83f7ee887d221b0d5bd84d5c8039413f18808eb93a45f276583",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 31.95,
+   "unit": "ng/mL",
+   "verbatim": "31.95",
+   "labels": {
+    "subject": "001",
+    "period": "I",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-db7bd106713c6e6c#8",
+   "file": "230-23 Fasting Test.xlsx",
+   "file_sha256": "e1d45be9497ff83f7ee887d221b0d5bd84d5c8039413f18808eb93a45f276583",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 15.57,
+   "unit": "ng/mL",
+   "verbatim": "15.57",
+   "labels": {
+    "subject": "001",
+    "period": "I",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-db7bd106713c6e6c#9",
+   "file": "230-23 Fasting Test.xlsx",
+   "file_sha256": "e1d45be9497ff83f7ee887d221b0d5bd84d5c8039413f18808eb93a45f276583",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 7.58,
+   "unit": "ng/mL",
+   "verbatim": "7.58",
+   "labels": {
+    "subject": "001",
+    "period": "I",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-db7bd106713c6e6c#10",
+   "file": "230-23 Fasting Test.xlsx",
+   "file_sha256": "e1d45be9497ff83f7ee887d221b0d5bd84d5c8039413f18808eb93a45f276583",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 1.8,
+   "unit": "ng/mL",
+   "verbatim": "1.8",
+   "labels": {
+    "subject": "001",
+    "period": "I",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-db7bd106713c6e6c#11",
+   "file": "230-23 Fasting Test.xlsx",
+   "file_sha256": "e1d45be9497ff83f7ee887d221b0d5bd84d5c8039413f18808eb93a45f276583",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": null,
+   "unit": "ng/mL",
+   "verbatim": "BLQ",
+   "labels": {
+    "subject": "002",
+    "period": "II",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-db7bd106713c6e6c#12",
+   "file": "230-23 Fasting Test.xlsx",
+   "file_sha256": "e1d45be9497ff83f7ee887d221b0d5bd84d5c8039413f18808eb93a45f276583",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 33.78,
+   "unit": "ng/mL",
+   "verbatim": "33.78",
+   "labels": {
+    "subject": "002",
+    "period": "II",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-db7bd106713c6e6c#13",
+   "file": "230-23 Fasting Test.xlsx",
+   "file_sha256": "e1d45be9497ff83f7ee887d221b0d5bd84d5c8039413f18808eb93a45f276583",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 55.62,
+   "unit": "ng/mL",
+   "verbatim": "55.62",
+   "labels": {
+    "subject": "002",
+    "period": "II",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-db7bd106713c6e6c#14",
+   "file": "230-23 Fasting Test.xlsx",
+   "file_sha256": "e1d45be9497ff83f7ee887d221b0d5bd84d5c8039413f18808eb93a45f276583",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 76.95,
+   "unit": "ng/mL",
+   "verbatim": "76.95",
+   "labels": {
+    "subject": "002",
+    "period": "II",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-db7bd106713c6e6c#15",
+   "file": "230-23 Fasting Test.xlsx",
+   "file_sha256": "e1d45be9497ff83f7ee887d221b0d5bd84d5c8039413f18808eb93a45f276583",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 81.97,
+   "unit": "ng/mL",
+   "verbatim": "81.97",
+   "labels": {
+    "subject": "002",
+    "period": "II",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-db7bd106713c6e6c#16",
+   "file": "230-23 Fasting Test.xlsx",
+   "file_sha256": "e1d45be9497ff83f7ee887d221b0d5bd84d5c8039413f18808eb93a45f276583",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 79.51,
+   "unit": "ng/mL",
+   "verbatim": "79.51",
+   "labels": {
+    "subject": "002",
+    "period": "II",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-db7bd106713c6e6c#17",
+   "file": "230-23 Fasting Test.xlsx",
+   "file_sha256": "e1d45be9497ff83f7ee887d221b0d5bd84d5c8039413f18808eb93a45f276583",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 67.23,
+   "unit": "ng/mL",
+   "verbatim": "67.23",
+   "labels": {
+    "subject": "002",
+    "period": "II",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-db7bd106713c6e6c#18",
+   "file": "230-23 Fasting Test.xlsx",
+   "file_sha256": "e1d45be9497ff83f7ee887d221b0d5bd84d5c8039413f18808eb93a45f276583",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 33.73,
+   "unit": "ng/mL",
+   "verbatim": "33.73",
+   "labels": {
+    "subject": "002",
+    "period": "II",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-db7bd106713c6e6c#19",
+   "file": "230-23 Fasting Test.xlsx",
+   "file_sha256": "e1d45be9497ff83f7ee887d221b0d5bd84d5c8039413f18808eb93a45f276583",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 16.43,
+   "unit": "ng/mL",
+   "verbatim": "16.43",
+   "labels": {
+    "subject": "002",
+    "period": "II",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-db7bd106713c6e6c#20",
+   "file": "230-23 Fasting Test.xlsx",
+   "file_sha256": "e1d45be9497ff83f7ee887d221b0d5bd84d5c8039413f18808eb93a45f276583",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 8.0,
+   "unit": "ng/mL",
+   "verbatim": "8",
+   "labels": {
+    "subject": "002",
+    "period": "II",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-db7bd106713c6e6c#21",
+   "file": "230-23 Fasting Test.xlsx",
+   "file_sha256": "e1d45be9497ff83f7ee887d221b0d5bd84d5c8039413f18808eb93a45f276583",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 1.9,
+   "unit": "ng/mL",
+   "verbatim": "1.9",
+   "labels": {
+    "subject": "002",
+    "period": "II",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-db7bd106713c6e6c#22",
+   "file": "230-23 Fasting Test.xlsx",
+   "file_sha256": "e1d45be9497ff83f7ee887d221b0d5bd84d5c8039413f18808eb93a45f276583",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": null,
+   "unit": "ng/mL",
+   "verbatim": "BLQ",
+   "labels": {
+    "subject": "003",
+    "period": "I",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-db7bd106713c6e6c#23",
+   "file": "230-23 Fasting Test.xlsx",
+   "file_sha256": "e1d45be9497ff83f7ee887d221b0d5bd84d5c8039413f18808eb93a45f276583",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 35.56,
+   "unit": "ng/mL",
+   "verbatim": "35.56",
+   "labels": {
+    "subject": "003",
+    "period": "I",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-db7bd106713c6e6c#24",
+   "file": "230-23 Fasting Test.xlsx",
+   "file_sha256": "e1d45be9497ff83f7ee887d221b0d5bd84d5c8039413f18808eb93a45f276583",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 58.55,
+   "unit": "ng/mL",
+   "verbatim": "58.55",
+   "labels": {
+    "subject": "003",
+    "period": "I",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-db7bd106713c6e6c#25",
+   "file": "230-23 Fasting Test.xlsx",
+   "file_sha256": "e1d45be9497ff83f7ee887d221b0d5bd84d5c8039413f18808eb93a45f276583",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 81.0,
+   "unit": "ng/mL",
+   "verbatim": "81",
+   "labels": {
+    "subject": "003",
+    "period": "I",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-db7bd106713c6e6c#26",
+   "file": "230-23 Fasting Test.xlsx",
+   "file_sha256": "e1d45be9497ff83f7ee887d221b0d5bd84d5c8039413f18808eb93a45f276583",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 86.28,
+   "unit": "ng/mL",
+   "verbatim": "86.28",
+   "labels": {
+    "subject": "003",
+    "period": "I",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-db7bd106713c6e6c#27",
+   "file": "230-23 Fasting Test.xlsx",
+   "file_sha256": "e1d45be9497ff83f7ee887d221b0d5bd84d5c8039413f18808eb93a45f276583",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 83.7,
+   "unit": "ng/mL",
+   "verbatim": "83.7",
+   "labels": {
+    "subject": "003",
+    "period": "I",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-db7bd106713c6e6c#28",
+   "file": "230-23 Fasting Test.xlsx",
+   "file_sha256": "e1d45be9497ff83f7ee887d221b0d5bd84d5c8039413f18808eb93a45f276583",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 70.76,
+   "unit": "ng/mL",
+   "verbatim": "70.76",
+   "labels": {
+    "subject": "003",
+    "period": "I",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-db7bd106713c6e6c#29",
+   "file": "230-23 Fasting Test.xlsx",
+   "file_sha256": "e1d45be9497ff83f7ee887d221b0d5bd84d5c8039413f18808eb93a45f276583",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 35.51,
+   "unit": "ng/mL",
+   "verbatim": "35.51",
+   "labels": {
+    "subject": "003",
+    "period": "I",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-db7bd106713c6e6c#30",
+   "file": "230-23 Fasting Test.xlsx",
+   "file_sha256": "e1d45be9497ff83f7ee887d221b0d5bd84d5c8039413f18808eb93a45f276583",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": null,
+   "unit": "ng/mL",
+   "verbatim": "NS",
+   "labels": {
+    "subject": "003",
+    "period": "I",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-db7bd106713c6e6c#31",
+   "file": "230-23 Fasting Test.xlsx",
+   "file_sha256": "e1d45be9497ff83f7ee887d221b0d5bd84d5c8039413f18808eb93a45f276583",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 8.42,
+   "unit": "ng/mL",
+   "verbatim": "8.42",
+   "labels": {
+    "subject": "003",
+    "period": "I",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-db7bd106713c6e6c#32",
+   "file": "230-23 Fasting Test.xlsx",
+   "file_sha256": "e1d45be9497ff83f7ee887d221b0d5bd84d5c8039413f18808eb93a45f276583",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 1.99,
+   "unit": "ng/mL",
+   "verbatim": "1.99",
+   "labels": {
+    "subject": "003",
+    "period": "I",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-db7bd106713c6e6c#33",
+   "file": "230-23 Fasting Test.xlsx",
+   "file_sha256": "e1d45be9497ff83f7ee887d221b0d5bd84d5c8039413f18808eb93a45f276583",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": null,
+   "unit": "ng/mL",
+   "verbatim": "BLQ",
+   "labels": {
+    "subject": "004",
+    "period": "II",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-db7bd106713c6e6c#34",
+   "file": "230-23 Fasting Test.xlsx",
+   "file_sha256": "e1d45be9497ff83f7ee887d221b0d5bd84d5c8039413f18808eb93a45f276583",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 37.34,
+   "unit": "ng/mL",
+   "verbatim": "37.34",
+   "labels": {
+    "subject": "004",
+    "period": "II",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-db7bd106713c6e6c#35",
+   "file": "230-23 Fasting Test.xlsx",
+   "file_sha256": "e1d45be9497ff83f7ee887d221b0d5bd84d5c8039413f18808eb93a45f276583",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 61.48,
+   "unit": "ng/mL",
+   "verbatim": "61.48",
+   "labels": {
+    "subject": "004",
+    "period": "II",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-db7bd106713c6e6c#36",
+   "file": "230-23 Fasting Test.xlsx",
+   "file_sha256": "e1d45be9497ff83f7ee887d221b0d5bd84d5c8039413f18808eb93a45f276583",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 85.05,
+   "unit": "ng/mL",
+   "verbatim": "85.05",
+   "labels": {
+    "subject": "004",
+    "period": "II",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-db7bd106713c6e6c#37",
+   "file": "230-23 Fasting Test.xlsx",
+   "file_sha256": "e1d45be9497ff83f7ee887d221b0d5bd84d5c8039413f18808eb93a45f276583",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 90.6,
+   "unit": "ng/mL",
+   "verbatim": "90.6",
+   "labels": {
+    "subject": "004",
+    "period": "II",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-db7bd106713c6e6c#38",
+   "file": "230-23 Fasting Test.xlsx",
+   "file_sha256": "e1d45be9497ff83f7ee887d221b0d5bd84d5c8039413f18808eb93a45f276583",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 87.88,
+   "unit": "ng/mL",
+   "verbatim": "87.88",
+   "labels": {
+    "subject": "004",
+    "period": "II",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-db7bd106713c6e6c#39",
+   "file": "230-23 Fasting Test.xlsx",
+   "file_sha256": "e1d45be9497ff83f7ee887d221b0d5bd84d5c8039413f18808eb93a45f276583",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 74.3,
+   "unit": "ng/mL",
+   "verbatim": "74.3",
+   "labels": {
+    "subject": "004",
+    "period": "II",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-db7bd106713c6e6c#40",
+   "file": "230-23 Fasting Test.xlsx",
+   "file_sha256": "e1d45be9497ff83f7ee887d221b0d5bd84d5c8039413f18808eb93a45f276583",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 37.28,
+   "unit": "ng/mL",
+   "verbatim": "37.28",
+   "labels": {
+    "subject": "004",
+    "period": "II",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-db7bd106713c6e6c#41",
+   "file": "230-23 Fasting Test.xlsx",
+   "file_sha256": "e1d45be9497ff83f7ee887d221b0d5bd84d5c8039413f18808eb93a45f276583",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 18.16,
+   "unit": "ng/mL",
+   "verbatim": "18.16",
+   "labels": {
+    "subject": "004",
+    "period": "II",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-db7bd106713c6e6c#42",
+   "file": "230-23 Fasting Test.xlsx",
+   "file_sha256": "e1d45be9497ff83f7ee887d221b0d5bd84d5c8039413f18808eb93a45f276583",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 8.84,
+   "unit": "ng/mL",
+   "verbatim": "8.84",
+   "labels": {
+    "subject": "004",
+    "period": "II",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-db7bd106713c6e6c#43",
+   "file": "230-23 Fasting Test.xlsx",
+   "file_sha256": "e1d45be9497ff83f7ee887d221b0d5bd84d5c8039413f18808eb93a45f276583",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 2.09,
+   "unit": "ng/mL",
+   "verbatim": "2.09",
+   "labels": {
+    "subject": "004",
+    "period": "II",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-db7bd106713c6e6c#44",
+   "file": "230-23 Fasting Test.xlsx",
+   "file_sha256": "e1d45be9497ff83f7ee887d221b0d5bd84d5c8039413f18808eb93a45f276583",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": null,
+   "unit": "ng/mL",
+   "verbatim": "BLQ",
+   "labels": {
+    "subject": "005",
+    "period": "I",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-db7bd106713c6e6c#45",
+   "file": "230-23 Fasting Test.xlsx",
+   "file_sha256": "e1d45be9497ff83f7ee887d221b0d5bd84d5c8039413f18808eb93a45f276583",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 39.12,
+   "unit": "ng/mL",
+   "verbatim": "39.12",
+   "labels": {
+    "subject": "005",
+    "period": "I",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-db7bd106713c6e6c#46",
+   "file": "230-23 Fasting Test.xlsx",
+   "file_sha256": "e1d45be9497ff83f7ee887d221b0d5bd84d5c8039413f18808eb93a45f276583",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 64.41,
+   "unit": "ng/mL",
+   "verbatim": "64.41",
+   "labels": {
+    "subject": "005",
+    "period": "I",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-db7bd106713c6e6c#47",
+   "file": "230-23 Fasting Test.xlsx",
+   "file_sha256": "e1d45be9497ff83f7ee887d221b0d5bd84d5c8039413f18808eb93a45f276583",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 89.11,
+   "unit": "ng/mL",
+   "verbatim": "89.11",
+   "labels": {
+    "subject": "005",
+    "period": "I",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-db7bd106713c6e6c#48",
+   "file": "230-23 Fasting Test.xlsx",
+   "file_sha256": "e1d45be9497ff83f7ee887d221b0d5bd84d5c8039413f18808eb93a45f276583",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 94.91,
+   "unit": "ng/mL",
+   "verbatim": "94.91",
+   "labels": {
+    "subject": "005",
+    "period": "I",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-db7bd106713c6e6c#49",
+   "file": "230-23 Fasting Test.xlsx",
+   "file_sha256": "e1d45be9497ff83f7ee887d221b0d5bd84d5c8039413f18808eb93a45f276583",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 92.07,
+   "unit": "ng/mL",
+   "verbatim": "92.07",
+   "labels": {
+    "subject": "005",
+    "period": "I",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-db7bd106713c6e6c#50",
+   "file": "230-23 Fasting Test.xlsx",
+   "file_sha256": "e1d45be9497ff83f7ee887d221b0d5bd84d5c8039413f18808eb93a45f276583",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 77.84,
+   "unit": "ng/mL",
+   "verbatim": "77.84",
+   "labels": {
+    "subject": "005",
+    "period": "I",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-db7bd106713c6e6c#51",
+   "file": "230-23 Fasting Test.xlsx",
+   "file_sha256": "e1d45be9497ff83f7ee887d221b0d5bd84d5c8039413f18808eb93a45f276583",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 39.06,
+   "unit": "ng/mL",
+   "verbatim": "39.06",
+   "labels": {
+    "subject": "005",
+    "period": "I",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-db7bd106713c6e6c#52",
+   "file": "230-23 Fasting Test.xlsx",
+   "file_sha256": "e1d45be9497ff83f7ee887d221b0d5bd84d5c8039413f18808eb93a45f276583",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 19.03,
+   "unit": "ng/mL",
+   "verbatim": "19.03",
+   "labels": {
+    "subject": "005",
+    "period": "I",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-db7bd106713c6e6c#53",
+   "file": "230-23 Fasting Test.xlsx",
+   "file_sha256": "e1d45be9497ff83f7ee887d221b0d5bd84d5c8039413f18808eb93a45f276583",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 9.26,
+   "unit": "ng/mL",
+   "verbatim": "9.26",
+   "labels": {
+    "subject": "005",
+    "period": "I",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-db7bd106713c6e6c#54",
+   "file": "230-23 Fasting Test.xlsx",
+   "file_sha256": "e1d45be9497ff83f7ee887d221b0d5bd84d5c8039413f18808eb93a45f276583",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 2.19,
+   "unit": "ng/mL",
+   "verbatim": "2.19",
+   "labels": {
+    "subject": "005",
+    "period": "I",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-db7bd106713c6e6c#55",
+   "file": "230-23 Fasting Test.xlsx",
+   "file_sha256": "e1d45be9497ff83f7ee887d221b0d5bd84d5c8039413f18808eb93a45f276583",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": null,
+   "unit": "ng/mL",
+   "verbatim": "BLQ",
+   "labels": {
+    "subject": "006",
+    "period": "II",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-db7bd106713c6e6c#56",
+   "file": "230-23 Fasting Test.xlsx",
+   "file_sha256": "e1d45be9497ff83f7ee887d221b0d5bd84d5c8039413f18808eb93a45f276583",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 40.9,
+   "unit": "ng/mL",
+   "verbatim": "40.9",
+   "labels": {
+    "subject": "006",
+    "period": "II",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-db7bd106713c6e6c#57",
+   "file": "230-23 Fasting Test.xlsx",
+   "file_sha256": "e1d45be9497ff83f7ee887d221b0d5bd84d5c8039413f18808eb93a45f276583",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 67.33,
+   "unit": "ng/mL",
+   "verbatim": "67.33",
+   "labels": {
+    "subject": "006",
+    "period": "II",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-db7bd106713c6e6c#58",
+   "file": "230-23 Fasting Test.xlsx",
+   "file_sha256": "e1d45be9497ff83f7ee887d221b0d5bd84d5c8039413f18808eb93a45f276583",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 93.16,
+   "unit": "ng/mL",
+   "verbatim": "93.16",
+   "labels": {
+    "subject": "006",
+    "period": "II",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-db7bd106713c6e6c#59",
+   "file": "230-23 Fasting Test.xlsx",
+   "file_sha256": "e1d45be9497ff83f7ee887d221b0d5bd84d5c8039413f18808eb93a45f276583",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 99.23,
+   "unit": "ng/mL",
+   "verbatim": "99.23",
+   "labels": {
+    "subject": "006",
+    "period": "II",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-db7bd106713c6e6c#60",
+   "file": "230-23 Fasting Test.xlsx",
+   "file_sha256": "e1d45be9497ff83f7ee887d221b0d5bd84d5c8039413f18808eb93a45f276583",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 96.25,
+   "unit": "ng/mL",
+   "verbatim": "96.25",
+   "labels": {
+    "subject": "006",
+    "period": "II",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-db7bd106713c6e6c#61",
+   "file": "230-23 Fasting Test.xlsx",
+   "file_sha256": "e1d45be9497ff83f7ee887d221b0d5bd84d5c8039413f18808eb93a45f276583",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 81.38,
+   "unit": "ng/mL",
+   "verbatim": "81.38",
+   "labels": {
+    "subject": "006",
+    "period": "II",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-db7bd106713c6e6c#62",
+   "file": "230-23 Fasting Test.xlsx",
+   "file_sha256": "e1d45be9497ff83f7ee887d221b0d5bd84d5c8039413f18808eb93a45f276583",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 40.83,
+   "unit": "ng/mL",
+   "verbatim": "40.83",
+   "labels": {
+    "subject": "006",
+    "period": "II",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-db7bd106713c6e6c#63",
+   "file": "230-23 Fasting Test.xlsx",
+   "file_sha256": "e1d45be9497ff83f7ee887d221b0d5bd84d5c8039413f18808eb93a45f276583",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 19.89,
+   "unit": "ng/mL",
+   "verbatim": "19.89",
+   "labels": {
+    "subject": "006",
+    "period": "II",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-db7bd106713c6e6c#64",
+   "file": "230-23 Fasting Test.xlsx",
+   "file_sha256": "e1d45be9497ff83f7ee887d221b0d5bd84d5c8039413f18808eb93a45f276583",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 9.68,
+   "unit": "ng/mL",
+   "verbatim": "9.68",
+   "labels": {
+    "subject": "006",
+    "period": "II",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-db7bd106713c6e6c#65",
+   "file": "230-23 Fasting Test.xlsx",
+   "file_sha256": "e1d45be9497ff83f7ee887d221b0d5bd84d5c8039413f18808eb93a45f276583",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 2.29,
+   "unit": "ng/mL",
+   "verbatim": "2.29",
+   "labels": {
+    "subject": "006",
+    "period": "II",
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-db7bd106713c6e6c#66",
+   "file": "230-23 Fasting Test.xlsx",
+   "file_sha256": "e1d45be9497ff83f7ee887d221b0d5bd84d5c8039413f18808eb93a45f276583",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 1.0,
+   "unit": "ng/mL",
+   "verbatim": "1",
+   "labels": {
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-db7bd106713c6e6c#67",
+   "file": "230-23 Fasting Test.xlsx",
+   "file_sha256": "e1d45be9497ff83f7ee887d221b0d5bd84d5c8039413f18808eb93a45f276583",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 1.0,
+   "unit": "ng/mL",
+   "verbatim": "1",
+   "labels": {
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-db7bd106713c6e6c#68",
+   "file": "230-23 Fasting Test.xlsx",
+   "file_sha256": "e1d45be9497ff83f7ee887d221b0d5bd84d5c8039413f18808eb93a45f276583",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 1.0,
+   "unit": "ng/mL",
+   "verbatim": "1",
+   "labels": {
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-db7bd106713c6e6c#69",
+   "file": "230-23 Fasting Test.xlsx",
+   "file_sha256": "e1d45be9497ff83f7ee887d221b0d5bd84d5c8039413f18808eb93a45f276583",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 1.0,
+   "unit": "ng/mL",
+   "verbatim": "1",
+   "labels": {
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-db7bd106713c6e6c#70",
+   "file": "230-23 Fasting Test.xlsx",
+   "file_sha256": "e1d45be9497ff83f7ee887d221b0d5bd84d5c8039413f18808eb93a45f276583",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 1.0,
+   "unit": "ng/mL",
+   "verbatim": "1",
+   "labels": {
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-db7bd106713c6e6c#71",
+   "file": "230-23 Fasting Test.xlsx",
+   "file_sha256": "e1d45be9497ff83f7ee887d221b0d5bd84d5c8039413f18808eb93a45f276583",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 1.0,
+   "unit": "ng/mL",
+   "verbatim": "1",
+   "labels": {
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-db7bd106713c6e6c#72",
+   "file": "230-23 Fasting Test.xlsx",
+   "file_sha256": "e1d45be9497ff83f7ee887d221b0d5bd84d5c8039413f18808eb93a45f276583",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 1.0,
+   "unit": "ng/mL",
+   "verbatim": "1",
+   "labels": {
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-db7bd106713c6e6c#73",
+   "file": "230-23 Fasting Test.xlsx",
+   "file_sha256": "e1d45be9497ff83f7ee887d221b0d5bd84d5c8039413f18808eb93a45f276583",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 1.0,
+   "unit": "ng/mL",
+   "verbatim": "1",
+   "labels": {
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-db7bd106713c6e6c#74",
+   "file": "230-23 Fasting Test.xlsx",
+   "file_sha256": "e1d45be9497ff83f7ee887d221b0d5bd84d5c8039413f18808eb93a45f276583",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 1.0,
+   "unit": "ng/mL",
+   "verbatim": "1",
+   "labels": {
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-db7bd106713c6e6c#75",
+   "file": "230-23 Fasting Test.xlsx",
+   "file_sha256": "e1d45be9497ff83f7ee887d221b0d5bd84d5c8039413f18808eb93a45f276583",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_individual",
+   "field": "concentration",
+   "value": 1.0,
+   "unit": "ng/mL",
+   "verbatim": "1",
+   "labels": {
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "f-6",
+   "file": "230-23 Fasting Test.xlsx",
+   "file_sha256": "e1d45be9497ff83f7ee887d221b0d5bd84d5c8039413f18808eb93a45f276583",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": null,
+   "field": "dose",
+   "value": 50.0,
+   "unit": "mg",
+   "verbatim": "Study 230-23: plasma concentrations of desvenlafaxine (ng/mL), Test, 50 mg, fasting",
+   "labels": {},
+   "entity": {}
+  },
+  {
+   "id": "f-7",
+   "file": "230-23 Fasting Test.xlsx",
+   "file_sha256": "e1d45be9497ff83f7ee887d221b0d5bd84d5c8039413f18808eb93a45f276583",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": null,
+   "field": "food_state",
+   "value": "fasted",
+   "unit": null,
+   "verbatim": "Study 230-23: plasma concentrations of desvenlafaxine (ng/mL), Test, 50 mg, fasting",
+   "labels": {},
+   "entity": {}
+  },
+  {
+   "id": "f-8",
+   "file": "230-23 Fasting Test.xlsx",
+   "file_sha256": "e1d45be9497ff83f7ee887d221b0d5bd84d5c8039413f18808eb93a45f276583",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": null,
+   "field": "lloq",
+   "value": 0.5,
+   "unit": "ng/mL",
+   "verbatim": "BLQ = below the lower limit of quantification (0.50 ng/mL); NS = no sample",
+   "labels": {
+    "matrix": "plasma"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-153434c5b747afe0#0",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 7.07,
+   "unit": "%",
+   "verbatim": "7.07",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 1"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#1",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 7.37,
+   "unit": "%",
+   "verbatim": "7.37",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 2"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#2",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 7.67,
+   "unit": "%",
+   "verbatim": "7.67",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 3"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#3",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 7.97,
+   "unit": "%",
+   "verbatim": "7.97",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 4"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#4",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 8.27,
+   "unit": "%",
+   "verbatim": "8.27",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 5"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#5",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 8.57,
+   "unit": "%",
+   "verbatim": "8.57",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 6"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#6",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 8.57,
+   "unit": "%",
+   "verbatim": "8.57",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 7"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#7",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 8.87,
+   "unit": "%",
+   "verbatim": "8.87",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 8"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#8",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 9.17,
+   "unit": "%",
+   "verbatim": "9.17",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 9"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#9",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 9.47,
+   "unit": "%",
+   "verbatim": "9.47",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 10"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#10",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 9.77,
+   "unit": "%",
+   "verbatim": "9.77",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 11"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#11",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 10.07,
+   "unit": "%",
+   "verbatim": "10.07",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 12"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#12",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 17.11,
+   "unit": "%",
+   "verbatim": "17.11",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 1"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#13",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 17.41,
+   "unit": "%",
+   "verbatim": "17.41",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 2"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#14",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 17.71,
+   "unit": "%",
+   "verbatim": "17.71",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 3"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#15",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 18.01,
+   "unit": "%",
+   "verbatim": "18.01",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 4"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#16",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 18.31,
+   "unit": "%",
+   "verbatim": "18.31",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 5"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#17",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 18.61,
+   "unit": "%",
+   "verbatim": "18.61",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 6"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#18",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 18.61,
+   "unit": "%",
+   "verbatim": "18.61",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 7"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#19",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 18.91,
+   "unit": "%",
+   "verbatim": "18.91",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 8"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#20",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 19.21,
+   "unit": "%",
+   "verbatim": "19.21",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 9"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#21",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 19.51,
+   "unit": "%",
+   "verbatim": "19.51",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 10"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#22",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 19.81,
+   "unit": "%",
+   "verbatim": "19.81",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 11"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#23",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 20.11,
+   "unit": "%",
+   "verbatim": "20.11",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 12"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#24",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 36.19,
+   "unit": "%",
+   "verbatim": "36.19",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 1"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#25",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 36.49,
+   "unit": "%",
+   "verbatim": "36.49",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 2"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#26",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 36.79,
+   "unit": "%",
+   "verbatim": "36.79",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 3"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#27",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 37.09,
+   "unit": "%",
+   "verbatim": "37.09",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 4"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#28",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 37.39,
+   "unit": "%",
+   "verbatim": "37.39",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 5"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#29",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 37.69,
+   "unit": "%",
+   "verbatim": "37.69",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 6"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#30",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 37.69,
+   "unit": "%",
+   "verbatim": "37.69",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 7"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#31",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 37.99,
+   "unit": "%",
+   "verbatim": "37.99",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 8"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#32",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 38.29,
+   "unit": "%",
+   "verbatim": "38.29",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 9"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#33",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 38.59,
+   "unit": "%",
+   "verbatim": "38.59",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 10"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#34",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 38.89,
+   "unit": "%",
+   "verbatim": "38.89",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 11"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#35",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 39.19,
+   "unit": "%",
+   "verbatim": "39.19",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 12"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#36",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 52.17,
+   "unit": "%",
+   "verbatim": "52.17",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 1"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#37",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 52.47,
+   "unit": "%",
+   "verbatim": "52.47",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 2"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#38",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 52.77,
+   "unit": "%",
+   "verbatim": "52.77",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 3"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#39",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 53.07,
+   "unit": "%",
+   "verbatim": "53.07",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 4"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#40",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 53.37,
+   "unit": "%",
+   "verbatim": "53.37",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 5"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#41",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 53.67,
+   "unit": "%",
+   "verbatim": "53.67",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 6"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#42",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 53.67,
+   "unit": "%",
+   "verbatim": "53.67",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 7"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#43",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 53.97,
+   "unit": "%",
+   "verbatim": "53.97",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 8"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#44",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 54.27,
+   "unit": "%",
+   "verbatim": "54.27",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 9"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#45",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 54.57,
+   "unit": "%",
+   "verbatim": "54.57",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 10"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#46",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 54.87,
+   "unit": "%",
+   "verbatim": "54.87",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 11"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#47",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 55.17,
+   "unit": "%",
+   "verbatim": "55.17",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 12"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#48",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 64.77,
+   "unit": "%",
+   "verbatim": "64.77",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 1"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#49",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 65.07,
+   "unit": "%",
+   "verbatim": "65.07",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 2"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#50",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 65.37,
+   "unit": "%",
+   "verbatim": "65.37",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 3"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#51",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 65.67,
+   "unit": "%",
+   "verbatim": "65.67",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 4"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#52",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 65.97,
+   "unit": "%",
+   "verbatim": "65.97",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 5"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#53",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 66.27,
+   "unit": "%",
+   "verbatim": "66.27",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 6"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#54",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 66.27,
+   "unit": "%",
+   "verbatim": "66.27",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 7"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#55",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 66.57,
+   "unit": "%",
+   "verbatim": "66.57",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 8"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#56",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 66.87,
+   "unit": "%",
+   "verbatim": "66.87",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 9"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#57",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 67.17,
+   "unit": "%",
+   "verbatim": "67.17",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 10"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#58",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 67.47,
+   "unit": "%",
+   "verbatim": "67.47",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 11"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#59",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 67.77,
+   "unit": "%",
+   "verbatim": "67.77",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 12"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#60",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 81.43,
+   "unit": "%",
+   "verbatim": "81.43",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 1"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#61",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 81.73,
+   "unit": "%",
+   "verbatim": "81.73",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 2"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#62",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 82.03,
+   "unit": "%",
+   "verbatim": "82.03",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 3"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#63",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 82.33,
+   "unit": "%",
+   "verbatim": "82.33",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 4"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#64",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 82.63,
+   "unit": "%",
+   "verbatim": "82.63",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 5"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#65",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 82.93,
+   "unit": "%",
+   "verbatim": "82.93",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 6"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#66",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 82.93,
+   "unit": "%",
+   "verbatim": "82.93",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 7"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#67",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 83.23,
+   "unit": "%",
+   "verbatim": "83.23",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 8"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#68",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 83.53,
+   "unit": "%",
+   "verbatim": "83.53",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 9"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#69",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 83.83,
+   "unit": "%",
+   "verbatim": "83.83",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 10"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#70",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 84.13,
+   "unit": "%",
+   "verbatim": "84.13",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 11"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#71",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 84.43,
+   "unit": "%",
+   "verbatim": "84.43",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 12"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#72",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 90.26,
+   "unit": "%",
+   "verbatim": "90.26",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 1"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#73",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 90.56,
+   "unit": "%",
+   "verbatim": "90.56",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 2"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#74",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 90.86,
+   "unit": "%",
+   "verbatim": "90.86",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 3"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#75",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 91.16,
+   "unit": "%",
+   "verbatim": "91.16",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 4"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#76",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 91.46,
+   "unit": "%",
+   "verbatim": "91.46",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 5"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#77",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 91.76,
+   "unit": "%",
+   "verbatim": "91.76",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 6"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#78",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 91.76,
+   "unit": "%",
+   "verbatim": "91.76",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 7"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#79",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 92.06,
+   "unit": "%",
+   "verbatim": "92.06",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 8"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#80",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 92.36,
+   "unit": "%",
+   "verbatim": "92.36",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 9"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#81",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 92.66,
+   "unit": "%",
+   "verbatim": "92.66",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 10"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#82",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 92.96,
+   "unit": "%",
+   "verbatim": "92.96",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 11"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#83",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 93.26,
+   "unit": "%",
+   "verbatim": "93.26",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 12"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#84",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 94.67,
+   "unit": "%",
+   "verbatim": "94.67",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 1"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#85",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 94.97,
+   "unit": "%",
+   "verbatim": "94.97",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 2"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#86",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 95.27,
+   "unit": "%",
+   "verbatim": "95.27",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 3"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#87",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 95.57,
+   "unit": "%",
+   "verbatim": "95.57",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 4"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#88",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 95.87,
+   "unit": "%",
+   "verbatim": "95.87",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 5"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#89",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 96.17,
+   "unit": "%",
+   "verbatim": "96.17",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 6"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#90",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 96.17,
+   "unit": "%",
+   "verbatim": "96.17",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 7"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#91",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 96.47,
+   "unit": "%",
+   "verbatim": "96.47",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 8"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#92",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 96.77,
+   "unit": "%",
+   "verbatim": "96.77",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 9"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#93",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 97.07,
+   "unit": "%",
+   "verbatim": "97.07",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 10"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#94",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 97.37,
+   "unit": "%",
+   "verbatim": "97.37",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 11"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "tx-153434c5b747afe0#95",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 97.67,
+   "unit": "%",
+   "verbatim": "97.67",
+   "labels": {
+    "batch": "B5.501",
+    "vessel": "Vessel 12"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "f-10",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": null,
+   "field": "batch",
+   "value": "B5.501",
+   "unit": null,
+   "verbatim": "Dissolution of Reference product 50 mg (RLD), Batch No. B5.501, USP II (paddle), 50 rpm, 900 mL phosphate buffer pH 6.8",
+   "labels": {
+    "batch": "B5.501"
+   },
+   "entity": {
+    "batch": "ba-1"
+   }
+  },
+  {
+   "id": "f-11",
+   "file": "Dissolution RLD pH 6.8.xlsx",
+   "file_sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": null,
+   "field": "strength_mg",
+   "value": 50.0,
+   "unit": "mg",
+   "verbatim": "Dissolution of Reference product 50 mg (RLD), Batch No. B5.501, USP II (paddle), 50 rpm, 900 mL phosphate buffer pH 6.8",
+   "labels": {},
+   "entity": {}
+  },
+  {
+   "id": "tx-7e7d76eabba84074#0",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 8.06,
+   "unit": "%",
+   "verbatim": "8.06",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 1"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#1",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 8.36,
+   "unit": "%",
+   "verbatim": "8.36",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 2"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#2",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 8.66,
+   "unit": "%",
+   "verbatim": "8.66",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 3"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#3",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 8.96,
+   "unit": "%",
+   "verbatim": "8.96",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 4"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#4",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 9.26,
+   "unit": "%",
+   "verbatim": "9.26",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 5"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#5",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 9.56,
+   "unit": "%",
+   "verbatim": "9.56",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 6"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#6",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 9.56,
+   "unit": "%",
+   "verbatim": "9.56",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 7"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#7",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 9.86,
+   "unit": "%",
+   "verbatim": "9.86",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 8"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#8",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 10.16,
+   "unit": "%",
+   "verbatim": "10.16",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 9"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#9",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 10.46,
+   "unit": "%",
+   "verbatim": "10.46",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 10"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#10",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 10.76,
+   "unit": "%",
+   "verbatim": "10.76",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 11"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#11",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 11.06,
+   "unit": "%",
+   "verbatim": "11.06",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 12"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#12",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 19.11,
+   "unit": "%",
+   "verbatim": "19.11",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 1"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#13",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 19.41,
+   "unit": "%",
+   "verbatim": "19.41",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 2"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#14",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 19.71,
+   "unit": "%",
+   "verbatim": "19.71",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 3"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#15",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 20.01,
+   "unit": "%",
+   "verbatim": "20.01",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 4"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#16",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 20.31,
+   "unit": "%",
+   "verbatim": "20.31",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 5"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#17",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 20.61,
+   "unit": "%",
+   "verbatim": "20.61",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 6"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#18",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 20.61,
+   "unit": "%",
+   "verbatim": "20.61",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 7"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#19",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 20.91,
+   "unit": "%",
+   "verbatim": "20.91",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 8"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#20",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 21.21,
+   "unit": "%",
+   "verbatim": "21.21",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 9"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#21",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 21.51,
+   "unit": "%",
+   "verbatim": "21.51",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 10"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#22",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 21.81,
+   "unit": "%",
+   "verbatim": "21.81",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 11"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#23",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 22.11,
+   "unit": "%",
+   "verbatim": "22.11",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 12"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#24",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 39.66,
+   "unit": "%",
+   "verbatim": "39.66",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 1"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#25",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 39.96,
+   "unit": "%",
+   "verbatim": "39.96",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 2"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#26",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 40.26,
+   "unit": "%",
+   "verbatim": "40.26",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 3"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#27",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 40.56,
+   "unit": "%",
+   "verbatim": "40.56",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 4"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#28",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 40.86,
+   "unit": "%",
+   "verbatim": "40.86",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 5"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#29",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 41.16,
+   "unit": "%",
+   "verbatim": "41.16",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 6"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#30",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 41.16,
+   "unit": "%",
+   "verbatim": "41.16",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 7"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#31",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 41.46,
+   "unit": "%",
+   "verbatim": "41.46",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 8"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#32",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 41.76,
+   "unit": "%",
+   "verbatim": "41.76",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 9"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#33",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 42.06,
+   "unit": "%",
+   "verbatim": "42.06",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 10"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#34",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 42.36,
+   "unit": "%",
+   "verbatim": "42.36",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 11"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#35",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 42.66,
+   "unit": "%",
+   "verbatim": "42.66",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 12"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#36",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 56.3,
+   "unit": "%",
+   "verbatim": "56.3",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 1"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#37",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 56.6,
+   "unit": "%",
+   "verbatim": "56.6",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 2"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#38",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 56.9,
+   "unit": "%",
+   "verbatim": "56.9",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 3"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#39",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 57.2,
+   "unit": "%",
+   "verbatim": "57.2",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 4"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#40",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 57.5,
+   "unit": "%",
+   "verbatim": "57.5",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 5"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#41",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 57.8,
+   "unit": "%",
+   "verbatim": "57.8",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 6"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#42",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 57.8,
+   "unit": "%",
+   "verbatim": "57.8",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 7"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#43",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 58.1,
+   "unit": "%",
+   "verbatim": "58.1",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 8"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#44",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 58.4,
+   "unit": "%",
+   "verbatim": "58.4",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 9"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#45",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 58.7,
+   "unit": "%",
+   "verbatim": "58.7",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 10"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#46",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 59.0,
+   "unit": "%",
+   "verbatim": "59",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 11"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#47",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 59.3,
+   "unit": "%",
+   "verbatim": "59.3",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 12"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#48",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 68.93,
+   "unit": "%",
+   "verbatim": "68.93",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 1"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#49",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 69.23,
+   "unit": "%",
+   "verbatim": "69.23",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 2"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#50",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 69.53,
+   "unit": "%",
+   "verbatim": "69.53",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 3"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#51",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 69.83,
+   "unit": "%",
+   "verbatim": "69.83",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 4"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#52",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 70.13,
+   "unit": "%",
+   "verbatim": "70.13",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 5"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#53",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 70.43,
+   "unit": "%",
+   "verbatim": "70.43",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 6"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#54",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 70.43,
+   "unit": "%",
+   "verbatim": "70.43",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 7"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#55",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 70.73,
+   "unit": "%",
+   "verbatim": "70.73",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 8"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#56",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 71.03,
+   "unit": "%",
+   "verbatim": "71.03",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 9"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#57",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 71.33,
+   "unit": "%",
+   "verbatim": "71.33",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 10"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#58",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 71.63,
+   "unit": "%",
+   "verbatim": "71.63",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 11"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#59",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 71.93,
+   "unit": "%",
+   "verbatim": "71.93",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 12"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#60",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 84.72,
+   "unit": "%",
+   "verbatim": "84.72",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 1"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#61",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 85.02,
+   "unit": "%",
+   "verbatim": "85.02",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 2"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#62",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 85.32,
+   "unit": "%",
+   "verbatim": "85.32",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 3"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#63",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 85.62,
+   "unit": "%",
+   "verbatim": "85.62",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 4"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#64",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 85.92,
+   "unit": "%",
+   "verbatim": "85.92",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 5"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#65",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 86.22,
+   "unit": "%",
+   "verbatim": "86.22",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 6"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#66",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 86.22,
+   "unit": "%",
+   "verbatim": "86.22",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 7"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#67",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 86.52,
+   "unit": "%",
+   "verbatim": "86.52",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 8"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#68",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 86.82,
+   "unit": "%",
+   "verbatim": "86.82",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 9"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#69",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 87.12,
+   "unit": "%",
+   "verbatim": "87.12",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 10"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#70",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 87.42,
+   "unit": "%",
+   "verbatim": "87.42",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 11"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#71",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 87.72,
+   "unit": "%",
+   "verbatim": "87.72",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 12"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#72",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 92.41,
+   "unit": "%",
+   "verbatim": "92.41",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 1"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#73",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 92.71,
+   "unit": "%",
+   "verbatim": "92.71",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 2"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#74",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 93.01,
+   "unit": "%",
+   "verbatim": "93.01",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 3"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#75",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 93.31,
+   "unit": "%",
+   "verbatim": "93.31",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 4"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#76",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 93.61,
+   "unit": "%",
+   "verbatim": "93.61",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 5"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#77",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 93.91,
+   "unit": "%",
+   "verbatim": "93.91",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 6"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#78",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 93.91,
+   "unit": "%",
+   "verbatim": "93.91",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 7"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#79",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 94.21,
+   "unit": "%",
+   "verbatim": "94.21",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 8"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#80",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 94.51,
+   "unit": "%",
+   "verbatim": "94.51",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 9"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#81",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 94.81,
+   "unit": "%",
+   "verbatim": "94.81",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 10"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#82",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 95.11,
+   "unit": "%",
+   "verbatim": "95.11",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 11"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#83",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 95.41,
+   "unit": "%",
+   "verbatim": "95.41",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 12"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#84",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 95.92,
+   "unit": "%",
+   "verbatim": "95.92",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 1"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#85",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 96.22,
+   "unit": "%",
+   "verbatim": "96.22",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 2"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#86",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 96.52,
+   "unit": "%",
+   "verbatim": "96.52",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 3"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#87",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 96.82,
+   "unit": "%",
+   "verbatim": "96.82",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 4"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#88",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 97.12,
+   "unit": "%",
+   "verbatim": "97.12",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 5"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#89",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 97.42,
+   "unit": "%",
+   "verbatim": "97.42",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 6"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#90",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 97.42,
+   "unit": "%",
+   "verbatim": "97.42",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 7"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#91",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 97.72,
+   "unit": "%",
+   "verbatim": "97.72",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 8"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#92",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 98.02,
+   "unit": "%",
+   "verbatim": "98.02",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 9"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#93",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 98.32,
+   "unit": "%",
+   "verbatim": "98.32",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 10"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#94",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 98.62,
+   "unit": "%",
+   "verbatim": "98.62",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 11"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "tx-7e7d76eabba84074#95",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 98.92,
+   "unit": "%",
+   "verbatim": "98.92",
+   "labels": {
+    "batch": "B501",
+    "vessel": "Vessel 12"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "f-13",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": null,
+   "field": "product_role",
+   "value": "TEST",
+   "unit": null,
+   "verbatim": "Dissolution of Desvenlafaxine ER Tablets 50 mg (Test), Batch No. B501, USP II (paddle), 50 rpm, 900 mL phosphate buffer pH 6.8",
+   "labels": {},
+   "entity": {}
+  },
+  {
+   "id": "f-14",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": null,
+   "field": "batch",
+   "value": "B501",
+   "unit": null,
+   "verbatim": "Dissolution of Desvenlafaxine ER Tablets 50 mg (Test), Batch No. B501, USP II (paddle), 50 rpm, 900 mL phosphate buffer pH 6.8",
+   "labels": {
+    "batch": "B501"
+   },
+   "entity": {
+    "batch": "ba-2"
+   }
+  },
+  {
+   "id": "f-15",
+   "file": "Dissolution Test pH 6.8.xlsx",
+   "file_sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": null,
+   "field": "strength_mg",
+   "value": 50.0,
+   "unit": "mg",
+   "verbatim": "Dissolution of Desvenlafaxine ER Tablets 50 mg (Test), Batch No. B501, USP II (paddle), 50 rpm, 900 mL phosphate buffer pH 6.8",
+   "labels": {},
+   "entity": {}
+  },
+  {
+   "id": "tx-5857c64a71b39529#0",
+   "file": "Nichols2012 IV 50 mg 5 h infusion.xlsx",
+   "file_sha256": "14fd349f1ebbffa0b9d77d84bd9aeb52abdddffb34ac0a4d6bc690882ccd9e11",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_summary",
+   "field": "concentration",
+   "value": 60.0,
+   "unit": "ng/mL",
+   "verbatim": "60",
+   "labels": {},
+   "entity": {}
+  },
+  {
+   "id": "tx-5857c64a71b39529#1",
+   "file": "Nichols2012 IV 50 mg 5 h infusion.xlsx",
+   "file_sha256": "14fd349f1ebbffa0b9d77d84bd9aeb52abdddffb34ac0a4d6bc690882ccd9e11",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_summary",
+   "field": "concentration",
+   "value": 150.0,
+   "unit": "ng/mL",
+   "verbatim": "150",
+   "labels": {},
+   "entity": {}
+  },
+  {
+   "id": "tx-5857c64a71b39529#2",
+   "file": "Nichols2012 IV 50 mg 5 h infusion.xlsx",
+   "file_sha256": "14fd349f1ebbffa0b9d77d84bd9aeb52abdddffb34ac0a4d6bc690882ccd9e11",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_summary",
+   "field": "concentration",
+   "value": 210.0,
+   "unit": "ng/mL",
+   "verbatim": "210",
+   "labels": {},
+   "entity": {}
+  },
+  {
+   "id": "tx-5857c64a71b39529#3",
+   "file": "Nichols2012 IV 50 mg 5 h infusion.xlsx",
+   "file_sha256": "14fd349f1ebbffa0b9d77d84bd9aeb52abdddffb34ac0a4d6bc690882ccd9e11",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_summary",
+   "field": "concentration",
+   "value": 140.0,
+   "unit": "ng/mL",
+   "verbatim": "140",
+   "labels": {},
+   "entity": {}
+  },
+  {
+   "id": "tx-5857c64a71b39529#4",
+   "file": "Nichols2012 IV 50 mg 5 h infusion.xlsx",
+   "file_sha256": "14fd349f1ebbffa0b9d77d84bd9aeb52abdddffb34ac0a4d6bc690882ccd9e11",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_summary",
+   "field": "concentration",
+   "value": 90.0,
+   "unit": "ng/mL",
+   "verbatim": "90",
+   "labels": {},
+   "entity": {}
+  },
+  {
+   "id": "tx-5857c64a71b39529#5",
+   "file": "Nichols2012 IV 50 mg 5 h infusion.xlsx",
+   "file_sha256": "14fd349f1ebbffa0b9d77d84bd9aeb52abdddffb34ac0a4d6bc690882ccd9e11",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_summary",
+   "field": "concentration",
+   "value": 30.0,
+   "unit": "ng/mL",
+   "verbatim": "30",
+   "labels": {},
+   "entity": {}
+  },
+  {
+   "id": "tx-5857c64a71b39529#6",
+   "file": "Nichols2012 IV 50 mg 5 h infusion.xlsx",
+   "file_sha256": "14fd349f1ebbffa0b9d77d84bd9aeb52abdddffb34ac0a4d6bc690882ccd9e11",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "pk_summary",
+   "field": "concentration",
+   "value": 4.0,
+   "unit": "ng/mL",
+   "verbatim": "4",
+   "labels": {},
+   "entity": {}
+  },
+  {
+   "id": "tx-e0c59f09737b7239#0",
+   "file": "client-raw.xlsx",
+   "file_sha256": "8bf428a677f9ad22e25466e1be8edf4b8ebbd7ddd56ebcb815d158fc9e5a3431",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 61.0,
+   "unit": "%",
+   "verbatim": "61",
+   "labels": {
+    "vessel": "Vessel 1"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-e0c59f09737b7239#1",
+   "file": "client-raw.xlsx",
+   "file_sha256": "8bf428a677f9ad22e25466e1be8edf4b8ebbd7ddd56ebcb815d158fc9e5a3431",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 63.0,
+   "unit": "%",
+   "verbatim": "63",
+   "labels": {
+    "vessel": "Vessel 2"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-e0c59f09737b7239#2",
+   "file": "client-raw.xlsx",
+   "file_sha256": "8bf428a677f9ad22e25466e1be8edf4b8ebbd7ddd56ebcb815d158fc9e5a3431",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 88.0,
+   "unit": "%",
+   "verbatim": "88",
+   "labels": {
+    "vessel": "Vessel 1"
+   },
+   "entity": {}
+  },
+  {
+   "id": "tx-e0c59f09737b7239#3",
+   "file": "client-raw.xlsx",
+   "file_sha256": "8bf428a677f9ad22e25466e1be8edf4b8ebbd7ddd56ebcb815d158fc9e5a3431",
+   "delivery": "dl-1",
+   "blinded": false,
+   "table_kind": "dissolution",
+   "field": "percent_dissolved",
+   "value": 90.0,
+   "unit": "%",
+   "verbatim": "90",
+   "labels": {
+    "vessel": "Vessel 2"
+   },
+   "entity": {}
+  }
+ ],
+ "files": [
+  {
+   "file_id": "fl-d26e8242224d",
+   "sha256": "d26e8242224d6a4039d67289032cbb90b4c0592d26968d24017e5f950624b914",
+   "name": "230-23 Fasting Reference.xlsx",
+   "state": "read",
+   "reason": "",
+   "repeat": false,
+   "regions": [
+    {
+     "region_id": "rg-cebf0dfd4d",
+     "kind": "table",
+     "table_kind": "pk_individual",
+     "state": "mapped",
+     "where": "s:'Sheet1'!A4:M12",
+     "caption": "Time (hr)",
+     "mapping_id": "mp-20cc63be5bac",
+     "mapping_status": "proposed",
+     "mapping_version": 1,
+     "silent": 10,
+     "used": 85,
+     "excluded": 0,
+     "numeric_cells": 95,
+     "reason": "",
+     "origin": "rule"
+    }
+   ],
+   "outside": [
+    {
+     "where": "s:'Sheet1'!A1",
+     "text": "Study 230-23: plasma concentrations of desvenlafaxine (ng/mL), Reference, 50 mg, fasting",
+     "region": "rg-cebf0dfd4d",
+     "counted": false
+    },
+    {
+     "where": "s:'Sheet1'!A14",
+     "text": "BLQ = below the lower limit of quantification (0.50 ng/mL); NS = no sample",
+     "region": "rg-cebf0dfd4d",
+     "counted": false
+    }
+   ]
+  },
+  {
+   "file_id": "fl-e1d45be9497f",
+   "sha256": "e1d45be9497ff83f7ee887d221b0d5bd84d5c8039413f18808eb93a45f276583",
+   "name": "230-23 Fasting Test.xlsx",
+   "state": "read",
+   "reason": "",
+   "repeat": false,
+   "regions": [
+    {
+     "region_id": "rg-53afc684ba",
+     "kind": "table",
+     "table_kind": "pk_individual",
+     "state": "mapped",
+     "where": "s:'Sheet1'!A4:M12",
+     "caption": "Time (hr)",
+     "mapping_id": "mp-20cc63be5bac",
+     "mapping_status": "proposed",
+     "mapping_version": 1,
+     "silent": 10,
+     "used": 85,
+     "excluded": 0,
+     "numeric_cells": 95,
+     "reason": "",
+     "origin": "rule"
+    }
+   ],
+   "outside": [
+    {
+     "where": "s:'Sheet1'!A1",
+     "text": "Study 230-23: plasma concentrations of desvenlafaxine (ng/mL), Test, 50 mg, fasting",
+     "region": "rg-53afc684ba",
+     "counted": false
+    },
+    {
+     "where": "s:'Sheet1'!A14",
+     "text": "BLQ = below the lower limit of quantification (0.50 ng/mL); NS = no sample",
+     "region": "rg-53afc684ba",
+     "counted": false
+    }
+   ]
+  },
+  {
+   "file_id": "fl-0773300f5a31",
+   "sha256": "0773300f5a31ea24d15c8d72c9590ddc9a9993e9a34d618966e7ba25af9d9a96",
+   "name": "Dissolution RLD pH 6.8.xlsx",
+   "state": "read",
+   "reason": "",
+   "repeat": false,
+   "regions": [
+    {
+     "region_id": "rg-584c94b810",
+     "kind": "table",
+     "table_kind": "dissolution",
+     "state": "mapped",
+     "where": "s:'pH 6.8'!A2:P10",
+     "caption": "Dissolution of Reference product 50 mg (RLD), Batch No. B5.501, USP II (paddle), 50 rpm, 900 mL phosphate buffer pH 6.8",
+     "mapping_id": "mp-caadd2de9d39",
+     "mapping_status": "proposed",
+     "mapping_version": 1,
+     "silent": 24,
+     "used": 116,
+     "excluded": 0,
+     "numeric_cells": 140,
+     "reason": "",
+     "origin": "rule"
+    }
+   ],
+   "outside": []
+  },
+  {
+   "file_id": "fl-b30a43fddd20",
+   "sha256": "b30a43fddd20fc457d3cb8f5927021f6bee8641f7b4e822e8a37d99b527e1acc",
+   "name": "Dissolution Test pH 6.8.xlsx",
+   "state": "read",
+   "reason": "",
+   "repeat": false,
+   "regions": [
+    {
+     "region_id": "rg-fe29d0169c",
+     "kind": "table",
+     "table_kind": "dissolution",
+     "state": "mapped",
+     "where": "s:'pH 6.8'!A2:P10",
+     "caption": "Dissolution of Desvenlafaxine ER Tablets 50 mg (Test), Batch No. B501, USP II (paddle), 50 rpm, 900 mL phosphate buffer pH 6.8",
+     "mapping_id": "mp-caadd2de9d39",
+     "mapping_status": "proposed",
+     "mapping_version": 2,
+     "silent": 24,
+     "used": 116,
+     "excluded": 0,
+     "numeric_cells": 140,
+     "reason": "",
+     "origin": "rule"
+    }
+   ],
+   "outside": []
+  },
+  {
+   "file_id": "fl-14fd349f1ebb",
+   "sha256": "14fd349f1ebbffa0b9d77d84bd9aeb52abdddffb34ac0a4d6bc690882ccd9e11",
+   "name": "Nichols2012 IV 50 mg 5 h infusion.xlsx",
+   "state": "read",
+   "reason": "",
+   "repeat": false,
+   "regions": [
+    {
+     "region_id": "rg-d8c7b535fc",
+     "kind": "table",
+     "table_kind": "pk_summary",
+     "state": "mapped",
+     "where": "s:'Fig 1'!A1:D8",
+     "caption": "",
+     "mapping_id": "mp-c1ccd8325b3b",
+     "mapping_status": "proposed",
+     "mapping_version": 1,
+     "silent": 0,
+     "used": 28,
+     "excluded": 0,
+     "numeric_cells": 28,
+     "reason": "",
+     "origin": "rule"
+    }
+   ],
+   "outside": []
+  },
+  {
+   "file_id": "fl-8bf428a677f9",
+   "sha256": "8bf428a677f9ad22e25466e1be8edf4b8ebbd7ddd56ebcb815d158fc9e5a3431",
+   "name": "client-raw.xlsx",
+   "state": "read",
+   "reason": "",
+   "repeat": false,
+   "regions": [
+    {
+     "region_id": "rg-b4b48c85ff",
+     "kind": "table",
+     "table_kind": "dissolution",
+     "state": "mapped",
+     "where": "s:'Diss pH 6.8'!A1:D3",
+     "caption": "",
+     "mapping_id": "mp-6314b6317d0c",
+     "mapping_status": "proposed",
+     "mapping_version": 1,
+     "silent": 2,
+     "used": 8,
+     "excluded": 0,
+     "numeric_cells": 10,
+     "reason": "",
+     "origin": "rule"
+    }
+   ],
+   "outside": [
+    {
+     "where": "s:'Notes'!A1",
+     "text": "Shipped with the courier on 1 September",
+     "region": null,
+     "counted": true
+    }
+   ]
+  },
+  {
+   "file_id": "fl-f4a91560f012",
+   "sha256": "f4a91560f012be190daf9f0f2559ef851b9b9542a388fc93af91c1e4c5738e76",
+   "name": "client-template-filled.xlsx",
+   "state": "read",
+   "reason": "",
+   "repeat": false,
+   "regions": [
+    {
+     "region_id": "rg-17f9297383",
+     "kind": "table",
+     "table_kind": "not_data",
+     "state": "excluded",
+     "where": "s:'README'!A17:E135",
+     "caption": "",
+     "mapping_id": "mp-437e5d2d6afa",
+     "mapping_status": "proposed",
+     "mapping_version": 1,
+     "silent": 0,
+     "used": 0,
+     "excluded": 18,
+     "numeric_cells": 18,
+     "reason": "not data: the template's column guide (sheet, column, required, allowed values, notes): instructions for the client, not data",
+     "origin": "rule"
+    },
+    {
+     "region_id": "rg-c60f72d1ac",
+     "kind": "table",
+     "table_kind": "study_design",
+     "state": "mapped",
+     "where": "s:'Studies'!A1:AK2",
+     "caption": "",
+     "mapping_id": "mp-263e33d27d7a",
+     "mapping_status": "proposed",
+     "mapping_version": 1,
+     "silent": 0,
+     "used": 4,
+     "excluded": 0,
+     "numeric_cells": 4,
+     "reason": "",
+     "origin": "rule"
+    },
+    {
+     "region_id": "rg-753d65349a",
+     "kind": "table",
+     "table_kind": "pk_summary",
+     "state": "mapped",
+     "where": "s:'PK_Summary'!A1:J7",
+     "caption": "",
+     "mapping_id": "mp-1efa7428f849",
+     "mapping_status": "proposed",
+     "mapping_version": 1,
+     "silent": 2,
+     "used": 21,
+     "excluded": 0,
+     "numeric_cells": 23,
+     "reason": "",
+     "origin": "rule"
+    },
+    {
+     "region_id": "rg-843296d6c7",
+     "kind": "table",
+     "table_kind": "dissolution",
+     "state": "mapped",
+     "where": "s:'Dissolution'!A1:AB15",
+     "caption": "",
+     "mapping_id": "mp-69d63829a1a3",
+     "mapping_status": "proposed",
+     "mapping_version": 1,
+     "silent": 0,
+     "used": 306,
+     "excluded": 0,
+     "numeric_cells": 306,
+     "reason": "",
+     "origin": "rule"
+    }
+   ],
+   "outside": [
+    {
+     "where": "s:'Product'!F1",
+     "text": "particle_size_d10_um",
+     "region": null,
+     "counted": true
+    },
+    {
+     "where": "s:'Product'!G1",
+     "text": "particle_size_d50_um",
+     "region": null,
+     "counted": true
+    },
+    {
+     "where": "s:'Product'!H1",
+     "text": "particle_size_d90_um",
+     "region": null,
+     "counted": true
+    }
+   ]
+  },
+  {
+   "file_id": "fl-d8ffbf082f54",
+   "sha256": "d8ffbf082f542e9aac89d7780cad3e03a724ed5dd7f8360355ed03f50f2288b8",
+   "name": "messy-delivery.xlsx",
+   "state": "read",
+   "reason": "",
+   "repeat": false,
+   "regions": [
+    {
+     "region_id": "rg-06acae7e97",
+     "kind": "table",
+     "table_kind": "pk_individual",
+     "state": "mapped",
+     "where": "s:'Fasting'!A2:G14",
+     "caption": "Study 230-23, 50 mg, fasted",
+     "mapping_id": "mp-246a98d50cd6",
+     "mapping_status": "approved",
+     "mapping_version": 1,
+     "silent": 0,
+     "used": 57,
+     "excluded": 5,
+     "numeric_cells": 62,
+     "reason": "",
+     "origin": "cache"
+    },
+    {
+     "region_id": "rg-a92d7da712",
+     "kind": "table",
+     "table_kind": "pk_summary",
+     "state": "mapped",
+     "where": "s:'Fasting'!A21:D27",
+     "caption": "Table 2. Study 230-23: Exampleamide-M1 plasma concentrations (ng/mL), mean, SE and n",
+     "mapping_id": "mp-301cc472e97f",
+     "mapping_status": "approved",
+     "mapping_version": 1,
+     "silent": 0,
+     "used": 22,
+     "excluded": 0,
+     "numeric_cells": 22,
+     "reason": "",
+     "origin": "cache"
+    },
+    {
+     "region_id": "rg-1f864fb52a",
+     "kind": "table",
+     "table_kind": "pk_individual",
+     "state": "mapped",
+     "where": "s:'Fed'!A2:G14",
+     "caption": "Study 231-24, 100 mg, fed",
+     "mapping_id": "mp-246a98d50cd6",
+     "mapping_status": "approved",
+     "mapping_version": 1,
+     "silent": 0,
+     "used": 59,
+     "excluded": 5,
+     "numeric_cells": 64,
+     "reason": "",
+     "origin": "cache"
+    },
+    {
+     "region_id": "rg-ea740561a8",
+     "kind": "table",
+     "table_kind": "dissolution",
+     "state": "mapped",
+     "where": "s:'Dissolution'!A3:G9",
+     "caption": "Exampleamide IR tablet, batch L2301 (% dissolved)\nMedium: HCl buffer pH 1.2",
+     "mapping_id": "mp-38aa72916701",
+     "mapping_status": "approved",
+     "mapping_version": 1,
+     "silent": 0,
+     "used": 48,
+     "excluded": 0,
+     "numeric_cells": 48,
+     "reason": "",
+     "origin": "cache"
+    },
+    {
+     "region_id": "rg-9965521295",
+     "kind": "table",
+     "table_kind": "unknown",
+     "state": "mapped",
+     "where": "s:'Dissolution'!I3:L9",
+     "caption": "Exampleamide IR tablet, batch L2301 (% dissolved)\nMedium: phosphate buffer pH 6.8",
+     "mapping_id": "mp-cdda41996ab9",
+     "mapping_status": "approved",
+     "mapping_version": 1,
+     "silent": 0,
+     "used": 24,
+     "excluded": 0,
+     "numeric_cells": 24,
+     "reason": "",
+     "origin": "cache"
+    },
+    {
+     "region_id": "rg-8f93a62b8b",
+     "kind": "table",
+     "table_kind": "unknown",
+     "state": "mapped",
+     "where": "s:'Summary'!A2:C5",
+     "caption": "Study 230-23 (fasted): Exampleamide plasma PK parameters, mean (SD)",
+     "mapping_id": "mp-a7a9d8ecd5cc",
+     "mapping_status": "approved",
+     "mapping_version": 1,
+     "silent": 0,
+     "used": 3,
+     "excluded": 0,
+     "numeric_cells": 3,
+     "reason": "",
+     "origin": "cache"
+    },
+    {
+     "region_id": "rg-cf71a6e46c",
+     "kind": "table",
+     "table_kind": "excretion",
+     "state": "mapped",
+     "where": "s:'Urine'!A2:D6",
+     "caption": "Study 230-23: Exampleamide urine excretion (mg) by collection interval",
+     "mapping_id": "mp-9c55440c25bd",
+     "mapping_status": "proposed",
+     "mapping_version": 1,
+     "silent": 0,
+     "used": 12,
+     "excluded": 4,
+     "numeric_cells": 16,
+     "reason": "",
+     "origin": "cache"
+    },
+    {
+     "region_id": "rg-216fcd0b16",
+     "kind": "table",
+     "table_kind": "product_batch",
+     "state": "mapped",
+     "where": "s:'Product'!A1:H3",
+     "caption": "",
+     "mapping_id": "mp-8b84527a601b",
+     "mapping_status": "approved",
+     "mapping_version": 1,
+     "silent": 0,
+     "used": 7,
+     "excluded": 0,
+     "numeric_cells": 7,
+     "reason": "",
+     "origin": "cache"
+    }
+   ],
+   "outside": [
+    {
+     "where": "s:'Fasting'!A16",
+     "text": "LLOQ = 0.5 ng/mL",
+     "region": "rg-06acae7e97",
+     "counted": false
+    },
+    {
+     "where": "s:'Fasting'!A29",
+     "text": "LLOQ = 0.2 ng/mL",
+     "region": "rg-a92d7da712",
+     "counted": false
+    },
+    {
+     "where": "s:'Fed'!A16",
+     "text": "LLOQ = 0.5 ng/mL",
+     "region": "rg-1f864fb52a",
+     "counted": false
+    },
+    {
+     "where": "s:'Summary'!A10",
+     "text": "Note: 3 samples were re-assayed on day 14",
+     "region": null,
+     "counted": true
+    }
+   ]
+  },
+  {
+   "file_id": "fl-254812adf39f",
+   "sha256": "254812adf39fbd9ff97d2ffa2b9fee5b59ad1a2f9198aae8bc75bbbcb1e92f31",
+   "name": "study-report.pdf",
+   "state": "read",
+   "reason": "",
+   "repeat": false,
+   "regions": [
+    {
+     "region_id": "rg-f5b5cdd72b",
+     "kind": "prose",
+     "table_kind": "unknown",
+     "state": "unread",
+     "where": "p:1/w:1-39",
+     "caption": "",
+     "mapping_id": null,
+     "mapping_status": null,
+     "mapping_version": null,
+     "silent": 0,
+     "used": 0,
+     "excluded": 0,
+     "numeric_cells": 3,
+     "reason": "prose is read by the prose extractor (A4-prose); no model is configured",
+     "origin": null
+    },
+    {
+     "region_id": "rg-27113c699d",
+     "kind": "table",
+     "table_kind": "pk_individual",
+     "state": "mapped",
+     "where": "p:2/t:1",
+     "caption": "Table 5. Study 230-25: Exampleamide plasma concentrations by subject",
+     "mapping_id": "mp-1cb91c4b1d04",
+     "mapping_status": "approved",
+     "mapping_version": 1,
+     "silent": 0,
+     "used": 50,
+     "excluded": 0,
+     "numeric_cells": 50,
+     "reason": "",
+     "origin": "cache"
+    },
+    {
+     "region_id": "rg-a7446b3cb7",
+     "kind": "table",
+     "table_kind": "pk_summary",
+     "state": "mapped",
+     "where": "p:4/t:1",
+     "caption": "Table 6. Study 230-26, Cohort 1 (10 mg): Exampleamide plasma concentrations, mean (SD)",
+     "mapping_id": "mp-95cd9128e178",
+     "mapping_status": "approved",
+     "mapping_version": 1,
+     "silent": 0,
+     "used": 24,
+     "excluded": 0,
+     "numeric_cells": 24,
+     "reason": "",
+     "origin": "cache"
+    },
+    {
+     "region_id": "rg-ff57876635",
+     "kind": "table",
+     "table_kind": "pk_summary",
+     "state": "mapped",
+     "where": "p:5/t:1",
+     "caption": "Table 7. Study 230-26, Cohort 2 (30 mg): Exampleamide plasma concentrations, mean (SD)",
+     "mapping_id": "mp-95cd9128e178",
+     "mapping_status": "approved",
+     "mapping_version": 1,
+     "silent": 0,
+     "used": 24,
+     "excluded": 0,
+     "numeric_cells": 24,
+     "reason": "",
+     "origin": "cache"
+    }
+   ],
+   "outside": [
+    {
+     "where": "p:3/w:34-42@56.00,220.07,301.10,230.07",
+     "text": "BLQ: below the lower limit of quantification (0.5 ng/mL).",
+     "region": "rg-27113c699d",
+     "counted": false
+    }
+   ]
+  }
+ ],
+ "subjects": [
+  {
+   "subject": "st-3",
+   "subject_type": "study",
+   "label": "CL-01",
+   "arms": [],
+   "batches": []
+  },
+  {
+   "subject": "st-8",
+   "subject_type": "study",
+   "label": "230-23",
+   "arms": [],
+   "batches": []
+  },
+  {
+   "subject": "st-11",
+   "subject_type": "study",
+   "label": "231-24",
+   "arms": [],
+   "batches": []
+  },
+  {
+   "subject": "st-16",
+   "subject_type": "study",
+   "label": "230-25",
+   "arms": [],
+   "batches": []
+  },
+  {
+   "subject": "st-18",
+   "subject_type": "study",
+   "label": "230-26",
+   "arms": [
+    {
+     "id": "arm-19",
+     "label": "Cohort 1"
+    },
+    {
+     "id": "arm-20",
+     "label": "Cohort 2"
+    }
+   ],
+   "batches": []
+  },
+  {
+   "subject": "pr-4",
+   "subject_type": "product",
+   "label": "Test 10 mg",
+   "arms": [],
+   "batches": [
+    {
+     "id": "ba-5",
+     "label": "B1"
+    }
+   ]
+  },
+  {
+   "subject": "pr-6",
+   "subject_type": "product",
+   "label": "Brand 10 mg",
+   "arms": [],
+   "batches": [
+    {
+     "id": "ba-7",
+     "label": "B1"
+    }
+   ]
+  },
+  {
+   "subject": "pr-12",
+   "subject_type": "product",
+   "label": "Exampleamide IR tablet",
+   "arms": [],
+   "batches": [
+    {
+     "id": "ba-13",
+     "label": "L2301"
+    }
+   ]
+  },
+  {
+   "subject": "pr-14",
+   "subject_type": "product",
+   "label": "Comparamide tablet",
+   "arms": [],
+   "batches": [
+    {
+     "id": "ba-15",
+     "label": "R7745"
+    }
+   ]
+  }
+ ],
+ "analytes": [
+  {
+   "id": "an-9",
+   "label": "Exampleamide"
+  },
+  {
+   "id": "an-10",
+   "label": "Exampleamide-M1"
+  },
+  {
+   "id": "an-17",
+   "label": "Exampleamide"
+  }
+ ]
+}

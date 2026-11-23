@@ -2,6 +2,11 @@
 
 Every owner decision on the redesign, verbatim where possible, with what it changes. Newest first.
 
+## D-G4 · Gate 4 approved (2026-11-23)
+The design system, the high-fidelity prototype and the backend mapping are approved. Next: the implementation plan
+(`docs/plans/2026-11-23-console-redesign-implementation.md`) and the archive (`ARCHIVE.md`). Implementation needs the
+owner's separate authorisation.
+
 ## D-G3 · Gate 3 approved, with its three answers (2026-11-23)
 | # | Owner's answer | Effect |
 |---|---|---|

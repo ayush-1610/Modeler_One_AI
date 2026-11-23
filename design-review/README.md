@@ -9,10 +9,18 @@ no file in this folder is imported, built or deployed, and no production file wa
 | 1 Product discovery | 0–2 | **Approved** 2026-11-23 (decisions in [`DECISIONS.md`](DECISIONS.md)) |
 | 2 Information architecture | 3 | **Approved** 2026-11-23 |
 | 3 Wireframes | 4 | **Approved** 2026-11-23 |
-| 4 Final design and technical | 5–7 | **Ready for review** |
-| Implementation | 9–10 | Needs separate explicit authorisation |
+| 4 Final design and technical | 5–7 | **Approved** 2026-11-23 |
+| Implementation readiness | 9 | **Ready for review**: [`ARCHIVE.md`](ARCHIVE.md) (archive verified), plan [`docs/plans/2026-11-23-console-redesign-implementation.md`](../docs/plans/2026-11-23-console-redesign-implementation.md) |
+| Implementation | 10 | Needs separate explicit authorisation |
 
-## Gate 4 documents
+## Phase 9 documents
+- [`ARCHIVE.md`](ARCHIVE.md): the baseline tag, archive branch and file copy of `apps/web`, verified identical to the
+  tag and rebuilt from scratch; how to restore.
+- [`../docs/plans/2026-11-23-console-redesign-implementation.md`](../docs/plans/2026-11-23-console-redesign-implementation.md):
+  architecture, component map, backend order, permissions, testing, ten slices, rollback, bloatware removal, risks and
+  the decisions needed to start.
+
+## Gate 4 documents (approved)
 - [`prototype-hifi/index.html`](prototype-hifi/index.html): the high-fidelity prototype. Same pages, routes, controls and
   behaviour as the approved wireframe, with the design system applied: IBM Plex, the token palette, icons, status
   indicators, collection tables (preferences, pagination, stacked rows on phones), charts with a table view and a
@@ -56,3 +64,4 @@ stub engine with synthetic data; no number in them is a PBPK result). Gate 2 cor
 | 2026-11-23 | Q1 Data plan yes (read-mostly); Q2 no reference start, retire `/templates` after verifying; Q3 fix security now; Q4 keep logo | P-04, P-13b, remediation | Applied; `/templates` consumers verified (2 must move first); R-S01, R-S03, R-S04 fixed in code with tests | Owner's answers (DECISIONS D-G2) |
 | 2026-11-23 | Gate 2 approved | All pages | Gate 3 prototype and wireframe documentation | Charter Phase 4 |
 | 2026-11-23 | Gate 3 approved (left-hand Data room sections, side-panel study card, count in both places) | Design system, all pages | Gate 4 package; screenless count corrected to 25; a signature-visibility gap found (R-N09) | Charter Phases 5–7 |
+| 2026-11-23 | Gate 4 approved; prepare the implementation plan | apps/web baseline, plan | Archive made and verified; implementation plan written | Charter Phase 9 |

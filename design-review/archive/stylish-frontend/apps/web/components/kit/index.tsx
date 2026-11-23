@@ -1,0 +1,138 @@
+// The redesign's small component kit (docs/plans/2026-10-19-p0-p5-redesign.md §7): plain CSS on the theme tokens
+// (app/styles/kit.css), no component library. New screens are built from these; old pages keep their own until rebuilt.
+
+// Stepper (a server component) is imported from its own file.
+
+import { Fragment, type ReactNode } from "react";
+
+/** Each area's hue for the head's wash and its curve (the "Modeler One App" design, plan 2026-11-06-app-design-merge). */
+const HUES = { projects: 211, new: 160, start: 211, inputs: 190, review: 265, run: 150, inbox: 28, library: 280, history: 220, admin: 340 } as const;
+export type HeroTone = keyof typeof HUES;
+
+/** A page's head: a pill naming where you are, a large title, one sentence, and the page's actions, centred over a soft
+ *  wash of the area's colour and the product's curve (decoration only: it carries no data). */
+export function Hero({ eyebrow, title, lede, actions, tone = "projects", size = "compact", testId }: {
+  eyebrow?: ReactNode; title: ReactNode; lede?: ReactNode; actions?: ReactNode; tone?: HeroTone;
+  /** "full" for the landing pages (the dashboard, the 404); "compact" for the pages worked on all day, so the work
+   *  starts within the first screen (the 2026-11-11 audit, item 5); "slim" for a page whose own bar of areas must sit
+   *  high (Inputs, plan 2026-11-14 slice 2). */
+  size?: "full" | "compact" | "slim";
+  testId?: string;
+}) {
+  return (
+    <header className={`hero-band ${size}`} style={{ ["--hue" as string]: HUES[tone] }} data-testid={testId}>
+      <svg className="hero-art" aria-hidden viewBox="0 0 1440 360" preserveAspectRatio="xMidYMid slice">
+        <path className="grid" d="M0 90H1440M0 180H1440M0 270H1440" />
+        <path className="curve" d="M0 330C260 330 300 70 560 70s320 230 880 255" pathLength={520} />
+        <path className="curve2" d="M0 330C260 330 310 105 570 105s330 190 870 215" />
+        <g className="dots"><circle cx="300" cy="170" r="4" /><circle cx="560" cy="75" r="4" /><circle cx="840" cy="190" r="4" /><circle cx="1180" cy="290" r="4" /></g>
+      </svg>
+      <div className="hero-inner">
+        {eyebrow && <span className="hero-pill">{eyebrow}</span>}
+        <h1>{title}</h1>
+        {lede && <p className="hero-lede">{lede}</p>}
+        {actions && <div className="hero-actions">{actions}</div>}
+      </div>
+    </header>
+  );
+}
+
+/** A step's page: its head, the project's steps under it (the Stepper, passed in), and its content beside an optional
+ *  side panel. `noReveal`: the page's sections are shown at once, never faded in as they scroll into view (a page of
+ *  forms, where a faded section reads as disabled: plan 2026-11-14 slice 1). `slim` (opt-in): a shorter head and less
+ *  space under it, so a page's own bar sits high (Inputs, plan 2026-11-14 slice 2); other pages keep theirs. `before`:
+ *  what comes first in the page's Tab order, before its head (a page's own skip link). */
+export function PageShell({ eyebrow, title, lede, actions, side, steps, tone, noReveal, slim, before, children }: {
+  eyebrow?: string; title: ReactNode; lede?: ReactNode; actions?: ReactNode; side?: ReactNode; steps?: ReactNode;
+  tone?: HeroTone; noReveal?: boolean; slim?: boolean; before?: ReactNode; children: ReactNode;
+}) {
+  return (
+    <div className={slim ? "shell slim" : "shell"} data-no-reveal={noReveal ? "" : undefined}>
+      {before}
+      <Hero eyebrow={eyebrow} title={title} lede={lede} actions={actions} tone={tone} size={slim ? "slim" : "compact"} />
+      {steps}
+      <div className={side ? "shell-body with-side" : "shell-body"}>
+        <div className="shell-main">{children}</div>
+        {side && <aside className="shell-side">{side}</aside>}
+      </div>
+    </div>
+  );
+}
+
+/** A box of the side panel: a short heading and what it says. */
+export function SidePanel({ title, tone, children, testId }: {
+  title: string; tone?: "warn" | "ok"; children: ReactNode; testId?: string;
+}) {
+  return (
+    <section className={`side-panel${tone ? ` ${tone}` : ""}`} data-testid={testId}>
+      <h3>{title}</h3>
+      {children}
+    </section>
+  );
+}
+
+/** What the page shows when there is nothing yet: what will appear, and how to add the first one. */
+export function EmptyState({ title, children, action }: { title: string; children?: ReactNode; action?: ReactNode }) {
+  return (
+    <div className="empty-state">
+      <strong>{title}</strong>
+      {children && <p>{children}</p>}
+      {action}
+    </div>
+  );
+}
+
+/** A problem shown next to the thing it is about: a blocker ("error"), a caution ("warn") or a note. */
+export function InlineIssue({ severity = "warn", children, testId }: {
+  severity?: "error" | "warn" | "note"; children: ReactNode; testId?: string;
+}) {
+  return <p className={`inline-issue ${severity}`} role={severity === "error" ? "alert" : undefined} data-testid={testId}>{children}</p>;
+}
+
+/** A result or a refusal the person should hear about: a note for what went fine or a caution, an alert for a refusal. */
+export function Banner({ tone, children, testId }: { tone: "ok" | "warn" | "err"; children: ReactNode; testId?: string }) {
+  return <div className={`banner ${tone}`} role={tone === "err" ? "alert" : "status"} data-testid={testId}>{children}</div>;
+}
+
+export type Column<T> = { key: string; label: string; numeric?: boolean; render: (row: T) => ReactNode };
+
+/** A table that scrolls inside its own box on a narrow screen and says when it is empty. With a `label` the table has a
+ *  caption (read aloud, not drawn) and its scrolling box can be reached and scrolled from the keyboard. `rowTestId`
+ *  names each row; `after` draws what a row opens on, in a full-width row under it (a study's card under its row). */
+export function DataTable<T>({ columns, rows, rowKey, empty, testId, label, rowTestId, rowClassName, after, className, group }: {
+  columns: Column<T>[]; rows: T[]; rowKey: (row: T) => string; empty?: ReactNode; testId?: string; label?: string;
+  rowTestId?: (row: T) => string; rowClassName?: (row: T) => string | undefined; after?: (row: T) => ReactNode; className?: string;
+  /** rows in groups (in the order given): a heading row before each group's first row; a row that moves to another group
+   *  stays the same row, so what it opened stays open */
+  group?: { of: (row: T) => string; title: (group: string, rows: T[]) => ReactNode; testId?: (group: string) => string };
+}) {
+  if (!rows.length) return <>{empty ?? <EmptyState title="Nothing here yet" />}</>;
+  return (
+    <div className="table-scroll" data-testid={testId} {...(label ? { role: "region", "aria-label": label, tabIndex: 0 } : {})}>
+      <table className={className}>
+        {label && <caption className="sr-only">{label}</caption>}
+        <thead><tr>{columns.map((c) => <th key={c.key} className={c.numeric ? "num" : undefined}>{c.label}</th>)}</tr></thead>
+        <tbody>
+          {rows.map((r, i) => {
+            const more = after?.(r);
+            const g = group?.of(r);
+            const heading = group && g !== undefined && (i === 0 || group.of(rows[i - 1]) !== g);
+            return (
+              <Fragment key={rowKey(r)}>
+                {heading && (
+                  <tr className="row-group" data-testid={group.testId?.(g)}>
+                    <th colSpan={columns.length} scope="colgroup">{group.title(g, rows.filter((x) => group.of(x) === g))}</th>
+                  </tr>
+                )}
+                <tr data-testid={rowTestId?.(r)} className={rowClassName?.(r)}>
+                  {columns.map((c) => <td key={c.key} className={c.numeric ? "num" : undefined}>{c.render(r)}</td>)}
+                </tr>
+                {more && <tr className="row-detail"><td colSpan={columns.length}>{more}</td></tr>}
+              </Fragment>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}

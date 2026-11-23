@@ -15,6 +15,16 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Docs — redesign charter, Phase 9: the archive and the implementation plan (2026-11-23, the owner's request)
+- **Archive:** tag `pre-aws-redesign-20261123-1601` and branch `archive/stylish-frontend-20261123-1601` at `49907a6`
+  (local until the owner says to push them), and a file copy of all 292 files of `apps/web` with its OpenAPI contract
+  in `design-review/archive/stylish-frontend/`. Verified: identical to the tag (`diff -r`), and a restored copy installs
+  from its lockfile, typechecks and builds. `design-review/ARCHIVE.md` says how to restore.
+- **Plan:** `docs/plans/2026-11-23-console-redesign-implementation.md`: architecture (no new dependency; test ids kept
+  as a contract), component map, backend changes in order, permissions, testing, ten slices with exit criteria,
+  rollback, bloatware removal, risks, and the five decisions needed before implementation starts.
+- **Impact:** none on behaviour. Implementation needs the owner's separate authorisation.
+
 ### Docs — redesign charter, Gate 4: design system, high-fidelity prototype, API mapping (2026-11-23, the owner's request)
 - **What:** Gate 3 approved. `design-review/DESIGN_SYSTEM.md`; `design-review/prototype-hifi/index.html` (the approved
   wireframe with the design system applied, IBM Plex embedded under its OFL, one offline file, mock data only);

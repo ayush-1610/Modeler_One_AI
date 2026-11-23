@@ -1,0 +1,60 @@
+// T-47: the client's data reviewed one study at a time, as data (build C, plan 2026-11-05 §3.2; the owner, 2026-11-05:
+// "one by one study/product/data, easy to review"). The client's studies are one list (plan 2026-11-14 slice 3), by how
+// each is given; with more than three, the first to confirm is open on its card and the others are folded, each opening
+// from its row. The workbook is written by a Python helper (software test data, never a model).
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
+
+import { expect, type Page, test } from "@playwright/test";
+
+import { finishStart } from "./fixtures/inputs";
+
+const REPO = resolve(__dirname, "../../..");
+const AUTH = { Authorization: "Bearer dev" };
+const XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
+async function shot(page: Page, name: string) {
+  await page.screenshot({ path: test.info().outputPath(`${name}.png`), fullPage: true });
+}
+
+test("a delivery with four studies is reviewed one study at a time, each as data", async ({ page, request }) => {
+  const dir = mkdtempSync(join(tmpdir(), "four-"));
+  execFileSync("uv", ["run", "python", join(__dirname, "fixtures", "four_studies.py"), dir], { cwd: REPO });
+  const started = await request.post("/api/v1/projects:initiate", { headers: AUTH, multipart: {
+    drug_name: "Cardamide", extract: "false",
+    files: { name: "proposal.md", mimeType: "text/markdown", buffer: Buffer.from("# Proposal\nOral tablet, 10 mg.") } } });
+  const projectId = (await started.json()).data.project_id as string;
+  await finishStart(request, projectId);
+  expect((await request.post(`/api/v1/projects/${projectId}/requirements:derive`, { headers: AUTH })).ok()).toBeTruthy();
+  const up = await request.post(`/api/v1/projects/${projectId}/client-data`, { headers: AUTH, multipart: {
+    files: { name: "four-studies.xlsx", mimeType: XLSX, buffer: readFileSync(join(dir, "four-studies.xlsx")) } } });
+  expect(up.status(), await up.text()).toBe(201);
+
+  await page.goto(`/projects/${projectId}/inputs?tab=files`);
+  // the client-data template, sent with no tag, is filed with the studies (it holds every kind of data)
+  await expect(page.getByTestId("files-table").getByTestId("open-file-four-studies.xlsx")).toHaveText("Clinical studies");
+  await expect(page.getByTestId("files-unplaced")).toHaveCount(0);
+  await page.getByTestId("tab-studies").click();
+  const list = page.getByTestId("studies-list");
+  for (const s of ["CL-1", "CL-2", "CL-3", "CL-4"]) await expect(list.getByTestId(`study-row-study:${s}`)).toBeVisible();
+  await expect(page.getByTestId("group-index")).toHaveCount(0);                         // no second index of the studies
+  // the first to confirm is open, as data; the others are folded
+  const first = page.getByTestId("group-study:CL-1");
+  await expect(first.getByTestId("profile-chart")).toBeVisible();
+  await expect(first.getByTestId("dataset-stats")).toContainText("41");                 // Cmax of CL-1's mean profile
+  await expect(page.getByTestId("group-study:CL-3").getByTestId("profile-chart")).toHaveCount(0);
+  await expect(page.getByTestId("toggle-study:CL-3")).toHaveText("Open");
+  await shot(page, "1-one-study-at-a-time");
+  // any study opens from its row, with its own data
+  await page.getByTestId("toggle-study:CL-3").click();
+  const third = page.getByTestId("group-study:CL-3");
+  await expect(third.getByTestId("dataset-stats")).toContainText("123");                // 3 × 41
+  // confirming the open one moves to the next to confirm
+  await first.getByTestId("confirm-study:CL-1").click();
+  // said once, on the card's head line: who confirmed it and how; the group inside does not repeat it (final review OWN-14)
+  await expect(page.getByTestId("card-loaded-study:CL-1")).toContainText(/Confirmed with the sheet form by dev-user on \d{1,2} \w{3} \d{4}, \d\d:\d\d\./);
+  await expect(first.getByTestId("group-confirmed-study:CL-1")).toHaveCount(0);
+  await expect(page.getByTestId("group-study:CL-2").getByTestId("profile-chart")).toBeVisible();
+});

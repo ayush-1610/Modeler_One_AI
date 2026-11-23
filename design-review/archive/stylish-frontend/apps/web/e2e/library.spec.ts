@@ -1,0 +1,281 @@
+// The project document library (docs/plans/2026-10-28-project-document-library.md, PR 1): reached from the sidebar of an
+// open project, every document with who added it and what the project took from it; searched, filtered and opened.
+import { execFileSync } from "node:child_process";
+import { join } from "node:path";
+
+import { expect, test } from "@playwright/test";
+
+import { AUTH, finishStart } from "./fixtures/inputs";
+
+test("the library lists each document with what cites it, and finds, filters and opens one", async ({ page, request }) => {
+  const started = await request.post("/api/v1/projects:initiate", { headers: AUTH, multipart: {
+    drug_name: "Librarimide", extract: "false",
+    files: { name: "proposal.md", mimeType: "text/markdown", buffer: Buffer.from("# Proposal\nfu was 9 % in human plasma.") } } });
+  const projectId = (await started.json()).data.project_id as string;
+  const docs = (await (await request.get(`/api/v1/projects/${projectId}/documents`, { headers: AUTH })).json()).data.documents;
+  const sha = docs.find((d: { role: string }) => d.role === "proposal").sha256 as string;
+  await request.post(`/api/v1/projects/${projectId}/documents`, { headers: AUTH, multipart: {
+    role: "annex", files: { name: "annex.md", mimeType: "text/markdown", buffer: Buffer.from("# Annex\nNothing used.") } } });
+  // a value read from the proposal, cited to its page
+  const fu = await request.post(`/api/v1/projects/${projectId}/evidence`, { headers: AUTH, data: {
+    req_id: "REQ-bind.fu", target: "bind.fu", value: 9, unit: "%", source_type: "PUBLICATION", doc_sha256: sha, page: 1,
+    quote: "fu was 9 % in human plasma", conditions: { species: "human", matrix: "plasma" } } });
+  expect(fu.ok(), await fu.text()).toBeTruthy();
+
+  await page.goto(`/projects/${projectId}/start`);
+  await page.getByTestId("nav-library").click();
+  await page.waitForURL(/\/library$/);
+  const proposal = page.getByTestId("library-row-proposal.md");
+  await expect(proposal).toContainText("bind.fu = 9 %");
+  await expect(page.getByTestId("library-row-annex.md")).toContainText("Nothing taken from it yet");
+  await page.getByTestId("library-search").fill("bind.fu");
+  await expect(page.getByTestId("library-row-annex.md")).toHaveCount(0);
+  await page.getByTestId("library-search").fill("");
+  await page.getByTestId("library-role").selectOption("annex");
+  await expect(proposal).toHaveCount(0);
+  await page.getByTestId("library-role").selectOption("");
+  await page.screenshot({ path: test.info().outputPath("library.png"), fullPage: true });
+  await page.getByTestId("library-open-proposal.md").click();
+  await expect(page.getByTestId("library-viewer")).toContainText("fu was 9 % in human plasma");
+});
+
+test("Add data, from the sidebar at any step, says what each file relates to; a document is withdrawn and restored",
+  async ({ page, request }) => {
+    // PR 2 of the plan: the owner's answers 10 (Add data above the library), 11 (roles + relates to) and 12 (withdrawn
+    // with a reason, never erased, hidden from the agents)
+    const started = await request.post("/api/v1/projects:initiate", { headers: AUTH, multipart: {
+      drug_name: "Addamide", extract: "false",
+      files: { name: "proposal.md", mimeType: "text/markdown", buffer: Buffer.from("# Proposal\nAn IR tablet.") } } });
+    const projectId = (await started.json()).data.project_id as string;
+
+    await page.goto(`/projects/${projectId}/start`);
+    await expect(page.getByTestId("start-files")).toContainText("proposal.md");
+    await page.getByTestId("nav-add-data").click();
+    const card = page.getByTestId("add-data");
+    await expect(card.getByRole("dialog", { name: "Add data" })).toBeVisible();
+    await expect(page.getByTestId("add-data-step")).toHaveValue("start");      // the page's own step, preselected
+    await page.getByTestId("add-data-files").setInputFiles([
+      { name: "f2.json", mimeType: "application/json", buffer: Buffer.from('{"formulation": "F2", "strength_mg": 50}') },
+      { name: "pk.csv", mimeType: "text/csv", buffer: Buffer.from("time,conc\n1,2\n") },
+    ]);
+    await expect(page.getByTestId("add-data-goes-pk.csv")).toHaveValue("client:clinical");   // client data, tagged by its name
+    await expect(page.getByTestId("add-data-goes-f2.json")).toHaveValue("doc:annex");
+    await page.getByTestId("add-data-goes-f2.json").selectOption("doc:context");             // the guess is switched
+    await page.getByTestId("add-data-step").selectOption("inputs");
+    await page.getByTestId("add-data-task").fill("Formulations");
+    await page.screenshot({ path: test.info().outputPath("add-data.png") });
+    await page.getByTestId("add-data-submit").click();
+    await expect(page.getByTestId("add-data-done")).toContainText("pk.csv: added as client data");
+    await expect(page.getByTestId("add-data-done")).toContainText("f2.json: added as context");
+    await page.getByTestId("add-data-close").click();
+    await expect(card).toHaveCount(0);
+    await expect(page.getByTestId("start-files")).toContainText("f2.json");         // the page behind it is read again
+
+    await page.getByTestId("nav-library").click();
+    await page.waitForURL(/\/library$/);
+    await expect(page.getByTestId("library-row-f2.json")).toContainText("Inputs");
+    await expect(page.getByTestId("library-row-f2.json")).toContainText("Formulations");
+    await expect(page.getByTestId("library-row-pk.csv")).toContainText("client file");
+
+    await page.getByTestId("library-withdraw-f2.json").click();
+    await expect(page.getByTestId("library-confirm")).toBeDisabled();                // a reason is required
+    await page.getByTestId("library-reason").fill("the client sent a corrected formulation sheet");
+    await page.getByTestId("library-confirm").click();
+    await expect(page.getByTestId("library-withdrawn-f2.json")).toContainText("the client sent a corrected formulation sheet");
+    await page.getByTestId("library-status").selectOption("current");
+    await expect(page.getByTestId("library-row-f2.json")).toHaveCount(0);
+    await page.getByTestId("library-status").selectOption("withdrawn");
+    await expect(page.getByTestId("library-row-f2.json")).toBeVisible();             // kept, never erased
+    await page.screenshot({ path: test.info().outputPath("library-withdrawn.png"), fullPage: true });
+    await page.getByTestId("library-restore-f2.json").click();
+    await page.getByTestId("library-reason").fill("withdrawn by mistake");
+    await page.getByTestId("library-confirm").click();
+    await expect(page.getByTestId("library-row-f2.json")).toHaveCount(0);            // no longer withdrawn
+    await page.getByTestId("library-status").selectOption("");
+    await expect(page.getByTestId("library-withdrawn-f2.json")).toHaveCount(0);
+  });
+
+test("Add data with many files scrolls inside the dialog, not the page behind it", async ({ page, request }) => {
+  const started = await request.post("/api/v1/projects:initiate", { headers: AUTH, multipart: {
+    drug_name: "Scrollamide", extract: "false",
+    files: { name: "proposal.md", mimeType: "text/markdown", buffer: Buffer.from("# Proposal") } } });
+  const projectId = (await started.json()).data.project_id as string;
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.goto(`/projects/${projectId}/start`);
+  await page.getByTestId("nav-add-data").click();
+  const card = page.getByTestId("add-data");
+  await page.getByTestId("add-data-files").setInputFiles(Array.from({ length: 31 }, (_, i) => (
+    { name: `study-${i + 1}-PK Table.csv`, mimeType: "text/csv", buffer: Buffer.from("t,c\n0,0\n") })));
+  const dialog = card.getByRole("dialog");
+  const box = (await dialog.boundingBox())!;
+  expect(box.y + box.height).toBeLessThanOrEqual(720);                         // the panel fits the screen
+  const pageTop = await page.evaluate(() => window.scrollY);
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.wheel(0, 5000);
+  await expect.poll(() => dialog.evaluate((el) => el.scrollTop)).toBeGreaterThan(0);   // the dialog scrolls
+  expect(await page.evaluate(() => window.scrollY)).toBe(pageTop);                     // the page behind does not
+  await expect(page.getByTestId("add-data-goes-study-31-PK Table.csv")).toBeInViewport();
+  await expect(page.getByTestId("add-data-step")).toBeInViewport();
+  expect(await page.evaluate(() => getComputedStyle(document.documentElement).overflow)).toBe("hidden");   // held
+
+  // closed, the page scrolls again (the owner, 2026-11-11: it "stops scrolling" at random; a CSS :has lock was not
+  // released by Safari): the lock is the dialog's own and goes with it, however often a dialog opens and closes
+  await page.getByTestId("add-data-close").click();
+  await expect(card).toHaveCount(0);
+  for (let n = 0; n < 3; n++) {
+    await page.getByTestId("nav-add-data").click();
+    await page.keyboard.press("Escape");
+    await expect(card).toHaveCount(0);
+  }
+  expect(await page.evaluate(() => document.documentElement.dataset.dialogs)).toBeUndefined();
+  expect(await page.evaluate(() => getComputedStyle(document.documentElement).overflow)).not.toBe("hidden");
+  await page.setViewportSize({ width: 1280, height: 360 });
+  await page.mouse.move(640, 300);
+  await page.mouse.wheel(0, 400);
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+});
+
+test("Add data reads documents for data by default, and a large delivery goes up in batches", async ({ page, request }) => {
+  // plan 2026-11-10, R2 (the owner's decision 1): a PDF, Word or Excel document is read for data unless unticked
+  const started = await request.post("/api/v1/projects:initiate", { headers: AUTH, multipart: {
+    drug_name: "Readamide", extract: "false",
+    files: { name: "proposal.md", mimeType: "text/markdown", buffer: Buffer.from("# Proposal") } } });
+  const projectId = (await started.json()).data.project_id as string;
+  await page.goto(`/projects/${projectId}/start`);
+  await page.getByTestId("nav-add-data").click();
+  const pdf = textPdf("Study 094-26 outlier report: subject 7 excluded from the PK analysis.");
+  const sheets = Array.from({ length: 20 }, (_, i) => (
+    { name: `study-${i + 1}-PK Table.csv`, mimeType: "text/csv", buffer: Buffer.from(`time,conc\n1,${i + 2}\n`) }));
+  await page.getByTestId("add-data-files").setInputFiles([
+    { name: "Outlier Report.pdf", mimeType: "application/pdf", buffer: pdf },
+    { name: "notes.md", mimeType: "text/markdown", buffer: Buffer.from("# Notes") },
+    ...sheets,
+  ]);
+  await expect(page.getByTestId("add-data-goes-Outlier Report.pdf")).toHaveValue("doc:annex");
+  await expect(page.getByTestId("add-data-read-Outlier Report.pdf")).toBeChecked();      // read for data by default
+  await expect(page.getByTestId("add-data-read-notes.md")).toHaveCount(0);               // nothing to read in Markdown
+  await page.getByTestId("add-data-step").selectOption("inputs");
+  await page.getByTestId("add-data-submit").click();
+  const done = page.getByTestId("add-data-done");
+  await expect(done).toContainText("Outlier Report.pdf: added as an annex; the agent reads it for data on Inputs");
+  await expect(done).toContainText("notes.md: added as an annex");
+  await expect(done).toContainText("study-1-PK Table.csv");
+  await expect(done).toContainText("study-20-PK Table.csv");                               // every batch went up
+  const files = (await (await request.get(`/api/v1/projects/${projectId}/client-data`, { headers: AUTH })).json()).data.files;
+  expect(files.map((f: { file: string }) => f.file)).toContain("Outlier Report.pdf");
+  expect(files.length).toBe(21);
+});
+
+test("the AI reading line on Inputs says how far the files were read, and when AI reading is off", async ({ page, request }) => {
+  // plan 2026-11-10, R3: the e2e servers run with agents off, so the files wait for AI reading and the line says so; plan
+  // 2026-11-14 slice 2: each file has one status, in the files table, and the line no longer calls waiting what code read
+  const started = await request.post("/api/v1/projects:initiate", { headers: AUTH, multipart: {
+    drug_name: "Trayamide", extract: "false",
+    files: { name: "proposal.md", mimeType: "text/markdown", buffer: Buffer.from("# Proposal") } } });
+  const projectId = (await started.json()).data.project_id as string;
+  await page.goto(`/projects/${projectId}/start`);
+  await page.getByTestId("nav-add-data").click();
+  await page.getByTestId("add-data-files").setInputFiles([
+    { name: "094-26 Summary Statistics.pdf", mimeType: "application/pdf", buffer: textPdf("Study 094-26: Cmax 40 ng/mL.") },
+    { name: "093-26 Synopsis.pdf", mimeType: "application/pdf", buffer: textPdf("Study 093-26: 50 mg, fasted.") },
+  ]);
+  await page.getByTestId("add-data-step").selectOption("inputs");
+  await page.getByTestId("add-data-submit").click();
+  await expect(page.getByTestId("add-data-reading")).toContainText("The reading agent is off on this server: 2 files wait");
+  await page.getByTestId("add-data-reading").getByRole("link", { name: "See each file on Inputs" }).click();
+  await page.waitForURL(/\/inputs\?tab=files/);                                   // the Client files area
+  await expect(page.getByTestId("tab-files")).toHaveAttribute("aria-selected", "true");
+  const tray = page.getByTestId("reading-tray");
+  // the delivery reads both by code: the line says so, once it has (it said "0 of 2 read · 2 waiting" beside "2 read")
+  await expect(page.getByTestId("reading-tray-counts")).toHaveText("2 files read without AI · AI reading is off", { timeout: 60_000 });
+  await expect(page.getByTestId("reading-tray-agent")).toHaveText("AI off");
+  await expect(page.getByTestId("reading-tray-off")).toHaveCount(0);
+  // each file once, with one status, in the files table: no second list of the files in the line
+  await expect(page.getByTestId("reading-tray-toggle")).toHaveCount(0);
+  for (const name of ["094-26 Summary Statistics.pdf", "093-26 Synopsis.pdf"]) {
+    await expect(page.getByTestId(`file-state-${name}`)).toHaveText(/read$/);
+  }
+  // with AI off, a file whose AI reading has not happened lists none under its row
+  await page.getByTestId("file-toggle-094-26 Summary Statistics.pdf").click();
+  await expect(page.getByTestId("client-file-094-26 Summary Statistics.pdf")).toBeVisible();
+  await expect(page.getByTestId("reading-item-094-26 Summary Statistics.pdf")).toHaveCount(0);
+  await tray.screenshot({ path: test.info().outputPath("reading-tray.png") });
+});
+
+test("a figure that is the only source of a study's profile is suggested, and opens the digitizer on its page",
+  async ({ page, request }) => {
+    // plan 2026-11-10, R5 (the owner's decision 3): suggested only, shown only while no table holds its values
+    const started = await request.post("/api/v1/projects:initiate", { headers: AUTH, multipart: {
+      drug_name: "Plotamide", extract: "false",
+      files: { name: "proposal.md", mimeType: "text/markdown", buffer: Buffer.from("# Proposal") } } });
+    const projectId = (await started.json()).data.project_id as string;
+    const caption = "Figure 2. Mean plasma concentrations of Study FIG-01 (ng/mL)";
+    const up = await request.post(`/api/v1/projects/${projectId}/client-data`, { headers: AUTH, multipart: {
+      files: { name: "FIG-01 Mean plot.pdf", mimeType: "application/pdf", buffer: textPdf(caption) } } });
+    expect(up.ok(), await up.text()).toBeTruthy();
+    const sid = (await up.json()).data.read[0].id as string;
+    execFileSync("uv", ["run", "python", join(__dirname, "fixtures", "figure_suggestion.py"),
+                        join(process.env.E2E_DATA_DIR!, "read-root"), projectId, sid, "1", "FIG-01", caption],
+                 { cwd: join(__dirname, "..", "..", "..") });
+
+    await page.goto(`/projects/${projectId}/inputs?tab=files`);
+    const figure = page.getByTestId("figure-FIG-01 Mean plot.pdf-1");
+    await expect(figure).toContainText("concentration-time profile of study FIG-01");
+    await expect(figure).toContainText(caption);
+    await page.getByTestId("figure-suggestions").screenshot({ path: test.info().outputPath("figure-suggestion.png") });
+    await page.getByTestId("digitize-FIG-01 Mean plot.pdf-1").click();
+    await page.waitForURL(/digitize=/);
+    await expect(page.getByTestId("digitizer")).toBeVisible();
+    await expect(page.getByTestId("digitize-document")).toHaveValue(/^[0-9a-f]{64}$/);
+    await expect(page.getByTestId("digitize-document").locator("option:checked")).toHaveText("FIG-01 Mean plot.pdf");
+    await expect(page.getByTestId("digitize-page")).toHaveValue("1");
+    await expect(page.getByPlaceholder("study id (author-year-route-dose)")).toHaveValue("FIG-01");   // for its study
+  });
+
+test("documents added before reading for data are listed on Inputs and read on request", async ({ page, request }) => {
+  // the owner, 2026-11-11: a delivery added as annexes before R2 was only stored; Inputs says so and reads them
+  const started = await request.post("/api/v1/projects:initiate", { headers: AUTH, multipart: {
+    drug_name: "Backlogamide", extract: "false",
+    files: { name: "proposal.md", mimeType: "text/markdown", buffer: Buffer.from("# Proposal") } } });
+  const projectId = (await started.json()).data.project_id as string;
+  const old = await request.post(`/api/v1/projects/${projectId}/documents`, { headers: AUTH, multipart: {
+    role: "annex", files: { name: "093-26 Summary Statistics.pdf", mimeType: "application/pdf",
+                            buffer: textPdf("Study 093-26: Cmax 40 ng/mL.") } } });
+  expect(old.ok(), await old.text()).toBeTruthy();
+  await finishStart(request, projectId);      // Inputs opens once Start is done
+  await page.goto(`/projects/${projectId}/inputs`);
+  await page.getByTestId("tab-files").click();                                      // the tray is in Client files
+  await expect(page.getByTestId("reading-tray")).toBeVisible();                      // shown with nothing queued
+  await expect(page.getByTestId("reading-tray-counts")).toHaveText("no file queued for AI reading yet");
+  await expect(page.getByTestId("reading-tray-agent")).toHaveText("AI off");
+  await expect(page.getByTestId("reading-tray-backlog")).toContainText("1 document in the project's library was added");
+  await expect(page.getByTestId("reading-tray-backlog")).toContainText("093-26 Summary Statistics.pdf");
+  await page.getByTestId("reading-tray").screenshot({ path: test.info().outputPath("reading-backlog.png") });
+  await page.getByTestId("read-library").click();
+  await expect(page.getByTestId("reading-tray-backlog")).toHaveCount(0);
+  // read for data now: a client file with its row, read by code (AI reading is off)
+  await expect(page.getByTestId("reading-tray-counts")).toHaveText("1 file read without AI · AI reading is off", { timeout: 60_000 });
+  await expect(page.getByTestId("file-state-093-26 Summary Statistics.pdf")).toHaveText(/read$/);
+});
+
+/** A one-page PDF with one line of text, its cross-reference table at the right offsets. */
+function textPdf(line: string): Buffer {
+  const content = `BT /F1 12 Tf 72 720 Td (${line}) Tj ET\n`;
+  const objects = [
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
+    `<< /Length ${content.length} >>\nstream\n${content}endstream`,
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+  ];
+  let body = "%PDF-1.4\n";
+  const offsets = objects.map((object, i) => {
+    const at = body.length;
+    body += `${i + 1} 0 obj\n${object}\nendobj\n`;
+    return at;
+  });
+  const xref = `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`
+    + offsets.map((o) => `${String(o).padStart(10, "0")} 00000 n \n`).join("")
+    + `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${body.length}\n%%EOF\n`;
+  return Buffer.from(body + xref, "latin1");
+}
