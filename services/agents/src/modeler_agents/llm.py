@@ -623,8 +623,10 @@ class FallbackChat:
     def label(self) -> str:
         return self.labels[0]
 
-    def conversation(self) -> ChainConversation:
-        return ChainConversation(self)
+    def conversation(self, avoid: str = "") -> ChainConversation:
+        """This conversation's place in the chain; `avoid` (provider/model): a model it should not start on (the
+        checker is not the model that wrote what it checks), unless no other can answer."""
+        return ChainConversation(self, avoid=avoid)
 
     def complete(self, messages: list[dict[str, Any]], tools: list[dict[str, Any]]) -> ChatResult:
         return self.conversation().complete(messages, tools)      # one request on its own: a conversation of one
@@ -633,14 +635,16 @@ class FallbackChat:
 class ChainConversation:
     """One conversation's place in a chain: its model, the switches it made, and what each model answered."""
 
-    def __init__(self, chain: FallbackChat):
+    def __init__(self, chain: FallbackChat, avoid: str = ""):
         self.chain = chain
         usable = [i for i in range(len(chain.models)) if chain.health.usable(chain.key(i))]
-        self.index = usable[0] if usable else 0
+        other = [i for i in usable if f"{chain.models[i].provider}/{chain.models[i].model}" != avoid]
+        self.index = (other or usable or [0])[0]
         self.switches: list[dict[str, str]] = []
         if self.index:
-            self._switched({"from": chain.labels[0], "to": chain.labels[self.index],
-                            "why": "it is resting after a recent failure"})
+            why = ("it is resting after a recent failure" if not chain.health.usable(chain.key(0))
+                   else "a second opinion: not the model that wrote what it checks")
+            self._switched({"from": chain.labels[0], "to": chain.labels[self.index], "why": why})
 
     def _switched(self, change: dict[str, str]) -> None:
         self.switches.append(change)
@@ -725,6 +729,7 @@ class LoopOutcome:
     usage: dict[str, int] = field(default_factory=lambda: {"input_tokens": 0, "output_tokens": 0})
     error: str = ""
     answered_by: str = ""          # the model that answered last (a chain's: the one the conversation ended on)
+    answered_on: str = ""          # that model as provider/model id (who wrote it, whatever its label)
 
 
 def run_tool_loop(model: ChatModel, *, system: str, user: str, tools: list[Tool], max_turns: int = 30,
@@ -739,6 +744,9 @@ def run_tool_loop(model: ChatModel, *, system: str, user: str, tools: list[Tool]
 
     def who() -> str:
         return getattr(model, "label", "") or f"{model.provider}/{model.model}"
+
+    def ident() -> str:
+        return f"{model.provider}/{model.model}"
     messages: list[dict[str, Any]] = [{"role": "system", "content": system}, {"role": "user", "content": user}]
     usage: dict[str, int] = {"input_tokens": 0, "output_tokens": 0}
     window: int | None = None          # the model's context window, in tokens, once a refusal has said it
@@ -781,7 +789,7 @@ def run_tool_loop(model: ChatModel, *, system: str, user: str, tools: list[Tool]
                 tail = RAISE_CONTEXT if model.provider == "litellm" else "choose a model with a longer context for this agent"
                 return LoopOutcome("LLM_UNAVAILABLE", "", turn - 1, usage, error=(
                     f"the agent's instructions and material do not fit the model's context window ({window} tokens) "
-                    f"even with its earlier turns left out; {tail} ({exc})"), answered_by=who())
+                    f"even with its earlier turns left out; {tail} ({exc})"), answered_by=who(), answered_on=ident())
             messages = fitted
             continue
         except ModelSwitched as exc:
@@ -792,7 +800,7 @@ def run_tool_loop(model: ChatModel, *, system: str, user: str, tools: list[Tool]
             again = run_tool_loop(model, system=system, user=user, tools=tools, max_turns=max_turns, log_step=log_step)
             merged = {k: usage.get(k, 0) + again.usage.get(k, 0) for k in {*usage, *again.usage}}
             return LoopOutcome(again.status, again.final_text, turn - 1 + again.turns, merged, error=again.error,
-                               answered_by=again.answered_by)
+                               answered_by=again.answered_by, answered_on=again.answered_on)
         except ToolCallRejected as exc:
             log_step({"type": "tool_call_rejected", "turn": turn, "error": str(exc)})
             messages.append({"role": "user", "content": f"Your last tool call was refused: {exc}. Call the tool again with "
@@ -801,7 +809,7 @@ def run_tool_loop(model: ChatModel, *, system: str, user: str, tools: list[Tool]
         except LLMUnavailableError as exc:
             log_switches()
             log_step({"type": "llm_unavailable", "turn": turn, "error": str(exc)})
-            return LoopOutcome("LLM_UNAVAILABLE", "", turn - 1, usage, error=str(exc), answered_by=who())
+            return LoopOutcome("LLM_UNAVAILABLE", "", turn - 1, usage, error=str(exc), answered_by=who(), answered_on=ident())
         log_switches()
         for name, tokens in result.usage.items():     # the cache's reads and writes too, where the provider reports them
             usage[name] = usage.get(name, 0) + int(tokens or 0)
@@ -809,7 +817,7 @@ def run_tool_loop(model: ChatModel, *, system: str, user: str, tools: list[Tool]
                   "tool_calls": [{"id": c.id, "name": c.name, "arguments": c.arguments} for c in result.tool_calls],
                   "usage": result.usage})
         if not result.tool_calls:
-            return LoopOutcome("COMPLETED", result.content, turn, usage, answered_by=who())
+            return LoopOutcome("COMPLETED", result.content, turn, usage, answered_by=who(), answered_on=ident())
         turn_message: dict[str, Any] = {"role": "assistant", "content": result.content or None, "tool_calls": [
             c.raw or {"id": c.id, "type": "function", "function": {"name": c.name, "arguments": c.raw_arguments or json.dumps(c.arguments)}}
             for c in result.tool_calls]}
@@ -848,8 +856,8 @@ def run_tool_loop(model: ChatModel, *, system: str, user: str, tools: list[Tool]
             # going round in circles (on a small context window, it forgets what it found): stopped, so the caller's
             # shorter steps can run instead of spending the remaining turns
             return LoopOutcome("INCOMPLETE", "", turn, usage, error=(
-                f"stopped: it repeated the same calls with the same answers {REPEAT_LIMIT} turns in a row"), answered_by=who())
-    return LoopOutcome("INCOMPLETE", "", max_turns, usage, error=f"stopped after {max_turns} turns", answered_by=who())
+                f"stopped: it repeated the same calls with the same answers {REPEAT_LIMIT} turns in a row"), answered_by=who(), answered_on=ident())
+    return LoopOutcome("INCOMPLETE", "", max_turns, usage, error=f"stopped after {max_turns} turns", answered_by=who(), answered_on=ident())
 
 
 REPEAT_LIMIT = 5      # turns in a row of nothing but calls already made, with the same answers, before the loop stops

@@ -22,6 +22,49 @@ import { Headline } from "./overview";
 
 const noop = () => undefined;
 
+type Room = NonNullable<ReturnType<typeof useResource<typeof ROOM>>["data"]>;
+
+const STAGE: Record<string, string> = {
+  question: "Question card", triage: "Sorting", extract: "Reading", check: "Checking", write: "Findings",
+};
+
+/** How this report was made (the governance review, 2026-11-22): which model wrote each stage's answer for each file,
+ *  where it ran (our server or the cloud service the file was sent to), the prompt's version, and each model that
+ *  could not answer before it. The modeler's signature on the inputs covers this page. */
+function MadeBy({ room }: { room: Room }) {
+  return (
+    <section className="dr-report-page" data-testid="report-made-by">
+      <header className="dr-head">
+        <h2 className="dr-title">How this report was made</h2>
+        <p className="dr-finding">{room.made_summary || "No AI model has read this delivery yet: every value was entered by hand."}</p>
+      </header>
+      {room.made_by.length > 0 && (
+        <div className="table-scroll">
+          <table className="dr-table" data-testid="made-by-table">
+            <thead><tr><th>Step</th><th>File</th><th>Model</th><th>Where it ran</th><th>Prompt</th><th>Note</th></tr></thead>
+            <tbody>
+              {room.made_by.map((m) => (
+                <tr key={`${m.stage}|${m.file}`}>
+                  <td>{STAGE[m.stage] ?? m.stage}</td>
+                  <td>{m.file ? m.file.split("/").pop() : "the whole delivery"}</td>
+                  <td>{m.model}</td>
+                  <td>{m.service}</td>
+                  <td>{m.prompt}</td>
+                  <td>{[m.note, ...m.switches].filter(Boolean).join("; ")}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <p className="dr-note">
+        The models only described where each table is and quoted each fact; code read every value from the files, checked
+        every quote and computed the results; a modeler confirmed each decision.
+      </p>
+    </section>
+  );
+}
+
 export function Report({ projectId, project }: { projectId: string; project: string }) {
   const room = useResource(ROOM, { project_id: projectId });
   const search = useSearchParams();
@@ -80,6 +123,7 @@ export function Report({ projectId, project }: { projectId: string; project: str
               <SectionBody id={s.id} room={r} run={null} projectId={projectId} go={noop} withRequests={false} />
             </section>
           ))}
+          <MadeBy room={r} />
           <footer className="dr-report-foot">{rulesLabel(r.rules, true)} · {today}</footer>
         </article>
       </SourceProvider>

@@ -184,7 +184,7 @@ def _view(ws: Workspace) -> dict[str, Any]:
         "reconciliation": recon.to_content(),
         "dissolution": {"profiles": profiles(ws), **comparisons(ws)},
         "register": version_view(ws, register, with_content=False) if register else None,
-        "agents": agent_jobs.agents_status("A4"), "running": jobs.running(ws.store, ws.tenant_id, ws.project_id, "triage") or reading,
+        "agents": agent_jobs.agents_status("A4", ws=ws), "running": jobs.running(ws.store, ws.tenant_id, ws.project_id, "triage") or reading,
         "reading": reading,
     }
 
@@ -226,7 +226,7 @@ def get_client_data(project_id: str, principal: Reader, store: StoreDep) -> dict
 def _queue_view(ws: Workspace) -> dict[str, Any]:
     items = ReadingQueue(ws).items()
     latest = {i.sid: i for i in items}       # in arrival order: each file's latest item says where the file is
-    return {"agents": agent_jobs.agents_status("A4"), "running": jobs.running(ws.store, ws.tenant_id, ws.project_id, "reading"),
+    return {"agents": agent_jobs.agents_status("A4", ws=ws), "running": jobs.running(ws.store, ws.tenant_id, ws.project_id, "reading"),
             "counts": {state: sum(1 for i in latest.values() if i.state == state)
                        for state in ("queued", "reading", "done", "failed")},
             "items": [i.model_dump(mode="json") for i in items],
@@ -398,7 +398,7 @@ def run_triage_job(store: ProjectStore, tenant_id: str, project_id: str, sid: st
 def start_triage(project_id: str, sid: str, principal: Writer, store: StoreDep) -> dict[str, Any]:
     ws = workspace_for(project_id, principal, store)
     _workbook(ws, sid, use=True)
-    model = agent_jobs.require_chat_model("agents are off: say what each sheet holds by hand", "A4")
+    model = agent_jobs.require_project_model("agents are off: say what each sheet holds by hand", "A4", ws)
 
     def job() -> None:
         run_triage_job(store, principal.tenant_id, project_id, sid, model=model)
@@ -433,7 +433,8 @@ def start_reading(project_id: str, sid: str, principal: Writer, store: StoreDep,
         raise HTTPException(status_code=404, detail=f"no sheet {', '.join(map(repr, unknown))} in this file")
     if not (sheets or unread_sheets(content)):
         raise HTTPException(status_code=409, detail="no data sheet is left to read in this file; open a sheet to read it again")
-    agent_jobs.require_chat_model("agents are off: read each sheet with the form", "A4")
+    agent_jobs.require_project_model("agents are off: read each sheet with the form", "A4",
+                                     Workspace(store, principal.tenant_id, project_id))
     # queued behind any reading that runs (plan 2026-11-10, R1): "RUNNING" when it starts now, "QUEUED" when it waits
     return envelope({"status": queue_reading(store, principal.tenant_id, project_id, sid, by=principal.user_id,
                                              sheets=tuple(sheets))})
@@ -446,7 +447,7 @@ def _start_document_reading(ws: Workspace, content: dict[str, Any], sid: str, pr
                                                     "restore it in the Project Document Library to read it")
     if not any(page.strip() for page in library.pages(content["sha256"])):
         raise HTTPException(status_code=409, detail=f"{content['file']} has no text to read (a scan needs OCR)")
-    agent_jobs.require_chat_model("agents are off: enter what the file states with the forms on Inputs", "A4")
+    agent_jobs.require_project_model("agents are off: enter what the file states with the forms on Inputs", "A4", ws)
     return envelope({"status": queue_reading(store, principal.tenant_id, ws.project_id, sid, by=principal.user_id)})
 
 

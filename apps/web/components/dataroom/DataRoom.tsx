@@ -14,6 +14,7 @@ import { SECTION_AREA, SECTION_STATE, rulesLabel, type Chip, type Room, type Run
 import { readAgain, useResource } from "@/lib/hooks";
 
 import { ActsContext, PUBLICATION, ROOM, RUN, UPLOADS, useActs } from "./acts";
+import { FilesGo } from "./FilesGo";
 import { Intake } from "./Intake";
 import { Dot, Nothing, SourceProvider } from "./kit";
 import { Files, Overview } from "./overview";
@@ -120,6 +121,7 @@ export function DataRoom({ projectId }: { projectId: string }) {
         {/* every section shown at once, never faded in as it scrolls into view (a working page, as Inputs) */}
         <div className="dr" data-testid="dataroom" data-no-reveal="">
           <Intake projectId={projectId} run={run.data} files={room.data?.files.length ?? 0} uploads={uploads.data?.uploads.length ?? 0} />
+          <FilesGo projectId={projectId} />
           {room.problem && <div className="banner err" role="alert">{room.problem}</div>}
           {room.data && (
             <div className="dr-layout">

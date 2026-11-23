@@ -302,7 +302,7 @@ def _locked(lock: threading.Lock, log_step: Callable[[dict[str, Any]], None]) ->
 def ports(store: ProjectStore, tenant_id: str, project_id: str) -> LlmPorts | None:
     """The two LLM stages over the console's A4 model; None when no model is configured (agents off, or a setting
     that does not work: the LLM stages are then skipped and say so)."""
-    model, _problem = agent_jobs.chat_model("A4")
+    model, _problem = agent_jobs.project_model("A4", Workspace(store, tenant_id, project_id))
     if model is None:
         return None
     root = store.root

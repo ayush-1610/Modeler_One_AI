@@ -15,6 +15,49 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — where a project's files may go, and how its report was made (2026-11-23, the governance review's open items)
+- **What:**
+  - **A project is in-house only until the client says otherwise.** `modeler_project.data_permissions`:
+    - each project keeps its own record of the cloud services its client files may be sent to (GroqCloud, NVIDIA's API
+      catalog, Claude on Bedrock, another OpenAI-compatible service);
+    - a service needs the client's written permission named by its reference (a letter, an email, a contract clause),
+      and may carry an end date;
+    - every change needs a reason and the step-up. It is kept in the project's history and audited
+      (`project.data_permissions.set`).
+    - API: `GET` / `PUT /projects/{id}/data-permissions` (409 when the rules refuse the change).
+    - Data room page: "Where the files may go" says the project's state in one line, with Change, a form and the
+      history.
+  - **The gate.** Every agent that reads a project's client files (A1 on Start, A4 on Inputs, the intake pipeline, A6–A10
+    in the Data room) builds its model with `agent_jobs.project_model`:
+    - a model on a service the project does not allow is left out of the agent's chain;
+    - with none left, the work stops and says what to record ("this project's files may not be sent to NVIDIA API
+      catalog: record the client's permission for it (Data room → Where the files may go), or set the agent to the
+      in-house model"). A Data room stage is skipped with that note.
+    - The in-house model needs no permission.
+  - **"How this report was made"** (evidence report and Data room page): per stage and file, the model and service that
+    wrote each answer, the prompt version, any switch, and a summary: "Models: X on Y for N files … Code read and checked
+    every value; a modeler confirms each." Built from the room's record of authors (`DataRoomStore.record_author`) and
+    its agent turns.
+  - **A9 is a second opinion.** The checker of a file starts on another model than the one whose extraction it checks
+    (`FallbackChat.conversation(avoid=…)`). With no other model in the chain, its note says "not a second opinion: the
+    same model wrote the extraction".
+  - **Run history and the start audit.** Each Data room run is audited when it starts (`dataroom.run.start`). When it
+    ends, it is kept with who started it, its state, each stage and each agent's model (`DataRoomStore.append_run`).
+  - **Records per file:** triage names the model that sorted each file. The prompt version (`dataroom-2`) is kept with
+    each answer.
+- **Why:** the owner asked to close the governance review's open items on model failover:
+  - a failover chain could send a client's files to a cloud service nobody agreed to for that client;
+  - the report did not say which model wrote what;
+  - the checker could run on the model that wrote the extraction.
+- **Impact:**
+  - **Every project, old and new, starts in-house only.** An agent set to a cloud model (or a chain listing one) now
+    stops on a project's client files until that project's permission is recorded. The in-house model and the platform's
+    own work are unchanged.
+  - **Still open:**
+    - consent is recorded per project, not per client (a client with several projects records it on each);
+    - no admin registry of clients' agreements yet;
+    - A9's second opinion needs a second model in the chain.
+
 ### Added — when an agent's model cannot answer, the task goes on with the next model (2026-11-22, the owner's request)
 - **The incident:** on the server, the Data room's question stage ended with "no question card (litellm unavailable
   after 5 attempts: no answer within 600 s)". The in-house model on CPU sends nothing until it has finished. Each of

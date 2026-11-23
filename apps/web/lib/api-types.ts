@@ -1195,6 +1195,33 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project_id}/data-permissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Data Permissions
+         * @description Where this project's client files may be sent for an AI model to read: in-house only unless a cloud service has
+         *     the client's recorded permission.
+         */
+        get: operations["get_data_permissions_api_v1_projects__project_id__data_permissions_get"];
+        /**
+         * Put Data Permissions
+         * @description Record where this project's client files may go, as a whole: in-house only, or the cloud services the client
+         *     allowed, each with the client's written permission (its reference) and when it ends. Confirmed with the step-up and
+         *     audited; the agents follow it from their next request.
+         */
+        put: operations["put_data_permissions_api_v1_projects__project_id__data_permissions_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project_id}/dataroom": {
         parameters: {
             query?: never;
@@ -4909,11 +4936,97 @@ export interface components {
             /** Quantity */
             quantity: string;
         };
+        /** DataChange */
+        DataChange: {
+            /** At */
+            at: string;
+            /** By */
+            by: string;
+            /** In House Only */
+            in_house_only: boolean;
+            /** Reason */
+            reason: string;
+            /** Services */
+            services: string[];
+        };
+        /**
+         * DataGrant
+         * @description One cloud service a project's client files may be sent to: the client's written permission it rests on.
+         */
+        DataGrant: {
+            /** At */
+            at: string;
+            /** Basis */
+            basis: string;
+            /** By */
+            by: string;
+            /** Expires */
+            expires: string;
+            /** In Force */
+            in_force: boolean;
+            /** Label */
+            label: string;
+            /** Reference */
+            reference: string;
+            /** Service */
+            service: string;
+        };
+        /** DataGrantBody */
+        DataGrantBody: {
+            /**
+             * Basis
+             * @default the client's written consent
+             */
+            basis?: string;
+            /**
+             * Expires
+             * @default
+             */
+            expires?: string;
+            /**
+             * Reference
+             * @default
+             */
+            reference?: string;
+        };
         /**
          * DataOrigin
          * @enum {string}
          */
         DataOrigin: "CLIENT" | "LITERATURE" | "FIGURE_DIGITIZED" | "OSP_LIBRARY" | "SYNTHETIC" | "ILLUSTRATIVE";
+        /** DataPermissionsBody */
+        DataPermissionsBody: {
+            /**
+             * In House Only
+             * @default true
+             */
+            in_house_only?: boolean;
+            /**
+             * Reason
+             * @default
+             */
+            reason?: string;
+            /** Services */
+            services?: {
+                [key: string]: components["schemas"]["DataGrantBody"];
+            };
+        };
+        /**
+         * DataPermissionsView
+         * @description Where this project's client files may be sent for an AI model to read (the governance review, 2026-11-22):
+         *     in-house only unless a cloud service has the client's recorded permission. `services`: every cloud service there
+         *     is; `history`: each change, newest first.
+         */
+        DataPermissionsView: {
+            /** Grants */
+            grants: components["schemas"]["DataGrant"][];
+            /** History */
+            history: components["schemas"]["DataChange"][];
+            /** In House Only */
+            in_house_only: boolean;
+            /** Services */
+            services: components["schemas"]["DataService"][];
+        };
         /**
          * DataPlanStatus
          * @description The data plan version a phase page is computed from, and its status.
@@ -5000,6 +5113,16 @@ export interface components {
              */
             inputs: components["schemas"]["InputRow"][];
             /**
+             * Made By
+             * @default []
+             */
+            made_by: components["schemas"]["MadeBy"][];
+            /**
+             * Made Summary
+             * @default
+             */
+            made_summary: string;
+            /**
              * Plan
              * @default []
              */
@@ -5047,6 +5170,13 @@ export interface components {
              * @default []
              */
             substance: components["schemas"]["Value"][];
+        };
+        /** DataService */
+        DataService: {
+            /** Label */
+            label: string;
+            /** Service */
+            service: string;
         };
         /** DatasetBody */
         DatasetBody: {
@@ -7557,6 +7687,13 @@ export interface components {
             errors: components["schemas"]["ErrorItem"][];
             meta: components["schemas"]["Meta"];
         };
+        /** Envelope[DataPermissionsView] */
+        Envelope_DataPermissionsView_: {
+            data: components["schemas"]["DataPermissionsView"];
+            /** Errors */
+            errors: components["schemas"]["ErrorItem"][];
+            meta: components["schemas"]["Meta"];
+        };
         /** Envelope[DataRoomView] */
         Envelope_DataRoomView_: {
             data: components["schemas"]["DataRoomView"];
@@ -9790,6 +9927,45 @@ export interface components {
         M15ValidationRequest: {
             stage: components["schemas"]["Stage"];
             table: components["schemas"]["AssessmentTable"];
+        };
+        /**
+         * MadeBy
+         * @description Who wrote one stage's answer for one file (or, `file` empty, for the delivery): the evidence report's "How this
+         *     report was made" (the governance review, 2026-11-22). `service`: where the model ran ("our server", or the cloud
+         *     service the file was sent to); `switches`: each model that could not answer before it, and why.
+         */
+        MadeBy: {
+            /**
+             * At
+             * @default
+             */
+            at: string;
+            /**
+             * File
+             * @default
+             */
+            file: string;
+            /** Model */
+            model: string;
+            /**
+             * Note
+             * @default
+             */
+            note: string;
+            /**
+             * Prompt
+             * @default
+             */
+            prompt: string;
+            /** Service */
+            service: string;
+            /** Stage */
+            stage: string;
+            /**
+             * Switches
+             * @default []
+             */
+            switches: string[];
         };
         /** ManualEvidence */
         ManualEvidence: {
@@ -17356,6 +17532,76 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Envelope_CpfView_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_data_permissions_api_v1_projects__project_id__data_permissions_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_DataPermissionsView_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_data_permissions_api_v1_projects__project_id__data_permissions_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DataPermissionsBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_DataPermissionsView_"];
                 };
             };
             /** @description Validation Error */

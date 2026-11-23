@@ -391,7 +391,7 @@ def kick(store: ProjectStore, tenant_id: str, project_id: str, *, by: str = "cod
     """Start the reading job when something waits and agents are on; True when it started (`by`: who set it going).
     While a reading runs this does nothing: the running job takes what was queued, and looks again once it is
     released. Each file is read as started by the person who added it (`jobs.started_by`, per item)."""
-    model, _problem = agent_jobs.chat_model("A4")
+    model, _problem = agent_jobs.project_model("A4", Workspace(store, tenant_id, project_id))
     if model is None:
         return False
     if not ReadingQueue(Workspace(store, tenant_id, project_id)).pending():
@@ -420,7 +420,7 @@ def queue_reading(store: ProjectStore, tenant_id: str, project_id: str, sid: str
     queue = ReadingQueue(ws)
     content = submission(ws, sid) or {}
     if not queue.available:   # a store without a queue: read at once, as before the queue
-        model, _problem = agent_jobs.chat_model("A4")
+        model, _problem = agent_jobs.project_model("A4", Workspace(store, tenant_id, project_id))
         jobs.start(store, tenant_id, project_id, "reading",
                    lambda: _run_item(store, tenant_id, project_id, QueueItem(
                        id="q-0", sid=sid, file=str(content.get("file", sid)), task="read", sheets=sheets, added_by=by,
@@ -555,7 +555,7 @@ def _queue_for_reading(store: ProjectStore, tenant_id: str, project_id: str, sid
             if (content := submission(ws, sid)) is not None
             and (_needs_agent(content) or (sid in last and last[sid].state == "failed"))]
     if not queue.available:   # a store without a queue: as before it, read now or not at all
-        model, _problem = agent_jobs.chat_model("A4")
+        model, _problem = agent_jobs.project_model("A4", Workspace(store, tenant_id, project_id))
         if model is None or not todo:
             return False
 

@@ -323,6 +323,21 @@ class Section(_B):
     status: Literal["ok", "attention", "missing", "empty"] = "empty"
 
 
+class MadeBy(_B):
+    """Who wrote one stage's answer for one file (or, `file` empty, for the delivery): the evidence report's "How this
+    report was made" (the governance review, 2026-11-22). `service`: where the model ran ("our server", or the cloud
+    service the file was sent to); `switches`: each model that could not answer before it, and why."""
+
+    stage: str
+    file: str = ""
+    model: str
+    service: str
+    prompt: str = ""
+    at: str = ""
+    note: str = ""
+    switches: tuple[str, ...] = ()
+
+
 class DataRoomView(_B):
     """The Data room of one project, as the page and the report show it."""
 
@@ -344,6 +359,8 @@ class DataRoomView(_B):
     plan: tuple[PlanRow, ...] = ()
     inputs: tuple[InputRow, ...] = ()
     problems: tuple[Problem, ...] = ()
+    made_by: tuple[MadeBy, ...] = ()
+    made_summary: str = ""
 
 
 Value.model_rebuild()

@@ -4377,6 +4377,115 @@
         "title": "Criterion",
         "type": "object"
       },
+      "DataChange": {
+        "additionalProperties": false,
+        "properties": {
+          "at": {
+            "title": "At",
+            "type": "string"
+          },
+          "by": {
+            "title": "By",
+            "type": "string"
+          },
+          "in_house_only": {
+            "title": "In House Only",
+            "type": "boolean"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "services": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Services",
+            "type": "array"
+          }
+        },
+        "required": [
+          "in_house_only",
+          "services",
+          "by",
+          "at",
+          "reason"
+        ],
+        "title": "DataChange",
+        "type": "object"
+      },
+      "DataGrant": {
+        "additionalProperties": false,
+        "description": "One cloud service a project's client files may be sent to: the client's written permission it rests on.",
+        "properties": {
+          "at": {
+            "title": "At",
+            "type": "string"
+          },
+          "basis": {
+            "title": "Basis",
+            "type": "string"
+          },
+          "by": {
+            "title": "By",
+            "type": "string"
+          },
+          "expires": {
+            "title": "Expires",
+            "type": "string"
+          },
+          "in_force": {
+            "title": "In Force",
+            "type": "boolean"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "reference": {
+            "title": "Reference",
+            "type": "string"
+          },
+          "service": {
+            "title": "Service",
+            "type": "string"
+          }
+        },
+        "required": [
+          "service",
+          "label",
+          "basis",
+          "reference",
+          "expires",
+          "by",
+          "at",
+          "in_force"
+        ],
+        "title": "DataGrant",
+        "type": "object"
+      },
+      "DataGrantBody": {
+        "additionalProperties": false,
+        "properties": {
+          "basis": {
+            "default": "the client's written consent",
+            "title": "Basis",
+            "type": "string"
+          },
+          "expires": {
+            "default": "",
+            "title": "Expires",
+            "type": "string"
+          },
+          "reference": {
+            "default": "",
+            "title": "Reference",
+            "type": "string"
+          }
+        },
+        "title": "DataGrantBody",
+        "type": "object"
+      },
       "DataOrigin": {
         "enum": [
           "CLIENT",
@@ -4388,6 +4497,69 @@
         ],
         "title": "DataOrigin",
         "type": "string"
+      },
+      "DataPermissionsBody": {
+        "additionalProperties": false,
+        "properties": {
+          "in_house_only": {
+            "default": true,
+            "title": "In House Only",
+            "type": "boolean"
+          },
+          "reason": {
+            "default": "",
+            "title": "Reason",
+            "type": "string"
+          },
+          "services": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/DataGrantBody"
+            },
+            "title": "Services",
+            "type": "object"
+          }
+        },
+        "title": "DataPermissionsBody",
+        "type": "object"
+      },
+      "DataPermissionsView": {
+        "additionalProperties": false,
+        "description": "Where this project's client files may be sent for an AI model to read (the governance review, 2026-11-22):\nin-house only unless a cloud service has the client's recorded permission. `services`: every cloud service there\nis; `history`: each change, newest first.",
+        "properties": {
+          "grants": {
+            "items": {
+              "$ref": "#/components/schemas/DataGrant"
+            },
+            "title": "Grants",
+            "type": "array"
+          },
+          "history": {
+            "items": {
+              "$ref": "#/components/schemas/DataChange"
+            },
+            "title": "History",
+            "type": "array"
+          },
+          "in_house_only": {
+            "title": "In House Only",
+            "type": "boolean"
+          },
+          "services": {
+            "items": {
+              "$ref": "#/components/schemas/DataService"
+            },
+            "title": "Services",
+            "type": "array"
+          }
+        },
+        "required": [
+          "in_house_only",
+          "grants",
+          "services",
+          "history"
+        ],
+        "title": "DataPermissionsView",
+        "type": "object"
       },
       "DataPlanStatus": {
         "additionalProperties": false,
@@ -4533,6 +4705,19 @@
             "title": "Inputs",
             "type": "array"
           },
+          "made_by": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/MadeBy"
+            },
+            "title": "Made By",
+            "type": "array"
+          },
+          "made_summary": {
+            "default": "",
+            "title": "Made Summary",
+            "type": "string"
+          },
           "plan": {
             "default": [],
             "items": {
@@ -4635,9 +4820,30 @@
           "requests",
           "plan",
           "inputs",
-          "problems"
+          "problems",
+          "made_by",
+          "made_summary"
         ],
         "title": "DataRoomView",
+        "type": "object"
+      },
+      "DataService": {
+        "additionalProperties": false,
+        "properties": {
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "service": {
+            "title": "Service",
+            "type": "string"
+          }
+        },
+        "required": [
+          "service",
+          "label"
+        ],
+        "title": "DataService",
         "type": "object"
       },
       "DatasetBody": {
@@ -12353,6 +12559,31 @@
         "title": "Envelope[CpfView]",
         "type": "object"
       },
+      "Envelope_DataPermissionsView_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/DataPermissionsView"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[DataPermissionsView]",
+        "type": "object"
+      },
       "Envelope_DataRoomView_": {
         "additionalProperties": false,
         "properties": {
@@ -18740,6 +18971,64 @@
           "table"
         ],
         "title": "M15ValidationRequest",
+        "type": "object"
+      },
+      "MadeBy": {
+        "additionalProperties": false,
+        "description": "Who wrote one stage's answer for one file (or, `file` empty, for the delivery): the evidence report's \"How this\nreport was made\" (the governance review, 2026-11-22). `service`: where the model ran (\"our server\", or the cloud\nservice the file was sent to); `switches`: each model that could not answer before it, and why.",
+        "properties": {
+          "at": {
+            "default": "",
+            "title": "At",
+            "type": "string"
+          },
+          "file": {
+            "default": "",
+            "title": "File",
+            "type": "string"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "note": {
+            "default": "",
+            "title": "Note",
+            "type": "string"
+          },
+          "prompt": {
+            "default": "",
+            "title": "Prompt",
+            "type": "string"
+          },
+          "service": {
+            "title": "Service",
+            "type": "string"
+          },
+          "stage": {
+            "title": "Stage",
+            "type": "string"
+          },
+          "switches": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Switches",
+            "type": "array"
+          }
+        },
+        "required": [
+          "stage",
+          "file",
+          "model",
+          "service",
+          "prompt",
+          "at",
+          "note",
+          "switches"
+        ],
+        "title": "MadeBy",
         "type": "object"
       },
       "ManualEvidence": {
@@ -36875,6 +37164,132 @@
         "summary": "Put Cpf",
         "tags": [
           "write"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/data-permissions": {
+      "get": {
+        "description": "Where this project's client files may be sent for an AI model to read: in-house only unless a cloud service has\nthe client's recorded permission.",
+        "operationId": "get_data_permissions_api_v1_projects__project_id__data_permissions_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_DataPermissionsView_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Data Permissions",
+        "tags": [
+          "dataroom"
+        ]
+      },
+      "put": {
+        "description": "Record where this project's client files may go, as a whole: in-house only, or the cloud services the client\nallowed, each with the client's written permission (its reference) and when it ends. Confirmed with the step-up and\naudited; the agents follow it from their next request.",
+        "operationId": "put_data_permissions_api_v1_projects__project_id__data_permissions_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DataPermissionsBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_DataPermissionsView_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Data Permissions",
+        "tags": [
+          "dataroom"
         ]
       }
     },

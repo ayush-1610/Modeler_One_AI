@@ -259,6 +259,8 @@ def question(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, 
         return f"no question card ({outcome.status}{': ' + outcome.error if outcome.error else ''})"
     # the model whose submission was saved: in a chain, the one the conversation ended on
     store.set_question(saved[0], by=f"agent:A6:{outcome.answered_by}", confirmed=False)  # type: ignore[arg-type]
+    store.record_author(stage="question", file="", model=outcome.answered_by, identity=outcome.answered_on,
+                        prompt=PROMPT_VERSION)
     step(1, 1, "question card drafted: confirm it")
     return "question card drafted: confirm it"
 
@@ -284,10 +286,12 @@ def triage(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, st
         tool = _submit_tool("submit_triage", FileTriage, lambda a, path=path: [] if a.path == path else
                             [f"path must be {path!r}"], saved, "Submit the file's triage.")
         text = "\n\n".join(_numbered(part, 1, PREVIEW_LINES) for part in _parts(doc)[:2])
-        _loop(store, "triage", path, model, system=TRIAGE_SYSTEM, tools=[tool], max_turns=4, user=(
+        sorted_by = _loop(store, "triage", path, model, system=TRIAGE_SYSTEM, tools=[tool], max_turns=4, user=(
             f"{context}File: {path} ({f.kind}, {f.pages} pages; parts: {len(_parts(doc))})\n\nIts first lines:\n{text}"))
         if saved:
             store.put_triage(saved[0], f.sha256)  # type: ignore[arg-type]
+            store.record_author(stage="triage", file=path, model=sorted_by.answered_by, identity=sorted_by.answered_on,
+                                prompt=PROMPT_VERSION)
         step(done, len(todo), path)
     return f"{len(todo)} files sorted"
 
@@ -395,7 +399,10 @@ def extract(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, s
             failed.append(f"{path}: no answer ({outcome.status}{': ' + outcome.error[:200] if outcome.error else ''})")
         if saved:
             answer = saved[0].model_copy(update={"file": path})
-            store.put_extraction(answer, f.sha256, agent={"agent": "A8", "model": outcome.answered_by,  # type: ignore[arg-type]
+            store.record_author(stage="extract", file=path, model=outcome.answered_by, identity=outcome.answered_on,
+                                prompt=PROMPT_VERSION)
+            store.put_extraction(answer, f.sha256, agent={"agent": "A8", "model": outcome.answered_by,
+                                                          "identity": outcome.answered_on,  # type: ignore[arg-type]
                                                          "prompt": PROMPT_VERSION})
         step(done, len(todo), path)
     store.set_stage_notes("extract", failed)
@@ -444,8 +451,16 @@ def check(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, ste
             shown.append(f"Table {i} ({table.kind}, {table.part}, lines {table.first_line}–{table.last_line}):\n{head}\n{rows}")
         saved: list[BaseModel] = []
         tool = _submit_tool("submit_review", _Review, lambda a: [], saved, "Submit the review: {tables: [{table, ok, issue}]}.")
-        done_check = _loop(store, "check", path, model, system=CHECK_SYSTEM, tools=[tool], max_turns=4,
+        # a second opinion: the checker starts on another model than the one that wrote the extraction (plan §9; the
+        # governance review, 2026-11-22), when the chain has one
+        author = ((store.extraction(f.sha256) or (None, {}))[1] or {}).get("identity", "")
+        checker = model.conversation(avoid=author) if hasattr(model, "conversation") else model
+        done_check = _loop(store, "check", path, checker, system=CHECK_SYSTEM, tools=[tool], max_turns=4,
                            user=f"File: {path}\n\n" + "\n\n".join(shown))
+        same = bool(author) and done_check.answered_on == author
+        store.record_author(stage="check", file=path, model=done_check.answered_by, identity=done_check.answered_on,
+                            prompt=PROMPT_VERSION,
+                            note="not a second opinion: the same model wrote the extraction" if same else "")
         if saved:
             review = [t for t in saved[0].tables if not t.get("ok", True)]  # type: ignore[attr-defined]
             issues += len(review)
@@ -499,6 +514,8 @@ def write(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, ste
     store.put_writing({k: v for k, v in a.findings.items() if _numbers_ok(v, material)},  # type: ignore[attr-defined]
                       {k: v for k, v in a.requests.items() if _numbers_ok(v, material)},  # type: ignore[attr-defined]
                       agent=written.answered_by)
+    store.record_author(stage="write", file="", model=written.answered_by, identity=written.answered_on,
+                        prompt=PROMPT_VERSION)
     step(1, 1, "written")
     return "findings and request wording written"
 

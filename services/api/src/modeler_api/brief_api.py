@@ -210,7 +210,8 @@ def run_extraction(store: ProjectStore, tenant_id: str, project_id: str, *, by: 
 
 
 def _start_extraction(store: ProjectStore, principal: Principal, project_id: str, context_note: str) -> dict[str, Any]:
-    model, problem = agent_jobs.chat_model("A1")
+    # the proposal goes only where the project's files may go (the governance review, 2026-11-22)
+    model, problem = agent_jobs.project_model("A1", Workspace(store, principal.tenant_id, project_id))
     if model is None and problem is None:
         problem = "agents are off: identity resolved; fill the rest of the brief by hand"
 
@@ -514,7 +515,7 @@ def _brief_view(ws: Workspace) -> dict[str, Any]:
         "artifact": version_view(ws, version, with_content=False), "brief": brief.to_content(),
         "issues": [{"code": i.code, "path": i.path, "message": i.message} for i in issues],
         "blocking": len(issues), "summary": summary(brief), "catalog": catalog(),
-        "agents": agent_jobs.agents_status("A1"), "extraction_running": jobs.running(ws.store, ws.tenant_id, ws.project_id, "extraction"),
+        "agents": agent_jobs.agents_status("A1", ws=ws), "extraction_running": jobs.running(ws.store, ws.tenant_id, ws.project_id, "extraction"),
         "runs": [{k: r.get(k) for k in ("run_id", "agent", "status", "provider", "model", "started_at", "finished_at",
                                          "summary")} for r in runs[:5]],
         "start": {"problems": start_problems(brief), "issues": [i.model_dump() for i in start_issues(brief)],

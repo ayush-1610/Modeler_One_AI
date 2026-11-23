@@ -58,6 +58,41 @@ def chat_model(agent: str | None = None) -> tuple[Any | None, str | None]:
                         labels=[f"{model.provider}/{model.model}", *(label for label, _m in chain)]), None
 
 
+def project_model(agent: str, ws: Any) -> tuple[Any | None, str | None]:
+    """The model `agent` runs on for this project's client files (the governance review, 2026-11-22): its own model and
+    the failover list, less every cloud service the project has no recorded permission for
+    (`modeler_project.data_permissions`). With none left the work stops, saying what to record."""
+    from modeler_agents.llm import FallbackChat
+    from modeler_project.data_permissions import DataPermissions, service_label
+
+    model, problem = chat_model(agent)
+    if model is None or ws is None:
+        return model, problem
+    permissions = DataPermissions(ws)
+    models = list(getattr(model, "models", [model]))
+    labels = list(getattr(model, "labels", [f"{getattr(model, 'provider', '')}/{getattr(model, 'model', '')}"]))
+    kept = [(label, m) for label, m in zip(labels, models, strict=True) if permissions.allows(getattr(m, "provider", ""))]
+    if not kept:
+        refused = ", ".join(dict.fromkeys(service_label(getattr(m, "provider", "")) for m in models))
+        return None, (f"this project's files may not be sent to {refused}: record the client's permission for it "
+                      "(Data room → Where the files may go), or set the agent to the in-house model")
+    if len(kept) == len(models):
+        return model, None
+    if len(kept) == 1:
+        return kept[0][1], None
+    return FallbackChat([m for _l, m in kept], labels=[label for label, _m in kept]), None
+
+
+def require_project_model(off: str, agent: str, ws: Any) -> Any:
+    """`require_chat_model` for a project's client files: 409 with why when the project allows none of its models."""
+    model, problem = project_model(agent, ws)
+    if problem:
+        raise HTTPException(status_code=409, detail=problem)
+    if model is None:
+        raise HTTPException(status_code=409, detail=off)
+    return model
+
+
 def require_chat_model(off: str, agent: str | None = None) -> Any:
     """The model an agent endpoint needs: 409 with the configuration error, or with `off` when agents are off."""
     model, problem = chat_model(agent)
@@ -85,13 +120,16 @@ def log_agents_status() -> None:
         _log.info("agents off: MODELER_LLM_PROVIDER not set")
 
 
-def agents_status(agent: str | None = None, *, admin: bool = False) -> dict[str, Any]:
+def agents_status(agent: str | None = None, *, admin: bool = False, ws: Any = None) -> dict[str, Any]:
     """Whether `agent` (or, without one, the server's environment) has a model, without exposing any key. A project's
     pages get why in words (`AGENTS_OFF`, `AGENTS_MISCONFIGURED`); the admin console (`admin`) gets the configuration's
-    own words, which name the setting to change; the server's log says it at the start (`log_agents_status`)."""
-    model, problem = chat_model(agent)
+    own words, which name the setting to change; the server's log says it at the start (`log_agents_status`). With a
+    project's workspace (`ws`), only the models its files may be sent to count (`project_model`)."""
+    model, problem = project_model(agent, ws) if ws is not None and agent else chat_model(agent)
     if problem:
-        return {"enabled": False, "problem": problem if admin else AGENTS_MISCONFIGURED}
+        # a project's own refusal is said as it is (it names what to record); a configuration error in words
+        said = problem if admin or "may not be sent" in problem else AGENTS_MISCONFIGURED
+        return {"enabled": False, "problem": said}
     if model is None:
         settings = get_settings()
         setting = platform_settings.AgentSettings(settings.read_root).current(agent) if agent and settings.read_root else None
@@ -340,5 +378,9 @@ def dataroom_run(store, *, actor: str, stages=None, redo=(), files=None, use_ocr
     progress is the store's `run.json`; the record is returned when it ends."""
     from modeler_agents.dataroom import run_room
 
-    return run_room(store, chat_for=lambda agent: chat_model(agent)[0], actor=actor, stages=stages, redo=redo,
+    def chat_for(agent: str) -> Any:
+        model, problem = project_model(agent, store.ws)
+        return model if model is not None or not problem else problem     # why, said on the stage it stops
+
+    return run_room(store, chat_for=chat_for, actor=actor, stages=stages, redo=redo,
                     files=files or None, use_ocr=use_ocr)
