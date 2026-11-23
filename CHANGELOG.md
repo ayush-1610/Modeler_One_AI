@@ -30,13 +30,17 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
   (`lib/motion.ts`, reveal-on-scroll, count-up, confetti). `toast` and the `Toaster` stay, plain.
 - **Behaviour kept:** every test id (the e2e contract), the locked steps after Start (with their reason on hover), the
   Data room link whatever Start's state, Add data from any project page. The decision pop-up now lists only the
-  escalations this person may decide (`can_decide`, entry below).
+  escalations this person may decide (`can_decide`, entry below). Parts of a page that stay in view on scroll (the
+  Inputs area bar, the Data room, dashboard, brief and plan side panels) now stick below the top bar, not under it
+  (`64d3335`, found by `inputs-frame.spec.ts`).
 - **Why:** the redesign approved at Gate 4 (`design-review/DESIGN_SYSTEM.md`, `docs/plans/2026-11-23-console-redesign-implementation.md`
   slice 1). Deviations from the plan's slice 1 are recorded in the plan's §11.
 - **Tests:** `e2e/console-shell.spec.ts` (new: on ten pages at 1440 and 390 px, every visible control is named, one top
   heading, no sideways scroll; the shell's steps, breadcrumbs and phone menu); `e2e/dashboard.spec.ts` asserts the fixed
-  navigation instead of hover and pin. Full e2e, pytest (15 failures, the known container baseline), ruff, typecheck and
-  build run before the commit; numbers in the PR.
+  navigation instead of hover and pin; `escalation-popup.spec.ts` leaves a project by "All projects";
+  `inputs-frame.spec.ts` checks the area bar under the top bar. Full e2e 165 of 167, then the two failing specs green
+  after their fixes; pytest 3308 passed, 15 failed (the known container baseline: the vault's write-once check as root,
+  the Temporal workflow tests); ruff, typecheck and build clean.
 
 ### Changed — the console redesign, slice 1: each open escalation says whether this person may decide it (2026-11-23)
 - **What:** every item of `GET /escalations` carries `can_decide`, computed with the rule `escalation:resolve` applies:
