@@ -65,3 +65,4 @@ stub engine with synthetic data; no number in them is a PBPK result). Gate 2 cor
 | 2026-11-23 | Gate 2 approved | All pages | Gate 3 prototype and wireframe documentation | Charter Phase 4 |
 | 2026-11-23 | Gate 3 approved (left-hand Data room sections, side-panel study card, count in both places) | Design system, all pages | Gate 4 package; screenless count corrected to 25; a signature-visibility gap found (R-N09) | Charter Phases 5–7 |
 | 2026-11-23 | Gate 4 approved; prepare the implementation plan | apps/web baseline, plan | Archive made and verified; implementation plan written | Charter Phase 9 |
+| 2026-11-23 | Authorised slices 0 and 1; PR per slice; push archive refs; merge into `main` first; QA without `auth.py` | Shell, all pages | Slice 0 done (tag push refused, owner pushes it); slice 1 built: the console shell; R-S02 fixed | Owner's implementation go-ahead |

@@ -15,6 +15,29 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — the console redesign, slice 1: the console shell on every page (2026-11-23, the owner's authorisation)
+- **What:** every page now sits in one shell (`components/shell/`): a white top bar (logo and name to Home, "Go to
+  project…" search over the person's open projects, the API's live state, the person and Sign out), a fixed side
+  navigation with three contexts from the address (the portfolio; a project with Add data, its four steps and where each
+  stands, Data's two pages Data room and Inputs, and its records Documents and History; the platform's administration,
+  shown only to its owner), and a page head with breadcrumbs, title, description and actions. Below 1024 px the
+  navigation is a menu the top bar opens; nothing opens on hover. Design tokens (`app/styles/tokens.css`: accent
+  `#001B94`, 60-30-10, IBM Plex, spacing, radii) and the console styles (`app/styles/console.css`) replace the 7 Nov
+  look; the legacy variables in `globals.css` now point at the new values so untouched pages follow. One icon set
+  (`components/kit/icons.tsx`).
+- **Removed:** the hover rail and its pin, the coloured hero, the decorative curve, the step bar above each page (its
+  states moved into the side navigation; its "Waiting on you" line stays as a banner), the motion system
+  (`lib/motion.ts`, reveal-on-scroll, count-up, confetti). `toast` and the `Toaster` stay, plain.
+- **Behaviour kept:** every test id (the e2e contract), the locked steps after Start (with their reason on hover), the
+  Data room link whatever Start's state, Add data from any project page. The decision pop-up now lists only the
+  escalations this person may decide (`can_decide`, entry below).
+- **Why:** the redesign approved at Gate 4 (`design-review/DESIGN_SYSTEM.md`, `docs/plans/2026-11-23-console-redesign-implementation.md`
+  slice 1). Deviations from the plan's slice 1 are recorded in the plan's §11.
+- **Tests:** `e2e/console-shell.spec.ts` (new: on ten pages at 1440 and 390 px, every visible control is named, one top
+  heading, no sideways scroll; the shell's steps, breadcrumbs and phone menu); `e2e/dashboard.spec.ts` asserts the fixed
+  navigation instead of hover and pin. Full e2e, pytest (15 failures, the known container baseline), ruff, typecheck and
+  build run before the commit; numbers in the PR.
+
 ### Changed — the console redesign, slice 1: each open escalation says whether this person may decide it (2026-11-23)
 - **What:** every item of `GET /escalations` carries `can_decide`, computed with the rule `escalation:resolve` applies:
   the project's owner, or a reviewer the project is shared with (an escalation whose campaign is not recorded yet has no
@@ -27,7 +50,7 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
 
 ### Docs — redesign charter, Phase 9: the archive and the implementation plan (2026-11-23, the owner's request)
 - **Archive:** tag `pre-aws-redesign-20261123-1601` and branch `archive/stylish-frontend-20261123-1601` at `49907a6`
-  (local until the owner says to push them), and a file copy of all 292 files of `apps/web` with its OpenAPI contract
+  (the branch pushed 2026-11-23 at the owner's go-ahead; this session's git access refused the tag, so the owner pushes it), and a file copy of all 292 files of `apps/web` with its OpenAPI contract
   in `design-review/archive/stylish-frontend/`. Verified: identical to the tag (`diff -r`), and a restored copy installs
   from its lockfile, typechecks and builds. `design-review/ARCHIVE.md` says how to restore.
 - **Plan:** `docs/plans/2026-11-23-console-redesign-implementation.md`: architecture (no new dependency; test ids kept
@@ -10171,3 +10194,4 @@ record it here so a reader knows which context produced which work.
 | 2026-11-14 (cloud session, branch `claude/stoic-bohr-9ymlx9`; the owner switched the model) | Claude Opus 5.5 | Recap of the intake rebuild (found #173 merged with its conditions unticked, and `main` CI red on one upload e2e); the intake line merged onto `main`'s head; the Inputs UX audit and the task-first plan; its build; its final review (four lenses and an owner-job e2e) and seven fix rounds, each checked by an independent skeptic (2026-11-15/16; continuation §4.0c) |
 | 2026-11-21 → 22 (same cloud session, branch `claude/stoic-bohr-9ymlx9`, continued after context resets) | Claude Opus 5.5 | The owner's second sample delivery explored; plan v2, the Data room (`2026-11-21-intelligent-client-data-intake.md`); GroqCloud gpt-oss-120b as a third model, one click per agent; the new logo and palette; the Data room reader (OCR, turned pages, delimited exports), engine (sets, means, NCA, dissolution, decisions, requests, PK-Sim inputs, Send to the model) and five agents; the API and page on `dataroom-api-web` |
 | 2026-11-22 (cloud session, branch `claude/inspiring-einstein-191gn3`; the owner switched the model mid-session) | per commit trailer | Redesign charter Gate 1: read-only product discovery in `design-review/` (audit, feature inventory, bloatware report, proposed features, unknowns, current-state screenshots) |
+| 2026-11-23 (same cloud session, continued after a context reset) | per commit trailer | Redesign Gates 2–4 and Phase 9 (archive, implementation plan); security fixes R-S01, R-S03, R-S04; slice 0 (`main` fast-forwarded, archive branch pushed) and slice 1 (R-S02 and the console shell) |
