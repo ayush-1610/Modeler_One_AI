@@ -22,7 +22,7 @@ test("the VBE panel and the applications the campaign cannot run yet", async ({ 
     data: { key: "model_risk", value: "medium", reason: "supports a decision with clinical evidence" } });
   expect(risk.ok(), await risk.text()).toBeTruthy();
 
-  await page.goto(`/projects/${projectId}/plan`);
+  await page.goto(`/projects/${projectId}/plan?tab=applications`);   // the tab in the address (slice 5)
   const section = page.getByTestId("review-applications");
   await expect(section.getByTestId("application-APP-14")).toContainText("runs at S6");
   await expect(section.getByTestId("application-APP-12")).toContainText("partly supported");
@@ -55,6 +55,7 @@ test("the VBE panel and the applications the campaign cannot run yet", async ({ 
   await section.getByLabel("acknowledge APP-03").fill("the DDI question is answered by a separate clinical study");
   await section.getByTestId("acknowledge-APP-03").click();
   await expect(section.getByTestId("application-APP-03")).toContainText("acknowledged: the DDI question");
+  await page.getByTestId("review-tab-credibility").click();                 // the limitations are on Credibility
   await expect(page.getByTestId("limitations")).toContainText("APP-03 enzyme DDI: not supported yet");
   await page.screenshot({ path: test.info().outputPath("applications.png"), fullPage: true });
 });

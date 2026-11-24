@@ -15,6 +15,31 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — the console redesign, slice 5: Review & sign in tabs, read-only polish, "Back to the MS-01 default" (2026-11-24)
+- **What:** Review & sign (P-14) shows one part of the review at a time, in tabs under a bar that stays in view: Studies
+  and roles · The inputs · The estimation plan · The validation plan · Applications · Credibility · Validator and
+  changes. The tab is in the address (`?tab=`, the history entry replaced as on Inputs); an old link to a section
+  (`#review-studies`, Inputs' blinded study) opens its tab; the arrow keys move between tabs. The signature (the plan's
+  version, staleness, Draft with A5, the note, Approve and sign, the signed MAP and pending deviations) is a console
+  panel above the tabs; the validator's state is the header's badge. The canvas and Overall Data are panels, the three
+  diagrams a segmented switch; the move dialog is the kit dialog (focus kept inside, Escape closes) and says what the
+  move changes ("po-10 from S2 to S5", and when the MAP is signed that the signed MAP stands until the deviation is
+  signed). **"Back to the MS-01 default"** (`POST …/plan/placements/{study}:unlock`, unused until now) is offered on
+  each study a person placed, in the Studies table: its dry run (`?dry_run=true`, new, as a move's) says what it changes
+  and the validator's answer before anything is saved. **Read only:** a member who may not change the plan (viewer,
+  QA) is offered no control on any tab: no drag on the canvas, no fit, exclude, estimate, fix, group, leave out, put
+  back, acknowledge, decide, blinding switch or rebase; the model risk and the time budget read as values; the VBE
+  design's fields are shown, not editable. The validator's word on the internal target is shown beside the target, so
+  it is seen on Credibility.
+- **Why:** the console redesign's slice 5 (plan 2026-11-23 §5; P-14 in `design-review/PAGE_INVENTORY.md`); the owner's
+  "Slice 4b approved, build 4c, then proceed to slice 5" (2026-11-24).
+- **Impact:** an API addition: `dry_run` on `:unlock`, answering `PlacementPreview` as the move's dry run does
+  (`docs/api/openapi.json`, `lib/api-types.ts`); `test_plan_api` checks the dry run saves nothing. No change to what the
+  plan, the MAP or the signature hold. Specs: `model-plan` (tabs; the move's "what this changes"; the put-back dialog
+  opened and cancelled), `review-sign` and `applications` (the tab in the address), `plan-viewer` (every tab without a
+  control), new `review-tabs` (the address, the keyboard, an old section link, a study put back to the default).
+  Software test data only; nothing here is a simulation.
+
 ### Added — the console redesign, slice 4c: what confirming a changed card again would change, read before signing (2026-11-24)
 - **What:** `GET /projects/{id}/delivery/subjects/{type}/{subject}/impact` (any member) plans the subject's landing as
   `:confirm` plans it and answers, without signing or writing anything: each dataset the landing would load new, revise

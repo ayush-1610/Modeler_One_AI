@@ -43421,6 +43421,7 @@
     },
     "/api/v1/projects/{project_id}/plan/placements/{study_id}:unlock": {
       "post": {
+        "description": "A study a person placed, given back to the MS-01 default (\"Back to the MS-01 default\" on Review & sign). ``dry_run``\nsays what it would change (the validator, the diff, whether it is a MAP deviation) and saves nothing.",
         "operationId": "unlock_placement_api_v1_projects__project_id__plan_placements__study_id__unlock_post",
         "parameters": [
           {
@@ -43439,6 +43440,16 @@
             "schema": {
               "title": "Study Id",
               "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "dry_run",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Dry Run",
+              "type": "boolean"
             }
           },
           {
@@ -43463,7 +43474,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Envelope_PlanPage_"
+                  "$ref": "#/components/schemas/Envelope_Union_PlanPage__PlacementPreview__"
                 }
               }
             },

@@ -8,6 +8,7 @@
 import { Fragment, useState } from "react";
 
 import { InlineIssue } from "@/components/kit";
+import { useReadOnly } from "@/components/plan/ReadOnly";
 import { RiskAndBudget } from "@/components/plan/RiskAndBudget";
 import type { Envelope } from "@/lib/api";
 import type { useMutation } from "@/lib/hooks";
@@ -20,7 +21,8 @@ type Run = ReturnType<typeof useMutation>["run"];
 /** The limits every round is judged by at the chosen tier, as the MAP records them (the ruleset, provisional until the
  *  SME signs), and a stricter internal target: MS-01 §8 allows a project to judge more strictly than its tier, never
  *  more loosely. The MAP records the target, and the verdicts apply it to the internal groups' AUC and Cmax (S1–S4). */
-function AcceptanceCriteria({ projectId, review, apply }: { projectId: string; review: ReviewPage; apply: Apply }) {
+function AcceptanceCriteria({ projectId, view, review, apply }: { projectId: string; view: PlanView; review: ReviewPage; apply: Apply }) {
+  const readOnly = useReadOnly();
   const a = review.acceptance;
   const [target, setTarget] = useState(a.internal_target_pe === null ? "" : String(a.internal_target_pe));
   const [reason, setReason] = useState("");
@@ -54,7 +56,11 @@ function AcceptanceCriteria({ projectId, review, apply }: { projectId: string; r
               ? ", the default (no one set one; UNVERIFIED)" : ", from the brief"}.</>
           : "none: the tier's limits apply."}
         {a.loosest_target_pe !== null && <span className="muted"> A target may be stricter than the tier, at most {a.loosest_target_pe} % here.</span>}
-        <div className="row gap-6 mt-6">
+        {/* the validator's word on the target, beside it: the review shows one tab at a time (slice 5) */}
+        {view.violations.filter((v) => v.target === "internal_target_pe").map((v) => (
+          <InlineIssue key={v.id} severity={v.severity === "error" ? "error" : "warn"} testId="target-violation">{v.message}</InlineIssue>
+        ))}
+        {!readOnly && <div className="row gap-6 mt-6">
           <input value={target} onChange={(e) => setTarget(e.target.value)} placeholder="% (empty: none)" aria-label="internal target, %"
                  data-testid="target-input" className="w-110" />
           <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="why (required)" aria-label="why this target"
@@ -67,7 +73,7 @@ function AcceptanceCriteria({ projectId, review, apply }: { projectId: string; r
                     setProblem(failed);
                     if (!failed) setReason("");
                   }}>Set</button>
-        </div>
+        </div>}
         {problem && <InlineIssue severity="error">{problem}</InlineIssue>}
         <p className="muted credibility-lede mt-6" data-testid="target-applied">The MAP records it, and every
           round judges the internal groups&apos; AUC and Cmax (S1–S4) by it on top of the tier&apos;s limit; external
@@ -109,7 +115,7 @@ export function Credibility({ projectId, view, review, apply }: {
         )}
         <RiskAndBudget projectId={projectId} view={view} apply={apply} />
       </section>
-      <AcceptanceCriteria projectId={projectId} review={review} apply={apply} />
+      <AcceptanceCriteria projectId={projectId} view={view} review={review} apply={apply} />
       <section>
         <h3>The time budget, stage by stage</h3>
         <p className="muted credibility-lede">MS-01&apos;s fixed shares of the {minutes(review.budget_seconds)} budget, as the MAP
@@ -146,6 +152,7 @@ function LeaveOut({ study, onChange, busy }: { study: ReviewStudy; onChange: (wh
   const [open, setOpen] = useState(false);
   const [why, setWhy] = useState("");
   const [problem, setProblem] = useState<string | null>(null);
+  if (useReadOnly()) return null;
   if (study.excluded) {
     return <button type="button" className="link-btn" disabled={busy}
                    onClick={async () => setProblem(await onChange(null, `${study.study_id} included again at Review`))}>Include again</button>;
@@ -164,7 +171,13 @@ function LeaveOut({ study, onChange, busy }: { study: ReviewStudy; onChange: (wh
 
 /** The studies with the role the plan gives each (changed on the canvas above, with a reason), whether it is blinded
  *  until the signature (D-15, following the S5 role), its demographics, and leaving it out. */
-export function StudiesTable({ projectId, review, run, busy }: { projectId: string; review: ReviewPage; run: Run; busy: boolean }) {
+export function StudiesTable({ projectId, review, run, busy, placed, onUnlock }: {
+  projectId: string; review: ReviewPage; run: Run; busy: boolean;
+  /** The studies a person placed (moved from the MS-01 default, locked): each offers "Back to the MS-01 default". */
+  placed?: ReadonlySet<string>;
+  onUnlock?: (studyId: string) => void;
+}) {
+  const readOnly = useReadOnly();
   async function change(study: ReviewStudy, why: string | null, reason: string) {
     return (await run(() => reviewApi.leaveOut(projectId, study.study_id, why, reason), PLAN_CHANGED)).problem;
   }
@@ -181,7 +194,13 @@ export function StudiesTable({ projectId, review, run, busy }: { projectId: stri
               <td>{s.purpose?.replace(/_/g, " ") ?? "—"}</td>
               <td>{s.origin?.toLowerCase().replace(/_/g, " ") ?? "—"}</td>
               <td>{s.demographics === "default" ? "healthy adult default" : s.demographics}</td>
-              <td><LeaveOut study={s} busy={busy} onChange={(why, reason) => change(s, why, reason)} /></td>
+              <td className="nowrap">
+                <LeaveOut study={s} busy={busy} onChange={(why, reason) => change(s, why, reason)} />
+                {!readOnly && onUnlock && placed?.has(s.study_id) && !s.excluded && (
+                  <> · <button type="button" className="link-btn" disabled={busy} data-testid={`unlock-${s.study_id}`}
+                               onClick={() => onUnlock(s.study_id)}>Back to the MS-01 default</button></>
+                )}
+              </td>
             </tr>
           ))}
         </tbody>

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { useReadOnly } from "@/components/plan/ReadOnly";
 import type { Schema } from "@/lib/api";
 import { ROLE_LABEL, type ParamNode, type PlanView } from "@/lib/plan";
 
@@ -20,7 +21,8 @@ function FitForm({ p, onSave, onRemove }: { p: ParamNode; onSave: FitSave; onRem
   const [scale, setScale] = useState<"linear" | "log">(p.fit?.scale ?? "log");
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
-  if (!numeric) return null;
+  const readOnly = useReadOnly();
+  if (!numeric || readOnly) return null;
   if (!open) {
     return <button className="btn tiny" onClick={() => setOpen(true)} data-testid={`fit-${p.id}`}>{p.fit ? "change fit" : "fit…"}</button>;
   }
@@ -101,6 +103,7 @@ export function D2Absorption({ view, onFit, onUnfit, onStructure }: {
   const d = view.d2;
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const readOnly = useReadOnly();
   return (
     <div data-testid="d2">
       <div className="row mb-10 gap-8">
@@ -108,11 +111,13 @@ export function D2Absorption({ view, onFit, onUnfit, onStructure }: {
         <span className={`chip ${d.food_effect_in_question ? "medium" : "neutral"}`}>
           {d.food_effect_in_question ? "the question — fed predicted, never fitted (MS-01 rule 5)" : "not the question"}
         </span>
-        <input placeholder="why change it" value={reason} onChange={(e) => setReason(e.target.value)} className="w-200" />
-        <button className="btn tiny" disabled={!reason.trim()}
-                onClick={async () => setError(await onStructure("food_effect_in_question", !d.food_effect_in_question, reason))}>
-          {d.food_effect_in_question ? "Not the question" : "Make it the question"}
-        </button>
+        {!readOnly && <>
+          <input placeholder="why change it" value={reason} onChange={(e) => setReason(e.target.value)} className="w-200" />
+          <button className="btn tiny" disabled={!reason.trim()}
+                  onClick={async () => setError(await onStructure("food_effect_in_question", !d.food_effect_in_question, reason))}>
+            {d.food_effect_in_question ? "Not the question" : "Make it the question"}
+          </button>
+        </>}
         {error && <span className="banner err">{error}</span>}
       </div>
       <div className="flow">

@@ -9,6 +9,7 @@ import Link from "next/link";
 import { useState } from "react";
 
 import { EmptyState, InlineIssue } from "@/components/kit";
+import { useReadOnly } from "@/components/plan/ReadOnly";
 import { SortHeader, TableMore } from "@/components/kit/SortableTable";
 import { PeekButton } from "@/components/kit/SourcePeek";
 import type { useMutation } from "@/lib/hooks";
@@ -37,7 +38,8 @@ function Exclude({ row, onExclude, busy }: { row: ReviewRow; onExclude: (reason:
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState("");
   const [problem, setProblem] = useState<string | null>(null);
-  if (!row.evidence_id) return null;
+  const readOnly = useReadOnly();
+  if (!row.evidence_id || readOnly) return null;
   if (!open) {
     return <button type="button" className="link-btn" disabled={busy} data-testid={`exclude-${row.id}`}
                    onClick={() => setOpen(true)}>Exclude</button>;
