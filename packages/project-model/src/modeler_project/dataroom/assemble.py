@@ -276,14 +276,49 @@ def meal_times(text: str) -> list[float] | None:
     return sorted(set(out)) or None
 
 
-def _arms(facts: Sequence[CheckedFact], question: QuestionCard | None) -> list[Arm]:
+def _set_apart(text: str, names: Sequence[str]) -> str | None:
+    """The one of `names` whose own words (those no other name has) are all in `text`, and no other name's own words
+    are: "clinical formulation, batch QF-C-0921" is "Quorafen 50 mg tablet (clinical formulation)" when the other product
+    is "(commercial formulation)". None when no name or two."""
+    words = {n: set(_norm(n).split()) for n in names}
+    said = set(_norm(text).split())
+    own = {n: w - set().union(*(v for m, v in words.items() if m != n)) for n, w in words.items()}
+    hits = [n for n in names if own[n] and own[n] <= said]
+    return hits[0] if len(hits) == 1 and not any(own[m] & said for m in names if m != hits[0]) else None
+
+
+def _product_of(code: str, meaning: str, product: str, question: QuestionCard | None,
+                batches: Mapping[str, str]) -> tuple[str, str]:
+    """An arm's product on the question card, and how it was tied when no document names it (said on the page, the
+    owner's choice of 2026-11-24): the product its fact names; the card's only product of the role its meaning names;
+    the card's product its words or its batch name; the card's only product."""
+    names = [p.name for p in (question.products if question else ())]
+    if product:
+        return named_in(product, names) or product, ""
+    text = f"{code} {meaning}"
+    for role in ("reference", "reformulated", "test"):
+        if role in meaning.lower():
+            of_role = [p.name for p in (question.products if question else ()) if p.role == role]
+            if len(of_role) == 1:
+                return of_role[0], f"the question card's only {role} product"
+    if names and (card := named_in(meaning, names) or _set_apart(text, names)):
+        return card, f"the arm's own words name it ({meaning or code})"
+    for batch, of in batches.items():
+        if batch and f" {batch} " in f" {_norm(text)} ":
+            card = named_in(of, names) or of
+            return card, f"its batch {batch.upper()} is a batch of {card}"
+    if len(names) == 1:
+        return names[0], "the question card's only product"
+    return "", ""
+
+
+def _arms(facts: Sequence[CheckedFact], question: QuestionCard | None,
+          batches: Mapping[str, str] | None = None) -> list[Arm]:
     """The study's treatment codes and what each stands for: one fact per code (its subject the code), or one sentence
-    defining several ("B = test product; A = reference product"). A code's product is the fact's product, else the
-    question card's only product of the role its meaning names (reference, test), shown as such."""
+    defining several ("B = test product; A = reference product"). A code's product is the fact's product, else the one
+    code ties it to (`_product_of`), which the arm says."""
     out: dict[str, Arm] = {}
-    by_role: dict[str, list[str]] = defaultdict(list)
-    for p in (question.products if question else ()):
-        by_role[p.role].append(p.name)
+    roles = {p.name: p.role for p in (question.products if question else ())}
     for f in facts:
         # a sentence defining several codes ("A = reference; B = test") stands for each, whatever its subject (an agent
         # gave the study's number as the subject of such a sentence, 2026-11-22, and the study became a code)
@@ -291,13 +326,37 @@ def _arms(facts: Sequence[CheckedFact], question: QuestionCard | None) -> list[A
         single = bool(f.fact.subject.strip()) and len(defined) < 2
         pairs = [(f.fact.subject.strip(), f.fact.value.strip())] if single else defined
         for code, meaning in pairs:
-            product = f.fact.product if single else ""
-            if not product:
-                role = next((r for r in ("reference", "reformulated", "test") if r in meaning.lower()), "")
-                product = by_role[role][0] if role and len(by_role[role]) == 1 else ""
-            role = next((p.role for p in (question.products if question else ()) if p.name == product), "")
-            out.setdefault(code, Arm(treatment=code, meaning=meaning, product=product, role=role, source=f.chip))
+            product, tied = _product_of(code, meaning, f.fact.product if single else "", question, batches or {})
+            out.setdefault(code, Arm(treatment=code, meaning=meaning, product=product, role=roles.get(product, ""),
+                                     source=f.chip, tied=tied))
     return sorted(out.values(), key=lambda a: a.treatment)
+
+
+def _single_arm(view: RoomStudy, question: QuestionCard | None) -> tuple[tuple[Arm, ...], list[Problem]]:
+    """The arms of a study whose data name treatments its documents do not define: a single-arm study (one arm, one
+    product: a multiple-dose study's days, or a code such as "QD") stands for each of the data's treatments with its one
+    product, and says so; a study with no arm defined, on a card with one product, is that product's. A study with one
+    arm and no product found asks which of the card's products it used (the new deliveries, 2026-11-24: a single-arm
+    study had no product, the wrong role, and N = 0 in the plan)."""
+    treatments = sorted({p.treatment for p in view.profiles} | {n.treatment for n in view.nca})
+    roles = {p.name: p.role for p in (question.products if question else ())}
+    names = list(roles)
+    arms = list(view.arms)
+    if not treatments or any(a.treatment in treatments for a in arms):
+        return tuple(arms), []
+    problems: list[Problem] = []
+    if len(arms) == 1:
+        (arm,) = arms
+        how = f"the study's only arm ({arm.meaning or arm.treatment})" + (f"; {arm.tied}" if arm.tied else "")
+        if not arm.product and len(names) > 1:
+            problems.append(Problem(code="ARM_PRODUCT_UNKNOWN", message=(
+                f"study {view.study_id} has one arm ({arm.meaning or arm.treatment}); no document says which of the "
+                f"question card's products it used ({', '.join(names)}): name it")))
+        return tuple(arm.model_copy(update={"treatment": t, "tied": how}) for t in treatments), problems
+    if not arms and len(names) == 1:
+        return tuple(Arm(treatment=t, product=names[0], role=roles[names[0]], tied="the question card's only product")
+                     for t in treatments), problems
+    return tuple(arms), problems
 
 
 #: a table's constants that are numbers of science (a method's conditions): kept only when the delivery says them
@@ -427,11 +486,16 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
 
         sfacts = [f for f in facts if f.fact.field.startswith("study.") and (not f.fact.subject or len(study_ids) == 1
                                                                               or _same_study(f.fact.subject, sid))]
-        arms = _arms([f for f in sfacts if f.ok and f.fact.field == "study.treatment_code"], question)
+        arms = _arms([f for f in sfacts if f.ok and f.fact.field == "study.treatment_code"], question, batch_products(facts))
         study_values = _values([f for f in sfacts if f.fact.field != "study.treatment_code"], "study.", FIELDS,
                                literature_files, rules)
         view = study_view(sid, concentrations=mine("concentrations"), pk_tables=mine("pk_parameters"), facts=sfacts,
                           arms=arms, study_values=study_values, rules=rules)
+        tied, asked = _single_arm(view, question)
+        if tied != view.arms:
+            # a single arm tied to every treatment of the data no longer asks which treatment it is
+            kept = tuple(x for x in view.problems if x.code != "ARM_MATCHES_NO_TREATMENT" or len(view.arms) != 1)
+            view = view.model_copy(update={"arms": tied, "problems": kept + tuple(asked)})
         sets = {s.name: s for s in view.sets}
         options = [Option(id=name, label=f"{sets[name].label}: {len(sets[name].subjects)} subjects", detail=sets[name].rule)
                    for name in ("modeling", "client_statistical", "completed", "dosed") if name in sets]
@@ -720,6 +784,8 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
         dose_v = next((v for v in view.facts if v.key.startswith("study.dose")), None)
         water = next((v for v in view.facts if v.key.startswith("study.water")), None)
         weight = dem.get("weight_mean")
+        # a multiple-dose study's occasions are its days, not arms
+        occasion = "day" if any(x.code == "MULTIPLE_DOSE" for x in view.problems) else "arm"
         for arm in view.arms or tuple(Arm(treatment=t) for t in sorted({n.treatment for n in view.nca})):
             owner = f"{sid} · {arm.treatment}"
             inputs_rows.append(InputRow(block="protocol", owner=owner, name="ApplicationType", label="Route", value="Oral",
@@ -744,7 +810,7 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
             plan.append(PlanRow(formulation=arm.product or arm.meaning or arm.treatment,
                                 condition=f"{sid}, {arm_food.get(arm.treatment) or ('fed' if fed else 'fasted' if fasting else 'food not stated')}"
                                 + (f", {dose_v.as_written}" if dose_v else ""),
-                                observed=f"{sid} arm {arm.treatment} (N = {n})",
+                                observed=f"{sid} {occasion} {arm.treatment} (N = {n})",
                                 role="calibration" if role == "reference" else "verification",
                                 why="the reference product's observed profile sets the model" if role == "reference"
                                 else "the test product's profile checks the model built on the reference"))

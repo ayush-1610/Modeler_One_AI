@@ -62,9 +62,17 @@ export const getStudies = cache(async (projectId: string): Promise<Live<StudyRow
   return pick(await serverGet("/api/v1/projects/{project_id}/studies", { project_id: projectId }), (d) => d.studies);
 });
 
+/** A stored record this version cannot read, named with why (one written in an earlier shape no longer fails its list). */
+export type UnreadableRecord = Schema<"UnreadableRecord">;
+
+/** The campaign list as the API answers it: the campaigns, and those it could not read. */
+export const getCampaignList = cache(async (project?: string): Promise<Live<{ campaigns: Campaign[]; unreadable: UnreadableRecord[] }>> => {
+  return pick(await serverGet("/api/v1/campaigns", {}, { project }), (d) => ({ campaigns: d.campaigns, unreadable: d.unreadable ?? [] }));
+});
+
 /** Campaigns for the tenant, or just one project's when `project` is given. */
 export const getCampaigns = cache(async (project?: string): Promise<Live<Campaign[]>> => {
-  return pick(await serverGet("/api/v1/campaigns", {}, { project }), (d) => d.campaigns);
+  return pick(await getCampaignList(project), (d) => d.campaigns);
 });
 
 export const getCampaign = cache(async (campaignId: string): Promise<Live<CampaignDetail>> => {

@@ -116,6 +116,7 @@ class Arm(_B):
     product: str = ""                # the question card's product
     role: str = ""                   # reference / test / original / reformulated
     source: Chip | None = None
+    tied: str = ""                   # how code tied it to its product when no document names it (said on the page)
 
 
 class MeanPoint(_B):

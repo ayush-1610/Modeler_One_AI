@@ -253,7 +253,8 @@ function StudyCard({ room, study }: { room: Room; study: Study }) {
               <ul className="dr-arms">
                 {study.arms.map((a) => (
                   <li key={a.treatment}><span className="dr-swatch" style={{ background: roleHex(a.role || roleOf(room, a.product)) }} aria-hidden />
-                    <span><strong>{a.treatment}</strong> {a.product || a.meaning}{a.role && <span className="muted"> · {a.role}</span>}</span></li>
+                    <span><strong>{a.treatment}</strong> {a.product || a.meaning}{a.role && <span className="muted"> · {a.role}</span>}
+                      {a.tied && <span className="muted dr-small" data-testid="arm-tied"> · tied by code: {a.tied}</span>}</span></li>
                 ))}
               </ul>
             ) : undefined}>

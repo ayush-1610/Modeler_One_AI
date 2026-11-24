@@ -304,3 +304,32 @@ def test_an_archive_made_without_the_utf8_flag_keeps_its_names():
         z.writestr(info, CONC.encode())   # a cp437 name, no UTF-8 flag: as macOS's archiver writes it
     (room,) = read_delivery([("data.zip", out.getvalue())])
     assert room.path == "Part D/17-06-138 \u2013 Concentration Table.dat"
+
+
+def test_a_title_merged_across_a_sheet_is_read_once_and_a_group_header_keeps_its_copies():
+    """The new deliveries, 2026-11-24: a listing's title lines, merged across 17 columns, read as 17 copies each. A title
+    is now kept once, in its first cell; a header merged over its columns, or down two header rows, still labels each."""
+    from openpyxl import Workbook
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Listing"
+    ws["A1"] = "Listing 16.2.5.1: plasma concentrations (ng/mL)"
+    ws.merge_cells("A1:E1")
+    ws["A2"] = "A title merged down too"
+    ws.merge_cells("A2:E3")
+    ws["A4"], ws["B4"] = "Subject", "Time (h)"
+    ws.merge_cells("A4:A5")
+    ws.merge_cells("B4:E4")
+    for col, t in zip("BCDE", ("0", "1", "2", "4"), strict=True):
+        ws[f"{col}5"] = t
+    for col, v in zip("ABCDE", ("101", "BLQ", "12.5", "8.1", "3.3"), strict=True):
+        ws[f"{col}6"] = v
+    buffer = io.BytesIO()
+    wb.save(buffer)
+    lines = document_text(read_file("conc.xlsx", buffer.getvalue()).document)[0][1]
+    assert lines[0] == "Listing 16.2.5.1: plasma concentrations (ng/mL)"
+    assert lines[1] == "A title merged down too" and lines[2] == ""          # every line keeps its number
+    assert lines[3] == "Subject | Time (h) | Time (h) | Time (h) | Time (h)"
+    assert lines[4] == "Subject | 0 | 1 | 2 | 4"
+    assert lines[5] == "101 | BLQ | 12.5 | 8.1 | 3.3"

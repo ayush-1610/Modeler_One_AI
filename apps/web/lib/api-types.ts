@@ -3783,6 +3783,11 @@ export interface components {
              */
             role: string;
             source: components["schemas"]["Chip"] | null;
+            /**
+             * Tied
+             * @default
+             */
+            tied: string;
             /** Treatment */
             treatment: string;
         };
@@ -4386,6 +4391,8 @@ export interface components {
         Campaigns: {
             /** Campaigns */
             campaigns: components["schemas"]["CampaignRecord"][];
+            /** Unreadable */
+            unreadable?: components["schemas"]["UnreadableRecord"][];
         };
         /** CatalogField */
         CatalogField: {
@@ -8384,6 +8391,8 @@ export interface components {
         Escalations: {
             /** Escalations */
             escalations: components["schemas"]["EscalationItem"][];
+            /** Unreadable */
+            unreadable?: components["schemas"]["UnreadableRecord"][];
         };
         /** EstimatedFit */
         EstimatedFit: {
@@ -14860,6 +14869,17 @@ export interface components {
             method?: string;
             /** Sd */
             sd?: number | null;
+        };
+        /**
+         * UnreadableRecord
+         * @description A stored record this build cannot read (a key it needs is missing, a value of the wrong kind), named with why,
+         *     so one record written in an earlier shape no longer fails its whole list (`modeler_api.stored_records`).
+         */
+        UnreadableRecord: {
+            /** Id */
+            id: string;
+            /** Problems */
+            problems: string[];
         };
         /**
          * Usage

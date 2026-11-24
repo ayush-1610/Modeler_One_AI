@@ -40,6 +40,74 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
   `/impact` once and lists the datasets and the project records that follow, and nothing is written. Software test
   data only (Exampleamide); nothing here is a simulation.
 
+### Fixed — the campaigns list (HTTP 500); three open gaps of the data story; Docs — the next phase's plan and four literature reviews (2026-11-24)
+- **The campaigns could not be read (HTTP 500), seen on the server:**
+  - **Cause.** One stored campaign written by an earlier build carried a key today's record no longer declares. The
+    typed answer refuses an unknown key, so that one record failed the whole list. The dashboard said "'Running now' is
+    not shown", and the decision pop-up and the project pages lost their campaigns.
+  - **Fix.** A stored campaign or escalation is now read without the keys this version does not know
+    (`modeler_api.stored_records`). Nothing is written back: the record stays as it was written, and the keys left out
+    are logged with its id.
+  - **A record that still does not read** (a key it needs is missing) is named in the answer (`unreadable`: id and
+    why), and the rest of the list stands and is counted. The dashboard names it. A campaign's own page answers 409 with
+    the reason instead of 500.
+  - **API contract:** `Campaigns` and `Escalations` gain the optional `unreadable` list (`UnreadableRecord`); the
+    snapshot and web types are regenerated.
+  - The dashboard e2e now checks that an earlier-shape campaign is shown and counted, and that a broken one is named.
+- **Merged spreadsheet title cells, read 17 times (gap 3):**
+  - A title merged across a sheet is now kept once, in its first cell. A row of copies only (a title merged down as
+    well) keeps one empty place, so every line keeps its number.
+  - A merged cell beside other text keeps its copies, because each copy labels its own column or row: a group header
+    such as "Nominal time (h)" over its time columns, or "Subject" merged down two header rows
+    (`modeler_intake.room._title_once`).
+- **A single-arm study had no product, the wrong role and N = 0 in the plan (gap 1, Quorafen):**
+  - **How an arm's product is found, in order** (`assemble._product_of`):
+    1. the product its fact names;
+    2. the card's only product of the role its meaning names;
+    3. the card's product its own words name, including the words that set it apart from the card's other products
+       ("clinical formulation" against "commercial formulation", `_set_apart`);
+    4. the product of a batch it names;
+    5. the card's only product.
+  - **The page says how code tied it** (`Arm.tied`, contract regenerated).
+  - **A single-arm study** (one arm, treatments in the data its documents do not define, such as a multiple-dose study's
+    days) now has that one arm stand for each treatment, with its product. It no longer asks which treatment the arm is.
+  - **No arm defined, one product on the card:** each treatment is that product's.
+  - **One arm, no product named, two products on the card:** `ARM_PRODUCT_UNKNOWN` asks which; it never guesses.
+  - A multiple-dose study's plan rows say "day", not "arm".
+  - **Quorafen:** product, role (reference) and plan (calibration, N = 10) are now right.
+- **The question stage (A6) took 2 to 9 minutes (gap 4):**
+  - **Cause.** Every stored run spent all 14 of its turns opening files one call at a time, guessing part names
+    ("sheet:Sheet1", "body" for a text export). Each run then submitted a card of 7,000 to 10,000 output tokens.
+  - **The digest.** Code now builds a digest of the delivery (`stages.question_digest`): every file, its parts with
+    their lines, and the lines that may state the question, a product or the design, quotable as written. A table's
+    rows are left to its description.
+  - **Two passes.** A6 first writes the card from the digest and the likely pages with **no file tool**; the tools come
+    back only when no card could be saved.
+  - **Shorter card.** The checklist is kept short: at most 25 items, each with a why of at most 12 words.
+  - The prompt version is `dataroom-4`.
+  - **Measured on Quorafen** (Nemotron Ultra): 3 turns instead of 14, and 26 k input tokens instead of 156 k (−84 %),
+    with the same products, roles and regulator. The time left is the card's output tokens.
+- **Not built, waiting for the owner's choice:** "0.1 N HCl" as pH 1.2 (gap 2; the plan, §9).
+- **Docs:**
+  - **`docs/plans/2026-11-24-data-story-next-phase.md`**, a proposal for the owner's review. It covers:
+    - the $100 Claude credit: API key or identity federation, measured tokens and estimated cost per delivery, a budget
+      for a calibration run, demos and the real project, and guards;
+    - model presets and a direct Anthropic provider;
+    - runs that pause and resume without reading a finished file again;
+    - the answer cache and a cache-friendly prompt order;
+    - requirements per application with triggers, so the room stops asking for what the question does not need;
+    - the path to the MAP;
+    - 14 features the literature points to;
+    - eight decisions.
+  - **`docs/research/2026-11-24-*.md`:** four literature reviews (about 1,200 records screened, about 330 cited):
+    - regulatory data by context of use;
+    - PBBM and absorption inputs;
+    - clinical PK data curation;
+    - AI extraction, cost and reliability.
+
+    They are research reports, not SME-reviewed. Two findings about the locked acceptance ruleset (the `guest_2011`
+    title; the 1.5-fold limit attributed to EMA) are listed for the SME, not edited.
+
 ### Changed — the console redesign, slice 4b: Inputs' study and product cards open one at a time in a side panel (2026-11-24)
 - **What:** on Inputs, a study's card (Clinical studies) and a product's card (Products and dissolution) open in a side
   panel on the right (`kit/SidePanel`), one at a time, instead of inside the list with up to three open at once. The
