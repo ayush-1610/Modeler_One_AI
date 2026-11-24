@@ -14,19 +14,20 @@ from pathlib import Path
 from typing import Annotated, Any
 from urllib.parse import unquote, urlparse
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
 
 from modeler_api.auth import Principal, require_project, require_role
 from modeler_api.config import SettingsDep
 from modeler_api.cpf_view import project_cpf_view
 from modeler_api.deps import get_project_store
-from modeler_api.memberships import archive_for
+from modeler_api.memberships import archive_for, memberships_for
 from modeler_api.ownership import may_change
 from modeler_api.responses import answers, envelope
 from modeler_api.views.campaigns import CampaignPackage, Campaigns, Escalations
 from modeler_api.views.read import CpfView, Projects, ProjectSystem, Proposals, Studies, StudyRow
 from modeler_project import ProjectStore, Workspace
+from modeler_project.steps import project_steps
 from modeler_storage.filestore import FileReadStore, ReadStore
 from modeler_storage.records import CampaignRecord, ProjectRecord
 from pbpk_domain.cpf.models import ParameterStatus
@@ -49,16 +50,43 @@ PrincipalDep = Annotated[Principal, Depends(require_role(*_READ_ROLES))]
 StoreDep = Annotated[ReadStore, Depends(get_read_store)]
 
 
+ProjectsDep = Annotated[ProjectStore, Depends(get_project_store)]
+
+
 @router.get("/projects", **answers(Projects))
-def list_projects(principal: PrincipalDep, store: StoreDep, settings: SettingsDep):
+def list_projects(principal: PrincipalDep, store: StoreDep, settings: SettingsDep, projects_store: ProjectsDep,
+                  with_: Annotated[str | None, Query(alias="with", description="Comma list of extra parts: steps, owner")] = None):
     # only the projects this person may open (their token's and their platform memberships, P3); each says whether it is
     # archived (page review 1), and the Projects page hides those until asked
+    parts = {w.strip() for w in (with_ or "").split(",") if w.strip()}
+    unknown = parts - LIST_PARTS
+    if unknown:
+        raise HTTPException(status_code=422, detail=f"Unknown part(s) {', '.join(sorted(unknown))}: ask for steps, owner or both.")
     projects = store.list_projects(principal.tenant_id)
     if "*" not in principal.projects:
         projects = [p for p in projects if p.get("id") in principal.projects]
     archived = archive_for(settings, principal.tenant_id).archived() if settings.read_root else {}
-    return envelope({"projects": [{**p, "archived": dataclasses.asdict(archived[p["id"]]) if p.get("id") in archived else None}
-                                  for p in projects]})
+    items = [{**p, "archived": dataclasses.asdict(archived[p["id"]]) if p.get("id") in archived else None} for p in projects]
+    # the redesign's R-N03: each project's steps (as `GET /projects/{id}/steps` answers them) and its owner's name (as
+    # `GET /projects/{id}/members` does, with its id), in this one read; only when asked, so other callers keep today's cost
+    if "steps" in parts:
+        statuses: dict[str, list[str]] = {}
+        for c in store.list_campaigns(principal.tenant_id):
+            statuses.setdefault(str(c.get("project")), []).append(str(c.get("status", "")))
+        for item in items:
+            ws = Workspace(projects_store, principal.tenant_id, item["id"])
+            item["steps"] = [s.model_dump(mode="json") for s in project_steps(ws, statuses.get(item["id"], []))]
+    if "owner" in parts:
+        memberships = memberships_for(settings, principal.tenant_id) if settings.read_root else None
+        for item in items:
+            owner = memberships.owner(item["id"]) if memberships else None
+            names = {m.subject: m.name for m in memberships.members(item["id"])} if memberships and owner else {}
+            item["owner"] = owner
+            item["owner_name"] = names.get(owner, owner) if owner else None
+    return envelope({"projects": items})
+
+
+LIST_PARTS = {"steps", "owner"}
 
 
 @router.get("/projects/{project_id}", **answers(ProjectRecord))
@@ -68,9 +96,6 @@ def get_project(project_id: str, principal: PrincipalDep, store: StoreDep):
     if project is None:
         raise HTTPException(status_code=404, detail=f"project {project_id} not found")
     return envelope(project)
-
-
-ProjectsDep = Annotated[ProjectStore, Depends(get_project_store)]
 
 
 @router.get("/projects/{project_id}/compounds/{compound}/cpf", **answers(CpfView))

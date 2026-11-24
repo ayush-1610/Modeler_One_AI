@@ -15,6 +15,17 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — the console redesign, slice 2: the project list carries each project's steps and owner on request (2026-11-24)
+- **What:** `GET /projects?with=steps,owner` adds to each project its four steps (`steps`, exactly as
+  `GET /projects/{id}/steps` answers them) and its owner (`owner`, the id, and `owner_name`, as `GET /projects/{id}/members` says them).
+  Either part alone works; an unknown part is refused (422) in words. Without `with`, the list is unchanged.
+- **Why:** redesign R-N03. Home, Your work and Projects need every project's step state and owner; today that is one
+  `/steps` and one `/members` request per project. Measured with 50 projects: 11 ms for the one request, 790 ms for the
+  100 it replaces (container, stub data), so no cache.
+- **Contract:** additive (`ProjectListItem.steps`, `.owner`, `.owner_name`, the `with` query). `docs/api/openapi.json`,
+  `apps/web/lib/api-types.ts` regenerated. Tests: `services/api/tests/test_project_list_with.py` (same steps as the
+  route, a member sees only what is shared with them, payload unchanged without `with`, unknown part refused).
+
 ### Changed — the console redesign, slice 1 restyled to the owner's chosen design, option 5 "Brand Navy bar" (2026-11-24)
 - **What:** the owner found slice 1's first styling too close to the look being replaced and asked for ten AWS-console
   design options (`design-review/console-options/`); they chose option 5 (`design-review/DECISIONS.md` D-I1). The
