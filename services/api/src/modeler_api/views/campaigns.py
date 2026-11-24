@@ -81,3 +81,25 @@ class SignatureCreated(View):
     record_sha256: str
     auth_method: str
     signed_by: str
+
+
+class SignatureRow(View):
+    """One signature given on a record of a project (R-N09), read from the company's audit chain (`signature.create`)."""
+
+    signature_id: str
+    signer_id: str
+    printed_name: str | None                # as the manifestation shows it
+    meaning: str
+    record_type: str
+    record_id: str
+    record_sha256: str
+    signed_at: str
+    manifestation: str
+    seq: int                                # its place on the audit chain
+
+
+class SignatureRegister(View):
+    """A project's signatures, newest first, and whether the company's audit chain verifies (a broken chain says so)."""
+
+    chain_verifies: bool
+    signatures: list[SignatureRow]

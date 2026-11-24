@@ -15,6 +15,25 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — the console redesign, slice 7: Records (agent runs listed, the signature register) (2026-11-24)
+- **What:**
+  - **`GET /projects/{id}/agent-runs`** (R-N05, any member): the project's agent runs, newest first, `limit` at a
+    time with a run-id cursor (`before`, the last page's `next_before`). Each run: agent, provider and model, who
+    started it, when it started and finished, status, the model's turns, tokens in and out, the tool calls the
+    runtime refused (`tool_call_rejected` steps) and the model it fell back from (a `model_switch` step). Only this
+    company's runs of this project; no cost (it stays in the admin console).
+  - **`GET /projects/{id}/signatures`** (R-N09, any member): the signatures given on the project's records, read from
+    the company's audit chain (`signature.create`), newest first, with whether the chain verifies. A record is the
+    project's when its id starts with the project's (an intake confirmation, the MAP and its deviations, the Data
+    room's publication) or when it is a decision on one of its campaigns' escalations (`{campaign_id}-{stage}`).
+- **Why:** the console redesign's slice 7 (plan 2026-11-23 §6: History's Signatures tab, Agent activity). R-N09 asked
+  for a test of a suspected gap; the test confirms it: an escalation decision's signature is **not** in the
+  project's audit trail (its filter keeps only ids that start with the project's), and it is in the new register.
+- **Impact:** two read routes (`AgentRunList`, `SignatureRegister`; `docs/api/openapi.json`, `lib/api-types.ts`). No
+  locked file changed (`compliance/signatures.py` is read, not changed). Tests: `test_records_api.py` (paging, other
+  projects and companies left out, refusals and fallbacks; a decision on the project's campaign listed and one on
+  another project's not; non-members refused).
+
 ### Changed — the console redesign, slice 6: the campaign page in tabs, the kit chart, the Package tab, the decision form (2026-11-24)
 - **What:**
   - **Tabs.** A campaign (P-16) shows one part at a time, in tabs whose choice is in the address (`?tab=`, links: the
