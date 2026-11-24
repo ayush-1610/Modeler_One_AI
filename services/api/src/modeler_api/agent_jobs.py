@@ -164,6 +164,10 @@ def test_key(provider: str, fields: dict[str, str]) -> tuple[bool, str]:
             False, f"no list of models from {fields['base_url']}: check the address and the key")
     if provider == "bedrock":
         return _test_bedrock(fields)
+    if provider == "anthropic":
+        from modeler_agents.claude import check_api_key
+
+        return check_api_key(fields["api_key"])
     return False, f"{provider} keys cannot be tested yet"
 
 

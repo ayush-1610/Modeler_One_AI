@@ -477,10 +477,12 @@ def chat_model_from_env(env: Mapping[str, str] | None = None) -> ChatModel | Non
                              "deploy/server/modeler-secrets.env.example), or choose each agent's model in the admin console")
     if provider == "bedrock":
         return _bedrock(env)
+    if provider == "anthropic":
+        return _anthropic(env)
     defaults = PROVIDERS.get(provider)
     if defaults is None:
-        raise LLMConfigError(f"unknown MODELER_LLM_PROVIDER {provider!r}; use one of: {', '.join(PROVIDERS)}, bedrock or "
-                             "disabled")
+        raise LLMConfigError(f"unknown MODELER_LLM_PROVIDER {provider!r}; use one of: {', '.join(PROVIDERS)}, bedrock, "
+                             "anthropic or disabled")
     key = (env.get(defaults.key_env) or "").strip()
     if not key:
         raise LLMConfigError(f"MODELER_LLM_PROVIDER={provider} needs {defaults.key_env} in the environment")
@@ -504,6 +506,37 @@ def chat_model_from_env(env: Mapping[str, str] | None = None) -> ChatModel | Non
     # the in-house model streams unless MODELER_LLM_STREAM=0 (a proxy that cannot stream with tools)
     chat.stream = provider == "litellm" and (env.get("MODELER_LLM_STREAM") or "1").strip() != "0"
     return chat
+
+
+def _claude_options(env: Mapping[str, str], provider: str) -> tuple[str, str | None, float]:
+    """The model, effort and timeout every Claude connection takes from its configuration."""
+    from modeler_agents.claude import EFFORTS
+
+    model = (env.get("MODELER_LLM_MODEL") or "").strip()
+    if not model:
+        example = "anthropic.claude-opus-5-5" if provider == "bedrock" else "claude-opus-5-5"
+        raise LLMConfigError(f"MODELER_LLM_PROVIDER={provider} needs MODELER_LLM_MODEL (e.g. {example})")
+    effort = (env.get("MODELER_LLM_EFFORT") or "").strip() or None
+    if effort and effort not in EFFORTS:
+        raise LLMConfigError(f"MODELER_LLM_EFFORT must be one of {', '.join(EFFORTS)}, not {effort!r}")
+    try:
+        timeout = float((env.get("MODELER_LLM_TIMEOUT_S") or "").strip() or DEFAULT_TIMEOUT_S)
+    except ValueError as exc:
+        raise LLMConfigError("MODELER_LLM_TIMEOUT_S must be a number of seconds") from exc
+    return model, effort, timeout
+
+
+def _anthropic(env: Mapping[str, str]) -> ChatModel:
+    """Claude on Anthropic's own API with a Console key (decision D1, 2026-11-24)."""
+    from modeler_agents.claude import ClaudeAPIChat
+
+    key = (env.get("ANTHROPIC_API_KEY") or "").strip()
+    if not key:
+        raise LLMConfigError("MODELER_LLM_PROVIDER=anthropic needs ANTHROPIC_API_KEY: add the Console key in the admin "
+                             "console (Keys)")
+    model, effort, timeout = _claude_options(env, "anthropic")
+    return ClaudeAPIChat(model=model, api_key=key, effort=effort, fallback=(env.get("MODELER_LLM_FALLBACK") or "").strip()
+                         or None, timeout_s=timeout)
 
 
 def _bedrock(env: Mapping[str, str]) -> ChatModel:

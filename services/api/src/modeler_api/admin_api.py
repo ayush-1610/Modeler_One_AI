@@ -339,9 +339,63 @@ def _agents_page(settings: Settings) -> dict[str, Any]:
         "choices": [c | {"has_active_key": c["provider"] in active} for c in ps.MODEL_CHOICES],
         "environment": agent_jobs.agents_status(admin=True),
         "efforts": list(ps.EFFORTS), "groq_efforts": list(ps.GROQ_EFFORTS), "claude_models": list(agent_jobs.CLAUDE_MODELS),
+        "presets": _presets(doc["current"], active),
         "history": [{k: h[k] for k in ("agent", "provider", "model", "by", "at", "reason")}
                     for h in reversed(doc["history"][-50:])],
     })
+
+
+def _presets(current: dict[str, Any], active: set[str]) -> list[dict[str, Any]]:
+    from modeler_agents.usage_report import estimate_delivery_usd
+
+    out = []
+    for preset in ps.PRESETS:
+        agents = preset["agents"]
+        providers = sorted({provider for provider, *_ in agents.values()})
+        out.append({"id": preset["id"], "label": preset["label"], "what": preset["what"],
+                    "usd_per_delivery": estimate_delivery_usd({a: model for a, (_p, model, _e, _f) in agents.items()}),
+                    "providers": providers,
+                    "missing_keys": [p for p in providers if p in ps.KEY_PROVIDERS and p not in active],
+                    "current": all((current.get(a) or {}).get("provider") == provider
+                                   and (current.get(a) or {}).get("model", "") == model
+                                   for a, (provider, model, _e, _f) in agents.items())})
+    return out
+
+
+class PresetSet(BaseModel):
+    preset: str
+    reason: str = Field(min_length=1)
+
+
+@router.post("/admin/agents:preset", **answers(AgentsPage))
+def set_preset(body: PresetSet, principal: Admin, settings: SettingsDep) -> dict[str, Any]:
+    """Put every agent on one preset in one step (plan 2026-11-24 §3): Free, In-house only, Claude demo, Claude all Opus.
+    Each agent's change is its own audit event with the same reason. Refused, with nothing changed, when a provider the
+    preset needs has no active key."""
+    _root(settings)
+    ensure_step_up(principal)
+    preset = next((p for p in ps.PRESETS if p["id"] == body.preset), None)
+    if preset is None:
+        raise HTTPException(status_code=404, detail=f"no preset {body.preset!r}; one of: {', '.join(p['id'] for p in ps.PRESETS)}")
+    active = {r["provider"] for r in ps.KeyStore(settings.read_root, settings.master_key).records() if r["state"] == "active"}
+    if missing := sorted({p for p, *_ in preset["agents"].values() if p in ps.KEY_PROVIDERS and p not in active}):
+        raise HTTPException(status_code=409, detail=f"{preset['label']} needs an active key for "
+                                                    f"{', '.join(ps.AGENT_PROVIDERS[p] for p in missing)}: add it under Keys "
+                                                    "first; no agent was changed")
+    store = ps.AgentSettings(settings.read_root)
+    fields = ("provider", "model", "effort", "fallback")
+    reason = f"preset {preset['label']}: {body.reason.strip()}"
+    try:
+        for agent, (provider, model, effort, fallback) in preset["agents"].items():
+            before = store.current(agent)
+            setting = store.set(agent, provider, model, by=principal.user_id, reason=reason, effort=effort,
+                                fallback=fallback)
+            _changed(settings, principal, "admin.agent.set", agent, reason=reason,
+                     before={k: before.get(k, "") for k in fields} if before else None,
+                     after={k: setting[k] for k in fields} | {"preset": preset["id"]})
+    except ps.SettingsError as exc:
+        raise _refused(exc) from exc
+    return _agents_page(settings)
 
 
 @router.get("/admin/agents", **answers(AgentsPage))

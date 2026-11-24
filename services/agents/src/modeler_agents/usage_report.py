@@ -45,6 +45,37 @@ PRICES: dict[str, tuple[float, float, float, float]] = {
 HAIKU_LONG = (0.50, 0.625, 0.05, 2.50)        # Claude Haiku 5.5 when a prompt is over 100,000 tokens
 HAIKU_LONG_AT = 100_000
 
+# What one Data room delivery of about ten files takes, per agent: (input tokens, output tokens). Measured on three
+# made-up deliveries read end to end by Nemotron Ultra (2026-11-24; docs/plans/2026-11-24-data-story-next-phase.md
+# §2.2), the question stage after its digest. Counted by another model's tokenizer: an ESTIMATE until the calibration
+# run on Claude (decision D2) measures it.
+DELIVERY_TOKENS: dict[str, tuple[int, int]] = {
+    "A6": (22_000, 9_000), "A7": (47_000, 8_000), "A8": (510_000, 86_000), "A9": (21_000, 4_000), "A10": (5_000, 1_000),
+}
+THINKING_FACTOR = 1.5          # Claude's thinking is billed as output
+CACHE_SHARE = (0.35, 0.60, 0.05)  # of a turn's input: uncached, read from the cache, written to it (the loop caches)
+
+
+def claude_price_id(model: str) -> str | None:
+    """The first-party price key of a Claude model id, on the Claude API or on Bedrock ("anthropic.claude-…")."""
+    bare = model.removeprefix("anthropic.")
+    return bare if bare in PRICES else None
+
+
+def estimate_delivery_usd(models: dict[str, str]) -> float:
+    """The estimated cost in dollars of one ten-file delivery when each Data room agent (A6 … A10) runs on the given
+    model id; an agent on a model with no price (a free or in-house one) costs nothing here."""
+    total = 0.0
+    for agent, (tokens_in, tokens_out) in DELIVERY_TOKENS.items():
+        price = PRICES.get(claude_price_id(models.get(agent, "")) or "")
+        if price is None:
+            continue
+        p_in, p_write, p_read, p_out = price
+        uncached, read, written = CACHE_SHARE
+        total += tokens_in * (uncached * p_in + read * p_read + written * p_write) / 1e6
+        total += tokens_out * THINKING_FACTOR * p_out / 1e6
+    return round(total, 2)
+
 
 @dataclass
 class Turn:

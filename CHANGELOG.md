@@ -15,6 +15,44 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — Claude on Anthropic's own API with a Console key; one-click presets for every agent (2026-11-24)
+- **Why:** the owner's decisions D1 and D6 on `docs/plans/2026-11-24-data-story-next-phase.md`. Claude was reachable
+  only on Amazon Bedrock, so the owner's $100 Console credit could not be used. The admin page also needed an easier
+  switch between models.
+- **The Claude API as a provider** (`anthropic`):
+  - `modeler_agents.claude.ClaudeAPIChat` shares the Bedrock client's request, caching, effort, fallback on an
+    overloaded model and usage (`_ClaudeChat`).
+  - A refusal is re-run by the server inside the same call: the admin console's fallback model, else Anthropic's
+    default by refusal category (`fallbacks`, beta `server-side-fallback-2026-07-01`).
+  - **The key:** Admin → Keys → "Claude API (Anthropic Console)". Its Test lists the models the key may use (no message
+    sent, nothing spent: `check_api_key`).
+  - **The models:** one-click choices "Claude Opus 5.5 (Claude API)" and "Claude Sonnet 5.5 (Claude API)", with the
+    same effort and fallback controls as Bedrock.
+  - Configurable without the console too: `MODELER_LLM_PROVIDER=anthropic`, `ANTHROPIC_API_KEY`.
+- **A cloud service needing the client's permission (D6):** `anthropic` is now in `data_permissions.CLOUD_SERVICES`.
+  The gate let any provider it did not list through as if in-house, so without this a client's files could have gone
+  to the Claude API with no recorded permission. A made-up demo project records "made-up demo data, no client" instead.
+- **Presets** (Admin → Models; `POST /api/v1/admin/agents:preset`), one click for every agent:
+  - **Free:** Nemotron Ultra; gpt-oss-120b for A9.
+  - **In-house only:** Qwen Coder.
+  - **Claude demo:** Opus 5.5 for A8, Sonnet 5.5 for the rest.
+  - **Claude, all Opus:** with Sonnet 5.5 for A9, which never runs on A8's model.
+
+  Each shows its estimated cost for a ten-file delivery (`usage_report.estimate_delivery_usd`, from the measured
+  tokens per agent; about $3.90 and $4.23, an estimate until the calibration run). A preset whose service has no active
+  key is refused with nothing changed. Each agent's change is its own audit event.
+- **API contract:** `AgentsPage.presets` (`AgentPreset`) and the preset route; snapshot and web types regenerated.
+- **Docs:**
+  - `docs/USING_THE_TOOL.md` §6b gives the owner's steps for the Claude API key: a Console workspace "Modeler One", a
+    $90 spend limit on it, the key, Test, Make active, the presets, and the project's permission.
+  - `docs/research/2026-11-24-note-for-the-sme-acceptance-ruleset.md` holds the two ruleset findings for the SME (D7),
+    linked from `docs/SME_SIGNOFF.md`; the locked ruleset is not edited.
+- **Tests:**
+  - `services/agents/tests/test_claude_api.py`: the request, the fallbacks, key errors, configuration and the free key
+    check, against a stand-in HTTP transport.
+  - `services/api/tests/test_admin_platform.py`: the key, the agent on it, `CLOUD_SERVICES`, and the presets with their
+    refusals.
+
 ### Fixed — the campaigns list (HTTP 500); three open gaps of the data story; Docs — the next phase's plan and four literature reviews (2026-11-24)
 - **The campaigns could not be read (HTTP 500), seen on the server:**
   - **Cause.** One stored campaign written by an earlier build carried a key today's record no longer declares. The

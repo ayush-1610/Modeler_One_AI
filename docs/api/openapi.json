@@ -295,6 +295,57 @@
         "title": "AgentChange",
         "type": "object"
       },
+      "AgentPreset": {
+        "additionalProperties": false,
+        "description": "A one-click setting for every agent at once (plan 2026-11-24 §3): what it does, its estimated cost for one\ndelivery of about ten files (0 for free and in-house models; an estimate until the calibration run measures it), the\nproviders it needs, those with no active key, and whether the agents are on it now.",
+        "properties": {
+          "current": {
+            "title": "Current",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "missing_keys": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Missing Keys",
+            "type": "array"
+          },
+          "providers": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Providers",
+            "type": "array"
+          },
+          "usd_per_delivery": {
+            "title": "Usd Per Delivery",
+            "type": "number"
+          },
+          "what": {
+            "title": "What",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "what",
+          "usd_per_delivery",
+          "providers",
+          "missing_keys",
+          "current"
+        ],
+        "title": "AgentPreset",
+        "type": "object"
+      },
       "AgentProvider": {
         "additionalProperties": false,
         "properties": {
@@ -481,7 +532,7 @@
       },
       "AgentsPage": {
         "additionalProperties": false,
-        "description": "`efforts` and `claude_models`: the choices for an agent on Claude (Bedrock's model ids); `groq_efforts`: on\nGroqCloud; `choices`: the one-click choices each agent's row offers; `chain`: what every agent goes on with when its\nmodel fails.",
+        "description": "`efforts` and `claude_models`: the choices for an agent on Claude (Bedrock's model ids); `groq_efforts`: on\nGroqCloud; `choices`: the one-click choices each agent's row offers; `chain`: what every agent goes on with when its\nmodel fails; `presets`: one click for every agent at once.",
         "properties": {
           "agents": {
             "items": {
@@ -531,6 +582,13 @@
             "title": "History",
             "type": "array"
           },
+          "presets": {
+            "items": {
+              "$ref": "#/components/schemas/AgentPreset"
+            },
+            "title": "Presets",
+            "type": "array"
+          },
           "providers": {
             "items": {
               "$ref": "#/components/schemas/AgentProvider"
@@ -548,7 +606,8 @@
           "history",
           "efforts",
           "groq_efforts",
-          "claude_models"
+          "claude_models",
+          "presets"
         ],
         "title": "AgentsPage",
         "type": "object"
@@ -23443,6 +23502,25 @@
         "title": "PrepareRequest",
         "type": "object"
       },
+      "PresetSet": {
+        "properties": {
+          "preset": {
+            "title": "Preset",
+            "type": "string"
+          },
+          "reason": {
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "preset",
+          "reason"
+        ],
+        "title": "PresetSet",
+        "type": "object"
+      },
       "Problem": {
         "additionalProperties": false,
         "properties": {
@@ -32952,6 +33030,66 @@
           }
         },
         "summary": "Set Agent",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/agents:preset": {
+      "post": {
+        "description": "Put every agent on one preset in one step (plan 2026-11-24 §3): Free, In-house only, Claude demo, Claude all Opus.\nEach agent's change is its own audit event with the same reason. Refused, with nothing changed, when a provider the\npreset needs has no active key.",
+        "operationId": "set_preset_api_v1_admin_agents_preset_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PresetSet"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_AgentsPage_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set Preset",
         "tags": [
           "admin"
         ]
