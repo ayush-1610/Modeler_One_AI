@@ -66,10 +66,11 @@ test("model inputs flow in from the evidence, are checked, and hand over to Revi
 
   // downstream pages agree with Inputs (final review OWN-13): the Run page lists the study Inputs holds (it said "No
   // observed data yet"), and the compound's page shows the values Inputs assembled, by name (it said "No CPF")
-  await page.goto(`/projects/${projectId}`);
+  await page.goto(`/projects/${projectId}/campaigns`);                      // Run (its own address since slice 3)
   await expect(page.getByTestId("overview-study-doe-iv-250")).toContainText("Inputs");
   await expect(page.getByTestId("overview-study-doe-iv-250")).toContainText("IV infusion");
   await expect(page.getByText("No observed data yet")).toHaveCount(0);
+  await page.goto(`/projects/${projectId}/compounds`);                      // Compounds (slice 3)
   await page.getByTestId("overview-compound-Inputamide").click();
   const cpf = page.getByTestId("cpf-parameters");
   await expect(cpf).toContainText("Lipophilicity");

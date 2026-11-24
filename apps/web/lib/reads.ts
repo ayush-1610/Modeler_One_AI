@@ -23,6 +23,19 @@ export const getPortfolio = cache(async (): Promise<Live<Project[]>> => {
   return pick(await serverGet("/api/v1/projects", {}, { with: "steps,owner" }), (d) => d.projects);
 });
 
+/** A project's members, its owner and whether this person changes it (`you_change_it`; false: shared to read). */
+export const getMembers = cache(async (projectId: string) => serverGet("/api/v1/projects/{project_id}/members", { project_id: projectId }));
+
+/** A project's blinding: whether external-validation studies are withheld until the MAP is signed, and why. */
+export const getBlinding = cache(async (projectId: string) => serverGet("/api/v1/projects/{project_id}/blinding", { project_id: projectId }));
+
+/** Whether a project is archived, by whom, when and why: only the project list carries it (`GET /projects/{id}` does
+ *  not), so it is read from there (one request, shared within the render). */
+export async function getArchived(projectId: string) {
+  const live = await getProjects();
+  return live.data?.find((p) => p.id === projectId)?.archived ?? null;
+}
+
 /** The signed-in person: their id (to tell the projects they own) and their roles. */
 export const getMe = cache(async () => serverGet("/api/v1/me", {}));
 

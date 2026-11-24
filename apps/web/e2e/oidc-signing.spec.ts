@@ -190,7 +190,7 @@ test("a new project opens to its creator, who adds a colleague; the colleague ca
   const status = () => colleague.evaluate(async (id) => (await fetch(`/api/v1/projects/${id}`)).status, projectId);
   expect(await status()).toBe(403);
 
-  await page.goto(`/projects/${projectId}`);
+  await page.goto(`/projects/${projectId}/members`);
   const panel = page.getByTestId("members-panel");
   await expect(panel.locator("tbody tr")).toHaveCount(1);
   await expect(panel.locator("tbody tr").first()).toContainText("Oidc Signer");
@@ -201,7 +201,7 @@ test("a new project opens to its creator, who adds a colleague; the colleague ca
   await expect(panel.locator("tbody tr").nth(1)).toContainText("Oidc Colleague");
 
   expect(await status()).toBe(200);
-  await colleague.goto(`/projects/${projectId}`);
+  await colleague.goto(`/projects/${projectId}/members`);
   await expect(colleague.getByTestId("members-panel")).toContainText("Oidc Colleague");
   await other.close();
 });

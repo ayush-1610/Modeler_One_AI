@@ -169,3 +169,7 @@ QA needs no `auth.py` change (a membership admit and the read roles), so it wait
 | 2 | the flash bar sits under the page header | at the top of the content, above the breadcrumbs | the shell mounts one flash for every page; moving it under each page's header comes with the PageHeader component |
 | 2 | the decision dialog restyled with the flash | the existing dialog, opened from the flash | its restyle is slice 6 (campaign page) |
 | 2 | Help (P-30) in slice 2 | the user guide page another session added on `main` (renders `docs/USING_THE_TOOL.md`) | two Help pages arrived the same day; the one that renders the guide is what the page inventory asks for |
+| 3 | Observed studies removed from Run (a duplicate of Inputs) | kept on Run as the studies a campaign fits | three owner-job specs read it as the proof that Inputs' studies reach the campaign (OWN-13); it goes with slice 4, when Inputs' studies are restyled |
+| 3 | Model system moves to Inputs → Compound | stays on Run | it moves with Inputs in slice 4 |
+| 3 | Settings and Members separate | Settings (built the same day by the sign-in work, with the members panel) shows who it is shared with as a summary; Members manages them | one home per decision |
+| 3 | read-only notice as a flash bar on every project page | a notice on Overview, Members and Settings | the other pages' own edit controls are reworked in their slices (4 to 7) |

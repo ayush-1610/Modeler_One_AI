@@ -1,178 +1,165 @@
 import Link from "next/link";
 
-import { preloadSteps, Stepper } from "@/components/kit/Stepper";
-import { RunCampaignButton } from "@/components/RunCampaignButton";
-import { MembersPanel } from "@/components/members/MembersPanel";
-import { SystemPanel } from "@/components/system/SystemPanel";
-import { ApiProblem, Card, RiskChip, StatusChip } from "@/components/ui";
-import { getCampaigns, getProject, getStudies } from "@/lib/reads";
 import { Hero } from "@/components/kit";
-import { StepBlocked } from "@/components/kit/StepBlocked";
-import { valueWord } from "@/lib/words";
+import { ProjectNotices } from "@/components/project/ProjectNotices";
+import { ApiProblem, RiskChip, StatusChip } from "@/components/ui";
+import { getAudit, getSteps, STEP_ROUTES, type StepRow } from "@/lib/pipeline";
+import { NEXT, STEP_NAME, standing, workItems } from "@/lib/portfolio";
+import { getArchived, getCampaigns, getEscalations, getMe, getMembers, getProject } from "@/lib/reads";
+import { stepReason } from "@/lib/words";
 
-function points(study: { profile?: { times: number[] } | null }) {
-  return study.profile?.times?.length ?? 0;
-}
+// A project's Overview (P-10, the console redesign's slice 3): where it stands and what to do next. Its address was the
+// Run page's; Run is now /projects/{id}/campaigns, one click away in the side navigation and from the steps below.
+// Nothing is decided here: each item links to the page where it is done.
 
-export default async function ProjectPage({ params }: { params: Promise<{ projectId: string }> }) {
+const STATE_WORD: Record<StepRow["state"], string> = { done: "Done", needs_you: "Needs you", running: "Running", not_started: "Not started" };
+const STATE_CLASS: Record<StepRow["state"], string> = { done: "low", needs_you: "medium", running: "brand", not_started: "neutral" };
+
+export default async function ProjectOverview({ params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = await params;
-  preloadSteps(projectId); // the step bar's read runs beside the page's own, not after them (audit item 9)
-  const [live, liveStudies, liveCampaigns] = await Promise.all([
-    getProject(projectId),
-    getStudies(projectId),
-    getCampaigns(projectId),
+  const [live, liveSteps, liveCampaigns, liveAudit, liveMembers, liveEscalations, liveMe, archived] = await Promise.all([
+    getProject(projectId), getSteps(projectId), getCampaigns(projectId), getAudit(projectId), getMembers(projectId),
+    getEscalations(), getMe(), getArchived(projectId),
   ]);
   const project = live.data;
   if (!project) {
     return (
       <main>
-        <Hero tone="run" eyebrow="Project" title={projectId} />
+        <Hero title={projectId} />
         <ApiProblem problem={live.problem ?? `Project ${projectId} does not exist.`} />
       </main>
     );
   }
-  // the project's observed studies: those uploaded for the campaign path, and those Inputs assembled from the confirmed
-  // data (what a signed plan stages; final review OWN-13: this list was empty while Inputs had a study in the model)
-  const studies = liveStudies.data;
-  const uploaded = (studies ?? []).filter((s) => (s.source ?? "upload") === "upload");
-  const campaigns = liveCampaigns.data;
+  const base = `/projects/${encodeURIComponent(project.id)}`;
+  const steps = liveSteps.data;
+  const st = standing(steps);
+  const members = liveMembers.data;
+  const campaigns = liveCampaigns.data ?? [];
+  const latest = campaigns.at(-1) ?? null;
+  const me = liveMe.data ? { user_id: liveMe.data.user_id, roles: liveMe.data.roles } : null;
+  const work = workItems([{ ...project, steps: steps ?? undefined, owner: members?.owner ?? null, owner_name: members?.owner_name ?? null }],
+                         liveEscalations.data ?? [], campaigns, me).filter((w) => w.projectId === project.id);
+  const events = (liveAudit.data?.events ?? []).slice(-10).reverse();
   const questions = project.questions ?? [];
-  const compound = project.compounds[0] ?? "";
-  const question = questions[0];
-  // "Run campaign" stages the uploaded studies (campaign:prepare); the studies of Inputs run once the plan is signed on
-  // Review & sign
-  const runnable = Boolean(question && compound && uploaded.length > 0);
+  // until Start is done, a later step that has not begun does not open (as in the side navigation; page review 1)
+  const startDone = (steps ?? []).find((x) => x.step === "start")?.state === "done";
+  const locked = (s: StepRow) => !startDone && s.step !== "start" && s.state === "not_started";
 
   return (
     <main>
-      <Hero tone="run" eyebrow="Step 4 of 4" title={project.name}
-            lede="Compounds and the questions of interest they answer. Each question carries its own ICH M15 assessment table."
-            actions={<RiskChip rating={project.risk} />} />
-      <Stepper projectId={project.id} current="run" />
-      {(liveStudies.problem || liveCampaigns.problem) && (
-        <ApiProblem problem={(liveStudies.problem ?? liveCampaigns.problem)!} />
-      )}
+      <Hero title={project.name} testId="overview-head"
+            lede={<>{project.compounds.join(", ") || "No compound yet"}{members?.owner_name ? <> · owned by <strong>{members.owner_name}</strong></> : null}</>}
+            actions={<>
+              <RiskChip rating={project.risk} />
+              {st.focus && <Link className="btn primary" href={STEP_ROUTES[st.focus](encodeURIComponent(project.id))} data-testid="overview-next">{st.next}</Link>}
+            </>} />
+      <ProjectNotices project={project} members={members} archived={archived} />
+      {(liveSteps.problem || liveCampaigns.problem) && <ApiProblem problem={(liveSteps.problem ?? liveCampaigns.problem)!} />}
 
-      {!runnable && !liveStudies.problem && (
-        // a campaign cannot start yet: what is missing, in words, and the way there (not a page that just lacks its button)
-        <StepBlocked projectId={project.id} step="run" title="A campaign can run once these are in place" testId="run-blocked"
-                     fallback={(
-                       <>
-                         <ul>
-                           {!question && <li>a question of interest (set on Start)</li>}
-                           {!compound && <li>a compound with its parameter framework</li>}
-                           {!(studies && studies.length) && <li>at least one observed study to fit and validate against (added on Inputs)</li>}
-                         </ul>
-                         <Link className="btn primary" href={`/projects/${project.id}/inputs?tab=studies`}>Go to Inputs</Link>
-                       </>
-                     )} />
-      )}
+      <div className="home-cols">
+        <div>
+          <section className="tbl" aria-labelledby="steps-title" data-testid="overview-steps">
+            <div className="tbl-head"><h2 id="steps-title">Steps</h2></div>
+            <div className="tbl-scroll">
+              <table>
+                <thead><tr><th scope="col">Step</th><th scope="col">State</th><th scope="col">What it waits on</th><th scope="col">Open</th></tr></thead>
+                <tbody>
+                  {(steps ?? []).map((s, i) => (
+                    <tr key={s.step} data-testid={`overview-step-${s.step}`}>
+                      <td><strong>{i + 1} · {STEP_NAME[s.step]}</strong></td>
+                      <td><span className={`chip ${STATE_CLASS[s.state]}`}>{STATE_WORD[s.state]}</span></td>
+                      <td className="muted">{s.reasons[0] ? stepReason(s.reasons[0], s.formulation) : "—"}</td>
+                      <td>{locked(s) ? <span className="muted" data-testid={`overview-step-${s.step}-locked`}>after Start</span>
+                        : <Link href={STEP_ROUTES[s.step](encodeURIComponent(project.id))}>{s.state === "done" ? "View" : NEXT[s.step]}</Link>}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {!steps && <div className="tbl-empty">The steps could not be read.</div>}
+          </section>
 
-      {runnable && (
-        <Card title="Run a modeling campaign" action={<span className="muted">MS-01 · S0 → S7</span>}>
-          <p className="muted mt-0">
-            Generates the Model Analysis Plan from this project&apos;s CPF and {uploaded.length} observed
-            study(ies), records the Part 11 signature, then runs the stage loop on the OSP engine — building
-            the model, simulating, scoring it against the acceptance tier, and either passing or stopping to
-            ask you for a signed decision, on whatever page you are on.
-          </p>
-          <RunCampaignButton projectId={project.id} questionId={question!.id} compound={compound} />
-        </Card>
-      )}
+          <section className="tbl" aria-labelledby="questions-title" data-testid="overview-questions">
+            <div className="tbl-head"><h2 id="questions-title">Questions of interest</h2><span className="grow" /><Link href={`${base}/start`}>Edit on Start</Link></div>
+            {questions.length === 0 ? <div className="tbl-empty">No question of interest yet: it is set on Start.</div> : (
+              <div className="tbl-scroll">
+                <table>
+                  <thead><tr><th scope="col">Question</th><th scope="col">Application</th><th scope="col">Model risk</th><th scope="col">Stage</th><th scope="col" className="num">Failing criteria</th></tr></thead>
+                  <tbody>
+                    {questions.map((q) => (
+                      <tr key={q.id}>
+                        <td>{q.question}</td>
+                        <td>{q.application}</td>
+                        <td><RiskChip rating={q.modelRisk} /></td>
+                        <td>{q.stage}</td>
+                        <td className="num">{q.failingCriteria > 0 ? <span className="chip high">{q.failingCriteria}</span> : "0"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
 
-      <div className="cols-2">
-        <Card title="Compounds">
-          <table>
-            <thead><tr><th>Compound</th><th>Its values</th></tr></thead>
-            <tbody>
-              {project.compounds.map((c) => (
-                <tr key={c}>
-                  <td><Link href={`/projects/${project.id}/compounds/${c}`} data-testid={`overview-compound-${c}`}>{c}</Link></td>
-                  <td className="muted">the parameter framework (CPF) the model is built from, as Inputs assembles it</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </Card>
-
-        <Card title="Observed studies" action={<Link className="btn" href={`/projects/${project.id}/inputs?tab=studies`}>Add data</Link>}>
-          {studies && studies.length > 0 ? (
-            <table data-testid="overview-studies">
-              <thead><tr><th>Study</th><th>Route</th><th className="num">Dose</th><th className="num">Points</th><th>From</th></tr></thead>
-              <tbody>
-                {/* a summary: the first ten; the whole list, sortable and filtered, is on Inputs (audit item 11) */}
-                {studies.slice(0, 10).map((s) => (
-                  <tr key={s.study_id} data-testid={`overview-study-${s.study_id}`}>
-                    <td>{s.study_id}</td>
-                    <td>{s.route ? valueWord(s.route) : "—"}</td>
-                    <td className="num">{s.dose_mg} mg</td>
-                    <td className="num">{s.blinded ? <span className="muted">blinded</span> : points(s)}</td>
-                    <td>{s.source === "inputs" ? <Link href={`/projects/${project.id}/inputs?tab=studies`}>Inputs</Link>
-                      : <span className="muted">uploaded</span>}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          ) : null}
-          {studies && studies.length > 10 && (
-            <p className="muted m-8-0-0 fs-13" data-testid="overview-studies-more">
-              10 of {studies.length} studies shown.{" "}
-              <Link href={`/projects/${project.id}/inputs?tab=studies`}>All {studies.length} studies on Inputs →</Link>
-            </p>
-          )}
-          {studies && studies.length > 0 ? null : (
-            <p className="muted m-0">
-              No observed data yet. Use <strong>Add data</strong> to upload a clinical profile — a campaign
-              needs at least one study to fit and validate against.
-            </p>
-          )}
-        </Card>
+          <section className="tbl" aria-labelledby="activity-title" data-testid="overview-activity">
+            <div className="tbl-head"><h2 id="activity-title">Recent activity</h2><span className="grow" /><Link href={`${base}/history`}>Full history</Link></div>
+            {liveAudit.problem ? <div className="tbl-empty">The audit trail could not be read ({liveAudit.problem}).</div>
+              : events.length === 0 ? <div className="tbl-empty">Nothing recorded yet.</div> : (
+                <div className="tbl-scroll">
+                  <table>
+                    <thead><tr><th scope="col">When</th><th scope="col">Who</th><th scope="col">What</th><th scope="col">On</th></tr></thead>
+                    <tbody>
+                      {events.map((e) => (
+                        <tr key={e.seq}>
+                          <td className="nowrap">{e.occurred_at.slice(0, 16).replace("T", " ")}</td>
+                          <td className="nowrap">{e.actor}</td>
+                          <td><code>{e.action}</code></td>
+                          <td className="muted">{e.resource_type} {e.resource_id}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+          </section>
+        </div>
+        <div>
+          <section className="panel" aria-labelledby="open-title" data-testid="overview-open">
+            <div className="panel-head"><h2 id="open-title">Waiting on you</h2></div>
+            <div className="panel-body">
+              {work.length === 0 ? <p className="muted m-0">Nothing here waits on you.</p> : (
+                <ul className="list-plain">
+                  {work.map((w) => <li key={w.key}><Link href={w.href}>{w.what}</Link><span className="muted fs-12">{w.step}</span></li>)}
+                </ul>
+              )}
+            </div>
+          </section>
+          <section className="panel" aria-labelledby="latest-title" data-testid="overview-latest">
+            <div className="panel-head"><h2 id="latest-title">Latest campaign</h2><span className="grow" /><Link href={`${base}/campaigns`}>Run</Link></div>
+            <div className="panel-body">
+              {!latest ? <p className="muted m-0">No campaign yet. It runs once the plan is signed.</p> : (
+                <dl className="kv-list">
+                  <dt>Campaign</dt><dd><Link href={`/campaigns/${encodeURIComponent(latest.id)}`}><code>{latest.id}</code></Link></dd>
+                  <dt>Status</dt><dd><StatusChip status={latest.status} /></dd>
+                  <dt>Stage</dt><dd>{latest.currentStage}</dd>
+                </dl>
+              )}
+            </div>
+          </section>
+          <section className="panel" aria-labelledby="records-title">
+            <div className="panel-head"><h2 id="records-title">Records</h2></div>
+            <div className="panel-body">
+              <ul className="list-plain">
+                <li><Link href={`${base}/compounds`}>Compounds</Link><span className="muted fs-12">{project.compounds.length}</span></li>
+                <li><Link href={`${base}/library`}>Documents</Link></li>
+                <li><Link href={`${base}/history`}>History</Link></li>
+                <li><Link href={`${base}/members`}>Members</Link>{members && <span className="muted fs-12">{members.members.length}</span>}</li>
+                <li><Link href={`${base}/settings`}>Settings</Link></li>
+              </ul>
+            </div>
+          </section>
+        </div>
       </div>
-
-      <SystemPanel projectId={project.id} />
-
-      <Card title="Campaigns">
-        {campaigns && campaigns.length > 0 ? (
-          <table>
-            <thead><tr><th>Campaign</th><th>Status</th><th>Current stage</th><th>Compound</th></tr></thead>
-            <tbody>
-              {campaigns.map((c) => (
-                <tr key={c.id}>
-                  <td><Link href={`/campaigns/${c.id}`}><code>{c.id}</code></Link></td>
-                  <td>{c.status ? <StatusChip status={c.status} /> : "—"}</td>
-                  <td>{c.currentStage}</td>
-                  <td>{c.compound}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        ) : (
-          <p className="muted m-0">
-            No campaigns yet — run one above and this table will fill in as it progresses.
-          </p>
-        )}
-      </Card>
-
-      <Card title="Questions of interest">
-        <table>
-          <thead>
-            <tr><th>Question</th><th>Application</th><th>Model risk</th><th>Stage</th><th className="num">Failing criteria</th></tr>
-          </thead>
-          <tbody>
-            {questions.map((q) => (
-              <tr key={q.id}>
-                <td>{q.question}</td>
-                <td>{q.application}</td>
-                <td><RiskChip rating={q.modelRisk} /></td>
-                <td>{q.stage}</td>
-                <td className="num">{q.failingCriteria > 0 ? <span className="chip high">{q.failingCriteria}</span> : "0"}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </Card>
-
-      <MembersPanel projectId={project.id} />
     </main>
   );
 }

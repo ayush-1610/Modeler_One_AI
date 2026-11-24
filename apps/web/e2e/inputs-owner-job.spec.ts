@@ -542,7 +542,7 @@ test("the owner's job: files uploaded, layouts checked, values linked with arms,
 
   // --- downstream pages agree with Inputs (final review OWN-13): the Run page lists the studies Inputs holds, and Review &
   // sign says what Inputs still waits on, in words, each opening where it is done ---
-  await page.goto(`/projects/${projectId}`);
+  await page.goto(`/projects/${projectId}/campaigns`);                      // Run (its own address since slice 3)
   for (const id of [seed.study, `${seed.study}-Reference`, `${seed.study}-Test`]) {
     await expect(page.getByTestId(`overview-study-${id}`)).toContainText("Inputs");
   }

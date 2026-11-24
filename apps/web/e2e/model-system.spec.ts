@@ -28,7 +28,7 @@ test("a model system is shown, its dose fractions are edited, and a study names 
   };
   expect((await request.put(`/api/v1/projects/${projectId}/system`, { headers: AUTH, data: links })).ok()).toBeTruthy();
 
-  await page.goto(`/projects/${projectId}`);
+  await page.goto(`/projects/${projectId}/campaigns`);                      // Run (slice 3; Inputs from slice 4)
   const panel = page.getByTestId("system-panel");
   await expect(panel.getByTestId("system-compound-Metabolamide")).toContainText("metabolite");
   await expect(panel.getByTestId("system-analyte-Parentamide")).toContainText("S1 · S2 · S3 · SJ · S4 · S5");
