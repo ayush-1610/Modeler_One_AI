@@ -22,7 +22,7 @@ from __future__ import annotations
 import hashlib
 import re
 from collections import defaultdict
-from typing import Any, get_args
+from typing import TYPE_CHECKING, Any, get_args
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -50,6 +50,9 @@ from pbpk_domain.cpf.models import CPF, EngineBinding, ParameterRecord, Paramete
 from pbpk_domain.cpf.process_bindings import binding_candidates, is_process_id
 from pbpk_domain.data_origin import REAL_ORIGINS
 from pbpk_domain.snapshot.builder import CompoundSpec
+
+if TYPE_CHECKING:
+    from modeler_project.room_basis import RoomBasis
 
 MAIN = "main"
 CHOICES = "choices"
@@ -489,7 +492,10 @@ def _check(name: str, ok: bool, detail: str | list[str] = "") -> dict[str, Any]:
     return {"check": name, "ok": ok, "detail": detail if isinstance(detail, list) else ([detail] if detail else [])}
 
 
-def readiness(cpf: CPF, rows: list[dict[str, Any]], assembly: dict[str, Any], brief: ProjectBrief | None) -> dict[str, Any]:
+def readiness(cpf: CPF, rows: list[dict[str, Any]], assembly: dict[str, Any], brief: ProjectBrief | None,
+              room: RoomBasis | None = None) -> dict[str, Any]:
+    """The checks before the plan: complete, placeable, every planned simulation builds. `room`: the Data room's send
+    (`room_basis`), whose applications count where the brief has none a person set (its food effect: no fed fit)."""
     from pbpk_domain.campaign.map import generate_map
     from pbpk_domain.campaign.round_build import ScenarioBuildError, build_stage_snapshot
     from pbpk_domain.campaign.split import QuestionOfInterest, StudyRecord, split_studies
@@ -540,9 +546,9 @@ def readiness(cpf: CPF, rows: list[dict[str, Any]], assembly: dict[str, Any], br
     build_notes: list[str] = []
     build_ok = False
     if records and completeness.ready and not unplaced:
-        from modeler_project.plan import applications
+        from modeler_project.plan import effective_applications
 
-        food = "APP-12" in applications(brief)
+        food = "APP-12" in effective_applications(brief, room)[0]
         split = split_studies(records, QuestionOfInterest(food_effect=food))
         # each study simulated over its whole sampled window, as campaign:prepare does
         hours = {"min": 1 / 60, "h": 1.0, "day": 24.0}
@@ -599,7 +605,9 @@ def assemble(ws: Workspace, *, by: str) -> dict[str, Any]:
     catalog_version = ws.commit(ArtifactKind.STUDY_CATALOG, MAIN, {"studies": rows, "notes": notes},
                                 derived_from=[*([picked_version.ref] if picked_version else []), *[v.ref for v in datasets_used]],
                                 actor=by, reason=f"{len(rows)} studies from accepted datasets")
-    result = {**readiness(cpf, rows, report, brief), "inputs_key": inputs_key(ws)}
+    from modeler_project.room_basis import room_basis
+
+    result = {**readiness(cpf, rows, report, brief, room_basis(ws, full=False)), "inputs_key": inputs_key(ws)}
     ready_version = ws.commit(ArtifactKind.READINESS, MAIN, result, derived_from=[cpf_version.ref, catalog_version.ref],
                               actor=by, reason="ready" if result["ready"] else "not ready")
     return {"cpf": cpf_version, "catalog": catalog_version, "readiness": ready_version}

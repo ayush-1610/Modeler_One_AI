@@ -969,6 +969,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project_id}/brief:from-dataroom": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Fill Brief From Dataroom
+         * @description Start from the Data room (plan 2026-11-24 §7, phase 4, B4): the question, context of use, applications, agencies,
+         *     products and roles, scenarios, formulation types and populations the room's confirmed question card and studies
+         *     state, drafted into the brief (DRAFTED, each with the quotes it rests on, to confirm on Start), then the ICH M15
+         *     ratings by the rule. A person's value, or a document's, is never overwritten: Start advises where they differ. 409
+         *     while the room has no confirmed question card.
+         */
+        post: operations["fill_brief_from_dataroom_api_v1_projects__project_id__brief_from_dataroom_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project_id}/campaigns": {
         parameters: {
             query?: never;
@@ -3891,6 +3915,18 @@ export interface components {
             };
             /** Template */
             template: string;
+        };
+        /**
+         * ApplicationSuggestion
+         * @description What the Data room offers an application's inputs (`review.vbe_suggestion`, plan 2026-11-24 §7 B8): suggestions
+         *     with their source, never saved until a person saves the design.
+         */
+        ApplicationSuggestion: {
+            /** Note */
+            note: string;
+            observed_be: components["schemas"]["SuggestedBe"] | null;
+            reference_formulation: components["schemas"]["SuggestedFormulation"] | null;
+            test_formulation: components["schemas"]["SuggestedFormulation"] | null;
         };
         /** ApplicationSupport */
         ApplicationSupport: {
@@ -8495,6 +8531,13 @@ export interface components {
             errors: components["schemas"]["ErrorItem"][];
             meta: components["schemas"]["Meta"];
         };
+        /** Envelope[RoomFilled] */
+        Envelope_RoomFilled_: {
+            data: components["schemas"]["RoomFilled"];
+            /** Errors */
+            errors: components["schemas"]["ErrorItem"][];
+            meta: components["schemas"]["Meta"];
+        };
         /** Envelope[RoomPublication] */
         Envelope_RoomPublication_: {
             data: components["schemas"]["RoomPublication"];
@@ -11938,6 +11981,7 @@ export interface components {
             problems: string[];
             /** Status */
             status: string;
+            suggested: components["schemas"]["ApplicationSuggestion"] | null;
             /** Template */
             template: string;
             /** Version */
@@ -13699,6 +13743,19 @@ export interface components {
             value: number | string;
         };
         /**
+         * RoomFilled
+         * @description `brief:from-dataroom`: the brief fields drafted from the Data room (DRAFTED, each to confirm on Start), the fields
+         *     kept because a person or a document set another value, and Start's advice where they differ.
+         */
+        RoomFilled: {
+            /** Advice */
+            advice: string[];
+            /** Drafted */
+            drafted: string[];
+            /** Kept */
+            kept: string[];
+        };
+        /**
          * RoomPublication
          * @description What "Send to the model" would send now (`modeler_project.dataroom.publish.plan_publication`, nothing written),
          *     and what keeps it from being sent, in words.
@@ -14839,6 +14896,7 @@ export interface components {
             /** Problems */
             problems: string[];
             risk: components["schemas"]["RiskView"];
+            room: components["schemas"]["StartRoomView"] | null;
         };
         /**
          * StartIssueView
@@ -14849,6 +14907,24 @@ export interface components {
             message: string;
             /** Path */
             path: string;
+        };
+        /**
+         * StartRoomView
+         * @description The project's Data room as Start sees it (plan 2026-11-24 §7, phase 4): whether a person confirmed its question
+         *     card ("Fill from the Data room" is offered then), the card's question and applications, and where Start's own word
+         *     differs from it (advice, never a block: `steps.room_advice`).
+         */
+        StartRoomView: {
+            /** Advice */
+            advice: components["schemas"]["StartIssueView"][];
+            /** Applications */
+            applications: string[];
+            /** Applications Chosen */
+            applications_chosen: boolean;
+            /** Confirmed Card */
+            confirmed_card: boolean;
+            /** Question */
+            question: string;
         };
         /**
          * Statistic
@@ -14894,6 +14970,11 @@ export interface components {
              * @default []
              */
             applications: components["schemas"]["MapApplication"][];
+            /**
+             * Applications From Room
+             * @default false
+             */
+            applications_from_room: boolean;
             /**
              * Assumptions
              * @default []
@@ -14948,6 +15029,20 @@ export interface components {
                 [key: string]: string;
             };
             risk_assessment: components["schemas"]["MapRiskAssessment"] | null;
+            /**
+             * Room Applications
+             * @default []
+             */
+            room_applications: string[];
+            /**
+             * Room Limitations
+             * @default []
+             */
+            room_limitations: string[];
+            /** Room Roles */
+            room_roles: {
+                [key: string]: string;
+            };
         };
         /** StructureRequest */
         StructureRequest: {
@@ -15518,6 +15613,42 @@ export interface components {
             species?: string;
             /** Weight Kg */
             weight_kg?: number | null;
+        };
+        /** SuggestedBe */
+        SuggestedBe: {
+            /** Metrics */
+            metrics: {
+                [key: string]: components["schemas"]["SuggestedBeMetric"];
+            };
+            /** Source */
+            source: string;
+            /** Stated */
+            stated: string[];
+        };
+        /** SuggestedBeMetric */
+        SuggestedBeMetric: {
+            /** Between Subject Cv Percent */
+            between_subject_cv_percent: number | null;
+            /** Ci High */
+            ci_high: number | null;
+            /** Ci Low */
+            ci_low: number | null;
+            /** Gmr */
+            gmr: number | null;
+            /** N */
+            n: number;
+        };
+        /**
+         * SuggestedFormulation
+         * @description A product of the Data room's question card for a VBE arm, as the CPF formulation the send names it.
+         */
+        SuggestedFormulation: {
+            /** Available */
+            available: boolean;
+            /** Source */
+            source: string;
+            /** Value */
+            value: string;
         };
         /**
          * SystemAnalyte
@@ -18086,6 +18217,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Envelope_ExtractionStart_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    fill_brief_from_dataroom_api_v1_projects__project_id__brief_from_dataroom_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_RoomFilled_"];
                 };
             };
             /** @description Validation Error */

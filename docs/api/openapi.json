@@ -1130,6 +1130,54 @@
         "title": "ApplicationRequest",
         "type": "object"
       },
+      "ApplicationSuggestion": {
+        "additionalProperties": false,
+        "description": "What the Data room offers an application's inputs (`review.vbe_suggestion`, plan 2026-11-24 §7 B8): suggestions\nwith their source, never saved until a person saves the design.",
+        "properties": {
+          "note": {
+            "title": "Note",
+            "type": "string"
+          },
+          "observed_be": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SuggestedBe"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reference_formulation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SuggestedFormulation"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "test_formulation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SuggestedFormulation"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "test_formulation",
+          "reference_formulation",
+          "observed_be",
+          "note"
+        ],
+        "title": "ApplicationSuggestion",
+        "type": "object"
+      },
       "ApplicationSupport": {
         "additionalProperties": false,
         "properties": {
@@ -14574,6 +14622,31 @@
         "title": "Envelope[ReviewPage]",
         "type": "object"
       },
+      "Envelope_RoomFilled_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/RoomFilled"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[RoomFilled]",
+        "type": "object"
+      },
       "Envelope_RoomPublication_": {
         "additionalProperties": false,
         "properties": {
@@ -23710,6 +23783,16 @@
             "title": "Status",
             "type": "string"
           },
+          "suggested": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ApplicationSuggestion"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "template": {
             "title": "Template",
             "type": "string"
@@ -23726,7 +23809,8 @@
           "inputs",
           "problems",
           "formulations",
-          "limits"
+          "limits",
+          "suggested"
         ],
         "title": "PinnedApplication",
         "type": "object"
@@ -28340,6 +28424,40 @@
         "title": "RoomEntered",
         "type": "object"
       },
+      "RoomFilled": {
+        "additionalProperties": false,
+        "description": "`brief:from-dataroom`: the brief fields drafted from the Data room (DRAFTED, each to confirm on Start), the fields\nkept because a person or a document set another value, and Start's advice where they differ.",
+        "properties": {
+          "advice": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Advice",
+            "type": "array"
+          },
+          "drafted": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Drafted",
+            "type": "array"
+          },
+          "kept": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Kept",
+            "type": "array"
+          }
+        },
+        "required": [
+          "drafted",
+          "kept",
+          "advice"
+        ],
+        "title": "RoomFilled",
+        "type": "object"
+      },
       "RoomPublication": {
         "additionalProperties": false,
         "description": "What \"Send to the model\" would send now (`modeler_project.dataroom.publish.plan_publication`, nothing written),\nand what keeps it from being sent, in words.",
@@ -31319,6 +31437,16 @@
           },
           "risk": {
             "$ref": "#/components/schemas/RiskView"
+          },
+          "room": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StartRoomView"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -31329,7 +31457,8 @@
           "applications",
           "pathway_suggestions",
           "pathways_not_named",
-          "client_request"
+          "client_request",
+          "room"
         ],
         "title": "StartBlock",
         "type": "object"
@@ -31352,6 +31481,47 @@
           "message"
         ],
         "title": "StartIssueView",
+        "type": "object"
+      },
+      "StartRoomView": {
+        "additionalProperties": false,
+        "description": "The project's Data room as Start sees it (plan 2026-11-24 §7, phase 4): whether a person confirmed its question\ncard (\"Fill from the Data room\" is offered then), the card's question and applications, and where Start's own word\ndiffers from it (advice, never a block: `steps.room_advice`).",
+        "properties": {
+          "advice": {
+            "items": {
+              "$ref": "#/components/schemas/StartIssueView"
+            },
+            "title": "Advice",
+            "type": "array"
+          },
+          "applications": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Applications",
+            "type": "array"
+          },
+          "applications_chosen": {
+            "title": "Applications Chosen",
+            "type": "boolean"
+          },
+          "confirmed_card": {
+            "title": "Confirmed Card",
+            "type": "boolean"
+          },
+          "question": {
+            "title": "Question",
+            "type": "string"
+          }
+        },
+        "required": [
+          "confirmed_card",
+          "question",
+          "applications",
+          "applications_chosen",
+          "advice"
+        ],
+        "title": "StartRoomView",
         "type": "object"
       },
       "Statistic": {
@@ -31454,6 +31624,11 @@
             "title": "Applications",
             "type": "array"
           },
+          "applications_from_room": {
+            "default": false,
+            "title": "Applications From Room",
+            "type": "boolean"
+          },
           "assumptions": {
             "default": [],
             "items": {
@@ -31555,6 +31730,29 @@
                 "type": "null"
               }
             ]
+          },
+          "room_applications": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Room Applications",
+            "type": "array"
+          },
+          "room_limitations": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Room Limitations",
+            "type": "array"
+          },
+          "room_roles": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Room Roles",
+            "type": "object"
           }
         },
         "required": [
@@ -31571,6 +31769,10 @@
           "internal_target_pe",
           "no_internal_target",
           "risk_assessment",
+          "room_applications",
+          "applications_from_room",
+          "room_roles",
+          "room_limitations",
           "locked",
           "reasons"
         ],
@@ -33038,6 +33240,135 @@
           "seed"
         ],
         "title": "SubjectSpec",
+        "type": "object"
+      },
+      "SuggestedBe": {
+        "additionalProperties": false,
+        "properties": {
+          "metrics": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/SuggestedBeMetric"
+            },
+            "title": "Metrics",
+            "type": "object"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "stated": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Stated",
+            "type": "array"
+          }
+        },
+        "required": [
+          "metrics",
+          "source",
+          "stated"
+        ],
+        "title": "SuggestedBe",
+        "type": "object"
+      },
+      "SuggestedBeMetric": {
+        "additionalProperties": false,
+        "properties": {
+          "between_subject_cv_percent": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Between Subject Cv Percent"
+          },
+          "ci_high": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ci High"
+          },
+          "ci_low": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ci Low"
+          },
+          "gmr": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gmr"
+          },
+          "n": {
+            "title": "N",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "gmr",
+          "between_subject_cv_percent",
+          "ci_low",
+          "ci_high",
+          "n"
+        ],
+        "title": "SuggestedBeMetric",
+        "type": "object"
+      },
+      "SuggestedFormulation": {
+        "additionalProperties": false,
+        "description": "A product of the Data room's question card for a VBE arm, as the CPF formulation the send names it.",
+        "properties": {
+          "available": {
+            "title": "Available",
+            "type": "boolean"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "value",
+          "source",
+          "available"
+        ],
+        "title": "SuggestedFormulation",
         "type": "object"
       },
       "SystemAnalyte": {
@@ -38286,6 +38617,65 @@
           }
         },
         "summary": "Extract Brief",
+        "tags": [
+          "brief"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/brief:from-dataroom": {
+      "post": {
+        "description": "Start from the Data room (plan 2026-11-24 §7, phase 4, B4): the question, context of use, applications, agencies,\nproducts and roles, scenarios, formulation types and populations the room's confirmed question card and studies\nstate, drafted into the brief (DRAFTED, each with the quotes it rests on, to confirm on Start), then the ICH M15\nratings by the rule. A person's value, or a document's, is never overwritten: Start advises where they differ. 409\nwhile the room has no confirmed question card.",
+        "operationId": "fill_brief_from_dataroom_api_v1_projects__project_id__brief_from_dataroom_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_RoomFilled_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Fill Brief From Dataroom",
         "tags": [
           "brief"
         ]

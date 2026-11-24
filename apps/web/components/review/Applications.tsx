@@ -76,6 +76,20 @@ function VbePanel({ projectId, app, all, apply }: { projectId: string; app: Pinn
     setProblem(failed);
     if (!failed) setReason("");
   };
+  // the Data room's suggestions (plan 2026-11-24 §7, B8): filled into the form on request, saved only by the person
+  const suggested = app.suggested;
+  const useSuggestion = () => {
+    if (!suggested) return;
+    // a formulation the CPF does not hold yet is named, not chosen: the select offers the CPF's own
+    if (suggested.test_formulation?.available) setTest(suggested.test_formulation.value);
+    if (suggested.reference_formulation?.available) setRef(suggested.reference_formulation.value);
+    const be = suggested.observed_be;
+    if (be) {
+      setObserved(Object.fromEntries(BE_METRICS.map((m) => [m, {
+        gmr: text(be.metrics[m]?.gmr ?? observed[m].gmr), cv: text(be.metrics[m]?.between_subject_cv_percent ?? observed[m].cv) }])));
+      setBeSource(be.source);
+    }
+  };
   const label = (id: string) => app.inputs.find((i) => i.id === id)?.label ?? id;
   const design_ = (id: keyof typeof design, hint: string) => (
     <label className="vbe-field">{label(id)}
@@ -92,6 +106,32 @@ function VbePanel({ projectId, app, all, apply }: { projectId: string; app: Pinn
       {app.formulations.length < 2 && (
         <InlineIssue severity="warn">The CPF has {app.formulations.length === 0 ? "no formulation" : "one formulation"}: the TEST and
           reference products come from the Formulations tab of Inputs (form.&#123;name&#125;.*).</InlineIssue>
+      )}
+      {suggested && (
+        <div className="review-note vbe-suggested" data-testid="vbe-suggested">
+          <p className="muted">{suggested.note}</p>
+          <ul>
+            {suggested.test_formulation && (
+              <li data-testid="vbe-suggested-test">TEST: <code>{suggested.test_formulation.value}</code>
+                {!suggested.test_formulation.available && " (not a CPF formulation yet: send it from the Data room)"} · {suggested.test_formulation.source}</li>
+            )}
+            {suggested.reference_formulation && (
+              <li data-testid="vbe-suggested-reference">Reference: <code>{suggested.reference_formulation.value}</code>
+                {!suggested.reference_formulation.available && " (not a CPF formulation yet: send it from the Data room)"} · {suggested.reference_formulation.source}</li>
+            )}
+            {suggested.observed_be && (
+              <li data-testid="vbe-suggested-be">Observed BE: {Object.entries(suggested.observed_be.metrics).map(([m, v]) =>
+                `${m} GMR ${v.gmr ?? "—"}${v.ci_low !== null && v.ci_high !== null ? ` (90 % CI ${v.ci_low}–${v.ci_high})` : ""}, CV ${v.between_subject_cv_percent ?? "—"} %, N ${v.n}`).join("; ")}
+                {suggested.observed_be.stated.length > 0 && <> · as the delivery states it: {suggested.observed_be.stated.join("; ")}</>}
+                <div className="muted">{suggested.observed_be.source}</div></li>
+            )}
+          </ul>
+          {!readOnly && (
+            <button type="button" className="btn tiny" onClick={useSuggestion} data-testid="vbe-use-suggested"
+                    title="Fills the form below; nothing is saved until you save the design with your reason">
+              Use the Data room&apos;s values</button>
+          )}
+        </div>
       )}
       <div className="vbe-grid">
         <label className="vbe-field">{label("test_formulation")}
