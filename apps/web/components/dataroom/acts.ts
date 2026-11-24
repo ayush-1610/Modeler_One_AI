@@ -12,6 +12,8 @@ import { put, useMutation, type After } from "@/lib/hooks";
 
 export const ROOM = "/api/v1/projects/{project_id}/dataroom" as const;
 export const RUN = "/api/v1/projects/{project_id}/dataroom/run" as const;
+export const RESUME = "/api/v1/projects/{project_id}/dataroom/run:resume" as const;
+export const ESTIMATE = "/api/v1/projects/{project_id}/dataroom/run/estimate" as const;
 export const UPLOADS = "/api/v1/projects/{project_id}/dataroom/uploads" as const;
 export const PUBLICATION = "/api/v1/projects/{project_id}/dataroom/publication" as const;
 

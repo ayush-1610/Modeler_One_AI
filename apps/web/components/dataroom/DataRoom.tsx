@@ -86,7 +86,9 @@ export function DataRoom({ projectId }: { projectId: string }) {
   const here = usePathname();
   const search = useSearchParams();
   const room = useResource(ROOM, params);
-  const run = useResource(RUN, params, { poll: (d) => d.state === "running", interval: 1500 });
+  // a running run is read often; a paused one slowly, so the page sees it go on by itself (plan 2026-11-24 §4)
+  const run = useResource(RUN, params, { poll: (d) => d.state === "running" || d.state === "paused",
+                                         interval: (d) => (d.state === "paused" ? 30_000 : 1500) });
   const uploads = useResource(UPLOADS, params);
   const acts = useActs(projectId);
   const [chip, setChip] = useState<Chip | null>(null);

@@ -253,6 +253,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/limits/paid": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set Paid Cap
+         * @description Change the hard cap on paid models (a fresh step-up and a reason; an audit event on the owner's chain). The runs
+         *     the cap paused resume at once: one still over the new cap pauses again before its next paid call.
+         */
+        put: operations["set_paid_cap_api_v1_admin_limits_paid_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/overview": {
         parameters: {
             query?: never;
@@ -1469,9 +1490,52 @@ export interface paths {
         /**
          * Start Dataroom Run
          * @description Run the Data room in the background: the files read (OCR included), then the agents that have a model. Each
-         *     stage's answers are kept per file, so a second run redoes only what is new, unless `redo` names the stage.
+         *     stage's answers are kept per file, so a second run redoes only what is new, unless `redo` names the stage. A run
+         *     that stops for a reason that passes is paused, not failed, and resumes where it stopped (`run:resume`).
          */
         post: operations["start_dataroom_run_api_v1_projects__project_id__dataroom_run_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/dataroom/run/estimate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Estimate Dataroom Run
+         * @description What the next run is expected to cost on the paid models its agents start on, from the files still to read and
+         *     their sizes (plan 2026-11-24 §2.4): the page asks once before a paid run starts. `paid` false: it costs nothing.
+         */
+        get: operations["estimate_dataroom_run_api_v1_projects__project_id__dataroom_run_estimate_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/dataroom/run:resume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resume Dataroom Run
+         * @description Resume a paused run now, where it stopped (plan 2026-11-24 §4): the stages and files it finished are not run
+         *     again. 409 when the run is not paused, or one is running.
+         */
+        post: operations["resume_dataroom_run_api_v1_projects__project_id__dataroom_run_resume_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -8069,6 +8133,13 @@ export interface components {
             errors: components["schemas"]["ErrorItem"][];
             meta: components["schemas"]["Meta"];
         };
+        /** Envelope[RoomRunEstimate] */
+        Envelope_RoomRunEstimate_: {
+            data: components["schemas"]["RoomRunEstimate"];
+            /** Errors */
+            errors: components["schemas"]["ErrorItem"][];
+            meta: components["schemas"]["Meta"];
+        };
         /** Envelope[RoomRun] */
         Envelope_RoomRun_: {
             data: components["schemas"]["RoomRun"];
@@ -9894,7 +9965,8 @@ export interface components {
         /**
          * LimitsPage
          * @description The monthly limits (console, E): each with this month's use; those at 80 % or past; the changes; what a limit can
-         *     be set on. A limit warns the administrator and never stops an agent; the companies' people never see it.
+         *     be set on. A limit warns the administrator and never stops an agent; the companies' people never see it. `paid`:
+         *     the hard cap on paid models, which does stop them (it pauses the run).
          */
         LimitsPage: {
             /** History */
@@ -9903,6 +9975,7 @@ export interface components {
             limits: components["schemas"]["LimitRow"][];
             /** Month */
             month: string;
+            paid: components["schemas"]["PaidCaps"];
             /** Priced As */
             priced_as: string;
             /** Targets */
@@ -11121,6 +11194,58 @@ export interface components {
             total: components["schemas"]["Usage"];
             /** Warnings */
             warnings: components["schemas"]["LimitRow"][];
+        };
+        /** PaidCapChange */
+        PaidCapChange: {
+            /** At */
+            at: string;
+            /** By */
+            by: string;
+            /** Month Usd */
+            month_usd: number;
+            /** Reason */
+            reason: string;
+            /** Run Usd */
+            run_usd: number;
+        };
+        /**
+         * PaidCapSet
+         * @description The hard cap on paid models (`platform_settings.PAID_PROVIDERS`), platform-wide: a run's and a calendar month's
+         *     spend in USD. Reaching one pauses the Data room's run; free and in-house models keep the warn-only limits.
+         */
+        PaidCapSet: {
+            /** Month Usd */
+            month_usd: number;
+            /** Reason */
+            reason: string;
+            /** Run Usd */
+            run_usd: number;
+        };
+        /**
+         * PaidCaps
+         * @description The hard cap on paid models only (the owner's decision D3, 2026-11-24; `providers`), platform-wide: a run's and a
+         *     calendar month's spend in USD, at list prices. Reaching one pauses the Data room's run until the cap is raised or
+         *     the agent switched to a free model. `set_by` null: the defaults ($10 a run, $90 a month).
+         */
+        PaidCaps: {
+            /** History */
+            history: components["schemas"]["PaidCapChange"][];
+            /** Month Spent Usd */
+            month_spent_usd: number;
+            /** Month Usd */
+            month_usd: number;
+            /** Paused Runs */
+            paused_runs: number;
+            /** Providers */
+            providers: string[];
+            /** Reason */
+            reason: string;
+            /** Run Usd */
+            run_usd: number;
+            /** Set At */
+            set_at: string | null;
+            /** Set By */
+            set_by: string | null;
         };
         /**
          * ParamNode
@@ -12945,7 +13070,8 @@ export interface components {
         };
         /**
          * RoomRun
-         * @description The Data room's background run (`modeler_agents.dataroom.run_room`): each stage with its live counts and note.
+         * @description The Data room's background run (`modeler_agents.dataroom.run_room`): each stage with its live counts and note,
+         *     and, for a paused run, why and where it paused (`pause`).
          */
         RoomRun: {
             /** Agents */
@@ -12956,6 +13082,7 @@ export interface components {
             error: string;
             /** Finished At */
             finished_at: string | null;
+            pause: components["schemas"]["RoomRunPause"] | null;
             /** Stages */
             stages: components["schemas"]["RoomRunStage"][];
             /** Started At */
@@ -12964,7 +13091,94 @@ export interface components {
              * State
              * @enum {string}
              */
-            state: "idle" | "running" | "done" | "failed";
+            state: "idle" | "running" | "done" | "failed" | "paused";
+        };
+        /**
+         * RoomRunEstimate
+         * @description What the next run is expected to cost on paid models (`modeler_agents.dataroom.cost`; plan 2026-11-24 §2.4), from
+         *     the files still to read and their sizes: tokens ≈ characters / 4, per file 8.5 to 10 calls and 9,000 to 13,000
+         *     output tokens (measured, §2.2), each agent's share at its model's list price. `paid` false: no agent starts on a
+         *     paid model, and the run costs nothing in dollars. The caps a paid run stops at, and this month's paid spend.
+         */
+        RoomRunEstimate: {
+            /** Agents */
+            agents: components["schemas"]["RoomRunEstimateAgent"][];
+            /** Basis */
+            basis: string;
+            /** Calls High */
+            calls_high: number;
+            /** Calls Low */
+            calls_low: number;
+            /** Characters */
+            characters: number;
+            /** Files */
+            files: number;
+            /** Input Tokens High */
+            input_tokens_high: number;
+            /** Input Tokens Low */
+            input_tokens_low: number;
+            /** Month Cap Usd */
+            month_cap_usd: number;
+            /** Month Spent Usd */
+            month_spent_usd: number;
+            /** Output Tokens High */
+            output_tokens_high: number;
+            /** Output Tokens Low */
+            output_tokens_low: number;
+            /** Paid */
+            paid: boolean;
+            /** Run Cap Usd */
+            run_cap_usd: number;
+            /** Usd */
+            usd: number;
+            /** Usd High */
+            usd_high: number;
+            /** Usd Low */
+            usd_low: number;
+        };
+        /** RoomRunEstimateAgent */
+        RoomRunEstimateAgent: {
+            /** Agent */
+            agent: string;
+            /** Model */
+            model: string;
+            /** Paid */
+            paid: boolean;
+            /** Provider */
+            provider: string;
+        };
+        /**
+         * RoomRunPause
+         * @description Why and where a run paused (plan 2026-11-24 §4), and when it resumes by itself. `provider_unavailable`: no model of
+         *     an agent's chain could answer (it resumes after 10, then 20, then 40 minutes; then `resume_at` is null and a person
+         *     resumes it); `budget_cap`: a paid model's cap is reached (it resumes when the cap is raised or the agent switched
+         *     to a free model); `no_model`: the agent's chosen model cannot be used (it resumes when it is set up). An
+         *     administrator's change of a model, a key or the cap resumes it at once; nothing finished is read again.
+         */
+        RoomRunPause: {
+            /** At */
+            at: string;
+            /** Detail */
+            detail: string;
+            /** Done */
+            done: number;
+            /** Per File */
+            per_file: boolean;
+            /**
+             * Reason
+             * @enum {string}
+             */
+            reason: "provider_unavailable" | "budget_cap" | "no_model";
+            /** Resume At */
+            resume_at: string | null;
+            /** Said */
+            said: string;
+            /** Stage */
+            stage: string;
+            /** Total */
+            total: number;
+            /** Where */
+            where: string;
         };
         /** RoomRunStage */
         RoomRunStage: {
@@ -12982,7 +13196,7 @@ export interface components {
              * State
              * @enum {string}
              */
-            state: "waiting" | "running" | "done" | "skipped" | "failed";
+            state: "waiting" | "running" | "done" | "skipped" | "failed" | "paused";
             /** Total */
             total: number;
         };
@@ -15709,6 +15923,43 @@ export interface operations {
             };
         };
     };
+    set_paid_cap_api_v1_admin_limits_paid_put: {
+        parameters: {
+            query?: {
+                priced_as?: "claude-opus-5-5" | "claude-sonnet-5-5" | "claude-haiku-5-5";
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PaidCapSet"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_LimitsPage_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     overview_api_v1_admin_overview_get: {
         parameters: {
             query?: {
@@ -18112,6 +18363,72 @@ export interface operations {
                 "application/json": components["schemas"]["RoomRunStart"] | null;
             };
         };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_RoomRun_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    estimate_dataroom_run_api_v1_projects__project_id__dataroom_run_estimate_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_RoomRunEstimate_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resume_dataroom_run_api_v1_projects__project_id__dataroom_run_resume_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             202: {

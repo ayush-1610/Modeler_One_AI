@@ -10,6 +10,10 @@ Three files under `<read_root>/_platform/` (a name `admin_api` never lists as a 
   `ROTATE_AFTER_DAYS` is due for rotation;
 - `limits.json`: a monthly spend and token limit per company, project or person, and the history of changes. A limit
   only warns the administrator (at `WARN_AT` of it and when it is reached); it never stops an agent (answer 2);
+- `paid_caps.json` and `paid_spend/<YYYY-MM>.jsonl`: the hard cap on **paid** models only (`PAID_PROVIDERS`; the
+  owner's decision D3, 2026-11-24): a dollar cap per run and per calendar month, platform-wide, with the history of
+  changes, and every paid call's cost (`modeler_agents.spend`). Reaching a cap pauses the Data room's run; free and
+  in-house models keep the warn-only limits above;
 - `companies.json`: the companies the console created (their names) and those it disabled (whose people it disabled,
   so enabling the company enables them again). People themselves are kept in Keycloak (`keycloak_admin`).
 
@@ -24,7 +28,7 @@ import binascii
 import json
 import os
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -448,6 +452,86 @@ class LimitSettings:
             doc["history"].append({"id": key, "usd": usd, "tokens": tokens, "by": by, "at": _now(), "reason": reason.strip()})
             _write(self.path, doc)
         return before, after
+
+
+# --- the hard cap on paid models (plan 2026-11-24 §2.4; the owner's decision D3) -------------------------------------
+
+#: the providers that cost money for each call: a cap stops them; every other provider (the in-house model, NVIDIA's and
+#: GroqCloud's free tiers, another OpenAI-compatible service) keeps the warn-only limits. "anthropic" is the direct
+#: Claude API (plan §3), named here before its provider exists so the cap holds from its first call.
+PAID_PROVIDERS: tuple[str, ...] = ("bedrock", "anthropic")
+PAID_CAP_DEFAULTS = {"run_usd": 10.0, "month_usd": 90.0}
+PAID_CAP_DEFAULT_REASON = "the owner's decision D3 (2026-11-24): $10 a run, $90 a month, for paid models only"
+
+
+class PaidCaps:
+    """The dollar caps on paid models: per run and per calendar month (UTC), platform-wide. Defaults until the
+    administrator sets them; each change keeps who, when and why."""
+
+    def __init__(self, read_root: str):
+        self.path = _folder(read_root) / "paid_caps.json"
+
+    def doc(self) -> dict[str, Any]:
+        return _read(self.path, {"current": None, "history": []})
+
+    def current(self) -> dict[str, Any]:
+        return self.doc()["current"] or {**PAID_CAP_DEFAULTS, "by": None, "at": None, "reason": PAID_CAP_DEFAULT_REASON}
+
+    def set(self, *, run_usd: float, month_usd: float, by: str, reason: str) -> tuple[dict[str, Any], dict[str, Any]]:
+        """Set both caps; the caps before and after."""
+        if run_usd <= 0 or month_usd <= 0:
+            raise SettingsError("a cap is above zero")
+        if run_usd > month_usd:
+            raise SettingsError("a run's cap cannot be above the month's")
+        if not reason.strip():
+            raise SettingsError("say why (kept with the change)")
+        after = {"run_usd": float(run_usd), "month_usd": float(month_usd), "by": by, "at": _now(), "reason": reason.strip()}
+        with file_lock(self.path):
+            doc = _read(self.path, {"current": None, "history": []})
+            before = doc["current"] or {**PAID_CAP_DEFAULTS, "by": None, "at": None, "reason": PAID_CAP_DEFAULT_REASON}
+            doc["current"] = after
+            doc["history"].append(after)
+            _write(self.path, doc)
+        return before, after
+
+
+class PaidSpend:
+    """Every paid model call's cost, one append-only file per calendar month (UTC): what the month's cap is checked
+    against, and what a run spent (by its id)."""
+
+    def __init__(self, read_root: str):
+        self.folder = _folder(read_root) / "paid_spend"
+
+    def _month(self, when: datetime) -> Path:
+        return self.folder / f"{when:%Y-%m}.jsonl"
+
+    def record(self, row: dict[str, Any]) -> None:
+        path = self._month(datetime.now(UTC))
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with file_lock(path), path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(row, ensure_ascii=False, sort_keys=True) + "\n")
+
+    def rows(self, when: datetime | None = None) -> list[dict[str, Any]]:
+        path = self._month(when or datetime.now(UTC))
+        if not path.exists():
+            return []
+        out = []
+        for line in path.read_text(encoding="utf-8").splitlines():
+            try:
+                out.append(json.loads(line))
+            except ValueError:          # a line a crash cut short
+                continue
+        return out
+
+    def month_usd(self, when: datetime | None = None) -> float:
+        return round(float(sum(float(r.get("usd") or 0) for r in self.rows(when))), 6)
+
+    def run_usd(self, run_id: str) -> float:
+        """A run's paid spend: this month's calls and last month's (a run that went on past the month's end)."""
+        now = datetime.now(UTC)
+        last = now.replace(day=1) - timedelta(days=1)
+        return round(float(sum(float(r.get("usd") or 0) for when in (last, now) for r in self.rows(when)
+                               if r.get("run_id") == run_id)), 6)
 
 
 # --- F: companies ----------------------------------------------------------------------------------------------------

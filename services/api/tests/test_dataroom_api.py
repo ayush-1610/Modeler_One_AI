@@ -66,7 +66,7 @@ def _read(c: TestClient) -> dict:
 def test_a_delivery_is_uploaded_and_read_with_agents_off_every_agent_stage_saying_why_it_waits(setup):
     c, store, _v = setup
     assert c.get(f"{API}/run", headers=H).json()["data"] == {"state": "idle", "stages": [], "agents": {}, "error": "",
-                                                             "started_at": None, "finished_at": None}
+                                                             "started_at": None, "finished_at": None, "pause": None}
     assert c.post(f"{API}/run", headers=H, json={}).status_code == 409          # nothing to read yet
     run = _read(c)
     assert run["state"] == "done" and run["error"] == ""

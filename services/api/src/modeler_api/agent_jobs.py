@@ -370,17 +370,64 @@ def dataroom_stages() -> tuple[tuple[str, str, str], ...]:
     return RUN_STAGES
 
 
-def dataroom_run(store, *, actor: str, stages=None, redo=(), files=None, use_ocr: bool = True) -> dict[str, Any]:
+DATAROOM_AGENTS = ("A6", "A7", "A8", "A9", "A10")
+
+
+def _paid_budget(store, run_id: str) -> Any:
+    """The paid models' caps for one Data room run (`platform_settings.PaidCaps`) and the ledger it records each paid
+    call to, kept beside the project store (the Data room always has a file root)."""
+    from modeler_agents.spend import SpendBudget
+
+    root = str(store.ws.store.root)
+    caps = platform_settings.PaidCaps(root).current()
+    ledger = platform_settings.PaidSpend(root)
+    where = {"tenant_id": store.ws.tenant_id, "project_id": store.ws.project_id, "run_id": run_id}
+    return SpendBudget(run_cap=caps["run_usd"], month_cap=caps["month_usd"], run_spent=ledger.run_usd(run_id),
+                       month_spent=ledger.month_usd, record=lambda row: ledger.record(row | where))
+
+
+def dataroom_run(store, *, actor: str, stages=None, redo=(), files=None, use_ocr: bool = True,
+                 resume: Literal["auto", "now"] | None = None) -> dict[str, Any]:
     """The Data room's run on `store` (a `DataRoomStore`): the files read by code (OCR included), then A6 the question, A7
     the files sorted, A8 the extraction, A9 the check and A10 the writing, each on the model the admin console set for it
-    (`chat_model`, read for each stage, so a change in the console applies to the next run); a stage whose agent has no
-    model is skipped and says so. `files`: the per-file stages for these paths only (one file extracted again). Its
-    progress is the store's `run.json`; the record is returned when it ends."""
+    (`chat_model`, read for each stage, so a change in the console applies from the next stage); a stage whose agent has
+    no model is skipped and says so. `files`: the per-file stages for these paths only (one file extracted again). Its
+    progress is the store's `run.json`; the record is returned when it ends (done, failed or paused).
+
+    Each paid model (`platform_settings.PAID_PROVIDERS`) runs behind the run's and the month's caps: reaching one pauses
+    the run (`modeler_agents.spend`). `resume`: go on with the paused run where it stopped ("auto": the clock; "now": a
+    person, or an administrator's change), `actor` being who resumed it."""
+    import uuid
+
     from modeler_agents.dataroom import run_room
+    from modeler_agents.spend import guard_paid
+
+    run_id = str(store.run().get("run_id") or "") if resume else uuid.uuid4().hex[:12]
+    budget = _paid_budget(store, run_id)
 
     def chat_for(agent: str) -> Any:
         model, problem = project_model(agent, store.ws)
-        return model if model is not None or not problem else problem     # why, said on the stage it stops
+        if model is None:
+            return problem or None                       # why, said on the stage it stops; None: agents off
+        return guard_paid(model, budget, platform_settings.PAID_PROVIDERS, agent)
 
-    return run_room(store, chat_for=chat_for, actor=actor, stages=stages, redo=redo,
-                    files=files or None, use_ocr=use_ocr)
+    return run_room(store, chat_for=chat_for, actor=actor, stages=stages, redo=redo, files=files or None,
+                    use_ocr=use_ocr, resume=resume, run_id=run_id)
+
+
+def dataroom_estimate(store) -> dict[str, Any]:
+    """What the next Data room run would cost on the paid models its agents start on (`modeler_agents.dataroom.cost`):
+    every agent's model, the files still to read, and the estimate in dollars (none when no agent is on a paid model)."""
+    from modeler_agents.dataroom.cost import estimate, files_to_do
+
+    models: dict[str, tuple[str, str]] = {}
+    for agent in DATAROOM_AGENTS:
+        model, _problem = project_model(agent, store.ws)
+        if model is not None:
+            first = model.models[0] if hasattr(model, "models") else model
+            models[agent] = (str(getattr(first, "provider", "")), str(getattr(first, "model", "")))
+    root = str(store.ws.store.root)
+    caps = platform_settings.PaidCaps(root).current()
+    return estimate(files_to_do(store), models, platform_settings.PAID_PROVIDERS) | {
+        "run_cap_usd": caps["run_usd"], "month_cap_usd": caps["month_usd"],
+        "month_spent_usd": platform_settings.PaidSpend(root).month_usd()}

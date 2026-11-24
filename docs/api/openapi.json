@@ -13882,6 +13882,31 @@
         "title": "Envelope[RoomPublished]",
         "type": "object"
       },
+      "Envelope_RoomRunEstimate_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/RoomRunEstimate"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[RoomRunEstimate]",
+        "type": "object"
+      },
       "Envelope_RoomRun_": {
         "additionalProperties": false,
         "properties": {
@@ -18819,7 +18844,7 @@
       },
       "LimitsPage": {
         "additionalProperties": false,
-        "description": "The monthly limits (console, E): each with this month's use; those at 80 % or past; the changes; what a limit can\nbe set on. A limit warns the administrator and never stops an agent; the companies' people never see it.",
+        "description": "The monthly limits (console, E): each with this month's use; those at 80 % or past; the changes; what a limit can\nbe set on. A limit warns the administrator and never stops an agent; the companies' people never see it. `paid`:\nthe hard cap on paid models, which does stop them (it pauses the run).",
         "properties": {
           "history": {
             "items": {
@@ -18838,6 +18863,9 @@
           "month": {
             "title": "Month",
             "type": "string"
+          },
+          "paid": {
+            "$ref": "#/components/schemas/PaidCaps"
           },
           "priced_as": {
             "title": "Priced As",
@@ -18869,7 +18897,8 @@
           "limits",
           "warnings",
           "history",
-          "targets"
+          "targets",
+          "paid"
         ],
         "title": "LimitsPage",
         "type": "object"
@@ -21964,6 +21993,142 @@
           "warnings"
         ],
         "title": "Overview",
+        "type": "object"
+      },
+      "PaidCapChange": {
+        "additionalProperties": false,
+        "properties": {
+          "at": {
+            "title": "At",
+            "type": "string"
+          },
+          "by": {
+            "title": "By",
+            "type": "string"
+          },
+          "month_usd": {
+            "title": "Month Usd",
+            "type": "number"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "run_usd": {
+            "title": "Run Usd",
+            "type": "number"
+          }
+        },
+        "required": [
+          "run_usd",
+          "month_usd",
+          "by",
+          "at",
+          "reason"
+        ],
+        "title": "PaidCapChange",
+        "type": "object"
+      },
+      "PaidCapSet": {
+        "description": "The hard cap on paid models (`platform_settings.PAID_PROVIDERS`), platform-wide: a run's and a calendar month's\nspend in USD. Reaching one pauses the Data room's run; free and in-house models keep the warn-only limits.",
+        "properties": {
+          "month_usd": {
+            "exclusiveMinimum": 0.0,
+            "title": "Month Usd",
+            "type": "number"
+          },
+          "reason": {
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          },
+          "run_usd": {
+            "exclusiveMinimum": 0.0,
+            "title": "Run Usd",
+            "type": "number"
+          }
+        },
+        "required": [
+          "run_usd",
+          "month_usd",
+          "reason"
+        ],
+        "title": "PaidCapSet",
+        "type": "object"
+      },
+      "PaidCaps": {
+        "additionalProperties": false,
+        "description": "The hard cap on paid models only (the owner's decision D3, 2026-11-24; `providers`), platform-wide: a run's and a\ncalendar month's spend in USD, at list prices. Reaching one pauses the Data room's run until the cap is raised or\nthe agent switched to a free model. `set_by` null: the defaults ($10 a run, $90 a month).",
+        "properties": {
+          "history": {
+            "items": {
+              "$ref": "#/components/schemas/PaidCapChange"
+            },
+            "title": "History",
+            "type": "array"
+          },
+          "month_spent_usd": {
+            "title": "Month Spent Usd",
+            "type": "number"
+          },
+          "month_usd": {
+            "title": "Month Usd",
+            "type": "number"
+          },
+          "paused_runs": {
+            "title": "Paused Runs",
+            "type": "integer"
+          },
+          "providers": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Providers",
+            "type": "array"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "run_usd": {
+            "title": "Run Usd",
+            "type": "number"
+          },
+          "set_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Set At"
+          },
+          "set_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Set By"
+          }
+        },
+        "required": [
+          "providers",
+          "run_usd",
+          "month_usd",
+          "month_spent_usd",
+          "paused_runs",
+          "set_by",
+          "set_at",
+          "reason",
+          "history"
+        ],
+        "title": "PaidCaps",
         "type": "object"
       },
       "ParamNode": {
@@ -27000,7 +27165,7 @@
       },
       "RoomRun": {
         "additionalProperties": false,
-        "description": "The Data room's background run (`modeler_agents.dataroom.run_room`): each stage with its live counts and note.",
+        "description": "The Data room's background run (`modeler_agents.dataroom.run_room`): each stage with its live counts and note,\nand, for a paused run, why and where it paused (`pause`).",
         "properties": {
           "agents": {
             "additionalProperties": {
@@ -27023,6 +27188,16 @@
               }
             ],
             "title": "Finished At"
+          },
+          "pause": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RoomRunPause"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "stages": {
             "items": {
@@ -27047,7 +27222,8 @@
               "idle",
               "running",
               "done",
-              "failed"
+              "failed",
+              "paused"
             ],
             "title": "State",
             "type": "string"
@@ -27059,9 +27235,209 @@
           "agents",
           "error",
           "started_at",
-          "finished_at"
+          "finished_at",
+          "pause"
         ],
         "title": "RoomRun",
+        "type": "object"
+      },
+      "RoomRunEstimate": {
+        "additionalProperties": false,
+        "description": "What the next run is expected to cost on paid models (`modeler_agents.dataroom.cost`; plan 2026-11-24 §2.4), from\nthe files still to read and their sizes: tokens ≈ characters / 4, per file 8.5 to 10 calls and 9,000 to 13,000\noutput tokens (measured, §2.2), each agent's share at its model's list price. `paid` false: no agent starts on a\npaid model, and the run costs nothing in dollars. The caps a paid run stops at, and this month's paid spend.",
+        "properties": {
+          "agents": {
+            "items": {
+              "$ref": "#/components/schemas/RoomRunEstimateAgent"
+            },
+            "title": "Agents",
+            "type": "array"
+          },
+          "basis": {
+            "title": "Basis",
+            "type": "string"
+          },
+          "calls_high": {
+            "title": "Calls High",
+            "type": "integer"
+          },
+          "calls_low": {
+            "title": "Calls Low",
+            "type": "integer"
+          },
+          "characters": {
+            "title": "Characters",
+            "type": "integer"
+          },
+          "files": {
+            "title": "Files",
+            "type": "integer"
+          },
+          "input_tokens_high": {
+            "title": "Input Tokens High",
+            "type": "integer"
+          },
+          "input_tokens_low": {
+            "title": "Input Tokens Low",
+            "type": "integer"
+          },
+          "month_cap_usd": {
+            "title": "Month Cap Usd",
+            "type": "number"
+          },
+          "month_spent_usd": {
+            "title": "Month Spent Usd",
+            "type": "number"
+          },
+          "output_tokens_high": {
+            "title": "Output Tokens High",
+            "type": "integer"
+          },
+          "output_tokens_low": {
+            "title": "Output Tokens Low",
+            "type": "integer"
+          },
+          "paid": {
+            "title": "Paid",
+            "type": "boolean"
+          },
+          "run_cap_usd": {
+            "title": "Run Cap Usd",
+            "type": "number"
+          },
+          "usd": {
+            "title": "Usd",
+            "type": "number"
+          },
+          "usd_high": {
+            "title": "Usd High",
+            "type": "number"
+          },
+          "usd_low": {
+            "title": "Usd Low",
+            "type": "number"
+          }
+        },
+        "required": [
+          "paid",
+          "files",
+          "characters",
+          "calls_low",
+          "calls_high",
+          "input_tokens_low",
+          "input_tokens_high",
+          "output_tokens_low",
+          "output_tokens_high",
+          "usd",
+          "usd_low",
+          "usd_high",
+          "agents",
+          "basis",
+          "run_cap_usd",
+          "month_cap_usd",
+          "month_spent_usd"
+        ],
+        "title": "RoomRunEstimate",
+        "type": "object"
+      },
+      "RoomRunEstimateAgent": {
+        "additionalProperties": false,
+        "properties": {
+          "agent": {
+            "title": "Agent",
+            "type": "string"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "paid": {
+            "title": "Paid",
+            "type": "boolean"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          }
+        },
+        "required": [
+          "agent",
+          "provider",
+          "model",
+          "paid"
+        ],
+        "title": "RoomRunEstimateAgent",
+        "type": "object"
+      },
+      "RoomRunPause": {
+        "additionalProperties": false,
+        "description": "Why and where a run paused (plan 2026-11-24 §4), and when it resumes by itself. `provider_unavailable`: no model of\nan agent's chain could answer (it resumes after 10, then 20, then 40 minutes; then `resume_at` is null and a person\nresumes it); `budget_cap`: a paid model's cap is reached (it resumes when the cap is raised or the agent switched\nto a free model); `no_model`: the agent's chosen model cannot be used (it resumes when it is set up). An\nadministrator's change of a model, a key or the cap resumes it at once; nothing finished is read again.",
+        "properties": {
+          "at": {
+            "title": "At",
+            "type": "string"
+          },
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "done": {
+            "title": "Done",
+            "type": "integer"
+          },
+          "per_file": {
+            "title": "Per File",
+            "type": "boolean"
+          },
+          "reason": {
+            "enum": [
+              "provider_unavailable",
+              "budget_cap",
+              "no_model"
+            ],
+            "title": "Reason",
+            "type": "string"
+          },
+          "resume_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resume At"
+          },
+          "said": {
+            "title": "Said",
+            "type": "string"
+          },
+          "stage": {
+            "title": "Stage",
+            "type": "string"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          },
+          "where": {
+            "title": "Where",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason",
+          "said",
+          "detail",
+          "stage",
+          "where",
+          "per_file",
+          "done",
+          "total",
+          "at",
+          "resume_at"
+        ],
+        "title": "RoomRunPause",
         "type": "object"
       },
       "RoomRunStage": {
@@ -27093,7 +27469,8 @@
               "running",
               "done",
               "skipped",
-              "failed"
+              "failed",
+              "paused"
             ],
             "title": "State",
             "type": "string"
@@ -33733,6 +34110,81 @@
         ]
       }
     },
+    "/api/v1/admin/limits/paid": {
+      "put": {
+        "description": "Change the hard cap on paid models (a fresh step-up and a reason; an audit event on the owner's chain). The runs\nthe cap paused resume at once: one still over the new cap pauses again before its next paid call.",
+        "operationId": "set_paid_cap_api_v1_admin_limits_paid_put",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "priced_as",
+            "required": false,
+            "schema": {
+              "default": "claude-opus-5-5",
+              "enum": [
+                "claude-opus-5-5",
+                "claude-sonnet-5-5",
+                "claude-haiku-5-5"
+              ],
+              "title": "Priced As",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PaidCapSet"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_LimitsPage_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set Paid Cap",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/api/v1/admin/overview": {
       "get": {
         "operationId": "overview_api_v1_admin_overview_get",
@@ -38289,7 +38741,7 @@
         ]
       },
       "post": {
-        "description": "Run the Data room in the background: the files read (OCR included), then the agents that have a model. Each\nstage's answers are kept per file, so a second run redoes only what is new, unless `redo` names the stage.",
+        "description": "Run the Data room in the background: the files read (OCR included), then the agents that have a model. Each\nstage's answers are kept per file, so a second run redoes only what is new, unless `redo` names the stage. A run\nthat stops for a reason that passes is paused, not failed, and resumes where it stopped (`run:resume`).",
         "operationId": "start_dataroom_run_api_v1_projects__project_id__dataroom_run_post",
         "parameters": [
           {
@@ -38358,6 +38810,124 @@
           }
         },
         "summary": "Start Dataroom Run",
+        "tags": [
+          "dataroom"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/dataroom/run/estimate": {
+      "get": {
+        "description": "What the next run is expected to cost on the paid models its agents start on, from the files still to read and\ntheir sizes (plan 2026-11-24 §2.4): the page asks once before a paid run starts. `paid` false: it costs nothing.",
+        "operationId": "estimate_dataroom_run_api_v1_projects__project_id__dataroom_run_estimate_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_RoomRunEstimate_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Estimate Dataroom Run",
+        "tags": [
+          "dataroom"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/dataroom/run:resume": {
+      "post": {
+        "description": "Resume a paused run now, where it stopped (plan 2026-11-24 §4): the stages and files it finished are not run\nagain. 409 when the run is not paused, or one is running.",
+        "operationId": "resume_dataroom_run_api_v1_projects__project_id__dataroom_run_resume_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_RoomRun_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Resume Dataroom Run",
         "tags": [
           "dataroom"
         ]
