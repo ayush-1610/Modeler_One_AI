@@ -70,7 +70,7 @@ async function decideLater(page: Page) {
 }
 
 test("an S5 failure: the diagnosis, learn not achievable, a signed limitation", async ({ page }) => {
-  await page.goto(`/campaigns/${ID}`);
+  await page.goto(`/campaigns/${ID}?tab=feedback`);           // the feedback tab (slice 6)
   await decideLater(page);
   await expect(page.getByTestId("feedback-pending")).toBeVisible();
   await expect(page.getByTestId("feedback-diagnosis")).toContainText("fed, and no fed study trains the model");
@@ -95,7 +95,7 @@ test("an S5 failure: the diagnosis, learn not achievable, a signed limitation", 
   await expect(page.getByRole("dialog", { name: `Your decision is needed: campaign ${ID}, stage S6` })).toBeVisible({ timeout: 30_000 });
   await expect(page.getByRole("dialog", { name: `Your decision is needed: campaign ${ID}, stage S5` })).toHaveCount(0);
 
-  await page.goto(`/campaigns/${ID}`);
+  await page.goto(`/campaigns/${ID}?tab=feedback`);           // the feedback tab (slice 6)
   await decideLater(page);                                                  // the S4/S5 signature now waits
   await expect(page.getByTestId("feedback-timeline")).toContainText("limitation");
   await expect(page.getByTestId("feedback-pending")).toHaveCount(0);
