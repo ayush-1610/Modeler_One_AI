@@ -126,3 +126,22 @@ def test_every_write_to_a_project_passes_the_owner_rule():
                 if not guarded and not any(d.dependency is owner_guard for d in route.dependencies):
                     unguarded.append(path)
     assert writes > 50 and unguarded == []
+
+
+def test_each_open_escalation_says_whether_this_person_may_decide_it(client, tmp_path):
+    # redesign review R-S02: the decision pop-up asked people who may not sign; the decide route then refused them.
+    # The list now says who may decide, with the route's own rule: the owner, or a reviewer the project is shared with.
+    pid = _shared(client)
+    root = tmp_path / "acme"
+    campaign = {"id": "camp-1", "project": pid, "compound": "Renaldrug", "question": "q", "modelRisk": "medium",
+                "budgetSeconds": 60, "elapsedSeconds": 1, "currentStage": "S1", "status": "ESCALATED", "stages": []}
+    (root / "campaigns.json").write_text(json.dumps({"campaigns": [campaign]}))
+    esc = {"stage": "S1", "reasonCode": "ROUNDS_EXHAUSTED", "evidence": "e", "options": []}
+    (root / "escalations.json").write_text(json.dumps({"escalations": [
+        {"id": "camp-1-S1", "campaignId": "camp-1", **esc},
+        {"id": "camp-9-S1", "campaignId": "camp-9", **esc}]}))      # its campaign not recorded yet: no project to check
+    seen = {who: {e["id"]: e["can_decide"] for e in client.get("/api/v1/escalations", headers=_as(who)).json()["data"]["escalations"]}
+            for who in ("ana", "ben", "rita")}
+    assert seen["ana"] == {"camp-1-S1": True, "camp-9-S1": True}       # the owner
+    assert seen["ben"] == {"camp-1-S1": False, "camp-9-S1": True}      # a curator it is shared with reads, never decides
+    assert seen["rita"] == {"camp-1-S1": True, "camp-9-S1": True}      # a reviewer it is shared with signs decisions

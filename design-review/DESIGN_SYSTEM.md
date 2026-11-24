@@ -9,6 +9,10 @@ Cloudscape Design System (app layout with navigation, help and split panels; fla
 with filter, preferences and pagination; status indicators; key-value pairs). No AWS logo, colour, typeface, icon or
 product label is used: Modeler One keeps its own mark, palette and type.
 
+> **Revision 2026-11-24 (decision D-I1):** the visual style is design option 5, "Brand Navy bar"
+> (`design-review/console-options/O5-NavyBar.dc.html`). Where this document and D-I1 differ (top bar colour, radii,
+> button and tab style, alert style, status colours), D-I1 and `apps/web/app/styles/tokens.css` win.
+
 ## 1. Principles
 1. **Evidence before decoration.** No curve, sparkline or number is drawn unless it comes from the record; a chart says
    where its data came from. A page that cannot read the API says so and shows nothing stale.

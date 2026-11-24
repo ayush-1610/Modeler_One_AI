@@ -86,6 +86,26 @@ Consequences found while checking contrast:
 **Open (Q4 in the Gate 2 summary):** the logo mark today is an indigo-to-magenta gradient (`Nav.tsx` `Logo`,
 `app/icon.svg`). Keep it as the brand mark, or redraw it in `#001B94`.
 
+## D-I1 (2026-11-24): the visual style is option 5, "Brand Navy bar"
+The owner judged slice 1's first styling too close to the look being replaced and asked for ten AWS-console design
+options before going further. Ten were drawn on one canvas, the same campaign page in each
+(`design-review/console-options/`, files `*.dc.html`; the canvas artifact is private to the owner). **Chosen: option 5,
+as drawn** (the owner declined a mix with option 1, "Console Refresh").
+- Top bar in the brand navy `#001B94`, white text (13.9:1), a white "Go to project" field, the API state as a light pill,
+  the person's initials on a white disc. The logo mark is drawn in white there (same shape; the indigo line would
+  vanish on navy).
+- Side navigation white, items rounded and inset, the current one on `#EEF2FF`; each step's state a small tinted disc;
+  "Add data" an outlined button.
+- Breadcrumbs with "/" separators; page title 28 px; status as a tinted pill beside it.
+- Panels white with a `#DADDE6` border, 10 px radius and a soft shadow; key-value cells divided by hairlines.
+- Buttons 8 px radius: secondary outlined in navy, the page's one primary filled navy.
+- Tabs as a segmented control on a `#E7EAF2` track, the current one white and raised.
+- Alerts bordered and tinted (ink text); the flash bar that asks for a person solid `#FBD332`.
+- Status labels: tinted pills with the word (pass `#166534` on `#DCFCE7`, warn `#92400E` on `#FEF3C7`, fail `#991B1B`
+  on `#FEE2E2`, each ≥ 6:1).
+- Supersedes "The top bar stays light" (consequence 2 above): the bar itself is the accent, so no second accent is
+  needed for active states on it; focus rings on the bar are white.
+
 ## Earlier owner decisions that still bind the redesign
 | Date | Decision | Source |
 |---|---|---|

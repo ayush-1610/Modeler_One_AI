@@ -68,8 +68,9 @@ test("an escalation opens as a dialog on any page, and \"Decide later\" leaves a
 
   await popup.getByTestId("escalation-later").click();
   await expect(popup).toHaveCount(0);
-  // the control stays on the next page too (the sidebar's link: the layout, and what was put off, stay)
-  await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Projects" }).click();
+  // the control stays on the next page too (the sidebar's link: the layout, and what was put off, stay); inside a
+  // project the side navigation's way out is "All projects" (the console shell, redesign slice 1)
+  await page.getByTestId("sidebar").getByRole("link", { name: "All projects" }).click();
   await expect(page).toHaveURL(/\/$/);
   await expect(waiting).toBeVisible();
   // the dashboard's attention item opens the campaign, no longer the review inbox

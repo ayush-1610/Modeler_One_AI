@@ -22,6 +22,7 @@ from modeler_api.config import SettingsDep
 from modeler_api.cpf_view import project_cpf_view
 from modeler_api.deps import get_project_store
 from modeler_api.memberships import archive_for
+from modeler_api.ownership import may_change
 from modeler_api.responses import answers, envelope
 from modeler_api.views.campaigns import CampaignPackage, Campaigns, Escalations
 from modeler_api.views.read import CpfView, Projects, ProjectSystem, Proposals, Studies, StudyRow
@@ -249,14 +250,17 @@ def get_system(project_id: str, principal: PrincipalDep, store: StoreDep):
 
 
 @router.get("/escalations", **answers(Escalations))
-def list_escalations(principal: PrincipalDep, store: StoreDep):
+def list_escalations(principal: PrincipalDep, store: StoreDep, settings: SettingsDep):
     """Open campaign escalations awaiting a signed decision, of the projects this person is a member of. An escalation
     names its campaign, not its project, so its project is its campaign's; one whose campaign is not (yet) recorded has
     no project to check and stays listed, as a campaign with no project does (the decision pop-up reads this list alone,
     so a decision is asked even before its campaign's record can be read)."""
     projects = {c.get("id"): c.get("project") for c in store.list_campaigns(principal.tenant_id)}
-    return envelope({"escalations": [e for e in store.list_escalations(principal.tenant_id)
-                                     if _member_of(principal, projects.get(e.get("campaignId")))]})
+    listed = [e for e in store.list_escalations(principal.tenant_id) if _member_of(principal, projects.get(e.get("campaignId")))]
+    # whether this person may decide each one: the rule `escalation:resolve` applies (its owner, or a reviewer it is shared
+    # with; a campaign with no project recorded has no owner to check, as the route has none) (R-S02)
+    return envelope({"escalations": [{**e, "can_decide": (not (p := projects.get(e.get("campaignId"))))
+                                      or may_change(p, principal, settings, signing=True)} for e in listed]})
 
 
 @router.get("/proposals", **answers(Proposals))

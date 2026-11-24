@@ -149,3 +149,18 @@ the owner's reviews set the pace).
 4. **`main`:** merge this session branch (the Gate work, the security fixes and another session's two commits
    `445fb51`, `cf3f6ec`) into `main` before slice 1.
 5. **QA (R-S05):** if the grant needs `auth.py` (locked), approve its own PR, or keep QA for later.
+
+**Answers (2026-11-23, the owner):** 1 authorised, slices 0 and 1, review after each; 2 one PR per slice into `main`;
+3 push the tag and the archive branch; 4 merge this branch into `main` before slice 1 (done: `main` fast-forwarded to
+`000a59d`, which holds `445fb51` and `cf3f6ec`); 5 QA without `auth.py` if possible, else its own PR, otherwise later.
+QA needs no `auth.py` change (a membership admit and the read roles), so it waits for slice 8.
+
+## 11. Deviations recorded during implementation
+| Slice | Plan said | Done instead | Why |
+|---|---|---|---|
+| 0 | push the tag and the archive branch | branch pushed; the tag push was refused (HTTP 403, this session's git access) | not worked around; the owner pushes the tag (`design-review/ARCHIVE.md`) |
+| 1 | each slice on its own branch from the integration head | slice 1 on the session branch `claude/inspiring-einstein-191gn3`, which is `main` plus slice 1 | this session may push only that branch; the PR into `main` is the same review |
+| 1 | escalation pop-up → flash bar | pop-up kept, filtered to `can_decide` (R-S02 fixed); the flash bar comes in slice 2 | an escalation whose campaign is not recorded yet has no project page; its only other home is Your work, built in slice 2 |
+| 1 | HelpPanel, SidePanel, Dialog, FlashBar, Button, Badge, StatusIndicator as components | styles in `console.css` on the existing kit pieces; the components arrive with the first page that uses them (side panel slice 4, help and flash slice 2, decision dialog slice 6) | a component no page uses yet would be untested code; slice 9 removes the old ones |
+| 1 | slice 1 styled to `DESIGN_SYSTEM.md` (light top bar) | restyled to option 5, "Brand Navy bar" | the owner's review of slice 1 (2026-11-24): too close to the old look; ten options drawn, option 5 chosen (DECISIONS D-I1) |
+| 1 | side navigation lists every page of the sitemap | only pages that exist: Your work, Campaigns, Help, project Overview, Members, Settings, Compounds and Agent activity join with their slices; a campaign page shows the portfolio navigation until slice 6 | no link to a page that is not built |

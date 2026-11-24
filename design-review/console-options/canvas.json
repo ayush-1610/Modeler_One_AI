@@ -1,0 +1,19 @@
+{"v":3,"createdOnFiles":{"v":1,"at":"2026-11-24T09:00:00Z"},"title":"Modeler One: 10 console designs","launch":{"view":"canvas"},"pages":[],
+"boards":{
+"Main.dc.html":{"x":0,"y":0,"w":1440,"h":1240,"title":"1 · Console Refresh (dark top bar, rounded containers, pill buttons)","expand":"fill"},
+"O2-Classic.dc.html":{"x":1520,"y":0,"w":1440,"h":1240,"title":"2 · Classic Console (squid-ink bar, square panels, grey header bands)","expand":"fill"},
+"O3-LightBar.dc.html":{"x":0,"y":1360,"w":1440,"h":1240,"title":"3 · Light Top Bar (the approved hi-fi prototype)","expand":"fill"},
+"O4-Compact.dc.html":{"x":1520,"y":1360,"w":1440,"h":1240,"title":"4 · Compact with split panel (dense tables, details below)","expand":"fill"},
+"O5-NavyBar.dc.html":{"x":0,"y":2720,"w":1440,"h":1240,"title":"5 · Brand Navy bar (#001B94 top bar)","expand":"fill"},
+"O6-DarkNav.dc.html":{"x":1520,"y":2720,"w":1440,"h":1240,"title":"6 · Dark side navigation","expand":"fill"},
+"O7-Tiles.dc.html":{"x":0,"y":4080,"w":1440,"h":1240,"title":"7 · Overview tiles (metric widgets on top)","expand":"fill"},
+"O8-Steps.dc.html":{"x":1520,"y":4080,"w":1440,"h":1240,"title":"8 · Workflow steps (icon rail, wizard-style step list)","expand":"fill"},
+"O9-HelpPanel.dc.html":{"x":0,"y":5440,"w":1440,"h":1240,"title":"9 · Help panel open (Info links, tools panel on the right)","expand":"fill"},
+"O10-HighContrast.dc.html":{"x":1520,"y":5440,"w":1440,"h":1240,"title":"10 · High contrast (larger text, heavier lines)","expand":"fill"}
+},
+"order":["Main.dc.html","O2-Classic.dc.html","O3-LightBar.dc.html","O4-Compact.dc.html","O5-NavyBar.dc.html","O6-DarkNav.dc.html","O7-Tiles.dc.html","O8-Steps.dc.html","O9-HelpPanel.dc.html","O10-HighContrast.dc.html"],
+"notes":{
+"title":{"x":0,"y":-320,"text":"Ten AWS-console designs for Modeler One: the same campaign page in each","kind":"title1","maxW":2960},
+"how":{"x":0,"y":-200,"w":2960,"text":"Same page, same mock data (campaign camp-7f3a, Renalide, stopped at S1 waiting for a signed decision). Only the design changes. Pick one, or mix parts: e.g. the top bar of 1, the panels of 2, the density of 4. Each artboard has an Accent tweak.","size":"m","fill":"blue"}
+},
+"designSystems":[]}

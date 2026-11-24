@@ -2,6 +2,8 @@ import type { ReactNode } from "react";
 import { headers } from "next/headers";
 import localFont from "next/font/local";
 
+// The console redesign's tokens first (design-review/DESIGN_SYSTEM.md §2-3): every colour, size and radius is one of them.
+import "./styles/tokens.css";
 import "./globals.css";
 // One stylesheet per feature (phase 7d). They load here, after the base sheet and in this order, which is the order the
 // rules had in the single sheet, so the cascade is unchanged.
@@ -21,7 +23,7 @@ import "./styles/delivery.css";
 import "./styles/cards.css";
 // To do's batch tables, the bulk bar and the reason chips (plan 2026-11-14 slice 4)
 import "./styles/batch.css";
-// the "Modeler One App" look over the shared pieces; last, so it wins (plan 2026-11-06-app-design-merge)
+// the pages' shared layout rules (Inputs rows, Start sections, skeletons, filters); the 7 Nov look and its motion are gone
 import "./styles/design.css";
 // the Data room and its report (plan 2026-11-21 v2 §10): after the look, so its drawer and print layout hold
 import "./styles/dataroom.css";
@@ -29,11 +31,13 @@ import "./styles/dataroom.css";
 import "./styles/targets.css";
 // the utilities that replaced the static inline styles (item 10); last, so each holds as the inline style did
 import "./styles/utilities.css";
+// the console: shell, header, panels, controls, tables, banners, dialogs (the redesign, slice 1); after every page sheet
+import "./styles/console.css";
 // the pages before and after the app (sign in, signed out, no access) and the account page (2026-11-24)
 import "./styles/auth.css";
 import { EscalationPopup } from "@/components/campaign/EscalationPopup";
-import { Motion } from "@/components/kit/Motion";
-import { Nav } from "@/components/Nav";
+import { Toaster } from "@/components/kit/Motion";
+import { AppShell } from "@/components/shell/AppShell";
 import { Providers } from "@/components/Providers";
 import { SHELL_HEADER } from "@/lib/oidc";
 import { signedInId, signedInName } from "@/lib/session";
@@ -77,16 +81,13 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         <a className="skip-link" href="#content">Skip to the page</a>
         {/* the sidebar is inside the providers too: its "Add data" card changes the project and refreshes the page */}
         <Providers person={person}>
-          <Motion />
+          <Toaster />
           {/* an open escalation asks for its signed decision on any page (the review inbox is gone, 2026-11-11) */}
           <EscalationPopup />
-          <div className="app">
-            <Nav user={user} />
-            <div className="content">
-              <span id="content" tabIndex={-1} className="skip-target" />
-              {children}
-            </div>
-          </div>
+          <AppShell user={user}>
+            <span id="content" tabIndex={-1} className="skip-target" />
+            {children}
+          </AppShell>
         </Providers>
       </body>
     </html>

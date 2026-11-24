@@ -12,22 +12,22 @@
   color-scheme: light;
 
   /* surfaces: a bright bench with a faint cool cast, so the two series below carry the colour */
-  --bg: #f5f5f7;
-  --surface: #ffffff;
-  --raised: #f5f5f7;
-  --line: rgba(0, 0, 0, 0.07);   /* --hairline: every 1 px border and divider */
-  --line-soft: rgba(0, 0, 0, 0.05);
+  --bg: var(--c-canvas);
+  --surface: var(--c-surface);
+  --raised: var(--c-surface-2);
+  --line: var(--c-border);   /* --hairline: every 1 px border and divider */
+  --line-soft: var(--c-surface-2);
 
   /* ink */
-  --ink: #1d1d1f;
-  --ink-dim: #6e6e73;
-  --ink-faint: #8e8e93;
-  --ink-2: #515154;      /* the lede, secondary paragraphs */
-  --ink-5: #c7c7cc;
+  --ink: var(--c-ink);
+  --ink-dim: var(--c-ink-3);
+  --ink-faint: #94A3B8;
+  --ink-2: var(--c-ink-2);      /* the lede, secondary paragraphs */
+  --ink-5: var(--c-border-2);
 
   /* the two series under comparison */
-  --sim: #0071e3;      /* predicted — the model */
-  --obs: #b25000;      /* observed — the clinic */
+  --sim: var(--c-chart-1);      /* predicted — the model */
+  --obs: var(--c-chart-2);      /* observed — the clinic */
   --on-sim: #ffffff;   /* text on a --sim fill */
 
   /* verdicts */
@@ -40,28 +40,28 @@
    * three series are the Data room's products compared: the reference, the test (original) and the reformulated one;
    * --sim and --obs above stay the model-against-observed series of the other charts. The status inks are the Data
    * room's green, amber and red, each >= 4.8:1 on the surface and on the bench. */
-  --brand-indigo: #3B1F7A;
-  --brand-ink: #3B1F7A;
-  --series-ref: #4B2A99;
-  --series-test: #1A9AA6;
-  --series-reform: #C2307A;
-  --ok-ink: #1E7B45;
-  --amber-ink: #9A5B00;
-  --bad-ink: #B3261E;
+  --brand-indigo: var(--c-accent-hover);
+  --brand-ink: var(--c-accent);
+  --series-ref: var(--c-chart-1);
+  --series-test: var(--c-chart-2);
+  --series-reform: var(--c-chart-3);
+  --ok-ink: var(--c-pass);
+  --amber-ink: var(--c-warn);
+  --bad-ink: var(--c-fail);
 
   /* Text-grade twins of the series and verdict colours: the base colours above are for dots, fills and borders (they are
    * 3.4-4.5:1 on a tint and fail AA as small text); these are >= 4.5:1 on the surface and on their own tints (a chip's
    * 14-16 % wash). --warn-ink is its own colour, no longer the observed series' --obs (plan 2026-11-14 slice 1).
    * --ink-faint is for non-text only (rules, icons, graph edges); small text uses --ink-quiet. */
-  --pass-ink: #17663a;
-  --warn-ink: #9a4500;
-  --fail-ink: #a5381f;
-  --ink-quiet: #6e6e73;
+  --pass-ink: var(--c-pass);
+  --warn-ink: var(--c-warn);
+  --fail-ink: var(--c-fail);
+  --ink-quiet: var(--c-ink-3);
   /* the filled primary button, in the brand's indigo (white on it 10:1, and 12.6:1 on its hover, the deep indigo; --sim
    * stays the chart colour) and the edge of a form control (3:1 on the surface and on the bench) */
-  --primary: #4B2A99;
-  --on-primary: #ffffff;
-  --control-border: #8a8a8e;
+  --primary: var(--c-accent);
+  --on-primary: var(--c-on-accent);
+  --control-border: var(--c-control-edge);
 
   /* risk ratings (ICH M15) and aliases */
   --low: var(--pass);
@@ -74,31 +74,31 @@
   --border: var(--line);
   --surface-2: var(--raised);
 
-  --radius-sm: 9px;
-  --radius: 14px;
-  --radius-lg: 24px;
+  --radius-sm: var(--rad-sm);
+  --radius: var(--rad-md);
+  --radius-lg: var(--rad-lg);
   --measure: 68ch;
   --ease: cubic-bezier(0.25, 1, 0.5, 1);
   --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
-  --shadow-card: 0 24px 60px -32px rgba(0, 0, 0, 0.16);
-  --hairline: rgba(0, 0, 0, 0.07);
-  --glass: rgba(255, 255, 255, 0.84);
+  --shadow-card: var(--elev-1);
+  --hairline: var(--c-border);
+  --glass: var(--c-surface);
   --fill: rgba(118, 118, 128, 0.12);
-  --fill-btn: rgba(0, 0, 0, 0.07);
+  --fill-btn: var(--c-surface-2);
   --hover-wash: rgba(0, 0, 0, 0.05);
-  --blue-deep: #0059b3;
-  --green: #34c759;
-  --indigo: #5e5ce6;
-  --surface-glass-2: rgba(255, 255, 255, 0.86);
-  --surface-modal: rgba(255, 255, 255, 0.92);
-  --shadow-card-compact: 0 12px 40px -14px rgba(0, 0, 0, 0.22);
-  --shadow-hover: 0 26px 50px -24px rgba(0, 0, 0, 0.30);
-  --shadow-sidebar-open: 24px 0 70px -28px rgba(0, 0, 0, 0.28);
-  --shadow-modal: 0 40px 100px -30px rgba(0, 0, 0, 0.40);
-  --shadow-sign: 0 30px 80px -30px rgba(0, 113, 227, 0.55);
-  --r-md: 16px;
-  --r-modal: 28px;
-  --r-ctl: 12px;
+  --blue-deep: var(--c-accent-hover);
+  --green: var(--c-pass);
+  --indigo: var(--c-chart-1);
+  --surface-glass-2: var(--c-surface);
+  --surface-modal: var(--c-surface);
+  --shadow-card-compact: var(--elev-1);
+  --shadow-hover: var(--elev-1);
+  --shadow-sidebar-open: var(--elev-2);
+  --shadow-modal: var(--elev-2);
+  --shadow-sign: var(--elev-2);
+  --r-md: var(--rad-md);
+  --r-modal: var(--rad-lg);
+  --r-ctl: var(--rad-md);
 }
 
 
@@ -110,10 +110,10 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--ink);
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", var(--font-sans), system-ui, sans-serif;
-  font-size: 15px;
+  font-family: var(--font-sans), system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  font-size: 14px;
   line-height: 1.5;
-  letter-spacing: -0.01em;
+  letter-spacing: 0;
   font-variant-numeric: tabular-nums;
   -webkit-font-smoothing: antialiased;
 }

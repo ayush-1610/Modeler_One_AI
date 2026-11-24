@@ -1,0 +1,39 @@
+/* The console's tokens (design-review/DESIGN_SYSTEM.md §2-§3; decisions G1-2, D-P1, D-P2). Every colour, size, radius
+ * and shadow of the console is one of these; dark mode, later, redefines this block only. Light only for now (the owner,
+ * G1-2). 60 % neutral, 30 % structure, 10 % accent (#001B94). Contrast ratios in DESIGN_SYSTEM.md §2. The visual
+ * style is design option 5, "Brand Navy bar", chosen by the owner 2026-11-24 (design-review/DECISIONS.md D-I1): a navy
+ * top bar, rounded navigation items, bordered panels with a soft shadow, outlined navy buttons, segmented tabs. */
+:root {
+  --c-canvas: #F5F6FA;
+  --c-surface: #FFFFFF;
+  --c-surface-2: #F1F3F8;
+  --c-surface-3: #E7EAF2;      /* the segmented tabs' track, a progress bar's rail */
+  --c-border: #DADDE6;
+  --c-border-soft: #EDEFF4;     /* rows and dividers inside a panel */
+  --c-border-2: #C5CAD6;
+  --c-control-edge: #7C8798;      /* 3.64:1 on white: input, button and checkbox edges (WCAG 1.4.11) */
+  --c-ink: #0F172A;
+  --c-ink-2: #334155;
+  --c-ink-3: #475569;             /* secondary text on any surface, tints included */
+  --c-ink-muted: #64748B;         /* white and the canvas only: 4.26:1 on a tint fails */
+  --c-accent: #001B94;            /* primary action, active navigation and tab, focus, key counts, progress */
+  --c-accent-hover: #00136B;
+  --c-accent-tint: #EEF2FF;
+  --c-on-accent: #FFFFFF;
+  --c-pass: #166534; --c-pass-bg: #DCFCE7; --c-pass-line: #9AD5AE; --c-pass-dot: #16A34A;
+  --c-warn: #92400E; --c-warn-bg: #FEF3C7; --c-warn-line: #E8C16A; --c-warn-dot: #F59E0B;
+  --c-fail: #991B1B; --c-fail-bg: #FEE2E2; --c-fail-line: #F0A9A3; --c-fail-dot: #DC2626;
+  --c-info-bg: #F0F3FF; --c-info-line: #8FA2E6;
+  --c-flash: #FBD332;           /* the flash bar that asks for a person (a decision waiting): ink on it 13:1 */
+  /* charts (D-P2, validated): the accent's chart step, observed, reformulated */
+  --c-chart-1: #2E4BC6; --c-chart-2: #B25000; --c-chart-3: #1BAF7A;
+  --c-chart-grid: #E2E8F0; --c-chart-axis: #94A3B8;
+
+  --fs-xs: 12px; --fs-sm: 13px; --fs-md: 14px; --fs-lg: 16px; --fs-xl: 20px; --fs-2xl: 24px;
+  --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 20px; --sp-6: 24px; --sp-8: 32px;
+  --rad-sm: 4px; --rad-md: 8px; --rad-lg: 10px; --rad-pill: 999px;
+  --elev-1: 0 1px 2px rgba(15, 23, 42, 0.06);
+  --elev-tab: 0 1px 2px rgba(15, 23, 42, 0.12);
+  --elev-2: 0 8px 24px rgba(15, 23, 42, 0.12);
+  --topbar-h: 52px; --sidenav-w: 256px;
+}

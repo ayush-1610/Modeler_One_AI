@@ -14526,47 +14526,17 @@
         "title": "EscalationDecided",
         "type": "object"
       },
-      "EscalationOption": {
+      "EscalationItem": {
         "additionalProperties": false,
-        "properties": {
-          "disabled": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Disabled"
-          },
-          "id": {
-            "title": "Id",
-            "type": "string"
-          },
-          "label": {
-            "title": "Label",
-            "type": "string"
-          },
-          "requiresSignature": {
-            "title": "Requiressignature",
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "id",
-          "label",
-          "requiresSignature"
-        ],
-        "title": "EscalationOption",
-        "type": "object"
-      },
-      "EscalationRecord": {
-        "additionalProperties": false,
+        "description": "An open escalation as one person reads it: the stored record, and whether this person may decide it.",
         "properties": {
           "campaignId": {
             "title": "Campaignid",
             "type": "string"
+          },
+          "can_decide": {
+            "title": "Can Decide",
+            "type": "boolean"
           },
           "evidence": {
             "title": "Evidence",
@@ -14610,9 +14580,45 @@
           "stage",
           "reasonCode",
           "evidence",
-          "options"
+          "options",
+          "can_decide"
         ],
-        "title": "EscalationRecord",
+        "title": "EscalationItem",
+        "type": "object"
+      },
+      "EscalationOption": {
+        "additionalProperties": false,
+        "properties": {
+          "disabled": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Disabled"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "requiresSignature": {
+            "title": "Requiressignature",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "requiresSignature"
+        ],
+        "title": "EscalationOption",
         "type": "object"
       },
       "EscalationResolved": {
@@ -14673,7 +14679,7 @@
         "properties": {
           "escalations": {
             "items": {
-              "$ref": "#/components/schemas/EscalationRecord"
+              "$ref": "#/components/schemas/EscalationItem"
             },
             "title": "Escalations",
             "type": "array"

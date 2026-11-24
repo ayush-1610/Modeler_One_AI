@@ -49,14 +49,10 @@ def ensure_owner(project_id: str, principal: Principal, settings: Settings, *, s
     Also called by the routes that change a project through one of its campaigns (a signed escalation decision).
     A project with no owner on record (made before memberships were kept) keeps the earlier rule, its members edit,
     until the administrator gives it an owner. The pilot's DEV principal (`*`, every project) is left as it was."""
-    if not settings.read_root or "*" in principal.projects:
-        return
-    if signing and REVIEWER in principal.roles:
+    if may_change(project_id, principal, settings, signing=signing):
         return
     memberships = memberships_for(settings, principal.tenant_id)
     owner = memberships.owner(project_id)
-    if owner is None or owner == principal.user_id:
-        return
     name = next((p.name for p in memberships.people() if p.subject == owner), owner)
     raise HTTPException(status_code=403, detail={"code": "NOT_OWNER",
                                                  "message": f"only the project's owner, {name}, changes it; it is shared "
@@ -82,3 +78,15 @@ def ensure_owner_or_admin(project_id: str, principal: Principal, settings: Setti
     allowed, who = owner_or_admin(project_id, principal, settings)
     if not allowed:
         raise HTTPException(status_code=403, detail={"code": "NOT_OWNER_OR_ADMIN", "message": f"only {who} changes this"})
+
+
+def may_change(project_id: str, principal: Principal, settings: Settings, *, signing: bool = False) -> bool:
+    """`ensure_owner`'s rule as an answer rather than a refusal: whether this person may change the project (signing: or
+    sign for it). Lists use it to say what a person may do, so a page never offers what the route will refuse (redesign
+    review R-S02: the decision pop-up asked people who may not sign)."""
+    if not settings.read_root or "*" in principal.projects:
+        return True
+    if signing and REVIEWER in principal.roles:
+        return True
+    owner = memberships_for(settings, principal.tenant_id).owner(project_id)
+    return owner is None or owner == principal.user_id

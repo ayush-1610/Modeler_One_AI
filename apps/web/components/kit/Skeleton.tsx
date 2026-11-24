@@ -38,7 +38,7 @@ export function PageSkeleton({ tone, eyebrow, title = "Loading…", stepper = fa
     <main aria-busy="true" className={wide ? "wide" : undefined}>
       <Hero tone={tone} eyebrow={eyebrow} title={title}
             lede={<span className="page-loading" role="status" data-testid="page-loading">Reading the page from the API.</span>} />
-      {stepper && <StepperSkeleton />}
+      {/* `stepper` is accepted and ignored: the steps are in the side navigation now (console redesign, slice 1) */}
       {body === "cards" && (
         <div className="skeleton skeleton-cols mt-32" aria-hidden>
           <div className="skeleton-row card" /><div className="skeleton-row card" />

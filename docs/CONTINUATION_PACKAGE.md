@@ -213,7 +213,13 @@ T-05 → T-07 → T-08 → T-18 and T-09 in parallel.
 
 ## 4. Where things stand (2026-11-22)
 
-### 4.0e 2026-11-22 → 23: redesign charter (design only so far)
+### 4.0e 2026-11-22 → 23: redesign charter, implementation started (slice 1 in review)
+**Now (2026-11-23):** the owner authorised slices 0 and 1, one PR per slice into `main`, a review after each. Slice 0:
+`main` fast-forwarded to `000a59d`; branch `archive/stylish-frontend-20261123-1601` pushed; the tag push was refused
+(403), the owner pushes it. Slice 1 (the console shell on every page, R-S02) is a PR from `claude/inspiring-einstein-191gn3`;
+**slice 2 waits for the owner's review of it.** 2026-11-24: the owner chose the visual style from ten options
+(`design-review/console-options/`, option 5 "Brand Navy bar", DECISIONS D-I1); slice 1 was restyled to it in the same PR. Deviations: the plan's §11. QA (R-S05) needs no `auth.py`: slice 8.
+
 The owner's charter: an AWS-console-inspired redesign, design first, through four approval gates; no production change
 before Gate 4 and a separate go-ahead. Everything is in `design-review/` (start at its `README.md`). Gate 1 (discovery),
 Gate 2 (sitemap, page inventory, flows, remediation plan) and Gate 3 (the low-fidelity prototype) are approved;

@@ -8245,21 +8245,15 @@ export interface components {
             /** Stage */
             stage: string;
         };
-        /** EscalationOption */
-        EscalationOption: {
-            /** Disabled */
-            disabled?: string | null;
-            /** Id */
-            id: string;
-            /** Label */
-            label: string;
-            /** Requiressignature */
-            requiresSignature: boolean;
-        };
-        /** EscalationRecord */
-        EscalationRecord: {
+        /**
+         * EscalationItem
+         * @description An open escalation as one person reads it: the stored record, and whether this person may decide it.
+         */
+        EscalationItem: {
             /** Campaignid */
             campaignId: string;
+            /** Can Decide */
+            can_decide: boolean;
             /** Evidence */
             evidence: string;
             /** Feedback */
@@ -8274,6 +8268,17 @@ export interface components {
             reasonCode: string;
             /** Stage */
             stage: string;
+        };
+        /** EscalationOption */
+        EscalationOption: {
+            /** Disabled */
+            disabled?: string | null;
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /** Requiressignature */
+            requiresSignature: boolean;
         };
         /**
          * EscalationResolved
@@ -8297,7 +8302,7 @@ export interface components {
         /** Escalations */
         Escalations: {
             /** Escalations */
-            escalations: components["schemas"]["EscalationRecord"][];
+            escalations: components["schemas"]["EscalationItem"][];
         };
         /** EstimatedFit */
         EstimatedFit: {
