@@ -348,6 +348,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/system": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * System Status
+         * @description System status (P-32, R-N08): the deployment, the execution backend, and whether the engine answers, its
+         *     configured command started without a job (`engine_check`; kept a minute; nothing is simulated).
+         */
+        get: operations["system_status_api_v1_admin_system_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/usage": {
         parameters: {
             query?: never;
@@ -7749,6 +7770,29 @@ export interface components {
             /** Kind */
             kind: string;
         };
+        /**
+         * EngineStatus
+         * @description Whether the engine answers (R-N08, `engine_check`): its kind, the command's words, the engine id and image
+         *     digest it records (null while the digest is the development placeholder), and what was checked, in words.
+         */
+        EngineStatus: {
+            /** Checked At */
+            checked_at: string;
+            /** Command */
+            command: string | null;
+            /** Detail */
+            detail: string;
+            /** Engine Id */
+            engine_id: string | null;
+            /** Image Digest */
+            image_digest: string | null;
+            /** Kind */
+            kind: string;
+            /** Reachable */
+            reachable: boolean;
+            /** Timeout S */
+            timeout_s: number;
+        };
         /** Envelope[AgentRunDetail] */
         Envelope_AgentRunDetail_: {
             data: components["schemas"]["AgentRunDetail"];
@@ -8319,6 +8363,13 @@ export interface components {
         /** Envelope[Studies] */
         Envelope_Studies_: {
             data: components["schemas"]["Studies"];
+            /** Errors */
+            errors: components["schemas"]["ErrorItem"][];
+            meta: components["schemas"]["Meta"];
+        };
+        /** Envelope[SystemStatus] */
+        Envelope_SystemStatus_: {
+            data: components["schemas"]["SystemStatus"];
             /** Errors */
             errors: components["schemas"]["ErrorItem"][];
             meta: components["schemas"]["Meta"];
@@ -14832,6 +14883,17 @@ export interface components {
             process: string;
         };
         /**
+         * SystemStatus
+         * @description System status's own read (R-N08): the deployment, the execution backend and the engine.
+         */
+        SystemStatus: {
+            /** Deployment */
+            deployment: string;
+            engine: components["schemas"]["EngineStatus"];
+            /** Execution Backend */
+            execution_backend: string;
+        };
+        /**
          * SystemView
          * @description The project's model system as stored (`pbpk_domain.system`): compounds, roles, products, analytes.
          */
@@ -16110,6 +16172,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Envelope_PipelineHealth_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    system_status_api_v1_admin_system_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_SystemStatus_"];
                 };
             };
             /** @description Validation Error */

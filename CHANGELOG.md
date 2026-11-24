@@ -15,6 +15,23 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — the console redesign, slice 8: whether the engine answers, on System status (R-N08) (2026-11-24)
+- **What:** `GET /admin/system` (the platform owner's): the deployment, the execution backend, and the engine: its kind
+  (`pksim`, `software-fixture`, `unknown`), the command's words, the engine id and image digest it records (the digest
+  null while it is the development placeholder), whether it answers, what was checked in words, and when. The check
+  (`modeler_api.engine_check`) starts the configured engine command **without a job**, its lightest call: `run_job.R`
+  loads R and its packages and stops on its usage line, `docker_engine.sh` stops on its usage line before Docker is
+  asked, the development stub starts and stops. Nothing is simulated. 20 s at most; the answer is kept a minute under
+  `<read root>/_platform/engine-check.json`, so every API process reads the same one. A software fixture is named as
+  one ("not PK-Sim: its numbers are never PBPK results"). The development default command comes through the
+  orchestrator's seam (`execution.development_engine_command`).
+- **Why:** R-N08 (design-review/BACKEND_CHANGE_REQUIREMENTS.md): System status could not say whether the engine
+  answers (the doctor has no engine probe).
+- **Impact:** an API addition (`SystemStatus`, `EngineStatus`; contract and `lib/api-types.ts` regenerated). The engine
+  scripts (locked) are only called. Tests: `test_admin_system.py` (the stub answers and is named a fixture; an R
+  runner that answers its usage line is reachable, one whose packages do not load, that does not answer in time, whose
+  program or script is missing is not; started without a job; the answer kept; the owner's only).
+
 ### Changed — the console redesign, slice 8: the QA role reads every project of its company (R-S05) (2026-11-24)
 - **What:** `modeler-qa`, offered by Admin → People until now with no effect, is a read role (`deps.READ_ROLES`,
   `read_api`, `templates_api`). A person whose roles are QA (no curator or reviewer role) is admitted to **every project
