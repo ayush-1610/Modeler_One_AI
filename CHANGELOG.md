@@ -30,6 +30,11 @@ chain (R-B13) and `pbpk_domain.snapshot.parameter_transfer` (R-B13b) stay until 
   by code takes its facts through `client-review:finish`, and any study fact of a dataset is set through
   `datasets/{id}:study` (the same `set_study_facts`, used by Studies, To do and Individuals), so no fact could be
   corrected only through `:edit`.
+- **`/templates`, its prerequisite first** (REMEDIATION §2, #10–11): a starting point's content (its CPF and studies)
+  is built by `reference_models.starting_point` (services, not a router; moved from `templates_api`, behaviour
+  unchanged), which the two consumers now read directly: `e2e/campaign-monitor.spec.ts` through a new fixture
+  (`e2e/fixtures/starting_point.py`) and `deploy/showcase/seed_examples.py` (it checks the API answers on `/health`
+  and no longer seeds the blank "your own compound", which has nothing to run).
 
 ### Changed — the console redesign, slice 8: the admin console in the console style, a Companies page (2026-11-24)
 - **What:**

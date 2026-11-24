@@ -82,21 +82,27 @@ def api(base: str, method: str, path: str, body: Any = None, timeout: float = 30
 def examples(base: str) -> list[Example]:
     """Every wizard template (the published single-compound models and the illustrative check), its refit twin for
     the plan-exit drugs, and every model system."""
+    from modeler_api.config import get_settings
+    from modeler_api.reference_models import starting_point, starting_points
     from pbpk_domain.cpf.models import CPF
     from pbpk_domain.reference import import_osp_system
     from pbpk_domain.reference.refit import refit_cpf
     from pbpk_domain.system import links_of
 
-    status, body = api(base, "GET", "/api/v1/templates")
+    status, body = api(base, "GET", "/health")
     if status != 200:
         raise SystemExit(f"the API does not answer at {base}: {status} {body}")
     out: list[Example] = []
-    for summary in body["data"]["templates"]:
-        st, full = api(base, "GET", f"/api/v1/templates/{summary['id']}")
-        if st != 200:
-            print(f"  ! template {summary['id']}: {st} {full.get('detail')}", flush=True)
+    # the platform's starting points, read from its registry (the `/templates` routes are retired, the console
+    # redesign's slice 9); the blank "your own compound" has nothing to run
+    for summary in starting_points():
+        if summary["blank"]:
             continue
-        t = full["data"]
+        try:
+            t = starting_point(summary["id"], get_settings())
+        except (FileNotFoundError, ValueError) as exc:
+            print(f"  ! starting point {summary['id']}: {exc}", flush=True)
+            continue
         mode = "as published" if t["real_data"] else "illustrative"
         out.append(Example(id=f"{t['id']}-as-is", name=f"{PREFIX}{summary['compound']} ({mode})", compound=t["compound"],
                            question=t["question"], real_data=t["real_data"], cpfs={t["compound"]: t["cpf"]},

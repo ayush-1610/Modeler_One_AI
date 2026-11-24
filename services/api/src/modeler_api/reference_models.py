@@ -1,12 +1,18 @@
 """The published OSP models the platform carries, and the other project starting points (services, not a router).
 
-The Inputs step takes a published model's values and datasets as a source (`evidence:published-model`); the templates
-route lists the same models. The snapshots are the OSP reference files harvested for the engine catalog (T-02).
+The Inputs step takes a published model's values and datasets as a source (`evidence:published-model`). A starting
+point's content (`starting_point`: its CPF and studies) is what scripts build a project from: the showcase seeder, the
+reference runs and the e2e specs (the `/templates` routes that served it are retired, the console redesign's slice 9).
+The snapshots are the OSP reference files harvested for the engine catalog (T-02). The published one is imported on
+request (`pbpk_domain.reference`): its CPF and its real clinical studies, straight from the peer-reviewed snapshot. The
+illustrative one is a small hand-made set kept for a fast software check of the pipeline; it says so in its label and
+in every study's reference, so its numbers are never mistaken for evidence.
 """
 
 from __future__ import annotations
 
 import json
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -102,3 +108,71 @@ def snapshot(spec: dict[str, Any], settings: Settings) -> dict[str, Any]:
     if not path.is_file():
         raise FileNotFoundError(f"reference model {spec['snapshot']} is not installed at {path.parent}")
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+# --- a starting point's content ---------------------------------------------------------------------------------------
+
+
+@lru_cache(maxsize=8)
+def _published(snapshot_path: str) -> dict[str, Any]:
+    from pbpk_domain.reference import import_osp_snapshot
+
+    imported = import_osp_snapshot(json.loads(Path(snapshot_path).read_text(encoding="utf-8")))
+    if imported.unplaced:
+        raise ValueError("the model has parts the builder cannot place: " + "; ".join(imported.unplaced))
+    return {
+        "cpf": imported.cpf.model_dump(mode="json", exclude={"created_at"}),
+        # the clinical data the published model was built and qualified with (plan §9.4)
+        "studies": [{**study, "origin": "OSP_LIBRARY"} for study in imported.studies],
+        "skipped": list(imported.skipped),
+        "notes": list(imported.notes),
+        "source": imported.source,
+    }
+
+
+# The S0 gate's parameters (pbpk_domain.cpf.completeness), empty: a user's own compound starts from these. The
+# elimination pathway is PK-Sim's total hepatic clearance, bound as the OSP models bind it (harvested: OSP Digoxin
+# "Total Hepatic Clearance", LiverClearance "Plasma clearance" in ml/min/kg); other processes are added as records.
+_BLANK_PARAMETERS = (("phys.mw", "g/mol", None), ("phys.logp", "Log Units", None), ("phys.pka.neutral", None, None),
+                     ("bind.fu", None, None), ("phys.solubility.ref", "mg/ml", None),
+                     ("elim.hepatic.total.plasma_clearance", "ml/min/kg",
+                      {"building_block": "Compound", "parameter": "Plasma clearance", "process": "LiverClearance",
+                       "data_source": "Literature"}))
+
+
+def _content(template_id: str, spec: dict[str, Any], settings: Settings) -> dict[str, Any]:
+    if spec.get("blank"):
+        cpf = {"compound": spec["compound"], "parameters": [
+            {"id": pid, "value": None, "unit": unit, "status": "MISSING", **({"engine_binding": eb} if eb else {})}
+            for pid, unit, eb in _BLANK_PARAMETERS]}
+        return {"cpf": cpf, "studies": [], "skipped": [], "notes": [], "source": "your own data"}
+    if "snapshot" in spec:
+        path = reference_dir(settings) / spec["snapshot"]
+        if not path.is_file():
+            raise FileNotFoundError(f"reference model {spec['snapshot']} is not installed at {path.parent}")
+        try:
+            return _published(str(path))
+        except ValueError as exc:
+            raise ValueError(f"starting point {template_id}: {exc}") from exc
+    data = json.loads((_HERE / "templates" / spec["file"]).read_text(encoding="utf-8"))
+    # hand-made example data: it runs the pipeline but is never evidence (plan §9.4 item 4)
+    studies = [{**study, "origin": "ILLUSTRATIVE"} for study in data["studies"]]
+    return {"cpf": data["cpf"], "studies": studies, "skipped": [], "notes": [], "source": "illustrative"}
+
+
+def _summary(template_id: str, spec: dict[str, Any]) -> dict[str, Any]:
+    return {"id": template_id, "blank": bool(spec.get("blank")),
+            **{k: spec[k] for k in ("name", "compound", "question", "model_risk", "real_data", "description")}}
+
+
+def starting_points() -> list[dict[str, Any]]:
+    """Every starting point's summary, the published real-data model first."""
+    return [_summary(tid, spec) for tid, spec in TEMPLATES.items()]
+
+
+def starting_point(template_id: str, settings: Settings) -> dict[str, Any]:
+    """One starting point in full: its summary, the CPF, the studies in the upload shape, and what was left out and
+    why. KeyError for an unknown id; FileNotFoundError when its snapshot is not installed; ValueError when the
+    builder cannot place a part of the model."""
+    spec = TEMPLATES[template_id]
+    return _summary(template_id, spec) | _content(template_id, spec, settings)
