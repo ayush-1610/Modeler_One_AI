@@ -103,6 +103,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/companies/{tenant_id}/data-permissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Put Data Permissions
+         * @description Record where the company's client files may go, for all its people and projects at once: in-house only, or the
+         *     cloud services the client allowed, each with the client's written permission (its reference) and when it ends. The
+         *     administrator alone sets it; the company's people do not see it (the owner, 2026-11-24). A fresh step-up and a
+         *     reason; an audit event on the company's chain (`company.data_permissions.set`). The agents follow it from their next
+         *     request.
+         */
+        put: operations["put_data_permissions_api_v1_admin_companies__tenant_id__data_permissions_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/companies/{tenant_id}:disable": {
         parameters: {
             query?: never;
@@ -1236,34 +1260,6 @@ export interface paths {
         get: operations["get_compound_cpf_api_v1_projects__project_id__compounds__compound__cpf_get"];
         /** Put Cpf */
         put: operations["put_cpf_api_v1_projects__project_id__compounds__compound__cpf_put"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/projects/{project_id}/data-permissions": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Data Permissions
-         * @description Where this project's client files may be sent for an AI model to read: in-house only unless a cloud service has
-         *     the client's recorded permission; whether the reader may change it (its owner or an administrator).
-         */
-        get: operations["get_data_permissions_api_v1_projects__project_id__data_permissions_get"];
-        /**
-         * Put Data Permissions
-         * @description Record where this project's client files may go, as a whole: in-house only, or the cloud services the client
-         *     allowed, each with the client's written permission (its reference) and when it ends. Only the project's owner or an
-         *     administrator (403 `NOT_OWNER_OR_ADMIN`). Confirmed with the step-up and audited; the agents follow it from their
-         *     next request.
-         */
-        put: operations["put_data_permissions_api_v1_projects__project_id__data_permissions_put"];
         post?: never;
         delete?: never;
         options?: never;
@@ -4741,10 +4737,11 @@ export interface components {
         };
         /**
          * CompanyPage
-         * @description One company: its people (each who has signed in) and its projects, archived ones included; its name, and why it is
-         *     disabled when it is.
+         * @description One company: its people (each who has signed in) and its projects, archived ones included; its name, why it is
+         *     disabled when it is, and where its client files may go.
          */
         CompanyPage: {
+            data_permissions: components["schemas"]["DataPermissionsView"];
             /** Disabled Reason */
             disabled_reason: string | null;
             /** Name */
@@ -5085,7 +5082,7 @@ export interface components {
         };
         /**
          * DataGrant
-         * @description One cloud service a project's client files may be sent to: the client's written permission it rests on.
+         * @description One cloud service a company's client files may be sent to: the client's written permission it rests on.
          */
         DataGrant: {
             /** At */
@@ -5147,9 +5144,9 @@ export interface components {
         };
         /**
          * DataPermissionsView
-         * @description Where this project's client files may be sent for an AI model to read (the governance review, 2026-11-22):
-         *     in-house only unless a cloud service has the client's recorded permission. `services`: every cloud service there
-         *     is; `history`: each change, newest first.
+         * @description Where a company's client files may be sent for an AI model to read (the governance review, 2026-11-22), for every
+         *     project of the company (the owner, 2026-11-24): in-house only unless a cloud service has the client's recorded
+         *     permission. `services`: every cloud service there is; `history`: each change, newest first.
          */
         DataPermissionsView: {
             /** Grants */
@@ -5160,10 +5157,8 @@ export interface components {
             in_house_only: boolean;
             /** Services */
             services: components["schemas"]["DataService"][];
-            /** Who Changes It */
-            who_changes_it: string;
-            /** You Change It */
-            you_change_it: boolean;
+            /** Tenant Id */
+            tenant_id: string;
         };
         /**
          * DataPlanStatus
@@ -7901,13 +7896,6 @@ export interface components {
         /** Envelope[CpfView] */
         Envelope_CpfView_: {
             data: components["schemas"]["CpfView"];
-            /** Errors */
-            errors: components["schemas"]["ErrorItem"][];
-            meta: components["schemas"]["Meta"];
-        };
-        /** Envelope[DataPermissionsView] */
-        Envelope_DataPermissionsView_: {
-            data: components["schemas"]["DataPermissionsView"];
             /** Errors */
             errors: components["schemas"]["ErrorItem"][];
             meta: components["schemas"]["Meta"];
@@ -15623,6 +15611,43 @@ export interface operations {
             };
         };
     };
+    put_data_permissions_api_v1_admin_companies__tenant_id__data_permissions_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                tenant_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DataPermissionsBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_CompanyPage_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     disable_company_api_v1_admin_companies__tenant_id__disable_post: {
         parameters: {
             query?: never;
@@ -17923,76 +17948,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Envelope_CpfView_"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_data_permissions_api_v1_projects__project_id__data_permissions_get: {
-        parameters: {
-            query?: never;
-            header?: {
-                authorization?: string | null;
-            };
-            path: {
-                project_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Envelope_DataPermissionsView_"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    put_data_permissions_api_v1_projects__project_id__data_permissions_put: {
-        parameters: {
-            query?: never;
-            header?: {
-                authorization?: string | null;
-            };
-            path: {
-                project_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["DataPermissionsBody"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Envelope_DataPermissionsView_"];
                 };
             };
             /** @description Validation Error */

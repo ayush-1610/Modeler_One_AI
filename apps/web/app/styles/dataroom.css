@@ -349,13 +349,3 @@
   .dr-print-requests pre { white-space: pre-wrap; font-family: inherit; font-size: 11pt; line-height: 1.5; }
 }
 
-/* where the project's files may go (the governance review, 2026-11-22) */
-.dr-files-go { margin: 12px 0 16px; padding: 10px 14px; border: 1px solid var(--line, #e5e5ea); border-radius: 10px; font-size: 14px; line-height: 20px; }
-.dr-files-go p { margin: 0; }
-.dr-files-go-form { margin-top: 10px; display: grid; gap: 10px; }
-.dr-files-go-row { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: flex-end; padding: 6px 0; }
-.dr-files-go-row label, .dr-files-go-why { display: grid; gap: 4px; }
-.dr-files-go-row label:first-child { display: flex; align-items: center; gap: 6px; min-width: 220px; }
-.dr-files-go-acts { display: flex; gap: 8px; flex-wrap: wrap; }
-@media print { .dr-files-go { display: none; } }
-.dr-files-go-history summary { cursor: pointer; color: var(--muted, #6e6e73); }

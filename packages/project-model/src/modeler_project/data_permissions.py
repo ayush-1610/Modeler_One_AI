@@ -1,14 +1,18 @@
-"""Where a project's client files may be sent for an AI model to read (the governance review of model failover,
+"""Where a company's client files may be sent for an AI model to read (the governance review of model failover,
 2026-11-22, requirements 1-4 and 13).
 
-A project starts in-house only: its files go to no cloud service, whatever model an agent is set to or falls back
-on. A cloud service is allowed for a project only with a recorded permission: who recorded it and when, the basis
-(the client's written consent, by its reference) and when it ends. "The owner's word is not the client's consent":
-the record names the client's own document. Every change is audited and kept in the project's history.
+One record per company (tenant), kept by an administrator on Admin → Companies for all of its people and projects at
+once (the owner, 2026-11-24: the setting is not shown to the company's people; it was a per-project panel on the Data
+room before). A company starts in-house only: its files go to no cloud service, whatever model an agent is set to or
+falls back on. A cloud service is allowed only with a recorded permission: who recorded it and when, the basis (the
+client's written consent, by its reference) and when it ends. "The owner's word is not the client's consent": the
+record names the client's own document. Every change is audited on the company's chain and kept in its history.
 
 The gate itself (`allows`) is applied where an agent's model is built for a project's work
-(`modeler_api.agent_jobs.project_model`): a model the project does not allow is left out, and with none left the work
-stops and says what to record.
+(`modeler_api.agent_jobs.project_model`): a model the project's company does not allow is left out, and with none left
+the work stops and says what to record. The per-project records the earlier panel wrote
+(`<tenant>/projects/<id>/data_permissions.json`) are no longer read: every company is in-house only until an
+administrator records its permission here.
 """
 
 from __future__ import annotations
@@ -45,13 +49,17 @@ def service_label(provider: str) -> str:
 
 
 class DataPermissions:
-    """A project's record of where its client files may be sent."""
+    """A company's record of where its client files may be sent (every project of the company follows it)."""
 
-    def __init__(self, ws: Workspace):
-        self.ws = ws
-        root = getattr(ws.store, "root", None)
-        self.path: Path | None = (Path(root) / ws.tenant_id / "projects" / ws.project_id / "data_permissions.json"
-                                  if root else None)
+    def __init__(self, store: Any, tenant_id: str):
+        self.store, self.tenant_id = store, tenant_id
+        root = getattr(store, "root", None)
+        self.path: Path | None = Path(root) / tenant_id / "data_permissions.json" if root else None
+
+    @classmethod
+    def of(cls, ws: Workspace) -> DataPermissions:
+        """The record that governs a project's files: its company's."""
+        return cls(ws.store, ws.tenant_id)
 
     def doc(self) -> dict[str, Any]:
         if self.path is None or not self.path.exists():
@@ -59,7 +67,7 @@ class DataPermissions:
         return json.loads(self.path.read_text(encoding="utf-8"))
 
     def allows(self, provider: str, today: date | None = None) -> bool:
-        """Whether this project's files may go to `provider` today: a cloud service (`CLOUD_SERVICES`, where every
+        """Whether the company's files may go to `provider` today: a cloud service (`CLOUD_SERVICES`, where every
         new cloud provider must be named) only with a permission in force; anything else keeps the files here."""
         if provider not in CLOUD_SERVICES:       # the in-house model, a test double: no file leaves the server
             return True
@@ -71,7 +79,7 @@ class DataPermissions:
         return not ends or (today or datetime.now(UTC).date()).isoformat() <= ends
 
     def set(self, *, in_house_only: bool, services: dict[str, dict[str, str]], by: str, reason: str) -> dict[str, Any]:
-        """Record the project's permissions as a whole (each service: its basis, the client's reference, its end)."""
+        """Record the company's permissions as a whole (each service: its basis, the client's reference, its end)."""
         if not reason.strip():
             raise PermissionError_("a change needs a reason")
         clean: dict[str, dict[str, str]] = {}
@@ -93,15 +101,15 @@ class DataPermissions:
             clean[provider] = {"basis": (grant.get("basis") or "the client's written consent").strip(),
                                "reference": reference, "expires": ends, "by": by, "at": _now()}
         if self.path is None:
-            raise PermissionError_("this project has no file store to keep its permissions in")
+            raise PermissionError_("this company has no file store to keep its permissions in")
         with file_lock(self.path):
             before = self.doc()
             entry = {"in_house_only": in_house_only, "services": clean, "by": by, "at": _now(), "reason": reason.strip()}
             doc = {"in_house_only": in_house_only, "services": clean, "history": [*before.get("history", []), entry]}
             self.path.parent.mkdir(parents=True, exist_ok=True)
             self.path.write_text(json.dumps(doc, indent=1, ensure_ascii=False), encoding="utf-8")
-        self.ws.store.audit(self.ws.tenant_id).append(
-            actor=by, action="project.data_permissions.set", resource_type="project", resource_id=self.ws.project_id,
+        self.store.audit(self.tenant_id).append(
+            actor=by, action="company.data_permissions.set", resource_type="tenant", resource_id=self.tenant_id,
             before={"in_house_only": before.get("in_house_only", True), "services": sorted(before.get("services", {}))},
             after={"in_house_only": in_house_only, "services": {p: g["reference"] for p, g in clean.items()}},
             reason=reason.strip())

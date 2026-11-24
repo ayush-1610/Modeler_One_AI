@@ -204,14 +204,15 @@ New projects use the Data room as their Inputs step (existing projects keep thei
       client who has agreed.
   - **A sensible list for client work today:** gpt-oss-120b (GroqCloud, Zero Data Retention on) behind the in-house
     Qwen Coder. For tests on made-up data, add Nemotron Ultra.
-  - **Each project decides where its files may go.** A project is in-house only until you record, on its Data room page
-    ("Where the files may go" → Change), the client's written permission for a cloud service: its reference (a letter,
-    an email, a contract clause), an end date if it has one, and why. A change asks you to confirm your identity and is
-    audited.
-    - Until then, a cloud model in an agent's setting or in the list is left out for that project's files.
-    - With no model left, the agent stops and says what to record. Set the agent to Qwen Coder, or record the
-      permission.
-    - Projects made before 2026-11-23 start in-house only too.
+  - **Each company has one setting for where its files may go, kept by the administrator.** A company is in-house only
+    until the administrator records, on Admin → Companies → the company ("Where its files may go" → Change), the
+    client's written permission for a cloud service: its reference (a letter, an email, a contract clause), an end date
+    if it has one, and why. It applies to every person and project of that company at once; the company's people do not
+    see it. A change asks you to confirm your identity and is audited on the company's trail.
+    - Until then, a cloud model in an agent's setting or in the list is left out for that company's files.
+    - With no model left, the agent stops and says an administrator must record the permission. Set the agent to Qwen
+      Coder, or record the permission.
+    - Permissions recorded on a single project before 2026-11-24 are no longer used: record them again for the company.
   - **The evidence report says how it was made:** which model and service wrote each answer, and any switch. A9 checks
     each extraction on another model than the one that wrote it, when the list has one; otherwise its note says it is
     not a second opinion.
@@ -273,10 +274,11 @@ Coder. It is LiteLLM's own master key, set when LiteLLM was started on the serve
 - one click per agent: Qwen Coder (in-house), gpt-oss-120b (GroqCloud), Nemotron Ultra (NVIDIA), Claude;
 - "When a model cannot answer": the models every agent goes on with, in order (§6a).
 
-**Step 6. Allow it for the project.** A project's client files go to no cloud service until its owner or an
-administrator records the client's written permission: Data room → "Where the files may go" → Change → tick the
+**Step 6. Allow it for the company.** A company's client files go to no cloud service until the administrator records
+the client's written permission: Admin → Companies → the company → "Where its files may go" → Change → tick the
 service, name the client's document (a letter, an email, a contract clause), add an end date if there is one, and a
-reason. Until then the agents use the in-house model only for that project, and stop and say so if they have none.
+reason. It applies to all the company's projects at once. Until then the agents use the in-house model only for that
+company's files, and stop and say so if they have none.
 
 **Step 7. Check it works.** Admin → System status shows each service's active key, its last test and whether the
 agents have a model. On a project, the Data room's run says which model wrote each answer, and the evidence report's

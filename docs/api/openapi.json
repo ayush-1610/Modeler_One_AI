@@ -3516,8 +3516,11 @@
       },
       "CompanyPage": {
         "additionalProperties": false,
-        "description": "One company: its people (each who has signed in) and its projects, archived ones included; its name, and why it is\ndisabled when it is.",
+        "description": "One company: its people (each who has signed in) and its projects, archived ones included; its name, why it is\ndisabled when it is, and where its client files may go.",
         "properties": {
+          "data_permissions": {
+            "$ref": "#/components/schemas/DataPermissionsView"
+          },
           "disabled_reason": {
             "anyOf": [
               {
@@ -3566,7 +3569,8 @@
           "people",
           "projects",
           "usage",
-          "priced_as"
+          "priced_as",
+          "data_permissions"
         ],
         "title": "CompanyPage",
         "type": "object"
@@ -4573,7 +4577,7 @@
       },
       "DataGrant": {
         "additionalProperties": false,
-        "description": "One cloud service a project's client files may be sent to: the client's written permission it rests on.",
+        "description": "One cloud service a company's client files may be sent to: the client's written permission it rests on.",
         "properties": {
           "at": {
             "title": "At",
@@ -4681,7 +4685,7 @@
       },
       "DataPermissionsView": {
         "additionalProperties": false,
-        "description": "Where this project's client files may be sent for an AI model to read (the governance review, 2026-11-22):\nin-house only unless a cloud service has the client's recorded permission. `services`: every cloud service there\nis; `history`: each change, newest first.",
+        "description": "Where a company's client files may be sent for an AI model to read (the governance review, 2026-11-22), for every\nproject of the company (the owner, 2026-11-24): in-house only unless a cloud service has the client's recorded\npermission. `services`: every cloud service there is; `history`: each change, newest first.",
         "properties": {
           "grants": {
             "items": {
@@ -4708,19 +4712,14 @@
             "title": "Services",
             "type": "array"
           },
-          "who_changes_it": {
-            "title": "Who Changes It",
+          "tenant_id": {
+            "title": "Tenant Id",
             "type": "string"
-          },
-          "you_change_it": {
-            "title": "You Change It",
-            "type": "boolean"
           }
         },
         "required": [
+          "tenant_id",
           "in_house_only",
-          "you_change_it",
-          "who_changes_it",
           "grants",
           "services",
           "history"
@@ -12950,31 +12949,6 @@
           "errors"
         ],
         "title": "Envelope[CpfView]",
-        "type": "object"
-      },
-      "Envelope_DataPermissionsView_": {
-        "additionalProperties": false,
-        "properties": {
-          "data": {
-            "$ref": "#/components/schemas/DataPermissionsView"
-          },
-          "errors": {
-            "items": {
-              "$ref": "#/components/schemas/ErrorItem"
-            },
-            "title": "Errors",
-            "type": "array"
-          },
-          "meta": {
-            "$ref": "#/components/schemas/Meta"
-          }
-        },
-        "required": [
-          "data",
-          "meta",
-          "errors"
-        ],
-        "title": "Envelope[DataPermissionsView]",
         "type": "object"
       },
       "Envelope_DataRoomView_": {
@@ -33649,6 +33623,75 @@
         ]
       }
     },
+    "/api/v1/admin/companies/{tenant_id}/data-permissions": {
+      "put": {
+        "description": "Record where the company's client files may go, for all its people and projects at once: in-house only, or the\ncloud services the client allowed, each with the client's written permission (its reference) and when it ends. The\nadministrator alone sets it; the company's people do not see it (the owner, 2026-11-24). A fresh step-up and a\nreason; an audit event on the company's chain (`company.data_permissions.set`). The agents follow it from their next\nrequest.",
+        "operationId": "put_data_permissions_api_v1_admin_companies__tenant_id__data_permissions_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tenant_id",
+            "required": true,
+            "schema": {
+              "title": "Tenant Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DataPermissionsBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_CompanyPage_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Data Permissions",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/api/v1/admin/companies/{tenant_id}:disable": {
       "post": {
         "description": "Every person of the company can no longer sign in (their sessions end as their tokens expire); its projects,\nrecords and people are kept, and enabling it lets the same people in again.",
@@ -38028,132 +38071,6 @@
         "summary": "Put Cpf",
         "tags": [
           "write"
-        ]
-      }
-    },
-    "/api/v1/projects/{project_id}/data-permissions": {
-      "get": {
-        "description": "Where this project's client files may be sent for an AI model to read: in-house only unless a cloud service has\nthe client's recorded permission; whether the reader may change it (its owner or an administrator).",
-        "operationId": "get_data_permissions_api_v1_projects__project_id__data_permissions_get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "project_id",
-            "required": true,
-            "schema": {
-              "title": "Project Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Envelope_DataPermissionsView_"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Get Data Permissions",
-        "tags": [
-          "dataroom"
-        ]
-      },
-      "put": {
-        "description": "Record where this project's client files may go, as a whole: in-house only, or the cloud services the client\nallowed, each with the client's written permission (its reference) and when it ends. Only the project's owner or an\nadministrator (403 `NOT_OWNER_OR_ADMIN`). Confirmed with the step-up and audited; the agents follow it from their\nnext request.",
-        "operationId": "put_data_permissions_api_v1_projects__project_id__data_permissions_put",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "project_id",
-            "required": true,
-            "schema": {
-              "title": "Project Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/DataPermissionsBody"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Envelope_DataPermissionsView_"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Put Data Permissions",
-        "tags": [
-          "dataroom"
         ]
       }
     },
