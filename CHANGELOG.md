@@ -32,7 +32,8 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
 - **Impact:** no API change; every test id kept, each on the page once. Specs updated for one card at a time
   (`client-data`, `delivery`, `inputs-a11y` (each study's and product's card checked in turn), `inputs-blinded-follow`,
   `inputs-data-cards` (Next, the panel's name, focus, position and Escape), `inputs-frame`, `inputs-owner-job`,
-  `inputs-task-first` (CODE-1: each card's links land on its own form, one card on the page at a time)); new spec helpers
+  `inputs-task-first` (CODE-1: each card's links land on its own form, one card on the page at a time), `client-confirm`
+  (a study linked to its other name is opened on its new card)); new spec helpers
   `openCard` and `openStudy` (`e2e/fixtures/inputs.ts`).
 
 ### Changed — the console redesign, slice 4a: the Data plan, the Data room in Inputs' words, the model system on Inputs (2026-11-24)
