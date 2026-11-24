@@ -13286,6 +13286,11 @@ export interface components {
         /** Section */
         Section: {
             /**
+             * Computed
+             * @default
+             */
+            computed: string;
+            /**
              * Finding
              * @default
              */
@@ -14459,6 +14464,8 @@ export interface components {
             t_half: number | null;
             /** Tmax */
             tmax: number | null;
+            /** Tmax Actual */
+            tmax_actual: number | null;
             /** Treatment */
             treatment: string;
         };

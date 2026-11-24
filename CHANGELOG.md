@@ -58,6 +58,74 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
   `apps/web/lib/api-types.ts` regenerated. Tests: `services/api/tests/test_project_list_with.py` (same steps as the
   route, a member sees only what is shared with them, payload unchanged without `with`, unknown part refused).
 
+### Fixed — the Data room's second layer: no silent wrong number, and code refuses what the AI describes wrong (2026-11-24)
+- **Why:**
+  - The same three new deliveries, read end to end by Nemotron Ultra, came out 61 % right while code was 97 % right on
+    correct descriptions.
+  - The rest was the AI describing wrongly, with code accepting it silently, and nine code faults the first layer had
+    not reached.
+- **No silent wrong number:**
+  - **Quoted values.** A quoted "0,058 mg/mL" was 58. It is now left for the modeler: a decimal comma in a quote is not
+    guessed, as before for "2,5".
+  - **Bounds.** "> 20 mg/mL" was 20; a bound ("> 20", "NLT 85 %", "less than") is no longer read as a value
+    (`extract.is_bound`). A solubility bound is kept as written, with no number.
+  - **pH.** "pH 4,5" was 4.0; it is now 4.5.
+  - **The client's AUC to infinity** is now checked subject by subject, as Cmax and AUC to the last sample were
+    (`NCA_DIFFERS`). The observed-data finding counts the subject values that differ: one off by 4 % had hidden in an
+    arm's geometric mean.
+  - **Cell-assay permeability.** A Caco-2, MDCK or PAMPA Papp (cm/s) went into PK-Sim's "Specific intestinal
+    permeability" with no conversion. It is now kept as evidence and not sent: it needs a calibration, or PK-Sim's
+    estimate from lipophilicity. Only a value in cm/min stated as that parameter passes.
+  - **pKa.** An ampholyte's acidic and basic pKa are two values, not a conflict.
+  - **Solubility medium.** A solubility fact's medium is the medium it names, never the substance's name taken for one.
+  - **Units.** A solubility column described without its unit takes the unit its own header writes.
+  - **Food state per arm.** Each arm's food state comes from its own definition: a food-effect study's fasted arms
+    showed "fed".
+  - **The writer's text** replaces code's finding only while code still finds what it found when the text was written
+    (`writing.basis`). A line written before the room changed said "No dissolution profiles" beside three.
+- **Code refuses, so the AI corrects** (the refusals go back to A8 through its submit tool):
+  - **Markers against the file's own legend.** "NQ" listed as a missing sample where the footnote reads "NQ = not
+    quantifiable (< 0.20 ng/mL)" is refused (`MARKER_IS_BELOW_LLOQ`; the reverse is `MARKER_IS_NO_SAMPLE`). It had
+    shrunk the AUC set from 9 subjects to 1 and raised the AUCs by 57 %.
+  - **Colliding lines.** Lines that collide (a subject, occasion and time with two values) are refused, naming the
+    column that separates them. A "Day" column given the role group had collided about 230 samples.
+  - **A count is not a set.** A count ("18 subjects") is refused where a set lists its subjects.
+  - **Triage.** A file that states a study's design, its subjects and a dose cannot be sorted as context: the synopsis
+    had been left unread, and with it the codes, the dose and an excluded subject. Triage now sees 80 lines of each
+    part, not 40.
+- **Joins say when they fail:**
+  - A batch written inside a longer label ("Tablet, Lot NP-R-2201") and a product named with more words ("…, batch
+    ZT-R-118") now meet their names (`invitro.named_in`).
+  - "Treatment R" meets the data's R.
+  - A profile with none of the question card's products (`PROFILE_PRODUCT_UNKNOWN`) and a code that matches no treatment
+    (`ARM_MATCHES_NO_TREATMENT`) are said. Five f2 values had gone uncomputed with no word.
+- **The checker's findings reach the extractor:**
+  - Each file A9 flags is extracted once more with A9's issues in A8's prompt, then checked again. One round, said on
+    the run.
+  - A9 is told how its table display is written: most of its earlier issues misread its own separators.
+  - The prompts changed: `PROMPT_VERSION` dataroom-3.
+- **The client's NCA compared by its own rule and times:**
+  - AUC to infinity is compared by the client's rule: for a linear-trapezoid client, our linear AUC plus the same
+    extrapolated part. It had flagged 17 subjects whose values were right.
+  - Tmax is compared at the actual time of our own Cmax sample when the data gives actual times (`SubjectNca.tmax_actual`,
+    `Sample.actual_h`). Five nominal-time flags were false.
+  - Result: the planted 3 % error is the only one flagged.
+- **More refusals:**
+  - A column given role "time" that has a time written above it is refused (`TIME_ROLE_WITH_A_TIME`). Twelve
+    concentration columns described so had read no concentration at all.
+  - A concentration or dissolution table with no value column is refused.
+- **Duplicates:** among byte-identical files, the original's name wins over "… - Copy" or "…(1)", whichever the archive
+  lists first.
+- **Contract:** `Section.computed` (code's own finding) and `SubjectNca.tmax_actual` added.
+- **Tests:**
+  - `test_dataroom_layouts.py`: 17 tests;
+  - `test_dataroom_run.py`: the checker-to-extractor round.
+- **Impact:**
+  - The room says more, and refuses more.
+  - Answers stored before this change keep their descriptions; extract the files again to benefit.
+  - No ruleset changed. The Tmax tolerance the report questioned (`dataroom_rules.yaml`) is SME-governed and is left
+    for the owner.
+
 ### Fixed — the Data room on deliveries it had never seen (2026-11-24, tested on new made-up data)
 - **How they were found:**
   - Three new made-up deliveries (Novaprazole, Zelitrex, Quorafen) were built to differ from Exampleamide the way real

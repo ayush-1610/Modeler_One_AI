@@ -9,9 +9,9 @@ import hashlib
 import re
 import statistics
 from collections import defaultdict
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 
-from modeler_project.dataroom.extract import parse_number
+from modeler_project.dataroom.extract import is_bound, parse_number
 from modeler_project.dataroom.model import (
     CheckedFact,
     Chip,
@@ -27,7 +27,10 @@ from pbpk_domain.dissolution import Profile, ProfileKey, WeibullFit, f2, fit_wei
 
 CURVE_POINTS = 61       # points of a fitted curve drawn beside the means (0 to the last time)
 
-_PH = re.compile(r"\bpH\s*([0-9]+(?:\.[0-9]+)?)", re.IGNORECASE)
+_PH = re.compile(r"\bpH\s*[=:]?\s*([0-9]+(?:[.,][0-9]+)?)", re.IGNORECASE)    # "pH 6.8", "pH 4,5", "pH = 1.2"
+# a solubility medium as files name it (the fact's subject may be the substance instead: a new delivery, 2026-11-24)
+_MEDIUM = re.compile(r"(?i)\bpH\s*[=:]?\s*\d|buffer|\bhcl\b|water|fassif|fessif|fassgf|\bsgf\b|\bsif\b|acetate|"
+                     r"phosphate|citrate|simulated|media\b|medium\b")
 _SOLUBILITY_UNITS = {"mg/ml": 1.0, "g/l": 1.0, "mg/l": 1e-3, "µg/ml": 1e-3, "ug/ml": 1e-3, "mcg/ml": 1e-3,
                      "μg/ml": 1e-3, "ng/ml": 1e-6, "mg/100ml": 1e-2, "g/100ml": 10.0, "% w/v": 10.0}
 
@@ -39,8 +42,26 @@ def _norm(text: str) -> str:
 def _ph_of(*texts: str) -> float | None:
     for text in texts:
         if text and (m := _PH.search(text)):
-            return float(m.group(1))
+            return float(m.group(1).replace(",", "."))
     return None
+
+
+def _medium_of(subject: str, quote: str) -> str:
+    """A solubility fact's medium: its subject when that names a medium, else the part of the quote that does ("in 0.1 N
+    HCl"), else the subject as written; never the substance's name taken for a medium."""
+    subject = subject.strip()
+    if _MEDIUM.search(subject):
+        return subject
+    for piece in re.split(r"[,;:()]", quote):
+        if _MEDIUM.search(piece):
+            return piece.strip()
+    return subject or "as stated"
+
+
+def _unit_in(text: str) -> str:
+    """A solubility unit written in a column's header ("Solubility (mg/mL)"): the table was described without it."""
+    low = text.lower().replace(" ", "")
+    return next((u for u in sorted(_SOLUBILITY_UNITS, key=len, reverse=True) if u.replace(" ", "") in low), "")
 
 
 def _decimals(text: str) -> int:
@@ -77,6 +98,21 @@ def batch_products(facts: Sequence[CheckedFact]) -> dict[str, str]:
         if f.ok and f.fact.field == "product.batch" and f.fact.product:
             out[_norm(f.fact.value)] = f.fact.product
     return out
+
+
+def named_in(label: str, names: Iterable[str]) -> str | None:
+    """The one of `names` a label means, however the files write them: the same words ("NP-R-2201" and "np r 2201"), or a
+    name written whole inside the label ("Tablet, Lot NP-R-2201"; "Zelitrex 10 mg tablet, batch ZT-R-118" for
+    "Zelitrex 10 mg tablet"); the longest such name; None when none or two equally long ones (a new delivery,
+    2026-11-24: exact strings left 5 f2 values uncomputed and said nothing)."""
+    want = f" {_norm(label)} "
+    by_norm = {_norm(n): n for n in names if _norm(n)}
+    if want.strip() in by_norm:
+        return by_norm[want.strip()]
+    inside = sorted((k for k in by_norm if f" {k} " in want or f" {want.strip()} " in f" {k} "), key=len, reverse=True)
+    if not inside or (len(inside) > 1 and len(inside[0]) == len(inside[1])):
+        return None
+    return by_norm[inside[0]]
 
 
 def _view_id(table_id: str, group: str) -> str:
@@ -176,7 +212,8 @@ def dissolution_views(table: ReadTable, *, products: dict[str, str] | None = Non
                         f"{t:g} min: the client's RSD {rtext} %, the units' {ours:.2f} %")))
         medium = group_medium.get(group) or const.get("medium", "")
         batch = const.get("batch", "") or group.split(" · ")[0]
-        product = products.get(_norm(batch), const.get("product", "")) or products.get(_norm(group), "")
+        product = (products.get(_norm(batch), const.get("product", "")) or products.get(_norm(group), "")
+                   or products.get(_norm(named_in(group, products) or ""), ""))
         ph = _ph_of(const.get("ph", ""), medium) if not parse_number(const.get("ph", "")) else parse_number(const["ph"])
         volume = _quantity(const.get("volume", "") or medium, {"ml": 1.0, "l": 1000.0}, bare=True)
         rpm = _quantity(const.get("rpm", const.get("speed", "")) or medium, {"rpm": 1.0}, bare=True)
@@ -277,7 +314,7 @@ def solubility_rows(tables: Sequence[ReadTable], *, dose_mg: float | None, mediu
                 continue
             text = one["solubility"].text.strip()
             number = parse_number(text, decimal_comma=table.decimal_comma)
-            col_unit = one["solubility"].unit or unit
+            col_unit = one["solubility"].unit or unit or _unit_in(one["solubility"].label)
             mg_ml = _mg_per_ml(number, col_unit) if number is not None else None
             if number is not None and mg_ml is None:
                 problems.append(Problem(code="UNIT_UNKNOWN", where=one["solubility"].chip,
@@ -302,13 +339,16 @@ def solubility_from_facts(facts: Sequence[CheckedFact], *, dose_mg: float | None
     glass = rules.solubility.glass_volume_ml
     out = []
     for f in facts:
-        if f.number is None:
+        bound = is_bound(f.fact.value)
+        if f.number is None and not bound:
             continue
-        mg_ml = _mg_per_ml(f.number, f.fact.unit) if f.fact.unit else None
+        # a bound ("> 20 mg/mL") is kept as written, with no number: a limit is not the solubility
+        mg_ml = _mg_per_ml(f.number, f.fact.unit) if f.fact.unit and f.number is not None else None
         text = f"{f.fact.subject} {f.fact.value} {f.fact.quote}"      # the medium's pH: not from the agent's note
         need = round(dose_mg / mg_ml, 2) if dose_mg and mg_ml else None
+        medium = _medium_of(f.fact.subject, f.fact.quote)
         out.append(SolubilityRow(
-            medium=(f.fact.subject or "as stated").strip(), ph=_ph_of(text), solubility_mg_ml=mg_ml,
+            medium=medium.strip(), ph=_ph_of(text), solubility_mg_ml=mg_ml,
             as_written=f"{f.fact.value} {f.fact.unit}".strip(), volume_for_dose_ml=need,
             fraction_in_glass=round(min(1.0, mg_ml * glass / dose_mg), 4) if need else None,
             fraction_in_medium=round(min(1.0, mg_ml * medium_volume_ml / dose_mg), 4) if need and medium_volume_ml else None,

@@ -21,6 +21,7 @@ from modeler_project.dataroom.invitro import (
     composition_rows,
     dissolution_views,
     f2_pairs,
+    named_in,
     solubility_from_facts,
     solubility_rows,
 )
@@ -70,6 +71,8 @@ COMPOUND = (("phys.mw", "Molecular weight", "substance.mw", "g/mol"),
             ("bind.fu", "Fraction unbound (plasma, reference value)", "adme.fu", "fraction"),
             ("dist.bp_ratio", "Blood-to-plasma ratio", "adme.bp_ratio", ""),
             ("perm.intestinal", "Specific intestinal permeability (transcellular)", "substance.permeability", "cm/min"))
+# a permeability measured in a cell or membrane assay, as files write it
+_CELL_ASSAY = re.compile(r"(?i)caco|mdck|pampa|\bpapp\b|apparent\s+permeab|lls?-?pk1|\bcm\s*/\s*s(?:ec)?\b|\bnm\s*/\s*s\b|10\s*[-−]\s*6")
 # Which checklist topics a fact field or a table kind covers
 _TOPIC_FIELDS = {"clinical_design": ("study.design", "study.id", "study.regimen"), "dosing_and_meals": ("study.dose", "study.fed",
                  "study.fasting", "study.meal", "study.water"), "clinical_demographics": ("study.age", "study.weight", "study.sex"),
@@ -131,7 +134,11 @@ def _values(facts: Sequence[CheckedFact], prefix: str, labels: Mapping[str, str]
     groups: dict[tuple[str, str], list[CheckedFact]] = defaultdict(list)
     for f in facts:
         if f.ok and f.fact.field.startswith(prefix):
-            groups[(f.fact.field, _norm(f.fact.subject or f.fact.product))].append(f)
+            subject = _norm(f.fact.subject or f.fact.product)
+            if f.fact.field == "substance.pka":
+                # an ampholyte states an acidic and a basic pKa: two values, not a conflict (a new delivery, 2026-11-24)
+                subject += f"|{pka_type(f'{f.fact.value} {f.fact.quote}') or f.number}"
+            groups[(f.fact.field, subject)].append(f)
     out = []
     for (field, _subject), got in sorted(groups.items()):
         status, _ = _value_status(got, literature_files, rules.conflicts.relative_tolerance_percent)
@@ -241,6 +248,18 @@ def fraction_unbound(value: float, unit: str, text: str) -> tuple[float | None, 
 
 
 _TIME_WORDS = r"(h|hr|hrs|hour|hours|min|mins|minute|minutes)"
+
+
+def food_of(text: str) -> str | None:
+    """An arm's food state as its definition words it: "fed" (fed, a meal, a breakfast, with food), "fasted" (fasted,
+    fasting, an empty stomach); None when it says neither. "Fed" wins when both are written ("a high-fat breakfast
+    after an overnight fast")."""
+    low = text.lower()
+    if re.search(r"\bfed\b|\bmeal\b|breakfast|with food|high[- ]fat|\bfed state", low):
+        return "fed"
+    if re.search(r"\bfast(?:ed|ing)?\b|empty stomach", low):
+        return "fasted"
+    return None
 
 
 def meal_times(text: str) -> list[float] | None:
@@ -467,6 +486,21 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
         views, found = dissolution_views(t, products=batches, rules=rules)
         diss += views
         problems += found
+    # each profile's product as the question card names it ("Tablet, Lot NP-R-2201" and "…, batch ZT-R-118" were no
+    # product of the card: no role, no f2, and nothing said); one still unnamed is said
+    if roles:
+        named = []
+        for d in diss:
+            card = named_in(d.product, roles) if d.product else None
+            if card and card != d.product:
+                d = d.model_copy(update={"product": card})
+            elif not card:
+                problems.append(Problem(code="PROFILE_PRODUCT_UNKNOWN", message=(
+                    f"dissolution of {d.batch or d.product or 'a batch'} in {d.medium or 'its medium'}: its product "
+                    f"{'(' + d.product + ') ' if d.product else ''}is none of the question card's "
+                    f"({', '.join(roles)}): no role, so no f2 with it; name the batch's product")))
+            named.append(d)
+        diss = named
     f2s = f2_pairs(diss, roles)
     composition = composition_rows(by_kind["composition"])
     strength = _first(facts, "product.strength") or _first(facts, "study.dose")
@@ -611,6 +645,15 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
             row_unit = ""
             if value is None:
                 status = "missing"
+        elif key == "perm.intestinal":
+            # a cell assay's apparent permeability (Caco-2, MDCK, PAMPA; cm/s) is not PK-Sim's specific intestinal
+            # permeability (cm/min): it went straight in, status sponsor, with no conversion (a new delivery, 2026-11-24)
+            quote = " ".join([got.as_written, got.unit] + [c.text for c in got.sources])
+            if _CELL_ASSAY.search(quote) or got.unit.replace(" ", "").lower() != "cm/min":
+                value, status = None, "missing"
+                note = (f"{got.as_written} {got.unit}".strip() + ": a cell assay's apparent permeability, not PK-Sim's "
+                        "specific intestinal permeability (cm/min). It needs a calibration against reference drugs, or "
+                        "PK-Sim's own estimate from lipophilicity; kept as evidence, not sent")
         inputs_rows.append(InputRow(block="compound", name=key, label=name, value=value, unit=row_unit, status=status,
                                     sources=got.sources, note=note))
     for product in sorted({d.product or d.batch for d in diss}):
@@ -659,10 +702,21 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
         fed = next((v for v in view.facts if v.key.startswith("study.fed")), None)
         fasting = next((v for v in view.facts if v.key.startswith("study.fasting")), None)
         food = "fed" if fed else ("fasted" if fasting else None)
-        inputs_rows.append(InputRow(block="protocol", owner=sid, name="Food state", label="Fed or fasted", value=food,
-                                    status=(fed or fasting).status if food else "missing",  # type: ignore[union-attr]
-                                    sources=(fed or fasting).sources if food else (),  # type: ignore[union-attr]
-                                    note="" if food else "the study does not say fed or fasted"))
+        # each arm's own words first ("tablet, fed"; "after a high-fat breakfast"): a food-effect study's fasted arms
+        # showed "fed" from the study's one statement (a new delivery, 2026-11-24)
+        arm_food = {a.treatment: f for a in view.arms if (f := food_of(a.meaning))}
+        if len(set(arm_food.values())) > 1:
+            for a in view.arms:
+                inputs_rows.append(InputRow(block="protocol", owner=f"{sid} · {a.treatment}", name="Food state",
+                                            label="Fed or fasted", value=arm_food.get(a.treatment),
+                                            status="sponsor" if a.treatment in arm_food else "missing",
+                                            sources=(a.source,) if a.source else (),
+                                            note="" if a.treatment in arm_food else "the arm does not say fed or fasted"))
+        else:
+            inputs_rows.append(InputRow(block="protocol", owner=sid, name="Food state", label="Fed or fasted", value=food,
+                                        status=(fed or fasting).status if food else "missing",  # type: ignore[union-attr]
+                                        sources=(fed or fasting).sources if food else (),  # type: ignore[union-attr]
+                                        note="" if food else "the study does not say fed or fasted"))
         dose_v = next((v for v in view.facts if v.key.startswith("study.dose")), None)
         water = next((v for v in view.facts if v.key.startswith("study.water")), None)
         weight = dem.get("weight_mean")
@@ -688,7 +742,7 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
                                         unit=view.concentration_unit, status="calculated", decision=f"analysis-set:{sid}"))
             role = arm.role or ""
             plan.append(PlanRow(formulation=arm.product or arm.meaning or arm.treatment,
-                                condition=f"{sid}, {'fed' if any(v.key.startswith('study.fed') for v in view.facts) else 'fasted'}"
+                                condition=f"{sid}, {arm_food.get(arm.treatment) or ('fed' if fed else 'fasted' if fasting else 'food not stated')}"
                                 + (f", {dose_v.as_written}" if dose_v else ""),
                                 observed=f"{sid} arm {arm.treatment} (N = {n})",
                                 role="calibration" if role == "reference" else "verification",
@@ -719,9 +773,13 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
 
     # --- sections --------------------------------------------------------------------------------------------------------
     written = inputs.writing.get("findings", {})
+    basis = inputs.writing.get("basis", {})
 
     def section(sid: str, title: str, finding: str, ok: bool, empty: bool) -> Section:
-        return Section(id=sid, title=title, finding=written.get(sid) or finding,
+        # the writer's line only while code still finds what it found when the line was written: a line written before
+        # the room changed said "No dissolution profiles" beside three profiles (a new delivery, 2026-11-24)
+        line = written.get(sid) if basis.get(sid) == finding else None
+        return Section(id=sid, title=title, finding=line or finding, computed=finding,
                        status="empty" if empty else ("ok" if ok else "attention"))
 
     n_ocr = sum(len(f.ocr_pages) for f in inputs.files)
@@ -734,6 +792,10 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
     arms = sum(1 for s in studies for p in s.profiles if p.analysis_set == chosen.get(f"analysis-set:{s.study_id}", "modeling"))
     observed_finding = (f"{arms} mean profiles; {agree} of {len(compared)} of the client's exposure numbers reproduced within "
                         f"{rules.nca.tolerance_percent:g} %" if compared else f"{arms} mean profiles; no client exposure to compare")
+    # a subject's own value off can hide in an arm's geometric mean: said beside it (a new delivery, 2026-11-24)
+    differing = sum(1 for s in studies for p in s.problems if p.code == "NCA_DIFFERS")
+    if differing:
+        observed_finding += f"; {differing} subject {'value differs' if differing == 1 else 'values differ'} from the client's"
     sections = [
         section("files", "Files", f"{len(inputs.files)} files read" + (f", {n_ocr} scanned pages read by our OCR" if n_ocr else ""),
                 all(f.state in ("read", "partly_read") for f in inputs.files), not inputs.files),

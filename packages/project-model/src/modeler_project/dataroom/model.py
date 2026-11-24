@@ -104,6 +104,7 @@ class Sample(_B):
     time_h: float
     text: str
     value: float | None              # None: missing or below the LLOQ (see blq)
+    actual_h: float | None = None    # the actual sampling time, when the line gives one (kept for Tmax beside the client's)
     blq: bool = False
     missing: bool = False
     chip: Chip | None = None
@@ -141,6 +142,7 @@ class SubjectNca(_B):
     treatment: str
     cmax: float | None = None
     tmax: float | None = None
+    tmax_actual: float | None = None  # the actual time of our Cmax sample, when the data gives actual times
     auc_t: float | None = None        # linear-up/log-down (ours)
     auc_t_linear: float | None = None  # linear trapezoidal (as most CROs compute it)
     auc_inf: float | None = None
@@ -322,6 +324,7 @@ class Section(_B):
     title: str
     finding: str = ""
     status: Literal["ok", "attention", "missing", "empty"] = "empty"
+    computed: str = ""      # code's own finding; the writer's line replaces it only while it was written against this one
 
 
 class MadeBy(_B):

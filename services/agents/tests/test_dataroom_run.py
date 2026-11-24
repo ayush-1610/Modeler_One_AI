@@ -202,3 +202,29 @@ def test_the_checker_starts_on_another_model_than_the_one_that_wrote_the_extract
     last = [a for a in store.authors() if a["stage"] == "check"][-1]
     assert last["note"] == "not a second opinion: the same model wrote the extraction"
     HEALTH.reset()
+
+
+def test_what_the_checker_finds_goes_back_to_the_extractor_once(tmp_path):
+    # a new delivery, 2026-11-24: A9 saw a column described wrongly, but A8 never heard of it. Now each file A9 flags is
+    # extracted again with the issue in its prompt, then checked again; one round only.
+    store = _store(tmp_path)
+    run_room(store, chat_for=lambda agent: None, actor="user:m", stages=["read"], use_ocr=False, workers=1)
+    first = _extraction(store)
+    model = Scripted({"submit_extraction": first + [first[0]],       # conc.tsv again, on the checker's word
+                      "submit_review": [{"tables": [{"table": 1, "ok": False, "issue": "column 3 is the period"}]},
+                                        {"tables": [{"table": 1, "ok": True, "issue": ""}]}]})
+    prompts: list[str] = []
+    complete = model.complete
+
+    def recording(messages, tools):
+        prompts.append(messages[1]["content"])
+        return complete(messages, tools)
+
+    model.complete = recording  # type: ignore[method-assign]
+    doc = run_room(store, chat_for=lambda agent: model, actor="user:m", stages=["triage", "extract", "check"],
+                   use_ocr=False)
+    note = next(s["note"] for s in doc["stages"] if s["id"] == "check")
+    assert "1 flagged file extracted again with the checker's issues; 0 still have issues" in note
+    again = sorted({p for p in prompts if "A checker read your earlier description" in p})   # one conversation, two calls
+    assert len(again) == 1 and "column 3 is the period" in again[0] and "File: conc.tsv" in again[0]
+    assert store.reviews() == {}

@@ -139,3 +139,99 @@ def test_not_detected_named_below_the_lloq_leaves_the_default_missing_list():
     # the description itself naming ND as both is still refused
     both = d.model_copy(update={"missing_tokens": ["ND"]})
     assert [p.code for p in table("n.csv", csv, both).problems] == ["TOKEN_BOTH_MISSING_AND_BLQ"]
+
+
+# --- what the AI may describe wrong, and code now refuses or says (the second layer, 2026-11-24) ------------------------
+
+def _doc(name: str, text: str):
+    from modeler_intake.source import parse_document
+    from modeler_project.dataroom.model import FileView
+
+    doc = parse_document(text.encode(), name)
+    return FileView(path=f"D/{name}", name=name, sha256=doc.file_sha256, kind="delimited"), doc
+
+
+def test_a_quoted_decimal_comma_or_bound_is_never_a_wrong_number():
+    from modeler_project.dataroom.extract import is_bound, number_of
+    from modeler_project.dataroom.invitro import _ph_of
+
+    assert number_of("0,058 mg/mL", "mg/mL") is None                  # was 58: left for the modeler, never guessed
+    assert number_of("> 20 mg/mL", "mg/mL") is None and is_bound("NLT 85 %") and not is_bound("85 %")
+    assert _ph_of("phosphate buffer pH 4,5") == 4.5                    # was 4.0
+    assert number_of("1,234 mg", "mg") == 1234.0                       # a thousands separator stays one
+
+
+def test_a_marker_the_files_legend_defines_otherwise_is_refused():
+    csv = ("Subject,Period,Treatment,0,1,2\n1,1,A,NQ,10,NQ\n2,1,A,NQ,12,NS\n"
+           "NQ = not quantifiable (< 0.20 ng/mL); NS = no sample\n")
+    cols = [c(1, "subject"), c(2, "period"), c(3, "treatment")] + [c(4 + i, "value", time=float(x)) for i, x in enumerate((0, 1, 2))]
+    wrong = TableDescription(file="", kind="concentrations", part="sheet:c", header_lines=[1], first_line=2, last_line=3,
+                             time_unit="h", value_unit="ng/mL", columns=cols, missing_tokens=["NS", "NQ"])
+    problems = table("c.csv", csv, wrong).problems
+    assert [p.code for p in problems] == ["MARKER_IS_BELOW_LLOQ"] and "NQ = not quantifiable" in problems[0].message
+    right = wrong.model_copy(update={"missing_tokens": ["NS"], "blq_tokens": ["NQ"]})
+    assert table("c.csv", csv, right).problems == ()
+
+
+def test_a_count_is_not_a_list_of_subjects():
+    from modeler_intake.room_specs import Fact
+    from modeler_project.dataroom.extract import check_fact
+
+    view, doc = _doc("s.md", "The statistical analysis included 18 subjects.\nSubjects 1, 2 and 5 completed.\n")
+    count = Fact(field="study.statistical_set", subject="S", value="18 subjects",
+                 quote="The statistical analysis included 18 subjects.")
+    got = check_fact(count, doc, file=view.path, sha256=view.sha256)
+    assert not got.ok and "a set lists its subjects" in got.problem
+    one = Fact(field="study.completed_subjects", subject="S", value="1, 2 and 5", quote="Subjects 1, 2 and 5 completed.")
+    assert check_fact(one, doc, file=view.path, sha256=view.sha256).ok
+
+
+def test_lines_that_collide_point_to_the_column_that_separates_them():
+    from modeler_project.dataroom.clinical import colliding_samples
+
+    conc = "Subject,Day,0,1,2\n" + "".join(f"{s},{d},0,{10 * d},{5 * d}\n" for s in (1, 2) for d in (1, 7))
+    as_group = TableDescription(file="", kind="concentrations", part="sheet:m", header_lines=[1], first_line=2, last_line=5,
+                                time_unit="h", value_unit="ng/mL",
+                                columns=[c(1, "subject"), c(2, "group")] + [c(3 + i, "value", time=float(x))
+                                                                            for i, x in enumerate((0, 1, 2))])
+    why = colliding_samples(table("m.csv", conc, as_group))
+    assert why.startswith("4 samples share a subject") and "column 2 (Day)" in why and "the period" in why
+    as_period = as_group.model_copy(update={"columns": [c(1, "subject"), c(2, "period")] + as_group.columns[2:]})
+    assert colliding_samples(table("m.csv", conc, as_period)) == ""
+
+
+def test_names_and_codes_meet_however_the_files_write_them():
+    from modeler_project.dataroom.clinical import _code_key
+    from modeler_project.dataroom.invitro import named_in
+
+    assert named_in("Tablet, Lot NP-R-2201", ["NP-R-2201", "NP-C-2305"]) == "NP-R-2201"
+    assert named_in("Zelitrex 10 mg tablet, batch ZT-R-118", ["Zelitrex 10 mg tablet", "Zelitrex 10 mg capsule"]) == \
+        "Zelitrex 10 mg tablet"
+    assert named_in("Lot 9", ["NP-R-2201"]) is None
+    assert {_code_key(x) for x in ("Treatment R", "Trt. R", "Arm R", "R")} == {"r"}
+
+
+def test_the_client_auc_to_infinity_is_checked_subject_by_subject():
+    conc = "Subject,Period,Treatment,0,1,2,4,8,12\n" + "".join(
+        f"{s},1,A,0,10,8,5,2.5,1.25\n" for s in (1, 2, 3))
+    d = TableDescription(file="", kind="concentrations", part="sheet:c", header_lines=[1], first_line=2, last_line=4,
+                         time_unit="h", value_unit="ng/mL", zero_means_blq=True,
+                         columns=[c(1, "subject"), c(2, "period"), c(3, "treatment")] + [c(4 + i, "value", time=float(x))
+                                                                                         for i, x in enumerate((0, 1, 2, 4, 8, 12))])
+    ours = study_view("S", concentrations=[table("c.csv", conc, d)])
+    inf = {r.subject: r.auc_inf for r in ours.nca}
+    pk = "Subject,Period,AUCinf\n" + "".join(f"{s},1,{inf[s] * (1.04 if s == '2' else 1.0):.4f}\n" for s in ("1", "2", "3"))
+    dp = TableDescription(file="", kind="pk_parameters", part="sheet:p", header_lines=[1], first_line=2, last_line=4,
+                          value_unit="ng/mL", columns=[c(1, "subject"), c(2, "period"), c(3, "auc_inf")])
+    sv = study_view("S", concentrations=[table("c.csv", conc, d)], pk_tables=[table("p.csv", pk, dp)])
+    off = [p.message for p in sv.problems if p.code == "NCA_DIFFERS"]
+    assert len(off) == 1 and off[0].startswith("subject 2")
+
+
+def test_each_arm_says_its_own_food_state():
+    from modeler_project.dataroom.assemble import food_of
+
+    assert food_of("Novaprazole 40 mg tablet, fasted") == "fasted"
+    assert food_of("Novaprazole 40 mg tablet after a high-fat breakfast") == "fed"
+    assert food_of("tablet with a standard meal after an overnight fast") == "fed"
+    assert food_of("reference product") is None

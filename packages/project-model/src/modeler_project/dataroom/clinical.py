@@ -82,6 +82,11 @@ def subjects_in(text: str, known: Iterable[str] = ()) -> list[str]:
 
 
 _ROMAN = {"I": "1", "II": "2", "III": "3", "IV": "4", "V": "5", "VI": "6"}
+
+
+def _code_key(code: str) -> str:
+    """A treatment code without the words around it: "Treatment R", "Trt. R", "Arm R" and "R" are one code."""
+    return re.sub(r"(?i)\b(?:treatment|trt|arm|regimen|group|code|period)\b\.?|[\s:_.-]+", "", code).lower()
 # an occasion that is a study day or visit of a multiple-dose study, as files write it
 _DAY = re.compile(r"(?i)\bday\b|^d\s*\d+$|\bvisit\b|steady|\bss\b")
 
@@ -120,7 +125,8 @@ def samples_from(table: ReadTable) -> tuple[list[Sample], list[Problem], str]:
         if row.summary:
             continue
         # "time" is the nominal (scheduled) time; an "actual_time" column is kept by the file, not used for the means
-        one = {c.role: c for c in row.cells if c.role in ("subject", "period", "treatment", "sequence", "time")}
+        one = {c.role: c for c in row.cells if c.role in ("subject", "period", "treatment", "sequence", "time", "actual_time")}
+        actual = parse_number(one["actual_time"].text, decimal_comma=table.decimal_comma) if "actual_time" in one else None
         subject = subject_id(one["subject"].text) if "subject" in one else ""
         if not subject:
             continue
@@ -148,9 +154,38 @@ def samples_from(table: ReadTable) -> tuple[list[Sample], list[Problem], str]:
                               treatment=one["treatment"].text.strip() if "treatment" in one else "",
                               sequence=one["sequence"].text.strip() if "sequence" in one else "",
                               time_h=round(time * factor, 6), text=text,
+                              actual_h=None if actual is None else round(actual * factor, 6),
                               value=None if (is_missing or is_blq) else number, blq=is_blq, missing=is_missing,
                               chip=cell.chip))
     return out, problems, desc.value_unit
+
+
+def colliding_samples(table: ReadTable) -> str:
+    """Why a concentration table's description cannot be right when two of its samples share a subject, an occasion and
+    a time with different values: a column that separates them (a study day, a period, a treatment) was not given that
+    role (a new delivery, 2026-11-24: a "Day" column described as a group made Day 1 and Day 7 collide, about 230
+    samples, and no exposure). "" when none collide."""
+    samples, _problems, _unit = samples_from(table)
+    seen: dict[tuple[str, str, str, float], Sample] = {}
+    clashes = 0
+    for x in samples:
+        key = (x.subject, x.period, x.treatment, x.time_h)
+        first = seen.setdefault(key, x)
+        if first is not x and (first.value, first.blq, first.missing) != (x.value, x.blq, x.missing):
+            clashes += 1
+    if not clashes:
+        return ""
+    roles = {c.role for c in table.description.columns}
+    # each column's header as the file writes it (the read cells keep it), else the agent's label
+    written = {spec.index: cell.label for spec, cell in zip(table.description.columns, table.rows[0].cells, strict=False)}
+    candidates = [f"column {c.index}{f' ({written.get(c.index) or c.label})' if written.get(c.index) or c.label else ''}"
+                  for c in table.description.columns if c.role in ("group", "dose", "analyte", "matrix")]
+    hint = (f"; {', '.join(candidates)} may be what separates them" if candidates else
+            "; a column that separates them may be left undescribed")
+    missing = [r for r in ("period", "treatment") if r not in roles]
+    return (f"{clashes} samples share a subject, {'/'.join(missing) or 'occasion'} and time with a different value: the "
+            f"lines are not one profile each{hint}. Give the column that tells them apart its role (a study day or "
+            "visit is the period; a product or dose level is the treatment)")
 
 
 def _nca_points(samples: Sequence[Sample]) -> tuple[list[float], list[float]]:
@@ -466,8 +501,10 @@ def study_view(study_id: str, *, concentrations: Sequence[ReadTable], pk_tables:
         if "auc_t" in client:
             log_diffs.append(_pct(res.auc_last, client["auc_t"]))
             lin_diffs.append(_pct(lin, client["auc_t"]))
+        peak = got.get(res.t_max) if res.t_max is not None else None
         rows.append(SubjectNca(subject=subject, period=occ.split(":", 1)[1], treatment=trt,
-                               cmax=res.c_max, tmax=res.t_max, auc_t=round(res.auc_last, 6), auc_t_linear=round(lin, 6),
+                               cmax=res.c_max, tmax=res.t_max, tmax_actual=peak.actual_h if peak else None,
+                               auc_t=round(res.auc_last, 6), auc_t_linear=round(lin, 6),
                                auc_inf=None if res.auc_inf is None else round(res.auc_inf, 6),
                                t_half=None if res.t_half is None else round(res.t_half, 6),
                                lambda_z=None if res.lambda_z is None else round(res.lambda_z, 8), client=client))
@@ -483,20 +520,27 @@ def study_view(study_id: str, *, concentrations: Sequence[ReadTable], pk_tables:
     checked: list[SubjectNca] = []
     for row in rows:
         diffs: dict[str, float] = {}
-        ours = {"cmax": row.cmax, "auc_t": row.auc_t_linear if use_linear else row.auc_t, "auc_inf": row.auc_inf,
-                "lambda_z": row.lambda_z, "t_half": row.t_half}
+        # the client's AUC to infinity by its own rule: our linear AUC to the last sample plus the same extrapolated
+        # part (comparing it with our log-down one flagged 17 subjects of a linear-trapezoid client, 2026-11-24)
+        inf_linear = (row.auc_t_linear + (row.auc_inf - row.auc_t)) if row.auc_inf is not None else None
+        ours = {"cmax": row.cmax, "auc_t": row.auc_t_linear if use_linear else row.auc_t,
+                "auc_inf": inf_linear if use_linear else row.auc_inf, "lambda_z": row.lambda_z, "t_half": row.t_half}
         for role, theirs in row.client.items():
             if role == "tmax":
-                if row.tmax is not None:
-                    diffs["tmax"] = round(row.tmax - theirs, 4)
+                # beside a client's Tmax at actual times, ours at the actual time of our own Cmax sample (2026-11-24:
+                # nominal 2 h against the client's 2.067 h was flagged five times)
+                mine = row.tmax_actual if row.tmax_actual is not None else row.tmax
+                if mine is not None:
+                    diffs["tmax"] = round(mine - theirs, 4)
             elif (d := _pct(ours.get(role), theirs)) is not None:
                 diffs[role] = d
         checked.append(row.model_copy(update={"differences": diffs}))
-        off = [r for r, d in diffs.items() if (abs(d) > tmax_tol if r == "tmax" else abs(d) > tol and r in ("cmax", "auc_t"))]
+        off = [r for r, d in diffs.items() if (abs(d) > tmax_tol if r == "tmax" else abs(d) > tol and r in ("cmax", "auc_t", "auc_inf"))]
         if off:
             problems.append(Problem(code="NCA_DIFFERS", message=(
                 f"subject {row.subject}, {label} {row.period}: " + "; ".join(
-                    f"{_LABEL[r]} ours {('%.4g' % (ours.get(r) if r != 'tmax' else row.tmax))} vs the client's {row.client[r]:.4g}"
+                    f"{_LABEL[r]} ours {('%.4g' % (ours.get(r) if r != 'tmax' else row.tmax_actual if row.tmax_actual is not None else row.tmax))} "
+                    f"vs the client's {row.client[r]:.4g}"
                     + (" (both by the linear trapezoidal rule, ours at the nominal times)" if r == "auc_t" and use_linear else "")
                     for r in off))))
     if lin_diffs and use_linear:
@@ -534,6 +578,21 @@ def study_view(study_id: str, *, concentrations: Sequence[ReadTable], pk_tables:
                                       unit=("h" if metric == "tmax" else (unit if metric == "cmax" else f"{unit}·h")),
                                       client=None if client is None else round(client, 4),
                                       difference_percent=_pct(value, client)))
+    # each code the documents define, as the data writes it ("Treatment R" is R: a new delivery, 2026-11-24, left both
+    # arms without their product); a code no treatment of the data matches is said
+    arms = list(arms)
+    if treatments and not multiple_dose:
+        by_key = {_code_key(t): t for t in treatments}
+        for i, arm in enumerate(arms):
+            if arm.treatment in treatments:
+                continue
+            match = by_key.get(_code_key(arm.treatment))
+            if match:
+                arms[i] = arm.model_copy(update={"treatment": match})
+            else:
+                problems.append(Problem(code="ARM_MATCHES_NO_TREATMENT", message=(
+                    f"the documents define treatment {arm.treatment!r} ({arm.meaning}); the data's treatments are "
+                    f"{', '.join(treatments)}: which one is it?")))
     lloq_facts = _facts(facts, "study.lloq")
     return RoomStudy(study_id=study_id, facts=tuple(study_values), arms=tuple(arms), periods=tuple(periods),
                      times_h=tuple(times), sets=tuple(sets), excluded={s: r for s, r in excluded.items() if r},

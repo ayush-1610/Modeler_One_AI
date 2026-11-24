@@ -27861,6 +27861,11 @@
       "Section": {
         "additionalProperties": false,
         "properties": {
+          "computed": {
+            "default": "",
+            "title": "Computed",
+            "type": "string"
+          },
           "finding": {
             "default": "",
             "title": "Finding",
@@ -27890,7 +27895,8 @@
           "id",
           "title",
           "finding",
-          "status"
+          "status",
+          "computed"
         ],
         "title": "Section",
         "type": "object"
@@ -30956,6 +30962,17 @@
             ],
             "title": "Tmax"
           },
+          "tmax_actual": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tmax Actual"
+          },
           "treatment": {
             "title": "Treatment",
             "type": "string"
@@ -30967,6 +30984,7 @@
           "treatment",
           "cmax",
           "tmax",
+          "tmax_actual",
           "auc_t",
           "auc_t_linear",
           "auc_inf",
