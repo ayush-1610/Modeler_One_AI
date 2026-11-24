@@ -229,7 +229,7 @@ tabs, read-only polish, "Back to the MS-01 default" with its dry run) merged (#1
 tabs, the kit chart, the Package tab from `GET /package`, the decision form) merged (#181). **Slice 7** (Records: History
 in four tabs, the signature register R-N09, Agent activity R-N05, Documents with the side panel) merged (#182). **Slice
 8** (the admin console restyled, a Companies page, System status with the engine check R-N08, QA reads its company's
-projects R-S05 without `auth.py`) is a PR; slice 9 (cleanup) waits for the owner's review. R-N09's open question is answered: escalation decisions were missing from a project's History. Deviations: the plan's §11. QA (R-S05) needs no `auth.py`: slice 8.
+projects R-S05 without `auth.py`) is a PR; slice 9 (cleanup) waits for the owner's review. R-N09's open question is answered: escalation decisions were missing from a project's History. Deviations: the plan's §11. QA (R-S05) is built in slice 8, without `auth.py`.
 
 The owner's charter: an AWS-console-inspired redesign, design first, through four approval gates; no production change
 before Gate 4 and a separate go-ahead. Everything is in `design-review/` (start at its `README.md`). Gate 1 (discovery),
