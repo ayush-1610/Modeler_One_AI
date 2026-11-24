@@ -307,9 +307,34 @@ class LimitTarget(View):
     people: list[LimitTargetPerson]
 
 
+class PaidCapChange(View):
+    run_usd: float
+    month_usd: float
+    by: str
+    at: str
+    reason: str
+
+
+class PaidCaps(View):
+    """The hard cap on paid models only (the owner's decision D3, 2026-11-24; `providers`), platform-wide: a run's and a
+    calendar month's spend in USD, at list prices. Reaching one pauses the Data room's run until the cap is raised or
+    the agent switched to a free model. `set_by` null: the defaults ($10 a run, $90 a month)."""
+
+    providers: list[str]
+    run_usd: float
+    month_usd: float
+    month_spent_usd: float
+    paused_runs: int                 # Data room runs the cap paused now
+    set_by: str | None
+    set_at: str | None
+    reason: str
+    history: list[PaidCapChange]
+
+
 class LimitsPage(View):
     """The monthly limits (console, E): each with this month's use; those at 80 % or past; the changes; what a limit can
-    be set on. A limit warns the administrator and never stops an agent; the companies' people never see it."""
+    be set on. A limit warns the administrator and never stops an agent; the companies' people never see it. `paid`:
+    the hard cap on paid models, which does stop them (it pauses the run)."""
 
     month: str
     priced_as: str
@@ -318,6 +343,7 @@ class LimitsPage(View):
     warnings: list[LimitRow]
     history: list[LimitChange]
     targets: list[LimitTarget]
+    paid: PaidCaps
 
 
 class PersonView(View):

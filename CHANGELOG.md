@@ -95,6 +95,111 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
 - **Tests:** `packages/project-model/tests/test_dataroom_science.py` (12, one or more per feature),
   `packages/pbpk-domain/tests/test_nca.py` (the new NCA options, defaults unchanged).
 
+### Added — Data room runs that pause and resume where they stopped; a hard cap for paid models (2026-11-24)
+Plan: `docs/plans/2026-11-24-data-story-next-phase.md` §4 and §2.4, phase 1; the owner's decision D3 ($10 a run, $90 a
+month, paid models only; free and in-house models stay warn-only).
+- **Why.** A provider that answered HTTP 429 or 5xx, a spent quota or a model without a key ended a stage with "no
+  question card (LLM_UNAVAILABLE: …)" or "no answer", and a person had to press Run again. Nothing capped what a paid
+  model could spend: the monthly limits only warn.
+- **Paused, not failed** (`modeler_agents.dataroom.run`):
+  - A run that stops for a reason that passes ends `paused`, with `pause.reason`, a plain sentence (`said`), the
+    provider's own words (`detail`), the stage, the files of that stage done ("7 of 11") and `resume_at`.
+  - The three reasons:
+    - `provider_unavailable`: no model of the agent's chain could answer one step (a 429, 5xx, timeout, quota, a refused
+      key);
+    - `budget_cap`: a paid model's cap is reached;
+    - `no_model`: the agent's model is chosen but cannot be used (no active key, or none this project's files may go to).
+  - An error in our code still fails the run. An agent with no model at all (agents off) is still skipped and says so.
+  - A step whose model saved an answer before its provider stopped keeps that answer, as before. A pause comes only when
+    the step saved nothing.
+- **Resumes where it stopped:**
+  - The resumed run keeps its record (same `run_id`). The stages finished before the pause are not run again. The stage
+    it paused in goes on without the files it already did, even with `redo`, and counts over the whole run.
+  - Each stage skips every (file × stage) answer already stored. A test with a counting fake model proves that a
+    resumed run makes no call for a finished unit.
+  - **The checker now skips a file whose review checked its extraction as it stands.** Before, every run checked every
+    file again. A review names the extraction it checked (`store.extraction_stamp`, `review_current`).
+  - The checker's one round back to the extractor is bounded per extraction (`checker_issues` on the re-extraction), so
+    a run resumed in the middle of that round finishes it without sending a file back twice.
+- **Auto-resume** (`modeler_api.dataroom_runs`, the same background threads and job leases as every agent job, no new
+  infrastructure):
+  - A `provider_unavailable` run resumes by itself after 10, then 20, then 40 minutes. A resume that finishes more work
+    starts the rests again at 10. After the third, it stays paused and the page says a person must resume it.
+  - A timer is set by the worker that ran it, and for every paused run when the API starts (`pick_up`), so a restart
+    loses none.
+  - A timer re-reads the record under the project's lease, so two workers never resume a run twice.
+  - **At once on an administrator's change:**
+    - a model, the chain or a preset switched: every paused run;
+    - a key added or made active: the provider and no-model pauses;
+    - the paid cap changed: the cap's pauses.
+  - Recording the client's permission ("Where the files may go") resumes that project's `no_model` pause.
+- **Resume now:** `POST /projects/{id}/dataroom/run:resume`, for the roles that start a run (409 when nothing is paused).
+- **Failover restarts the step:** `run_tool_loop(on_restart=…)`. When the chain moves to its next model in the middle of
+  one step, the step starts again from its beginning there, and what the earlier model had submitted is dropped. The
+  answer kept and its recorded author (`record_author`) are the next model's. Before, a half-done answer of the first
+  model could be stored under the second's name. `LoopOutcome.failure` gives the failure's kind.
+- **Write-then-rename:** already true of every stored Data room answer (`atomic_write_text`). It is now pinned by a
+  crash test and a check that the store writes no file in place.
+- **The hard cap for paid models** (`modeler_agents.spend`, `platform_settings.PAID_PROVIDERS` = bedrock, anthropic):
+  - **Every agent's paid model is metered** (`agent_jobs.chat_model`, A1–A10): after every call, its cost is recorded at
+    list prices (`usage_report.call_cost`, the usage page's prices) in `_platform/paid_spend/<YYYY-MM>.jsonl`. So the
+    month's paid spend counts every agent's paid calls. A1–A5 have no cap: they keep the warn-only limits.
+  - Each paid model of a Data room agent runs behind the run's capped budget (the same guard, moved, never a second
+    one). Before every call it checks the run's and the month's paid spend, platform-wide, against the caps. Reaching
+    one pauses the run (`budget_cap`), with no timed resume. Its calls are recorded with the run's id.
+  - A chain never fails over to its free model on a cap. Free and in-house models are never wrapped and keep the
+    warn-only limits unchanged.
+  - The guard forwards the model's own name, effort and address, so the answer cache's key (`FallbackChat.start()`)
+    names the real model behind it, and a cached answer costs nothing.
+  - **The defaults** are $10 a run and $90 a month (`_platform/paid_caps.json`). They are editable on Admin → Limits
+    (`PUT /admin/limits/paid`), with a fresh step-up and a reason, audited `admin.paid_cap.set` with before and after.
+    A run's cap may not be above the month's.
+- **The cost estimate before a paid run:** `GET /projects/{id}/dataroom/run/estimate`, from
+  `modeler_agents.dataroom.cost`.
+  - It counts only the files still to read: tokens ≈ characters / 4 of the read text (a file not read yet counts its
+    bytes).
+  - Per file: 8.5 to 10 calls; input = calls × (4,000 + half the file's tokens, capped at 20,000); output 9,000 to
+    13,000 tokens × 1.5 for thinking. These are §2.2's measured ratios: 85–100 calls, 0.5–1.1 M in and 0.09–0.13 M out
+    for 10 files.
+  - Each agent's share is the measured one (`usage_report.DELIVERY_TOKENS`, which the presets' estimate uses too:
+    extraction about 84 % of the input). It is priced at the agent's own model's list price, without the cache.
+  - Ten 40,000-character files, all on Opus 5.5: $5.76 to $7.50, the plan's "$5–8 without the cache".
+- **The page** (`Intake.tsx`):
+  - A paused run says, for example: "Paused at extraction: 3 of 8 files done. Nemotron Ultra could not answer (too many
+    requests: its rate limit was reached). Continues by itself at 14:20, or when you switch the model. Nothing finished
+    is read again." It offers **Resume now** (`dr-run-paused`, `dr-run-resume`).
+  - For the cap it says: "Paused: the run reached its $10 limit for paid models (Admin → Limits)."
+  - Before a run whose agents start on a paid model, the page asks once: "This run uses a paid model: about $X. …
+    Start?" (`dr-run-estimate`, `dr-run-confirm`).
+  - A paused run is read again every 30 s. Admin → Limits gains the "Paid models: a hard cap" card (`paid-cap-*`).
+- **API contract:** `RoomRun.state` and `RoomRunStage.state` gain `paused`; `RoomRun.pause` (`RoomRunPause`). New
+  `RoomRunEstimate`, `POST …/dataroom/run:resume` and `GET …/dataroom/run/estimate`. `LimitsPage.paid` (`PaidCaps`,
+  `PaidCapChange`) and `PUT /admin/limits/paid`. The snapshot and the web types are regenerated.
+- **Impact:** a quota or an outage no longer costs a person's "Run again", and nothing finished is paid for twice. A
+  paid model cannot spend past $10 a run or $90 a month without the administrator's word.
+- **Tests:**
+  - `services/agents/tests/test_dataroom_pause.py` (8): pause and a resume with no call for finished units; the rests;
+    `no_model`; the cap; no failover on a cap; the answer cache keyed by the real model behind the cap's guard; the
+    step restarted on the next model; the checker's skip.
+  - `test_spend.py` (5): call pricing, the guard, every agent metered once, the estimate's ratios, the files still to
+    read.
+  - `packages/project-model/tests/test_dataroom_store_writes.py` (3).
+  - `services/api/tests/test_dataroom_pause_api.py` (6): Resume now and its roles; the clock and the restart pick-up;
+    the estimate; a paid run paused at the cap and resumed when it is raised; another agent's paid calls counted in the
+    month; a model's, a key's and a permission's change.
+  - The e2e `dataroom.spec.ts` gains a paused-run flow (its fixture writes the paused record; no model).
+- **With the answer cache** (merged the same day):
+  - A cached unit is a finished unit: a resumed run asks no model for it.
+  - A re-extraction made on the checker's issues carries `checker_issues` whether it came from the model or the
+    cache, so it is never sent back twice.
+  - A cached review names the extraction it checked.
+  - The check after the extractor's second pass is its own look in the cache (`recheck`).
+- **Known gaps:**
+  - The Data room's own runs do not appear on Admin → Usage. This predates this change: they are not recorded under
+    `agent_runs`. Their paid calls are on the paid ledger and in the month's paid spend.
+  - The calls and tokens per file are measured on Nemotron's tokenizer, until the calibration run (D2) measures them
+    on Claude.
+
 ### Changed — science: a medium named without its pH takes its pH by convention once confirmed (`dataroom_rules.yaml` 0.2, UNVERIFIED) (2026-11-24)
 - **Why:** gap 2 of the data story. "0.1 N HCl" (Quorafen and Zelitrex) and "FaSSIF" carry no pH, so the profiles in
   them had none: no f2 against the reference's profile at pH 1.2, and a data request for a medium that was in fact

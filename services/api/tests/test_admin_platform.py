@@ -412,7 +412,8 @@ def test_an_agent_on_the_claude_api_takes_the_console_key_and_its_files_need_the
     assert (row["provider"], row["model"], row["effort"], row["fallback"]) == ("anthropic", "claude-opus-5-5", "medium",
                                                                                "claude-sonnet-5-5")
     model, problem = agent_jobs.chat_model("A8")
-    assert problem is None and isinstance(model, ClaudeAPIChat) and model.fallback == "claude-sonnet-5-5"
+    # a paid model: behind the paid models' meter (`modeler_agents.spend.PaidGuard`), the Claude API client inside it
+    assert problem is None and isinstance(model.inner, ClaudeAPIChat) and model.fallback == "claude-sonnet-5-5"
 
 
 def test_a_preset_puts_every_agent_on_it_with_its_estimated_cost_and_needs_its_keys(client, tmp_path):

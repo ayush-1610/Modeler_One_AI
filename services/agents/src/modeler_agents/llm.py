@@ -773,10 +773,14 @@ class LoopOutcome:
     error: str = ""
     answered_by: str = ""          # the model that answered last (a chain's: the one the conversation ended on)
     answered_on: str = ""          # that model as provider/model id (who wrote it, whatever its label)
+    # LLM_UNAVAILABLE's kind (`failure_kind`: timeout, connect, daily, key, model, server; "context" for a request too long
+    # for the model even shortened): a caller pauses on a failure that passes, and shortens a request that is too long
+    failure: str = ""
 
 
 def run_tool_loop(model: ChatModel, *, system: str, user: str, tools: list[Tool], max_turns: int = 30,
-                  log_step: Callable[[dict[str, Any]], None] = lambda step: None, shared: str = "") -> LoopOutcome:
+                  log_step: Callable[[dict[str, Any]], None] = lambda step: None, shared: str = "",
+                  on_restart: Callable[[], None] = lambda: None) -> LoopOutcome:
     """Let the model work through `tools` until it answers without calling one, or `max_turns` is reached.
 
     `shared`: the start of the task that many conversations share word for word (the Data room's delivery block, the
@@ -785,7 +789,12 @@ def run_tool_loop(model: ChatModel, *, system: str, user: str, tools: list[Tool]
     request reads it from the cache; the other clients send the task as one text.
 
     Every model turn and every tool call (arguments and the handler's answer) is passed to `log_step`, the agent run's
-    append-only step log. A handler that raises answers the model with the error instead of ending the run."""
+    append-only step log. A handler that raises answers the model with the error instead of ending the run.
+
+    When a chain moves to its next model during the conversation (`ModelSwitched`), the conversation starts again from
+    its beginning on that model and never goes on with the other model's turns. `on_restart` is called first, so the
+    caller drops what the step kept from the earlier model (its submitted answer): what is saved after is the next
+    model's alone, and the model the outcome names is the one that wrote it (plan 2026-11-24 §4)."""
     by_name = {t.name: t for t in tools}
     schemas = [t.schema() for t in tools]
     model = model.conversation() if hasattr(model, "conversation") else model     # a chain: this loop's own place in it
@@ -840,19 +849,22 @@ def run_tool_loop(model: ChatModel, *, system: str, user: str, tools: list[Tool]
                 tail = RAISE_CONTEXT if model.provider == "litellm" else "choose a model with a longer context for this agent"
                 return LoopOutcome("LLM_UNAVAILABLE", "", turn - 1, usage, error=(
                     f"the agent's instructions and material do not fit the model's context window ({window} tokens) "
-                    f"even with its earlier turns left out; {tail} ({exc})"), answered_by=who(), answered_on=ident())
+                    f"even with its earlier turns left out; {tail} ({exc})"), answered_by=who(), answered_on=ident(),
+                    failure="context")
             messages = fitted
             continue
         except ModelSwitched as exc:
-            # the chain's next model starts the conversation again, with a whole turn budget of its own; what the tool
-            # calls recorded so far (accepted fields, saved answers) stays
+            # the chain's next model starts the conversation again, with a whole turn budget of its own; a caller that
+            # keeps the step's answer drops what the earlier model gave (`on_restart`: the Data room), so the answer kept is
+            # the next model's; what other agents' tool calls recorded stays, as before
             log_switches()
             log_step({"type": "conversation_restarted", "turn": turn, "on": getattr(model, "label", ""), "why": str(exc)})
+            on_restart()
             again = run_tool_loop(model, system=system, user=user, tools=tools, max_turns=max_turns, log_step=log_step,
-                                  shared=shared)
+                                  shared=shared, on_restart=on_restart)
             merged = {k: usage.get(k, 0) + again.usage.get(k, 0) for k in {*usage, *again.usage}}
             return LoopOutcome(again.status, again.final_text, turn - 1 + again.turns, merged, error=again.error,
-                               answered_by=again.answered_by, answered_on=again.answered_on)
+                               answered_by=again.answered_by, answered_on=again.answered_on, failure=again.failure)
         except ToolCallRejected as exc:
             log_step({"type": "tool_call_rejected", "turn": turn, "error": str(exc)})
             messages.append({"role": "user", "content": f"Your last tool call was refused: {exc}. Call the tool again with "
@@ -861,7 +873,8 @@ def run_tool_loop(model: ChatModel, *, system: str, user: str, tools: list[Tool]
         except LLMUnavailableError as exc:
             log_switches()
             log_step({"type": "llm_unavailable", "turn": turn, "error": str(exc)})
-            return LoopOutcome("LLM_UNAVAILABLE", "", turn - 1, usage, error=str(exc), answered_by=who(), answered_on=ident())
+            return LoopOutcome("LLM_UNAVAILABLE", "", turn - 1, usage, error=str(exc), answered_by=who(), answered_on=ident(),
+                               failure=failure_kind(exc))
         log_switches()
         for name, tokens in result.usage.items():     # the cache's reads and writes too, where the provider reports them
             usage[name] = usage.get(name, 0) + int(tokens or 0)

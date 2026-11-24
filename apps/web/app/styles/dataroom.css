@@ -25,6 +25,14 @@
 .dr-progress header strong { font-size: 15px; font-weight: 600; }
 .dr-progress-head { display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; }
 .dr-progress.failed { border-color: color-mix(in srgb, var(--bad-ink) 40%, var(--line)); }
+/* a paused run (plan 2026-11-24 §4): where and why, when it goes on, and Resume now */
+.dr-progress.paused { border-color: color-mix(in srgb, var(--warn) 55%, var(--line)); }
+.dr-paused { display: grid; gap: 8px; justify-items: start; font-size: 15px; }
+.dr-paused-detail { overflow-wrap: anywhere; }
+.dr-stages li.paused .dr-stage-mark, .dr-stages li.paused .dr-stage-count { color: var(--warn-ink); }
+/* the one question before a run on a paid model */
+.dr-confirm { display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: center; justify-content: space-between; }
+.dr-confirm-acts { display: flex; gap: 8px; }
 .dr-stages { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
 .dr-stages li { display: grid; grid-template-columns: 20px auto auto minmax(0, 1fr); gap: 12px; align-items: baseline; font-size: 15px; }
 .dr-stage-mark { color: var(--ink-quiet); text-align: center; font-weight: 600; }

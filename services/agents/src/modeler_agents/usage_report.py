@@ -154,6 +154,27 @@ def _prices(model: str, prompt: int) -> tuple[float, float, float, float]:
     return HAIKU_LONG if model == "claude-haiku-5-5" and prompt > HAIKU_LONG_AT else PRICES[model]
 
 
+DEAREST = "claude-opus-5-5"        # what a paid model this table does not price is priced at: a cap is never passed unseen
+
+
+def price_key(model: str) -> str | None:
+    """The `PRICES` entry a provider's model id is priced at ("anthropic.claude-opus-5-5" on Bedrock, "claude-opus-5-5"
+    on the direct API, a dated or regional id holding either), or None for a model the table does not price."""
+    lowered = model.lower()
+    return next((key for key in PRICES if key in lowered), None)
+
+
+def call_cost(model: str, usage: dict[str, Any]) -> float:
+    """One model call's cost in USD at list prices, from the usage its provider reported: the uncached input, the cache's
+    writes and reads (Claude reports them; `input_tokens` excludes them) and the output, thinking included. A model the
+    table does not price is priced as `DEAREST`. The same prices as the usage page (`cost`), for one call."""
+    key = price_key(model) or DEAREST
+    uncached, write, read = (int(usage.get(k) or 0) for k in ("input_tokens", "cache_creation_input_tokens",
+                                                              "cache_read_input_tokens"))
+    p_in, p_write, p_read, p_out = _prices(key, uncached + write + read)
+    return (uncached * p_in + write * p_write + read * p_read + int(usage.get("output_tokens") or 0) * p_out) / 1e6
+
+
 def cost(run: Run, model: str, *, cached: bool) -> float:
     """The run's cost in USD on `model` at list prices, its conversations cached or not."""
     total = 0.0

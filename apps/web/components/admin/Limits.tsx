@@ -2,8 +2,9 @@
 
 // The monthly limits (docs/plans/2026-11-10-admin-console.md, E; the owner's answer 2): a spend and a token limit per
 // company, project or person, each with this month's use. A limit warns the administrator at 80 % and when reached;
-// it never stops an agent. Each change needs a reason and a fresh step-up (the API asks; the browser's session confirms
-// the person and sends the change once more).
+// it never stops an agent. Paid models alone also have a hard cap, per run and per month, which pauses the Data room's
+// run (plan 2026-11-24 §2.4, the owner's decision D3). Each change needs a reason and a fresh step-up (the API asks; the
+// browser's session confirms the person and sends the change once more).
 
 import { useState } from "react";
 
@@ -20,6 +21,51 @@ const SCOPES: { id: Scope; label: string }[] = [
 ];
 
 const number = (text: string, whole = false) => (text.trim() === "" ? null : whole ? Math.round(Number(text)) : Number(text));
+
+/** The hard cap on paid models only (plan 2026-11-24 §2.4; the owner's decision D3): a run's and a month's spend. Reaching
+ *  one pauses the Data room's run; raising it here resumes the runs it paused. */
+function PaidCap({ page, onSaved, priced }: { page: Page; onSaved: (next: Page) => void; priced: PricedAs }) {
+  const paid = page.paid;
+  const [run, setRun] = useState(String(paid.run_usd));
+  const [month, setMonth] = useState(String(paid.month_usd));
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
+  const valid = Number(run) > 0 && Number(month) > 0 && Number(run) <= Number(month) && Boolean(reason.trim());
+
+  async function save() {
+    setBusy(true);
+    setProblem(null);
+    const env = await send("put", "/api/v1/admin/limits/paid", {}, { run_usd: Number(run), month_usd: Number(month), reason: reason.trim() },
+                           { priced_as: priced });
+    setBusy(false);
+    if (env.errors?.length || !env.data) { setProblem(env.errors?.[0]?.message ?? "no answer"); return; }
+    setReason("");
+    onSaved(env.data);
+  }
+
+  return (
+    <Card title="Paid models: a hard cap">
+      <p className="muted">
+        For {paid.providers.join(" and ")} only: reaching a cap <strong>pauses</strong> the Data room&apos;s run, which goes on
+        where it stopped once the cap is raised or the agent is switched to a free model. Free and in-house models keep the
+        warn-only limits above. This month: {usd(paid.month_spent_usd)} of {usd(paid.month_usd)} spent on paid models
+        {paid.paused_runs ? `; ${paid.paused_runs} ${paid.paused_runs === 1 ? "run is" : "runs are"} paused by the cap` : ""}.
+      </p>
+      <form className="admin-filter" onSubmit={(e) => { e.preventDefault(); void save(); }} data-testid="paid-cap-form">
+        <label>A run (USD)<input inputMode="decimal" value={run} onChange={(e) => setRun(e.target.value)} data-testid="paid-cap-run" /></label>
+        <label>A month (USD)<input inputMode="decimal" value={month} onChange={(e) => setMonth(e.target.value)} data-testid="paid-cap-month" /></label>
+        <label>Why<input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="kept with the change"
+                         data-testid="paid-cap-reason" /></label>
+        <button type="submit" className="btn primary" disabled={busy || !valid} data-testid="paid-cap-save">Change the cap</button>
+      </form>
+      {problem && <div className="banner err mt-10" data-testid="paid-cap-problem">{problem}</div>}
+      <p className="muted mb-0" data-testid="paid-cap-set">
+        {paid.set_by ? <>Set {when(paid.set_at)} by {paid.set_by}: {paid.reason}</> : <>The defaults: {paid.reason}.</>}
+      </p>
+    </Card>
+  );
+}
 
 export function Limits({ initial, priced }: { initial: Page; priced: PricedAs }) {
   const [page, setPage] = useState(initial);
@@ -90,6 +136,7 @@ export function Limits({ initial, priced }: { initial: Page; priced: PricedAs })
           Tokens are those in and out. A month is a calendar month (UTC).
         </p>
       </Card>
+      <PaidCap page={page} onSaved={setPage} priced={priced} />
       <Card title="Set a limit">
         <form className="admin-filter" onSubmit={(e) => { e.preventDefault(); void save(false); }} data-testid="limit-form">
           <label>On

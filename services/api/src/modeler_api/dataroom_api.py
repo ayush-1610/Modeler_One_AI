@@ -4,7 +4,10 @@
   an existing project's recorded client files added as uploads, each once (`reading.import_existing`).
 - `run`: the background run (`agent_jobs.dataroom_run`, the one seam to the agents, rule B4): the files read by code,
   OCR included, then A6-A10 where each has a model; one run at a time per project (409 while one runs). Its record,
-  with each stage's live counts, is `GET run`.
+  with each stage's live counts, is `GET run`. A run that stops for a reason that passes (a provider down or
+  rate-limited, a paid model's cap, a chosen model that cannot be used) is paused, not failed: it resumes by itself,
+  when the administrator changes what stopped it, or now (`run:resume`), where it stopped (`dataroom_runs`). `GET
+  run/estimate`: what the next run is expected to cost on paid models, asked once before a paid run starts.
 - `""`: the whole room (`modeler_project.dataroom.room_view`), as the page and the report show it. It is assembled
   from the store's files, so it is kept per project and assembled again only when one of them changed.
 - the modeler's word: the question card, a decision, a value entered with its reason, a data request's wording or
@@ -33,7 +36,7 @@ from typing import Annotated, Any, Literal
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile
 from pydantic import BaseModel, ConfigDict, Field
 
-from modeler_api import agent_jobs, jobs
+from modeler_api import agent_jobs, dataroom_runs, jobs
 from modeler_api.auth import Principal, ensure_step_up, require_role
 from modeler_api.compliance.signatures import SignatureMeaning, Signer, sign_after_step_up
 from modeler_api.config import SettingsDep
@@ -46,6 +49,7 @@ from modeler_api.views.dataroom import (
     RoomPublication,
     RoomPublished,
     RoomRun,
+    RoomRunEstimate,
     RoomUploaded,
     RoomUploads,
     SourceFile,
@@ -64,7 +68,7 @@ from modeler_project.members import Memberships
 router = APIRouter(prefix="/api/v1", tags=["dataroom"])
 
 BASE = "/projects/{project_id}/dataroom"
-BUSY = "the Data room is already running for this project"
+BUSY = dataroom_runs.BUSY
 STOPPED = "the run stopped before it finished (the server restarted): run it again"
 # the room's answer carries every field, set or not (the engine's models mark each one required in the contract)
 ROOM = {"response_model": Envelope[DataRoomView]}
@@ -195,9 +199,13 @@ class RoomRunStart(BaseModel):
     files: list[str] = Field(default_factory=list, description="the per-file stages for these files only (their paths)")
 
 
-def _run_view(room: DataRoomStore, running: bool) -> dict[str, Any]:
+_PAUSE_KEYS = (("reason", "provider_unavailable"), ("said", ""), ("detail", ""), ("stage", ""), ("where", ""),
+               ("per_file", False), ("done", 0), ("total", 0), ("at", ""), ("resume_at", None))
+
+
+def _run_view(room: DataRoomStore, running: bool, raw: dict[str, Any] | None = None) -> dict[str, Any]:
     """The run's record as the page reads it; a run left "running" by a job that is gone (a restart) is failed."""
-    raw = room.run()
+    raw = room.run() if raw is None else raw
     state = raw.get("state", "idle")
     stages = [{k: s.get(k, d) for k, d in (("id", ""), ("label", ""), ("agent", ""), ("state", "waiting"), ("done", 0),
                                             ("total", 0), ("note", ""))} for s in raw.get("stages", [])]
@@ -205,8 +213,10 @@ def _run_view(room: DataRoomStore, running: bool) -> dict[str, Any]:
     if state == "running" and not running:
         state, error = "failed", STOPPED
         stages = [{**s, "state": "failed" if s["state"] == "running" else s["state"]} for s in stages]
+    pause = raw.get("pause") if state == "paused" else None
     return {"state": state, "stages": stages, "agents": dict(raw.get("agents") or {}), "error": error,
-            "started_at": raw.get("started_at"), "finished_at": raw.get("finished_at")}
+            "started_at": raw.get("started_at"), "finished_at": raw.get("finished_at"),
+            "pause": {k: pause.get(k, d) for k, d in _PAUSE_KEYS} if pause else None}
 
 
 @router.get(f"{BASE}/run", **answers(RoomRun))
@@ -215,10 +225,33 @@ def get_dataroom_run(project_id: str, principal: Reader, store: StoreDep) -> dic
     return envelope(_run_view(room, jobs.running(store, principal.tenant_id, project_id, "dataroom")))
 
 
+@router.get(f"{BASE}/run/estimate", **answers(RoomRunEstimate))
+def estimate_dataroom_run(project_id: str, principal: Reader, store: StoreDep) -> dict[str, Any]:
+    """What the next run is expected to cost on the paid models its agents start on, from the files still to read and
+    their sizes (plan 2026-11-24 §2.4): the page asks once before a paid run starts. `paid` false: it costs nothing."""
+    return envelope(agent_jobs.dataroom_estimate(_room(project_id, principal, store)))
+
+
+@router.post(f"{BASE}/run:resume", status_code=202, **answers(RoomRun))
+def resume_dataroom_run(project_id: str, principal: Writer, store: StoreDep) -> dict[str, Any]:
+    """Resume a paused run now, where it stopped (plan 2026-11-24 §4): the stages and files it finished are not run
+    again. 409 when the run is not paused, or one is running."""
+    room = _room(project_id, principal, store)
+    raw = room.run()
+    if raw.get("state") != "paused":
+        raise HTTPException(status_code=409, detail="the run is not paused: there is nothing to resume")
+    if not dataroom_runs.resume(store, principal.tenant_id, project_id, by=principal.user_id, how="now"):
+        raise HTTPException(status_code=409, detail=BUSY)
+    # the page reads it as running at once; the job itself moves the record on, under the project's lease
+    stages = [{**s, "state": "waiting" if s.get("state") == "paused" else s.get("state")} for s in raw.get("stages", [])]
+    return envelope(_run_view(room, True, {**raw, "state": "running", "pause": None, "error": "", "stages": stages}))
+
+
 @router.post(f"{BASE}/run", status_code=202, **answers(RoomRun))
 def start_dataroom_run(project_id: str, principal: Writer, store: StoreDep, body: RoomRunStart | None = None) -> dict[str, Any]:
     """Run the Data room in the background: the files read (OCR included), then the agents that have a model. Each
-    stage's answers are kept per file, so a second run redoes only what is new, unless `redo` names the stage."""
+    stage's answers are kept per file, so a second run redoes only what is new, unless `redo` names the stage. A run
+    that stops for a reason that passes is paused, not failed, and resumes where it stopped (`run:resume`)."""
     room = _room(project_id, principal, store)
     body = body or RoomRunStart()
     stages = agent_jobs.dataroom_stages()
@@ -239,13 +272,8 @@ def start_dataroom_run(project_id: str, principal: Writer, store: StoreDep, body
                               "done": 0, "total": 0, "note": ""} for sid, label, agent in stages]})
     room.audit(actor=principal.user_id, action="dataroom.run", resource_id="run",
                after={"stages": list(wanted), "redo": list(body.redo), "files": list(body.files)})
-    actor, ws = principal.user_id, room.ws
-
-    def job() -> None:
-        agent_jobs.dataroom_run(DataRoomStore(ws), actor=actor, stages=wanted, redo=body.redo, files=body.files)
-
-    jobs.start(store, principal.tenant_id, project_id, "dataroom", job, busy=BUSY, by=principal.user_id,
-               name=f"dataroom-{project_id}")
+    dataroom_runs.start(store, principal.tenant_id, project_id, by=principal.user_id, stages=wanted, redo=body.redo,
+                        files=body.files)
     return envelope(_run_view(room, True))
 
 
@@ -461,6 +489,9 @@ def put_data_permissions(project_id: str, principal: Governor, store: StoreDep, 
                                 by=principal.user_id, reason=body.reason)
     except PermissionError_ as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+    # a run paused because none of an agent's models was allowed for these files goes on now (it pauses again at once
+    # if the change allowed none)
+    dataroom_runs.resume(store, principal.tenant_id, project_id, by=principal.user_id, how="now", reasons=("no_model",))
     return _permissions(ws, owner_or_admin(project_id, principal, settings))
 
 

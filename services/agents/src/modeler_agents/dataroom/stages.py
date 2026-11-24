@@ -25,6 +25,7 @@ from typing import Any
 
 from pydantic import BaseModel, ValidationError
 
+from modeler_agents.dataroom.run import unavailable
 from modeler_agents.llm import ChatModel, LoopOutcome, Tool, run_tool_loop
 from modeler_intake.room import LINES_VERSION, Part, document_parts, parts_sha256, unmarked
 from modeler_intake.room_specs import FIELDS, ROLES, TOPICS, Extraction, FileTriage, QuestionCard
@@ -106,13 +107,23 @@ FOCUS_CHARS = 14000      # the pages shown to the extractor up front (about 3,50
 
 
 
-def _loop(store: DataRoomStore, stage: str, file: str, model: ChatModel, **kw: Any) -> Any:
+def _loop(store: DataRoomStore, stage: str, file: str, model: ChatModel, saved: list[BaseModel], **kw: Any) -> Any:
     """`run_tool_loop` with each turn written to the room's record of the agents' turns (which model answered, each
-    tool's answer, each switch to another model)."""
+    tool's answer, each switch to another model).
+
+    One step (one file in one stage, or the delivery's question or writing) is one model's work: when the chain moves to
+    its next model in the middle of it, the step starts again from its beginning there, and what the earlier model
+    submitted is dropped (`saved` emptied), so the answer kept and its author are the next model's (plan 2026-11-24 §4).
+    A step that no model of the chain could answer, for a reason that passes (no answer in time, a rate limit or a
+    quota, the service down or refusing its key), and that saved nothing, pauses the run (`RunPaused`): nothing of it is
+    kept, and the run resumes at this step. A request too long for the model is the caller's to shorten."""
     def log(step: dict[str, Any]) -> None:
         store.log_agent_step(stage=stage, file=file, model=getattr(model, "label", f"{model.provider}/{model.model}"),
                              step=step)
-    return run_tool_loop(model, log_step=log, **kw)
+    outcome = run_tool_loop(model, log_step=log, on_restart=saved.clear, **kw)
+    if outcome.status == "LLM_UNAVAILABLE" and outcome.failure != "context" and not saved:
+        raise unavailable(outcome.answered_by, outcome.error)
+    return outcome
 
 def _too_large(error: str) -> bool:
     return "413" in error or any(w in error.lower() for w in ("too large", "context length", "context window"))
@@ -376,18 +387,18 @@ def question(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, 
     step(0, 1, "reading the proposal and the request")
     # first from the digest and the pages alone, with no file to open: a model given the tools opened the files one per
     # turn even with the digest in hand (2026-11-24); the tools come back only when no card could be saved
-    outcome = _loop(store, "question", "", model, system=QUESTION_SYSTEM, tools=[submit], max_turns=3, user=(
+    outcome = _loop(store, "question", "", model, saved, system=QUESTION_SYSTEM, tools=[submit], max_turns=3, user=(
         f"The delivery, as code read it (every file, its parts, the lines that may state the question):\n{digest}\n\n"
         f"The pages most likely to state the question:\n{material}\n\n"
         "Write the question card from these now (each quote with its file), and submit it."))
     if not saved and not _too_large(outcome.error):
-        outcome = _loop(store, "question", "", model, system=QUESTION_SYSTEM, tools=tools, max_turns=8, user=(
+        outcome = _loop(store, "question", "", model, saved, system=QUESTION_SYSTEM, tools=tools, max_turns=8, user=(
             f"The delivery, as code read it (every file, its parts, the lines that may state the question):\n{digest}\n\n"
             f"The pages most likely to state the question:\n{material}\n\n"
             "Write the question card (each quote with its file); open a file only for a quote you still need."))
     if not saved and _too_large(outcome.error):
         material = "\n\n".join(f"=== {p}\n{_focus(d, ['question'], budget=per_file // 3)}" for p, (_f, d) in ranked[:2])
-        outcome = _loop(store, "question", "", model, system=QUESTION_SYSTEM, tools=tools, max_turns=8, user=(
+        outcome = _loop(store, "question", "", model, saved, system=QUESTION_SYSTEM, tools=tools, max_turns=8, user=(
             f"The delivery's files:\n{listing}\n\nThe pages most likely to state the question:\n{material}\n\n"
             "Write the question card (each quote with its file)."))
     if not saved:
@@ -438,6 +449,7 @@ def triage(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, st
     context = f"The question: {card.question}\n" if card else ""      # the delivery's block: the same for every file
     cache, reused = AnswerCache(store.ws), 0
     reuse = not redo if reuse is None else reuse
+    step(0, len(todo))
     for done, (path, f, doc) in enumerate(todo, start=1):
         saved: list[BaseModel] = []
         def checked(a: BaseModel, path: str = path, doc: SourceDocument = doc) -> list[str]:
@@ -458,8 +470,8 @@ def triage(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, st
             reused += 1
             step(done, len(todo), path)
             continue
-        sorted_by = _loop(store, "triage", path, model, system=TRIAGE_SYSTEM, tools=[tool], max_turns=4, shared=context,
-                          user=task)
+        sorted_by = _loop(store, "triage", path, model, saved, system=TRIAGE_SYSTEM, tools=[tool], max_turns=4,
+                          shared=context, user=task)
         if saved:
             store.put_triage(saved[0], f.sha256)  # type: ignore[arg-type]
             store.record_author(stage="triage", file=path, model=sorted_by.answered_by, identity=sorted_by.answered_on,
@@ -564,6 +576,7 @@ def extract(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, s
         if redo or store.extraction(f.sha256) is None:
             todo.append((path, f, doc, t))
     failed: list[str] = []
+    step(0, len(todo))
     for done, (path, f, doc, t) in enumerate(todo, start=1):
         saved: list[BaseModel] = []
         tool = _submit_tool("submit_extraction", Extraction,
@@ -590,6 +603,8 @@ def extract(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, s
                           user=task, inputs={
                               "question": asked, "focus_chars": str(budget), "feedback": stable_sha256(said) if said else "",
                               "triage": stable_sha256(None if t is None else {"topics": topics, "reason": t.reason})})
+        # an extraction made again on the checker's issues says how many it answered: it is not sent back again
+        sent_back = {"checker_issues": str(len(feedback[path]))} if feedback and path in feedback else {}
 
         def problems(a: BaseModel, path: str = path, f: FileView = f, doc: SourceDocument = doc) -> list[str]:
             return _extraction_problems(a, path, f, doc)  # type: ignore[arg-type]
@@ -598,14 +613,16 @@ def extract(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, s
         if hit is not None:
             _record_reuse(store, "extract", path, hit, key)
             store.put_extraction(Extraction.model_validate(hit.answer), f.sha256, agent={
-                "agent": "A8", "model": hit.author, "identity": hit.identity, "prompt": PROMPT_VERSION, "reused": hit.note})
+                "agent": "A8", "model": hit.author, "identity": hit.identity, "prompt": PROMPT_VERSION, "reused": hit.note,
+                **sent_back})
             reused += 1
             step(done, len(todo), path)
             continue
-        outcome = _loop(store, "extract", path, model, system=EXTRACT_SYSTEM, shared=delivery, user=task, tools=tools,
-                        max_turns=14)
+        outcome = _loop(store, "extract", path, model, saved, system=EXTRACT_SYSTEM, shared=delivery, user=task,
+                        tools=tools, max_turns=14)
         if not saved and _too_large(outcome.error):      # a provider's per-request limit: the same, with fewer pages
-            outcome = _loop(store, "extract", path, model, system=EXTRACT_SYSTEM, shared=delivery, user=user(budget // 3),
+            outcome = _loop(store, "extract", path, model, saved, system=EXTRACT_SYSTEM, shared=delivery,
+                            user=user(budget // 3),
                             tools=tools, max_turns=10)
         if not saved:
             failed.append(f"{path}: no answer ({outcome.status}{': ' + outcome.error[:200] if outcome.error else ''})")
@@ -615,7 +632,7 @@ def extract(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, s
                                 prompt=PROMPT_VERSION)
             store.put_extraction(answer, f.sha256, agent={"agent": "A8", "model": outcome.answered_by,
                                                           "identity": outcome.answered_on,  # type: ignore[arg-type]
-                                                         "prompt": PROMPT_VERSION})
+                                                          "prompt": PROMPT_VERSION, **sent_back})
             if not problems(answer):
                 _remember(store, cache, key, answer, outcome)
         step(done, len(todo), path)
@@ -665,14 +682,18 @@ class _Review(BaseModel):
 
 def check(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, step: Step, only: set[str] | None = None,
           focus_chars: int = FOCUS_CHARS, reuse: bool | None = None, recheck: bool = False) -> str:
-    """A9 on each file whose extraction has tables. `reuse`: answer from the tenant's answer cache when every input is
-    the same (default: unless redoing). `recheck`: the look after the extractor's second pass (`run._check_again`), a
-    step of its own in the cache: the same extraction checked again is asked again, not answered with the first look."""
+    """A9 on each file whose extraction has tables. A file whose review checked its extraction as it now stands is not
+    checked again (a second run, a paused run resumed), unless `redo`. `reuse`: answer from the tenant's answer cache
+    when every input is the same (default: unless redoing). `recheck`: the look after the extractor's second pass
+    (`run._check_again`), a step of its own in the cache: the same extraction checked again is asked again, not answered
+    with the first look."""
     docs = {p: v for p, v in _used_files(store).items() if only is None or p in only}
-    todo = [(p, f, d, got[0]) for p, (f, d) in docs.items() if (got := store.extraction(f.sha256)) and got[0].tables]
+    todo = [(p, f, d, got[0]) for p, (f, d) in docs.items() if (got := store.extraction(f.sha256)) and got[0].tables
+            and (redo or not store.review_current(f.sha256))]
     issues = 0
     cache, reused = AnswerCache(store.ws), 0
     reuse = not redo if reuse is None else reuse
+    step(0, len(todo))
     for done, (path, f, doc, ext) in enumerate(todo, start=1):
         parts = {p.name: p for p in _parts(doc)}
         shown = []
@@ -699,12 +720,12 @@ def check(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, ste
                           note="; not a second opinion: the same model wrote the extraction" if same else "")
             review = [x for x in _Review.model_validate(hit.answer).tables if not x.get("ok", True)]
             issues += len(review)
-            store.put_review(f.sha256, review, agent=hit.author)
+            store.put_review(f.sha256, review, agent=hit.author, extraction=store.extraction_stamp(f.sha256))
             reused += 1
             step(done, len(todo), path)
             continue
         checker = model.conversation(avoid=author) if hasattr(model, "conversation") else model
-        done_check = _loop(store, "check", path, checker, system=CHECK_SYSTEM, tools=[tool], max_turns=4, user=task)
+        done_check = _loop(store, "check", path, checker, saved, system=CHECK_SYSTEM, tools=[tool], max_turns=4, user=task)
         same = bool(author) and done_check.answered_on == author
         store.record_author(stage="check", file=path, model=done_check.answered_by, identity=done_check.answered_on,
                             prompt=PROMPT_VERSION,
@@ -712,7 +733,7 @@ def check(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, ste
         if saved:
             review = [t for t in saved[0].tables if not t.get("ok", True)]  # type: ignore[attr-defined]
             issues += len(review)
-            store.put_review(f.sha256, review, agent=done_check.answered_by)
+            store.put_review(f.sha256, review, agent=done_check.answered_by, extraction=store.extraction_stamp(f.sha256))
             _remember(store, cache, key, saved[0], done_check)
         step(done, len(todo), path)
     return f"{len(todo)} files checked, {issues} issues" + _reuse_note(reused)
@@ -756,7 +777,7 @@ def write(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, ste
     tool = _submit_tool("submit_writing", _Writing, checked, saved,
                         "Submit {findings: {section id: line}, requests: {request title: wording}}.")
     step(0, 1, "writing")
-    written = _loop(store, "write", "", model, system=WRITE_SYSTEM, tools=[tool], max_turns=6, user=material)
+    written = _loop(store, "write", "", model, saved, system=WRITE_SYSTEM, tools=[tool], max_turns=6, user=material)
     if not saved:
         return "nothing written"
     a = saved[0]
