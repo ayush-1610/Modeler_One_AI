@@ -94,6 +94,10 @@ tr.project-archived td { color: var(--ink-faint); }
 .table-scroll:focus-visible { outline: 2px solid var(--sim); outline-offset: 2px; }
 .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0);
   white-space: nowrap; border: 0; }
+/* pinned to its containing block's corner: at its own place an absolute label inside a table's scroll box (a column's
+   "Actions") escaped the box and widened the whole page on a phone (Documents at 390 px scrolled 303 px sideways,
+   console-shell.spec.ts). Nothing focusable wears this class. */
+.sr-only { left: 0; top: 0; }
 
 /* ---- the project document library (components/library/LibraryTable.tsx) ---- */
 .library-tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }

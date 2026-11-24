@@ -56,7 +56,12 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
     - whether the master key opens the stored keys;
     - each AI service's active key and its last test;
     - what each agent runs on now.
-  - **Sidebar:** Help, and the project's Settings.
+  - **In the console shell (redesign slice 1, merged the same day):** Help and the person's name (to the account page) in
+    the top bar; the project's Settings under "Project" in its navigation; System status in the administration's.
+  - **Fixed: pages scrolled sideways on a phone.** A screen-reader-only column label in a wide table escaped the
+    table's scroll box and widened the page (Documents at 390 px: 303 px). Found by the console's own layout test;
+    `.sr-only` is now pinned to its containing block's corner. The sign-in pages have their own loading state: the app's
+    skeleton reads the API through its breadcrumbs, which a person not signed in cannot.
 - **Proved:**
   - The Keycloak browser suite (`oidc-signing.spec.ts`, 7 tests: sign-in, the signature step-up, members, sign-out,
     account, no access, a failed sign-in, System status) passes against Keycloak 26.7.5 with the repository's realm
