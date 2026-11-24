@@ -9,7 +9,7 @@
 import Link from "next/link";
 import { useState } from "react";
 
-import { Card } from "@/components/ui";
+import { Panel } from "@/components/kit/Panel";
 import { send, type Schema } from "@/lib/api";
 import { when } from "@/lib/admin";
 
@@ -210,7 +210,7 @@ function SwitchEveryAgent({ page, onSaved }: { page: Page; onSaved: (p: Page) =>
   }
 
   return (
-    <Card title="Switch every agent">
+    <Panel title="Switch every agent">
       <p className="muted" style={{ marginTop: 0 }}>
         Puts all {page.agents.length} agents on one model at once, for example back on the in-house model (&ldquo;as the
         server&apos;s environment says&rdquo;) if Claude on Bedrock stops answering, and onto Claude again later. Running
@@ -251,7 +251,7 @@ function SwitchEveryAgent({ page, onSaved }: { page: Page; onSaved: (p: Page) =>
       </form>
       {problem && <div className="banner err" style={{ marginTop: 10 }} data-testid="switch-problem">{problem}</div>}
       {done && <div className="banner ok" style={{ marginTop: 10 }} data-testid="switch-done">{done}</div>}
-    </Card>
+    </Panel>
   );
 }
 
@@ -285,7 +285,7 @@ function FailoverChain({ page, onSaved }: { page: Page; onSaved: (p: Page) => vo
   }
 
   return (
-    <Card title="When a model cannot answer">
+    <Panel title="When a model cannot answer">
       <p className="muted mt-0" data-testid="chain-notice">{page.chain.notice}</p>
       {order.length === 0
         ? <p data-testid="chain-empty">No model is listed: an agent whose model cannot answer stops and says why.</p>
@@ -330,7 +330,7 @@ function FailoverChain({ page, onSaved }: { page: Page; onSaved: (p: Page) => vo
           {page.chain.set_by ? ` (${page.chain.set_by})` : ""}</p>
       )}
       {problem && <div className="banner err" style={{ marginTop: 10 }} data-testid="chain-problem">{problem}</div>}
-    </Card>
+    </Panel>
   );
 }
 
@@ -342,7 +342,7 @@ export function AgentModels({ initial }: { initial: Page }) {
       <datalist id="claude-models">{page.claude_models.map((m) => <option key={m} value={m} />)}</datalist>
       <SwitchEveryAgent page={page} onSaved={setPage} />
       <FailoverChain key={page.chain.set_at ?? "none"} page={page} onSaved={setPage} />
-      <Card title="Each agent's model">
+      <Panel title="Each agent's model">
         <p className="muted mt-0">
           One click puts an agent on Qwen Coder (the in-house model), Claude, gpt-oss-120b (on GroqCloud) or Nemotron
           Ultra (NVIDIA&apos;s API catalog); the change
@@ -382,8 +382,8 @@ export function AgentModels({ initial }: { initial: Page }) {
             </tbody>
           </table>
         </div>
-      </Card>
-      <Card title="Changes">
+      </Panel>
+      <Panel title="Changes">
         {page.history.length === 0 ? <p className="muted">No change yet.</p> : (
           <ul className="plain-list" data-testid="admin-agent-history">
             {page.history.map((h) => (
@@ -394,7 +394,7 @@ export function AgentModels({ initial }: { initial: Page }) {
             ))}
           </ul>
         )}
-      </Card>
+      </Panel>
     </>
   );
 }

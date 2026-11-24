@@ -7,7 +7,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-import { Card } from "@/components/ui";
+import { Panel } from "@/components/kit/Panel";
 import { send } from "@/lib/api";
 
 type Person = { subject: string; name: string; projects: string[] };
@@ -37,7 +37,7 @@ export function GiveProjects({ tenantId, people }: { tenantId: string; people: P
   }
 
   return (
-    <Card title="Give a person projects">
+    <Panel title="Give a person projects">
       <p className="muted mt-0">
         Makes a person a member of another person&apos;s projects, or of every project of this company: for example the
         projects made under the pilot&apos;s development sign-in (&ldquo;Dev User&rdquo;), for the people who now sign in
@@ -69,6 +69,6 @@ export function GiveProjects({ tenantId, people }: { tenantId: string; people: P
       </form>
       {problem && <div className="banner err mt-10">{problem}</div>}
       {done && <div className="banner ok mt-10" data-testid="give-done">{done}</div>}
-    </Card>
+    </Panel>
   );
 }

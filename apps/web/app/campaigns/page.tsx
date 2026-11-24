@@ -1,6 +1,5 @@
-import { PageShell } from "@/components/kit";
+import { ApiProblem, PageShell } from "@/components/kit";
 import { Campaigns } from "@/components/portfolio/Campaigns";
-import { ApiProblem } from "@/components/ui";
 import { getCampaigns, getProjects } from "@/lib/reads";
 
 // Campaigns (P-05, the console redesign's slice 2): every campaign of this person's projects.

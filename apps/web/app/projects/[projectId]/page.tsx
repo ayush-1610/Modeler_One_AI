@@ -1,8 +1,9 @@
 import Link from "next/link";
 
-import { Hero } from "@/components/kit";
+import { ApiProblem, Hero } from "@/components/kit";
 import { ProjectNotices } from "@/components/project/ProjectNotices";
-import { ApiProblem, RiskChip, StatusChip } from "@/components/ui";
+import { RiskBadge } from "@/components/kit/Badge";
+import { StatusIndicator } from "@/components/kit/StatusIndicator";
 import { getAudit, getSteps, STEP_ROUTES, type StepRow } from "@/lib/pipeline";
 import { NEXT, STEP_NAME, standing, workItems } from "@/lib/portfolio";
 import { getArchived, getCampaigns, getEscalations, getMe, getMembers, getProject } from "@/lib/reads";
@@ -51,7 +52,7 @@ export default async function ProjectOverview({ params }: { params: Promise<{ pr
       <Hero title={project.name} testId="overview-head"
             lede={<>{project.compounds.join(", ") || "No compound yet"}{members?.owner_name ? <> · owned by <strong>{members.owner_name}</strong></> : null}</>}
             actions={<>
-              <RiskChip rating={project.risk} />
+              <RiskBadge rating={project.risk} />
               {st.focus && <Link className="btn primary" href={STEP_ROUTES[st.focus](encodeURIComponent(project.id))} data-testid="overview-next">{st.next}</Link>}
             </>} />
       <ProjectNotices project={project} members={members} archived={archived} />
@@ -91,7 +92,7 @@ export default async function ProjectOverview({ params }: { params: Promise<{ pr
                       <tr key={q.id}>
                         <td>{q.question}</td>
                         <td>{q.application}</td>
-                        <td><RiskChip rating={q.modelRisk} /></td>
+                        <td><RiskBadge rating={q.modelRisk} /></td>
                         <td>{q.stage}</td>
                         <td className="num">{q.failingCriteria > 0 ? <span className="chip high">{q.failingCriteria}</span> : "0"}</td>
                       </tr>
@@ -141,7 +142,7 @@ export default async function ProjectOverview({ params }: { params: Promise<{ pr
               {!latest ? <p className="muted m-0">No campaign yet. It runs once the plan is signed.</p> : (
                 <dl className="kv-list">
                   <dt>Campaign</dt><dd><Link href={`/campaigns/${encodeURIComponent(latest.id)}`}><code>{latest.id}</code></Link></dd>
-                  <dt>Status</dt><dd><StatusChip status={latest.status} /></dd>
+                  <dt>Status</dt><dd><StatusIndicator status={latest.status} /></dd>
                   <dt>Stage</dt><dd>{latest.currentStage}</dd>
                 </dl>
               )}

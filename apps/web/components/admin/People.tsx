@@ -7,7 +7,7 @@
 
 import { useMemo, useState } from "react";
 
-import { Card } from "@/components/ui";
+import { Panel } from "@/components/kit/Panel";
 import { send, type Schema } from "@/lib/api";
 import { when } from "@/lib/admin";
 
@@ -67,7 +67,7 @@ function AddPerson({ page, onDone }: { page: Page; onDone: (p: Page) => void }) 
   }
 
   return (
-    <Card title="Add a person">
+    <Panel title="Add a person">
       <p className="muted" style={{ marginTop: 0 }}>
         They are created in Keycloak and set their own password and authenticator at their first sign-in.{" "}
         {page.smtp ? "Keycloak emails them the link." : "Keycloak has no mail server: the next step is a temporary password you set in Keycloak's own console (the link appears here)."}
@@ -88,7 +88,7 @@ function AddPerson({ page, onDone }: { page: Page; onDone: (p: Page) => void }) 
         <button type="submit" className="btn primary" disabled={busy || !ready} data-testid="person-add-submit">Add the person</button>
       </form>
       <Problem text={problem} />
-    </Card>
+    </Panel>
   );
 }
 
@@ -149,7 +149,7 @@ export function People({ initial }: { initial: Page }) {
 
   if (!page.ready) {
     return (
-      <Card title="Keycloak is not set up for the console yet">
+      <Panel title="Keycloak is not set up for the console yet">
         <div className="banner warn" data-testid="people-not-ready">{page.problem}</div>
         <ol className="muted" style={{ marginBottom: 0 }}>
           <li>In Keycloak (realm <strong>modeler</strong>), create the client <code>{page.service_client}</code> with only
@@ -158,7 +158,7 @@ export function People({ initial }: { initial: Page }) {
           <li>Here, under <strong>Keys</strong>: add a key of provider &ldquo;Keycloak service account&rdquo; with its client
             secret, test it, make it active.</li>
         </ol>
-      </Card>
+      </Panel>
     );
   }
 
@@ -171,7 +171,7 @@ export function People({ initial }: { initial: Page }) {
         </div>
       )}
       <AddPerson page={page} onDone={setPage} />
-      <Card title="People">
+      <Panel title="People">
         <div className="admin-filter" style={{ marginBottom: 10 }}>
           <label>Company
             <select value={company} onChange={(e) => setCompany(e.target.value)} data-testid="people-filter">
@@ -214,7 +214,7 @@ export function People({ initial }: { initial: Page }) {
           The platform owner&apos;s role (<code>modeler-admin</code>) is given only in Keycloak&apos;s own console. People are
           disabled, never deleted. You cannot disable or move yourself here.
         </p>
-      </Card>
+      </Panel>
     </>
   );
 }

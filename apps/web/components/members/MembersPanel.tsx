@@ -6,7 +6,8 @@
 
 import { useState } from "react";
 
-import { ApiProblem, Card } from "@/components/ui";
+import { ApiProblem } from "@/components/kit";
+import { Panel } from "@/components/kit/Panel";
 import { send, type Schema } from "@/lib/api";
 import { useMutation, useResource, type After } from "@/lib/hooks";
 
@@ -22,7 +23,7 @@ export function MembersPanel({ projectId }: { projectId: string }) {
   const [reason, setReason] = useState("");
   const [outcome, setOutcome] = useState<{ ok: boolean; message: string } | null>(null);
 
-  if (problem) return <Card title="Members"><ApiProblem problem={problem} /></Card>;
+  if (problem) return <Panel title="Members"><ApiProblem problem={problem} /></Panel>;
   if (!data) return null;
 
   async function add() {
@@ -47,7 +48,7 @@ export function MembersPanel({ projectId }: { projectId: string }) {
   }
 
   return (
-    <Card title="Members" action={<span className="muted">{data.members.length} with access</span>}>
+    <Panel title="Members" action={<span className="muted">{data.members.length} with access</span>}>
       <div data-testid="members-panel">
         {!data.managed && (
           <p className="muted mt-0">
@@ -93,6 +94,6 @@ export function MembersPanel({ projectId }: { projectId: string }) {
           {outcome && (outcome.ok ? outcome.message : <span className="chip high">{outcome.message}</span>)}
         </span>
       </div>
-    </Card>
+    </Panel>
   );
 }

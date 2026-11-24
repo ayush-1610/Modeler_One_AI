@@ -1,8 +1,7 @@
 import { PricingSwitch } from "@/components/admin/AdminParts";
 import { CompaniesTable } from "@/components/admin/CompaniesTable";
 import { AddCompany } from "@/components/admin/CompanyAdmin";
-import { Hero } from "@/components/kit";
-import { ApiProblem } from "@/components/ui";
+import { ApiProblem, Hero } from "@/components/kit";
 import { getOverview, hideUnlessAdmin, pricedAs } from "@/lib/admin";
 
 export const metadata = { title: "Companies · Modeler One" };

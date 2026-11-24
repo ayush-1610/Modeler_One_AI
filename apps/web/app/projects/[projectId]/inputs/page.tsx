@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import { InputsWorkspace } from "@/components/inputs/InputsWorkspace";
 import { Hero } from "@/components/kit";
-import { Stepper } from "@/components/kit/Stepper";
+import { StepWaiting } from "@/components/kit/StepWaiting";
 import { getSteps, STEP_ROUTES } from "@/lib/pipeline";
 
 /** Step 2 · Inputs (redesign §3.2), in place of P2–P4's per-item acceptance: one workspace, its areas in a bar that stays
@@ -27,7 +27,7 @@ export default async function InputsPage({ params, searchParams }: {
     return (
       <main>
         <Hero tone="inputs" eyebrow="Step 2 of 4" title="Inputs" lede="The inputs are gathered once Start is finished." />
-        <Stepper projectId={projectId} current="inputs" sticky={false} />
+        <StepWaiting projectId={projectId} current="inputs" />
         <section className="card inputs-blocked" data-testid="inputs-blocked">
           <h2>Inputs come after Start</h2>
           <p>Start is not finished. The inputs are gathered once it is: {start.reasons.length}{" "}
@@ -43,7 +43,7 @@ export default async function InputsPage({ params, searchParams }: {
       <InputsWorkspace projectId={projectId} initialTab={tab} initialOnly={only === "1"} initialStatus={status}
                        steps={(
                          <>
-                           <Stepper projectId={projectId} current="inputs" sticky={false} />
+                           <StepWaiting projectId={projectId} current="inputs" />
                           {waiting && (
                             // inputs that have begun stay open; Start still says what it needs, in red
                             <div className="banner err" role="alert" data-testid="inputs-start-not-done">

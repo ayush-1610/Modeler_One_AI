@@ -1,8 +1,7 @@
 import Link from "next/link";
 
-import { PageShell } from "@/components/kit";
+import { ApiProblem, PageShell } from "@/components/kit";
 import { ProjectsView } from "@/components/portfolio/ProjectsView";
-import { ApiProblem } from "@/components/ui";
 import { getCampaigns, getMe, getPortfolio } from "@/lib/reads";
 
 // Projects (P-03, the console redesign's slice 2): the table by default, cards as an option; archive and restore here.

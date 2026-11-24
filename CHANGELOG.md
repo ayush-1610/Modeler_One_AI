@@ -34,7 +34,22 @@ chain (R-B13) and `pbpk_domain.snapshot.parameter_transfer` (R-B13b) stay until 
   is built by `reference_models.starting_point` (services, not a router; moved from `templates_api`, behaviour
   unchanged), which the two consumers now read directly: `e2e/campaign-monitor.spec.ts` through a new fixture
   (`e2e/fixtures/starting_point.py`) and `deploy/showcase/seed_examples.py` (it checks the API answers on `/health`
-  and no longer seeds the blank "your own compound", which has nothing to run).
+  and no longer seeds the blank "your own compound", which has nothing to run). **The two routes themselves stay for
+  now:** `tests/architecture/boundaries.toml`, a locked file, names `modeler_api.templates_api` among the routers whose
+  answers are typed, so removing them is its own PR with the owner's approval (CLAUDE.md, locked files).
+
+### Changed — the console redesign, slice 9: one component kit (2026-11-24)
+- **What:** `components/ui.tsx` and `components/kit/Motion.tsx` are gone; their pieces live in the kit under the names
+  of the plan's component map (§2.1): `Card` → `kit/Panel` `Panel`; `RiskChip` and `ProvenanceChip` → `kit/Badge`
+  `RiskBadge` and `ProvenanceBadge`; `StatusChip` → `kit/StatusIndicator`; `ApiProblem` → `kit` (beside `Banner`);
+  the one `Completeness` meter is drawn where it is used (a compound's page); `toast` and `Toaster` → `kit/Toast`
+  (`celebrate` and `Counter`, which did nothing since slice 1, are gone with their two calls). The page's
+  "Waiting on you" line, still named `Stepper` from when it was the step bar, is `kit/StepWaiting`; its ignored
+  `sticky` prop is gone, and Start no longer mounts it (Start passed `waiting={false}`, so it drew nothing). The
+  kit's unused `SidePanel` box (`kit/index`, no importer; the side panel is `kit/SidePanel`) is gone.
+- **Why:** B-05 (two kits side by side) and B-09 (the motion system), retired in the plan's slice 9.
+- **Impact:** no page looks or behaves differently: each piece keeps its markup, classes and test ids (the toast's
+  class is `toast`, was `mo-toast`).
 
 ### Changed — the console redesign, slice 8: the admin console in the console style, a Companies page (2026-11-24)
 - **What:**

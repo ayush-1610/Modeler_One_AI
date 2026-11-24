@@ -1,11 +1,11 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
-import { ApiProblem, StatusChip } from "@/components/ui";
+import { StatusIndicator } from "@/components/kit/StatusIndicator";
 import { AuditTable, SignatureTable } from "@/components/records/HistoryTables";
 import { getArtifacts, getAudit, getHistory, getStale, type Change } from "@/lib/pipeline";
 import { getSignatures } from "@/lib/reads";
-import { Hero } from "@/components/kit";
+import { ApiProblem, Hero } from "@/components/kit";
 import { Clip } from "@/components/kit/Clip";
 
 // A project's History (P-21, the console redesign's slice 7): one record at a time, in tabs whose choice is in the
@@ -135,7 +135,7 @@ export default async function HistoryPage({
                         <tr key={`${a.kind}/${a.id}`}>
                           <td><Link href={here({ kind: a.kind, id: a.id })} prefetch={false}><code>{a.kind}/{a.id}</code></Link></td>
                           <td className="num">v{a.version}</td>
-                          <td><StatusChip status={a.status} /></td>
+                          <td><StatusIndicator status={a.status} /></td>
                           <td><Clip text={a.reason} /></td>
                           <td className="muted">{a.created_by}</td>
                         </tr>
@@ -159,7 +159,7 @@ export default async function HistoryPage({
                 <div key={row.version} className="mb-16">
                   <div className="row">
                     <strong>v{row.version}</strong>
-                    <StatusChip status={row.status} />
+                    <StatusIndicator status={row.status} />
                     <span className="muted">{new Date(row.created_at).toLocaleString()} · {row.created_by}</span>
                     <span className="flex-1 minw-0"><Clip text={row.reason} /></span>
                   </div>

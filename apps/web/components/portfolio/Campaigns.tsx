@@ -8,7 +8,7 @@ import Link from "next/link";
 import { useState } from "react";
 
 import { Table } from "@/components/kit/Table";
-import { StatusChip } from "@/components/ui";
+import { StatusIndicator } from "@/components/kit/StatusIndicator";
 import type { Campaign } from "@/lib/types";
 
 const pct = (c: Campaign) => (c.budgetSeconds > 0 ? Math.min(100, Math.round((100 * c.elapsedSeconds) / c.budgetSeconds)) : 0);
@@ -33,7 +33,7 @@ export function Campaigns({ campaigns, names }: { campaigns: Campaign[]; names: 
                render: (c) => c.project ? <Link href={`/projects/${encodeURIComponent(c.project)}`}>{names[c.project] ?? c.project}</Link>
                  : <span className="muted">not in a project</span> },
              { key: "compound", label: "Compound", sort: (c) => c.compound, render: (c) => c.compound },
-             { key: "status", label: "Status", sort: (c) => c.status, render: (c) => <StatusChip status={c.status} /> },
+             { key: "status", label: "Status", sort: (c) => c.status, render: (c) => <StatusIndicator status={c.status} /> },
              { key: "stage", label: "Current stage", sort: (c) => c.currentStage, render: (c) => c.currentStage },
              { key: "budget", label: "Budget used", num: true, sort: pct, render: (c) => `${pct(c)} %` },
            ]}

@@ -1,8 +1,7 @@
 import Link from "next/link";
 
-import { Hero } from "@/components/kit";
+import { ApiProblem, Hero } from "@/components/kit";
 import { AgentRunsTable } from "@/components/records/AgentRuns";
-import { ApiProblem } from "@/components/ui";
 import { getAgentRuns } from "@/lib/reads";
 
 // Agent activity (P-19, the console redesign's slice 7): what each AI agent did on this project, for the modeller's

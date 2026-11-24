@@ -1,7 +1,8 @@
-import { ApiProblem, Card, Completeness, ProvenanceChip } from "@/components/ui";
+import { Panel } from "@/components/kit/Panel";
+import { ProvenanceBadge } from "@/components/kit/Badge";
 import { MEASURED_SOURCES } from "@/lib/types";
 import { getCompoundCpf } from "@/lib/reads";
-import { Hero } from "@/components/kit";
+import { ApiProblem, Hero } from "@/components/kit";
 import { Clip } from "@/components/kit/Clip";
 import { SortableTable } from "@/components/kit/SortableTable";
 import { numericKey } from "@/lib/tableSort";
@@ -28,7 +29,7 @@ export default async function CompoundPage({ params }: { params: Promise<{ proje
       <Hero tone="inputs" eyebrow={`Compound Parameter Framework · v${cpf.version}`} title={cpf.name}
             lede="The CPF is the system of record: every simulation is regenerated from it. Each parameter shows its value, provenance and the stages in which it may be fitted." />
 
-      <Card>
+      <Panel>
         <div className="kpi">
           <div className="k"><div className="v">{cpf.parameters.length}</div><div className="l">parameters</div></div>
           <div className="k"><div className="v">{measured}</div><div className="l">measured / literature</div></div>
@@ -38,10 +39,13 @@ export default async function CompoundPage({ params }: { params: Promise<{ proje
             <div className="l">S0 readiness</div>
           </div>
         </div>
-        <div className="mt-12"><Completeness value={cpf.completeness} /></div>
-      </Card>
+        <div className="row gap-8 mt-12">
+          <div className="meter w-120"><span style={{ width: `${Math.round(cpf.completeness * 100)}%` }} /></div>
+          <span className="muted tnum">{Math.round(cpf.completeness * 100)}%</span>
+        </div>
+      </Panel>
 
-      <Card title="Parameters">
+      <Panel title="Parameters">
         {/* sortable, filterable, 50 rows at a time (the 2026-11-11 audit, item 11); the default order is the CPF's. Each
             parameter by its name in words (final review OWN-8); the CPF's own names are under "Technical detail" */}
         <SortableTable testId="cpf-parameters" label="Parameters" noun="parameters" pageSize={50} tableClassName="cpf-table"
@@ -55,7 +59,7 @@ export default async function CompoundPage({ params }: { params: Promise<{ proje
                          key: p.id,
                          cells: [
                            <span key="id">{paramLabel(p.id)}</span>, p.value ?? "—", unitText(p.unit) || <span className="muted">—</span>,
-                           <ProvenanceChip key="src" source={p.source} />, <Clip key="ref" text={p.reference} max={90} />,
+                           <ProvenanceBadge key="src" source={p.source} />, <Clip key="ref" text={p.reference} max={90} />,
                            p.fittableStages.length ? p.fittableStages.join(", ") : <span className="muted">fixed</span>,
                          ],
                          // fixed parameters sort after the fittable ones
@@ -70,7 +74,7 @@ export default async function CompoundPage({ params }: { params: Promise<{ proje
             <tbody>{cpf.parameters.map((p) => <tr key={p.id}><td>{paramLabel(p.id)}</td><td><code>{p.id}</code></td></tr>)}</tbody>
           </table>
         </details>
-      </Card>
+      </Panel>
     </main>
   );
 }

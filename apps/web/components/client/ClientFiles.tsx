@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 
 import { FILES, releaseAfter } from "@/components/inputs/after";
 import { PeekButton } from "@/components/kit/SourcePeek";
-import { Card } from "@/components/ui";
+import { Panel } from "@/components/kit/Panel";
 import { send, type Envelope, type Schema } from "@/lib/api";
 import { TAG_KINDS, TAG_LABELS, type TagKind } from "@/lib/fileTags";
 import type { After } from "@/lib/hooks";
@@ -314,7 +314,7 @@ export function Dissolution({ projectId, d, act }: {
 }) {
   const label = (id: string) => d.profiles.find((p) => p.id === id)?.label ?? id;
   return (
-    <Card title={`Dissolution (${d.profiles.length} profiles)`}>
+    <Panel title={`Dissolution (${d.profiles.length} profiles)`}>
       <p className="muted m-0-0-6 fs-13">
         Each profile is fitted with PK-Sim&apos;s Weibull release (t50, shape, lag 0). Which profile stands for release in
         the body is a planning decision; proposing one makes its values flow into the formulation, for the review.
@@ -346,7 +346,7 @@ export function Dissolution({ projectId, d, act }: {
         </table>
       )}
       {d.problems.length > 0 && <ul className="flags">{d.problems.map((x) => <li key={x}>{x}</li>)}</ul>}
-    </Card>
+    </Panel>
   );
 }
 

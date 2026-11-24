@@ -4,14 +4,15 @@ import type { ReactNode } from "react";
 import { AutoRefresh } from "@/components/AutoRefresh";
 import { FoldError } from "@/components/FoldError";
 import { PackageDownloads } from "@/components/PackageDownloads";
-import { ApiProblem, RiskChip, StatusChip } from "@/components/ui";
+import { RiskBadge } from "@/components/kit/Badge";
+import { StatusIndicator } from "@/components/kit/StatusIndicator";
 import { FeedbackDiagnosisView, FeedbackTimeline } from "@/components/campaign/Feedback";
 import { InfluenceHeatMap, LedgerTable } from "@/components/campaign/History";
 import { VbeCard } from "@/components/campaign/Vbe";
 import { OpenDecisionButton } from "@/components/campaign/OpenDecisionButton";
 import { Chart } from "@/components/kit/Chart";
 import { getCampaign, getCampaignPackage } from "@/lib/reads";
-import { Hero } from "@/components/kit";
+import { ApiProblem, Hero } from "@/components/kit";
 import { SortableTable } from "@/components/kit/SortableTable";
 
 // A campaign (P-16, the console redesign's slice 6): what it is and whether its numbers are PBPK evidence, said above
@@ -91,8 +92,8 @@ export default async function CampaignPage({ params, searchParams }: {
   return (
     <main>
       <Hero tone="run" eyebrow="Campaign" title={c.compound} lede={c.question}
-            actions={<>{c.status && <span data-testid="campaign-status"><StatusChip status={c.status} /></span>}
-              <RiskChip rating={c.modelRisk} /></>} />
+            actions={<>{c.status && <span data-testid="campaign-status"><StatusIndicator status={c.status} /></span>}
+              <RiskBadge rating={c.modelRisk} /></>} />
       <dl className="kv-list kv-inline" data-testid="campaign-facts">
         <dt>Campaign</dt><dd><code>{c.id}</code></dd>
         <dt>Acceptance</dt><dd>within {foldLimit}-fold at {c.modelRisk} model risk
@@ -140,7 +141,7 @@ export default async function CampaignPage({ params, searchParams }: {
                   {c.stages.map((s) => (
                     <tr key={s.stage} className={s.stage === c.currentStage ? "current" : undefined} data-testid={`campaign-stage-${s.stage}`}>
                       <td><strong>{s.stage}</strong></td><td>{s.label}</td>
-                      <td><StatusChip status={s.status === "PENDING" ? "PROPOSED" : s.status} /></td>
+                      <td><StatusIndicator status={s.status === "PENDING" ? "PROPOSED" : s.status} /></td>
                       <td className="num">{s.rounds.length || "—"}</td>
                     </tr>
                   ))}

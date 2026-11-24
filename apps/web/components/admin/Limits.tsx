@@ -8,7 +8,7 @@
 import { useState } from "react";
 
 import { LimitLevel } from "@/components/admin/AdminParts";
-import { Card } from "@/components/ui";
+import { Panel } from "@/components/kit/Panel";
 import { send, type Schema } from "@/lib/api";
 import { percent, tokens, usd, when, type PricedAs } from "@/lib/admin";
 
@@ -62,7 +62,7 @@ export function Limits({ initial, priced }: { initial: Page; priced: PricedAs })
 
   return (
     <>
-      <Card title={`This month (${page.month})`}>
+      <Panel title={`This month (${page.month})`}>
         {page.limits.length === 0 ? <p className="muted">No limit set.</p> : (
           <div className="table-scroll">
             <table data-testid="admin-limits">
@@ -89,8 +89,8 @@ export function Limits({ initial, priced }: { initial: Page; priced: PricedAs })
           Spend is estimated as on the usage page: each run&apos;s tokens at the chosen Claude model&apos;s list prices, cached.
           Tokens are those in and out. A month is a calendar month (UTC).
         </p>
-      </Card>
-      <Card title="Set a limit">
+      </Panel>
+      <Panel title="Set a limit">
         <form className="admin-filter" onSubmit={(e) => { e.preventDefault(); void save(false); }} data-testid="limit-form">
           <label>On
             <select value={scope} onChange={(e) => { setScope(e.target.value as Scope); setSubject(""); }} data-testid="limit-scope">
@@ -126,8 +126,8 @@ export function Limits({ initial, priced }: { initial: Page; priced: PricedAs })
           )}
         </form>
         {problem && <div className="banner err mt-10" data-testid="limit-problem">{problem}</div>}
-      </Card>
-      <Card title="Changes">
+      </Panel>
+      <Panel title="Changes">
         {page.history.length === 0 ? <p className="muted">No change yet.</p> : (
           <ul className="plain-list" data-testid="limit-history">
             {page.history.map((h) => (
@@ -140,7 +140,7 @@ export function Limits({ initial, priced }: { initial: Page; priced: PricedAs })
             ))}
           </ul>
         )}
-      </Card>
+      </Panel>
     </>
   );
 }

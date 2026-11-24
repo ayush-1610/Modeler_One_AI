@@ -1,5 +1,5 @@
-import { Hero } from "@/components/kit";
-import { ApiProblem, Card } from "@/components/ui";
+import { ApiProblem, Hero } from "@/components/kit";
+import { Panel } from "@/components/kit/Panel";
 import { getPipeline, hideUnlessAdmin, percent, when, type PipelineCounts } from "@/lib/admin";
 
 const LEDE = "Where the intake pipeline is blind, per company and in all: the files by what became of them, where each " +
@@ -74,23 +74,23 @@ export default async function PipelinePage({ searchParams }: { searchParams: Pro
       <Hero tone="admin" eyebrow="Admin console" title="Intake pipeline" lede={LEDE} />
       
       {live.problem && <ApiProblem problem={live.problem} />}
-      <Card>
+      <Panel>
         <form className="admin-filter" method="get" action="/admin/pipeline" data-testid="pipeline-filter">
           <label>Since<input type="date" name="since" defaultValue={since ?? ""} /></label>
           <button type="submit" className="btn">Show</button>
         </form>
-      </Card>
+      </Panel>
       {data && (
         <div data-testid="pipeline-health">
-          <Card title={data.since ? `Every company, since ${data.since}` : "Every company"}>
+          <Panel title={data.since ? `Every company, since ${data.since}` : "Every company"}>
             <Health counts={data.all} testId="pipeline-all" />
             <p className="muted mt-10">Read {when(data.generated_at)} from the pipeline&apos;s own run lines.</p>
-          </Card>
-          {data.companies.length === 0 && <Card><p className="muted m-0">No file has gone through the pipeline yet.</p></Card>}
+          </Panel>
+          {data.companies.length === 0 && <Panel><p className="muted m-0">No file has gone through the pipeline yet.</p></Panel>}
           {data.companies.map((c) => (
-            <Card key={c.tenant} title={c.name ? `${c.name} (${c.tenant})` : c.tenant}>
+            <Panel key={c.tenant} title={c.name ? `${c.name} (${c.tenant})` : c.tenant}>
               <Health counts={c} testId={`pipeline-company-${c.tenant}`} />
-            </Card>
+            </Panel>
           ))}
         </div>
       )}

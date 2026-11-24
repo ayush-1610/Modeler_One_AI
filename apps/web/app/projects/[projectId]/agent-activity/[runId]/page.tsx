@@ -1,6 +1,5 @@
-import { Hero } from "@/components/kit";
+import { ApiProblem, Hero } from "@/components/kit";
 import { RunSteps } from "@/components/records/AgentRuns";
-import { ApiProblem } from "@/components/ui";
 import { getAgentRun } from "@/lib/reads";
 import { duration } from "@/lib/runs";
 

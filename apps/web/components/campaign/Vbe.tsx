@@ -1,4 +1,4 @@
-import { Card } from "@/components/ui";
+import { Panel } from "@/components/kit/Panel";
 import type { Vbe } from "@/lib/types";
 
 const pct = (v: number) => `${Math.round(v * 100)} %`;
@@ -9,7 +9,7 @@ export function VbeCard({ vbe }: { vbe: Vbe }) {
   const name = `${vbe.template} ${vbe.template_version}`;
   const validated = vbe.validation.status === "PASSED";
   return (
-    <Card title="Virtual bioequivalence (S6)" action={
+    <Panel title="Virtual bioequivalence (S6)" action={
       <span className={`chip ${validated ? "low" : "high"}`} data-testid="vbe-validation">
         {vbe.status === "RUN" ? vbe.validation.status.replace("_", " ").toLowerCase() : "not run"}
       </span>}>
@@ -51,6 +51,6 @@ export function VbeCard({ vbe }: { vbe: Vbe }) {
           </table>
         </>
       )}
-    </Card>
+    </Panel>
   );
 }

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
-import { Card } from "@/components/ui";
+import { Panel } from "@/components/kit/Panel";
 import { PRICED_AS, percent, tokens, usd, when, type LimitRow, type PricedAs, type Usage, type UsageGroup } from "@/lib/admin";
 
 /** On the pages with costs, the model the costs are priced at: a link per model, since the page is read on the server.
@@ -63,7 +63,7 @@ export const USAGE_HEADS = (
 /** One grouping of the usage (per agent, project, person, company or day). */
 export function UsageTable({ title, column, rows, testId }: { title: string; column: string; rows: UsageGroup[]; testId: string }) {
   return (
-    <Card title={title}>
+    <Panel title={title}>
       {rows.length === 0 ? <p className="muted">No runs.</p> : (
         <div className="table-scroll">
           <table data-testid={testId}>
@@ -74,7 +74,7 @@ export function UsageTable({ title, column, rows, testId }: { title: string; col
           </table>
         </div>
       )}
-    </Card>
+    </Panel>
   );
 }
 

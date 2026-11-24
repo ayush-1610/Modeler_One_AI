@@ -9,35 +9,29 @@ import { inputsHref, stepReason, stepWhere } from "@/lib/words";
  *  under the header); this keeps the line that says what to do next and where, each part linking to the area of Inputs
  *  where it is settled (a model check's raw name, "S0 completeness (MS-01 §2.2)", reads "compound values missing":
  *  lib/words.ts). It streams in after the page's head, sharing the page's read of /steps (`preloadSteps`, cache()d per
- *  request). Its links are not prefetched (final review round 4). */
-export function Stepper(props: StepperProps) {
+ *  request). Its links are not prefetched (final review round 4). Named `Stepper` until slice 9, when it was the step bar. */
+export function StepWaiting(props: StepWaitingProps) {
   return (
     <Suspense fallback={null}>
-      <StepperBody {...props} />
+      <StepWaitingBody {...props} />
     </Suspense>
   );
 }
 
-/** Start reading the project's steps now, alongside the page's other reads; the Stepper then uses the same answer. */
+/** Start reading the project's steps now, alongside the page's other reads; StepWaiting then uses the same answer. */
 export function preloadSteps(projectId: string) {
   void getSteps(projectId);
 }
 
-type StepperProps = {
-  projectId: string; current?: StepId;
-  /** Write out what the current step waits on (off where the page lists it itself, as Start does). */
-  waiting?: boolean;
-  /** Accepted and ignored: the line scrolls with its page (the steps stay in view in the side navigation). */
-  sticky?: boolean;
-};
+type StepWaitingProps = { projectId: string; current?: StepId };
 
-async function StepperBody({ projectId, current, waiting = true }: StepperProps) {
+async function StepWaitingBody({ projectId, current }: StepWaitingProps) {
   const live = await getSteps(projectId);
   if (!live.data) return null; // navigation help only; the page itself reports a read problem
   const here = live.data.find((s) => s.step === current);
   return (
     <>
-      {waiting && here && here.state === "needs_you" && here.reasons.length > 0 && (
+      {here && here.state === "needs_you" && here.reasons.length > 0 && (
         <p className="step-waiting banner warn" data-testid="step-waiting">
           <strong>Waiting on you:</strong>{" "}
           {here.reasons.map((r, i) => {

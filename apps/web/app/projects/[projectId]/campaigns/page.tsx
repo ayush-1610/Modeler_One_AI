@@ -1,10 +1,12 @@
 import Link from "next/link";
 
-import { preloadSteps, Stepper } from "@/components/kit/Stepper";
+import { preloadSteps, StepWaiting } from "@/components/kit/StepWaiting";
 import { RunCampaignButton } from "@/components/RunCampaignButton";
-import { ApiProblem, Card, RiskChip, StatusChip } from "@/components/ui";
+import { Panel } from "@/components/kit/Panel";
+import { RiskBadge } from "@/components/kit/Badge";
+import { StatusIndicator } from "@/components/kit/StatusIndicator";
 import { getCampaigns, getProject, getStudies } from "@/lib/reads";
-import { Hero } from "@/components/kit";
+import { ApiProblem, Hero } from "@/components/kit";
 import { StepBlocked } from "@/components/kit/StepBlocked";
 import { valueWord } from "@/lib/words";
 
@@ -47,8 +49,8 @@ export default async function ProjectCampaignsPage({ params }: { params: Promise
   return (
     <main>
       <Hero tone="run" title="Run" lede="Run a modelling campaign on PK-Sim and follow this project's campaigns."
-            actions={<RiskChip rating={project.risk} />} />
-      <Stepper projectId={project.id} current="run" />
+            actions={<RiskBadge rating={project.risk} />} />
+      <StepWaiting projectId={project.id} current="run" />
       {(liveStudies.problem || liveCampaigns.problem) && (
         <ApiProblem problem={(liveStudies.problem ?? liveCampaigns.problem)!} />
       )}
@@ -69,7 +71,7 @@ export default async function ProjectCampaignsPage({ params }: { params: Promise
       )}
 
       {runnable && (
-        <Card title="Run a modeling campaign" action={<span className="muted">MS-01 · S0 → S7</span>}>
+        <Panel title="Run a modeling campaign" action={<span className="muted">MS-01 · S0 → S7</span>}>
           <p className="muted mt-0">
             Generates the Model Analysis Plan from this project&apos;s CPF and {uploaded.length} observed
             study(ies), records the Part 11 signature, then runs the stage loop on the OSP engine — building
@@ -77,11 +79,11 @@ export default async function ProjectCampaignsPage({ params }: { params: Promise
             ask you for a signed decision, on whatever page you are on.
           </p>
           <RunCampaignButton projectId={project.id} questionId={question!.id} compound={compound} />
-        </Card>
+        </Panel>
       )}
 
       <div>
-        <Card title="Observed studies" action={<Link className="btn" href={`/projects/${project.id}/inputs?tab=studies`}>Add data</Link>}>
+        <Panel title="Observed studies" action={<Link className="btn" href={`/projects/${project.id}/inputs?tab=studies`}>Add data</Link>}>
           {studies && studies.length > 0 ? (
             <table data-testid="overview-studies">
               <thead><tr><th>Study</th><th>Route</th><th className="num">Dose</th><th className="num">Points</th><th>From</th></tr></thead>
@@ -112,11 +114,11 @@ export default async function ProjectCampaignsPage({ params }: { params: Promise
               needs at least one study to fit and validate against.
             </p>
           )}
-        </Card>
+        </Panel>
       </div>
 
 
-      <Card title="Campaigns">
+      <Panel title="Campaigns">
         {campaigns && campaigns.length > 0 ? (
           <table>
             <thead><tr><th>Campaign</th><th>Status</th><th>Current stage</th><th>Compound</th></tr></thead>
@@ -124,7 +126,7 @@ export default async function ProjectCampaignsPage({ params }: { params: Promise
               {campaigns.map((c) => (
                 <tr key={c.id}>
                   <td><Link href={`/campaigns/${c.id}`}><code>{c.id}</code></Link></td>
-                  <td>{c.status ? <StatusChip status={c.status} /> : "—"}</td>
+                  <td>{c.status ? <StatusIndicator status={c.status} /> : "—"}</td>
                   <td>{c.currentStage}</td>
                   <td>{c.compound}</td>
                 </tr>
@@ -136,7 +138,7 @@ export default async function ProjectCampaignsPage({ params }: { params: Promise
             No campaigns yet — run one above and this table will fill in as it progresses.
           </p>
         )}
-      </Card>
+      </Panel>
 
     </main>
   );

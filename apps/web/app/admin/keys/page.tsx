@@ -1,6 +1,5 @@
 import { ProviderKeys } from "@/components/admin/ProviderKeys";
-import { Hero } from "@/components/kit";
-import { ApiProblem } from "@/components/ui";
+import { ApiProblem, Hero } from "@/components/kit";
 import { getKeys, hideUnlessAdmin } from "@/lib/admin";
 
 /** The providers' keys: stored sealed, shown by their last 4 characters, rotated here (the console, D). */

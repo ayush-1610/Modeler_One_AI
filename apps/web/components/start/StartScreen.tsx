@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
 
 import { Hero } from "@/components/kit";
 import { SourcePeek } from "@/components/kit/SourcePeek";
@@ -40,7 +40,7 @@ function forViewer(documents: DocumentView[]): DocumentView[] {
  *  what is modelled, on one screen. Nothing here is approved: a person reviews everything once, at the MAP signature
  *  (D-27). Each box that still needs the person is marked in red where it is; until none is, Start cannot be left. A
  *  value's source is shown beside it, and its page opens over the screen. */
-export function StartScreen({ projectId, steps }: { projectId: string; steps?: ReactNode }) {
+export function StartScreen({ projectId }: { projectId: string }) {
   const page = useResource("/api/v1/projects/{project_id}/brief", { project_id: projectId },
     { select: (d) => narrow<BriefView>(d), poll: (d) => d.extraction_running });
   const docs = useResource("/api/v1/projects/{project_id}/documents", { project_id: projectId });
@@ -55,7 +55,6 @@ export function StartScreen({ projectId, steps }: { projectId: string; steps?: R
     return (
       <>
         <Hero tone="start" eyebrow="Step 1 of 4" title="Start" lede={lede} />
-        {steps}
         <div className="start-screen">
           {page.problem ? <div className="banner err">{page.problem}</div> : <p className="muted">Loading the project…</p>}
         </div>
@@ -106,7 +105,6 @@ export function StartScreen({ projectId, steps }: { projectId: string; steps?: R
               {view.extraction_running ? "Reading the proposal…" : "Read the proposal again"}
             </button>
           )} />
-    {steps}
     <div className="start-screen">
       <div className="start-top">
         {(notice || view.extraction_running) && (

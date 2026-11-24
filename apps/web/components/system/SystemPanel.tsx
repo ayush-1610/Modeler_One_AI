@@ -6,7 +6,8 @@
 
 import { useState } from "react";
 
-import { ApiProblem, Card } from "@/components/ui";
+import { ApiProblem } from "@/components/kit";
+import { Panel } from "@/components/kit/Panel";
 import { send, type Schema } from "@/lib/api";
 import { useMutation, useResource, type After } from "@/lib/hooks";
 
@@ -48,7 +49,7 @@ export function SystemPanel({ projectId }: { projectId: string }) {
   const [draft, setDraft] = useState<Fractions | null>(null);
   const [outcome, setOutcome] = useState<{ ok: boolean; message: string } | null>(null);
 
-  if (problem) return <Card title="Model system"><ApiProblem problem={problem} /></Card>;
+  if (problem) return <Panel title="Model system"><ApiProblem problem={problem} /></Panel>;
   const system = data?.system;
   if (!data || !system || !data.links) return null;  // a single compound: no system to show
   const fractions = draft ?? asText(system.products);
@@ -66,7 +67,7 @@ export function SystemPanel({ projectId }: { projectId: string }) {
   }
 
   return (
-    <Card title="Model system" action={<span className="muted">MS-01 v1.3 · {system.compounds.length} compounds</span>}>
+    <Panel title="Model system" action={<span className="muted">MS-01 v1.3 · {system.compounds.length} compounds</span>}>
       <div data-testid="system-panel">
         {system.problem && <div className="banner err mb-12">{system.problem}</div>}
         <table>
@@ -139,6 +140,6 @@ export function SystemPanel({ projectId }: { projectId: string }) {
           </tbody>
         </table>
       </div>
-    </Card>
+    </Panel>
   );
 }

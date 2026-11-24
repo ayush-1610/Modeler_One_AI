@@ -1,7 +1,6 @@
-import { Hero } from "@/components/kit";
+import { ApiProblem, Hero } from "@/components/kit";
 import { MembersPanel } from "@/components/members/MembersPanel";
 import { ProjectNotices } from "@/components/project/ProjectNotices";
-import { ApiProblem } from "@/components/ui";
 import { getArchived, getMembers, getProject } from "@/lib/reads";
 
 // A project's members (P-22, the console redesign's slice 3; before, a panel on the Run page): who may open it, its

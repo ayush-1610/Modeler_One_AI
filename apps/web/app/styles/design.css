@@ -87,12 +87,12 @@ td.num, th.num { white-space: nowrap; }
 
 /* a decision put off with "Decide later": a small control in the bottom-right corner, on every page, that opens it again */
 
-/* the toast: one calm sentence for an action's result (components/kit/Motion.tsx `Toaster`) */
-.mo-toast { position: fixed; left: 50%; bottom: 24px; z-index: 60; transform: translateX(-50%); max-width: min(640px, calc(100vw - 32px));
+/* the toast: one calm sentence for an action's result (components/kit/Toast.tsx `Toaster`) */
+.toast { position: fixed; left: 50%; bottom: 24px; z-index: 60; transform: translateX(-50%); max-width: min(640px, calc(100vw - 32px));
   padding: 10px 16px; border-radius: var(--rad-md); background: var(--c-ink); color: #fff; font-size: var(--fs-sm); box-shadow: var(--elev-2);
   opacity: 0; pointer-events: none; }
-.mo-toast.on { opacity: 1; }
-.mo-toast:empty { visibility: hidden; }
+.toast.on { opacity: 1; }
+.toast:empty { visibility: hidden; }
 
 /* phones and narrow windows: nothing wider than the screen; wide tables scroll inside their panel, forms and tools wrap.
    To do's card is not a scroll box (its tables scroll in their own box): one would hold its bulk bar off the screen on a

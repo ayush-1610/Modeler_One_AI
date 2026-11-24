@@ -6,7 +6,7 @@
 import Link from "next/link";
 import { useState } from "react";
 
-import { RiskChip } from "@/components/ui";
+import { RiskBadge } from "@/components/kit/Badge";
 import { nextHref, standing, STANDING_WORD, type Standing } from "@/lib/portfolio";
 import type { Campaign, Project } from "@/lib/types";
 
@@ -74,7 +74,7 @@ function ProjectCard({ p, running }: { p: Project; running: number }) {
         {st.reason && <p className="pcard-reason">{st.reason}</p>}
         <div className="pcard-foot">
           <span className="pcard-state">{STANDING_WORD[st.state]}{running > 0 ? ` · ${running} campaign${running === 1 ? "" : "s"}` : ""}</span>
-          <RiskChip rating={p.risk} />
+          <RiskBadge rating={p.risk} />
           <span className="pcard-next">{st.next} →</span>
         </div>
       </Link>

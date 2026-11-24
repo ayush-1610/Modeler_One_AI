@@ -1,7 +1,6 @@
 import Link from "next/link";
 
-import { Hero } from "@/components/kit";
-import { ApiProblem } from "@/components/ui";
+import { ApiProblem, Hero } from "@/components/kit";
 import { serverGet } from "@/lib/api";
 import { getCompoundCpf, getProject } from "@/lib/reads";
 
