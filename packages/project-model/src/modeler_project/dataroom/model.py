@@ -202,6 +202,8 @@ class DissolutionView(_B):
     batch: str = ""
     medium: str = ""
     ph: float | None = None
+    ph_convention: float | None = None   # the medium is named without a pH: its pH by convention (D4), not yet used
+    ph_by_convention: bool = False       # `ph` is that conventional pH, confirmed for the project (not stated)
     apparatus: str = ""
     rpm: float | None = None
     volume_ml: float | None = None
@@ -238,6 +240,8 @@ class CompositionRow(_B):
 class SolubilityRow(_B):
     medium: str
     ph: float | None = None
+    ph_convention: float | None = None   # as on a dissolution profile (D4)
+    ph_by_convention: bool = False
     solubility_mg_ml: float | None = None
     as_written: str = ""
     volume_for_dose_ml: float | None = None

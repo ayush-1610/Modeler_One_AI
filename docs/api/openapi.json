@@ -11668,6 +11668,22 @@
             ],
             "title": "Ph"
           },
+          "ph_by_convention": {
+            "default": false,
+            "title": "Ph By Convention",
+            "type": "boolean"
+          },
+          "ph_convention": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ph Convention"
+          },
           "plateau": {
             "default": false,
             "title": "Plateau",
@@ -11789,6 +11805,8 @@
           "batch",
           "medium",
           "ph",
+          "ph_convention",
+          "ph_by_convention",
           "apparatus",
           "rpm",
           "volume_ml",
@@ -29021,6 +29039,22 @@
             ],
             "title": "Ph"
           },
+          "ph_by_convention": {
+            "default": false,
+            "title": "Ph By Convention",
+            "type": "boolean"
+          },
+          "ph_convention": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ph Convention"
+          },
           "solubility_mg_ml": {
             "anyOf": [
               {
@@ -29055,6 +29089,8 @@
         "required": [
           "medium",
           "ph",
+          "ph_convention",
+          "ph_by_convention",
           "solubility_mg_ml",
           "as_written",
           "volume_for_dose_ml",

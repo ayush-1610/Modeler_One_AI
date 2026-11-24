@@ -110,7 +110,11 @@ export function Solubility({ room }: { room: Room }) {
         <Table head={["Medium", "Solubility", "Volume for the dose", "Dose dissolved in 250 mL"]} label="Solubility and the dose">
           {rows.map((r) => (
             <Row key={`${r.medium}-${r.ph}`} cells={[
-              <span key="m">{r.medium}{r.ph !== null && <span className="muted"> · pH {num(r.ph)}</span>}</span>,
+              <span key="m">{r.medium}{r.ph !== null && <span className="muted"> · pH {num(r.ph)}</span>}
+                {r.ph_by_convention && <span className="muted" data-testid="ph-by-convention"> (by convention, not stated)</span>}
+                {r.ph === null && r.ph_convention != null && (
+                  <span className="muted" data-testid="ph-convention-pending"> · pH {num(r.ph_convention)} by convention, not stated: confirm it under Decisions</span>
+                )}</span>,
               <span key="s" className="dr-value">{r.as_written} <Sources chips={r.sources} /></span>,
               <span key="v" className="tnum">{r.volume_for_dose_ml !== null ? `${num(r.volume_for_dose_ml, 3)} mL` : "—"}</span>,
               <span key="g" className="tnum">{r.fraction_in_glass !== null ? `${num(r.fraction_in_glass * 100, 3)} %` : "—"}</span>,
@@ -150,6 +154,12 @@ function DissolutionCard({ room, views }: { room: Room; views: DissolutionView[]
   return (
     <Card title={first.medium || (first.ph !== null ? `pH ${num(first.ph)}` : "Medium not stated")} testId={`dissolution-${first.ph ?? "medium"}`}
           aside={<span className="muted dr-small">{method}</span>}>
+      {first.ph_by_convention && first.ph !== null && (
+        <p className="muted dr-small" data-testid="ph-by-convention">pH {num(first.ph)} by convention, not stated (confirmed for this project).</p>
+      )}
+      {first.ph === null && first.ph_convention != null && (
+        <p className="muted dr-small" data-testid="ph-convention-pending">pH {num(first.ph_convention)} by convention, not stated: confirm it under Decisions.</p>
+      )}
       <Plot label={`Dissolution in ${first.medium}`} traces={traces} testId="dissolution-chart"
             layout={{ xaxis: { title: { text: "Time (min)" }, rangemode: "tozero" }, yaxis: { title: { text: "Dissolved (%)" }, range: [0, 105] } }} />
       <ul className="dr-profiles">

@@ -7419,6 +7419,13 @@ export interface components {
             /** Ph */
             ph: number | null;
             /**
+             * Ph By Convention
+             * @default false
+             */
+            ph_by_convention: boolean;
+            /** Ph Convention */
+            ph_convention: number | null;
+            /**
              * Plateau
              * @default false
              */
@@ -13749,6 +13756,13 @@ export interface components {
             medium: string;
             /** Ph */
             ph: number | null;
+            /**
+             * Ph By Convention
+             * @default false
+             */
+            ph_by_convention: boolean;
+            /** Ph Convention */
+            ph_convention: number | null;
             /** Solubility Mg Ml */
             solubility_mg_ml: number | null;
             /**

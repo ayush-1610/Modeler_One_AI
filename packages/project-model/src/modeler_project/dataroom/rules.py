@@ -7,6 +7,7 @@ owner's approval. Every view carries `label()` (version, status, sha256), so a r
 from __future__ import annotations
 
 import hashlib
+import re
 from functools import lru_cache
 from importlib import resources
 
@@ -54,6 +55,13 @@ class Conflicts(_B):
     relative_tolerance_percent: float
 
 
+class MediumConvention(_B):
+    """A medium named without its pH, and its pH by convention (D4): used only once a person confirms it."""
+
+    names: list[str]
+    ph: float
+
+
 class Rules(_B):
     version: str
     status: str
@@ -63,7 +71,18 @@ class Rules(_B):
     dissolution: Dissolution
     solubility: Solubility
     conflicts: Conflicts
+    media_by_convention: list[MediumConvention] = []
     sha256: str = ""
+
+    def convention_ph(self, medium: str) -> float | None:
+        """The pH a medium named without one has by convention (`media_by_convention`), or None: its names matched as
+        whole words, case and punctuation aside, the longest name first ("FeSSIF-V2" before "FeSSIF")."""
+        text = " " + re.sub(r"[^a-z0-9./]+", " ", medium.lower()).strip() + " "
+        pairs = sorted(((n, c.ph) for c in self.media_by_convention for n in c.names), key=lambda x: -len(x[0]))
+        for name, ph in pairs:
+            if " " + re.sub(r"[^a-z0-9./]+", " ", name.lower()).strip() + " " in text:
+                return ph
+        return None
 
     def label(self) -> str:
         return f"dataroom_rules {self.version} ({self.status}) sha256:{self.sha256[:12]}"

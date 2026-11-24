@@ -15,6 +15,34 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — science: a medium named without its pH takes its pH by convention once confirmed (`dataroom_rules.yaml` 0.2, UNVERIFIED) (2026-11-24)
+- **Why:** gap 2 of the data story. "0.1 N HCl" (Quorafen and Zelitrex) and "FaSSIF" carry no pH, so the profiles in
+  them had none: no f2 against the reference's profile at pH 1.2, and a data request for a medium that was in fact
+  there. The owner chose option A (D4 of `docs/plans/2026-11-24-data-story-next-phase.md`).
+- **The table** (`media_by_convention`, version 0.1 → 0.2, status stays **UNVERIFIED** until the SME signs):
+
+| Medium | pH by convention |
+|---|---|
+| 0.1 N HCl (0.1 M HCl) | 1.2 |
+| SGF | 1.2 |
+| FaSSGF | 1.6 |
+| FaSSIF and FaSSIF-V2 | 6.5 |
+| FeSSIF-V2 | 5.8 |
+| FeSSIF | 5.0 |
+| SIF | 6.8 |
+
+  Names are matched as whole words, the longest first (`Rules.convention_ph`).
+- **How it applies:**
+  - A dissolution profile or solubility row whose medium is named without a pH gets `ph_convention`.
+  - The room asks one decision for the project (`media-ph-convention`, naming each medium and its pH).
+  - **Only an explicit "use"** puts the pH in place, marked `ph_by_convention`. The suggestion alone applies nothing.
+  - A stated pH is never replaced.
+- **On the page:** the profile and the solubility row say "pH 1.2 by convention, not stated", either confirmed for
+  this project or waiting for confirmation under Decisions.
+- **API contract:** `DissolutionView` and `SolubilityRow` gain `ph_convention` and `ph_by_convention`; snapshot and web
+  types regenerated.
+- **Test:** `test_a_medium_named_without_its_ph_takes_its_conventional_ph_only_once_confirmed`.
+
 ### Added — Claude on Anthropic's own API with a Console key; one-click presets for every agent (2026-11-24)
 - **Why:** the owner's decisions D1 and D6 on `docs/plans/2026-11-24-data-story-next-phase.md`. Claude was reachable
   only on Amazon Bedrock, so the owner's $100 Console credit could not be used. The admin page also needed an easier

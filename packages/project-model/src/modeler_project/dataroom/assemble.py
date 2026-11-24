@@ -41,6 +41,7 @@ from modeler_project.dataroom.model import (
     RoomDecision,
     RoomStudy,
     Section,
+    SolubilityRow,
     Value,
 )
 from modeler_project.dataroom.rules import Rules, load_rules
@@ -404,6 +405,36 @@ def _said_constants(tables: Sequence[ReadTable], docs: Iterable[SourceDocument],
     return out, problems
 
 
+MEDIA_CONVENTION = "media-ph-convention"
+
+
+def _media_by_convention(diss: list[DissolutionView], solubility: list[SolubilityRow],
+                         made: Mapping[str, Mapping[str, str]]
+                         ) -> tuple[list[DissolutionView], list[SolubilityRow], RoomDecision | None]:
+    """The decision on media named without a pH (D4), and the profiles and solubility rows with the conventional pH
+    applied when, and only when, a person chose to use it: the suggestion alone applies nothing."""
+    pending = sorted({(x.medium, x.ph_convention) for x in [*diss, *solubility]
+                      if x.ph is None and x.ph_convention is not None})
+    if not pending:
+        return diss, solubility, None
+    named = "; ".join(f"{medium} → pH {ph:g}" for medium, ph in pending)
+    decision = _decision(made, RoomDecision(
+        id=MEDIA_CONVENTION, title="pH of media named without one",
+        question=f"The files name these media without a pH: {named}. Use the pH each has by convention?",
+        options=(Option(id="use", label="Use it, labelled \"by convention, not stated\"",
+                        detail="f2 pairs, data requests and the reference solubility then use it"),
+                 Option(id="leave", label="Leave them without a pH", detail="as the files write them")),
+        suggested="use", why="the conventional pH of standard media (dataroom_rules.yaml, UNVERIFIED); the files do "
+                             "not state it, so it is confirmed once for the project"))
+    if decision.chosen != "use":
+        return diss, solubility, decision
+    return ([d.model_copy(update={"ph": d.ph_convention, "ph_by_convention": True})
+             if d.ph is None and d.ph_convention is not None else d for d in diss],
+            [r.model_copy(update={"ph": r.ph_convention, "ph_by_convention": True})
+             if r.ph is None and r.ph_convention is not None else r for r in solubility],
+            decision)
+
+
 def _decision(decisions: Mapping[str, Mapping[str, str]], d: RoomDecision) -> RoomDecision:
     made = decisions.get(d.id)
     if made and made.get("chosen") in {o.id for o in d.options}:
@@ -565,7 +596,6 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
                     f"({', '.join(roles)}): no role, so no f2 with it; name the batch's product")))
             named.append(d)
         diss = named
-    f2s = f2_pairs(diss, roles)
     composition = composition_rows(by_kind["composition"])
     strength = _first(facts, "product.strength") or _first(facts, "study.dose")
     dose = strength.number if strength else None
@@ -574,6 +604,12 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
     problems += found
     solubility += solubility_from_facts([f for f in facts if f.ok and f.fact.field == "substance.solubility"], dose_mg=dose,
                                         medium_volume_ml=medium_volume, rules=rules)
+    # a medium named without its pH ("0.1 N HCl"): its pH by convention, labelled so, used only once a person confirms
+    # it for the project (the owner, 2026-11-24, D4); until then the medium stays without a pH, as written
+    diss, solubility, convention = _media_by_convention(diss, solubility, inputs.decisions)
+    if convention is not None:
+        decisions.append(convention)
+    f2s = f2_pairs(diss, roles)
     for product in sorted({d.product or d.batch for d in diss}):
         views = [d for d in diss if (d.product or d.batch) == product]
         qc = next((d for d in views if "qc" in d.medium.lower()), None)
