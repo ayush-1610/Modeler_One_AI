@@ -235,3 +235,35 @@ def test_each_arm_says_its_own_food_state():
     assert food_of("Novaprazole 40 mg tablet after a high-fat breakfast") == "fed"
     assert food_of("tablet with a standard meal after an overnight fast") == "fed"
     assert food_of("reference product") is None
+
+
+def test_a_single_arm_study_is_tied_to_its_product_and_says_how():
+    """Quorafen, 2026-11-24: a single-arm multiple-dose study (one product, days 1 and 7) had no product, the wrong role
+    and N = 0 in the plan. Its one arm stands for each of the data's treatments, with the product its own words name."""
+    from modeler_intake.room_specs import Fact, ProductRef, QuestionCard
+    from modeler_project.dataroom.assemble import _arms, _set_apart, _single_arm
+    from modeler_project.dataroom.model import CheckedFact, Problem, RoomStudy, SubjectNca
+
+    clinical, commercial = "Quorafen 50 mg tablet (clinical formulation)", "Quorafen 50 mg tablet (commercial formulation)"
+    card = QuestionCard(question="q", products=[ProductRef(name=clinical, role="reference"),
+                                                ProductRef(name=commercial, role="test")])
+    assert _set_apart("clinical formulation, batch QF-C-0921", [clinical, commercial]) == clinical
+    assert _set_apart("50 mg tablet", [clinical, commercial]) is None             # words both share name neither
+    code = CheckedFact(ok=True, fact=Fact(field="study.treatment_code", subject="QD", value="clinical formulation, batch "
+                                          "QF-C-0921", quote="q"))
+    (arm,) = _arms([code], card)
+    assert (arm.product, arm.role) == (clinical, "reference") and "own words" in arm.tied
+    study = RoomStudy(study_id="QF-301", arms=(arm,), nca=(SubjectNca(subject="1", period="1", treatment="1"),
+                                                         SubjectNca(subject="1", period="7", treatment="7")),
+                      problems=(Problem(code="MULTIPLE_DOSE", message="m"),))
+    tied, asked = _single_arm(study, card)
+    assert [(a.treatment, a.product, a.role) for a in tied] == [("1", clinical, "reference"), ("7", clinical, "reference")]
+    assert all("the study's only arm" in a.tied for a in tied) and asked == []
+    # one arm whose product no document names, on a card of two: it is asked, never guessed
+    blank = arm.model_copy(update={"product": "", "role": "", "tied": ""})
+    _, asked = _single_arm(study.model_copy(update={"arms": (blank,)}), card)
+    assert [p.code for p in asked] == ["ARM_PRODUCT_UNKNOWN"]
+    # no arm defined, and the card has one product: each treatment is that product's
+    one = QuestionCard(question="q", products=[ProductRef(name=clinical, role="reference")])
+    tied, _ = _single_arm(study.model_copy(update={"arms": ()}), one)
+    assert {a.product for a in tied} == {clinical} and tied[0].tied == "the question card's only product"
