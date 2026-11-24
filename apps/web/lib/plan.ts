@@ -37,6 +37,11 @@ export const planApi = {
   place: (projectId: string, studyId: string, role: Role, reason: string, dryRun = false) =>
     send("put", "/api/v1/projects/{project_id}/plan/placements/{study_id}", { project_id: projectId, study_id: studyId },
          { role, reason }, dryRun ? { dry_run: "true" } : undefined),
+  // a study a person placed, given back to the MS-01 default (the console redesign's slice 5); a dry run first says what
+  // it would change, saving nothing
+  unlock: (projectId: string, studyId: string, dryRun = false) =>
+    send("post", "/api/v1/projects/{project_id}/plan/placements/{study_id}:unlock", { project_id: projectId, study_id: studyId },
+         undefined, dryRun ? { dry_run: "true" } : undefined),
   fit: (projectId: string, parameter: string, fit: Schema<"FitRequest">) =>
     send("put", "/api/v1/projects/{project_id}/plan/fits/{parameter}", { project_id: projectId, parameter }, fit),
   unfit: (projectId: string, parameter: string, reason: string) =>

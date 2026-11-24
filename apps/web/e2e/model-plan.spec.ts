@@ -24,7 +24,15 @@ test("the plan canvas: drag and drop with reasons, the live validator, approve a
   await expect(page.getByTestId("overall-data")).toContainText("Overall Data");
   await expect(page.getByTestId("node-S1")).toContainText("iv-250");          // the MS-01 default
   await expect(page.getByTestId("node-SUPPORTIVE")).toContainText("ddi-itra");
+  // one part of the review at a time (the console redesign's slice 5): the changes are on Validator and changes
+  const tab = async (id: string) => {
+    await page.getByTestId(`review-tab-${id}`).click();
+    await expect(page.getByTestId(`review-tab-${id}`)).toHaveAttribute("aria-selected", "true");
+  };
+  await tab("validator");
   await expect(page.getByTestId("diff-empty")).toBeVisible();
+  await expect(page).toHaveURL(/\/plan\?tab=validator$/);
+  await tab("studies");
 
   // a DDI study dropped on S2 breaks MS-01 rule 4: the validator says so before anything is saved
   await page.getByTestId("overall-data").getByTestId("chip-ddi-itra").dragTo(page.getByTestId("node-S2"));
@@ -35,11 +43,21 @@ test("the plan canvas: drag and drop with reasons, the live validator, approve a
   await page.getByTestId("edge-S4-S5").scrollIntoViewIfNeeded();   // the arrow in view first: a drag that scrolls drops nothing
   await page.getByTestId("overall-data").getByTestId("chip-po-10").dragTo(page.getByTestId("edge-S4-S5"));
   await expect(page.getByTestId("move-ok")).toBeVisible();
+  await expect(page.getByTestId("change-what")).toContainText("po-10 from S2 · oral absorption to S5 · external validation.");
   await page.getByTestId("move-reason").fill("the low dose is kept to validate the dose range externally");
   await page.getByTestId("move-confirm").click();
   await expect(page.getByTestId("node-S5")).toContainText("po-10");
-  await expect(page.getByTestId("diff-po-10")).toContainText("the low dose is kept");
   await expect(page.getByTestId("node-S5").getByTestId("chip-po-10")).toContainText("🔒");
+  // a study a person placed can go back to the MS-01 default: its dry run says what that changes first (kept here)
+  await page.getByTestId("unlock-po-10").click();
+  const unlock = page.getByTestId("unlock-dialog");
+  await expect(unlock.getByTestId("change-what")).toContainText("po-10 from S5 · external validation to S2 · oral absorption.");
+  await expect(unlock.getByTestId("unlock-ok")).toBeVisible();
+  await unlock.getByRole("button", { name: "Cancel" }).click();
+  await expect(unlock).toHaveCount(0);
+  await tab("validator");
+  await expect(page.getByTestId("diff-po-10")).toContainText("the low dose is kept");
+  await tab("studies");
 
   // D1: the renal pathway's parameter is freed in S1 within bounds, with the reason (a person's choice, locked)
   await page.getByRole("button", { name: "D1 · disposition" }).click();
@@ -49,18 +67,21 @@ test("the plan canvas: drag and drop with reasons, the live validator, approve a
   await form.getByPlaceholder("why (required)").fill("the renal share of clearance is uncertain");
   await form.getByRole("button", { name: "Save" }).click();
   await expect(page.getByTestId("param-elim.renal.gfr_fraction")).toContainText("fitted in S1");
-  await expect(page.getByTestId("diff-elim.renal.gfr_fraction")).toContainText("renal share");
   await page.getByRole("button", { name: "D3 · development and validation" }).click();
   await expect(page.getByTestId("node-S1")).toContainText("elim.renal.gfr_fraction");
+  await tab("validator");
+  await expect(page.getByTestId("diff-elim.renal.gfr_fraction")).toContainText("renal share");
 
   // the ICH M15 model risk is the person's, never assumed: until it is set the plan cannot be signed
   await expect(page.getByTestId("violation-risk:model_risk")).toContainText("never assumed");
+  await tab("credibility");
   const settings = page.getByTestId("risk-and-budget");
   await settings.getByLabel("Model risk (ICH M15)").selectOption("medium");
   await settings.getByLabel("Why this risk").fill("medium model influence, medium decision consequence");
   await settings.getByRole("button", { name: "Set risk" }).click();
-  await expect(page.getByTestId("violation-risk:model_risk")).toHaveCount(0);
   await expect(settings.getByLabel("Time budget (hours)")).toHaveValue("8");    // the platform default, split by MS-01
+  await tab("validator");
+  await expect(page.getByTestId("violation-risk:model_risk")).toHaveCount(0);
 
   // warnings are acknowledged with a reason; then the validator is green and Approve and Sign is enabled
   const sign = page.getByTestId("approve-and-sign");
@@ -82,6 +103,7 @@ test("the plan canvas: drag and drop with reasons, the live validator, approve a
   // D-14: after the signature a move is a MAP deviation — recorded, then signed into MAP v2, before the run
   // the canvas in view first, as a person would have it: the taller page head (plan 2026-11-06 §5) left the signature
   // button, and so the view after signing, above the canvas, and a drag that has to scroll the page drops nothing
+  await tab("studies");
   await page.getByTestId("node-S2").scrollIntoViewIfNeeded();
   await page.getByTestId("overall-data").getByTestId("chip-po-10").dragTo(page.getByTestId("node-S2"));
   await expect(page.getByTestId("move-ok")).toBeVisible();

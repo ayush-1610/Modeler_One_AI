@@ -19,7 +19,7 @@ test("the review table, an exclusion with a reason, and the credibility the MAP 
     year: 2015, conditions: { type: "logP", pH: "7.4", method: "shake flask, measured" } } });
   expect(second.ok(), await second.text()).toBeTruthy();
 
-  await page.goto(`/projects/${projectId}/plan`);
+  await page.goto(`/projects/${projectId}/plan?tab=inputs`);           // the tab in the address (slice 5)
   // Start is not finished here, but Inputs has begun (it is done): a step that has begun is never locked
   await expect(page.getByTestId("step-start")).toHaveAttribute("data-state", "needs_you");
   await expect(page.getByTestId("step-inputs-locked")).toHaveCount(0);
@@ -32,12 +32,14 @@ test("the review table, an exclusion with a reason, and the credibility the MAP 
   await expect(table).toContainText("No input matches this filter");
   await table.getByTestId("review-filter-all").click();
 
+  await page.getByTestId("review-tab-credibility").click();
   await expect(page.getByTestId("stage-S3")).toContainText("34 min");        // MS-01's 7 % of the 8 h default (D-31)
   await expect(page.getByTestId("limitations")).toContainText("healthy adult default");
   // why each M15 rating is what it is, as the person wrote it at Start, is in front of the signer
   await expect(page.getByTestId("credibility-m15-why")).toContainText("The model supports the dose choice next to the clinical data");
 
   // the kept source set aside with a reason: the agreeing one takes its place, and the plan asks to be brought up to date
+  await page.getByTestId("review-tab-inputs").click();
   await table.getByTestId("exclude-phys.logp").click();
   await expect(table.getByTestId("exclude-only-phys.logp")).toHaveCount(0);
   await table.getByTestId("exclude-reason-phys.logp").fill("the review copies the paper; keep the primary measurement");
@@ -63,7 +65,7 @@ test("the estimation plan, the validation plan and the tier's acceptance criteri
     data: { key: "model_risk", value: "medium", reason: "supports a decision with clinical evidence" } });
   expect(risk.ok(), await risk.text()).toBeTruthy();
 
-  await page.goto(`/projects/${projectId}/plan`);
+  await page.goto(`/projects/${projectId}/plan?tab=estimation`);
   const estimation = page.getByTestId("estimation-plan");
   await expect(estimation.getByTestId("proposal-phys.logp")).toContainText("[-3.06, -0.06] linear");   // measured ± 1.5
   await expect(estimation.getByTestId("proposal-phys.logp")).toContainText("MS-01 §2.2, measured");
@@ -77,10 +79,12 @@ test("the estimation plan, the validation plan and the tier's acceptance criteri
   await estimation.getByTestId("estimation-filter-estimated").click();
   await expect(estimation.locator("[data-testid^='estimation-row-']")).toHaveCount(1);
 
+  await page.getByTestId("review-tab-validation").click();
   const validation = page.getByTestId("validation-plan");
   await expect(validation.getByTestId("validation-S4")).toContainText("never refitted");
   await expect(validation.getByTestId("validation-S5")).toContainText("MS-01 §6.6");
 
+  await page.getByTestId("review-tab-credibility").click();
   const criteria = page.getByTestId("acceptance-criteria");
   await expect(criteria.getByTestId("criterion-AUC")).toContainText("within 1.5-fold");
   await expect(criteria).toContainText("at most 33.3 %");
@@ -109,19 +113,25 @@ test("the diagnosis may fit MS-01's candidates within MS-01's defaults unless a 
   ]);
   expect((await request.get(`/api/v1/projects/${projectId}/plan`, { headers: AUTH })).ok()).toBeTruthy();   // built on first read
 
-  await page.goto(`/projects/${projectId}/plan`);
+  await page.goto(`/projects/${projectId}/plan?tab=estimation`);
   const estimation = page.getByTestId("estimation-plan");
   await expect(estimation.getByTestId("diagnosis-may-fit-phys.logp")).toContainText("the diagnosis may fit it in S1");
   await expect(estimation.getByTestId("estimation-row-phys.logp")).toContainText("[-3.06, -0.06] linear");
   await expect(estimation.getByTestId("diagnosis-may-fit-bind.fu")).toHaveCount(0);                 // a measured fu stays fixed
-  await expect(page.getByTestId("limitations")).toContainText("phys.logp in S1 [-3.06, -0.06] linear");
+  const limitations = async (has: boolean) => {
+    await page.getByTestId("review-tab-credibility").click();
+    if (has) await expect(page.getByTestId("limitations")).toContainText("phys.logp in S1 [-3.06, -0.06] linear");
+    else await expect(page.getByTestId("limitations")).not.toContainText("phys.logp in S1");
+    await page.getByTestId("review-tab-estimation").click();
+  };
+  await limitations(true);
 
   await estimation.getByTestId("fix-phys.logp").click();
   await estimation.getByLabel("why keep phys.logp fixed").fill("logP is measured; keep it as measured");
   await estimation.getByRole("button", { name: "Fix", exact: true }).click();
   await expect(estimation.getByTestId("held-fixed-phys.logp")).toBeVisible();
   await expect(estimation.getByTestId("estimation-row-phys.logp")).toContainText("logP is measured; keep it as measured");
-  await expect(page.getByTestId("limitations")).not.toContainText("phys.logp in S1");
+  await limitations(false);
 
   await estimation.getByTestId("release-phys.logp").click();
   await estimation.getByLabel("why let the diagnosis fit phys.logp").fill("let the diagnosis decide");
@@ -143,7 +153,7 @@ test("estimated parameters are fitted as one, with why and where their split com
     expect(fit.ok(), await fit.text()).toBeTruthy();
   }
 
-  await page.goto(`/projects/${projectId}/plan`);
+  await page.goto(`/projects/${projectId}/plan?tab=estimation`);
   const groups = page.getByTestId("fit-groups");
   await expect(groups).toContainText("No group: each estimated parameter is fitted on its own.");
   await groups.getByTestId("group-add").click();

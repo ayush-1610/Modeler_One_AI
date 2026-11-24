@@ -8,6 +8,7 @@
 import { useState } from "react";
 
 import { InlineIssue } from "@/components/kit";
+import { useReadOnly } from "@/components/plan/ReadOnly";
 import type { Envelope, Schema } from "@/lib/api";
 import { planApi, type PlanView } from "@/lib/plan";
 import type { ReviewPage } from "@/lib/review";
@@ -35,6 +36,7 @@ function asPayload(apps: Pinned[], template: string, inputs: Record<string, unkn
 }
 
 function VbePanel({ projectId, app, all, apply }: { projectId: string; app: Pinned; all: Pinned[]; apply: Apply }) {
+  const readOnly = useReadOnly();
   const value = (id: string) => app.inputs.find((i) => i.id === id)?.value as unknown;
   const be = value("observed_be") as { metrics?: Record<string, { gmr?: number; between_subject_cv_percent?: number }>; source?: string } | null;
   const [test, setTest] = useState(text(value("test_formulation")));
@@ -83,7 +85,8 @@ function VbePanel({ projectId, app, all, apply }: { projectId: string; app: Pinn
   );
 
   return (
-    <div className="vbe-panel" data-testid="vbe-panel">
+    // read only: the design as saved, its fields shown and not editable
+    <fieldset className="vbe-panel plain-fieldset" data-testid="vbe-panel" disabled={readOnly}>
       <p className="muted review-note">Template <code>{app.template}</code> {app.version} · {app.status}, provisional until the SME
         approves it. Inputs marked never defaulted stay empty until you give them.</p>
       {app.formulations.length < 2 && (
@@ -160,18 +163,19 @@ function VbePanel({ projectId, app, all, apply }: { projectId: string; app: Pinn
       {app.problems.length > 0 && (
         <ul className="limitations vbe-problems" data-testid="vbe-problems">{app.problems.map((p) => <li key={p}>{p}</li>)}</ul>
       )}
-      <div className="row gap-8 mt-8">
+      {!readOnly && <div className="row gap-8 mt-8">
         <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="why this design (required)"
                aria-label="why this VBE design" className="flex-1 minw-220" data-testid="vbe-reason" />
         <button type="button" className="btn tiny primary" disabled={!reason.trim()} onClick={save} data-testid="vbe-save">Save</button>
-      </div>
+      </div>}
       {problem && <InlineIssue severity="error">{problem}</InlineIssue>}
-    </div>
+    </fieldset>
   );
 }
 
 function AddApplication({ projectId, template, all, apply }: { projectId: string; template: string; all: Pinned[]; apply: Apply }) {
   const [reason, setReason] = useState("");
+  if (useReadOnly()) return null;
   return (
     <div className="row gap-8">
       <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="why add it (required)" aria-label={`why add ${template}`} />
@@ -185,7 +189,9 @@ function AddApplication({ projectId, template, all, apply }: { projectId: string
 
 function Acknowledge({ projectId, violation, apply }: { projectId: string; violation: PlanView["violations"][number]; apply: Apply }) {
   const [reason, setReason] = useState("");
+  const readOnly = useReadOnly();
   if (violation.acknowledged) return <div className="muted review-note">acknowledged: {violation.acknowledged}</div>;
+  if (readOnly) return <div className="muted review-note">to acknowledge before the signature</div>;
   return (
     <span className="review-exclude">
       <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="acknowledge, with why" aria-label={`acknowledge ${violation.target}`} />
