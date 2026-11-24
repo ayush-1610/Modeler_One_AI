@@ -1,0 +1,116 @@
+# DRAFT REQUIREMENT LIST, INERT: pH-dependent absorption and acid-reducing agents (ARA: proton-pump inhibitors, H2
+# blockers, antacids).
+# Owner's decision D5 (docs/plans/2026-11-24-data-story-next-phase.md §6, §11): drafted from the literature as an
+# UNVERIFIED draft for the owner's review; it becomes a template only after that review, through a locked-file change
+# with a version bump. The locked templates (pbpk_domain/requirements/*.yaml) are not changed; no live template covers
+# this context of use today.
+#
+# Where it came from: docs/research/2026-11-24-regulatory-data-by-context-of-use.md §3.8 (the ARA table) and
+# docs/research/2026-11-24-pbbm-absorption-inputs.md §1 rows 15 and 26 (salt forms; ARA co-medication). The review's
+# status for the first row is 'R (weak bases)': this context of use is for drugs whose solubility depends on pH,
+# typically weak bases; whether it applies to any other drug is the SME's. Statuses, the trigger grammar and the
+# property vocabulary are defined once in core.yaml.
+#
+# Inert: applies_to is empty and the live loader never lists this folder. No PK-Sim name, path or unit; no default
+# value; no acceptance threshold (the review found no numeric criterion for this context of use).
+id: cou-draft-acid-reducing-agents
+version: "0.1-draft"
+status: DRAFT_UNVERIFIED
+context_of_use: "Predict how raising gastric pH with an acid-reducing agent changes the exposure of a drug whose solubility depends on pH."
+applies_to: []
+derived_from:
+  regulatory review: docs/research/2026-11-24-regulatory-data-by-context-of-use.md
+  PBBM review: docs/research/2026-11-24-pbbm-absorption-inputs.md
+items:
+  - id: ara.gastric_solubility
+    label: Solubility over the gastric pH range reached with and without the acid-reducing agent, with the pKa
+    group: Phys-chem
+    kind: parameter
+    cou_status: REQUIRED
+    why: The interaction works through the drug's lower solubility at the raised gastric pH.
+    alternatives: []
+    room_fields: [field:substance.solubility, field:substance.pka, table:solubility]
+    data_category: physchem
+    default_provider: CLIENT
+    record_with: [start and final pH, buffer, solid form after the test]
+    sources: ["Dong 2020, PMID 32633893", "Wu D 2025, PMID 38700278"]
+    note: "UNVERIFIED: regulatory review §3.8 ('R (weak bases)'). The pKa itself is also a core item."
+  - id: ara.dissolution_ph
+    label: Dissolution at acidic and neutral pH, or in media that simulate the raised gastric pH under a proton-pump inhibitor
+    group: Dissolution
+    kind: dataset
+    cou_status: REQUIRED
+    why: A mechanistic dissolution model is needed to predict release at a gastric pH no clinical study may have tested.
+    alternatives: []
+    room_fields: [table:dissolution, field:dissolution.medium]
+    data_category: dissolution
+    default_provider: CLIENT
+    sources: ["Pepin 2024, PMID 38946085", "Segregur 2021, PMID 33253885"]
+    note: "UNVERIFIED: regulatory review §3.8 (R)."
+  - id: ara.precipitation
+    label: Precipitation and supersaturation after gastric emptying
+    group: Phys-chem
+    kind: dataset
+    cou_status: USUALLY_NEEDED
+    escalates_to_required_when: model influence high (the model replaces a study or drives the label)
+    why: Whether the dissolved drug precipitates in the intestine changes how much an acid-reducing agent matters.
+    alternatives: []
+    room_fields: [table:solubility, field:substance.solubility]
+    room_gap: true
+    data_category: dissolution
+    default_provider: CLIENT
+    sources: ["Heimbach 2024, PMID 39348508"]
+    note: "UNVERIFIED: regulatory review §3.8 gives 'U / C' for precipitation together with salt form and surface pH; it is split here, precipitation U."
+  - id: ara.salt_form_surface_ph
+    label: Salt form and the surface pH it creates as it dissolves
+    group: Phys-chem
+    kind: parameter
+    cou_status: CONDITIONAL
+    trigger_text: The drug substance is a salt.
+    trigger: {property: salt_form, equals: true}
+    why: A salt can lessen the effect of a raised gastric pH, as in the acalabrutinib maleate case.
+    alternatives: []
+    room_fields: [field:substance.salt, field:substance.solid_form]
+    data_category: physchem
+    default_provider: CLIENT
+    sources: ["Heimbach 2024, PMID 39348508", "Kesisoglou 2018, PMID 29872977", "Chirumamilla 2021, PMID 34452130"]
+    note: "UNVERIFIED: regulatory review §3.8 ('U / C'), split here, salt form C; PBBM review §1 row 15 (salts mitigated the ARA effect)."
+  - id: ara.clinical_pk_with_ara
+    label: Clinical PK with and without an acid-reducing agent (at least one study), with the agent, its dose and the timing
+    group: DDI
+    kind: dataset
+    cou_status: USUALLY_NEEDED
+    escalates_to_required_when: model influence high (the model replaces a study or drives the label)
+    why: Models were only qualitatively right in the FDA case set, and EMA did not qualify one ARA interaction model.
+    alternatives: []
+    room_fields: [field:study.comedication, table:concentrations, field:adme.ddi]
+    data_category: clinical_ddi
+    default_provider: CLIENT
+    record_with: [agent (proton-pump inhibitor, H2 blocker or antacid), dose and timing relative to the drug]
+    sources: ["Dong 2020, PMID 32633893", "Paul 2025, PMID 39748538"]
+    note: "UNVERIFIED: regulatory review §3.8 ('U (R at high influence)'); the details to record are the PBBM review §1 row 26's."
+  - id: ara.fed_fasted_pk
+    label: Fed and fasted PK
+    group: Food effect
+    kind: dataset
+    cou_status: USUALLY_NEEDED
+    escalates_to_required_when: model influence high (the model replaces a study or drives the label)
+    why: Fed and fasted data were used to verify the published ARA models.
+    alternatives: []
+    room_fields: [field:study.fed, field:study.fasting, table:concentrations]
+    data_category: clinical_pk_fed
+    default_provider: CLIENT
+    sources: ["Dong 2020, PMID 32633893"]
+    note: "UNVERIFIED: regulatory review §3.8 (U)."
+  - id: ara.fm_ontogeny
+    label: Fraction metabolised and ontogeny
+    group: Elimination
+    kind: parameter
+    cou_status: NOT_NEEDED
+    why: The interaction acts on dissolution in the stomach, not on the enzymes that clear the drug.
+    alternatives: []
+    room_fields: [field:adme.metabolism]
+    data_category: in_vitro_adme
+    default_provider: CLIENT
+    sources: ["Review: docs/research/2026-11-24-regulatory-data-by-context-of-use.md §3.8 (the row cites no primary source)"]
+    note: "UNVERIFIED: regulatory review §3.8 (N)."

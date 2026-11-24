@@ -1,0 +1,176 @@
+# DRAFT REQUIREMENT LIST, INERT: special populations, as three item sets: pregnancy (preg.), geriatrics (ger.) and
+# ethnicity (eth.).
+# Owner's decision D5 (docs/plans/2026-11-24-data-story-next-phase.md §6, §11): drafted from the literature as an
+# UNVERIFIED draft for the owner's review; it becomes a template only after that review, through a locked-file change
+# with a version bump. The locked templates (pbpk_domain/requirements/*.yaml, here app_special_populations.yaml) are
+# not changed.
+#
+# Where it came from: docs/research/2026-11-24-regulatory-data-by-context-of-use.md §3.10 (the special-populations
+# table, by population) and §6 (pregnancy: pathway-specific clinical data lacking). Paediatrics and organ impairment
+# have their own files. Each item carries its subcontext; a project picks the ones it needs. Statuses, the trigger
+# grammar and the property vocabulary are defined once in core.yaml.
+#
+# Inert: applies_to is empty and the live loader never lists this folder. No PK-Sim name, path or unit (no population
+# database is named); no default value; no acceptance threshold (the review found none for pregnancy).
+id: cou-draft-special-populations
+version: "0.1-draft"
+status: DRAFT_UNVERIFIED
+context_of_use: "Predict exposure in pregnancy, in the elderly or in a specific ethnic population from a verified model of the general adult population."
+applies_to: []
+derived_from:
+  regulatory review: docs/research/2026-11-24-regulatory-data-by-context-of-use.md
+subcontexts:
+  pregnancy: "Pregnancy (and the fetus where the question asks)."
+  geriatrics: "The elderly."
+  ethnicity: "A specific ethnic population."
+items:
+  # --- pregnancy --------------------------------------------------------------------------------------------------
+  - id: preg.nonpregnant_model_pathways
+    subcontext: pregnancy
+    label: A verified non-pregnant model with its pathway fractions (enzymes, UGT, transporters)
+    group: Elimination
+    kind: parameter
+    overrides: core.mass_balance
+    cou_status: REQUIRED
+    why: Pregnancy changes each pathway differently, so the share of each must be known before it is scaled.
+    alternatives: []
+    room_fields: [field:adme.metabolism, field:adme.transporters, field:adme.excretion]
+    data_category: in_vitro_adme
+    default_provider: CLIENT
+    sources: ["Coppola 2023, PMID 37317504"]
+    note: "UNVERIFIED: regulatory review §3.10 (pregnancy: R)."
+  - id: preg.gestational_physiology
+    subcontext: pregnancy
+    label: Gestation-dependent physiology
+    group: System
+    kind: system
+    cou_status: REQUIRED
+    why: The physiology changes through gestation, and the model must follow it.
+    alternatives: []
+    room_fields: []
+    room_gap: false
+    data_category: other
+    default_provider: LIBRARY
+    sources: ["Dallmann 2018, PMID 29569837"]
+    note: "UNVERIFIED: regulatory review §3.10 (pregnancy: R, the OSP workflow). From the engine's databases, never from client files."
+  - id: preg.same_pathway_pk
+    subcontext: pregnancy
+    label: Pregnancy PK of other drugs that share the drug's pathways
+    group: Observed data
+    kind: dataset
+    cou_status: USUALLY_NEEDED
+    escalates_to_required_when: model influence high (the model replaces a study or drives the label)
+    why: Scarce data of this kind hampered a regulator's evaluation of a pregnancy model.
+    alternatives: []
+    room_fields: [topic:literature, table:concentrations]
+    data_category: clinical_pk_special
+    default_provider: LITERATURE
+    sources: ["Coppola 2021, PMID 34249817", "Coppola 2023, PMID 37317504"]
+    note: "UNVERIFIED: regulatory review §3.10 (pregnancy: U; the MHRA evaluation)."
+  - id: preg.placental_transfer
+    subcontext: pregnancy
+    label: Placental transfer (for example cord-blood or in vitro transfer data)
+    group: Distribution
+    kind: dataset
+    cou_status: CONDITIONAL
+    trigger_text: The question asks about exposure of the fetus.
+    trigger: {property: fetal_exposure_question, equals: true}
+    why: Fetal exposure cannot be predicted without data on how the drug crosses the placenta.
+    alternatives: []
+    room_fields: [table:concentrations, field:study.matrix]
+    room_gap: true
+    data_category: clinical_pk_special
+    default_provider: CLIENT
+    sources: ["Coppola 2021, PMID 34249817"]
+    note: "UNVERIFIED: regulatory review §3.10 ('C (fetal exposure question)'). The examples of data are mine; the room has no field for in vitro transfer data."
+  - id: preg.ugt_transporter_changes
+    subcontext: pregnancy
+    label: Pregnancy-related changes in UGT and transporter activity
+    group: System
+    kind: system
+    cou_status: OPTIONAL
+    why: These changes are a recognised gap of the platforms, so a model of a drug cleared by UGT or transporters is flagged as weaker.
+    alternatives: []
+    room_fields: []
+    room_gap: false
+    data_category: other
+    default_provider: LITERATURE
+    sources: ["Coppola 2023, PMID 37317504"]
+    note: >-
+      UNVERIFIED: regulatory review §3.10 gives no status, only 'recognised gap: flag the model as weaker'. OPTIONAL
+      is my choice; the flag itself is for the SME to define.
+  # --- geriatrics -------------------------------------------------------------------------------------------------
+  - id: ger.age_physiology
+    subcontext: geriatrics
+    label: Age-informed physiology of the elderly
+    group: System
+    kind: system
+    cou_status: REQUIRED
+    why: The physiology changes with age, and the model must follow it.
+    alternatives: []
+    room_fields: []
+    room_gap: false
+    data_category: other
+    default_provider: LIBRARY
+    sources: ["Schlender 2016, PMID 27351180"]
+    note: "UNVERIFIED: regulatory review §3.10 (geriatrics: 'R (platform)'). From the engine's databases, never from client files."
+  - id: ger.elderly_verification
+    subcontext: geriatrics
+    label: PK of other drugs in the elderly, to verify the aged physiology
+    group: Observed data
+    kind: dataset
+    cou_status: USUALLY_NEEDED
+    escalates_to_required_when: model influence high (the model replaces a study or drives the label)
+    why: The aged physiology is verified with drugs studied in the elderly.
+    alternatives: []
+    room_fields: [topic:literature, table:concentrations, field:study.age]
+    data_category: clinical_pk_special
+    default_provider: LITERATURE
+    sources: ["Schlender 2016, PMID 27351180"]
+    note: "UNVERIFIED: regulatory review §3.10 (geriatrics: U)."
+  - id: ger.renal_function_distribution
+    subcontext: geriatrics
+    label: Distribution of renal function in the elderly population
+    group: System
+    kind: system
+    cou_status: CONDITIONAL
+    trigger_text: Renal elimination is substantial (fraction excreted unchanged above a cut-off the SME sets).
+    trigger: {property: fraction_excreted_unchanged, direction: above, threshold: SME}
+    why: For a renally cleared drug, the spread of kidney function among the elderly shapes their exposure.
+    alternatives: []
+    room_fields: []
+    room_gap: false
+    data_category: other
+    default_provider: LIBRARY
+    sources: ["Chenel 2026, PMID 42400597"]
+    note: "UNVERIFIED: regulatory review §3.10 ('C (renal drugs)'); the review gives no fraction (threshold SME)."
+  # --- ethnicity --------------------------------------------------------------------------------------------------
+  - id: eth.enzyme_abundance_genotype
+    subcontext: ethnicity
+    label: Population-specific enzyme abundance and genotype frequencies
+    group: System
+    kind: system
+    cou_status: USUALLY_NEEDED
+    escalates_to_required_when: model influence high (the model replaces a study or drives the label)
+    why: Enzyme abundance and genotype frequencies differ between populations and change clearance.
+    alternatives: []
+    room_fields: []
+    room_gap: false
+    data_category: other
+    default_provider: LITERATURE
+    sources: ["Feng 2015, PMID 25801493"]
+    note: "UNVERIFIED: regulatory review §3.10 (ethnicity: U)."
+  - id: eth.probe_drug_verification
+    subcontext: ethnicity
+    label: PK of a probe drug in that population, to verify the population model
+    group: Observed data
+    kind: dataset
+    cou_status: USUALLY_NEEDED
+    escalates_to_required_when: model influence high (the model replaces a study or drives the label)
+    why: A probe drug showed a population model under-predicting oral clearance in Japanese subjects.
+    alternatives: []
+    room_fields: [topic:literature, table:concentrations, field:study.ethnicity]
+    data_category: clinical_pk_special
+    default_provider: LITERATURE
+    sources: ["Feng 2015, PMID 25801493"]
+    note: "UNVERIFIED: regulatory review §3.10 (ethnicity: U), the omeprazole and CYP2C19 example in Japanese subjects."

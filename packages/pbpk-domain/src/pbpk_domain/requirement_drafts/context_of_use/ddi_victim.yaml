@@ -1,0 +1,195 @@
+# DRAFT REQUIREMENT LIST, INERT: drug-drug interaction, the drug as victim (CYP or UGT substrate).
+# Owner's decision D5 (docs/plans/2026-11-24-data-story-next-phase.md §6, §11): drafted from the literature as an
+# UNVERIFIED draft for the owner's review; it becomes a template only after that review, through a locked-file change
+# with a version bump. The locked templates (pbpk_domain/requirements/*.yaml, here app_ddi.yaml) are not changed.
+#
+# Where it came from: docs/research/2026-11-24-regulatory-data-by-context-of-use.md §3.1 (the DDI-victim table, R/U/C/
+# O/N per item), §2 for the core items it overrides, and §6 (what reviewers flag). Statuses, the trigger grammar and
+# the property vocabulary are defined once in core.yaml. Each item names its sources; its note opens with UNVERIFIED.
+#
+# Inert: applies_to is empty and the live loader never lists this folder. No PK-Sim name, path or unit; no default
+# value; no acceptance threshold.
+id: cou-draft-ddi-victim
+version: "0.1-draft"
+status: DRAFT_UNVERIFIED
+context_of_use: "Predict how much the drug's exposure changes when it is given with an inhibitor or inducer of an enzyme that clears it."
+applies_to: []
+derived_from:
+  regulatory review: docs/research/2026-11-24-regulatory-data-by-context-of-use.md
+items:
+  - id: ddiv.fm_phenotyping
+    label: Fraction metabolised per enzyme from reaction phenotyping (recombinant enzymes; liver microsomes with selective inhibitors)
+    group: DDI
+    kind: parameter
+    cou_status: REQUIRED
+    why: The fraction metabolised by the affected enzyme sets the size of the interaction, and EMA did not qualify models whose fm was not justified.
+    alternatives: []
+    room_fields: [field:adme.metabolism, topic:adme]
+    data_category: in_vitro_adme
+    default_provider: CLIENT
+    record_with: [test system, selective inhibitor or antibody used, how fm was derived]
+    sources: ["Shebley 2018, PMID 29315504 (criterion 2)", "Paul 2025, PMID 39748538", "Chenel 2026, PMID 42400597"]
+    note: "UNVERIFIED: regulatory review §3.1 (R); §6 lists the fm methodology among EMA's objections."
+  - id: ddiv.clinical_ddi_index
+    label: Clinical DDI study with a strong index inhibitor and/or inducer
+    group: DDI
+    kind: dataset
+    cou_status: USUALLY_NEEDED
+    escalates_to_required_when: >-
+      the model extrapolates to untested moderate or weak perpetrators for the label, or model influence is high
+      (the model replaces a study or drives the label)
+    why: It refines the fraction metabolised in vivo and is the standard comparator for the model.
+    alternatives: []
+    room_fields: [field:adme.ddi, field:study.comedication, table:concentrations, topic:clinical_concentrations]
+    data_category: clinical_ddi
+    default_provider: CLIENT
+    record_with: [perpetrator, its dose and timing, within-subject ratios of AUC and Cmax]
+    sources: ["Kuemmel 2020, PMID 31652029 (CoU 1)", "Chenel 2026, PMID 42400597 (Box 1)", "Umehara 2019, PMID 31145690",
+              "Li Y 2025, PMID 41304751 (secondary analysis; verify against the FDA reviews)"]
+    note: >-
+      UNVERIFIED: regulatory review §3.1 ('U; R when extrapolating to untested moderate/weak perpetrators for the
+      label'). The within-subject ratios are what PBPK predicts (clinical-data review §7, crossover).
+  - id: ddiv.mass_balance
+    label: Mass balance (radiolabelled), metabolite profile and fraction excreted unchanged in urine
+    group: Elimination
+    kind: dataset
+    overrides: core.mass_balance
+    cou_status: REQUIRED
+    why: It weighs the fraction metabolised against renal and biliary elimination.
+    alternatives: []
+    room_fields: [field:adme.excretion, field:adme.metabolism, topic:adme]
+    data_category: urine_feces
+    default_provider: CLIENT
+    sources: ["Chenel 2026, PMID 42400597", "Shebley 2018, PMID 29315504"]
+    note: "UNVERIFIED: regulatory review §3.1 (R) and §2 ('R for DDI victim')."
+  - id: ddiv.iv_pk
+    label: Intravenous PK
+    group: Observed data
+    kind: dataset
+    overrides: core.iv_pk
+    cou_status: USUALLY_NEEDED
+    escalates_to_required_when: model influence high (the model replaces a study or drives the label)
+    why: It separates gut-wall extraction from hepatic extraction, which an inhibitor of a gut enzyme changes differently.
+    alternatives: [oral solution PK, single and multiple ascending dose studies, mass balance study, DDI studies, a population PK model]
+    room_fields: [field:study.route, table:concentrations, topic:clinical_concentrations]
+    data_category: clinical_pk_iv
+    default_provider: CLIENT
+    sources: ["Shebley 2018, PMID 29315504 (Table 5)", "Heimbach 2024, PMID 39348508"]
+    note: "UNVERIFIED: regulatory review §3.1 (U); the alternatives are those of §2."
+  - id: ddiv.gut_wall_metabolism
+    label: Evidence for gut-wall metabolism (the intestinal enzyme's contribution)
+    group: Elimination
+    kind: parameter
+    cou_status: CONDITIONAL
+    trigger_text: The drug is a CYP3A substrate.
+    trigger: {property: metabolising_enzymes, any_of: [CYP3A]}
+    why: EMA cited a missing intestinal enzyme activity as a structural flaw of DDI models for CYP3A substrates.
+    alternatives: []
+    room_fields: [field:adme.metabolism, topic:adme]
+    data_category: in_vitro_adme
+    default_provider: CLIENT
+    sources: ["Paul 2025, PMID 39748538"]
+    note: >-
+      UNVERIFIED: regulatory review §3.1 ('C (CYP3A substrates)') and §7 idea 5. Whether a minor CYP3A pathway should
+      also fire the trigger (an fm cut-off) is for the SME.
+  - id: ddiv.auto_modulation
+    label: Auto-inhibition or auto-induction of the drug's own pathway (kinact and KI, or EC50 and Emax)
+    group: DDI
+    kind: parameter
+    cou_status: CONDITIONAL
+    trigger_text: The drug inhibits or induces an enzyme that clears it.
+    trigger: {property: modulates_own_clearance, equals: true}
+    why: A missing auto-inhibition or auto-induction was a structural flaw EMA cited.
+    alternatives: []
+    room_fields: [field:adme.ddi, field:adme.metabolism]
+    data_category: in_vitro_adme
+    default_provider: CLIENT
+    sources: ["Paul 2025, PMID 39748538"]
+    note: "UNVERIFIED: regulatory review §3.1 ('C (drug modulates own clearance)')."
+  - id: ddiv.verified_perpetrator_models
+    label: Verified models of the index perpetrators
+    group: DDI
+    kind: system
+    cou_status: REQUIRED
+    why: The default inducer model under-predicted induction, and verifying the perpetrator model was found crucial.
+    alternatives: []
+    room_fields: []
+    room_gap: false
+    data_category: other
+    default_provider: LIBRARY
+    sources: ["Wagner 2016, PMID 26369776", "Frechen 2021, PMID 33946131"]
+    note: "UNVERIFIED: regulatory review §3.1 (R). From the OSP model library, never from client files."
+  - id: ddiv.pathway_qualification_set
+    label: Qualification set for the pathway (the substrates and perpetrators the platform was qualified on)
+    group: DDI
+    kind: system
+    cou_status: USUALLY_NEEDED
+    escalates_to_required_when: model influence high (the model replaces a study or drives the label)
+    why: EMA expects the platform to be qualified on several compounds for the pathway concerned, and too few compounds was a reason for non-qualification.
+    alternatives: []
+    room_fields: []
+    room_gap: false
+    data_category: other
+    default_provider: LIBRARY
+    sources: ["Paul 2025, PMID 39748538", "Frechen 2021, PMID 33946131"]
+    note: >-
+      UNVERIFIED: regulatory review §3.1 ('R at high impact'). The guideline's example count is written for CYP3A4;
+      EMA acknowledges it is hard to meet for other enzymes. No count is set here.
+  - id: ddiv.genotype_groups
+    label: PK by genotype group (poor, intermediate and extensive metabolisers)
+    group: DDI
+    kind: dataset
+    cou_status: CONDITIONAL
+    trigger_text: The drug is a CYP2D6, CYP2C9 or CYP2C19 substrate.
+    trigger: {property: metabolising_enzymes, any_of: [CYP2D6, CYP2C9, CYP2C19]}
+    why: Drug-gene and drug-drug interactions combine for substrates of polymorphic enzymes, as in the eliglustat label.
+    alternatives: []
+    room_fields: [table:concentrations, field:adme.metabolism]
+    room_gap: true
+    data_category: clinical_ddi
+    default_provider: CLIENT
+    sources: ["Shebley 2018, PMID 29315504"]
+    note: >-
+      UNVERIFIED: regulatory review §3.1 ('C (CYP2D6/2C9/2C19 substrates)'). The room has no genotype field; a
+      genotype group can only be carried as a table's group.
+  - id: ddiv.active_metabolites
+    label: Active or inhibitory metabolites and their PK
+    group: DDI
+    kind: dataset
+    cou_status: CONDITIONAL
+    trigger_text: The drug has an active or inhibitory metabolite.
+    trigger: {property: active_metabolite, equals: true}
+    why: Leaving out a metabolite's contribution was a cited limitation of submitted models.
+    alternatives: []
+    room_fields: [field:study.analyte, field:adme.metabolism, table:concentrations]
+    data_category: in_vitro_adme
+    default_provider: CLIENT
+    sources: ["Li Y 2025, PMID 41304751 (secondary analysis; verify)", "Templeton 2016 (Consensus only)"]
+    note: "UNVERIFIED: regulatory review §3.1 (C)."
+  - id: ddiv.fed_dosing_data
+    label: Fed PK, dissolution and particle size
+    group: Food effect
+    kind: dataset
+    cou_status: CONDITIONAL
+    trigger_text: The label scenario is fed dosing.
+    trigger: {property: fed_dosing_in_scope, equals: true}
+    why: Food effect on a DDI is a separate context of use at EMA, needed only when the interaction is to be predicted under fed dosing.
+    alternatives: []
+    room_fields: [field:study.fed, field:study.meal_composition, table:dissolution, table:particle_size]
+    data_category: clinical_pk_fed
+    default_provider: CLIENT
+    sources: ["Paul 2025, PMID 39748538"]
+    note: "UNVERIFIED: regulatory review §3.1 ('N (C if the label scenario is fed dosing)'); the food-effect list then applies as well."
+  - id: ddiv.ontogeny
+    label: Enzyme and transporter ontogeny
+    group: System
+    kind: system
+    cou_status: NOT_NEEDED
+    why: An adult DDI question does not involve maturation; a paediatric DDI question adds the paediatric list.
+    alternatives: []
+    room_fields: []
+    room_gap: false
+    data_category: other
+    default_provider: LIBRARY
+    sources: ["Johnson 2021, PMID 34288581"]
+    note: "UNVERIFIED: regulatory review §3.1 ('N (unless pediatric DDI)')."

@@ -1,0 +1,614 @@
+# DRAFT REQUIREMENT LIST, INERT: the core every context of use (CoU) starts from.
+# Owner's decision D5 (docs/plans/2026-11-24-data-story-next-phase.md §6, §11): requirement lists drafted from the
+# literature as UNVERIFIED drafts; they become templates only after the owner's review; the locked templates
+# (pbpk_domain/requirements/*.yaml) are not changed.
+#
+# Where it came from:
+#   - the core table of docs/research/2026-11-24-regulatory-data-by-context-of-use.md §2 ("default for every CoU; the
+#     CoU tables override"), with its status codes R/U/C/O/N written out as the five statuses below;
+#   - the observed-data items of docs/research/2026-11-24-clinical-pk-data-curation.md §§1-5 (statistic type, BLQ,
+#     actual times, exclusions, the sponsor's NCA);
+#   - the permeability calibration item of docs/research/2026-11-24-pbbm-absorption-inputs.md §2.
+# Each item names its sources; its note opens with UNVERIFIED and says which table row it came from.
+#
+# This file also defines, once, for every CoU file:
+#   - statuses: what each status means;
+#   - trigger_grammar: the small structure a CONDITIONAL item's trigger is written in;
+#   - properties: the compound, product and question properties a trigger may name, each with how the Data room
+#     determines it (computed by code from the room's facts and tables, read from the brief, or asked).
+# No property carries a number. A trigger compares a property with a number only where a cited source states the
+# number (threshold_source says where); otherwise it says threshold: SME and the SME sets it.
+#
+# A CoU file overrides a core item by naming its id under `overrides`; an item not overridden keeps its core status.
+#
+# Inert: applies_to is empty and the live loader (modeler_project.requirements.load_templates) never lists this
+# folder. No PK-Sim name, path or unit; no default value; no acceptance threshold.
+id: cou-draft-core
+version: "0.1-draft"
+status: DRAFT_UNVERIFIED
+context_of_use: "The items every context of use starts from: the drug model's basic inputs and the observed data that train and verify it."
+applies_to: []
+derived_from:
+  regulatory review: docs/research/2026-11-24-regulatory-data-by-context-of-use.md
+  PBBM review: docs/research/2026-11-24-pbbm-absorption-inputs.md
+  clinical-data review: docs/research/2026-11-24-clinical-pk-data-curation.md
+
+# What each item of every file holds. Keys marked (when ...) appear only then.
+item_keys:
+  id: "stable id, prefixed by its file (core., ddiv., ddip., tddi., fe., ped., ri., hi., vbe., ara., fih., preg., ger., eth., ctx.)"
+  label: the item in plain words
+  group: where it sits on the page (Phys-chem, Elimination, Observed data, ...)
+  kind: "parameter, dataset, formulation or system as in the live templates, or activity: a modeller's task stated in the analysis plan, never asked of the client"
+  subcontext: (organ_impairment and special_populations) which population of the file the item belongs to
+  overrides: (when the item replaces a core item for this CoU) the core id or ids it replaces
+  cou_status: "REQUIRED, USUALLY_NEEDED, CONDITIONAL, OPTIONAL or NOT_NEEDED (see statuses)"
+  escalates_to_required_when: (USUALLY_NEEDED only) when the item becomes REQUIRED, in words
+  trigger_text: (CONDITIONAL only) when the item applies, in words
+  trigger: (CONDITIONAL only) the same, in the trigger grammar over the property vocabulary
+  kept_as: (context_only.yaml only) context
+  trigger_request_text: (context_only.yaml only) when the stored material triggers a request, in words
+  triggers_request_for: (context_only.yaml only) the ids of the items requested
+  context_for: (context_only.yaml only) the CoU files in which the material matters as context
+  why: one plain sentence
+  alternatives: acceptable substitutes when it is missing, from the sources; empty when none
+  record_with: (optional) what must be recorded with the value (method, medium, pH, ...)
+  room_fields: >-
+    the Data room vocabulary that satisfies it (modeler_intake.room_specs): field:<a FIELDS name>,
+    table:<a TableKind> or topic:<a TOPICS name>
+  room_gap: >-
+    (when room_fields is empty, or covers the item only in part) true when the delivery could carry the data but the
+    room's vocabulary has no place for it; false for system and activity items, which never come from a delivery
+  data_category: one of the live data categories (modeler_project.brief.DATA_CATEGORIES)
+  default_provider: who provides it, one of the live providers (modeler_project.requirements.Provider)
+  sources: >-
+    as the reviews cite them: "Author Year, PMID n", "Author Year, doi:...", "Author Year (Consensus only)",
+    "Guidance: <name as a review writes it>", or "Review: <the review's path> §x (the row cites no primary source)"
+  note: >-
+    opens with "UNVERIFIED:", then the review section and status the item came from, and any choice the drafter
+    made (written "my reading", "my choice" or "mine")
+
+statuses:
+  REQUIRED: "Needed for this context of use; shown as missing when absent (regulatory review status R)."
+  USUALLY_NEEDED: >-
+    Needed in most cases; becomes REQUIRED when the item's escalates_to_required_when holds, by default when model
+    influence is high, i.e. the model replaces a study or drives the label (regulatory review status U; plan §6.3).
+  CONDITIONAL: >-
+    REQUIRED only when its trigger fires on the compound, the product or the question; not shown otherwise
+    (regulatory review status C).
+  OPTIONAL: "Supportive; never shown as missing (regulatory review status O)."
+  NOT_NEEDED: >-
+    Not relevant to this context of use; listed once, folded, under "Not needed for this question, and why"; a
+    modeller who wants it turns it on with a reason, audited (regulatory review status N; plan §6.3).
+
+trigger_grammar:
+  conditions:
+    - form: "{property: P, equals: V}"
+      meaning: "the property's single value is V (yes/no properties use true or false)"
+    - form: "{property: P, in: [V, ...]}"
+      meaning: "the property's single value is one of the list"
+    - form: "{property: P, any_of: [V, ...]}"
+      meaning: >-
+        the property holds a set of names (enzymes, transporters, mechanisms) and at least one listed name is in it;
+        names are matched as written, and a family name matches its members (CYP3A matches CYP3A4)
+    - form: "{property: P, above: N, threshold_source: S}"
+      meaning: "the property's number is above N, where N is stated by the source S names; nothing else may carry a number"
+    - form: "{property: P, direction: above, threshold: SME}"
+      meaning: "the property's number is above a cut-off the SME sets; the sources give none, so none is written"
+    - form: "{any: [condition, ...]}"
+      meaning: "at least one condition holds"
+    - form: "{all: [condition, ...]}"
+      meaning: "every condition holds"
+  evaluation: >-
+    Each condition is true, false or unknown (the property is not determined yet). any is true when one condition is
+    true, false when all are false, else unknown; all is false when one is false, true when all are true, else
+    unknown. A trigger with threshold SME is unknown until the SME sets the cut-off. An unknown trigger shows the item
+    as "to ask", never as missing and never as not needed, as the live requirement matrix shows "undetermined".
+
+# The vocabulary a trigger may name. about: compound, product, question or population. how: code (computed from the
+# room's facts and tables), brief (read from the confirmed brief) or ask (a person answers, with a reason kept).
+properties:
+  weak_base:
+    about: compound
+    type: yes/no
+    how: code
+    determined_by: >-
+      Yes when a pKa fact is of type base; no when every pKa given is acidic or the delivery states the drug is
+      neutral; unknown when no pKa is given.
+    room_fields: [field:substance.pka, table:physchem]
+  highest_basic_pka:
+    about: compound
+    type: number
+    how: code
+    determined_by: "The highest pKa of type base among the pKa facts, as reported; unknown when there is none."
+    room_fields: [field:substance.pka, table:physchem]
+  solubility_ratio_gastric_to_intestinal:
+    about: compound
+    type: number
+    how: code
+    determined_by: >-
+      The solubility at pH 1 to 2 divided by the solubility near pH 6.5 (the pH points of the PBBM review §5 idea 7),
+      from solubility facts or a solubility table, as reported; unknown when either is missing. How large a fall
+      counts is the SME's (threshold SME).
+    room_fields: [field:substance.solubility, table:solubility]
+  salt_form:
+    about: compound
+    type: yes/no
+    how: code
+    determined_by: >-
+      Yes when the salt-form fact or the brief's drug.salt_form names a salt; no when the delivery states the free
+      acid or base; unknown otherwise.
+    room_fields: [field:substance.salt]
+    brief_fields: [drug.salt_form]
+  bcs_class:
+    about: compound
+    type: "one of I, II, III, IV"
+    how: brief
+    determined_by: >-
+      As stated: the brief's drug.bcs_class or a BCS fact in the delivery. The room never computes a BCS class;
+      unknown when neither states one.
+    room_fields: [field:substance.bcs]
+    brief_fields: [drug.bcs_class]
+  metabolised:
+    about: compound
+    type: yes/no
+    how: code
+    determined_by: >-
+      Yes when the brief's scope.pathways holds hepatic_metabolism or gut_wall_metabolism, or a metabolism fact names
+      an enzyme; no when the delivery states the drug is excreted unchanged; unknown otherwise.
+    room_fields: [field:adme.metabolism]
+    brief_fields: [scope.pathways]
+  metabolising_enzymes:
+    about: compound
+    type: set of enzyme names
+    how: code
+    determined_by: >-
+      The enzymes the metabolism facts name, as written, with those in the brief's scope.pathways_stated; empty
+      when the drug is stated not to be metabolised; unknown when nothing is said.
+    room_fields: [field:adme.metabolism]
+    brief_fields: [scope.pathways_stated]
+  modulates_own_clearance:
+    about: compound
+    type: yes/no
+    how: ask
+    determined_by: >-
+      Yes when the brief's scope.nonlinearity names auto-induction or auto-inhibition, or the delivery shows the drug
+      inhibiting or inducing an enzyme that clears it (an interaction fact naming an enzyme of its own metabolism);
+      asked otherwise.
+    room_fields: [field:adme.ddi, field:adme.metabolism]
+    brief_fields: [scope.nonlinearity]
+  active_metabolite:
+    about: compound
+    type: yes/no
+    how: ask
+    determined_by: >-
+      Yes when the brief's scope.parent_metabolite is parent_and_metabolites, or the delivery names an active or
+      inhibitory metabolite (a metabolism fact, or a metabolite measured as an analyte); asked otherwise.
+    room_fields: [field:adme.metabolism, field:study.analyte]
+    brief_fields: [scope.parent_metabolite]
+  perpetrator_mechanisms:
+    about: compound
+    type: "set of reversible_inhibition, time_dependent_inhibition, induction"
+    how: ask
+    determined_by: >-
+      The mechanisms the interaction facts and the brief's scope.ddi state; asked when the drug is a perpetrator and
+      no mechanism is stated.
+    room_fields: [field:adme.ddi]
+    brief_fields: [scope.ddi]
+  fraction_excreted_unchanged:
+    about: compound
+    type: number
+    how: code
+    determined_by: >-
+      The fraction of the dose excreted unchanged in urine, from the excretion facts as reported; unknown when not
+      given. Which fraction makes a drug "renally eliminated" for a trigger is the SME's (threshold SME).
+    room_fields: [field:adme.excretion]
+  renal_secretion:
+    about: compound
+    type: yes/no
+    how: ask
+    determined_by: >-
+      Yes when the brief's scope.pathways holds renal_secretion, or the delivery states active renal secretion or a
+      renal transporter; asked otherwise. Inferring it by comparing renal clearance with filtration needs a rule the
+      SME sets (threshold SME).
+    room_fields: [field:adme.excretion, field:adme.transporters, field:adme.cl]
+    brief_fields: [scope.pathways]
+  transporter_families:
+    about: compound
+    type: set of transporter names
+    how: code
+    determined_by: >-
+      The transporters the transporter facts name, as written (P-gp, BCRP, OATP1B1 and so on), with those in the
+      brief's scope.pathways_stated; a family name in a trigger matches its members (OATP matches OATP1B1).
+    room_fields: [field:adme.transporters]
+    brief_fields: [scope.pathways_stated]
+  transporter_limited_absorption:
+    about: compound
+    type: yes/no
+    how: ask
+    determined_by: "Stated in the delivery (transporter facts with absorption data) or asked; never computed."
+    room_fields: [field:adme.transporters]
+  hepatic_extraction:
+    about: compound
+    type: "one of low, intermediate, high"
+    how: ask
+    determined_by: >-
+      As the delivery states it, or computed from blood clearance by a rule the SME sets (threshold SME); unknown
+      otherwise.
+    room_fields: [field:adme.cl, field:adme.bp_ratio]
+  in_vitro_permeability_supplied:
+    about: compound
+    type: yes/no
+    how: code
+    determined_by: "Yes when a permeability fact comes from an in vitro system (Caco-2, MDCK, PAMPA)."
+    room_fields: [field:substance.permeability]
+  individual_data_available:
+    about: question
+    type: yes/no
+    how: code
+    determined_by: "Yes when a concentrations table of the delivery has a subject column."
+    room_fields: [table:concentrations]
+  fed_dosing_in_scope:
+    about: question
+    type: yes/no
+    how: code
+    determined_by: >-
+      Yes when a brief scenario's food_state is fed, a fed study is part of the question, or the question names fed
+      dosing for the label (or that bioequivalence must be shown fed); no when every scenario is fasted; asked
+      otherwise.
+    room_fields: [field:study.fed, field:question.text]
+    brief_fields: [scenarios.food_state]
+  reference_product_in_question:
+    about: question
+    type: yes/no
+    how: code
+    determined_by: "Yes when the confirmed question card lists a product of role reference, or the brief one of role RLD or REFERENCE."
+    room_fields: [field:product.role]
+    brief_fields: [products.role]
+  psd_critical_material_attribute:
+    about: product
+    type: yes/no
+    how: ask
+    determined_by: >-
+      Yes when the client's specification or the question names the drug substance's particle size as a critical
+      material attribute or a specification under study; asked otherwise.
+    room_fields: [field:question.text, field:substance.particle_size]
+  enabling_formulation:
+    about: product
+    type: yes/no
+    how: ask
+    determined_by: >-
+      Yes when the brief's scope.formulation_types holds amorphous_solid_dispersion, or the delivery describes a
+      supersaturating product; asked when the composition shows a polymer or precipitation inhibitor.
+    room_fields: [table:composition]
+    brief_fields: [scope.formulation_types]
+  infants_in_target_population:
+    about: population
+    type: yes/no
+    how: ask
+    determined_by: >-
+      The brief's paediatric population and its age range, read against age bands the SME sets (threshold SME);
+      asked otherwise.
+    brief_fields: [populations.age_range]
+  food_vehicle_dosing:
+    about: question
+    type: yes/no
+    how: ask
+    determined_by: >-
+      Stated in the question or protocol, or asked: children are dosed with milk or formula, or with the dose mixed
+      into food (apple sauce, for example).
+    room_fields: [field:question.text, field:study.fed]
+  adult_food_effect:
+    about: compound
+    type: yes/no
+    how: code
+    determined_by: >-
+      From a food-effect fact or an adult fed study with its fed/fasted result; what size of change counts as a food
+      effect is the SME's (threshold SME); unknown when no fed data exist.
+    room_fields: [field:adme.food_effect, field:study.be_result]
+  target_population_disease:
+    about: population
+    type: yes/no
+    how: ask
+    determined_by: >-
+      Yes when the brief's populations or the study population name patients with a disease that changes
+      physiology; asked otherwise.
+    room_fields: [field:study.population]
+    brief_fields: [populations.kind]
+  fetal_exposure_question:
+    about: question
+    type: yes/no
+    how: ask
+    determined_by: "Yes when the question asks about exposure of the fetus."
+    room_fields: [field:question.text]
+    brief_fields: [qoi.text]
+
+items:
+  # --- identity and phys-chem -------------------------------------------------------------------------------------
+  - id: core.molecular_weight
+    label: Molecular weight
+    group: Phys-chem
+    kind: parameter
+    cou_status: REQUIRED
+    why: Every amount and concentration in the model is converted with it.
+    alternatives: []
+    room_fields: [field:substance.mw, table:physchem]
+    data_category: physchem
+    default_provider: STRUCTURE
+    record_with: [free base or salt]
+    sources: ["Chenel 2026, PMID 42400597", "Shebley 2018, PMID 29315504 (Table 1)"]
+    note: "UNVERIFIED: regulatory review §2, row 'MW, logP/logD, pKa(s), compound class' (R)."
+  - id: core.lipophilicity
+    label: Lipophilicity (logP or logD with its pH)
+    group: Phys-chem
+    kind: parameter
+    cou_status: REQUIRED
+    why: It drives tissue distribution and, when no permeability is measured, the predicted permeability.
+    alternatives: []
+    room_fields: [field:substance.logp, field:substance.logd, table:physchem]
+    data_category: physchem
+    default_provider: LITERATURE
+    record_with: [logP or logD, pH, method, measured or predicted]
+    sources: ["Chenel 2026, PMID 42400597", "Shebley 2018, PMID 29315504 (Table 1)"]
+    note: >-
+      UNVERIFIED: regulatory review §2 (R). The PBBM review §1 row 14 warns that a fitted lipophilicity couples
+      absorption to distribution; such a value is flagged as fitted.
+  - id: core.pka
+    label: pKa values and their type (acid or base), or a statement that the drug is neutral
+    group: Phys-chem
+    kind: parameter
+    cou_status: REQUIRED
+    why: Ionisation sets distribution and every pH-dependent step of absorption.
+    alternatives: []
+    room_fields: [field:substance.pka, table:physchem]
+    data_category: physchem
+    default_provider: LITERATURE
+    record_with: [acid or base, method, measured or predicted]
+    sources: ["Chenel 2026, PMID 42400597", "Shebley 2018, PMID 29315504 (Table 1)", "Pepin 2024, PMID 38946085"]
+    note: >-
+      UNVERIFIED: regulatory review §2 (R); "compound class" of that row is read here as the ionisation class the
+      pKa types give.
+  # --- binding ----------------------------------------------------------------------------------------------------
+  - id: core.fu_plasma
+    label: Fraction unbound in plasma
+    group: Binding
+    kind: parameter
+    cou_status: REQUIRED
+    why: Clearance and tissue distribution act on the unbound drug.
+    alternatives: []
+    room_fields: [field:adme.fu]
+    data_category: binding
+    default_provider: LITERATURE
+    record_with: [species, method, drug concentration]
+    sources: ["Chenel 2026, PMID 42400597"]
+    note: "UNVERIFIED: regulatory review §2 (R)."
+  - id: core.blood_plasma_ratio
+    label: Blood-to-plasma concentration ratio
+    group: Binding
+    kind: parameter
+    cou_status: REQUIRED
+    why: It converts plasma clearance to blood clearance and relates blood and plasma assays.
+    alternatives: []
+    room_fields: [field:adme.bp_ratio]
+    data_category: binding
+    default_provider: LITERATURE
+    record_with: [species, haematocrit]
+    sources: ["Chenel 2026, PMID 42400597"]
+    note: >-
+      UNVERIFIED: regulatory review §2 (R). The live core template has this item OPTIONAL; the difference is for the
+      SME.
+  # --- elimination ------------------------------------------------------------------------------------------------
+  - id: core.in_vitro_clint
+    label: In vitro intrinsic clearance (hepatocytes, liver microsomes or recombinant enzymes), with Km and Vmax where saturable
+    group: Elimination
+    kind: parameter
+    cou_status: CONDITIONAL
+    trigger_text: The drug is cleared at least partly by metabolism.
+    trigger: {property: metabolised, equals: true}
+    why: Clearance is scaled from these data to the whole body (IVIVE).
+    alternatives: []
+    room_fields: [field:adme.metabolism, field:adme.cl, topic:adme]
+    data_category: in_vitro_adme
+    default_provider: CLIENT
+    record_with: [test system, protein or cell concentration, unbound fraction in the incubation, scaling factors]
+    sources: ["Chenel 2026, PMID 42400597"]
+    note: "UNVERIFIED: regulatory review §2 ('R if metabolised')."
+  - id: core.mass_balance
+    label: Mass balance (radiolabelled), metabolite profile and fraction excreted unchanged in urine
+    group: Elimination
+    kind: dataset
+    cou_status: USUALLY_NEEDED
+    escalates_to_required_when: >-
+      model influence high (the model replaces a study or drives the label); the DDI-victim, organ-impairment and
+      paediatric lists make it REQUIRED
+    why: It splits clearance between metabolism, urine and bile; methods without a radiolabel can miss metabolites.
+    alternatives: []
+    room_fields: [field:adme.excretion, field:adme.metabolism, topic:adme]
+    data_category: urine_feces
+    default_provider: CLIENT
+    sources: ["Chenel 2026, PMID 42400597", "Johnson 2021, PMID 34288581"]
+    note: "UNVERIFIED: regulatory review §2 ('U (R for DDI victim, organ impairment, pediatrics)')."
+  # --- observed data ----------------------------------------------------------------------------------------------
+  - id: core.iv_pk
+    label: Intravenous PK (or an IV microtracer)
+    group: Observed data
+    kind: dataset
+    cou_status: USUALLY_NEEDED
+    escalates_to_required_when: model influence high (the model replaces a study or drives the label)
+    why: >-
+      It is the reference for disposition; without it gut and liver extraction cannot be told apart for a poorly
+      soluble drug.
+    alternatives: [oral solution PK, single and multiple ascending dose studies, mass balance study, DDI studies, a population PK model]
+    room_fields: [field:study.route, table:concentrations, topic:clinical_concentrations]
+    data_category: clinical_pk_iv
+    default_provider: CLIENT
+    sources: ["Heimbach 2024, PMID 39348508", "Shebley 2018, PMID 29315504 (Table 5)"]
+    note: "UNVERIFIED: regulatory review §2 (U), alternatives as listed there."
+  - id: core.fasted_oral_pk
+    label: Fasted oral PK (single and multiple ascending dose), full concentration-time profiles
+    group: Observed data
+    kind: dataset
+    cou_status: REQUIRED
+    why: These profiles train and verify the base model and show whether exposure is proportional to dose.
+    alternatives: []
+    room_fields: [table:concentrations, field:study.fasting, field:study.dose, field:study.regimen, topic:clinical_concentrations]
+    data_category: clinical_pk_oral
+    default_provider: CLIENT
+    sources: ["Chenel 2026, PMID 42400597", "Shebley 2018, PMID 29315504"]
+    note: >-
+      UNVERIFIED: regulatory review §2 (R). That core list is written for an orally dosed drug; the first-in-human
+      list overrides it (no clinical data yet).
+  - id: core.study_metadata
+    label: >-
+      Study metadata: population, dose and regimen, formulation, fed or fasted and the meal, matrix, analyte (total
+      or unbound, parent or metabolite), lower limit of quantification
+    group: Observed data
+    kind: dataset
+    cou_status: REQUIRED
+    why: Observed data cannot be simulated faithfully without the conditions they were measured under.
+    alternatives: []
+    room_fields: [field:study.population, field:study.dose, field:study.regimen, field:study.route, field:study.fasting,
+                  field:study.fed, field:study.matrix, field:study.analyte, field:study.lloq, field:product.name,
+                  topic:clinical_design]
+    data_category: other
+    default_provider: CLIENT
+    sources: ["Chenel 2026, PMID 42400597"]
+    note: "UNVERIFIED: regulatory review §2 (R), citing Chenel 2026 §2.2.4."
+  - id: core.observed_statistic
+    label: The statistic of each observed value (arithmetic or geometric mean, or median), its spread (SD, CV or SEM) and n per time point
+    group: Observed data
+    kind: dataset
+    cou_status: REQUIRED
+    why: A simulated summary must be of the same statistic as the observed one, or the comparison is silently wrong.
+    alternatives: []
+    room_fields: [table:concentrations, table:pk_parameters]
+    data_category: other
+    default_provider: CLIENT
+    sources: ["Hanke 2018, PMID 30091221", "Midha 1989, PMID 2723140", "Dunvald 2022, PMID 35570335"]
+    note: >-
+      UNVERIFIED: clinical-data review §5 and its executive summary item 5 ("observed data must keep their statistic
+      type"); the status R is my reading. The room's tables carry a statistic column; n per time point has no own
+      field.
+  - id: core.blq_handling
+    label: Samples below the limit of quantification kept as such, with the limit per assay and how they were treated in any means
+    group: Observed data
+    kind: dataset
+    cou_status: USUALLY_NEEDED
+    escalates_to_required_when: >-
+      model influence high (the model replaces a study or drives the label), or individual data with more than a
+      small share of BLQ samples are fitted (the review's decision rules; the share is the SME's)
+    why: Dropping or replacing values below the limit biases the terminal phase and the distribution parameters.
+    alternatives: []
+    room_fields: [field:study.lloq, table:concentrations, topic:bioanalysis]
+    data_category: bioanalytical
+    default_provider: CLIENT
+    sources: ["Irby 2021, PMID 33715307", "Bergstrand 2009, PMID 19452283"]
+    note: >-
+      UNVERIFIED: clinical-data review §1. The status U is my reading: PBPK papers rarely state BLQ handling, and
+      literature means are often computed from quantifiable values only.
+  - id: core.actual_sampling_times
+    label: Actual sampling and dosing times beside the nominal ones
+    group: Observed data
+    kind: dataset
+    cou_status: CONDITIONAL
+    trigger_text: The delivery has subject-level concentrations (individual data are fitted or the sponsor's NCA is re-computed).
+    trigger: {property: individual_data_available, equals: true}
+    why: Individual data are fitted and NCA is computed on actual times; nominal times bias the estimates where the profile curves sharply.
+    alternatives: [nominal times, for mean profiles only]
+    room_fields: [table:concentrations, field:study.sampling_times]
+    data_category: other
+    default_provider: CLIENT
+    sources: ["Choi 2013, PMID 23975237", "Alihodzic 2020, PMID 32194411", "Dunvald 2022, PMID 35570335"]
+    note: >-
+      UNVERIFIED: clinical-data review §2. Mean profiles are compared at nominal times, so the item is conditional
+      on individual data.
+  - id: core.exclusions_flagged
+    label: Subjects and samples the sponsor excluded, each with its reason (kept as flags, never deleted)
+    group: Observed data
+    kind: dataset
+    cou_status: CONDITIONAL
+    trigger_text: The delivery has subject-level concentrations.
+    trigger: {property: individual_data_available, equals: true}
+    why: The modeller uses the sponsor's analysis population and must know which profiles were left out and why.
+    alternatives: []
+    room_fields: [field:study.excluded_subjects, field:study.statistical_set, field:study.completed_subjects, table:disposition]
+    data_category: other
+    default_provider: CLIENT
+    sources: ["Fernandes 2024, PMID 38577255", "Hegde 2026 (Consensus only)"]
+    note: "UNVERIFIED: clinical-data review §4 (the sponsor's PK analysis set, exclusions as flags with reasons)."
+  - id: core.sponsor_nca
+    label: The sponsor's NCA results and the settings behind them (integration rule, terminal-slope window, BLQ rule, time basis)
+    group: Observed data
+    kind: dataset
+    cou_status: OPTIONAL
+    why: They let the room reproduce the sponsor's numbers and explain any difference by a setting rather than by the data.
+    alternatives: []
+    room_fields: [table:pk_parameters, topic:clinical_pk]
+    data_category: clinical_pk_oral
+    default_provider: CLIENT
+    sources: ["Chiou 1978, PMID 731416", "Noe 2019, doi:10.1002/pst.1979", "Dunvald 2022, PMID 35570335"]
+    note: >-
+      UNVERIFIED: clinical-data review §3. The NCA settings have no room field of their own; the results are a
+      pk_parameters table.
+  - id: core.external_verification
+    label: An independent (external) clinical dataset kept out of model building
+    group: Observed data
+    kind: dataset
+    cou_status: USUALLY_NEEDED
+    escalates_to_required_when: model influence high (the model replaces a study or drives the label)
+    why: Verification on the data the model was built on alone carries evidentiary limits.
+    alternatives: []
+    room_fields: [table:concentrations, topic:clinical_concentrations, topic:literature]
+    data_category: clinical_pk_oral
+    default_provider: CLIENT
+    sources: ["Chenel 2026, PMID 42400597", "Shebley 2018, PMID 29315504"]
+    note: "UNVERIFIED: regulatory review §2 ('U (R at high influence)'; Shebley's high-impact criterion 5)."
+  # --- permeability -----------------------------------------------------------------------------------------------
+  - id: core.permeability_calibration
+    label: The laboratory's permeability reference compounds and its calibration, with every in vitro permeability value
+    group: Permeability
+    kind: dataset
+    cou_status: CONDITIONAL
+    trigger_text: An in vitro permeability value (Caco-2, MDCK or PAMPA) is supplied.
+    trigger: {property: in_vitro_permeability_supplied, equals: true}
+    why: >-
+      In vitro and human permeability are on different scales linked only by each laboratory's own calibration, so a
+      raw value cannot enter the model.
+    alternatives: [a permeability fitted to informative clinical PK such as an oral solution, labelled fitted]
+    room_fields: [field:substance.permeability]
+    room_gap: true
+    data_category: in_vitro_adme
+    default_provider: CLIENT
+    sources: ["Lee 2017, PMID 28088633", "Pepin 2024, PMID 38946085", "Beran 2025, PMID 40914889"]
+    note: >-
+      UNVERIFIED: PBBM review §2 (recommended practice) and the plan's feature 6. The room has a permeability field
+      but none for the reference compounds or the calibration.
+  # --- model evaluation (activities, not delivery data) -----------------------------------------------------------
+  - id: core.sensitivity_analysis
+    label: Sensitivity and uncertainty analysis of the uncertain inputs
+    group: Model evaluation
+    kind: activity
+    cou_status: REQUIRED
+    why: Regulators' objections were withdrawn once sensitivity analyses were supplied.
+    alternatives: []
+    room_fields: []
+    room_gap: false
+    data_category: other
+    default_provider: PROPOSAL
+    sources: ["Shebley 2018, PMID 29315504", "Kuemmel 2020, PMID 31652029"]
+    note: "UNVERIFIED: regulatory review §2 (R). An activity of the modeller, stated in the analysis plan; never asked of the client."
+  - id: core.platform_qualification
+    label: The platform version and its qualification for the intended use
+    group: Model evaluation
+    kind: system
+    cou_status: USUALLY_NEEDED
+    escalates_to_required_when: model influence high (the model replaces a study or drives the label)
+    why: EMA expects the platform to be qualified for the use the model is put to.
+    alternatives: []
+    room_fields: []
+    room_gap: false
+    data_category: other
+    default_provider: LIBRARY
+    sources: ["Paul 2025, PMID 39748538", "Frechen 2021, PMID 33946131"]
+    note: >-
+      UNVERIFIED: regulatory review §2 ('R at high impact'), citing the EMA guideline via Paul 2025 and the OSP
+      qualification framework (Frechen 2021). From the OSP qualification reports, never from client files.
