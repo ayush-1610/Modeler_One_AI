@@ -2768,7 +2768,11 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Unlock Placement */
+        /**
+         * Unlock Placement
+         * @description A study a person placed, given back to the MS-01 default ("Back to the MS-01 default" on Review & sign). ``dry_run``
+         *     says what it would change (the validator, the diff, whether it is a MAP deviation) and saves nothing.
+         */
         post: operations["unlock_placement_api_v1_projects__project_id__plan_placements__study_id__unlock_post"];
         delete?: never;
         options?: never;
@@ -20654,7 +20658,9 @@ export interface operations {
     };
     unlock_placement_api_v1_projects__project_id__plan_placements__study_id__unlock_post: {
         parameters: {
-            query?: never;
+            query?: {
+                dry_run?: boolean;
+            };
             header?: {
                 authorization?: string | null;
             };
@@ -20672,7 +20678,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Envelope_PlanPage_"];
+                    "application/json": components["schemas"]["Envelope_Union_PlanPage__PlacementPreview__"];
                 };
             };
             /** @description Validation Error */

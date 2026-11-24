@@ -6,6 +6,7 @@
 
 import { useState } from "react";
 
+import { useReadOnly } from "@/components/plan/ReadOnly";
 import type { Envelope } from "@/lib/api";
 import { planApi, type PlanView } from "@/lib/plan";
 
@@ -24,7 +25,17 @@ export function RiskAndBudget({ projectId, view, apply }: {
   const riskChanged = risk !== "" && risk !== structure.model_risk;
   const budgetSeconds = Math.round(Number(hours) * 3600);
   const budgetChanged = Number.isFinite(budgetSeconds) && budgetSeconds !== structure.campaign_budget_seconds;
+  const readOnly = useReadOnly();
 
+  if (readOnly) {
+    // read only: the two settings as the plan holds them, no control
+    return (
+      <dl className="kv-list mb-8" data-testid="risk-and-budget">
+        <dt>Model risk (ICH M15)</dt><dd>{structure.model_risk ?? <span className="muted">not set</span>}</dd>
+        <dt>Time budget</dt><dd>{structure.campaign_budget_seconds / 3600} h</dd>
+      </dl>
+    );
+  }
   return (
     <div className="row flex-wrap gap-8 mb-8" data-testid="risk-and-budget">
       <label className="muted fs-13" htmlFor="plan-risk">Model risk (ICH M15)</label>

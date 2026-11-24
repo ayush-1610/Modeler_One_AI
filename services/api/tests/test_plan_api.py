@@ -102,6 +102,12 @@ def test_the_plan_is_ms01_by_default_and_a_rule_breaking_drop_blocks_the_signatu
                               "reason": "more oral data", "status": "APPLIED"}
     refused = c.post("/api/v1/projects/p1/plan:sign", headers=H, json={})
     assert refused.status_code == 409 and "open rule violations" in refused.json()["detail"]
+    # "Back to the MS-01 default" says first what it would change (the console redesign's slice 5): its dry run saves
+    # nothing; the study's move leaves the diff and the rule it broke with it
+    dry = c.post("/api/v1/projects/p1/plan/placements/ddi-itra:unlock?dry_run=true", headers=H).json()["data"]
+    assert set(dry) == {"violations", "diff", "deviation"} and dry["deviation"] is False
+    assert not any(v["target"] == "ddi-itra" for v in dry["violations"]) and not any(d["target"] == "ddi-itra" for d in dry["diff"])
+    assert ws.latest(ArtifactKind.MODEL_PLAN, "main").version == 2
     back = c.post("/api/v1/projects/p1/plan/placements/ddi-itra:unlock", headers=H).json()["data"]
     assert not any(v["target"] == "ddi-itra" for v in back["violations"])
     assert ws.latest(ArtifactKind.MODEL_PLAN, "main").version == 3

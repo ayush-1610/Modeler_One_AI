@@ -11,6 +11,7 @@
 import { Fragment, useState } from "react";
 
 import { EmptyState, InlineIssue } from "@/components/kit";
+import { useReadOnly } from "@/components/plan/ReadOnly";
 import type { Envelope, Schema } from "@/lib/api";
 import { planApi } from "@/lib/plan";
 import type { ReviewPage } from "@/lib/review";
@@ -97,6 +98,7 @@ function WithReason({ testId, label, ask, button, onDo }: {
 }) {
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState("");
+  if (useReadOnly()) return null;          // read only: the plan's choices are shown, not offered
   if (!open) return <button type="button" className="link-btn" onClick={() => setOpen(true)} data-testid={testId}>{label}</button>;
   return (
     <span className="review-exclude">
@@ -174,6 +176,7 @@ function Groups({ projectId, groups, estimated, apply }: {
   projectId: string; groups: Group[]; estimated: Row[]; apply: Apply;
 }) {
   const [adding, setAdding] = useState(false);
+  const readOnly = useReadOnly();
   return (
     <div className="estimation-groups" data-testid="fit-groups">
       <h4>Fitted as one</h4>
@@ -192,7 +195,7 @@ function Groups({ projectId, groups, estimated, apply }: {
       {adding ? <GroupForm estimated={estimated} onClose={() => setAdding(false)}
                            onSave={(name, group) => apply(() => planApi.group(projectId, name, group),
                              `${group.members.join(", ")} fitted as one (${name}).`)} />
-        : estimated.length >= 2 && (
+        : estimated.length >= 2 && !readOnly && (
           <button type="button" className="link-btn" onClick={() => setAdding(true)} data-testid="group-add">
             Fit estimated parameters as one…</button>
         )}
@@ -203,6 +206,7 @@ function Groups({ projectId, groups, estimated, apply }: {
 export function EstimationPlan({ projectId, review, apply }: { projectId: string; review: ReviewPage; apply: Apply }) {
   const [filter, setFilter] = useState<Filter>("all");
   const [editing, setEditing] = useState<string | null>(null);
+  const readOnly = useReadOnly();
   const rows = review.estimation;
   const shown = rows.filter(FILTERS.find((f) => f.id === filter)!.keep);
   const rule = review.bounds_rule;
@@ -255,7 +259,7 @@ export function EstimationPlan({ projectId, review, apply }: { projectId: string
                     {r.proposal.note && !r.proposal.fixed && <div className="muted review-note">{r.proposal.note}</div>}
                   </td>
                   <td className="num">
-                    {editing === r.id ? null : (
+                    {editing === r.id || readOnly ? null : (
                       <button type="button" className="link-btn" onClick={() => setEditing(r.id)} data-testid={`estimate-${r.id}`}>
                         {r.estimated ? "Change" : "Estimate"}</button>
                     )}

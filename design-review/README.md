@@ -72,3 +72,4 @@ stub engine with synthetic data; no number in them is a PBPK result). Gate 2 cor
 | 2026-11-24 | Slice 3 approved; slice 4: study cards in a side panel one at a time; two PRs | Data, Inputs | Slice 3 merged (#176); D-I2; slice 4a built |  Owner's review and answers |
 | 2026-11-24 | Slice 4a approved; proceed to 4b | Inputs cards | 4a merged (#177); 4b built: study and product cards in a side panel; impact preview left for the owner | Owner's review |
 | 2026-11-24 | Slice 4b approved; build 4c, then slice 5 | Confirm again | 4b merged (#178); 4c built: what confirming a changed card again would change, a dry run of the landing (`/impact`) in the signing dialog | Owner's review |
+| 2026-11-24 | (same answer) slice 5 | Review & sign | Slice 5 built: tabs with the tab in the address, the signature panel, read-only polish, "Back to the MS-01 default" with its dry run | Owner's review |
