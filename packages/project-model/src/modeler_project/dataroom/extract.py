@@ -196,6 +196,17 @@ def read_table(desc: TableDescription, doc: SourceDocument, *, file: str, sha256
             and all(c.box is not None for c in by_number[k].cells)]
     centres = ([statistics.median(_centre(line.cells[i].box) for line in full) for i in range(n)]  # type: ignore[arg-type]
                if full and part.page is not None else None)
+    # a column whose header is a time holds the values measured then: it is a value column with that time, never a
+    # "time" column (a new delivery, 2026-11-24: twelve concentration columns given role "time" read no concentration)
+    timed = [c.index for c in desc.columns if c.role in ("time", "actual_time") and c.time is not None]
+    if timed:
+        problems.append(Problem(code="TIME_ROLE_WITH_A_TIME", severity="error", message=(
+            f"column{'s' if len(timed) > 1 else ''} {', '.join(map(str, timed))}: a time is written above "
+            f"{'them' if len(timed) > 1 else 'it'}, so {'they hold' if len(timed) > 1 else 'it holds'} the values measured "
+            "then: give role value (with that time). Role time is for a column whose cells are times")))
+    if desc.kind in ("concentrations", "dissolution") and not any(c.role == "value" for c in desc.columns):
+        problems.append(Problem(code="NO_VALUE_COLUMN", severity="error", message=(
+            f"the {desc.kind} table names no value column: say which columns hold the measured values (role value)")))
     # a time the description gives a column must be written in that column's own header cells (code does not take the
     # agent's word, and a description shifted by one column is caught here)
     above = _header_cells(desc, by_number, centres, n)

@@ -30926,6 +30926,17 @@
             ],
             "title": "Tmax"
           },
+          "tmax_actual": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tmax Actual"
+          },
           "treatment": {
             "title": "Treatment",
             "type": "string"
@@ -30937,6 +30948,7 @@
           "treatment",
           "cmax",
           "tmax",
+          "tmax_actual",
           "auc_t",
           "auc_t_linear",
           "auc_inf",

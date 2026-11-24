@@ -125,7 +125,8 @@ def samples_from(table: ReadTable) -> tuple[list[Sample], list[Problem], str]:
         if row.summary:
             continue
         # "time" is the nominal (scheduled) time; an "actual_time" column is kept by the file, not used for the means
-        one = {c.role: c for c in row.cells if c.role in ("subject", "period", "treatment", "sequence", "time")}
+        one = {c.role: c for c in row.cells if c.role in ("subject", "period", "treatment", "sequence", "time", "actual_time")}
+        actual = parse_number(one["actual_time"].text, decimal_comma=table.decimal_comma) if "actual_time" in one else None
         subject = subject_id(one["subject"].text) if "subject" in one else ""
         if not subject:
             continue
@@ -153,6 +154,7 @@ def samples_from(table: ReadTable) -> tuple[list[Sample], list[Problem], str]:
                               treatment=one["treatment"].text.strip() if "treatment" in one else "",
                               sequence=one["sequence"].text.strip() if "sequence" in one else "",
                               time_h=round(time * factor, 6), text=text,
+                              actual_h=None if actual is None else round(actual * factor, 6),
                               value=None if (is_missing or is_blq) else number, blq=is_blq, missing=is_missing,
                               chip=cell.chip))
     return out, problems, desc.value_unit
@@ -499,8 +501,10 @@ def study_view(study_id: str, *, concentrations: Sequence[ReadTable], pk_tables:
         if "auc_t" in client:
             log_diffs.append(_pct(res.auc_last, client["auc_t"]))
             lin_diffs.append(_pct(lin, client["auc_t"]))
+        peak = got.get(res.t_max) if res.t_max is not None else None
         rows.append(SubjectNca(subject=subject, period=occ.split(":", 1)[1], treatment=trt,
-                               cmax=res.c_max, tmax=res.t_max, auc_t=round(res.auc_last, 6), auc_t_linear=round(lin, 6),
+                               cmax=res.c_max, tmax=res.t_max, tmax_actual=peak.actual_h if peak else None,
+                               auc_t=round(res.auc_last, 6), auc_t_linear=round(lin, 6),
                                auc_inf=None if res.auc_inf is None else round(res.auc_inf, 6),
                                t_half=None if res.t_half is None else round(res.t_half, 6),
                                lambda_z=None if res.lambda_z is None else round(res.lambda_z, 8), client=client))
@@ -516,12 +520,18 @@ def study_view(study_id: str, *, concentrations: Sequence[ReadTable], pk_tables:
     checked: list[SubjectNca] = []
     for row in rows:
         diffs: dict[str, float] = {}
-        ours = {"cmax": row.cmax, "auc_t": row.auc_t_linear if use_linear else row.auc_t, "auc_inf": row.auc_inf,
-                "lambda_z": row.lambda_z, "t_half": row.t_half}
+        # the client's AUC to infinity by its own rule: our linear AUC to the last sample plus the same extrapolated
+        # part (comparing it with our log-down one flagged 17 subjects of a linear-trapezoid client, 2026-11-24)
+        inf_linear = (row.auc_t_linear + (row.auc_inf - row.auc_t)) if row.auc_inf is not None else None
+        ours = {"cmax": row.cmax, "auc_t": row.auc_t_linear if use_linear else row.auc_t,
+                "auc_inf": inf_linear if use_linear else row.auc_inf, "lambda_z": row.lambda_z, "t_half": row.t_half}
         for role, theirs in row.client.items():
             if role == "tmax":
-                if row.tmax is not None:
-                    diffs["tmax"] = round(row.tmax - theirs, 4)
+                # beside a client's Tmax at actual times, ours at the actual time of our own Cmax sample (2026-11-24:
+                # nominal 2 h against the client's 2.067 h was flagged five times)
+                mine = row.tmax_actual if row.tmax_actual is not None else row.tmax
+                if mine is not None:
+                    diffs["tmax"] = round(mine - theirs, 4)
             elif (d := _pct(ours.get(role), theirs)) is not None:
                 diffs[role] = d
         checked.append(row.model_copy(update={"differences": diffs}))
@@ -529,7 +539,8 @@ def study_view(study_id: str, *, concentrations: Sequence[ReadTable], pk_tables:
         if off:
             problems.append(Problem(code="NCA_DIFFERS", message=(
                 f"subject {row.subject}, {label} {row.period}: " + "; ".join(
-                    f"{_LABEL[r]} ours {('%.4g' % (ours.get(r) if r != 'tmax' else row.tmax))} vs the client's {row.client[r]:.4g}"
+                    f"{_LABEL[r]} ours {('%.4g' % (ours.get(r) if r != 'tmax' else row.tmax_actual if row.tmax_actual is not None else row.tmax))} "
+                    f"vs the client's {row.client[r]:.4g}"
                     + (" (both by the linear trapezoidal rule, ours at the nominal times)" if r == "auc_t" and use_linear else "")
                     for r in off))))
     if lin_diffs and use_linear:

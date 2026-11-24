@@ -241,22 +241,38 @@ def expand_uploads(uploads: Iterable[tuple[str, bytes]]) -> tuple[list[tuple[str
     return expanded, unreadable
 
 
+_COPY_NAME = re.compile(r"(?i)(?:[\s_-]*-?\s*copy(?:\s*\(\d+\))?|\s*\(\d+\)|[\s_-]+(?:dup|duplicate))(?=\.[^.]+$)|^copy of ")
+
+
+def _copy_named(name: str) -> bool:
+    """A file name that marks a copy: "x - Copy.xlsx", "x (1).pdf", "Copy of x.docx", "x_duplicate.csv"."""
+    return bool(_COPY_NAME.search(name))
+
+
 def mark_duplicates(files: list[tuple[str, bytes, RoomFile | None]]) -> list[RoomFile]:
     """The files in order, each read once: a later file with the same bytes is a duplicate of the first (no document),
     one with the same content in another format names the first (`same_content_as`). `files` holds (path, bytes, the
     file read), the read file None for a repeat of earlier bytes."""
     out: list[RoomFile] = []
-    by_bytes: dict[str, RoomFile] = {}
+    by_bytes: dict[str, int] = {}                  # bytes -> the primary's place in `out`
     by_text: dict[str, str] = {}
     for path, data, room in files:
         sha = hashlib.sha256(data).hexdigest()
         if sha in by_bytes:
-            first = by_bytes[sha]
+            i = by_bytes[sha]
+            first = out[i]
+            if _copy_named(first.name) and not _copy_named(PurePosixPath(path).name):
+                # the original's name wins over "… - Copy.xlsx" or "…(1).pdf", whichever the archive listed first (a new
+                # delivery, 2026-11-24: the copy became the primary and the original its duplicate)
+                out[i] = first.model_copy(update={"path": path, "name": PurePosixPath(path).name})
+                out.append(first.model_copy(update={"duplicate_of": path, "same_content_as": None, "document": None}))
+                by_text = {k: (path if v == first.path else v) for k, v in by_text.items()}
+                continue
             out.append(first.model_copy(update={"path": path, "name": PurePosixPath(path).name, "duplicate_of": first.path,
                                                 "same_content_as": None, "document": None}))
             continue
         assert room is not None
-        by_bytes[sha] = room
+        by_bytes[sha] = len(out)
         if room.text_sha256 and room.state in ("read", "partly_read") and len(_normal_text_of(room)) > 40:
             if room.text_sha256 in by_text:
                 room = room.model_copy(update={"same_content_as": by_text[room.text_sha256]})

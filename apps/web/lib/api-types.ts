@@ -14458,6 +14458,8 @@ export interface components {
             t_half: number | null;
             /** Tmax */
             tmax: number | null;
+            /** Tmax Actual */
+            tmax_actual: number | null;
             /** Treatment */
             treatment: string;
         };
