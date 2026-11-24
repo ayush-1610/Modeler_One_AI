@@ -114,7 +114,7 @@ export function Nav({ user }: { user?: string | null }) {
   const work: Item[] = [
     { href: "/", label: "Projects", icon: ICONS.projects, active: is("/") || Boolean(open) },
     { href: "/projects/start", label: "Start from proposal", icon: ICONS.start, active: is("/projects/start") },
-    { href: "/help", label: "Help", icon: ICONS.help, active: is("/help"), testId: "nav-help" },
+    { href: "/help", label: "Help", icon: ICONS.help, active: is("/help"), testId: "nav-help", prefetch: false },
   ];
   // the console's link only for the platform's owner (the API's own answer; it refuses everyone else in any case)
   const admin = useResource("/api/v1/me", {}, { select: (d) => d.admin }).data === true;
@@ -170,7 +170,7 @@ export function Nav({ user }: { user?: string | null }) {
           <NavLink l={{ href: `${projectHref}/history`, label: "History", icon: ICONS.history,
                         active: path.endsWith("/history"), testId: "nav-history" }} />
           <NavLink l={{ href: `${projectHref}/settings`, label: "Settings", icon: ICONS.settings,
-                        active: path.endsWith("/settings"), testId: "nav-settings" }} />
+                        active: path.endsWith("/settings"), testId: "nav-settings", prefetch: false }} />
         </nav>
       )}
       {/* over the whole page, not inside the sidebar (its sticky position would hold the card under the page) */}
@@ -181,13 +181,13 @@ export function Nav({ user }: { user?: string | null }) {
           <span className="nav-avatar" aria-hidden>{user ? initials(user) : "M1"}</span>
           {user ? (
             <span className="nav-text">
-              Signed in as <Link href="/account" className="nav-account" data-testid="nav-account"><strong>{user}</strong></Link>
+              Signed in as <Link href="/account" className="nav-account" data-testid="nav-account" prefetch={false}><strong>{user}</strong></Link>
               {/* a route handler, not a page: a full navigation; the reasons this tab kept for the person are forgotten first */}
               <a href="/auth/logout" data-testid="sign-out" onClick={forgetReasons}>Sign out</a>
             </span>
           ) : (
             <span className="nav-text">
-              <Link href="/account" className="nav-account" data-testid="nav-account"><strong>Development sign-in</strong></Link>
+              <Link href="/account" className="nav-account" data-testid="nav-account" prefetch={false}><strong>Development sign-in</strong></Link>
               <span className="nav-role">no named user</span>
             </span>
           )}
