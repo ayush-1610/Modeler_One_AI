@@ -111,6 +111,14 @@ def main() -> None:
         started = time.time()
         doc = run_room(store, chat_for=lambda agent: chats.get(agent), actor="user:calibration", stages=names,
                        use_ocr=False, workers=2, run_id=run_id)
+        # a model that could not answer (a rate limit, a timeout): wait as the app does (10, 20, 40 min), then go on with
+        # the same run; a reached cap is never waited out
+        while doc.get("state") == "paused" and (pause := doc.get("pause") or {}).get("reason") == "provider_unavailable" \
+                and pause.get("resume_at"):
+            wait = max(0.0, (datetime.fromisoformat(pause["resume_at"]) - datetime.now(UTC)).total_seconds())
+            print(f"  waiting {wait / 60:.0f} min: {pause.get('said', '')}", flush=True)
+            time.sleep(wait)
+            doc = run_room(store, chat_for=lambda agent: chats.get(agent), actor="user:calibration", resume="now")
         for s in doc["stages"]:
             if s["state"] != "skipped":
                 line = {"stage": label or s["id"], "state": s["state"], "done": s["done"], "total": s["total"],

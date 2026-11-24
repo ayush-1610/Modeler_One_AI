@@ -41,6 +41,9 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
   - A hard run cap (default $5.50). The month's cap (Admin → Limits) applies too. Each paid call is priced and recorded
     on the platform's paid ledger, so the month counts it. The cap pauses the run; it never fails it.
   - `--dry` names the models, the estimate ($3.90) and this month's spend, and calls nothing.
+  - A model that cannot answer (a rate limit, a timeout) is waited for as the app does (10, 20, then 40 min) and the
+    same run goes on. A reached cap is never waited out. (Found on the first free run: NVIDIA's free tier answered
+    "too many requests" during sorting.)
   - It prints COST by agent and ACCURACY against the hand-written answers, and writes `report.json` under
     `_platform/calibration/`. No project is touched.
   - `synthetic.score_room`: any room against the hand-written answers, value by value (60 rows: the card's products,

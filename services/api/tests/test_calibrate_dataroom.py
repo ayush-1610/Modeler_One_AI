@@ -70,3 +70,26 @@ def test_the_run_is_capped_priced_on_the_ledger_and_scored(server, monkeypatch, 
 def test_a_preset_whose_provider_has_no_active_key_stops_before_any_call(server, monkeypatch):
     with pytest.raises(SystemExit, match="no active nvidia key"):
         _run(monkeypatch, "--preset", "free", "--dry")
+
+
+def test_a_model_that_cannot_answer_is_waited_for_as_the_app_does_and_the_same_run_goes_on(server, monkeypatch, capsys):
+    import time
+
+    from modeler_agents.run import LLMUnavailableError
+
+    class OnceUnavailable(Scripted):
+        failed = False
+
+        def complete(self, messages, tools):
+            if not OnceUnavailable.failed:
+                OnceUnavailable.failed = True
+                raise LLMUnavailableError("HTTP 429: Too Many Requests")
+            return super().complete(messages, tools)
+
+    waited: list[float] = []
+    monkeypatch.setattr(llm, "chat_model_from_env", lambda env=None: OnceUnavailable(env["MODELER_LLM_MODEL"]))
+    monkeypatch.setattr(time, "sleep", waited.append)
+    _run(monkeypatch, "--cap", "0.05", "--out", str(server / "out"))
+    out = capsys.readouterr().out
+    assert "waiting 10 min" in out and len(waited) == 1 and 0 < waited[0] <= 600
+    assert out.index("waiting 10 min") < out.index("  question  done")   # the same run went on after the wait
