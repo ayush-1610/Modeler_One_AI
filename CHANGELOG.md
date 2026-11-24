@@ -12,6 +12,21 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 ---
 
 ## [Unreleased] — make the pipeline do real PBPK, S0 → S7
+
+### Changed — the agents ask for what the question needs: A6 without context-only material, A8 told the required items, A10 writes only open requests (prompt `dataroom-6`, 2026-11-24)
+- **Why:** the requirement drafts now decide what the delivery must hold (plan 2026-11-24 §6, D5). The agents' own
+  prompts still asked for the manufacturing process on every project, and the report wrote requests that the
+  requirements had marked not needed.
+- **A6 (question):** the standard checklist no longer names the manufacturing process. It asks for the functional
+  excipients and their amounts, and leaves out context-only material (the manufacturing process, tablet hardness, the
+  full excipient list, f2) and fed-state data unless the question names fed dosing.
+- **A8 (extract):** the delivery block every file shares now lists what the question's applications require or usually
+  need, with the room fields each fills (`stages._required_items`, from the confirmed or suggested `applications`
+  decision). The extractor looks for each in every file: omission is the extractors' main error in the literature.
+  The block is the same for every file, so it is read from the cache.
+- **A10 (write):** the material lists only open requests. A request marked not needed (by a person or by the
+  requirements) is no longer written to the client.
+- `PROMPT_VERSION` is `dataroom-6`, so cached answers made under the earlier prompts are not reused.
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
