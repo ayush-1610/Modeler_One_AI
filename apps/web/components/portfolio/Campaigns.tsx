@@ -29,7 +29,9 @@ export function Campaigns({ campaigns, names }: { campaigns: Campaign[]; names: 
            columns={[
              { key: "id", label: "Campaign", sort: (c) => c.id, render: (c) => <Link href={`/campaigns/${encodeURIComponent(c.id)}`}><code>{c.id}</code></Link> },
              { key: "project", label: "Project", sort: (c) => names[c.project] ?? c.project,
-               render: (c) => <Link href={`/projects/${encodeURIComponent(c.project)}`}>{names[c.project] ?? c.project}</Link> },
+               // a campaign started outside a project (a reference run, a seeded one) has no project page to link to
+               render: (c) => c.project ? <Link href={`/projects/${encodeURIComponent(c.project)}`}>{names[c.project] ?? c.project}</Link>
+                 : <span className="muted">not in a project</span> },
              { key: "compound", label: "Compound", sort: (c) => c.compound, render: (c) => c.compound },
              { key: "status", label: "Status", sort: (c) => c.status, render: (c) => <StatusChip status={c.status} /> },
              { key: "stage", label: "Current stage", sort: (c) => c.currentStage, render: (c) => c.currentStage },

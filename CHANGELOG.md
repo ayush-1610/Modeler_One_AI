@@ -31,6 +31,8 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
     bundle hashes, the PK-Sim projects and why one is missing, the report check's issues and notes, the downloads.
   - **The decision form** (opened from the flash bar or the Feedback tab): what stopped as facts (stage, why in
     words with its code, evidence), its fields labelled, the result said in place.
+  - **Fixed on Campaigns (P-05):** a campaign outside a project (a reference run, a seeded one) showed an empty,
+    unnamed project link; it now says "not in a project" (found by `console-shell` once `campaign-tabs` seeded one).
 - **Why:** the console redesign's slice 6 (plan 2026-11-23 §6; P-16); the owner's "Slice 5 approved, proceed to slice
   6" (2026-11-24).
 - **Impact:** no API change. Specs: `campaign-monitor` (the influence map and the judged studies on Rounds), `feedback`
