@@ -221,7 +221,8 @@ T-05 → T-07 → T-08 → T-18 and T-09 in parallel.
 (`design-review/console-options/`, option 5 "Brand Navy bar", DECISIONS D-I1); slice 1 was restyled to it in the same PR.
 Slice 1 merged (#174, 2026-11-24). **Slice 2** (Home, Your work, Projects, Campaigns, Help; R-N03; decisions from a
 flash bar) merged (#175). **Slice 3** (a project's Overview, Run at /campaigns, Compounds, Members, Settings) is a PR
-from the session branch; **slice 4 waits for the owner's review of it.** Deviations: the plan's §11. QA (R-S05) needs no `auth.py`: slice 8.
+from the session branch; slice 3 merged (#176). **Slice 4a** (Data plan, Data room words, model system on Inputs) is a
+PR; slice 4b (Inputs' cards in a side panel, one at a time; impact preview) follows its review (D-I2). Deviations: the plan's §11. QA (R-S05) needs no `auth.py`: slice 8.
 
 The owner's charter: an AWS-console-inspired redesign, design first, through four approval gates; no production change
 before Gate 4 and a separate go-ahead. Everything is in `design-review/` (start at its `README.md`). Gate 1 (discovery),

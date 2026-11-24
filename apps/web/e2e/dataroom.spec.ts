@@ -39,9 +39,9 @@ test("a delivery dropped in the Data room is read with agents off, each stage sa
   const projectId = await project(request);
   const zip = fixture("zip", mkdtempSync(join(tmpdir(), "dataroom-"))).zip as string;
 
-  // reached from the project's own pages, beside the earlier Inputs page
+  // reached from the side navigation's Data step (decision G1-1: no "earlier page" links either way; slice 4a)
   await page.goto(`/projects/${projectId}/inputs`);
-  await expect(page.getByTestId("open-in-dataroom")).toBeVisible();
+  await expect(page.getByTestId("open-in-dataroom")).toHaveCount(0);
   await page.getByTestId("nav-dataroom").click();
   await expect(page).toHaveURL(new RegExp(`/projects/${projectId}/dataroom$`));
   await expect(page.getByTestId("dataroom-run")).toBeDisabled();             // nothing to read yet

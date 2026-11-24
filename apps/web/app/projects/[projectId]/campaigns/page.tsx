@@ -2,7 +2,6 @@ import Link from "next/link";
 
 import { preloadSteps, Stepper } from "@/components/kit/Stepper";
 import { RunCampaignButton } from "@/components/RunCampaignButton";
-import { SystemPanel } from "@/components/system/SystemPanel";
 import { ApiProblem, Card, RiskChip, StatusChip } from "@/components/ui";
 import { getCampaigns, getProject, getStudies } from "@/lib/reads";
 import { Hero } from "@/components/kit";
@@ -15,7 +14,7 @@ function points(study: { profile?: { times: number[] } | null }) {
 
 // A project's campaigns (P-15, the console redesign's slice 3; before, this page was the project's home at
 // /projects/{id}, which is now the Overview): whether a campaign can run and what it lacks, Run campaign, the studies a
-// campaign fits, the model system (until slice 4 moves it to Inputs) and this project's campaigns.
+// campaign fits and this project's campaigns. The model system is on Inputs' Compound area (slice 4a).
 export default async function ProjectCampaignsPage({ params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = await params;
   preloadSteps(projectId); // the step bar's read runs beside the page's own, not after them (audit item 9)
@@ -116,7 +115,6 @@ export default async function ProjectCampaignsPage({ params }: { params: Promise
         </Card>
       </div>
 
-      <SystemPanel projectId={project.id} />
 
       <Card title="Campaigns">
         {campaigns && campaigns.length > 0 ? (

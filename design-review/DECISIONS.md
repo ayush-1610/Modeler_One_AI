@@ -106,6 +106,15 @@ as drawn** (the owner declined a mix with option 1, "Console Refresh").
 - Supersedes "The top bar stays light" (consequence 2 above): the bar itself is the accent, so no second accent is
   needed for active states on it; focus rings on the bar are white.
 
+## D-I2 (2026-11-24): slice 4, study cards and its landing
+- **Inputs' study and product cards open one at a time in a side panel** (the Gate 3 answer), and that wins over the
+  rule of 2026-11-05 that kept up to three study cards open inline with the first to confirm opened by itself. The
+  first card to confirm opens in the panel; Next and Previous move between them.
+- **Slice 4 lands as two PRs:** 4a (Data room status words, the Data plan page, the "earlier page" links removed, the
+  model system moved from Run to Inputs) and 4b (Inputs' cards in the side panel, the impact preview).
+- Data room section words, chosen in 4a for the owner's review: in order → **Done**, needs a look → **To confirm**,
+  missing → **Missing**; a section with nothing delivered keeps **Nothing yet** (no task yet).
+
 ## Earlier owner decisions that still bind the redesign
 | Date | Decision | Source |
 |---|---|---|

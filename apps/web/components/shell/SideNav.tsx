@@ -83,7 +83,7 @@ function stepAt(path: string, base: string): StepId | null {
   const rest = path.slice(base.length);
   if (rest.startsWith("/campaigns")) return "run";
   if (rest.startsWith("/start")) return "start";
-  if (rest.startsWith("/inputs") || rest.startsWith("/dataroom")) return "inputs";
+  if (rest.startsWith("/inputs") || rest.startsWith("/dataroom") || rest.startsWith("/data-plan")) return "inputs";
   if (rest.startsWith("/plan")) return "review";
   return null;
 }
@@ -130,6 +130,8 @@ function StepsNav({ projectId, path }: { projectId: string; path: string }) {
                   {/* the Data room's link was always in the sidebar, whatever Start's state (dataroom.spec.ts) */}
                   <NavItem it={{ href: `${base}/dataroom`, label: "Data room", active: path.startsWith(`${base}/dataroom`), testId: "nav-dataroom", sub: true }} />
                   {!shut && <NavItem it={{ href: `${base}/inputs`, label: "Inputs", active: path.startsWith(`${base}/inputs`), testId: "nav-inputs", sub: true }} />}
+                  {/* which data the applications require and who provides each (P-13b, read-mostly) */}
+                  <NavItem it={{ href: `${base}/data-plan`, label: "Data plan", active: path.startsWith(`${base}/data-plan`), testId: "nav-data-plan", sub: true }} />
                 </ul>
               )}
             </li>

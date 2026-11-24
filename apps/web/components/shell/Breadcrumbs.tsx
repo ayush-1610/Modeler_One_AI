@@ -14,6 +14,7 @@ const PROJECT_PAGES: Record<string, Crumb[]> = {
   start: [["Start", null]],
   dataroom: [["Data", null], ["Data room", null]],
   inputs: [["Data", null], ["Inputs", null]],
+  "data-plan": [["Data", null], ["Data plan", null]],
   plan: [["Review & sign", null]],
   campaigns: [["Run", null]],
   compounds: [["Compounds", null]],
