@@ -34,6 +34,9 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
     whose campaign is not recorded yet is decided on the campaign's page, which Your work links to.
   - Shell: side navigation Home, Your work, Projects, Campaigns, Start from proposal, Help; top bar Your work (n) and
     Help; breadcrumbs start at Home or Projects. `kit/Table` (filter, sort, empty state), `StepsMini`.
+  - **Fixed:** below 1000 px, Review & sign's one column grew to its MS-01 diagram's width (960 px) and pushed the
+    page sideways, once the plan held studies; the column now shrinks and the diagram scrolls in its own box
+    (`plan.css`, found by `console-shell.spec.ts` at 390 px).
 - **Why:** the plan's slice 2 (`docs/plans/2026-11-23-console-redesign-implementation.md`), the pages approved at
   Gates 2 to 4 (`design-review/PAGE_INVENTORY.md` P-01, P-02, P-03, P-05, P-30; `PRODUCT_SITEMAP.md` "Escalation notice").
   The pop-up interrupted every page, including pages unrelated to the campaign.

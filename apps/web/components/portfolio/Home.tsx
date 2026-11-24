@@ -64,7 +64,8 @@ export function Home({ projects, campaigns, work, me, notice }: {
                    { key: "kind", label: "Status", render: (w) => <WorkKindChip kind={w.kind} /> },
                  ]}
                  empty="Nothing waits on you." />
-          <ProjectsTable projects={active} me={me} limit={8} testId="home-projects"
+          {/* the newest first: the API lists projects in the order they were created (no "updated" time is recorded yet) */}
+          <ProjectsTable projects={[...active].reverse()} me={me} limit={8} testId="home-projects"
                          actions={<Link href="/projects" data-testid="home-all-projects">All projects</Link>} />
         </div>
         <div>

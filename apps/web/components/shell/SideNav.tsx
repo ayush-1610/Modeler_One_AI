@@ -145,7 +145,7 @@ function ProjectNav({ projectId, path }: { projectId: string; path: string }) {
   const [adding, setAdding] = useState(false);
   return (
     <div data-testid="nav-project">
-      <Link href="/projects" className="sn-back"><Icon name="chevl" size={14} /> All projects</Link>
+      <Link href="/projects" prefetch={false} className="sn-back"><Icon name="chevl" size={14} /> All projects</Link>
       <div className="sn-project"><strong>{name ?? projectId}</strong></div>
       {/* "Add data" opens a card over the page, at any step (the document library plan) */}
       <button type="button" className="sn-action" data-testid="nav-add-data" onClick={() => setAdding(true)}>
