@@ -264,6 +264,8 @@ def acceptance(plan: ModelPlan, doc: MapDocument) -> dict[str, Any]:
 
 # the templates a person may add on Review & sign, and the brief applications that make each one offered
 _ADDABLE = {"vbe-crossover": ("APP-11", "APP-14")}
+# the card's product roles the VBE's TEST arm is suggested from, in order of preference (`vbe_suggestion`)
+PREDICTED_TEST_ROLES = ("reformulated", "test")
 
 
 def _product_pick(room: RoomBasis, roles: tuple[str, ...], formulations: set[str]) -> dict[str, Any] | None:
@@ -284,11 +286,13 @@ def vbe_suggestion(room: RoomBasis | None, formulations: set[str]) -> dict[str, 
     products by role (as the send names them, `publish.slug`), and the observed BE summary from the room's own NCA paired
     by subject (with the delivery's stated BE results beside it). Suggestions with their source: nothing is saved until
     a person saves the design (the template's never-defaulted inputs stay the person's)."""
-    from modeler_project.room_basis import REFERENCE_ROLES, TEST_ROLES
+    from modeler_project.room_basis import REFERENCE_ROLES
 
     if room is None or not room.confirmed or not room.full:
         return None
-    test, reference = _product_pick(room, TEST_ROLES, formulations), _product_pick(room, REFERENCE_ROLES, formulations)
+    # the arm the VBE predicts: a reformulated product first (the question is about it; the clinically tested "test"
+    # product is what the observed BE study validates the model on), then the test product
+    test, reference = _product_pick(room, PREDICTED_TEST_ROLES, formulations), _product_pick(room, REFERENCE_ROLES, formulations)
     be = next((b for b in room.be if any(m.gmr is not None for m in b.metrics)), None) or next(iter(room.be), None)
     observed = None
     if be is not None:

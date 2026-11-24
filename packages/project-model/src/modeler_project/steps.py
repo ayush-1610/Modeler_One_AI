@@ -211,9 +211,12 @@ def review_step(ws: Workspace) -> Step:
     return _step("review", "not_started", "The plan is built once the inputs are ready")
 
 
-def run_step(campaign_statuses: list[str]) -> Step:
-    """Run, from the statuses of the project's campaigns in the runner's store."""
+def run_step(campaign_statuses: list[str], *, signed: bool = False) -> Step:
+    """Run, from the statuses of the project's campaigns in the runner's store; with none yet, what it waits on (`signed`:
+    the MAP is signed and current, so the campaign is the person's to start)."""
     if not campaign_statuses:
+        if signed:
+            return _step("run", "not_started", "The MAP is signed: start the campaign from Review & sign")
         return _step("run", "not_started", "A campaign starts once the MAP is signed")
     if any(s in ("ESCALATED", "AWAITING_SIGNATURE") for s in campaign_statuses):
         return _step("run", "needs_you", "A campaign is waiting for your decision")
@@ -225,4 +228,5 @@ def run_step(campaign_statuses: list[str]) -> Step:
 
 
 def project_steps(ws: Workspace, campaign_statuses: list[str]) -> list[Step]:
-    return [start_step(ws), inputs_step(ws), review_step(ws), run_step(campaign_statuses)]
+    review = review_step(ws)
+    return [start_step(ws), inputs_step(ws), review, run_step(campaign_statuses, signed=review.state == "done")]

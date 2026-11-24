@@ -390,9 +390,12 @@ streams; every Data room turn and switch is recorded; each answer names the mode
       signature;
     - Start, the plan (food-effect rule R2), the MAP's limitations and the VBE panel read the room;
     - Start's brief drafted from the room on confirm, applications and send.
+    - B10 done: `e2e/dataroom-to-map.spec.ts` walks a made-up delivery to a signed MAP, and a second send changes
+      nothing. The walk found and fixed two defects: the VBE TEST suggestion (the reformulated product first) and the Run
+      step's wording once the MAP is signed. It also found one locked-file wording for the SME (the split's fed-study
+      limitation on a fasted-only question; CHANGELOG).
 - **Next:**
-  - the end-to-end test from a made-up delivery to a signed MAP (B10 of the Phase 4 trace);
-  - then the calibration run on Claude (D2: about $5, a made-up delivery; its cost and accuracy go to the owner before
+  - the calibration run on Claude (D2: about $5, a made-up delivery; its cost and accuracy go to the owner before
     any other Claude spend);
   - the owner's review of the requirement drafts and of the SME note;
   - the SME's values for the placeholder thresholds;

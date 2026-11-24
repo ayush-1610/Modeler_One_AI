@@ -388,6 +388,11 @@ def test_the_vbe_panel_is_offered_the_rooms_formulations_and_observed_be_never_s
     assert "also Exampleamide 100 mg reformulated (reformulated)" in offered["test_formulation"]["source"]
     assert offered["reference_formulation"] == {"value": "Refamide_100_mg", "available": True, "source": (
         "the Data room's question card: Refamide 100 mg (reference), the CPF formulation Refamide_100_mg once sent")}
+    # once the reformulated tablet is in the CPF it is the arm the VBE predicts (the question asks about it); the tested
+    # product stays named beside it
+    sent = vbe_suggestion(room, {"Refamide_100_mg", "Exampleamide_100_mg", "Exampleamide_100_mg_reformulated"})
+    assert sent["test_formulation"]["value"] == "Exampleamide_100_mg_reformulated" and sent["test_formulation"]["available"]
+    assert sent["test_formulation"]["source"].endswith("; also Exampleamide 100 mg (test)")
     # the observed BE summary, from the room's own NCA paired by subject in the analysis set sent
     view = room_view(DataRoomStore(ws))
     (study,) = view.studies
@@ -418,6 +423,6 @@ def test_the_review_pins_the_suggestion_on_the_vbe_application_only(ws):
     [vbe] = review_applications(plan, cpf, validate(plan, cpf, ROWS), room=room)["pinned"]
     values = {i["id"]: i["value"] for i in vbe["inputs"]}
     assert values["test_formulation"] is None and values["observed_be"] is None           # suggested, never saved
-    assert vbe["suggested"]["test_formulation"]["value"] == "Exampleamide_100_mg"
+    assert vbe["suggested"]["test_formulation"]["value"] == "Exampleamide_100_mg_reformulated"   # the arm the question asks about
     [plain] = review_applications(plan, cpf, validate(plan, cpf, ROWS))["pinned"]
     assert plain["suggested"] is None

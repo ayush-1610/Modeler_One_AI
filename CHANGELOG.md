@@ -13,6 +13,41 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 
 ## [Unreleased] — make the pipeline do real PBPK, S0 → S7
 
+### Added — the end-to-end test from a made-up delivery to a signed MAP (plan 2026-11-24 §7, phase 4, B10) (2026-11-24)
+- **Why:** phase 4 ends with the walk from upload to a signed MAP; each part had its own tests, never the whole path.
+- **What:** `apps/web/e2e/dataroom-to-map.spec.ts`, on the made-up Exampleamide (software test data), with no model and
+  no engine:
+  1. the delivery is read; the card is confirmed on the page; the decisions are taken;
+  2. "Send to the model" is pressed on the page and signed;
+  3. Start holds the room's drafts, which the person confirms and rates (ICH M15);
+  4. Inputs asks only for the two values the delivery lacks (lipophilicity, an elimination pathway), entered as a
+     modeller would;
+  5. Review & sign offers the room's VBE design; the person takes it, adds what is never defaulted, saves and signs;
+  6. the MAP carries the room's question, the VBE design and the room's decisions as limitations;
+  7. a second send of the same delivery changes nothing: the MAP stays signed, and a second signature is refused.
+- **Covered elsewhere:** the food-effect variant (R2: a confirmed food-effect question makes the plan's food rule apply)
+  is in `packages/project-model/tests/test_brief_from_room.py`.
+- **Known gap (locked, for the SME):** the split adds "A fed parameter would need fitting but no fed study is
+  available" to a MAP whose question is fasted only (`split.py`, rule 5). It follows MS-01's decision tree §6.7; the
+  wording reads as a gap the question does not have. Not changed: the file is locked.
+
+### Changed — science: the VBE panel suggests the reformulated product as the TEST arm (2026-11-24)
+- **Why:** found by the B10 walk. The Data room's question asks whether the *reformulated* tablet performs like the
+  reference, but the VBE panel suggested the product the clinical study tested (role "test") as TEST. That product is
+  the one the observed BE study validates the model on, not the one the VBE predicts.
+- **What:** `review.vbe_suggestion` picks the TEST arm by `PREDICTED_TEST_ROLES = ("reformulated", "test")`: a
+  reformulated product first, then the test product. A formulation the CPF already holds still comes first. The other
+  candidates stay named in the suggestion's source. The observed BE pairing (`room_basis`) is unchanged.
+- **Impact:** a suggestion only. Nothing is saved until a person saves the design with a reason.
+- **Tests:** `test_the_vbe_panel_is_offered_the_rooms_formulations_and_observed_be_never_saved` (new case: all three
+  products sent), `test_the_review_pins_the_suggestion_on_the_vbe_application_only` and `test_plan_api.py`.
+
+### Fixed — the step bar's Run step no longer says it waits for a signature the MAP already has (2026-11-24)
+- **Why:** found by the B10 walk. With the MAP signed and no campaign yet, Run said "A campaign starts once the MAP is
+  signed".
+- **What:** `steps.run_step(statuses, signed=…)`. With the MAP signed and current, it says "The MAP is signed: start the
+  campaign from Review & sign". Test: `test_review_is_done_only_with_a_signed_map`.
+
 ### Changed — Start's brief is drafted from the Data room by itself: on confirming the card, choosing the applications, and sending (2026-11-24)
 - **Why:** plan 2026-11-24 §7 (B4). The two Phase 4 changes merged here: "Send to the model" corrected, and the brief,
   plan and MAP reading the room. Start was filled from the room only by its button.

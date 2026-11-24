@@ -618,7 +618,7 @@ def test_the_plan_reads_the_data_rooms_send_and_the_vbe_panel_is_offered_its_sug
     assert set(structure["room_limitations"]) <= set(review["limitations"])
     [vbe] = review["applications"]["pinned"]
     suggested = vbe["suggested"]
-    assert suggested["test_formulation"]["value"] == "Exampleamide_100_mg"
+    assert suggested["test_formulation"]["value"] == "Exampleamide_100_mg_reformulated"   # the question asks about it
     assert suggested["test_formulation"]["available"] is False                   # not sent yet: the CPF has no tablets
     assert suggested["reference_formulation"]["value"] == "Refamide_100_mg"
     auc = suggested["observed_be"]["metrics"]["AUC_inf"]
