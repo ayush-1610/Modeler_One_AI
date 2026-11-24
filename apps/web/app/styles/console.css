@@ -269,8 +269,16 @@ a.counter:hover { border-color: var(--c-accent); color: var(--c-ink); }
 .spanel-head .grow { flex: 1; }
 .spanel-body { flex: 1; overflow-y: auto; padding: var(--sp-4); }
 .spanel-body .subject-card { border: 0; box-shadow: none; padding: 0; margin: 0; }
-/* a wide window makes room for it: the page narrows instead of sitting under the panel */
-@media (min-width: 1280px) { body:has(.spanel) .content { padding-right: calc(min(600px, 100vw) + var(--sp-6)); } }
+/* Where it sits (as AWS's split panel): on the right only where the list beside it keeps its width (a window of 1600 px
+   or more, the page narrowing to make room); below that it docks at the bottom, the list full width above it and
+   scrolling clear of it; on a phone it covers the page as a sheet. */
+@media (min-width: 1600px) { body:has(.spanel) .content { padding-right: calc(600px + var(--sp-6)); } }
+@media (min-width: 641px) and (max-width: 1599px) {
+  .spanel { top: auto; left: var(--sidenav-w); width: auto; height: 55vh; border-left: 0; border-top: 1px solid var(--c-border);
+    box-shadow: 0 -8px 24px rgba(15, 23, 42, 0.12); }
+  body:has(.spanel) .content { padding-bottom: calc(55vh + var(--sp-6)); }
+}
+@media (min-width: 641px) and (max-width: 1024px) { .spanel { left: 0; } }
 .panel-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2) var(--sp-3); padding: 12px var(--sp-4);
   border: 1px solid var(--c-border); border-radius: var(--rad-lg); background: var(--c-surface); }
 .panel-row + .panel-row { margin-top: var(--sp-2); }

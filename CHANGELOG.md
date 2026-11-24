@@ -21,8 +21,10 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
   first card to confirm opens there by itself; a row's Open, a To do item or a study's release link opens another;
   Previous and Next move through the list ("2 of 4"); Close or Escape puts it away. A card stays open when it stops
   being the first to confirm (confirmed: it shows what its signature loaded; blinded by a fact just entered) rather than
-  the panel jumping under the person's hand. A wide window makes room for the panel; on a phone it covers the page as a
-  sheet. The panel takes the focus on its title and is named by its study or product.
+  the panel jumping under the person's hand. Where it sits follows AWS's split panel: on the right from a 1600 px window
+  (the page narrows to make room, the list keeping its width), docked at the bottom below that (55 % of the height, the
+  list full width above it), a sheet over the page on a phone. The panel takes the focus on its title and is named by
+  its study or product; a value's source opened in it is brought into view by the panel's own scroll, never the page's.
 - **Why:** the owner's Gate 3 answer (a side panel) and decision D-I2 (2026-11-24): one card at a time wins over the rule
   of 2026-11-05 that kept up to three open in the list.
 - **Not built: the impact preview** before confirming a changed signed card again. The confirmation lands several

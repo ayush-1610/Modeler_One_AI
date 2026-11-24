@@ -92,6 +92,12 @@ function Grid({ source }: { source: Source }) {
     if (!box || !cell) return;
     box.scrollLeft = Math.max(0, cell.offsetLeft - (box.clientWidth - cell.offsetWidth) / 2);
     box.scrollTop = Math.max(0, cell.offsetTop - (box.clientHeight - cell.offsetHeight) / 2);
+    // in the side panel (Inputs' cards, the console redesign's slice 4b) the panel scrolls, never the page, to show the box
+    const panel = box.closest<HTMLElement>(".spanel-body");
+    if (panel) {
+      const b = box.getBoundingClientRect(), p = panel.getBoundingClientRect();
+      if (b.top < p.top || b.bottom > p.bottom) panel.scrollTop += b.top - p.top - 16;
+    }
   }, [source]);
   const at = new Map(source.cells.map((c) => [`${c.row}:${c.column}`, c]));
   const context = (above: boolean) => source.cells.filter((c) => (above ? c.row < 1 : c.row > source.n_rows));
