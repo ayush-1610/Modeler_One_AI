@@ -266,7 +266,11 @@ Code reads every value, checks it and computes from it. The modeler decides. No 
   - `assemble` gives statuses, decisions, data requests A–D, the simulation plan and the PK-Sim input sheet;
   - `publish` sends the confirmed inputs to evidence and datasets;
   - `store` keeps it all, audited;
-  - the rules are in `dataroom_rules.yaml` 0.1, UNVERIFIED.
+  - the science checks of plan 2026-11-24 §8 features 3–9 (2026-11-24): `reproduce` finds the client's NCA settings
+    and tiers each value, `flags` flags exclusions (never deletes), `observed` reads the client's mean tables with
+    their statistic; dose number, sink index, dissolution checks and excipient classes in `invitro`;
+  - the rules are in `dataroom_rules.yaml` 0.3, UNVERIFIED (0.2: media by convention; 0.3: the checks' thresholds,
+    the literature's proposals and three placeholders, for the SME).
 - **Agents (L4, `modeler_agents.dataroom`):** A6 question, A7 triage, A8 extract, A9 check, A10 write. Each answers
   through a submit tool that runs code's checks and sends refusals back to the model. Each agent's model is switched
   in the admin console with one click: Qwen Coder, Claude or gpt-oss-120b on GroqCloud.

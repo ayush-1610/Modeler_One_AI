@@ -15,6 +15,86 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — science: the Data room's science checks, features 3–9 of the next-phase plan (`dataroom_rules.yaml` 0.3, UNVERIFIED) (2026-11-24)
+- **Why:** phase 3 of `docs/plans/2026-11-24-data-story-next-phase.md` (§8, approved by the owner with "go ahead with
+  all phases"). The literature reviews (`docs/research/2026-11-24-clinical-pk-data-curation.md` §3–§5,
+  `docs/research/2026-11-24-pbbm-absorption-inputs.md` §1–§3, §5) name the checks a regulator expects of the data
+  behind a PBPK/PBBM model and the top PBBM rejection reasons. Code checks and flags; it never deletes data.
+- **The rules, 0.2 → 0.3, status stays UNVERIFIED** (each new value is the literature's proposal, or the platform's
+  placeholder where no published value exists, awaiting the SME; added to `docs/SME_SIGNOFF.md` §2):
+
+| Entry | Value | Source |
+|---|---|---|
+| `nca.reproduce` tiers | ≤ 1 % reproduced; 1–5 % investigate (a setting differs); > 5 % under every setting tried: the data differ, ask | clinical-PK review §3 (proposal; no published tolerance) |
+| `nca.reproduce` settings tried | linear-up/log-down, linear · nominal, actual times · BLQ {0/left out, 0/0, left out/left out, 0/LLOQ⁄2} · λz best adjusted R², last 3, 4, 5 points | review §3 (Chiou 1978, Noe 2019) |
+| `flags.predose_max_percent_of_cmax` | 5 % | EMA 2010, FDA BE, ICH M13A [recalled, verify] |
+| `flags.auc_extrapolated_max_percent` | 20 % | Dunvald 2022 |
+| `flags.terminal_span_min_half_lives` | 1.5 t½ | Noe 2019 (low assay noise; 2.5 with high noise) |
+| `flags.vomiting_max_tmax_multiple` | 2 × median Tmax, immediate release | EMA 2010, FDA [recalled, verify] |
+| `flags.sample_window_percent` / `_min_minutes` | 10 % of nominal, at least 5 min | **placeholder**: no published window found |
+| `dissolution.bell_drop_points` | 5 points | **placeholder** (as `pbpk_domain.dissolution.check_profile` uses) |
+| `dissolution.lag_below_percent` | 5 % | **placeholder** |
+| `dissolution.sink_index_min` | 3 | USP <1092> [recalled, verify] |
+| `solubility.ph_match` | 0.1 pH | a pH written to one decimal (matching, not science) |
+| `permeability.reference_compounds` | metoprolol, minoxidil, … (31 names) | PBBM review §2; ICH M9 / FDA BCS model drugs [recalled, verify] |
+| `excipient_classes` | sugar alcohols/osmotic, surfactants, pH modifiers/buffers, disintegrants, polymers (ASD, precipitation inhibitors), lipids: name and function-word lists | PBBM review §1 rows 8a–8e, §5 idea 3; the names are common usage (proposal) |
+
+- **3. The client's NCA reproduced, its method found** (`dataroom/reproduce.py`): every profile with a client value
+  is computed with each combination of the settings above; the combination that reproduces most of the client's
+  values for the study is kept, the settings the values tell apart are said (and why the others are not), and each
+  value is tiered: pass (our own settings), explained (only the settings found), investigate, differ. A λz window
+  may also be found per profile. `NCA_DIFFERS` now carries the tier and is raised only for values the settings found
+  do not reproduce; `CLIENT_NCA_METHOD` summarises the settings and the counts; `RoomStudy.nca_reproduction` holds
+  them. The "actual sampling times" request is replaced by "the client's NCA settings" (investigate) and "the
+  client's values the data do not reproduce" (differ). The NCA is `pbpk_domain.nca`, which gains the linear
+  trapezoidal rule (`integration="linear"`, `auc_linear`), a fixed λz window (`terminal_points`) and the λz window's
+  first time (`t_terminal_first`); its defaults are unchanged.
+- **4. Exclusions flagged, never deleted** (`dataroom/flags.py`): `FLAG_PREDOSE`, `FLAG_AUC_EXTRAPOLATED`,
+  `FLAG_TERMINAL_SPAN`, `FLAG_SAMPLE_WINDOW` (actual times only) and `FLAG_VOMITING` (only where a checked quote of
+  the delivery states vomiting; the time read from the quote, the arm's median Tmax ours; information only for a
+  modified-release product), per subject and occasion. No subject leaves a set; a person decides. Shown on the study
+  card ("Exclusion flags").
+- **5. Observed data that know their statistic** (`dataroom/observed.py`): the client's own mean lines (summary lines,
+  a statistic column, or columns headed "Mean", "Geo. mean (CV%)", "Mean (SD)" …) become `RoomStudy.client_means`,
+  each with the statistic and spread its own words state; SEM → SD (× √n) only where n is stated; "Mean" alone is read
+  as the arithmetic mean and says so; an unstated statistic is `STATISTIC_NOT_STATED`. A "Mean"/"SD"/"N" line is no
+  longer read as a subject. The plan's ObservedData rows say the statistic exactly (ours: "arithmetic mean ± SD
+  (below the LLOQ as 0) and geometric mean (quantifiable values only)"; the client's as its table writes it).
+- **6. The permeability guard, completed:** a raw Caco-2/MDCK/PAMPA value is still never sent. A permeability the files
+  give for one of the lab's reference compounds is that calibration set's evidence
+  (`substance.permeability.reference[…]`), never the drug's; without them a data request asks for "the lab's
+  reference compounds for the permeability assay", with why. A value the files state was fitted to clinical PK is
+  labelled "fitted" (`InputRow.origin`, its label and note), never measured.
+- **7. Dissolution checks:** per profile `FEWER_UNITS` (the unit count read from the locked
+  `dissolution_similarity.yaml` `f2.min_units`, 12; not edited), `BELL_SHAPE`, `DISINTEGRATION_LAG`; across batches
+  `DISSOLUTION_METHODS_DIFFER`, once per product (`DataRoomView.checks["dissolution"]`). The reference-product request
+  is kept, once per medium.
+- **8. Which step limits absorption:** the dose number per medium (Amidon 1995, Do = dose / (250 mL × Cs);
+  `SolubilityRow.dose_number`), a statement per product ("solubility may limit absorption at pH 6.8 (dose number
+  8.6)", `DataRoomView.absorption`), and each dissolution medium's sink index Cs × V / dose (`NOT_SINK` below 3).
+- **9. Excipients by function:** each composition row's class (by name, else by the function written beside it;
+  "active" for the drug substance), its mg per unit where the files state mg, and `EXCIPIENT_CLASS_DIFFERS` for a
+  test-versus-reference (or reformulated-versus-original/reference) difference in a class, "for the SME to judge"
+  (no threshold set) (`DataRoomView.checks["formulation"]`).
+- **On the page:** a shared checks list per section and study (data-testids `flags-<study>`, `formulation-checks`,
+  `dissolution-checks`, `check-<CODE>`), the class beside each component, a dose-number column and "Which step may limit
+  absorption" (`absorption`), profile tags (`profile-check-<CODE>`, `sink-index`), the client's own mean profiles
+  (`client-means-<study>`), the tiers under the exposure (`nca-tiers`).
+- **API contract:** `RoomStudy` (`nca_reproduction`, `client_means`), `SubjectNca` (`tiers`, `settings_note`),
+  `DissolutionView` (`sink_index`, `sink_basis`), `SolubilityRow.dose_number`, `CompositionRow` (`excipient_class`,
+  `class_label`, `class_by`, `mg`), `InputRow.origin`, `DataRoomView` (`absorption`, `checks`); snapshot and web types
+  regenerated.
+- **Re-scored on the three made-up deliveries** (stored runs re-assembled, no model called; the answer key does not
+  score the new checks): unchanged OK/WRONG/MISSING, novaprazole 53/4/30, zelitrex 69/0/0, quorafen 48/2/16 (model
+  run); 87/0/0, 69/0/0, 61/0/4 (hand-written descriptions). The planted off values stay the only `NCA_DIFFERS` (now
+  "investigate"); zelitrex's client settings are found as linear trapezoidal at actual times.
+- **Known gaps:** vomiting from an adverse-event table (no such table kind yet) is not read, and the agents' fact
+  vocabulary has no `study.vomiting` field yet (code reads any checked quote that states vomiting; adding the field
+  changes A8's prompt, `PROMPT_VERSION`); the client's mean profile is not yet compared with ours of the same
+  statistic; the flags do not yet propose an analysis-set option.
+- **Tests:** `packages/project-model/tests/test_dataroom_science.py` (12, one or more per feature),
+  `packages/pbpk-domain/tests/test_nca.py` (the new NCA options, defaults unchanged).
+
 ### Changed — science: a medium named without its pH takes its pH by convention once confirmed (`dataroom_rules.yaml` 0.2, UNVERIFIED) (2026-11-24)
 - **Why:** gap 2 of the data story. "0.1 N HCl" (Quorafen and Zelitrex) and "FaSSIF" carry no pH, so the profiles in
   them had none: no f2 against the reference's profile at pH 1.2, and a data request for a medium that was in fact

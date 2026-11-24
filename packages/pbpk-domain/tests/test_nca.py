@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from pbpk_domain.nca import auc_linup_logdown, nca, terminal_slope
+from pbpk_domain.nca import auc_linear, auc_linup_logdown, nca, terminal_slope
 
 GOLDEN = Path(__file__).parents[3] / "services" / "engine-worker" / "golden" / "results_sample" / "results.csv"
 
@@ -79,3 +79,21 @@ def test_a_flat_or_repeated_tail_is_not_the_terminal_phase():
     result = nca(times, concs)
     assert 6 * 60 < result.t_half < 14 * 60
     assert result.n_terminal_points >= 5
+
+
+def test_the_settings_a_clients_nca_may_use_are_offered_and_the_default_is_unchanged():
+    """The Data room reproduces a client's NCA (plan 2026-11-24 §8 feature 3): the linear trapezoidal rule and a fixed
+    terminal window can be asked for; the gate's method stays the default."""
+    times, concs = [0, 1, 2, 4, 8, 12], [0, 10, 8, 5, 2.5, 1.0]
+    assert auc_linear(times, concs) == pytest.approx(5 + 9 + 13 + 15 + 7)
+    default = nca(times, concs)
+    assert default.auc_last == pytest.approx(auc_linup_logdown(times, concs))
+    linear = nca(times, concs, integration="linear")
+    assert linear.auc_last == pytest.approx(49.0) and linear.auc_last > default.auc_last
+    last3 = nca(times, concs, terminal_points=3)
+    assert last3.n_terminal_points == 3 and last3.t_terminal_first == 4
+    lam, n = terminal_slope(times, concs, points=3)
+    assert (lam, n) == (pytest.approx(last3.lambda_z), 3)
+    # a window longer than the declining tail gives no slope; the best-fit rule says where its window starts
+    assert nca(times, concs, terminal_points=6).lambda_z is None
+    assert default.t_terminal_first == times[-default.n_terminal_points]

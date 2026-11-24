@@ -12,6 +12,7 @@ from collections import Counter, defaultdict
 from collections.abc import Iterable, Sequence
 
 from modeler_project.dataroom.extract import parse_number, token_sets
+from modeler_project.dataroom.flags import exclusion_flags
 from modeler_project.dataroom.model import (
     Arm,
     ArmProfile,
@@ -27,8 +28,10 @@ from modeler_project.dataroom.model import (
     SubjectSet,
     Value,
 )
+from modeler_project.dataroom.observed import is_statistic, means_of
+from modeler_project.dataroom.reproduce import Profile, reproduction
 from modeler_project.dataroom.rules import Rules, load_rules
-from pbpk_domain.nca import nca
+from pbpk_domain.nca import NcaResult, nca
 
 _TIME_FACTOR = {"h": 1.0, "hr": 1.0, "hrs": 1.0, "hour": 1.0, "hours": 1.0, "min": 1 / 60, "mins": 1 / 60,
                 "minute": 1 / 60, "minutes": 1 / 60, "d": 24.0, "day": 24.0, "days": 24.0}
@@ -122,10 +125,12 @@ def samples_from(table: ReadTable) -> tuple[list[Sample], list[Problem], str]:
     missing, blq = token_sets(desc)
     out: list[Sample] = []
     for row in table.rows:
-        if row.summary:
+        if row.summary or any(c.role == "statistic" and c.text.strip() for c in row.cells):
             continue
         # "time" is the nominal (scheduled) time; an "actual_time" column is kept by the file, not used for the means
         one = {c.role: c for c in row.cells if c.role in ("subject", "period", "treatment", "sequence", "time", "actual_time")}
+        if "subject" in one and is_statistic(one["subject"].text):
+            continue                     # the client's own "Mean", "SD" or "N" line, not a subject: `observed`
         actual = parse_number(one["actual_time"].text, decimal_comma=table.decimal_comma) if "actual_time" in one else None
         subject = subject_id(one["subject"].text) if "subject" in one else ""
         if not subject:
@@ -219,6 +224,25 @@ def _pct(ours: float | None, theirs: float | None) -> float | None:
     return round(100.0 * (ours - theirs) / theirs, 3)
 
 
+def _shown(value: float | None) -> str:
+    return "none" if value is None else f"{value:.4g}"
+
+
+def _tier_words(role: str, d: float | None, tier: str, pass_pct: float, investigate_pct: float) -> str:
+    """Why a client's value is flagged, in the tier's words (dataroom_rules nca.reproduce, UNVERIFIED)."""
+    if d is None:
+        return "ours cannot be computed: no terminal phase under the settings found"
+    size = f"{d:+.2f} h" if role == "tmax" else f"{d:+.1f} %"
+    if tier == "differ":
+        return (f"{size}; no NCA setting tried reproduces it: the data differ, ask the client" if role == "tmax" else
+                f"{size}, beyond {investigate_pct:g} % under every setting tried: the data differ, ask the client")
+    if role == "cmax":
+        return f"{size}: no NCA setting changes Cmax, so the value itself differs (a re-assay or a transcription?)"
+    if role == "tmax" or abs(d) > investigate_pct:
+        return f"{size}: only another setting reproduces it, for this profile alone; investigate"
+    return f"{size}, within {pass_pct:g}–{investigate_pct:g} %: investigate, a setting differs"
+
+
 def _facts(facts: Sequence[CheckedFact], field: str) -> list[CheckedFact]:
     return [f for f in facts if f.ok and f.fact.field == field]
 
@@ -285,7 +309,7 @@ def _mean_profile(members: Sequence[str], trt: str, keys_of: dict[str, list[tupl
 
 def study_view(study_id: str, *, concentrations: Sequence[ReadTable], pk_tables: Sequence[ReadTable] = (),
                facts: Sequence[CheckedFact] = (), arms: Sequence[Arm] = (), study_values: Sequence[Value] = (),
-               rules: Rules | None = None) -> RoomStudy:
+               release: str = "", rules: Rules | None = None) -> RoomStudy:
     """The study: samples → sets → mean profiles → NCA → exposure, every step's rule written on the view.
 
     A profile is one subject on one occasion: a period when the data names periods, else a treatment (a crossover
@@ -300,8 +324,12 @@ def study_view(study_id: str, *, concentrations: Sequence[ReadTable], pk_tables:
         raw += got
         problems += found
         unit = unit or table_unit
+    # the client's own mean profiles, each with the statistic its table states (plan 2026-11-24 §8 feature 5)
+    client_means, found = means_of(concentrations)
+    problems += found
     if not raw:
-        return RoomStudy(study_id=study_id, facts=tuple(study_values), arms=tuple(arms), problems=(
+        return RoomStudy(study_id=study_id, facts=tuple(study_values), arms=tuple(arms), client_means=tuple(client_means),
+                         concentration_unit=unit, problems=(
             Problem(code="NO_CONCENTRATIONS", severity="error", message="no concentration table was read for this study"),
             *problems))
     if not unit:
@@ -484,10 +512,12 @@ def study_view(study_id: str, *, concentrations: Sequence[ReadTable], pk_tables:
                 points, n = _mean_profile(s_.subjects, trt, keys_of, by_profile, schedule.get(trt, times))
                 profiles.append(ArmProfile(treatment=trt, analysis_set=s_.name, n_subjects=n, points=tuple(points)))
 
-    # NCA per profile, beside the client's
-    tol, tmax_tol = rules.nca.tolerance_percent, rules.nca.tmax_tolerance_h
+    # NCA per profile, beside the client's; the client's values reproduced with the settings that explain them
+    # (plan 2026-11-24 §8 feature 3: integration, time basis, BLQ rule, λz window; tiers UNVERIFIED)
     rows: list[SubjectNca] = []
-    log_diffs, lin_diffs = [], []
+    keys: list[tuple[str, str]] = []
+    results: dict[tuple[str, str], NcaResult] = {}
+    candidates: list[Profile] = []
     profiles_of = Counter(subject for subject, _occ in by_profile)
     for (subject, occ), got in sorted(by_profile.items()):
         ts, cs = _nca_points(list(got.values()))
@@ -498,9 +528,6 @@ def study_view(study_id: str, *, concentrations: Sequence[ReadTable], pk_tables:
         client = (client_pk.get((subject, occ)) or client_pk.get((subject, f"treatment:{trt}"))
                   or (client_pk.get((subject, "only")) if profiles_of[subject] == 1 else None) or {})
         lin = _linear_auc(ts, cs)
-        if "auc_t" in client:
-            log_diffs.append(_pct(res.auc_last, client["auc_t"]))
-            lin_diffs.append(_pct(lin, client["auc_t"]))
         peak = got.get(res.t_max) if res.t_max is not None else None
         rows.append(SubjectNca(subject=subject, period=occ.split(":", 1)[1], treatment=trt,
                                cmax=res.c_max, tmax=res.t_max, tmax_actual=peak.actual_h if peak else None,
@@ -508,46 +535,41 @@ def study_view(study_id: str, *, concentrations: Sequence[ReadTable], pk_tables:
                                auc_inf=None if res.auc_inf is None else round(res.auc_inf, 6),
                                t_half=None if res.t_half is None else round(res.t_half, 6),
                                lambda_z=None if res.lambda_z is None else round(res.lambda_z, 8), client=client))
+        keys.append((subject, occ))
+        results[(subject, occ)] = res
+        candidates.append(Profile(key=(subject, occ), samples=list(got.values()), client=client))
     if client_pk and rows and not any(r.client for r in rows):
         problems.append(Problem(code="PK_ROWS_MATCH_NOTHING", severity="error", message=(
             "the client's PK rows match no profile (by subject and period, or subject and treatment)")))
+    lloq_facts = _facts(facts, "study.lloq")
+    lloq = lloq_facts[0].number if lloq_facts else None
+    repro, outcomes, found = reproduction(candidates, rules, lloq=lloq)
     method = ""
-    if lin_diffs:
-        med_log = statistics.median(abs(d) for d in log_diffs if d is not None)
-        med_lin = statistics.median(abs(d) for d in lin_diffs if d is not None)
-        method = "linear trapezoidal" if med_lin < med_log else "linear-up/log-down"
+    if found is not None and any("auc_t" in r.client for r in rows):
+        method = "linear trapezoidal" if found.integration == "linear" else "linear-up/log-down"
     use_linear = method == "linear trapezoidal"
+    cfg = rules.nca.reproduce
     checked: list[SubjectNca] = []
-    for row in rows:
-        diffs: dict[str, float] = {}
-        # the client's AUC to infinity by its own rule: our linear AUC to the last sample plus the same extrapolated
-        # part (comparing it with our log-down one flagged 17 subjects of a linear-trapezoid client, 2026-11-24)
-        inf_linear = (row.auc_t_linear + (row.auc_inf - row.auc_t)) if row.auc_inf is not None else None
-        ours = {"cmax": row.cmax, "auc_t": row.auc_t_linear if use_linear else row.auc_t,
-                "auc_inf": inf_linear if use_linear else row.auc_inf, "lambda_z": row.lambda_z, "t_half": row.t_half}
-        for role, theirs in row.client.items():
-            if role == "tmax":
-                # beside a client's Tmax at actual times, ours at the actual time of our own Cmax sample (2026-11-24:
-                # nominal 2 h against the client's 2.067 h was flagged five times)
-                mine = row.tmax_actual if row.tmax_actual is not None else row.tmax
-                if mine is not None:
-                    diffs["tmax"] = round(mine - theirs, 4)
-            elif (d := _pct(ours.get(role), theirs)) is not None:
-                diffs[role] = d
-        checked.append(row.model_copy(update={"differences": diffs}))
-        off = [r for r, d in diffs.items() if (abs(d) > tmax_tol if r == "tmax" else abs(d) > tol and r in ("cmax", "auc_t", "auc_inf"))]
+    for row, key in zip(rows, keys, strict=True):
+        got = outcomes.get(key)
+        if got is None:
+            checked.append(row)
+            continue
+        checked.append(row.model_copy(update={"differences": got.differences, "tiers": got.tiers,
+                                              "settings_note": got.note}))
+        off = [r for r in ("cmax", "tmax", "auc_t", "auc_inf") if got.tiers.get(r) in ("investigate", "differ")]
         if off:
             problems.append(Problem(code="NCA_DIFFERS", message=(
-                f"subject {row.subject}, {label} {row.period}: " + "; ".join(
-                    f"{_LABEL[r]} ours {('%.4g' % (ours.get(r) if r != 'tmax' else row.tmax_actual if row.tmax_actual is not None else row.tmax))} "
-                    f"vs the client's {row.client[r]:.4g}"
-                    + (" (both by the linear trapezoidal rule, ours at the nominal times)" if r == "auc_t" and use_linear else "")
+                f"subject {row.subject}" + (f", {label} {row.period}" if row.period else "") + ": " + "; ".join(
+                    f"{_LABEL[r]} ours {_shown(got.values.get(r))} vs the client's {row.client[r]:.4g} "
+                    f"({_tier_words(r, got.differences.get(r), got.tiers[r], cfg.pass_percent, cfg.investigate_percent)})"
                     for r in off))))
-    if lin_diffs and use_linear:
-        problems.append(Problem(code="CLIENT_NCA_METHOD", severity="info", message=(
-            "the client's AUCs follow the linear trapezoidal rule (median difference "
-            f"{statistics.median(abs(d) for d in lin_diffs if d is not None):.2f} %); ours is linear-up/log-down, shown "
-            "beside it")))
+    if repro is not None:
+        problems.append(Problem(code="CLIENT_NCA_METHOD", severity="info", message=repro.summary))
+    # exclusions flagged, never deleted (plan 2026-11-24 §8 feature 4): every flagged profile stays in its sets
+    problems += exclusion_flags(by_profile=by_profile, treatment_of=treatment_of, results=results, label=label,
+                                later_days=set(periods[1:]) if multiple_dose else set(), facts=facts, periods=periods,
+                                release=release, rules=rules)
 
     # exposure per arm: Cmax and Tmax on the modeling set, AUC on the AUC set; each subject once (a replicate's
     # profiles of one treatment averaged within the subject, geometrically for Cmax and AUC); N counts the values
@@ -593,8 +615,8 @@ def study_view(study_id: str, *, concentrations: Sequence[ReadTable], pk_tables:
                 problems.append(Problem(code="ARM_MATCHES_NO_TREATMENT", message=(
                     f"the documents define treatment {arm.treatment!r} ({arm.meaning}); the data's treatments are "
                     f"{', '.join(treatments)}: which one is it?")))
-    lloq_facts = _facts(facts, "study.lloq")
     return RoomStudy(study_id=study_id, facts=tuple(study_values), arms=tuple(arms), periods=tuple(periods),
                      times_h=tuple(times), sets=tuple(sets), excluded={s: r for s, r in excluded.items() if r},
                      profiles=tuple(profiles), nca=tuple(checked), exposures=tuple(exposures), nca_method_client=method,
-                     concentration_unit=unit, lloq=lloq_facts[0].number if lloq_facts else None, problems=tuple(problems))
+                     nca_reproduction=repro, client_means=tuple(client_means), concentration_unit=unit, lloq=lloq,
+                     problems=tuple(problems))
