@@ -192,7 +192,9 @@ def test_the_evaluation_of_test_data_is_refused_before_a_signature_is_taken(tmp_
     assert json.loads((tmp_path / "t1" / "escalations.json").read_text())["escalations"]
 
 
-FEEDBACK_URL = "/api/v1/campaigns/camp-1/feedback:decide"
+# a failed external validation is decided at S5 through escalation:resolve (its `feedback:decide` alias is retired, the
+# console redesign's slice 9)
+FEEDBACK_URL = "/api/v1/campaigns/camp-1/stages/S5/escalation:resolve"
 
 
 def _seed_feedback(tmp_path, *, learnable: bool):
@@ -220,8 +222,8 @@ def test_a_learn_the_guardrails_forbid_is_refused_before_a_signature_is_taken(tm
     assert json.loads((tmp_path / "t1" / "escalations.json").read_text())["escalations"]      # still open
     r = TestClient(app).post(FEEDBACK_URL, json={"action": "new_evidence"}, headers=_auth())
     assert r.status_code == 422 and "parameter" in r.text
-    r = TestClient(app).post(FEEDBACK_URL, json={"action": "approve"}, headers=_auth())       # not a feedback decision
-    assert r.status_code == 422
+    # the retired alias answers nothing
+    assert TestClient(app).post("/api/v1/campaigns/camp-1/feedback:decide", json={"action": "learn"}, headers=_auth()).status_code in (404, 405)
 
 
 @pytest.mark.req("T-55")

@@ -15,6 +15,13 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Removed — the console redesign, slice 9: API operations no screen used (2026-11-24)
+The owner's choice (2026-11-24, D-I3): the verified retirements now, each its own commit; `GET /proposals` and its dead
+chain (R-B13) and `pbpk_domain.snapshot.parameter_transfer` (R-B13b) stay until their owners say so.
+- **`POST /campaigns/{id}/feedback:decide`**: a thin alias of `escalation:resolve` at stage S5 (REMEDIATION §2, #19).
+  The web decides a failed external validation through `escalation:resolve`; no script used the alias. Its tests now
+  call `escalation:resolve` at S5 and check the alias answers nothing.
+
 ### Changed — the console redesign, slice 8: the admin console in the console style, a Companies page (2026-11-24)
 - **What:**
   - **Companies (P-24, new page, "Companies" in the console's side navigation):** every company as a console table

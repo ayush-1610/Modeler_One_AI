@@ -16415,52 +16415,6 @@
         "title": "FeedbackEvidence",
         "type": "object"
       },
-      "FeedbackRequest": {
-        "properties": {
-          "action": {
-            "enum": [
-              "accept_best",
-              "learn",
-              "new_evidence",
-              "abort"
-            ],
-            "title": "Action",
-            "type": "string"
-          },
-          "beyond_cap": {
-            "default": "",
-            "title": "Beyond Cap",
-            "type": "string"
-          },
-          "evidence": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/FeedbackEvidence"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "note": {
-            "default": "",
-            "title": "Note",
-            "type": "string"
-          },
-          "studies": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Studies",
-            "type": "array"
-          }
-        },
-        "required": [
-          "action"
-        ],
-        "title": "FeedbackRequest",
-        "type": "object"
-      },
       "FieldChange": {
         "properties": {
           "note": {
@@ -35021,75 +34975,6 @@
           }
         },
         "summary": "Record Deviation",
-        "tags": [
-          "escalations"
-        ]
-      }
-    },
-    "/api/v1/campaigns/{campaign_id}/feedback:decide": {
-      "post": {
-        "description": "The signed decision on a failed external validation (plan §12.4 FEEDBACK_PENDING): limitation (accept_best),\nlearn, new evidence, or stop (abort).",
-        "operationId": "decide_feedback_api_v1_campaigns__campaign_id__feedback_decide_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "campaign_id",
-            "required": true,
-            "schema": {
-              "title": "Campaign Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/FeedbackRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/EscalationResolved"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Decide Feedback",
         "tags": [
           "escalations"
         ]

@@ -447,27 +447,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/campaigns/{campaign_id}/feedback:decide": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Decide Feedback
-         * @description The signed decision on a failed external validation (plan §12.4 FEEDBACK_PENDING): limitation (accept_best),
-         *     learn, new evidence, or stop (abort).
-         */
-        post: operations["decide_feedback_api_v1_campaigns__campaign_id__feedback_decide_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/campaigns/{campaign_id}/package": {
         parameters: {
             query?: never;
@@ -8998,27 +8977,6 @@ export interface components {
             /** Value */
             value: number;
         };
-        /** FeedbackRequest */
-        FeedbackRequest: {
-            /**
-             * Action
-             * @enum {string}
-             */
-            action: "accept_best" | "learn" | "new_evidence" | "abort";
-            /**
-             * Beyond Cap
-             * @default
-             */
-            beyond_cap?: string;
-            evidence?: components["schemas"]["FeedbackEvidence"] | null;
-            /**
-             * Note
-             * @default
-             */
-            note?: string;
-            /** Studies */
-            studies?: string[];
-        };
         /** FieldChange */
         FieldChange: {
             /**
@@ -16342,43 +16300,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DeviationRecorded"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    decide_feedback_api_v1_campaigns__campaign_id__feedback_decide_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                authorization?: string | null;
-            };
-            path: {
-                campaign_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["FeedbackRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["EscalationResolved"];
                 };
             };
             /** @description Validation Error */

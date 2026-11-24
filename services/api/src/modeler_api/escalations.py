@@ -206,18 +206,6 @@ class ResolveRequest(BaseModel):
     evidence: FeedbackEvidence | None = None          # new_evidence
 
 
-class FeedbackRequest(ResolveRequest):
-    action: Literal["accept_best", "learn", "new_evidence", "abort"]
-
-
-@router.post("/campaigns/{campaign_id}/feedback:decide", **answers_without_envelope(EscalationResolved))
-def decide_feedback(campaign_id: str, request: FeedbackRequest, principal: CurrentPrincipal,
-                    settings: SettingsDep, runner: RunnerDep) -> dict[str, Any]:
-    """The signed decision on a failed external validation (plan §12.4 FEEDBACK_PENDING): limitation (accept_best),
-    learn, new evidence, or stop (abort)."""
-    return resolve_escalation_decision(campaign_id, "S5", request, principal, settings, runner)
-
-
 def _payload(request: ResolveRequest) -> dict[str, Any] | None:
     if request.action == "learn":
         return {"studies": request.studies, "beyond_cap": request.beyond_cap}
