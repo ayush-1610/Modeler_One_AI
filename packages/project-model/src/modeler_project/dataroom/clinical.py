@@ -8,10 +8,10 @@ from __future__ import annotations
 import math
 import re
 import statistics
-from collections import defaultdict
+from collections import Counter, defaultdict
 from collections.abc import Iterable, Sequence
 
-from modeler_project.dataroom.extract import parse_number
+from modeler_project.dataroom.extract import parse_number, token_sets
 from modeler_project.dataroom.model import (
     Arm,
     ArmProfile,
@@ -51,10 +51,13 @@ def subject_id(text: str) -> str:
     return raw
 
 
-def subjects_in(text: str) -> list[str]:
+def subjects_in(text: str, known: Iterable[str] = ()) -> list[str]:
     """The subjects a fact lists, as `subject_id` writes them: "03-05, 07, 11 to 13 and 20" -> 3, 4, 5, 7, 11, 12, 13,
-    20; "S06, S09"; "101-001, 101-005" (site-subject ids, not a range); "34, 35 38" (a missing comma). A fact's value
-    holds the subjects only; its reason is its note."""
+    20; "S06, S09"; "101-001, 101-005" and "01-007" (site-subject ids, not ranges: the subject part is written longer
+    than the site, with its zeros); "34, 35 38" (a missing comma). With the study's own subjects (`known`), a token that
+    names one of them is that subject, never a range: "01-007" is subject 01-007 when the data has it (a new delivery,
+    2026-11-24: it was read as subjects 1 to 7). A fact's value holds the subjects only; its reason is its note."""
+    ids = set(known)
     out: list[str] = []
     # "14 (01, 02, 06 …)": a count, then the subjects in brackets (the count is not a subject)
     counted = re.fullmatch(r"\s*\d+\s*\((.+)\)\s*\.?\s*", text, re.DOTALL)
@@ -63,8 +66,14 @@ def subjects_in(text: str) -> list[str]:
         token = token.strip()
         if not token:
             continue
+        if subject_id(token) in ids:
+            out.append(subject_id(token))
+            continue
+        site = re.fullmatch(r"(\d+)\s*[-/]\s*(0\d+)", token)
+        site_subject = bool(site) and len(site.group(2)) > len(site.group(1))       # type: ignore[union-attr]
         rng = re.fullmatch(r"(?i)[a-z]*\s*0*(\d+)\s*(?:-|–|—|to)\s*[a-z]*\s*0*(\d+)", token)
-        if rng and 0 < int(rng.group(2)) - int(rng.group(1)) < 500 and not re.fullmatch(r"\d{3,}-0\d+", token):
+        if rng and 0 < int(rng.group(2)) - int(rng.group(1)) < 500 and not site_subject \
+                and not re.fullmatch(r"\d{3,}-0\d+", token):
             out.extend(str(k) for k in range(int(rng.group(1)), int(rng.group(2)) + 1))
             continue
         pieces = token.split() if all(re.fullmatch(r"[A-Za-z]*\d+", w) for w in token.split()) else [token]
@@ -73,6 +82,8 @@ def subjects_in(text: str) -> list[str]:
 
 
 _ROMAN = {"I": "1", "II": "2", "III": "3", "IV": "4", "V": "5", "VI": "6"}
+# an occasion that is a study day or visit of a multiple-dose study, as files write it
+_DAY = re.compile(r"(?i)\bday\b|^d\s*\d+$|\bvisit\b|steady|\bss\b")
 
 
 def _period_named(text: str, periods: Sequence[str]) -> str:
@@ -103,8 +114,7 @@ def samples_from(table: ReadTable) -> tuple[list[Sample], list[Problem], str]:
         problems.append(Problem(code="TIME_UNIT_NOT_STATED", severity="error", message=(
             f"the table on {desc.part} of {desc.file} states no time unit"
             f"{'' if not desc.time_unit else f' code knows ({desc.time_unit!r})'}: shown in hours, not sent to the model")))
-    missing = {t.strip().lower() for t in desc.missing_tokens}
-    blq = {t.strip().lower() for t in desc.blq_tokens}
+    missing, blq = token_sets(desc)
     out: list[Sample] = []
     for row in table.rows:
         if row.summary:
@@ -118,13 +128,13 @@ def samples_from(table: ReadTable) -> tuple[list[Sample], list[Problem], str]:
         for cell in values:
             time = cell.time
             if time is None and "time" in one:
-                time = parse_number(one["time"].text)
+                time = parse_number(one["time"].text, decimal_comma=table.decimal_comma)
             if time is None:
                 problems.append(Problem(code="NO_TIME", message=f"line {row.line}: a value with no time", where=cell.chip))
                 continue
             text = cell.text.strip()
             low = text.lower()
-            number = parse_number(text)
+            number = parse_number(text, decimal_comma=table.decimal_comma)
             # below the LLOQ is a measurement: a BLQ marker counts as one even when the description also lists it as a
             # missing sample (that description is refused with TOKEN_BOTH_MISSING_AND_BLQ)
             marked_blq = bool(text) and (low.startswith("<") or "blq" in low or "bql" in low or "bloq" in low)
@@ -179,8 +189,11 @@ def _facts(facts: Sequence[CheckedFact], field: str) -> list[CheckedFact]:
 
 
 def _client_pk(tables: Sequence[ReadTable]) -> dict[tuple[str, str], dict[str, float]]:
-    """The client's NCA values, keyed by (subject, period) and, when the file names it, also by (subject, treatment)."""
+    """The client's NCA values, keyed by (subject, period) and, when the file names it, also by (subject, treatment);
+    a subject with one row only is also keyed (subject, "only"): in a parallel study the PK table names the arm in its
+    own words ("Novaprazole 20 mg") where the data writes a code ("A"), or names none (a new delivery, 2026-11-24)."""
     out: dict[tuple[str, str], dict[str, float]] = {}
+    rows_of: dict[str, list[dict[str, float]]] = defaultdict(list)
     for table in tables:
         for row in table.rows:
             if row.summary:
@@ -188,11 +201,16 @@ def _client_pk(tables: Sequence[ReadTable]) -> dict[tuple[str, str], dict[str, f
             one = {c.role: c for c in row.cells}
             if "subject" not in one:
                 continue
-            values = {role: x for role in _PK_ROLES if role in one and (x := parse_number(one[role].text)) is not None}
+            values = {role: x for role in _PK_ROLES
+                      if role in one and (x := parse_number(one[role].text, decimal_comma=table.decimal_comma)) is not None}
             subject = subject_id(one["subject"].text)
+            rows_of[subject].append(values)
             for role in ("period", "treatment"):
                 if role in one and one[role].text.strip():
                     out[(subject, f"{role}:{one[role].text.strip()}")] = values
+    for subject, rows in rows_of.items():
+        if len(rows) == 1:
+            out[(subject, "only")] = rows[0]
     return out
 
 
@@ -278,6 +296,16 @@ def study_view(study_id: str, *, concentrations: Sequence[ReadTable], pk_tables:
         by_profile[(subject, occ)][t] = x
     treatment_of = {key: next((x.treatment for x in got.values() if x.treatment), key[1].split(":", 1)[1] if not by_period else "")
                     for key, got in by_profile.items()}
+    # a multiple-dose study (a new delivery, 2026-11-24): its occasions are study days ("Day 1", "Day 7 (steady
+    # state)") with no treatment and no sequence written; each day is its own profile, not a replicate of one treatment
+    day_labels = {k[1].split(":", 1)[1] for k in by_profile}
+    day_role = next((c.role for t in concentrations for r in t.rows[:1] for c in r.cells
+                     if c.role in ("period", "treatment") and _DAY.search(c.label)), "")
+    multiple_dose = len(day_labels) > 1 and not any(x.sequence for x in raw) and (
+        (by_period and not any(x.treatment for x in raw) and (day_role == "period" or all(_DAY.search(d) for d in day_labels)))
+        or (not by_period and day_role == "treatment"))           # a "Day" column described as the treatment
+    if multiple_dose:
+        treatment_of = {key: key[1].split(":", 1)[1] for key in by_profile}
     occasions = sorted({k[1] for k in by_profile}, key=lambda o: (parse_number(o.split(":", 1)[1]) is None,
                                                                   parse_number(o.split(":", 1)[1]) or 0, o))
     periods = [o.split(":", 1)[1] for o in occasions]
@@ -329,10 +357,10 @@ def study_view(study_id: str, *, concentrations: Sequence[ReadTable], pk_tables:
     sampled = [s for s in all_occasions if all(n_missing(s, o) <= 2 for o in expected(s))]
     listed = _facts(facts, "study.completed_subjects")
     excluded_facts = _facts(facts, "study.excluded_subjects")
-    out = {s: f.fact.note or f.fact.value for f in excluded_facts for s in subjects_in(f.fact.value)}
+    out = {s: f.fact.note or f.fact.value for f in excluded_facts for s in subjects_in(f.fact.value, subjects)}
     unknown = [s for s in out if s not in subjects]
     for f in listed:
-        unknown += [s for s in subjects_in(f.fact.value) if s not in subjects]
+        unknown += [s for s in subjects_in(f.fact.value, subjects) if s not in subjects]
     if unknown:
         problems.append(Problem(code="SUBJECTS_NOT_IN_DATA", message=(
             f"the client lists subject{'s' if len(unknown) > 1 else ''} {', '.join(_sort(set(unknown)))}, not in the "
@@ -350,7 +378,7 @@ def study_view(study_id: str, *, concentrations: Sequence[ReadTable], pk_tables:
         elif s not in sampled:
             excluded[s] = f"sampling stopped early in a {label} (withdrawn or dropped out)"
     if listed:
-        theirs = set(subjects_in(listed[0].fact.value))
+        theirs = set(subjects_in(listed[0].fact.value, subjects))
         for s in _sort(theirs ^ set(completed)):
             problems.append(Problem(code="COMPLETERS_DIFFER", where=listed[0].chip, message=(
                 f"subject {s}: the client lists it as completed, the data does not" if s in theirs
@@ -383,7 +411,7 @@ def study_view(study_id: str, *, concentrations: Sequence[ReadTable], pk_tables:
     client_pk = _client_pk(pk_tables)
     if statistical:
         sets.append(SubjectSet(name="client_statistical", label="Client's statistical set", source="sponsor",
-                               subjects=tuple(s for s in subjects if s in set(subjects_in(statistical[0].fact.value))),
+                               subjects=tuple(s for s in subjects if s in set(subjects_in(statistical[0].fact.value, subjects))),
                                rule="as the client lists it", sources=tuple(f.chip for f in statistical if f.chip)))
     elif client_pk:
         sets.append(SubjectSet(name="client_statistical", label="Client's PK set", source="sponsor",
@@ -401,6 +429,12 @@ def study_view(study_id: str, *, concentrations: Sequence[ReadTable], pk_tables:
             problems.append(Problem(code="DOSED_DIFFERS", where=f.chip, message=(
                 f"the client says {f.fact.value} dosed{f' in period {period}' if period else ''}; the concentration data has "
                 f"a concentration for {len(ours.subjects)}")))
+    first_day = periods[0] if multiple_dose and periods else ""
+    if multiple_dose:
+        problems.append(Problem(code="MULTIPLE_DOSE", severity="info", message=(
+            f"a multiple-dose study: each day ({', '.join(periods)}) is its own profile. After the first day, the AUC over "
+            "the sampled interval is the AUC over the dosing interval (AUCτ) when the sampling spans it; AUC to infinity "
+            "is not shown for those days (it has no meaning at steady state)")))
     if any(len([o for o, t in v if t == trt]) > 1 for v in keys_of.values() for trt in {t for _o, t in v}):
         problems.append(Problem(code="REPLICATE_DESIGN", severity="info", message=(
             "a subject has the same treatment in more than one period: its profiles of a treatment are averaged before "
@@ -419,13 +453,15 @@ def study_view(study_id: str, *, concentrations: Sequence[ReadTable], pk_tables:
     tol, tmax_tol = rules.nca.tolerance_percent, rules.nca.tmax_tolerance_h
     rows: list[SubjectNca] = []
     log_diffs, lin_diffs = [], []
+    profiles_of = Counter(subject for subject, _occ in by_profile)
     for (subject, occ), got in sorted(by_profile.items()):
         ts, cs = _nca_points(list(got.values()))
         if sum(1 for c in cs if c > 0) < 3:
             continue
         res = nca(ts, cs)
         trt = treatment_of[(subject, occ)]
-        client = client_pk.get((subject, occ)) or client_pk.get((subject, f"treatment:{trt}"), {})
+        client = (client_pk.get((subject, occ)) or client_pk.get((subject, f"treatment:{trt}"))
+                  or (client_pk.get((subject, "only")) if profiles_of[subject] == 1 else None) or {})
         lin = _linear_auc(ts, cs)
         if "auc_t" in client:
             log_diffs.append(_pct(res.auc_last, client["auc_t"]))
@@ -476,6 +512,8 @@ def study_view(study_id: str, *, concentrations: Sequence[ReadTable], pk_tables:
         for metric, members, stat in (("cmax", modeling, "geometric_mean"), ("auc_t", auc, "geometric_mean"),
                                       ("auc_inf", auc, "geometric_mean"), ("tmax", modeling, "arithmetic_mean"),
                                       ("tmax", modeling, "median")):
+            if multiple_dose and metric == "auc_inf" and trt != first_day:
+                continue
             ours_v, theirs_v = [], []
             for s in members:
                 got = [r for r in checked if r.subject == s and r.treatment == trt]
