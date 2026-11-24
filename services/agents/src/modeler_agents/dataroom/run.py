@@ -66,10 +66,11 @@ def _why(error: str) -> str:
 
 
 def _check_again(store: DataRoomStore, chat_for: Callable[[str], ChatModel | str | None], actor: str,
-                 files: Sequence[str] | None, focus_chars: int | None, agent_stages: Any) -> str:
+                 files: Sequence[str] | None, focus_chars: int | None, agent_stages: Any, redo: Sequence[str] = ()) -> str:
     """The checker's findings back to the extractor, once: each file A9 flagged is extracted again with its issues in
     the prompt, then checked again (a new delivery, 2026-11-24: A9 saw the error, A8 never heard of it). Bounded to one
-    round, so a run cannot loop; what A9 still finds after it stays on the room as before."""
+    round, so a run cannot loop; what A9 still finds after it stays on the room as before. Both steps use the answer
+    cache unless the run was asked to redo their stage (`redo`)."""
     flagged = {path: issues for path, issues in store.reviews().items() if issues and (not files or path in files)}
     extractor = chat_for("A8") if flagged else None
     checker = chat_for("A9") if flagged else None
@@ -77,9 +78,9 @@ def _check_again(store: DataRoomStore, chat_for: Callable[[str], ChatModel | str
         return ""
     noop = lambda *_a, **_k: None
     agent_stages.extract(store, extractor, actor=actor, redo=True, only=set(flagged), step=noop,
-                         focus_chars=focus_chars or agent_stages.FOCUS_CHARS, feedback=flagged)
+                         focus_chars=focus_chars or agent_stages.FOCUS_CHARS, feedback=flagged, reuse="extract" not in redo)
     agent_stages.check(store, checker, actor=actor, redo=True, only=set(flagged), step=noop,
-                       focus_chars=focus_chars or agent_stages.FOCUS_CHARS)
+                       focus_chars=focus_chars or agent_stages.FOCUS_CHARS, reuse="check" not in redo, recheck=True)
     still = sum(1 for path, issues in store.reviews().items() if path in flagged and issues)
     return (f"{len(flagged)} flagged {'file' if len(flagged) == 1 else 'files'} extracted again with the checker's "
             f"issues; {still} still {'has' if still == 1 else 'have'} issues")
@@ -122,7 +123,7 @@ def run_room(store: DataRoomStore, *, chat_for: Callable[[str], ChatModel | str 
                                               step=lambda done, total, note="", _sid=sid: run.step(_sid, done=done, total=total,
                                                                                                     note=note))
             note = note or run.stage(sid)["note"]
-            if sid == "check" and (again := _check_again(store, chat_for, actor, files, focus_chars, agent_stages)):
+            if sid == "check" and (again := _check_again(store, chat_for, actor, files, focus_chars, agent_stages, redo)):
                 note += f"; {again}"
             switches = getattr(model, "switches", [])
             if switches:

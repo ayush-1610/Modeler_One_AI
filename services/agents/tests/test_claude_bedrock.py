@@ -83,6 +83,25 @@ def test_a_tool_loop_sends_its_turns_back_unchanged_with_caching_and_effort_and_
     assert second["messages"][0] == first["messages"][0] == {"role": "user", "content": "Read the proposal."}
 
 
+def test_a_task_whose_start_many_conversations_share_is_cached_at_the_end_of_that_start():
+    # plan 2026-11-24 §5 item 3: a delivery's block, the same for each of its files, is a cache breakpoint of its own, so
+    # the next file reads the instructions, the tools and that block from the cache; three of the four breakpoints
+    bedrock = Bedrock([(200, _message([{"type": "text", "text": "done"}], "end_turn")) for _ in range(2)])
+    chat = bedrock.chat()
+    for name in ("a.tsv", "b.tsv"):
+        run_tool_loop(chat, system="You are A8.", shared="The question: Is B bioequivalent to A?\n\n",
+                      user=f"File: {name}", tools=[_note_tool([])], max_turns=2)
+    first, second = bedrock.body(0), bedrock.body(1)
+    assert first["messages"][0] == {"role": "user", "content": [
+        {"type": "text", "text": "The question: Is B bioequivalent to A?\n\n", "cache_control": {"type": "ephemeral"}},
+        {"type": "text", "text": "File: a.tsv"}]}
+    assert second["messages"][0]["content"][0] == first["messages"][0]["content"][0]     # the same bytes up to it
+    assert (first["system"], first["tools"]) == (second["system"], second["tools"])
+    assert first["cache_control"] == {"type": "ephemeral"}
+    # a task with no shared start is sent as one text, as before
+    assert to_messages([{"role": "user", "content": "U", "cache_prefix_chars": 0}])[1] == [{"role": "user", "content": "U"}]
+
+
 def test_a_refusal_ends_the_run_saying_why_and_an_overloaded_model_falls_back_once():
     refused = Bedrock([(200, _message([], "refusal", stop_details={"type": "refusal", "category": "bio",
                                                                    "explanation": "declined"}))])

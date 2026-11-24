@@ -4,6 +4,16 @@ placed, an unknown field is sent straight back to the model, which corrects and 
 a value into the room: it says where a value is and what it means; code reads it.
 
 Each stage is `stage(store, model, *, actor, redo, step) -> note`, called by `run.run_room`.
+
+The per-file stages (A7 triage, A8 extraction, A9 check) look in the tenant's answer cache first
+(`modeler_project.dataroom.answer_cache`): a file already answered with every input the same (the file, its reading,
+the prompt, the model and its effort, the question card's fields the prompt uses …) is answered from it, with no model
+call, and the author record says so. A stage asked to redo (`redo`) asks the model again.
+
+Their requests start with the same bytes for every file of a delivery, so a provider's prompt cache serves the rest of
+the files: one fixed instruction text and one fixed tool list (a tool takes the file as an argument; no name,
+description or schema names it), then the delivery's block (`shared`: the question, the products, the checklist), then
+the file's own block last.
 """
 
 from __future__ import annotations
@@ -15,17 +25,22 @@ from typing import Any
 
 from pydantic import BaseModel, ValidationError
 
-from modeler_agents.llm import ChatModel, Tool, run_tool_loop
-from modeler_intake.room import Part, document_parts, unmarked
+from modeler_agents.llm import ChatModel, LoopOutcome, Tool, run_tool_loop
+from modeler_intake.room import LINES_VERSION, Part, document_parts, parts_sha256, unmarked
 from modeler_intake.room_specs import FIELDS, ROLES, TOPICS, Extraction, FileTriage, QuestionCard
 from modeler_intake.source_model import SourceDocument
 from modeler_project.dataroom import room_view
+from modeler_project.dataroom.answer_cache import AnswerCache, AnswerKey, CachedAnswer, stable_sha256
 from modeler_project.dataroom.clinical import colliding_samples
 from modeler_project.dataroom.extract import check_fact, read_table
 from modeler_project.dataroom.model import FileView
 from modeler_project.dataroom.store import DataRoomStore
 
-PROMPT_VERSION = "dataroom-4"
+# dataroom-5: one instruction text for every file (the extractor's fields and table roles moved to the file's block),
+# the delivery's block before the file's, and the answer cache (plan 2026-11-24 §5 items 2 and 3). A change of any
+# prompt text, tool or constant that shapes a request (MAX_LINES, PREVIEW_LINES, FOCUS_CHARS' use …) is a new version:
+# the answer cache's key holds it.
+PROMPT_VERSION = "dataroom-5"
 MAX_LINES = 120          # lines one read returns
 PREVIEW_LINES = 80       # lines of each of the first parts the triage agent sees (40 misjudged a LIMS export, 2026-11-24)
 
@@ -182,6 +197,64 @@ def _submit_tool(name: str, schema: type[BaseModel], check: Callable[[BaseModel]
         return "saved"
 
     return Tool(name, description, schema.model_json_schema(), handler)
+
+
+# --- the answer cache (plan 2026-11-24 §5 item 2) ------------------------------------------------------------------------
+
+def _answering(model: ChatModel, avoid: str = "") -> Any:
+    """The model a new conversation of `model` starts on (a chain: its first model that is not resting and not `avoid`),
+    found without starting one: its identity and effort are in the answer cache's key."""
+    if hasattr(model, "start") and hasattr(model, "models"):
+        return model.models[model.start(avoid)]
+    return model
+
+
+def _answer_key(store: DataRoomStore, stage: str, model: ChatModel, path: str, f: FileView, doc: SourceDocument, *,
+                system: str, tools: list[Tool], user: str, shared: str = "", inputs: dict[str, str],
+                avoid: str = "") -> AnswerKey:
+    """Every input that can change this stage's answer for this file (`answer_cache` lists them)."""
+    m = _answering(model, avoid)
+    effort = getattr(m, "effort", None) or getattr(m, "reasoning_effort", None) or ""
+    return AnswerKey(tenant=store.ws.tenant_id, stage=stage, prompt_version=PROMPT_VERSION, file_sha256=f.sha256,  # type: ignore[arg-type]
+                     path=path, reader=f"{doc.parser}/{doc.parser_version}; lines {LINES_VERSION}",
+                     text_sha256=parts_sha256(_parts(doc)), model=f"{m.provider}/{m.model}",
+                     endpoint=str(getattr(m, "base_url", "") or ""), effort=str(effort), inputs=inputs,
+                     request_sha256=stable_sha256({"system": system, "tools": [t.schema() for t in tools],
+                                                   "task": shared + user}))
+
+
+def _accepted(schema: type[BaseModel], answer: dict[str, Any], check: Callable[[BaseModel], list[str]]) -> bool:
+    """A cached answer still fits its form and passes code's checks against this project's file."""
+    try:
+        return not check(schema.model_validate(answer))
+    except Exception:  # noqa: BLE001 - an answer code can no longer read is not reused; the model is asked instead
+        return False
+
+
+def _cached(cache: AnswerCache, key: AnswerKey, accept: Callable[[dict[str, Any]], bool]) -> CachedAnswer | None:
+    hit = cache.get(key)
+    return hit if hit is not None and accept(hit.answer) else None
+
+
+def _record_reuse(store: DataRoomStore, stage: str, path: str, hit: CachedAnswer, key: AnswerKey, note: str = "") -> None:
+    """A cached answer used: the run's record says so, and the author is the model that wrote it."""
+    store.log_agent_step(stage=stage, file=path, model=hit.author, step={
+        "type": "answer_reused", "from_project": hit.project, "from_run": hit.run, "key": key.digest()})
+    store.record_author(stage=stage, file=path, model=hit.author, identity=hit.identity, prompt=key.prompt_version,
+                        note=hit.note + note)
+
+
+def _remember(store: DataRoomStore, cache: AnswerCache, key: AnswerKey, answer: BaseModel, outcome: LoopOutcome) -> None:
+    """An answer code accepted, kept for the next run with the same inputs; not when another model than the key's
+    finished it (a chain that switched): the key would then name a model that did not write it."""
+    if outcome.answered_on == key.model:
+        cache.put(key, answer.model_dump(mode="json"), author=outcome.answered_by, identity=outcome.answered_on,
+                  run=str(store.run().get("started_at") or ""))
+
+
+def _reuse_note(reused: int) -> str:
+    return (f"; {reused} answered from an earlier run (same file, same question, same model: no model call)"
+            if reused else "")
 
 
 def _used_files(store: DataRoomStore) -> dict[str, tuple[FileView, SourceDocument]]:
@@ -356,11 +429,15 @@ def _holds_inputs(doc: SourceDocument) -> str:
 
 
 def triage(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, step: Step, only: set[str] | None = None,
-          focus_chars: int = FOCUS_CHARS) -> str:
+          focus_chars: int = FOCUS_CHARS, reuse: bool | None = None) -> str:
+    """A7 on each used file not sorted yet (all of them on `redo`). `reuse`: answer from the tenant's answer cache when
+    every input is the same (default: unless redoing)."""
     docs = {p: v for p, v in _used_files(store).items() if only is None or p in only}
     todo = [(p, f, d) for p, (f, d) in docs.items() if redo or store.triage(f.sha256) is None]
     card, _confirmed = store.question()
-    context = f"The question: {card.question}\n" if card else ""
+    context = f"The question: {card.question}\n" if card else ""      # the delivery's block: the same for every file
+    cache, reused = AnswerCache(store.ws), 0
+    reuse = not redo if reuse is None else reuse
     for done, (path, f, doc) in enumerate(todo, start=1):
         saved: list[BaseModel] = []
         def checked(a: BaseModel, path: str = path, doc: SourceDocument = doc) -> list[str]:
@@ -371,14 +448,26 @@ def triage(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, st
 
         tool = _submit_tool("submit_triage", FileTriage, checked, saved, "Submit the file's triage.")
         text = "\n\n".join(_numbered(part, 1, PREVIEW_LINES) for part in _parts(doc)[:2])
-        sorted_by = _loop(store, "triage", path, model, system=TRIAGE_SYSTEM, tools=[tool], max_turns=4, user=(
-            f"{context}File: {path} ({f.kind}, {f.pages} pages; parts: {len(_parts(doc))})\n\nIts first lines:\n{text}"))
+        task = f"File: {path} ({f.kind}, {f.pages} pages; parts: {len(_parts(doc))})\n\nIts first lines:\n{text}"
+        key = _answer_key(store, "triage", model, path, f, doc, system=TRIAGE_SYSTEM, tools=[tool], shared=context,
+                          user=task, inputs={"question": stable_sha256(card.question if card else "")})
+        hit = _cached(cache, key, lambda a, checked=checked: _accepted(FileTriage, a, checked)) if reuse else None
+        if hit is not None:
+            store.put_triage(FileTriage.model_validate(hit.answer), f.sha256)
+            _record_reuse(store, "triage", path, hit, key)
+            reused += 1
+            step(done, len(todo), path)
+            continue
+        sorted_by = _loop(store, "triage", path, model, system=TRIAGE_SYSTEM, tools=[tool], max_turns=4, shared=context,
+                          user=task)
         if saved:
             store.put_triage(saved[0], f.sha256)  # type: ignore[arg-type]
             store.record_author(stage="triage", file=path, model=sorted_by.answered_by, identity=sorted_by.answered_on,
                                 prompt=PROMPT_VERSION)
+            if not checked(saved[0]):
+                _remember(store, cache, key, saved[0], sorted_by)
         step(done, len(todo), path)
-    return f"{len(todo)} files sorted"
+    return f"{len(todo)} files sorted" + _reuse_note(reused)
 
 
 # --- A8: extraction -----------------------------------------------------------------------------------------------------
@@ -395,26 +484,22 @@ _TOPIC_KINDS = {"clinical_concentrations": ("concentrations",), "clinical_pk": (
                 "particle_size": ("particle_size",), "be_statistics": ("be_statistics",), "drug_substance": ("physchem",)}
 
 
-def extract_system(topics: Sequence[str]) -> str:
-    """The extractor's instructions for one file: the fields and table kinds its topics need (all of them when the
-    triage gave no topic), so a small model's context holds the file rather than the vocabulary."""
-    prefixes = {p for t in topics for p in _TOPIC_FIELDS.get(t, ())} or {f.split(".")[0] + "." for f in FIELDS}
-    kinds = {k for t in topics for k in _TOPIC_KINDS.get(t, ())} or set(ROLES)
-    fields = "\n".join(f"   {k}: {v}" for k, v in FIELDS.items() if k.startswith(tuple(prefixes)))
-    roles = "\n".join(f"   {k}: {', '.join(v)}" for k, v in ROLES.items() if k in kinds)
-    return _COMMON + f"""
+# The extractor's instructions: word for word the same for every file (dataroom-5), so a delivery's files share one
+# cached start. What differs per file, the fields and table kinds its topics need, is in the file's block
+# (`extract_vocabulary`).
+EXTRACT_SYSTEM = _COMMON + """
 
 Your job (A8): for one file, find every input the checklist asks for and answer with:
 1. table descriptions: kind, part, header lines, first and last data line, summary lines (the client's mean or RSD
    rows), and for each cell position its role. A column whose header is a time gets "time" (as the header writes it);
-   side-by-side blocks (a batch, a product) get "group" as written. One description per page a table covers. Roles:
-{roles}
+   side-by-side blocks (a batch, a product) get "group" as written. One description per page a table covers. The
+   table kinds and the roles of their columns are listed with the file ("Table kinds").
    Concentrations: each value cell gets role "value" and its time; give the time unit and the concentration unit as
    written; zero_means_blq when the file writes values below the LLOQ as 0. A marker is either below the LLOQ (BLQ,
    <LLOQ) or a missing sample (".", NS), never both. A table's shared values (medium, pH, volume, rpm, apparatus,
    study) go in constants only as a file writes them, and each is also a fact.
-2. facts, each with its verbatim quote. Fields (a new dotted name only when none fits):
-{fields}
+2. facts, each with its verbatim quote, in the fields listed with the file ("Fact fields"; a new dotted name only when
+   none fits).
    subject: what the fact is about (a study number, a treatment code, a batch). product: the question card's product
    name when the fact concerns one. One fact per treatment code (subject = the code; value = what the documents say
    it is, e.g. "Refamide 100 mg (reference product)"). Each batch or lot a file links to a product is a fact
@@ -423,7 +508,15 @@ Your job (A8): for one file, find every input the checklist asks for and answer 
 3. not_found: the checklist ids you looked for here and did not find."""
 
 
-EXTRACT_SYSTEM = extract_system(())   # the whole vocabulary (kept for reference and tests)
+def extract_vocabulary(topics: Sequence[str]) -> str:
+    """The table kinds with their column roles and the fact fields one file's topics need (all of them when the triage
+    gave no topic), given in the file's block: a small model's context holds the file rather than the whole vocabulary,
+    and the instructions stay the same for every file."""
+    prefixes = {p for t in topics for p in _TOPIC_FIELDS.get(t, ())} or {f.split(".")[0] + "." for f in FIELDS}
+    kinds = {k for t in topics for k in _TOPIC_KINDS.get(t, ())} or set(ROLES)
+    fields = "\n".join(f"   {k}: {v}" for k, v in FIELDS.items() if k.startswith(tuple(prefixes)))
+    roles = "\n".join(f"   {k}: {', '.join(v)}" for k, v in ROLES.items() if k in kinds)
+    return f"Table kinds (kind: the roles of its columns) for this file:\n{roles}\nFact fields for this file:\n{fields}"
 
 
 def _extraction_problems(answer: Extraction, path: str, f: FileView, doc: SourceDocument) -> list[str]:
@@ -446,13 +539,23 @@ def _extraction_problems(answer: Extraction, path: str, f: FileView, doc: Source
 
 
 def extract(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, step: Step, only: set[str] | None = None,
-            focus_chars: int = FOCUS_CHARS, feedback: dict[str, list[dict[str, Any]]] | None = None) -> str:
+            focus_chars: int = FOCUS_CHARS, feedback: dict[str, list[dict[str, Any]]] | None = None,
+            reuse: bool | None = None) -> str:
     """A8 on each used file. `feedback`: the checker's issues per file, for a second pass on the files it flagged (a new
-    delivery, 2026-11-24: A9 saw a Day column described as a group, but its finding never reached A8)."""
+    delivery, 2026-11-24: A9 saw a Day column described as a group, but its finding never reached A8). `reuse`: answer
+    from the tenant's answer cache when every input is the same (default: unless redoing)."""
     docs = {p: v for p, v in _used_files(store).items() if only is None or p in only}
     card, _confirmed = store.question()
     checklist = "\n".join(f"- {c.id} [{c.area}] {c.label} (topics: {', '.join(c.topics)})" for c in (card.checklist if card else ()))
     products = "\n".join(f"- {p.name} ({p.role})" for p in (card.products if card else ()))
+    # the delivery's block, the same for every file and before the file's own (one cached start for all of them)
+    delivery = (f"The question: {card.question if card else '(not set)'}\nThe products:\n{products or '(not set)'}\n"
+                f"The checklist:\n{checklist or '(not set)'}\n\n")
+    asked = stable_sha256(None if card is None else {          # the card's fields the prompt shows, nothing else
+        "question": card.question, "products": [[p.name, p.role] for p in card.products],
+        "checklist": [[c.id, c.area, c.label, list(c.topics)] for c in card.checklist]})
+    cache, reused = AnswerCache(store.ws), 0
+    reuse = not redo if reuse is None else reuse
     todo = []
     for path, (f, doc) in docs.items():
         t = store.triage(f.sha256)
@@ -466,23 +569,43 @@ def extract(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, s
         tool = _submit_tool("submit_extraction", Extraction,
                             lambda a, path=path, f=f, doc=doc: _extraction_problems(a, path, f, doc), saved,
                             "Submit this file's tables and facts.")
+        # the file goes to the tools as an argument (`file`) or by the tool's own handler: every name, description and
+        # schema is the same for every file
         tools = [x for x in _doc_tools({path: (f, doc)}) if x.name != "search"] + [_search_one(path, doc), tool]
         topics = list(t.topics) if t else []
+        said = _feedback_text((feedback or {}).get(path, []))
 
         def user(budget: int, path: str = path, f: FileView = f, doc: SourceDocument = doc, t: FileTriage | None = t,
-                 topics: list[str] = topics) -> str:
-            return (f"The question: {card.question if card else '(not set)'}\nThe products:\n{products or '(not set)'}\n"
-                    f"The checklist:\n{checklist or '(not set)'}\n\nFile: {path} ({f.kind}; "
+                 topics: list[str] = topics, said: str = said) -> str:
+            """The file's own block, after the delivery's."""
+            return (f"File: {path} ({f.kind}; "
                     f"{'OCR on pages ' + ', '.join(map(str, f.ocr_pages)) if f.ocr_pages else 'text layer'})"
-                    f"{'; the triage says: ' + t.reason if t else ''}\n\nIts parts: "
+                    f"{'; the triage says: ' + t.reason if t else ''}\n\n{extract_vocabulary(topics)}\n\nIts parts: "
                     f"{', '.join(f'{p.name} ({len(p.lines)} lines)' for p in _parts(doc)[:120])}\n\n"
                     f"The pages most likely to hold what the checklist needs (open others with the tools):\n"
-                    f"{_focus(doc, topics, budget=budget)}" + _feedback_text((feedback or {}).get(path, [])))
+                    f"{_focus(doc, topics, budget=budget)}" + said)
         budget = max(2000, focus_chars)
-        outcome = _loop(store, "extract", path, model, system=extract_system(topics), user=user(budget), tools=tools,
+        task = user(budget)
+        key = _answer_key(store, "extract", model, path, f, doc, system=EXTRACT_SYSTEM, tools=tools, shared=delivery,
+                          user=task, inputs={
+                              "question": asked, "focus_chars": str(budget), "feedback": stable_sha256(said) if said else "",
+                              "triage": stable_sha256(None if t is None else {"topics": topics, "reason": t.reason})})
+
+        def problems(a: BaseModel, path: str = path, f: FileView = f, doc: SourceDocument = doc) -> list[str]:
+            return _extraction_problems(a, path, f, doc)  # type: ignore[arg-type]
+
+        hit = _cached(cache, key, lambda a, problems=problems: _accepted(Extraction, a, problems)) if reuse else None
+        if hit is not None:
+            _record_reuse(store, "extract", path, hit, key)
+            store.put_extraction(Extraction.model_validate(hit.answer), f.sha256, agent={
+                "agent": "A8", "model": hit.author, "identity": hit.identity, "prompt": PROMPT_VERSION, "reused": hit.note})
+            reused += 1
+            step(done, len(todo), path)
+            continue
+        outcome = _loop(store, "extract", path, model, system=EXTRACT_SYSTEM, shared=delivery, user=task, tools=tools,
                         max_turns=14)
         if not saved and _too_large(outcome.error):      # a provider's per-request limit: the same, with fewer pages
-            outcome = _loop(store, "extract", path, model, system=extract_system(topics), user=user(budget // 3),
+            outcome = _loop(store, "extract", path, model, system=EXTRACT_SYSTEM, shared=delivery, user=user(budget // 3),
                             tools=tools, max_turns=10)
         if not saved:
             failed.append(f"{path}: no answer ({outcome.status}{': ' + outcome.error[:200] if outcome.error else ''})")
@@ -493,9 +616,12 @@ def extract(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, s
             store.put_extraction(answer, f.sha256, agent={"agent": "A8", "model": outcome.answered_by,
                                                           "identity": outcome.answered_on,  # type: ignore[arg-type]
                                                          "prompt": PROMPT_VERSION})
+            if not problems(answer):
+                _remember(store, cache, key, answer, outcome)
         step(done, len(todo), path)
     store.set_stage_notes("extract", failed)
-    return f"{len(todo) - len(failed)} of {len(todo)} files extracted" + (f"; {len(failed)} gave no answer" if failed else "")
+    return (f"{len(todo) - len(failed)} of {len(todo)} files extracted" + (f"; {len(failed)} gave no answer" if failed else "")
+            + _reuse_note(reused))
 
 
 def _feedback_text(issues: list[dict[str, Any]]) -> str:
@@ -538,10 +664,15 @@ class _Review(BaseModel):
 
 
 def check(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, step: Step, only: set[str] | None = None,
-          focus_chars: int = FOCUS_CHARS) -> str:
+          focus_chars: int = FOCUS_CHARS, reuse: bool | None = None, recheck: bool = False) -> str:
+    """A9 on each file whose extraction has tables. `reuse`: answer from the tenant's answer cache when every input is
+    the same (default: unless redoing). `recheck`: the look after the extractor's second pass (`run._check_again`), a
+    step of its own in the cache: the same extraction checked again is asked again, not answered with the first look."""
     docs = {p: v for p, v in _used_files(store).items() if only is None or p in only}
     todo = [(p, f, d, got[0]) for p, (f, d) in docs.items() if (got := store.extraction(f.sha256)) and got[0].tables]
     issues = 0
+    cache, reused = AnswerCache(store.ws), 0
+    reuse = not redo if reuse is None else reuse
     for done, (path, f, doc, ext) in enumerate(todo, start=1):
         parts = {p.name: p for p in _parts(doc)}
         shown = []
@@ -557,9 +688,23 @@ def check(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, ste
         # a second opinion: the checker starts on another model than the one that wrote the extraction (plan §9; the
         # governance review, 2026-11-22), when the chain has one
         author = ((store.extraction(f.sha256) or (None, {}))[1] or {}).get("identity", "")
+        task = f"File: {path}\n\n" + "\n\n".join(shown)
+        key = _answer_key(store, "check", model, path, f, doc, system=CHECK_SYSTEM, tools=[tool], user=task, avoid=author,
+                          inputs={"extraction": stable_sha256([x.model_dump(mode="json") for x in ext.tables]),
+                                  "look": "again, after the extractor's second pass" if recheck else "first"})
+        hit = _cached(cache, key, lambda a: _accepted(_Review, a, lambda r: [])) if reuse else None
+        if hit is not None:
+            same = bool(author) and hit.identity == author
+            _record_reuse(store, "check", path, hit, key,
+                          note="; not a second opinion: the same model wrote the extraction" if same else "")
+            review = [x for x in _Review.model_validate(hit.answer).tables if not x.get("ok", True)]
+            issues += len(review)
+            store.put_review(f.sha256, review, agent=hit.author)
+            reused += 1
+            step(done, len(todo), path)
+            continue
         checker = model.conversation(avoid=author) if hasattr(model, "conversation") else model
-        done_check = _loop(store, "check", path, checker, system=CHECK_SYSTEM, tools=[tool], max_turns=4,
-                           user=f"File: {path}\n\n" + "\n\n".join(shown))
+        done_check = _loop(store, "check", path, checker, system=CHECK_SYSTEM, tools=[tool], max_turns=4, user=task)
         same = bool(author) and done_check.answered_on == author
         store.record_author(stage="check", file=path, model=done_check.answered_by, identity=done_check.answered_on,
                             prompt=PROMPT_VERSION,
@@ -568,8 +713,9 @@ def check(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, ste
             review = [t for t in saved[0].tables if not t.get("ok", True)]  # type: ignore[attr-defined]
             issues += len(review)
             store.put_review(f.sha256, review, agent=done_check.answered_by)
+            _remember(store, cache, key, saved[0], done_check)
         step(done, len(todo), path)
-    return f"{len(todo)} files checked, {issues} issues"
+    return f"{len(todo)} files checked, {issues} issues" + _reuse_note(reused)
 
 
 # --- A10: the writer ------------------------------------------------------------------------------------------------------

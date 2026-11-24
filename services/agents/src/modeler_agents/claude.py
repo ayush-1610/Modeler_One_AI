@@ -5,9 +5,11 @@ docs/plans/2026-11-10-admin-console.md).
 message, the task, assistant turns with tool calls, tool results) and gets back the text, the tool calls and the usage.
 It calls Claude through Anthropic's SDK on Bedrock (`anthropic.AnthropicBedrockMantle`) so that it has:
 
-- **prompt caching:** the system prompt and tools are a cache breakpoint (a run's conversations share them), and the
-  conversation so far is cached at every turn (`cache_control` on the request), so each turn pays the cache-read price
-  for what the previous turn sent;
+- **prompt caching:** the system prompt and tools are a cache breakpoint (a run's conversations share them); a task
+  whose start many conversations share (`run_tool_loop(shared=…)`, the Data room's delivery block) is a second one at
+  the end of that start, so each file of a delivery reads the instructions, the tools and the delivery's block from the
+  cache; and the conversation so far is cached at every turn (`cache_control` on the request), so each turn pays the
+  cache-read price for what the previous turn sent (three of the four breakpoints a request may have);
 - **effort** (`output_config.effort`): how much the model thinks, set per agent in the admin console; thinking is always
   on for Claude Opus 5.5, and effort is its control;
 - **the model's own turns sent back unchanged:** each assistant turn's content blocks (thinking included) go back as
@@ -30,6 +32,7 @@ from typing import Any
 import anthropic
 from anthropic import AnthropicBedrockMantle, BetaFallbackState, BetaRefusalFallbackMiddleware
 
+from modeler_agents.llm import CACHE_PREFIX
 from modeler_agents.run import LLMUnavailableError
 
 DEFAULT_MAX_TOKENS = 16_000            # the reply and the thinking (thinking counts toward it)
@@ -72,7 +75,17 @@ def to_messages(messages: list[dict[str, Any]]) -> tuple[str, list[dict[str, Any
             else:
                 out.append({"role": "user", "content": [result], "_results": True})
         else:
-            out.append({"role": "user", "content": str(m.get("content", ""))})
+            text = str(m.get("content", ""))
+            cut = int(m.get(CACHE_PREFIX) or 0)
+            if 0 < cut < len(text):
+                # the start many conversations share (a delivery's block, the same for each of its files), then this
+                # conversation's own part: the breakpoint at the end of the shared start lets the next file read the
+                # instructions, the tools and that block from the cache
+                out.append({"role": "user", "content": [
+                    {"type": "text", "text": text[:cut], "cache_control": {"type": "ephemeral"}},
+                    {"type": "text", "text": text[cut:]}]})
+            else:
+                out.append({"role": "user", "content": text})
     for m in out:
         m.pop("_results", None)
     return system, out

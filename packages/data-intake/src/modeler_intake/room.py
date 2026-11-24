@@ -21,6 +21,7 @@ from __future__ import annotations
 import csv
 import hashlib
 import io
+import json
 import re
 import unicodedata
 from collections.abc import Iterable
@@ -39,6 +40,10 @@ _JUNK_NAMES = {".ds_store", "thumbs.db", "desktop.ini"}
 LINE_GAP_POINTS = 3.0       # words whose tops differ by at most this many points share a line
 COLUMN_GAP_EM = 0.8         # a gap between two words of a line wider than this many text heights is a column
                             # break, written as " | " (a word space is about 0.3; a scan's columns are 1 and more)
+# The version of the lines `document_parts` makes from a parsed document (what the agents read, what a description
+# points into): a change of LINE_GAP_POINTS, COLUMN_GAP_EM or of how a part's lines are made is a new version. The
+# parse itself has its own (`SourceDocument.parser_version`). 2: a title merged across a sheet is kept once (2026-11-24).
+LINES_VERSION = "2"
 
 
 def _orientation(page) -> int:
@@ -441,6 +446,14 @@ def document_parts(doc: SourceDocument) -> list[Part]:
                     lines.append(Line(number=len(lines) + 1, cells=cells))
         parts.append(Part(name="body", lines=tuple(lines)))
     return parts
+
+
+def parts_sha256(parts: Iterable[Part]) -> str:
+    """The sha256 of the parts exactly as the agents read them: each part's name, and each line's number and cells. Two
+    readings of a file that give the same lines give the same hash, whatever read them (a reader change that moves one
+    cell gives another)."""
+    rows = [[p.name, [[ln.number, [c.text for c in ln.cells]] for ln in p.lines]] for p in parts]
+    return hashlib.sha256(json.dumps(rows, ensure_ascii=False, separators=(",", ":")).encode()).hexdigest()
 
 
 def document_text(doc: SourceDocument) -> list[tuple[str, list[str]]]:

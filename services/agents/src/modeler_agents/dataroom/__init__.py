@@ -7,7 +7,9 @@ checked by code before it counts (`modeler_project.dataroom`).
 `chat_for(agent)` gives the chat model for "A6" … "A10", or None (no model set up: that stage is skipped and says so;
 what code does alone still runs). The run's progress is the store's `run.json` (`RUN_STAGES`), written after each step,
 so a page polling `store.run()` shows live counts. Each stage's answers are kept per file (by its sha256): a second run
-redoes only what is missing, unless `redo` names the stage.
+redoes only what is missing, unless `redo` names the stage. Across the tenant's projects, a file triaged, extracted or
+checked before with every input the same is answered from the tenant's answer cache with no model call
+(`modeler_project.dataroom.answer_cache`; plan 2026-11-24 §5).
 """
 
 from __future__ import annotations
