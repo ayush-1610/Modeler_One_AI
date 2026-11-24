@@ -5,7 +5,8 @@
 // any mapping no person approved, and the intake rules the record was computed with, which are UNVERIFIED until the SME
 // signs them. Nothing is signed while a blocker or a landing problem exists: they are named here and the button is off.
 // The signature needs the person's identity again (password and authenticator code): the API asks for it and the API
-// client opens the step-up, then sends the confirmation once more. No password is typed on this page.
+// client opens the step-up, then sends the confirmation once more. No password is typed on this page. A card confirmed
+// before says what signing it again changes (`ConfirmImpact`), read before the signature.
 
 import { useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
@@ -18,6 +19,7 @@ import { landingText, tableKindText } from "@/lib/words";
 import {
   BLOCKER_LABEL, KIND_LABEL, Problem, WITHHELD, blockerDetail, levelText, plural, useDecide, type Blocker, type Page, type Subject,
 } from "./shared";
+import { ConfirmImpact } from "./ConfirmImpact";
 import { pageKey, writeConfirmed } from "./writes";
 
 // what holds a signature, in the card's words (the delivery's clean-up is one of them)
@@ -126,6 +128,8 @@ export function ConfirmDialog({ projectId, subject, onClose }: { projectId: stri
         <dd data-testid="delivery-confirm-rules">v{subject.rules.version}, {subject.rules.status}
           {subject.rules.status === "UNVERIFIED" && <span className="muted"> (SME sign-off pending)</span>}</dd>
       </dl>
+      {/* a card confirmed before: what signing it again would load, set aside and make stale (slice 4c) */}
+      {subject.confirmation && !subject.blinded && <ConfirmImpact projectId={projectId} subject={subject} />}
       {(blocked || refusedFor.length > 0) && (
         <div className="delivery-blocked" role="alert" data-testid="delivery-confirm-blockers">
           <strong>It cannot be signed yet:</strong>

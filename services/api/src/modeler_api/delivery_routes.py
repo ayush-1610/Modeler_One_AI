@@ -49,6 +49,7 @@ from modeler_api.part11 import record_signature
 from modeler_api.responses import answers, envelope
 from modeler_api.views.client_data import TriageStart
 from modeler_api.views.delivery import (
+    DeliveryImpact,
     DeliveryMapping,
     DeliveryMappingVocabulary,
     DeliveryPage,
@@ -1605,6 +1606,38 @@ def confirm_subject(project_id: str, subject_type: SubjectType, subject: str, pr
             "signature_id": confirmation.signature_id, "manifestation": confirmation.manifestation}))
 
 
+def get_impact(project_id: str, subject_type: SubjectType, subject: str, principal: Reader, store: StoreDep) -> dict[str, Any]:
+    """What confirming the subject now would change, before anything is signed (the console redesign's slice 4c): the
+    datasets and evidence its landing would load, revise, accept or set aside, the dissolution rows it would load and
+    remove, and every artifact downstream that would go stale (a signed MAP must then be signed again). The landing is
+    planned as `:confirm` plans it; nothing is signed or written. Refused for a blinded study (409 BLINDED: what it
+    would load names its values) and while the landing cannot be planned (409 LANDING_REFUSED)."""
+    scope = _scope(project_id, principal, store)
+    ws = scope.ws
+    with _refusals():
+        subject = intake_landing.resolve_subject(scope.reader, subject_type, _subject_id(subject_type, subject))
+        if scope.blinded(subject_type, subject):
+            raise review.ReviewError("BLINDED", "the study is blinded until the MAP is signed (D-15): what its landing "
+                                                "would load is withheld")
+        plan = intake_landing.plan_landing(ws, DocumentLibrary(ws), subject_type, subject, reader=scope.reader,  # type: ignore[arg-type]
+                                           matrix=scope.matrix, mol_weight=scope.mol_weight)
+        current = review.current_confirmation(ws, subject_type, subject, reader=scope.reader)  # type: ignore[arg-type]
+        found = intake_landing.preview_landing(ws, plan, supersedes=current)
+
+        def changes(rows: Iterable[intake_landing.LandingChange]) -> list[dict[str, str]]:
+            return [{"id": c.id, "label": c.label, "change": c.change} for c in rows]
+
+        return envelope({
+            "subject_type": subject_type, "subject": subject,
+            "label": intake_landing.subject_label(scope.reader, subject_type, subject),
+            "supersedes": current.id if current is not None else None, "changes": found.changes,
+            "datasets": changes(found.datasets), "evidence": changes(found.evidence),
+            "dissolution_rows": found.dissolution_rows, "dissolution_removed": found.dissolution_removed,
+            "reject_legacy": list(found.reject_legacy), "held": list(found.held),
+            "affected": [{"ref": i.ref.model_dump(mode="json"), "status": i.status.value, "effect": i.effect,
+                          "needs_signature": i.needs_signature} for i in found.affected]})
+
+
 # --- a value's source --------------------------------------------------------------------------------------------------------
 
 
@@ -2080,6 +2113,7 @@ def mount(router: APIRouter) -> None:
     router.post(subject + ":link", **answers(DeliverySubject))(decide_link)
     router.post(subject + ":enter", **answers(DeliverySubject))(enter_value)
     router.post(subject + ":confirm", **answers(DeliverySubject))(confirm_subject)
+    router.get(subject + "/impact", **answers(DeliveryImpact))(get_impact)
     router.get(subject + "/spot-check", **answers(DeliverySpotCheck))(get_spot_check)
     router.post(subject + "/spot-check:draw", **answers(DeliverySpotCheck))(draw_spot_check)
     router.post(subject + "/spot-check", **answers(DeliverySpotCheck))(record_spot_check)

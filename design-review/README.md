@@ -71,3 +71,4 @@ stub engine with synthetic data; no number in them is a PBPK result). Gate 2 cor
 | 2026-11-24 | Slice 2 approved; proceed to slice 3 | Project frame | Slice 2 merged (#175); slice 3 built: Overview, Run at /campaigns, Compounds, Members, Settings |  Owner's review |
 | 2026-11-24 | Slice 3 approved; slice 4: study cards in a side panel one at a time; two PRs | Data, Inputs | Slice 3 merged (#176); D-I2; slice 4a built |  Owner's review and answers |
 | 2026-11-24 | Slice 4a approved; proceed to 4b | Inputs cards | 4a merged (#177); 4b built: study and product cards in a side panel; impact preview left for the owner | Owner's review |
+| 2026-11-24 | Slice 4b approved; build 4c, then slice 5 | Confirm again | 4b merged (#178); 4c built: what confirming a changed card again would change, a dry run of the landing (`/impact`) in the signing dialog | Owner's review |

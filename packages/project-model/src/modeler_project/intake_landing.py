@@ -81,6 +81,7 @@ from modeler_intake.fields import condition_text, condition_word, known_unit, re
 from modeler_intake.fields import field as field_def
 from modeler_intake.validate import TIME_UNITS, canonical_unit
 from modeler_project import client_data
+from modeler_project.artifacts import ArtifactKind
 from modeler_project.dataset_register import dataset, datasets, decide_dataset, propose_dataset, revise_dataset
 from modeler_project.datasets import HUMAN_POPULATIONS, DatasetError, ObservedDataset, Origin, ReportedPK, Series, check_dataset
 from modeler_project.documents import DocumentLibrary
@@ -96,7 +97,7 @@ from modeler_project.requirements import RequirementMatrix
 from modeler_project.sources import rule as selection_rule
 from modeler_project.store import ImmutableVersionError
 from modeler_project.study_routing import matrix_choice, study_matrix, subject_values
-from modeler_project.workspace import Workspace
+from modeler_project.workspace import ImpactItem, Workspace
 from pbpk_domain.campaign.split import Demographics, StudyRecord
 from pbpk_domain.dissolution import ProfileKey, profiles_from_records, profiles_from_rows
 from pbpk_domain.units import UnitError, minutes_per, umol_per_l_per
@@ -1268,14 +1269,8 @@ def land(ws: Workspace, library: DocumentLibrary | None, confirmation: Confirmat
         else:
             # the same profile (the same id) landed before: never skipped silently. When this plan gives it other
             # content than the register holds (the study's label after a merge, a spread the rules no longer land),
-            # the register writes the new content as a new version; what a person chose on the dataset itself (the
-            # demographics, D-29), which the ledger never states, stays
-            # (unless the ledger states the individual now: a person's choice on the card, which the signature binds)
-            if "demographics" not in found.study:
-                study = {**found.study, **({"demographics": current.study["demographics"]} if "demographics" in current.study
-                                           else {})}
-                found = check_dataset(found.model_copy(update={"study": study,
-                                                               "demographics_choice": current.demographics_choice}))
+            # the register writes the new content as a new version
+            found = _beside(found, current)
             if _content(found) != _content(current):
                 why = f"{name} gives this dataset other content than it held"
                 _unless_written(lambda found=found, why=why: revise_dataset(ws, found, by=by, reason=why))
@@ -1343,6 +1338,16 @@ def _unless_written(write: Callable[[], Any]) -> None:
         pass
 
 
+def _beside(found: ObservedDataset, current: ObservedDataset) -> ObservedDataset:
+    """A planned dataset as it lands beside the register's version of the same id: what a person chose on the dataset
+    itself (the demographics, D-29), which the ledger never states, stays (unless the ledger states the individual
+    now: a person's choice on the card, which the signature binds)."""
+    if "demographics" in found.study:
+        return found
+    study = {**found.study, **({"demographics": current.study["demographics"]} if "demographics" in current.study else {})}
+    return check_dataset(found.model_copy(update={"study": study, "demographics_choice": current.demographics_choice}))
+
+
 def _content(found: ObservedDataset) -> dict[str, Any]:
     """A dataset's content as two landings of the same id compare it: everything but its state and decision, and the
     two places that name the confirmation that wrote it (its note and its source's locator)."""
@@ -1366,22 +1371,8 @@ def _retire_earlier(ws: Workspace, store: IntakeStore, confirmation: Confirmatio
     followed through merges, as `supersedes` is read), and every confirmation on this one's `supersedes` chain."""
     from modeler_project.evidence_register import decide
 
-    reader = LedgerView(ws)
-
-    def subject_of(found: Confirmation) -> str:
-        entity = reader.entity(found.subject) if found.subject_type != "compound" else None
-        return entity.id if entity is not None else found.subject
-
-    recorded = [Confirmation.model_validate(e.body) for e in store.review.entries("confirmation")]
-    before = recorded[:next((i for i, c in enumerate(recorded) if c.id == confirmation.id), len(recorded))]
-    by_id = {c.id: c for c in before}
-    chain: set[str] = set()
-    link = confirmation.supersedes
-    while link in by_id and link not in chain:
-        chain.add(link)
-        link = by_id[link].supersedes
-    earlier = [c for c in before if c.id in chain or (c.subject_type == confirmation.subject_type
-                                                       and subject_of(c) == subject_of(confirmation))]
+    earlier = _earlier(ws, store, confirmation.subject_type, confirmation.subject, supersedes=confirmation.supersedes,
+                       before=confirmation.id)
     reason = f"superseded by {LOCATOR} {confirmation.id}"
     for old in earlier:
         done = landed(ws, old.id)
@@ -1401,6 +1392,29 @@ def _retire_earlier(ws: Workspace, store: IntakeStore, confirmation: Confirmatio
             for sub in client_data.submissions(ws):
                 if any(r.get("tag") == tag for r in sub.get("dissolution", [])):
                     client_data.record_delivery_rows(ws, sub["id"], [], tag=tag, by=by)
+
+
+def _earlier(ws: Workspace, store: IntakeStore, subject_type: str, subject: str, *, supersedes: str | None,
+             before: str | None) -> list[Confirmation]:
+    """The confirmations a confirmation of the subject supersedes: those recorded before it (`before`, its id; None: a
+    confirmation not recorded yet, so every one) for the subject as the ledger has it now (a study or a product followed
+    through merges, as `supersedes` is read), and every confirmation on its `supersedes` chain."""
+    reader = LedgerView(ws)
+
+    def subject_of(kind: str, found: str) -> str:
+        entity = reader.entity(found) if kind != "compound" else None
+        return entity.id if entity is not None else found
+
+    recorded = [Confirmation.model_validate(e.body) for e in store.review.entries("confirmation")]
+    earlier = recorded[:next((i for i, c in enumerate(recorded) if c.id == before), len(recorded))]
+    by_id = {c.id: c for c in earlier}
+    chain: set[str] = set()
+    link = supersedes
+    while link in by_id and link not in chain:
+        chain.add(link)
+        link = by_id[link].supersedes
+    mine = subject_of(subject_type, subject)
+    return [c for c in earlier if c.id in chain or (c.subject_type == subject_type and subject_of(c.subject_type, c.subject) == mine)]
 
 
 def _record_recipes(ws: Workspace, confirmation: Confirmation, plan: LandingPlan, ids: Sequence[str], *, by: str) -> None:
@@ -1430,3 +1444,131 @@ def _record_recipes(ws: Workspace, confirmation: Confirmation, plan: LandingPlan
         client_data.record_mapping(ws, sid, recipe={"recipe_id": recipe_id, "version": 1,
                                                     "tables": [{"sheet": p} for p in sorted(places)]},
                                    dataset_ids=mine, dissolution=[], by=by, replaces=replaces)
+
+
+# --- what a landing would change, before it is signed --------------------------------------------------------------------
+
+LandingChangeKind = Literal["new", "revised", "accepted", "unchanged", "held", "set_aside"]
+
+
+@dataclass(frozen=True)
+class LandingChange:
+    """One dataset or evidence item of a landing as `land` would decide it: "new" (proposed and accepted, or held),
+    "revised" (a new version: the plan gives it other content), "accepted" (the register has it, not accepted: it is
+    accepted), "unchanged", "held" (evidence proposed and held back) or "set_aside" (an earlier confirmation of the
+    subject landed it and this one does not: rejected)."""
+
+    id: str
+    label: str
+    change: LandingChangeKind
+
+
+@dataclass(frozen=True)
+class LandingPreview:
+    """What `land` would write for a plan and what in the project depends on it, computed without writing anything
+    (the console redesign's slice 4c): what a person reads before they sign a changed subject again."""
+
+    datasets: tuple[LandingChange, ...]
+    evidence: tuple[LandingChange, ...]
+    dissolution_rows: int                 # the dissolution rows it loads
+    dissolution_removed: int              # those an earlier confirmation of the subject loaded, which it removes
+    reject_legacy: tuple[str, ...]        # the still proposed overlapping legacy datasets it rejects
+    held: tuple[str, ...]
+    affected: tuple[ImpactItem, ...]      # every artifact the inputs' re-assembly makes stale, downstream first named
+
+    @property
+    def changes(self) -> bool:
+        """Whether the landing changes anything the model reads."""
+        return bool(self.reject_legacy or self.dissolution_rows or self.dissolution_removed
+                    or any(c.change != "unchanged" for c in (*self.datasets, *self.evidence)))
+
+
+def dataset_words(found: ObservedDataset) -> str:
+    """A dataset in a person's words: its study, dose and food state, and what was measured in what."""
+    study = found.study
+    dose = study.get("dose_mg")
+    bits = [str(study.get("study_id") or found.id)]
+    if isinstance(dose, (int, float)):
+        bits.append(f"{dose:g} mg{'/kg' if study.get('dose_per_kg') else ''}")
+    if study.get("food_state"):
+        bits.append(str(study["food_state"]))
+    bits.append(f"{'PK parameters' if found.kind == 'pk_parameters' else found.analyte} in {found.matrix}")
+    return ", ".join(bits)
+
+
+def preview_landing(ws: Workspace, plan: LandingPlan, *, supersedes: Confirmation | None) -> LandingPreview:
+    """What `land` would write for `plan` under a new confirmation that supersedes `supersedes` (the subject's current
+    confirmation, None for a first one), decided as `land` decides it, and every artifact downstream of what it
+    changes: the inputs are re-assembled after every landing (`inputs.refresh_inputs`), so a dataset that changes makes
+    the study catalog and what is derived from it stale (a signed MAP must be signed again); an evidence item, the CPF.
+    Writes nothing: no register, no review line, no audit event."""
+    from modeler_project.evidence_register import items
+    from modeler_project.inputs import MAIN as INPUTS
+
+    store = IntakeStore(ws)
+    held_flags = selection_rule().hold_flags
+    planned_ids = {d.id for d in plan.datasets}
+    planned_evidence = {e.id for e in plan.evidence}
+    found_datasets: list[LandingChange] = []
+    for planned in plan.datasets:
+        current = dataset(ws, planned.id)
+        change: LandingChangeKind
+        if current is None:
+            change = "new"
+        elif _content(_beside(planned, current)) != _content(current):
+            change = "revised"
+        else:
+            change = "unchanged" if current.state is EvidenceState.ACCEPTED else "accepted"
+        found_datasets.append(LandingChange(id=planned.id, label=dataset_words(planned), change=change))
+    by_id = {i.id: i for i in items(ws)}
+    found_evidence: list[LandingChange] = []
+    for item in plan.evidence:
+        current_item = by_id.get(item.id)
+        flags = (current_item or item).flags
+        if current_item is not None and current_item.state is not EvidenceState.PROPOSED:
+            change = "unchanged"
+        elif any(f.startswith(held_flags) for f in flags):
+            change = "held"
+        else:
+            change = "new" if current_item is None else "accepted"
+        found_evidence.append(LandingChange(id=item.id, label=item.target, change=change))
+    removed = 0
+    files = {sid for sid, _made in plan.dissolution}       # the client files whose dissolution rows it rewrites
+    for old in _earlier(ws, store, plan.subject_type, plan.subject, supersedes=supersedes.id if supersedes else None,
+                        before=None):
+        done = landed(ws, old.id)
+        if done is None:
+            continue
+        for old_id in done.datasets:
+            current = dataset(ws, old_id)
+            if old_id not in planned_ids and current is not None and current.state is not EvidenceState.REJECTED \
+                    and all(c.id != old_id for c in found_datasets):
+                found_datasets.append(LandingChange(id=old_id, label=dataset_words(current), change="set_aside"))
+        for old_id in done.evidence:
+            old_item = by_id.get(old_id)
+            if old_id not in planned_evidence and old_item is not None and old_item.state is not EvidenceState.REJECTED \
+                    and all(c.id != old_id for c in found_evidence):
+                found_evidence.append(LandingChange(id=old_id, label=old_item.target, change="set_aside"))
+        if done.dissolution_records:
+            tag = f"delivery-{old.id}"
+            for sub in client_data.submissions(ws):
+                mine = sum(1 for r in sub.get("dissolution", []) if r.get("tag") == tag)
+                removed += mine
+                files |= {sub["id"]} if mine else set()
+    reject = tuple(i for i in plan.reject_legacy if (d := dataset(ws, i)) is not None and d.state is EvidenceState.PROPOSED)
+    rows = sum(len(made) for _sid, made in plan.dissolution)
+    # what the re-assembly reads anew: the datasets (the study catalog) and the evidence (the CPF) that change
+    moved_datasets = [c for c in found_datasets if c.change != "unchanged"]
+    moved_evidence = [c for c in found_evidence if c.change not in ("unchanged", "held")]
+    roots: list[tuple[ArtifactKind, str]] = []
+    if moved_datasets or reject:
+        roots += [(ArtifactKind.DATASET, c.id) for c in moved_datasets] + [(ArtifactKind.DATASET, i) for i in reject]
+        roots.append((ArtifactKind.STUDY_CATALOG, INPUTS))
+    if moved_evidence:
+        roots += [(ArtifactKind.EVIDENCE, c.id) for c in moved_evidence] + [(ArtifactKind.CPF, INPUTS)]
+    roots += [(ArtifactKind.CLIENT_SUBMISSION, sid) for sid in sorted(files)]   # their dissolution profiles follow
+    first = [ws.impact_item(v) for kind, key in dict.fromkeys(roots) if kind in (ArtifactKind.STUDY_CATALOG, ArtifactKind.CPF)
+             and (v := ws.latest(kind, key)) is not None]
+    later = [i for i in ws.downstream(roots) if all(i.ref.key != f.ref.key for f in first)]
+    return LandingPreview(datasets=tuple(found_datasets), evidence=tuple(found_evidence), dissolution_rows=rows,
+                          dissolution_removed=removed, reject_legacy=reject, held=plan.held, affected=(*first, *later))

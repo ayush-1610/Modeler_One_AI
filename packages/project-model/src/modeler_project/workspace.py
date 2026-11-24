@@ -216,25 +216,35 @@ class Workspace:
             return ImpactReport(target=None, changes=changes, affected=(), notes=("a new artifact: nothing depends on it yet",))
         if not changes:
             return ImpactReport(target=latest.ref, changes=(), affected=(), notes=("no change",))
+        return ImpactReport(target=latest.ref, changes=changes, affected=self.downstream([(kind, artifact_id)]))
+
+    def downstream(self, keys: Iterable[tuple[ArtifactKind, str]]) -> tuple[ImpactItem, ...]:
+        """Every latest version downstream of `keys` (their dependents, theirs, and so on: breadth first, each once),
+        with what a change upstream means for it. The keys themselves are not listed."""
         affected: list[ImpactItem] = []
-        queue = [(kind, artifact_id)]
-        visited = {(kind, artifact_id)}
+        queue = list(dict.fromkeys(keys))
+        visited = set(queue)
         while queue:
             key = queue.pop(0)
             for dep in self.dependents(*key):
                 if dep.ref.key in visited:
                     continue
                 visited.add(dep.ref.key)
-                status = self.status(dep)
-                signed = any(a.signature_id for a in self.approvals_of(dep.ref) if a.record_sha256 == dep.sha256)
-                approved = status is ArtifactStatus.APPROVED
-                effect = _EFFECT.get(dep.kind, "review")
-                if dep.kind is ArtifactKind.MAP and approved:
-                    effect = "superseded when revised: the new version must be signed; campaigns bound to it are invalidated"
-                affected.append(ImpactItem(ref=dep.ref, status=status, effect=effect, needs_signature=signed or (
-                    approved and dep.kind in (ArtifactKind.MAP, ArtifactKind.MODEL_PLAN))))
+                affected.append(self.impact_item(dep))
                 queue.append(dep.ref.key)
-        return ImpactReport(target=latest.ref, changes=changes, affected=tuple(affected))
+        return tuple(affected)
+
+    def impact_item(self, version: ArtifactVersion) -> ImpactItem:
+        """What a change upstream of `version` means for it: its status, the effect (plan §13.3), and whether a signed
+        or approved version must be signed again."""
+        status = self.status(version)
+        signed = any(a.signature_id for a in self.approvals_of(version.ref) if a.record_sha256 == version.sha256)
+        approved = status is ArtifactStatus.APPROVED
+        effect = _EFFECT.get(version.kind, "review")
+        if version.kind is ArtifactKind.MAP and approved:
+            effect = "superseded when revised: the new version must be signed; campaigns bound to it are invalidated"
+        return ImpactItem(ref=version.ref, status=status, effect=effect, needs_signature=signed or (
+            approved and version.kind in (ArtifactKind.MAP, ArtifactKind.MODEL_PLAN)))
 
     def history(self, kind: ArtifactKind, artifact_id: str) -> list[dict[str, Any]]:
         """Every version with its status, approvals and the field changes from the previous version."""

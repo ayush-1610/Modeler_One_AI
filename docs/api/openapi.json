@@ -6802,6 +6802,136 @@
         "title": "DeliveryGap",
         "type": "object"
       },
+      "DeliveryImpact": {
+        "additionalProperties": false,
+        "description": "What confirming the subject now would load, replace and set aside, and which artifacts it would make stale (a\nsigned MAP among them must be signed again), computed without signing or writing anything (the console redesign's\nslice 4c). `supersedes`: the current confirmation the new one would supersede (null: a first confirmation).",
+        "properties": {
+          "affected": {
+            "items": {
+              "$ref": "#/components/schemas/AffectedView"
+            },
+            "title": "Affected",
+            "type": "array"
+          },
+          "changes": {
+            "title": "Changes",
+            "type": "boolean"
+          },
+          "datasets": {
+            "items": {
+              "$ref": "#/components/schemas/DeliveryImpactChange"
+            },
+            "title": "Datasets",
+            "type": "array"
+          },
+          "dissolution_removed": {
+            "title": "Dissolution Removed",
+            "type": "integer"
+          },
+          "dissolution_rows": {
+            "title": "Dissolution Rows",
+            "type": "integer"
+          },
+          "evidence": {
+            "items": {
+              "$ref": "#/components/schemas/DeliveryImpactChange"
+            },
+            "title": "Evidence",
+            "type": "array"
+          },
+          "held": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Held",
+            "type": "array"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "reject_legacy": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Reject Legacy",
+            "type": "array"
+          },
+          "subject": {
+            "title": "Subject",
+            "type": "string"
+          },
+          "subject_type": {
+            "enum": [
+              "study",
+              "product",
+              "compound"
+            ],
+            "title": "Subject Type",
+            "type": "string"
+          },
+          "supersedes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Supersedes"
+          }
+        },
+        "required": [
+          "subject_type",
+          "subject",
+          "label",
+          "supersedes",
+          "changes",
+          "datasets",
+          "evidence",
+          "dissolution_rows",
+          "dissolution_removed",
+          "reject_legacy",
+          "held",
+          "affected"
+        ],
+        "title": "DeliveryImpact",
+        "type": "object"
+      },
+      "DeliveryImpactChange": {
+        "additionalProperties": false,
+        "description": "One dataset or evidence item of the landing as it would be decided (`intake_landing.LandingChange`).",
+        "properties": {
+          "change": {
+            "enum": [
+              "new",
+              "revised",
+              "accepted",
+              "unchanged",
+              "held",
+              "set_aside"
+            ],
+            "title": "Change",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "change"
+        ],
+        "title": "DeliveryImpactChange",
+        "type": "object"
+      },
       "DeliveryIndividual": {
         "additionalProperties": false,
         "description": "A study's simulated individual (D-29) as the landing would set it from the study's active values: one source\nfor the card, Populations and individuals, and what loads (`intake_landing.study_individual`).",
@@ -12630,6 +12760,31 @@
           "errors"
         ],
         "title": "Envelope[DataRoomView]",
+        "type": "object"
+      },
+      "Envelope_DeliveryImpact_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/DeliveryImpact"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[DeliveryImpact]",
         "type": "object"
       },
       "Envelope_DeliveryMappingVocabulary_": {
@@ -39710,6 +39865,88 @@
           }
         },
         "summary": "Get Subject",
+        "tags": [
+          "client-data"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/delivery/subjects/{type}/{subject}/impact": {
+      "get": {
+        "description": "What confirming the subject now would change, before anything is signed (the console redesign's slice 4c): the\ndatasets and evidence its landing would load, revise, accept or set aside, the dissolution rows it would load and\nremove, and every artifact downstream that would go stale (a signed MAP must then be signed again). The landing is\nplanned as `:confirm` plans it; nothing is signed or written. Refused for a blinded study (409 BLINDED: what it\nwould load names its values) and while the landing cannot be planned (409 LANDING_REFUSED).",
+        "operationId": "get_impact_api_v1_projects__project_id__delivery_subjects__type___subject__impact_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "type",
+            "required": true,
+            "schema": {
+              "enum": [
+                "study",
+                "product",
+                "compound"
+              ],
+              "title": "Type",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "subject",
+            "required": true,
+            "schema": {
+              "title": "Subject",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_DeliveryImpact_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Impact",
         "tags": [
           "client-data"
         ]

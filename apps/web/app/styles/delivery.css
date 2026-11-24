@@ -112,6 +112,14 @@
 .delivery-facts dt { color: var(--ink-dim); }
 .delivery-facts dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 .delivery-facts ul { margin: 0; }
+/* what signing a changed card again would change (slice 4c) */
+.delivery-impact { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); display: grid; gap: 8px; font-size: 13.5px; }
+.delivery-impact h3 { margin: 0; font-size: 13.5px; }
+.delivery-impact > ul > li + li { margin-top: 4px; }
+.delivery-impact ul ul { margin: 2px 0 0 12px; }
+.delivery-blocked.warn { border-left-color: var(--warn); background: color-mix(in srgb, var(--warn) 9%, var(--surface)); }
+.delivery-impact-affected summary { cursor: pointer; color: var(--ink-dim); }
+.delivery-impact-affected ul { margin: 4px 0 0; }
 
 /* ---- the values ---- */
 .delivery-values td, .delivery-values th { font-size: 13px; padding: 7px 8px; }
