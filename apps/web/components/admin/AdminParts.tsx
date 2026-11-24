@@ -4,11 +4,10 @@ import type { ReactNode } from "react";
 import { Card } from "@/components/ui";
 import { PRICED_AS, percent, tokens, usd, when, type LimitRow, type PricedAs, type Usage, type UsageGroup } from "@/lib/admin";
 
-/** The console's pages, and (on the pages with costs) the model the costs are priced at: a link per model, since the
- *  page is read on the server. */
-export function AdminTabs({ here, priced = "claude-opus-5-5", base, query = {} }: {
-  here: "overview" | "usage" | "company" | "limits" | "people" | "models" | "keys" | "pipeline" | "system"; priced?: PricedAs; base?: string;
-  query?: Record<string, string | undefined>;
+/** On the pages with costs, the model the costs are priced at: a link per model, since the page is read on the server.
+ *  The console's pages themselves are in the side navigation (the console redesign: slice 1, the tabs removed in 8). */
+export function PricingSwitch({ priced = "claude-opus-5-5", base, query = {} }: {
+  priced?: PricedAs; base: string; query?: Record<string, string | undefined>;
 }) {
   const href = (p: PricedAs) => {
     const given: Record<string, string | undefined> = { ...query, priced_as: p };
@@ -16,28 +15,14 @@ export function AdminTabs({ here, priced = "claude-opus-5-5", base, query = {} }
     return `${base}?${params.toString()}`;
   };
   return (
-    <div className="spread mb-16 flex-wrap gap-12">
-      <nav className="tabs" aria-label="Admin console" data-testid="admin-tabs">
-        <Link href={`/admin?priced_as=${priced}`} className={here === "overview" ? "active" : ""}>Overview</Link>
-        <Link href={`/admin/usage?priced_as=${priced}`} className={here === "usage" ? "active" : ""}>Usage and cost</Link>
-        <Link href={`/admin/limits?priced_as=${priced}`} className={here === "limits" ? "active" : ""}>Limits</Link>
-        <Link href="/admin/people" className={here === "people" ? "active" : ""}>People</Link>
-        <Link href="/admin/models" className={here === "models" ? "active" : ""}>Models</Link>
-        <Link href="/admin/keys" className={here === "keys" ? "active" : ""}>Keys</Link>
-        <Link href="/admin/pipeline" className={here === "pipeline" ? "active" : ""}>Pipeline</Link>
-        <Link href="/admin/system" className={here === "system" ? "active" : ""} data-testid="admin-tab-system">System status</Link>
-      </nav>
-      {base && (
-        <div className="muted" data-testid="priced-as">
-          Costs as if run on{" "}
-          {PRICED_AS.map((p, i) => (
-            <span key={p.id}>
-              {i > 0 && " · "}
-              {p.id === priced ? <strong>{p.label}</strong> : <Link href={href(p.id)}>{p.label}</Link>}
-            </span>
-          ))}
-        </div>
-      )}
+    <div className="pricing-switch" data-testid="priced-as">
+      <span className="muted fs-13">Costs as if run on</span>
+      <div className="view-switch" role="group" aria-label="Costs priced as">
+        {PRICED_AS.map((p) => (
+          <Link key={p.id} href={href(p.id)} prefetch={false} aria-current={p.id === priced ? "true" : undefined}
+                className={p.id === priced ? "on" : undefined}>{p.label}</Link>
+        ))}
+      </div>
     </div>
   );
 }

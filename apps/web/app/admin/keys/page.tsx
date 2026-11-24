@@ -1,4 +1,3 @@
-import { AdminTabs } from "@/components/admin/AdminParts";
 import { ProviderKeys } from "@/components/admin/ProviderKeys";
 import { Hero } from "@/components/kit";
 import { ApiProblem } from "@/components/ui";
@@ -12,7 +11,6 @@ export default async function KeysPage() {
     <main>
       <Hero tone="admin" eyebrow="Admin console" title="Keys"
             lede="The providers' keys, sealed under the server's master key. Add, test, make active, retire: no restart." />
-      <AdminTabs here="keys" />
       {live.problem && <ApiProblem problem={live.problem} />}
       {live.data && <ProviderKeys initial={live.data} />}
     </main>

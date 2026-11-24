@@ -15,6 +15,26 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — the console redesign, slice 8: the admin console in the console style, a Companies page (2026-11-24)
+- **What:**
+  - **Companies (P-24, new page, "Companies" in the console's side navigation):** every company as a console table
+    with a filter and sortable heads: people, projects, archived, runs, runs that did not finish, tokens in and out,
+    the estimated cost; "Add a company" under it; each company opens on its own page (disable or enable with a reason
+    there). Breadcrumbs: Admin console / Companies / the company.
+  - **Overview:** counters (companies and how many are disabled, people, projects and archived, whether the agents are
+    on), each a link; what every company's agents used; the platform block, pointing to System status. The companies
+    table moved to Companies.
+  - **The row of console tabs at the top of each admin page is gone:** the side navigation (since slice 1) lists the
+    console's pages. On the pages with costs, "Costs as if run on" is a segmented switch in the page header.
+  - **System status:** the engine's own panel (R-N08 below): whether it answers, what it is (a software fixture said in
+    bold), its command, engine id, image digest, where runs go, when it was checked; the platform and the engine side
+    by side, the keys and the agents full width.
+- **Why:** the console redesign's slice 8 (plan 2026-11-23 §6: console restyle, Companies list, System status + R-N08);
+  the owner's "Slice 7 approved, proceed to slice 8" (2026-11-24).
+- **Impact:** no API change beyond R-N08 below. `admin-console` spec green (non-administrators still get the app's 404
+  on every console page). The administrator's pages were looked at through a local harness (the real API with a test
+  administrator verifier, as the API tests use): the DEV sign-in is not an administrator, so no e2e spec signs in as one.
+
 ### Added — the console redesign, slice 8: whether the engine answers, on System status (R-N08) (2026-11-24)
 - **What:** `GET /admin/system` (the platform owner's): the deployment, the execution backend, and the engine: its kind
   (`pksim`, `software-fixture`, `unknown`), the command's words, the engine id and image digest it records (the digest

@@ -1,14 +1,14 @@
 // System status (the redesign's P-32; the owner, 2026-11-24: the pages we are missing, and checking the AI keys end to
 // end): whether the API answers and how it signs people in, whether the server's master key opens the stored keys, each
-// AI service's active key and its last test, and what each agent runs on now. Reads only: every change is on Keys and
-// Models. The engine's own check needs a new route (R-N08) and is not shown yet.
+// AI service's active key and its last test, what each agent runs on now, and (R-N08, the console redesign's slice 8)
+// whether the engine answers: its command started without a job, nothing simulated. Reads only: every change is on
+// Keys and Models.
 
 import Link from "next/link";
 
-import { AdminTabs } from "@/components/admin/AdminParts";
 import { Hero } from "@/components/kit";
 import { ApiProblem } from "@/components/ui";
-import { getAgents, getKeys, getOverview, hideUnlessAdmin } from "@/lib/admin";
+import { getAgents, getKeys, getOverview, getSystem, hideUnlessAdmin } from "@/lib/admin";
 import { oidcConfig } from "@/lib/oidc";
 
 export const metadata = { title: "System status · Modeler One" };
@@ -21,18 +21,19 @@ function State({ ok, children, testId }: { ok: boolean | null; children: React.R
 }
 
 export default async function SystemPage() {
-  const [overview, keys, agents] = await Promise.all([getOverview("claude-opus-5-5"), getKeys(), getAgents()]);
+  const [overview, keys, agents, system] = await Promise.all([getOverview("claude-opus-5-5"), getKeys(), getAgents(), getSystem()]);
   const oidc = oidcConfig();
   hideUnlessAdmin(overview.problem);
   const k = keys.data;
+  const engine = system.data?.engine ?? null;
   const active = (provider: string) => k?.keys.find((x) => x.provider === provider && x.state === "active") ?? null;
   return (
     <main data-testid="system-page">
       <Hero tone="admin" eyebrow="Admin console" title="System status"
             lede="Whether each part of the platform answers, and what the agents run on now. Changes are made on Keys and Models." />
-      <AdminTabs here="system" />
-      {[overview.problem, keys.problem, agents.problem].filter(Boolean).map((p) => <ApiProblem key={p} problem={p!} />)}
-      <div className="account-grid">
+      
+      {[overview.problem, keys.problem, agents.problem, system.problem].filter(Boolean).map((p) => <ApiProblem key={p} problem={p!} />)}
+      <div className="account-grid sys-grid">
         <section className="card" aria-labelledby="sys-platform">
           <h2 id="sys-platform">Platform</h2>
           <dl className="account-facts">
@@ -47,6 +48,26 @@ export default async function SystemPage() {
             </State></dd>
           </dl>
         </section>
+        <section className="card" aria-labelledby="sys-engine" data-testid="sys-engine">
+          <h2 id="sys-engine">The engine</h2>
+          {engine ? (
+            <dl className="account-facts">
+              <dt>Answers</dt>
+              <dd><State ok={engine.reachable} testId="sys-engine-state">{engine.reachable ? "it answers" : "it does not answer"}</State>
+                <div className="muted fs-13 mt-4" data-testid="sys-engine-detail">{engine.detail}</div></dd>
+              <dt>What it is</dt>
+              <dd data-testid="sys-engine-kind">{engine.kind === "pksim" ? "PK-Sim (OSP suite)" : engine.kind === "software-fixture"
+                ? <strong>a software fixture, not PK-Sim: its numbers are never PBPK results</strong> : "not identified as PK-Sim"}</dd>
+              <dt>Command</dt><dd><code>{engine.command ?? "not set"}</code></dd>
+              <dt>Engine id</dt><dd>{engine.engine_id ?? "—"}</dd>
+              <dt>Image digest</dt><dd>{engine.image_digest ? <code>{engine.image_digest.slice(0, 19)}…</code> : "the development placeholder"}</dd>
+              <dt>Runs</dt><dd>{system.data?.execution_backend === "temporal" ? "on the multi-server backend (Temporal)" : "on this server"}</dd>
+              <dt>Checked</dt><dd>{engine.checked_at.slice(0, 19).replace("T", " ")} (kept a minute; at most {engine.timeout_s} s)</dd>
+            </dl>
+          ) : <p className="muted">Not read.</p>}
+        </section>
+      </div>
+      <div className="sys-wide">
         <section className="card" aria-labelledby="sys-keys">
           <h2 id="sys-keys">AI services and their keys</h2>
           <table className="table-compact" data-testid="sys-keys-table">
