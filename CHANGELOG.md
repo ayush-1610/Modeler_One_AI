@@ -13,6 +13,62 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 
 ## [Unreleased] — make the pipeline do real PBPK, S0 → S7
 
+### Added — science: Start, the model plan, the MAP and the VBE panel read what the Data room's send rests on (plan 2026-11-24 §7, phase 4: R2, B4–B8) (2026-11-24)
+- **Why:** phase 4 of `docs/plans/2026-11-24-data-story-next-phase.md` (§7: a modeller does not type again at Start or
+  on Review & sign what the delivery already said). A read-only trace found the room's confirmed applications ignored
+  (**R2, high**): MS-01's food rule read only the brief's APP-12 (`plan.structure_from_brief`, `inputs.readiness`), so a
+  food-effect question confirmed in the Data room still had a fed study fitted internally by the split; and the
+  question, context of use, applications, agencies, products, scenarios, formulation types, populations, the VBE
+  formulations and the observed BE summary were typed again.
+- **One reader** (`modeler_project.room_basis.room_basis(ws)`): the confirmed question card, the applications decision,
+  every decision with its reason, the open data requests (required, or a draft's "usually needed"), the client's NCA
+  values no setting reproduces, the BLQ convention of the arithmetic mean, the room's plan roles, its products (with the
+  CPF formulation name the send gives each, `publish.slug`), each arm's route, dose, food and population, and a paired BE
+  summary from the room's own NCA. It reads the live room today; once "Send to the model" writes its snapshot, it is
+  switched there, in that one function. `full=False` reads the card and the applications only (Start, Inputs).
+- **The applications table** `room_basis.ROOM_TO_BRIEF` (each code checked against `brief.APPLICATIONS`; **the owner
+  reviews it**): PBBM / bridging / VBE → APP-11 + APP-14; food effect → APP-12; acid-reducing agents → APP-13 (pH-dependent
+  DDI); DDI victim or perpetrator → APP-03 (enzyme DDI); transporter DDI → APP-04; paediatrics → APP-06; renal → APP-08;
+  hepatic → APP-07; first-in-human → APP-02; pregnancy → APP-09; the elderly and an ethnic population → APP-10; none →
+  APP-01.
+- **B4, Start from the room** (`modeler_project.brief_from_room`, `POST /projects/{id}/brief:from-dataroom`, and "Fill
+  from the Data room" on Start when the room's card is confirmed): drafts, through the agents' path (`brief_ops.agent_set`,
+  DRAFTED, `by` `code:data-room`, each with the quotes it rests on), the question, the context of use, the applications,
+  the agencies (by name only: FDA, EMA, PMDA, CDSCO, Health Canada, TGA, NMPA, MHRA), the products and roles (reference
+  and original as REFERENCE, test and reformulated as TEST), one scenario per sent arm (route, dose in mg as stated, fed or
+  fasted, product, population; a scenario Start holds is completed, never duplicated), the formulation types (the
+  dosage forms stated, else the immediate-release tablet the send makes of a product with a release profile) and the
+  populations (healthy or patients as stated, the PK-Sim population the room chose, the sex); then the ICH M15 ratings by
+  the rule, as Start does. A person's value (or "not stated"), and a document's (EXTRACTED, RETRIEVED, COMPUTED), are never
+  overwritten; an earlier draft gives way to the room's (the card is a person's confirmed word). Refused (409) until a
+  person confirms the card. Human-only fields are never set.
+- **B5, Start advises** (`steps.room_advice`, `start.room.advice`): where a question, context of use or applications a
+  person set (or a document states) differ from the room's confirmed card. Advice only: Start is done without it.
+- **R2 / B7, the model plan:** `food_effect_in_question`, the planned applications, the pinned templates and the
+  application codes take the room's applications where the brief has none a person set (`plan.effective_applications`;
+  the Inputs readiness check too). The validator warns (acknowledgment only) where the room's applications and the plan's
+  differ (`room-applications`) and where MS-01's placement of a sent arm (`<study>-<arm>`) differs from the room's plan
+  role, calibration or verification (`room-roles`). `split.py` and `map.py` are not changed.
+- **B6, the MAP's limitations** (`plan.room_limitations`, through `Structure.room_limitations` and `map_limitations`):
+  each room decision with its reason, each open required data request (the usually-needed ones named in one line), the
+  client's NCA values the data do not reproduce, and that the observed arithmetic means count a concentration below the
+  LLOQ as 0 (with the count), the geometric means leaving them out.
+- **B8, the VBE panel** (`review.vbe_suggestion`, `PinnedApplication.suggested`): the TEST and reference formulations
+  from the card's products by role (as the send names them; a CPF formulation first, the others named), and the observed
+  BE summary from the room's NCA paired by subject in the analysis set sent (GMR and its 90 % CI by
+  `bioequivalence.paired_crossover_ci`, the reference arm's between-subject CV by `vbe.between_subject_cv`, as the F-304
+  gate computes it), with the delivery's stated BE results beside it. "Use the Data room's values" fills the form; saving
+  stays the person's act with a reason; never-defaulted inputs stay empty; the template is untouched.
+- **API (for clients):** new `POST /api/v1/projects/{id}/brief:from-dataroom` (`RoomFilled`); `StartBlock.room`
+  (`StartRoomView`); `PinnedApplication.suggested` (`ApplicationSuggestion`); `Structure` gains `room_applications`,
+  `applications_from_room`, `room_roles`, `room_limitations`. `docs/api/openapi.json` and `apps/web/lib/api-types.ts`
+  regenerated.
+- **Not yet wired:** the Data room's own routes (`dataroom_api.py`, another change in flight) do not yet call
+  `draft_brief_from_room` when the card is confirmed, the applications decision is made or the room is sent; the button
+  on Start does. Tests: `packages/project-model/tests/test_brief_from_room.py`,
+  `services/api/tests/test_brief_from_room_api.py`, `test_plan_api.py` (the room's send); e2e spec (not run here)
+  `apps/web/e2e/dataroom-to-start.spec.ts`.
+
 ### Changed — the agents ask for what the question needs: A6 without context-only material, A8 told the required items, A10 writes only open requests (prompt `dataroom-6`, 2026-11-24)
 - **Why:** the requirement drafts now decide what the delivery must hold (plan 2026-11-24 §6, D5). The agents' own
   prompts still asked for the manufacturing process on every project, and the report wrote requests that the

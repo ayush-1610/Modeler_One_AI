@@ -14,6 +14,10 @@ P1: the brief is edited field by field, and questions are answered or accepted a
 Start (redesign §3.1, D-27): no edit asks why (the record keeps who and when, the audit the value before and after),
 the data plan follows every saved brief with no button, and the answer carries what Start still needs: the scope gates
 (D-28) and the ICH M15 model risk, whose tier must lie in the range its two ratings admit.
+
+From the Data room (plan 2026-11-24 §7, phase 4): ``POST /projects/{id}/brief:from-dataroom`` drafts what the room's
+confirmed question card and studies state (`brief_from_room`), and the brief page says where Start's own word differs
+from the card (advice, never a block).
 """
 
 from __future__ import annotations
@@ -60,6 +64,7 @@ from modeler_api.views.brief import (
     LibraryEntryView,
     LibraryPage,
     ProjectStarted,
+    RoomFilled,
 )
 from modeler_intake.documents import DocumentError
 from modeler_intake.file_tags import TagKind
@@ -79,6 +84,7 @@ from modeler_project.brief import (
     risk_check,
     validate_brief,
 )
+from modeler_project.brief_from_room import RoomError, draft_brief_from_room
 from modeler_project.brief_ops import BRIEF_ID, EditError, edit_field, locked, resolve_identity, save_brief, summary
 from modeler_project.client_data import ingest
 from modeler_project.data_plan import refresh_data_plan
@@ -87,10 +93,12 @@ from modeler_project.evidence import SourceType
 from modeler_project.evidence_register import items as evidence_items
 from modeler_project.feasibility import pathway_suggestions, pathways_not_named, scope_gates
 from modeler_project.library import library_rows
+from modeler_project.plan import application_label
 from modeler_project.requirements import RequirementMatrix, application_additions, client_request
 from modeler_project.risk_draft import draft_risk
+from modeler_project.room_basis import RoomBasis, room_basis
 from modeler_project.start_drafts import read_for_start, sentences
-from modeler_project.steps import start_issues, start_problems
+from modeler_project.steps import room_advice, start_issues, start_problems
 from modeler_storage.filestore import FileReadStore, FileWriteStore
 from modeler_storage.records import ProjectRecord
 from pbpk_domain.acceptance import load_acceptance_ruleset, loosest_internal_target
@@ -532,8 +540,18 @@ def _brief_view(ws: Workspace) -> dict[str, Any]:
                                                                    if i.source_type is SourceType.OSP_LIBRARY]),
                   # what only the client can send (page review 1, decision 2b): the data plan's client items
                   "client_request": [line.model_dump() for line in client_request(RequirementMatrix.from_content(plan.content))]
-                  if plan else []},
+                  if plan else [],
+                  "room": _room_view(brief, room_basis(ws, full=False))},
     }
+
+
+def _room_view(brief: ProjectBrief, room: RoomBasis | None) -> dict[str, Any] | None:
+    """The Data room's card as Start shows it, and where Start's own word differs (advice, never a block)."""
+    if room is None:
+        return None
+    return {"confirmed_card": room.confirmed, "question": room.card.question,
+            "applications": [application_label(c) for c in room.codes], "applications_chosen": room.applications_chosen,
+            "advice": [a.model_dump() for a in room_advice(brief, room)]}
 
 
 @router.get("/projects/{project_id}/brief", **answers(BriefPage))
@@ -543,6 +561,20 @@ def get_brief(project_id: str, principal: Reader, store: StoreDep) -> dict[str, 
 
 class ExtractRequest(BaseModel):
     context_note: str = ""
+
+
+@router.post("/projects/{project_id}/brief:from-dataroom", **answers(RoomFilled))
+def fill_brief_from_dataroom(project_id: str, principal: Writer, store: StoreDep) -> dict[str, Any]:
+    """Start from the Data room (plan 2026-11-24 §7, phase 4, B4): the question, context of use, applications, agencies,
+    products and roles, scenarios, formulation types and populations the room's confirmed question card and studies
+    state, drafted into the brief (DRAFTED, each with the quotes it rests on, to confirm on Start), then the ICH M15
+    ratings by the rule. A person's value, or a document's, is never overwritten: Start advises where they differ. 409
+    while the room has no confirmed question card."""
+    ws = workspace_for(project_id, principal, store)
+    try:
+        return envelope(draft_brief_from_room(ws, by=principal.user_id))
+    except RoomError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 @router.post("/projects/{project_id}/brief:extract", status_code=202, **answers(ExtractionStart))

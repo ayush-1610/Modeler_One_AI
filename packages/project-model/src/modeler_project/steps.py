@@ -7,7 +7,7 @@ Run is read by the API from the runner's campaign store; the other three are rea
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 from pydantic import BaseModel, ConfigDict
 
@@ -28,6 +28,9 @@ from modeler_project.formulation_way import FormulationWay, formulation_way
 from modeler_project.map_artifact import latest_map
 from modeler_project.workspace import Workspace
 from pbpk_domain.acceptance import loosest_internal_target
+
+if TYPE_CHECKING:
+    from modeler_project.room_basis import RoomBasis
 
 MAIN = "main"
 
@@ -134,6 +137,42 @@ def start_issues(brief: ProjectBrief) -> list[StartIssue]:
 def start_problems(brief: ProjectBrief) -> list[str]:
     """`start_issues` as the step's reasons."""
     return [issue.message for issue in start_issues(brief)]
+
+
+# A value a person set, or a document states: where it differs from the Data room's confirmed card, Start advises
+_STATED = (*_PERSON, FieldStatus.NOT_APPLICABLE, FieldStatus.EXTRACTED)
+
+
+def _quoted(value: object, limit: int = 120) -> str:
+    text = " ".join(str(value).split())
+    return f"“{text if len(text) <= limit else text[:limit - 1] + '…'}”"
+
+
+def room_advice(brief: ProjectBrief, basis: RoomBasis | None) -> list[StartIssue]:
+    """Where Start's question, context of use or applications, set by a person (or stated by a document), differ from
+    the Data room's confirmed question card (plan 2026-11-24 §7, phase 4, B5). Advice, never a block: Start is done
+    without it, and both words are kept (a draft from the room never overwrites a person's)."""
+    if basis is None or not basis.confirmed:
+        return []
+    out = []
+    for path, theirs, what in (("qoi.text", basis.card.question, "asks"),
+                               ("qoi.context_of_use", basis.card.context_of_use, "gives the context of use as")):
+        record = brief.get(path)
+        mine = record.value
+        if record.status in _STATED and mine not in (None, "") and theirs.strip() and \
+                " ".join(str(mine).split()).lower() != " ".join(theirs.split()).lower():
+            out.append(StartIssue(path=path, message=(
+                f"{definition_of(path).label}: the Data room's confirmed question card {what} {_quoted(theirs)}; Start "
+                f"says {_quoted(mine)}. Keep yours, or take the room's")))
+    record = brief.get("qoi.applications")
+    mine_codes = sorted({str(a).split(" ", 1)[0] for a in (record.value or [])})
+    if record.status in _STATED and mine_codes != sorted(basis.codes):
+        chosen = "chosen in the Data room" if basis.applications_chosen else "as read from its question card"
+        theirs = ", ".join(basis.codes)
+        out.append(StartIssue(path="qoi.applications", message=(
+            f"Applications: the Data room's question is for {theirs} ({', '.join(basis.application_labels) or 'the core items only'}, "
+            f"{chosen}); Start says {', '.join(mine_codes) or 'none'}. The model plan follows Start and warns at signing")))
+    return out
 
 
 def start_step(ws: Workspace) -> Step:

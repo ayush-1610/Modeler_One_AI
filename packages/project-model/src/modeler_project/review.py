@@ -16,15 +16,17 @@
   the ruleset UNVERIFIED until the SME signs; and the stricter internal target, if any (MS-01 §8), which the MAP
   records and the verdicts apply to the internal groups (R4d).
 - **The applications (R4c):** each analysis template the MAP pins (the VBE crossover), its inputs as the template
-  declares them and what is still missing; and each of the brief's applications with what the campaign does with it
-  (`plan.APPLICATION_SUPPORT`), with the brief's prediction scenarios, which S6 does not simulate yet.
+  declares them and what is still missing, with what the Data room's send offers them (`vbe_suggestion`: the
+  formulations and the observed BE summary, suggestions a person saves); and each of the brief's applications with what
+  the campaign does with it (`plan.APPLICATION_SUPPORT`), with the brief's prediction scenarios, which S6 does not
+  simulate yet.
 
 Each part reads the MAP this plan generates now (`campaign_map`), so the page shows what the signature would carry.
 """
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from modeler_project.brief import VALUED, ProjectBrief
 from modeler_project.estimation import fit_findings, proposed_bounds
@@ -51,7 +53,10 @@ from pbpk_domain.campaign.map import MapDocument, stage_coverage
 from pbpk_domain.cpf.formulations import formulation_names
 from pbpk_domain.cpf.models import CPF, ParameterStatus
 
-Confidence = Literal["low", "medium", "high"]
+if TYPE_CHECKING:
+    from modeler_project.room_basis import RoomBasis
+
+Confidence =Literal["low", "medium", "high"]
 Supplier = Literal["agent", "client file", "person", "system"]
 
 
@@ -261,11 +266,49 @@ def acceptance(plan: ModelPlan, doc: MapDocument) -> dict[str, Any]:
 _ADDABLE = {"vbe-crossover": ("APP-11", "APP-14")}
 
 
-def applications(plan: ModelPlan, cpf: CPF, violations: list[Violation]) -> dict[str, Any]:
+def _product_pick(room: RoomBasis, roles: tuple[str, ...], formulations: set[str]) -> dict[str, Any] | None:
+    """The card's product for a VBE arm (`roles` in order of preference), as the CPF formulation the send names it: one
+    the CPF holds first. The other candidates are named in the source."""
+    candidates = sorted((p for p in room.products if p.role in roles),
+                        key=lambda p: (p.formulation not in formulations, roles.index(p.role)))
+    if not candidates:
+        return None
+    first, others = candidates[0], candidates[1:]
+    source = (f"the Data room's question card: {first.name} ({first.role}), the CPF formulation {first.formulation} once "
+              "sent" + (f"; also {', '.join(f'{p.name} ({p.role})' for p in others)}" if others else ""))
+    return {"value": first.formulation, "source": source, "available": first.formulation in formulations}
+
+
+def vbe_suggestion(room: RoomBasis | None, formulations: set[str]) -> dict[str, Any] | None:
+    """What the Data room offers the VBE panel (plan 2026-11-24 §7, B8): the TEST and reference formulations from the card's
+    products by role (as the send names them, `publish.slug`), and the observed BE summary from the room's own NCA paired
+    by subject (with the delivery's stated BE results beside it). Suggestions with their source: nothing is saved until
+    a person saves the design (the template's never-defaulted inputs stay the person's)."""
+    from modeler_project.room_basis import REFERENCE_ROLES, TEST_ROLES
+
+    if room is None or not room.confirmed or not room.full:
+        return None
+    test, reference = _product_pick(room, TEST_ROLES, formulations), _product_pick(room, REFERENCE_ROLES, formulations)
+    be = next((b for b in room.be if any(m.gmr is not None for m in b.metrics)), None) or next(iter(room.be), None)
+    observed = None
+    if be is not None:
+        observed = {"metrics": {m.metric: {"gmr": m.gmr, "between_subject_cv_percent": m.between_subject_cv_percent,
+                                           "ci_low": m.ci_low, "ci_high": m.ci_high, "n": m.n} for m in be.metrics},
+                    "source": be.source, "stated": [s.text for s in be.stated]}
+    if test is None and reference is None and observed is None:
+        return None
+    return {"test_formulation": test, "reference_formulation": reference, "observed_be": observed,
+            "note": ("From the Data room, as sent: suggestions only. The design is saved by you, with your reason; inputs "
+                     "never defaulted (variability, trial size, seed, threshold) stay yours to give.")}
+
+
+def applications(plan: ModelPlan, cpf: CPF, violations: list[Violation], room: RoomBasis | None = None) -> dict[str, Any]:
     """The analysis templates the MAP pins, each with its inputs as the template declares them, the person's values,
     what the validator still says of it, and the choices its inputs take (the CPF's formulations, the template's
-    limits); and the templates the brief's applications would let a person add."""
+    limits); the Data room's suggestions for the VBE crossover (`vbe_suggestion`); and the templates the brief's
+    applications would let a person add."""
     pinned = []
+    names = set(formulation_names(cpf))
     for application in plan.structure.applications:
         template = load_template(application.template)
         pinned.append({
@@ -273,8 +316,9 @@ def applications(plan: ModelPlan, cpf: CPF, violations: list[Violation]) -> dict
             "inputs": [{**spec.model_dump(mode="json"), "value": application.inputs.get(spec.id)} for spec in template.inputs],
             "problems": [v.message for v in violations
                          if v.rule == "application" and v.target.split(":", 1)[0] == application.template],
-            "formulations": sorted(formulation_names(cpf)),
+            "formulations": sorted(names),
             "limits": [{"id": key, **limit.model_dump(mode="json")} for key, limit in template.limits.items()],
+            "suggested": vbe_suggestion(room, names) if template.id == "vbe-crossover" else None,
         })
     present = {a.template for a in plan.structure.applications}
     codes = set(plan.structure.application_codes)

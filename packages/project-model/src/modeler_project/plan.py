@@ -21,7 +21,7 @@ from __future__ import annotations
 import uuid
 from collections.abc import Mapping
 from datetime import UTC, datetime
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -64,6 +64,9 @@ from pbpk_domain.cpf.models import CPF, FitGroup, FitPolicy, Scale
 from pbpk_domain.data_origin import REAL_ORIGINS
 from pbpk_domain.fit_spec import resolve_fit_ids
 from pbpk_domain.m15 import Rating
+
+if TYPE_CHECKING:
+    from modeler_project.room_basis import RoomBasis
 
 MAIN = "main"
 Role = Literal["S1", "S2", "S3", "S5", "S6", "SUPPORTIVE"]
@@ -179,6 +182,13 @@ class Structure(BaseModel):
     no_internal_target: bool = False
     # the ICH M15 assessment behind the tier, as Start recorded it: the MAP carries it under its hash (2026-11-02)
     risk_assessment: MapRiskAssessment | None = None
+    # what the Data room's send rested on (plan 2026-11-24 §7, phase 4; `room_basis`), read again at each rebase: the
+    # brief's codes for the room's applications; whether the plan took them (the brief's were not set by a person); each
+    # sent arm's use in the room's plan (calibration, verification) by its study id; the MAP's limitations from the room
+    room_applications: tuple[str, ...] = ()
+    applications_from_room: bool = False
+    room_roles: dict[str, str] = Field(default_factory=dict)
+    room_limitations: tuple[str, ...] = ()
     locked: tuple[str, ...] = ()                  # structure keys a person set (userLocked)
     reasons: dict[str, str] = Field(default_factory=dict)
 
@@ -305,6 +315,47 @@ def applications(brief: ProjectBrief | None) -> set[str]:
     return {str(a).split(" ", 1)[0] for a in ((brief.value("qoi.applications") if brief else None) or [])}
 
 
+# a person's word on the brief's applications (a value, or "not applicable"): the room's are then not taken
+_PERSON_SET = (FieldStatus.ENTERED, FieldStatus.EDITED, FieldStatus.CONFIRMED, FieldStatus.NOT_APPLICABLE)
+
+
+def effective_applications(brief: ProjectBrief | None, room: RoomBasis | None = None) -> tuple[set[str], bool]:
+    """The application codes the plan follows, and whether the Data room's were taken (R2, plan 2026-11-24 §7): the
+    brief's; and, unless a person set the brief's (or marked them not applicable), those of the room's confirmed question
+    card too, so its food effect reaches MS-01's split (no fed study fitted) without being typed again on Start."""
+    apps = applications(brief)
+    if room is None or not room.confirmed:
+        return apps, False
+    if brief is not None and brief.get("qoi.applications").status in _PERSON_SET:
+        return apps, False
+    return apps | set(room.codes), True
+
+
+def room_limitations(room: RoomBasis | None) -> tuple[str, ...]:
+    """What the MAP names from the Data room's send (plan 2026-11-24 §7, B6): each decision with its reason, each open
+    required data request, the client's NCA values the data do not reproduce, and that the observed arithmetic means
+    count a concentration below the LLOQ as 0."""
+    if room is None or not room.confirmed or not room.full:
+        return ()
+    lines = []
+    for d in room.decisions:
+        if d.waiting:
+            lines.append(f"Data room decision not made when the inputs were sent: {d.title}")
+            continue
+        why = d.reason or (f"the room's suggestion: {d.why}" if d.suggested and d.why else "")
+        lines.append(f"Data room decision, {d.title}: {d.chosen}" + (f" (by {d.by})" if d.by else "")
+                     + (f"; {why}" if why else ""))
+    for r in room.open_requests:
+        if r.required:
+            lines.append(f"Open data request {r.id} (Data room): {r.title}. {r.why}".rstrip())
+    usually = [r.id for r in room.open_requests if not r.required]
+    if usually:
+        lines.append(f"Usually-needed data requests still open in the Data room: {', '.join(usually)}")
+    lines += [f"The client's NCA (Data room), {line}" for line in room.nca_differ]
+    lines += [f"Observed mean profiles (Data room), {line}" for line in room.blq]
+    return tuple(lines)
+
+
 def _target(value: Any) -> float | None:
     """The brief's internal target as a percentage (None unless a positive number below 100)."""
     try:
@@ -345,9 +396,13 @@ def applied_internal_target(structure: Structure) -> tuple[float | None, TargetS
     return min(DEFAULT_INTERNAL_TARGET_PE, loosest_internal_target(structure.model_risk)), "default"
 
 
-def structure_from_brief(brief: ProjectBrief | None, *, measured_fed_solubility: bool = False) -> Structure:
-    """The plan's structure as the brief states it (each a default a person may change with a reason)."""
-    apps = applications(brief)
+def structure_from_brief(brief: ProjectBrief | None, *, measured_fed_solubility: bool = False,
+                         room: RoomBasis | None = None) -> Structure:
+    """The plan's structure as the brief states it (each a default a person may change with a reason), with what the
+    Data room's send rested on (`room_basis`): its applications where the brief has none a person set, its plan roles
+    and its limitations."""
+    apps, from_room = effective_applications(brief, room)
+    sent = room if room is not None and room.confirmed else None
     tier = brief.value("acceptance.tier") if brief else None
     target = brief.value("acceptance.internal_target_pe") if brief else None
     none = bool(brief) and brief.get("acceptance.internal_target_pe").status is FieldStatus.NOT_APPLICABLE
@@ -360,7 +415,10 @@ def structure_from_brief(brief: ProjectBrief | None, *, measured_fed_solubility:
                                         if a in _RUNNABLE_TEMPLATES),
                      application_codes=tuple(sorted(apps)),
                      assumptions=tuple(str(a) for a in ((brief.value("notes.assumptions") if brief else None) or ())),
-                     internal_target_pe=_target(target), no_internal_target=none, risk_assessment=risk_assessment(brief))
+                     internal_target_pe=_target(target), no_internal_target=none, risk_assessment=risk_assessment(brief),
+                     room_applications=sent.codes if sent else (), applications_from_room=from_room,
+                     room_roles={a.study_id: a.plan_role for a in sent.arms if a.plan_role in ("calibration", "verification")}
+                     if sent else {}, room_limitations=room_limitations(sent))
 
 
 def map_limitations(plan: ModelPlan, violations: list[Violation]) -> tuple[str, ...]:
@@ -369,7 +427,7 @@ def map_limitations(plan: ModelPlan, violations: list[Violation]) -> tuple[str, 
     accepted = [f"{v.message} — acknowledged: {v.acknowledged}" for v in violations
                 if v.severity == "warning" and v.acknowledged]
     return (*plan.default_limitations, *(f"Assumption stated in the brief: {a}" for a in plan.structure.assumptions),
-            *accepted)
+            *plan.structure.room_limitations, *accepted)
 
 
 def keep_locked(previous: Structure, fresh: Structure) -> Structure:
@@ -634,6 +692,22 @@ def validate(plan: ModelPlan, cpf: CPF, rows: list[dict[str, Any]], *, explorato
         if status in ("not_supported", "partial"):
             said = "not supported yet" if status == "not_supported" else "partly supported"
             add("warning", "application-unsupported", code, f"{application_label(code)}: {said} — {reason}")
+    # the Data room's send (plan 2026-11-24 §7, B7): its applications and its plan roles, where the plan differs;
+    # acknowledged, each is a limitation of the MAP (MS-01's split itself is not changed)
+    structure = plan.structure
+    if structure.room_applications and set(structure.room_applications) != set(structure.application_codes):
+        add("warning", "room-applications", "applications",
+            f"The Data room's question is for {', '.join(structure.room_applications)}; the plan's applications are "
+            f"{', '.join(structure.application_codes) or 'none'} (the brief's"
+            + (" and the room's)" if structure.applications_from_room else ", set by a person on Start)"))
+    for s in plan.studies:
+        planned = structure.room_roles.get(s.study_id)
+        role = plan.placements[s.study_id].role
+        placed = "calibration" if role in TRAINING else "verification" if role in ("S5", "S6") else "supportive use"
+        if planned and planned != placed:
+            add("warning", "room-roles", s.study_id,
+                f"{s.study_id}: the Data room's plan uses it for {planned}; the plan places it in {role} ({placed}, "
+                "MS-01 §3.3)")
     if plan.structure.model_risk is None:
         add("error", "risk", "model_risk", "Set the model risk (low, medium or high): it decides the acceptance criteria "
                                            "every round is judged by (ICH M15), and it is never assumed")
