@@ -1,0 +1,213 @@
+# DRAFT REQUIREMENT LIST, INERT: food effect (predict fed exposure from fasted data and in vitro inputs).
+# Owner's decision D5 (docs/plans/2026-11-24-data-story-next-phase.md §6, §11): drafted from the literature as an
+# UNVERIFIED draft for the owner's review; it becomes a template only after that review, through a locked-file change
+# with a version bump. The locked templates (pbpk_domain/requirements/*.yaml, here app_food_effect.yaml) are not
+# changed.
+#
+# Where it came from:
+#   - docs/research/2026-11-24-regulatory-data-by-context-of-use.md §3.4 (the food-effect table; the IQ decision tree
+#     of Riedmaier 2020);
+#   - docs/research/2026-11-24-pbbm-absorption-inputs.md §0, §1 (disintegration, solubility with final pH, transfer
+#     tests for weak bases) and §2 (permeability calibration, in core.yaml);
+#   - docs/research/2026-11-24-clinical-pk-data-curation.md §7 (what to extract from a food-effect study).
+# Statuses, the trigger grammar and the property vocabulary are defined once in core.yaml.
+#
+# Inert: applies_to is empty and the live loader never lists this folder. No PK-Sim name, path or unit; no default
+# value; no acceptance threshold.
+id: cou-draft-food-effect
+version: "0.1-draft"
+status: DRAFT_UNVERIFIED
+context_of_use: "Predict how a meal changes the drug's exposure, to support or replace a clinical food-effect study or a label statement."
+applies_to: []
+derived_from:
+  regulatory review: docs/research/2026-11-24-regulatory-data-by-context-of-use.md
+  PBBM review: docs/research/2026-11-24-pbbm-absorption-inputs.md
+  clinical-data review: docs/research/2026-11-24-clinical-pk-data-curation.md
+items:
+  - id: fe.fasted_clinical_pk
+    label: Fasted clinical PK with the same or a similar formulation
+    group: Observed data
+    kind: dataset
+    overrides: core.fasted_oral_pk
+    cou_status: REQUIRED
+    why: The fasted model is verified first; the fed prediction builds on it.
+    alternatives: []
+    room_fields: [table:concentrations, field:study.fasting, field:product.name, topic:clinical_concentrations]
+    data_category: clinical_pk_oral
+    default_provider: CLIENT
+    sources: ["Riedmaier 2020, PMID 32981010"]
+    note: "UNVERIFIED: regulatory review §3.4 (R), the verification step of the IQ decision tree."
+  - id: fe.fed_clinical_pk
+    label: Fed clinical PK (a high-fat 'anchor' study)
+    group: Food effect
+    kind: dataset
+    cou_status: USUALLY_NEEDED
+    escalates_to_required_when: >-
+      the model is built middle-out, it extends the food effect to new formulations or doses, or model influence is
+      high (the model replaces a study or drives the label); it may be waived for a high-confidence bottom-up mechanism
+    why: The IQ group found that middle-out models need an anchor fed study, while high-confidence bottom-up models may not.
+    alternatives: []
+    room_fields: [field:study.fed, field:study.meal_composition, field:study.meal_times, field:adme.food_effect, table:concentrations,
+                  table:be_statistics]
+    data_category: clinical_pk_fed
+    default_provider: CLIENT
+    record_with: [meal composition and energy, time from the meal to the dose, fasting duration, water volume, formulation,
+                  fed/fasted geometric mean ratio with its confidence interval, shift in Tmax, crossover periods and washout]
+    sources: ["Riedmaier 2020, PMID 32981010", "Tistaert 2019 (Consensus only)", "Fernandes 2024, PMID 38577255",
+              "Kotsybar 2023, PMID 37904315"]
+    note: >-
+      UNVERIFIED: regulatory review §3.4 ('U. R for the middle-out route and for extending to new formulations or
+      doses'); what to record follows the clinical-data review §7.
+  - id: fe.solubility_vs_ph
+    label: Aqueous solubility versus pH, with the start and final pH
+    group: Phys-chem
+    kind: parameter
+    cou_status: REQUIRED
+    why: The IQ protocol builds the absorption model on it, and an unreported final pH or common-ion effect gives a wrong solubility.
+    alternatives: []
+    room_fields: [field:substance.solubility, table:solubility]
+    data_category: physchem
+    default_provider: CLIENT
+    record_with: [the IQ protocol's pH points (around each pKa as well), buffer, start and final pH, temperature, solid form after the test]
+    sources: ["Riedmaier 2020, PMID 32981010", "Pepin 2024, PMID 38946085"]
+    note: >-
+      UNVERIFIED: regulatory review §3.4 (R), which lists the IQ pH points; start and final pH from the PBBM review
+      §1 row 10 and §3.
+  - id: fe.biorelevant_solubility
+    label: Biorelevant solubility (fasted and fed simulated gastric and intestinal fluids) and bile-micelle partitioning
+    group: Phys-chem
+    kind: parameter
+    cou_status: REQUIRED
+    why: Solubilisation by bile salts is the key mechanism of a positive food effect.
+    alternatives: []
+    room_fields: [field:substance.solubility, table:solubility]
+    data_category: physchem
+    default_provider: CLIENT
+    record_with: [medium and its version, final pH]
+    sources: ["Riedmaier 2020, PMID 32981010", "Al-Amiry Santos 2025 (Consensus only)", "Dahlgren 2021, PMID 33872761"]
+    note: >-
+      UNVERIFIED: regulatory review §3.4 (R). The room has a solubility field and table but no field for the
+      micelle partition coefficient.
+  - id: fe.permeability
+    label: Permeability (Caco-2 or MDCK, converted to human permeability through the laboratory's calibration)
+    group: Permeability
+    kind: parameter
+    cou_status: REQUIRED
+    why: The absorption model needs it, and a raw in vitro value cannot be used directly.
+    alternatives: [a permeability fitted to informative clinical PK such as an oral solution, labelled fitted]
+    room_fields: [field:substance.permeability]
+    data_category: in_vitro_adme
+    default_provider: CLIENT
+    sources: ["Riedmaier 2020, PMID 32981010", "Lee 2017, PMID 28088633"]
+    note: "UNVERIFIED: regulatory review §3.4 (R); the calibration is core.permeability_calibration (PBBM review §2)."
+  - id: fe.biorelevant_dissolution_psd
+    label: Biorelevant dissolution (fasted and fed intestinal media) and particle size distribution
+    group: Dissolution
+    kind: dataset
+    cou_status: USUALLY_NEEDED
+    escalates_to_required_when: model influence high (the model replaces a study or drives the label)
+    why: These data help when the model must predict the food effect of the product rather than of the drug substance.
+    alternatives: []
+    room_fields: [table:dissolution, field:dissolution.medium, table:particle_size, field:substance.particle_size]
+    data_category: dissolution
+    default_provider: CLIENT
+    sources: ["Pepin 2024, PMID 38946085 (Table 2)"]
+    note: "UNVERIFIED: regulatory review §3.4 (U, 'helpful')."
+  - id: fe.precipitation
+    label: Precipitation and supersaturation (two-stage or transfer test), and the full solubility profile with any common-ion effect
+    group: Phys-chem
+    kind: dataset
+    cou_status: CONDITIONAL
+    trigger_text: >-
+      A weak base with a pKa above about 5 whose solubility falls from gastric to intestinal pH (how large a fall is
+      the SME's), or a salt.
+    trigger:
+      any:
+        - all:
+            - {property: weak_base, equals: true}
+            - {property: highest_basic_pka, above: 5, threshold_source: "PBBM review §5 idea 7 ('pKa above about 5'); plan §6.3"}
+            - {property: solubility_ratio_gastric_to_intestinal, direction: above, threshold: SME}
+        - {property: salt_form, equals: true}
+    why: Precipitation of weak bases and salts is the main source of low-confidence food-effect predictions.
+    alternatives: []
+    room_fields: [table:solubility, field:substance.solubility, field:substance.salt]
+    room_gap: true
+    data_category: dissolution
+    default_provider: CLIENT
+    sources: ["Wagner 2021, PMID 34142242", "Chenel 2026, PMID 42400597", "Pepin 2024, PMID 38946085"]
+    note: >-
+      UNVERIFIED: regulatory review §3.4 ('C (weak bases, salts)'); the weak-base condition is the PBBM review's §5
+      idea 7. The room has no field or table kind for a transfer test.
+  - id: fe.meal_and_timing
+    label: Meal composition and timing in each clinical study
+    group: Food effect
+    kind: dataset
+    cou_status: REQUIRED
+    why: The fed physiology the model simulates is chosen from the meal and its timing.
+    alternatives: []
+    room_fields: [field:study.meal_composition, field:study.meal_times, field:study.fed, field:study.fasting, field:study.water,
+                  topic:dosing_and_meals]
+    data_category: clinical_pk_fed
+    default_provider: STUDY
+    sources: ["Chenel 2026, PMID 42400597", "Fernandes 2024, PMID 38577255"]
+    note: "UNVERIFIED: regulatory review §3.4 (R); the details to record are the clinical-data review §7's."
+  - id: fe.iv_pk
+    label: Intravenous PK
+    group: Observed data
+    kind: dataset
+    overrides: core.iv_pk
+    cou_status: OPTIONAL
+    why: When the food effect acts on absorption the model can be applied without IV data; the IQ group used IV only to simplify.
+    alternatives: []
+    room_fields: [field:study.route, table:concentrations]
+    data_category: clinical_pk_iv
+    default_provider: CLIENT
+    sources: ["Riedmaier 2020, PMID 32981010"]
+    note: "UNVERIFIED: regulatory review §3.4 (O)."
+  - id: fe.confidence_limits
+    label: Evidence on hepatic extraction and on transporter-limited absorption
+    group: Food effect
+    kind: parameter
+    cou_status: CONDITIONAL
+    trigger_text: The drug has a high hepatic extraction, or its absorption is limited by transporters.
+    trigger:
+      any:
+        - {property: hepatic_extraction, in: [high]}
+        - {property: transporter_limited_absorption, equals: true}
+    why: Such drugs were left out of the IQ evaluation set, so a prediction for one carries lower confidence and must say why.
+    alternatives: []
+    room_fields: [field:adme.cl, field:adme.bp_ratio, field:adme.transporters]
+    data_category: in_vitro_adme
+    default_provider: CLIENT
+    sources: ["Riedmaier 2020, PMID 32981010"]
+    note: "UNVERIFIED: regulatory review §3.4 ('C (lowers confidence)'). The model is flagged lower confidence, not refused."
+  - id: fe.disintegration
+    label: Disintegration time of the product (or capsule opening), in fasted and fed media where tested
+    group: Formulation
+    kind: dataset
+    cou_status: USUALLY_NEEDED
+    escalates_to_required_when: >-
+      disintegration is slow or changes with food (how slow is the SME's), or model influence is high (the model
+      replaces a study or drives the label)
+    why: A slow or food-dependent disintegration delays release and must be separated from dissolution before a particle model is fitted.
+    alternatives: []
+    room_fields: []
+    room_gap: true
+    data_category: formulation
+    default_provider: CLIENT
+    sources: ["Pepin 2024, PMID 38946085", "Nakamura 2022, PMID 36154905", "Radwan 2012, PMID 22782559", "Brouwers 2011, PMID 21055466"]
+    note: >-
+      UNVERIFIED: PBBM review §0 ('always extract') and §1 row 5 (impact MEDIUM; HIGH if slow or food-dependent);
+      the status U is my mapping of that impact. The room has no disintegration field.
+  - id: fe.fm_ddi_ontogeny
+    label: Fraction metabolised, DDI data and ontogeny
+    group: Elimination
+    kind: parameter
+    cou_status: NOT_NEEDED
+    why: A food effect in adults acts on absorption, not on the enzymes or their maturation.
+    alternatives: []
+    room_fields: [field:adme.metabolism, field:adme.ddi]
+    data_category: in_vitro_adme
+    default_provider: CLIENT
+    sources: ["Review: docs/research/2026-11-24-regulatory-data-by-context-of-use.md §3.4 (the row cites no primary source)"]
+    note: "UNVERIFIED: regulatory review §3.4 (N)."

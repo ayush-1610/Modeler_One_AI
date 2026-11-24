@@ -1,0 +1,213 @@
+# DRAFT REQUIREMENT LIST, INERT: paediatric extrapolation (predict exposure in children from a verified adult model).
+# Owner's decision D5 (docs/plans/2026-11-24-data-story-next-phase.md §6, §11): drafted from the literature as an
+# UNVERIFIED draft for the owner's review; it becomes a template only after that review, through a locked-file change
+# with a version bump. The locked templates (pbpk_domain/requirements/*.yaml, here app_special_populations.yaml) are
+# not changed.
+#
+# Where it came from: docs/research/2026-11-24-regulatory-data-by-context-of-use.md §3.5 (the paediatric table), §0
+# (fed data are not automatically irrelevant for children) and §6 (verification data must match the target age range).
+# Statuses, the trigger grammar and the property vocabulary are defined once in core.yaml.
+#
+# Inert: applies_to is empty and the live loader never lists this folder. No PK-Sim name, path or unit; no default
+# value; no acceptance threshold; no age band (which ages count as infants is the SME's).
+id: cou-draft-pediatric
+version: "0.1-draft"
+status: DRAFT_UNVERIFIED
+context_of_use: "Predict exposure in children of a target age range from a verified adult model, to select doses or support a paediatric plan or label."
+applies_to: []
+derived_from:
+  regulatory review: docs/research/2026-11-24-regulatory-data-by-context-of-use.md
+items:
+  - id: ped.adult_model_verified
+    label: Adult data across single dose, multiple dose and DDI, against which the adult model is verified
+    group: Observed data
+    kind: dataset
+    cou_status: REQUIRED
+    why: A paediatric extrapolation is only as good as the adult model it starts from; this is the first best-practice criterion.
+    alternatives: []
+    room_fields: [table:concentrations, field:study.regimen, field:adme.ddi, topic:clinical_concentrations]
+    data_category: clinical_pk_oral
+    default_provider: CLIENT
+    sources: ["Johnson 2021, PMID 34288581"]
+    note: "UNVERIFIED: regulatory review §3.5 (R)."
+  - id: ped.pathway_fractions
+    label: Elimination pathway fractions (from mass balance, in vitro data and adult DDI studies)
+    group: Elimination
+    kind: parameter
+    overrides: core.mass_balance
+    cou_status: REQUIRED
+    why: Maturation is applied pathway by pathway, so each pathway's share of clearance must be known.
+    alternatives: []
+    room_fields: [field:adme.metabolism, field:adme.excretion, field:adme.ddi]
+    data_category: in_vitro_adme
+    default_provider: CLIENT
+    sources: ["Johnson 2021, PMID 34288581"]
+    note: "UNVERIFIED: regulatory review §3.5 (R) and §2 (mass balance 'R for pediatrics')."
+  - id: ped.ontogeny
+    label: Ontogeny of the enzymes and transporters that clear the drug
+    group: System
+    kind: system
+    cou_status: REQUIRED
+    why: Clearance in children is scaled through the maturation of each relevant enzyme and transporter.
+    alternatives: []
+    room_fields: []
+    room_gap: false
+    data_category: other
+    default_provider: LIBRARY
+    sources: ["Johnson 2021, PMID 34288581", "Kuemmel 2020, PMID 31652029 (CoU 2)", "Chenel 2026, PMID 42400597"]
+    note: "UNVERIFIED: regulatory review §3.5 (R). From the engine's databases, never from client files (the live precedent is the ontogeny item of the special-populations template)."
+  - id: ped.pathway_verification_drugs
+    label: Paediatric PK of other drugs cleared by the same pathways, in the same age range
+    group: Observed data
+    kind: dataset
+    cou_status: REQUIRED
+    why: The ontogeny of a pathway is verified with other drugs of that pathway in the target age range.
+    alternatives: []
+    room_fields: [topic:literature, table:concentrations]
+    data_category: clinical_pk_special
+    default_provider: LITERATURE
+    sources: ["Johnson 2021, PMID 34288581", "Kuemmel 2020, PMID 31652029 (CoU 2)", "Chenel 2026, PMID 42400597"]
+    note: "UNVERIFIED: regulatory review §3.5 (R), the same row as ped.ontogeny, split here into the system part and the data part."
+  - id: ped.renal
+    label: Renal clearance against filtration (unbound fraction times GFR), and renal transporter maturation
+    group: Elimination
+    kind: dataset
+    cou_status: CONDITIONAL
+    trigger_text: Renal elimination is substantial (fraction excreted unchanged above a cut-off the SME sets).
+    trigger: {property: fraction_excreted_unchanged, direction: above, threshold: SME}
+    why: Kidney function and renal transporters mature at their own pace, so a renally cleared drug needs its renal route split out.
+    alternatives: []
+    room_fields: [field:adme.excretion, field:adme.cl, field:adme.fu]
+    data_category: urine_feces
+    default_provider: CLIENT
+    sources: ["Johnson 2021, PMID 34288581", "Zhou 2016, PMID 27566992"]
+    note: "UNVERIFIED: regulatory review §3.5 ('C (renal elimination)'); the review gives no fraction (threshold SME)."
+  - id: ped.pediatric_pk
+    label: Paediatric PK, even sparse
+    group: Observed data
+    kind: dataset
+    cou_status: USUALLY_NEEDED
+    escalates_to_required_when: the model replaces a paediatric study (model influence high)
+    why: The model is validated against paediatric data whenever any exist, and the data must match the target age range.
+    alternatives: []
+    room_fields: [table:concentrations, field:study.age, field:study.population, topic:clinical_concentrations]
+    data_category: clinical_pk_special
+    default_provider: CLIENT
+    sources: ["Chenel 2026, PMID 42400597", "Johnson 2021, PMID 34288581"]
+    note: "UNVERIFIED: regulatory review §3.5 ('U; R when the model replaces a study') and §6 (age range must match)."
+  - id: ped.pediatric_formulation
+    label: The paediatric formulation (its bioequivalence to the adult product, salts, co-solvents)
+    group: Formulation
+    kind: formulation
+    cou_status: USUALLY_NEEDED
+    escalates_to_required_when: model influence high (the model replaces a study or drives the label)
+    why: A different formulation for children can change absorption independently of age.
+    alternatives: []
+    room_fields: [field:product.dosage_form, field:product.composition_change, table:composition, field:study.be_result]
+    data_category: formulation
+    default_provider: CLIENT
+    sources: ["Johnson 2021, PMID 34288581"]
+    note: "UNVERIFIED: regulatory review §3.5 (U)."
+  - id: ped.food_and_dosing_conditions
+    label: Food and dosing conditions (milk or formula, food vehicles, meal size and frequency) and the fluid volume given with the dose
+    group: Food effect
+    kind: dataset
+    cou_status: CONDITIONAL
+    trigger_text: >-
+      Infants are in the target population, the dose is given with milk, formula or food, the drug has a food effect
+      in adults, or the drug is poorly soluble (read as BCS class II or IV).
+    trigger:
+      any:
+        - {property: infants_in_target_population, equals: true}
+        - {property: food_vehicle_dosing, equals: true}
+        - {property: adult_food_effect, equals: true}
+        - {property: bcs_class, in: [II, IV]}
+    why: Fed data are not automatically irrelevant for children; extrapolation to infants depended strongly on the adult dosing conditions.
+    alternatives: []
+    room_fields: [field:study.fed, field:study.meal_composition, field:study.meal_times, field:study.water, topic:dosing_and_meals]
+    data_category: clinical_pk_fed
+    default_provider: CLIENT
+    sources: ["Johnson 2021, PMID 34288581", "Statelova 2020, PMID 33000297", "Parrott 2024 (Consensus only)"]
+    note: >-
+      UNVERIFIED: regulatory review §3.5 ('C (infants; drugs with an adult food effect; poorly soluble drugs)') and §0
+      (food vehicles such as apple sauce). Reading 'poorly soluble' as BCS II or IV is mine.
+  - id: ped.mechanistic_absorption_inputs
+    label: Biorelevant solubility and permeability (for a mechanistic absorption model)
+    group: Phys-chem
+    kind: parameter
+    cou_status: CONDITIONAL
+    trigger_text: The drug is BCS class II, III or IV.
+    trigger: {property: bcs_class, in: [II, III, IV]}
+    why: For a drug that is not both highly soluble and highly permeable, absorption in children depends on the child's gut and must be modelled mechanistically.
+    alternatives: []
+    room_fields: [field:substance.solubility, field:substance.permeability, table:solubility]
+    data_category: physchem
+    default_provider: CLIENT
+    sources: ["Johnson 2021, PMID 34288581"]
+    note: "UNVERIFIED: regulatory review §3.5 ('C (BCS 2, 3, 4)')."
+  - id: ped.allometric_crosscheck
+    label: Allometric cross-check of the predicted clearance
+    group: Model evaluation
+    kind: activity
+    cou_status: OPTIONAL
+    why: A simple allometric estimate is a safety net against a gross error of the mechanistic model.
+    alternatives: []
+    room_fields: []
+    room_gap: false
+    data_category: other
+    default_provider: PROPOSAL
+    sources: ["Johnson 2021, PMID 34288581"]
+    note: "UNVERIFIED: regulatory review §3.5 (O), with the PD target below as one row."
+  - id: ped.pd_target
+    label: A pharmacodynamic or receptor-occupancy target exposure
+    group: Observed data
+    kind: dataset
+    cou_status: OPTIONAL
+    why: It anchors the dose selection to the exposure that matters, as a second safety net.
+    alternatives: []
+    room_fields: []
+    room_gap: true
+    data_category: other
+    default_provider: CLIENT
+    sources: ["Johnson 2021, PMID 34288581"]
+    note: "UNVERIFIED: regulatory review §3.5 (O). The room has no field for a PD target."
+  - id: ped.disease_effects
+    label: Effects of the disease on system parameters
+    group: System
+    kind: system
+    cou_status: CONDITIONAL
+    trigger_text: The target children are patients with a disease that changes physiology.
+    trigger: {property: target_population_disease, equals: true}
+    why: A disease can change the physiology the model scales, on top of age.
+    alternatives: []
+    room_fields: []
+    room_gap: false
+    data_category: other
+    default_provider: LITERATURE
+    sources: ["Johnson 2021, PMID 34288581"]
+    note: "UNVERIFIED: regulatory review §3.5 (C); the row gives no trigger, so the trigger is my reading."
+  - id: ped.qc_dissolution
+    label: Quality-control dissolution
+    group: Dissolution
+    kind: dataset
+    cou_status: NOT_NEEDED
+    why: A QC method is not biopredictive and does not inform exposure in children.
+    alternatives: []
+    room_fields: [table:dissolution]
+    data_category: dissolution
+    default_provider: CLIENT
+    sources: ["Review: docs/research/2026-11-24-regulatory-data-by-context-of-use.md §3.5 (the row cites no primary source)"]
+    note: "UNVERIFIED: regulatory review §3.5 gives 'N / O' for the one row 'QC dissolution; IV PK'; reading N for QC dissolution and O for IV PK is mine."
+  - id: ped.iv_pk
+    label: Intravenous PK
+    group: Observed data
+    kind: dataset
+    overrides: core.iv_pk
+    cou_status: OPTIONAL
+    why: The adult model's disposition is already verified; IV data add support but are not needed for the extrapolation.
+    alternatives: []
+    room_fields: [field:study.route, table:concentrations]
+    data_category: clinical_pk_iv
+    default_provider: CLIENT
+    sources: ["Review: docs/research/2026-11-24-regulatory-data-by-context-of-use.md §3.5 (the row cites no primary source)"]
+    note: "UNVERIFIED: regulatory review §3.5 ('N / O'; see ped.qc_dissolution)."

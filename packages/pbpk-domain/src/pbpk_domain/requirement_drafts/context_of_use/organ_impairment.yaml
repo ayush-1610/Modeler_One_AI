@@ -1,0 +1,307 @@
+# DRAFT REQUIREMENT LIST, INERT: organ impairment, as two item sets: renal impairment (ri.) and hepatic impairment (hi.).
+# Owner's decision D5 (docs/plans/2026-11-24-data-story-next-phase.md §6, §11): drafted from the literature as an
+# UNVERIFIED draft for the owner's review; it becomes a template only after that review, through a locked-file change
+# with a version bump. The locked templates (pbpk_domain/requirements/*.yaml, here app_special_populations.yaml) are
+# not changed.
+#
+# Where it came from: docs/research/2026-11-24-regulatory-data-by-context-of-use.md §3.6 (one table, an RI column and
+# an HI column, written out here as one item per column) and §2 (mass balance 'R for organ impairment'). Each item
+# carries its subcontext; a project picks one or both. Statuses, the trigger grammar and the property vocabulary are
+# defined once in core.yaml. The disease physiology itself (impairment class, kidney or liver function) is already an
+# item of the live special-populations template and is not repeated here.
+#
+# Inert: applies_to is empty and the live loader never lists this folder. No PK-Sim name, path or unit; no default
+# value; no acceptance threshold.
+id: cou-draft-organ-impairment
+version: "0.1-draft"
+status: DRAFT_UNVERIFIED
+context_of_use: "Predict how renal or hepatic impairment changes the drug's exposure, to support or replace an impairment study or set doses for the label."
+applies_to: []
+derived_from:
+  regulatory review: docs/research/2026-11-24-regulatory-data-by-context-of-use.md
+subcontexts:
+  renal_impairment: "Renal impairment (RI column of the review's §3.6 table)."
+  hepatic_impairment: "Hepatic impairment (HI column of the review's §3.6 table)."
+items:
+  # --- renal impairment -------------------------------------------------------------------------------------------
+  - id: ri.fraction_excreted
+    subcontext: renal_impairment
+    label: Fraction excreted unchanged in urine and renal clearance
+    group: Elimination
+    kind: dataset
+    cou_status: REQUIRED
+    why: The renal share of clearance drives the change in exposure with renal impairment.
+    alternatives: []
+    room_fields: [field:adme.excretion, field:adme.cl]
+    data_category: urine_feces
+    default_provider: CLIENT
+    sources: ["Heimbach 2021, PMID 33270249", "Chenel 2026, PMID 42400597"]
+    note: "UNVERIFIED: regulatory review §3.6 (RI: R)."
+  - id: ri.mass_balance
+    subcontext: renal_impairment
+    label: Mass balance (radiolabelled), metabolite profile and fraction excreted unchanged in urine
+    group: Elimination
+    kind: dataset
+    overrides: core.mass_balance
+    cou_status: REQUIRED
+    why: Every route of elimination must be known to say which one the impairment changes.
+    alternatives: []
+    room_fields: [field:adme.excretion, field:adme.metabolism, topic:adme]
+    data_category: urine_feces
+    default_provider: CLIENT
+    sources: ["Chenel 2026, PMID 42400597", "Johnson 2021, PMID 34288581"]
+    note: "UNVERIFIED: regulatory review §2 ('R for ... organ impairment')."
+  - id: ri.filtration_vs_secretion
+    subcontext: renal_impairment
+    label: Filtration versus secretion, and the renal transporters involved
+    group: Elimination
+    kind: parameter
+    cou_status: CONDITIONAL
+    trigger_text: The drug is actively secreted by the kidney.
+    trigger: {property: renal_secretion, equals: true}
+    why: Filtration and transporter-mediated secretion change differently in kidney disease; for OAT substrates the change was predicted well.
+    alternatives: []
+    room_fields: [field:adme.excretion, field:adme.transporters, field:adme.fu]
+    data_category: urine_feces
+    default_provider: CLIENT
+    sources: ["Hsueh 2018, PMID 28738449"]
+    note: "UNVERIFIED: regulatory review §3.6 (RI: C); the row gives no trigger, so active secretion is my reading."
+  - id: ri.fm_hepatic_extraction
+    subcontext: renal_impairment
+    label: Fraction metabolised per hepatic enzyme, and the hepatic extraction class
+    group: Elimination
+    kind: parameter
+    cou_status: USUALLY_NEEDED
+    escalates_to_required_when: model influence high (the model replaces a study or drives the label)
+    why: Kidney disease can change hepatic enzymes as well, so the non-renal routes matter too.
+    alternatives: []
+    room_fields: [field:adme.metabolism, field:adme.cl, field:adme.bp_ratio]
+    data_category: in_vitro_adme
+    default_provider: CLIENT
+    sources: ["Chenel 2026, PMID 42400597", "El-Khateeb 2021, PMID 34218453"]
+    note: "UNVERIFIED: regulatory review §3.6 (RI: U)."
+  - id: ri.hepatic_uptake
+    subcontext: renal_impairment
+    label: Hepatic uptake (OATP)
+    group: Transporters
+    kind: parameter
+    cou_status: USUALLY_NEEDED
+    escalates_to_required_when: model influence high (the model replaces a study or drives the label)
+    why: Hepatic uptake is part of the non-renal clearance that kidney disease can change.
+    alternatives: []
+    room_fields: [field:adme.transporters]
+    data_category: in_vitro_adme
+    default_provider: CLIENT
+    sources: ["Storelli 2023 (Consensus only)"]
+    note: "UNVERIFIED: regulatory review §3.6 (RI: U)."
+  - id: ri.binding_protein
+    subcontext: renal_impairment
+    label: Unbound fraction and the binding protein (albumin or alpha-1-acid glycoprotein)
+    group: Binding
+    kind: parameter
+    cou_status: USUALLY_NEEDED
+    escalates_to_required_when: model influence high (the model replaces a study or drives the label)
+    why: The unbound fraction changes with disease as the binding protein's level changes.
+    alternatives: []
+    room_fields: [field:adme.fu]
+    data_category: binding
+    default_provider: CLIENT
+    sources: ["Hu 2025 (Consensus only)", "Chenel 2026, PMID 42400597"]
+    note: "UNVERIFIED: regulatory review §3.6 (RI: U)."
+  - id: ri.uraemic_effects
+    subcontext: renal_impairment
+    label: Uraemic effects on hepatic enzymes and transporters
+    group: System
+    kind: system
+    cou_status: USUALLY_NEEDED
+    escalates_to_required_when: model influence high (the model replaces a study or drives the label)
+    why: Uraemia can change the activity of hepatic enzymes and transporters, and with it non-renal clearance.
+    alternatives: []
+    room_fields: []
+    room_gap: false
+    data_category: other
+    default_provider: LITERATURE
+    sources: ["Chenel 2026, PMID 42400597"]
+    note: "UNVERIFIED: regulatory review §3.6 (RI: U)."
+  - id: ri.impairment_pk
+    subcontext: renal_impairment
+    label: Clinical PK in renally impaired subjects
+    group: Observed data
+    kind: dataset
+    cou_status: USUALLY_NEEDED
+    escalates_to_required_when: model influence high (the model replaces a study or drives the label)
+    why: Impairment-arm data verify the predicted change in exposure.
+    alternatives: []
+    room_fields: [table:concentrations, field:study.population, topic:clinical_concentrations]
+    data_category: clinical_pk_special
+    default_provider: CLIENT
+    sources: ["Heimbach 2021, PMID 33270249", "Paul 2025, PMID 39748538"]
+    note: "UNVERIFIED: regulatory review §3.6 (RI: 'U (R at high influence)')."
+  - id: ri.absorption_changes
+    subcontext: renal_impairment
+    label: Changes in absorption with impairment (bile salts, shunting)
+    group: Absorption
+    kind: system
+    cou_status: NOT_NEEDED
+    why: These changes are described for hepatic impairment, not renal.
+    alternatives: []
+    room_fields: []
+    room_gap: false
+    data_category: other
+    default_provider: LITERATURE
+    sources: ["El-Khateeb 2021, PMID 34218453"]
+    note: "UNVERIFIED: regulatory review §3.6 (RI: N)."
+  - id: ri.food_dissolution_ontogeny
+    subcontext: renal_impairment
+    label: Food, dissolution and ontogeny data
+    group: Food effect
+    kind: dataset
+    cou_status: NOT_NEEDED
+    why: An adult impairment question acts on elimination, not on the product or on maturation.
+    alternatives: []
+    room_fields: [field:study.fed, table:dissolution]
+    data_category: other
+    default_provider: CLIENT
+    sources: ["Review: docs/research/2026-11-24-regulatory-data-by-context-of-use.md §3.6 (the row cites no primary source)"]
+    note: "UNVERIFIED: regulatory review §3.6 (RI: N)."
+  # --- hepatic impairment -----------------------------------------------------------------------------------------
+  - id: hi.fraction_excreted
+    subcontext: hepatic_impairment
+    label: Fraction excreted unchanged in urine and renal clearance
+    group: Elimination
+    kind: dataset
+    cou_status: USUALLY_NEEDED
+    escalates_to_required_when: model influence high (the model replaces a study or drives the label)
+    why: The renal share is the part of clearance hepatic impairment leaves unchanged.
+    alternatives: []
+    room_fields: [field:adme.excretion, field:adme.cl]
+    data_category: urine_feces
+    default_provider: CLIENT
+    sources: ["Heimbach 2021, PMID 33270249", "Chenel 2026, PMID 42400597"]
+    note: "UNVERIFIED: regulatory review §3.6 (HI: U)."
+  - id: hi.mass_balance
+    subcontext: hepatic_impairment
+    label: Mass balance (radiolabelled), metabolite profile and fraction excreted unchanged in urine
+    group: Elimination
+    kind: dataset
+    overrides: core.mass_balance
+    cou_status: REQUIRED
+    why: Every route of elimination must be known to say which one the impairment changes.
+    alternatives: []
+    room_fields: [field:adme.excretion, field:adme.metabolism, topic:adme]
+    data_category: urine_feces
+    default_provider: CLIENT
+    sources: ["Chenel 2026, PMID 42400597", "Johnson 2021, PMID 34288581"]
+    note: "UNVERIFIED: regulatory review §2 ('R for ... organ impairment')."
+  - id: hi.filtration_vs_secretion
+    subcontext: hepatic_impairment
+    label: Filtration versus secretion, and the renal transporters involved
+    group: Elimination
+    kind: parameter
+    cou_status: NOT_NEEDED
+    why: How the kidney clears the drug does not change the hepatic impairment prediction.
+    alternatives: []
+    room_fields: [field:adme.excretion, field:adme.transporters]
+    data_category: urine_feces
+    default_provider: CLIENT
+    sources: ["Hsueh 2018, PMID 28738449"]
+    note: "UNVERIFIED: regulatory review §3.6 (HI: N)."
+  - id: hi.fm_hepatic_extraction
+    subcontext: hepatic_impairment
+    label: Fraction metabolised per hepatic enzyme, and the hepatic extraction class
+    group: Elimination
+    kind: parameter
+    cou_status: REQUIRED
+    why: Hepatic impairment changes each enzyme by its own amount, and the extraction class decides how much a change matters.
+    alternatives: []
+    room_fields: [field:adme.metabolism, field:adme.cl, field:adme.bp_ratio]
+    data_category: in_vitro_adme
+    default_provider: CLIENT
+    sources: ["Chenel 2026, PMID 42400597", "El-Khateeb 2021, PMID 34218453"]
+    note: "UNVERIFIED: regulatory review §3.6 (HI: R)."
+  - id: hi.hepatic_uptake
+    subcontext: hepatic_impairment
+    label: Hepatic uptake (OATP)
+    group: Transporters
+    kind: parameter
+    cou_status: CONDITIONAL
+    trigger_text: The drug is an OATP substrate.
+    trigger: {property: transporter_families, any_of: [OATP]}
+    why: Extended-clearance behaviour differs in hepatic impairment for drugs taken up into the liver.
+    alternatives: []
+    room_fields: [field:adme.transporters]
+    data_category: in_vitro_adme
+    default_provider: CLIENT
+    sources: ["Storelli 2023 (Consensus only)"]
+    note: "UNVERIFIED: regulatory review §3.6 (HI: C); the row gives no trigger, so OATP substrate is my reading of the row's label."
+  - id: hi.binding_protein
+    subcontext: hepatic_impairment
+    label: Unbound fraction and the binding protein (albumin or alpha-1-acid glycoprotein)
+    group: Binding
+    kind: parameter
+    cou_status: USUALLY_NEEDED
+    escalates_to_required_when: model influence high (the model replaces a study or drives the label)
+    why: The unbound fraction changes with disease as the binding protein's level changes.
+    alternatives: []
+    room_fields: [field:adme.fu]
+    data_category: binding
+    default_provider: CLIENT
+    sources: ["Hu 2025 (Consensus only)", "Chenel 2026, PMID 42400597"]
+    note: "UNVERIFIED: regulatory review §3.6 (HI: U)."
+  - id: hi.uraemic_effects
+    subcontext: hepatic_impairment
+    label: Uraemic effects on hepatic enzymes and transporters
+    group: System
+    kind: system
+    cou_status: NOT_NEEDED
+    why: Uraemia belongs to kidney disease, not to hepatic impairment.
+    alternatives: []
+    room_fields: []
+    room_gap: false
+    data_category: other
+    default_provider: LITERATURE
+    sources: ["Chenel 2026, PMID 42400597"]
+    note: "UNVERIFIED: regulatory review §3.6 (HI: N)."
+  - id: hi.impairment_pk
+    subcontext: hepatic_impairment
+    label: Clinical PK in hepatically impaired subjects, by severity
+    group: Observed data
+    kind: dataset
+    cou_status: USUALLY_NEEDED
+    escalates_to_required_when: >-
+      model influence high (the model replaces a study or drives the label), especially for moderate and severe
+      impairment
+    why: Predictions over-estimated the change in moderate and severe impairment, and EMA qualified a model for mild and moderate impairment only.
+    alternatives: []
+    room_fields: [table:concentrations, field:study.population, topic:clinical_concentrations]
+    data_category: clinical_pk_special
+    default_provider: CLIENT
+    sources: ["Heimbach 2021, PMID 33270249", "Paul 2025, PMID 39748538"]
+    note: "UNVERIFIED: regulatory review §3.6 (HI: 'U (R at high influence, especially moderate and severe)'), the elacestrant example."
+  - id: hi.absorption_changes
+    subcontext: hepatic_impairment
+    label: Changes in absorption with hepatic impairment (bile salts, shunting)
+    group: Absorption
+    kind: system
+    cou_status: OPTIONAL
+    why: Changes in bile salts and portal shunting may alter absorption, but the evidence is at the level of hypothesis.
+    alternatives: []
+    room_fields: []
+    room_gap: false
+    data_category: other
+    default_provider: LITERATURE
+    sources: ["El-Khateeb 2021, PMID 34218453", "Al-Amiry Santos 2026 (Consensus only)"]
+    note: "UNVERIFIED: regulatory review §3.6 (HI: O)."
+  - id: hi.food_dissolution_ontogeny
+    subcontext: hepatic_impairment
+    label: Food, dissolution and ontogeny data
+    group: Food effect
+    kind: dataset
+    cou_status: NOT_NEEDED
+    why: An adult impairment question acts on elimination, not on the product or on maturation.
+    alternatives: []
+    room_fields: [field:study.fed, table:dissolution]
+    data_category: other
+    default_provider: CLIENT
+    sources: ["Review: docs/research/2026-11-24-regulatory-data-by-context-of-use.md §3.6 (the row cites no primary source)"]
+    note: "UNVERIFIED: regulatory review §3.6 (HI: N)."

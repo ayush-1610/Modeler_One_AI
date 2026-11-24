@@ -1,0 +1,358 @@
+# DRAFT REQUIREMENT LIST, INERT: formulation change, bridging and virtual bioequivalence (PBBM).
+# Owner's decision D5 (docs/plans/2026-11-24-data-story-next-phase.md §6, §11): drafted from the literature as an
+# UNVERIFIED draft for the owner's review; it becomes a template only after that review, through a locked-file change
+# with a version bump. The locked templates (pbpk_domain/requirements/*.yaml, here app_vbe.yaml) are not changed.
+#
+# Where it came from:
+#   - docs/research/2026-11-24-regulatory-data-by-context-of-use.md §3.7 (the PBBM / virtual BE table);
+#   - docs/research/2026-11-24-pbbm-absorption-inputs.md §0 ('always extract'), §1 (the input-impact table), §3 (the
+#     pitfalls) and §4 (what regulators and the workshops ask for). That review gives impact levels (HIGH, MEDIUM,
+#     LOW), not statuses; where an item comes from it alone, its note says how the impact was mapped to a status.
+# What the PBBM review calls context only (manufacturing process, hardness, full excipient list, f2) is in
+# context_only.yaml, not here. Statuses, the trigger grammar and the property vocabulary are defined once in core.yaml.
+#
+# Inert: applies_to is empty and the live loader never lists this folder. No PK-Sim name, path or unit; no default
+# value; no acceptance threshold (the BE limits and dissolution windows are the SME's and the analysis plan's).
+id: cou-draft-pbbm-bridging-vbe
+version: "0.1-draft"
+status: DRAFT_UNVERIFIED
+context_of_use: "Predict whether a changed or new oral product gives the same exposure as the reference (virtual bioequivalence, bridging, dissolution safe space), to support or replace a clinical study."
+applies_to: []
+derived_from:
+  regulatory review: docs/research/2026-11-24-regulatory-data-by-context-of-use.md
+  PBBM review: docs/research/2026-11-24-pbbm-absorption-inputs.md
+items:
+  # --- disposition ------------------------------------------------------------------------------------------------
+  - id: vbe.disposition_data
+    label: Disposition data, intravenous PK preferred, or one justified alternative
+    group: Observed data
+    kind: dataset
+    overrides: core.iv_pk
+    cou_status: REQUIRED
+    why: The product's absorption can only be isolated once disposition is known; there is no strict requirement for IV data if an alternative is justified.
+    alternatives: [oral solution PK, single and multiple ascending dose studies, mass balance study, a population PK model]
+    room_fields: [field:study.route, table:concentrations, topic:clinical_concentrations]
+    data_category: clinical_pk_iv
+    default_provider: CLIENT
+    sources: ["Heimbach 2024, PMID 39348508", "Mackie 2024, PMID 38600804"]
+    note: "UNVERIFIED: regulatory review §3.7 ('R (one of them)'); missing IV data was an ANVISA deficiency (PBBM review §1 row 22)."
+  # --- drug substance ---------------------------------------------------------------------------------------------
+  - id: vbe.solubility_vs_ph
+    label: Solubility versus pH across the physiological range, with start and final pH, buffer and any common ions
+    group: Phys-chem
+    kind: parameter
+    cou_status: REQUIRED
+    why: Dissolution in each part of the gut follows the solubility at its pH, and an unreported final pH gives a wrong value.
+    alternatives: []
+    room_fields: [field:substance.solubility, table:solubility]
+    data_category: physchem
+    default_provider: CLIENT
+    record_with: [buffer, start and final pH, temperature, solid form after the test]
+    sources: ["Pepin 2024, PMID 38946085"]
+    note: "UNVERIFIED: regulatory review §3.7 (R); what to record is the PBBM review's §1 row 10 and §3."
+  - id: vbe.surface_solubility
+    label: Surface solubility (surface pH) of the dissolving drug
+    group: Phys-chem
+    kind: parameter
+    cou_status: REQUIRED
+    why: Using the bulk instead of the surface solubility over-predicted dissolution when dissolution limits absorption.
+    alternatives: []
+    room_fields: [field:substance.solubility]
+    room_gap: true
+    data_category: physchem
+    default_provider: CLIENT
+    sources: ["Pepin 2024, PMID 38946085", "Pepin 2019, PMID 31306753", "Hens 2022, PMID 34982285"]
+    note: >-
+      UNVERIFIED: regulatory review §3.7 (R, with solubility versus pH); PBBM review §1 row 11. The room has no field
+      that tells a surface from a bulk solubility.
+  - id: vbe.salt_disproportionation
+    label: Salt disproportionation (pHmax) of the salt form
+    group: Phys-chem
+    kind: parameter
+    cou_status: CONDITIONAL
+    trigger_text: The drug substance is a salt.
+    trigger: {property: salt_form, equals: true}
+    why: A salt can convert back to the less soluble free form in the gut or the dosage form.
+    alternatives: []
+    room_fields: [field:substance.salt, field:substance.solubility]
+    room_gap: true
+    data_category: physchem
+    default_provider: CLIENT
+    sources: ["Pepin 2024, PMID 38946085"]
+    note: >-
+      UNVERIFIED: regulatory review §3.7 lists it R in the solubility row; making it conditional on a salt form is
+      mine (the PBBM review §5 idea 7 asks for pHmax 'for salts').
+  - id: vbe.solid_form
+    label: Solid form of the drug substance (salt, cocrystal, polymorph or amorphous) in each batch
+    group: Phys-chem
+    kind: parameter
+    cou_status: USUALLY_NEEDED
+    escalates_to_required_when: >-
+      the solid form differs between the batches or products compared, or model influence is high (the model replaces
+      a study or drives the label)
+    why: The form sets the solubility, and a change of form can change exposure.
+    alternatives: []
+    room_fields: [field:substance.solid_form, field:substance.salt, field:batch.api_batch]
+    data_category: physchem
+    default_provider: CLIENT
+    sources: ["Pepin 2024, PMID 38946085", "Mackie 2024, PMID 38600804", "Pepin 2023, PMID 36002614"]
+    note: "UNVERIFIED: PBBM review §0 ('always extract') and §1 row 15 (HIGH when the form changes solubility); the status U is my mapping."
+  - id: vbe.biorelevant_solubility
+    label: Biorelevant solubility (fasted and fed simulated gastric and intestinal fluids)
+    group: Phys-chem
+    kind: parameter
+    cou_status: USUALLY_NEEDED
+    escalates_to_required_when: >-
+      the drug is lipophilic or neutral and poorly soluble, the question includes fed dosing, or model influence is
+      high (the model replaces a study or drives the label)
+    why: Bile micelles raise the solubility of lipophilic poorly soluble drugs, which matters little when the drug is ionised in the gut.
+    alternatives: []
+    room_fields: [field:substance.solubility, table:solubility]
+    data_category: physchem
+    default_provider: CLIENT
+    sources: ["Pepin 2024, PMID 38946085", "Dahlgren 2021, PMID 33872761"]
+    note: "UNVERIFIED: PBBM review §0 and §1 row 12 (HIGH for lipophilic or neutral poorly soluble drugs; LOW when ionised in the gut); the status U is my mapping."
+  - id: vbe.permeability
+    label: Permeability, converted through the laboratory's calibration (never a raw in vitro value; a fitted value only with its justification)
+    group: Permeability
+    kind: parameter
+    cou_status: REQUIRED
+    why: Fitting permeability without justification was criticised by regulators.
+    alternatives: [a permeability fitted to informative clinical PK such as an oral solution, labelled fitted and justified]
+    room_fields: [field:substance.permeability]
+    data_category: in_vitro_adme
+    default_provider: CLIENT
+    sources: ["Pepin 2024, PMID 38946085", "Lee 2017, PMID 28088633"]
+    note: "UNVERIFIED: regulatory review §3.7 ('pKa; permeability' R; pKa is the core item); the calibration is core.permeability_calibration."
+  - id: vbe.api_psd
+    label: Particle size distribution of the drug substance (the full distribution, the method, per clinical batch)
+    group: Phys-chem
+    kind: dataset
+    cou_status: CONDITIONAL
+    trigger_text: Particle size is a critical material attribute or under study, or the drug is BCS class II or IV.
+    trigger:
+      any:
+        - {property: psd_critical_material_attribute, equals: true}
+        - {property: bcs_class, in: [II, IV]}
+    why: Particle size sets the dissolution rate of poorly soluble drugs, though the size measured before processing is a poor guide to the product's.
+    alternatives: [a product particle size distribution fitted to dissolution in several media]
+    room_fields: [table:particle_size, field:substance.particle_size, field:batch.api_batch]
+    data_category: physchem
+    default_provider: CLIENT
+    sources: ["Heimbach 2024, PMID 39348508 (case 4)", "Pepin 2019, PMID 31306753", "Paixão 2025, PMID 40143045"]
+    note: >-
+      UNVERIFIED: regulatory review §3.7 ('C (when PSD is a critical material attribute)'); the BCS II/IV half of the
+      trigger is the PBBM review §1 row 16 (HIGH for BCS II/IV, LOW for I/III).
+  # --- drug product -----------------------------------------------------------------------------------------------
+  - id: vbe.dose_strength
+    label: Dose and strength of each product
+    group: Formulation
+    kind: formulation
+    cou_status: REQUIRED
+    why: The ratio of dose to solubility decides when absorption becomes limited by solubility.
+    alternatives: []
+    room_fields: [field:product.strength, field:study.dose, field:substance.dose_basis]
+    data_category: formulation
+    default_provider: CLIENT
+    sources: ["Fink 2020, PMID 32562690", "Bhattiprolu 2022, PMID 36096285"]
+    note: "UNVERIFIED: PBBM review §0 ('always extract') and §1 row 9 (HIGH); the status R is my mapping."
+  - id: vbe.functional_excipients
+    label: Amounts per dose of the functional excipients (sugar alcohols and other osmotic agents, surfactants, pH modifiers, permeation modifiers, polymers and precipitation inhibitors)
+    group: Formulation
+    kind: formulation
+    cou_status: USUALLY_NEEDED
+    escalates_to_required_when: >-
+      the drug is BCS class III, the test and reference differ in a functional excipient, or model influence is high
+      (the model replaces a study or drives the label)
+    why: Functional excipients change solubility, dissolution, transit or permeability, and so exposure; the rest of the excipient list is context.
+    alternatives: []
+    room_fields: [table:composition, topic:composition]
+    data_category: formulation
+    default_provider: CLIENT
+    sources: ["Chen 2007, PMID 17048115", "García-Arieta 2014, PMID 25236823", "Bermejo 2019, PMID 30884755",
+              "González-Álvarez 2022, PMID 36559059", "Fang 2025, PMID 41115505"]
+    note: >-
+      UNVERIFIED: PBBM review §0 ('always extract' the functional classes) and §1 rows 8a-8e; the regulatory review
+      §3.7 lists 'excipient, polymer and ASD effects' as C. The status U is my reconciliation. Any amount threshold is
+      the SME's.
+  - id: vbe.polymer_effects
+    label: Amorphous solubility measured with the polymer present, and the effect of precipitation inhibitors
+    group: Formulation
+    kind: dataset
+    cou_status: CONDITIONAL
+    trigger_text: The product is an amorphous solid dispersion or another supersaturating (enabling) formulation.
+    trigger: {property: enabling_formulation, equals: true}
+    why: The polymer changes amorphous solubility, colloid formation and precipitation, so these must be measured with it present.
+    alternatives: []
+    room_fields: [field:substance.solubility, table:composition]
+    room_gap: true
+    data_category: formulation
+    default_provider: CLIENT
+    sources: ["Pepin 2024, PMID 38946085", "Chenel 2026, PMID 42400597"]
+    note: "UNVERIFIED: regulatory review §3.7 ('Precipitation; excipient, polymer and ASD effects' C) and PBBM review §1 row 8e."
+  - id: vbe.precipitation
+    label: Precipitation and supersaturation (two-stage or transfer test, form and size of the precipitate)
+    group: Phys-chem
+    kind: dataset
+    cou_status: CONDITIONAL
+    trigger_text: >-
+      A weak base with a pKa above about 5 whose solubility falls from gastric to intestinal pH (how large a fall is
+      the SME's), or a supersaturating product.
+    trigger:
+      any:
+        - all:
+            - {property: weak_base, equals: true}
+            - {property: highest_basic_pka, above: 5, threshold_source: "PBBM review §5 idea 7 ('pKa above about 5'); plan §6.3"}
+            - {property: solubility_ratio_gastric_to_intestinal, direction: above, threshold: SME}
+        - {property: enabling_formulation, equals: true}
+    why: Precipitation in the intestine lowers exposure; in vitro tests are mainly used to rule it out, and its rate is usually fitted to PK.
+    alternatives: []
+    room_fields: [table:solubility, field:substance.solubility]
+    room_gap: true
+    data_category: dissolution
+    default_provider: CLIENT
+    sources: ["Pepin 2024, PMID 38946085", "Mackie 2024, PMID 38600804", "Pepin 2023, PMID 36002614"]
+    note: "UNVERIFIED: regulatory review §3.7 (C) and PBBM review §1 row 20 (HIGH for such weak bases and supersaturating products). The room has no transfer-test field."
+  - id: vbe.disintegration
+    label: Disintegration time (or capsule opening)
+    group: Formulation
+    kind: dataset
+    cou_status: USUALLY_NEEDED
+    escalates_to_required_when: >-
+      disintegration is slow or changes with food (how slow is the SME's), or model influence is high (the model
+      replaces a study or drives the label)
+    why: A disintegration lag must be removed before a particle model is fitted to dissolution, or the fit is wrong.
+    alternatives: []
+    room_fields: []
+    room_gap: true
+    data_category: formulation
+    default_provider: CLIENT
+    sources: ["Pepin 2024, PMID 38946085", "Hofsäss 2020, PMID 32497594", "Nakamura 2022, PMID 36154905"]
+    note: "UNVERIFIED: PBBM review §0 ('always extract'), §1 row 5 and §3; the status U is my mapping. The room has no disintegration field."
+  # --- dissolution ------------------------------------------------------------------------------------------------
+  - id: vbe.dissolution_profiles
+    label: Dissolution profiles per batch and per medium, for the clinical batches, the reference product and any non-bioequivalent or variant batch
+    group: Dissolution
+    kind: dataset
+    cou_status: REQUIRED
+    why: The product's release in vivo is derived from these profiles, and quality-control media alone are not biopredictive.
+    alternatives: []
+    room_fields: [table:dissolution, field:product.batch, field:batch.use, field:dissolution.medium, topic:dissolution]
+    data_category: dissolution
+    default_provider: CLIENT
+    record_with: [batch, medium with pH and surfactant, several independent methods on the same batch where available, the same method across batches]
+    sources: ["Pepin 2024, PMID 38946085 (Table 2)", "Kollipara 2023, PMID 36759492", "Mackie 2024, PMID 38600804"]
+    note: >-
+      UNVERIFIED: regulatory review §3.7 (R; the workshop's suggestion of several methods on one batch is a checklist,
+      not guidance); PBBM review §1 row 1 and §3 (QC media only was a top rejection reason).
+  - id: vbe.dissolution_method
+    label: Dissolution method details (apparatus, speed, volume, medium composition and buffer capacity, pH, surfactant and its concentration, sinkers)
+    group: Dissolution
+    kind: dataset
+    cou_status: REQUIRED
+    why: A mechanistic dissolution fit needs the conditions each profile was measured under; speed and viscosity change the rate.
+    alternatives: []
+    room_fields: [field:dissolution.apparatus, field:dissolution.speed, field:dissolution.volume, field:dissolution.medium,
+                  field:dissolution.temperature]
+    data_category: dissolution
+    default_provider: CLIENT
+    record_with: [the surfactant's blank solubility and micelle properties when a surfactant is used]
+    sources: ["Pepin 2024, PMID 38946085 (Table 2)", "Pepin 2022, PMID 34666045"]
+    note: "UNVERIFIED: regulatory review §3.7 (R, 'with method parameters') and PBBM review §1 row 2 (HIGH, a prerequisite)."
+  - id: vbe.unit_level_dissolution
+    label: Dissolution of each unit and the number of units, not only the means
+    group: Dissolution
+    kind: dataset
+    cou_status: USUALLY_NEEDED
+    escalates_to_required_when: >-
+      the question uses f2 or the virtual trial needs between-unit variability, or model influence is high (the model
+      replaces a study or drives the label)
+    why: Unit-level data show whether f2 may be applied and give the between-unit variability.
+    alternatives: []
+    room_fields: [table:dissolution, field:dissolution.units]
+    data_category: dissolution
+    default_provider: CLIENT
+    sources: ["Muselík 2021, PMID 34683995", "Stevens 2015, PMID 25669756"]
+    note: "UNVERIFIED: PBBM review §0 and §1 row 3 (MEDIUM); the status U is my mapping. The guidance figures on units are marked 'verify' in the review and are not used here."
+  - id: vbe.reference_product
+    label: Reference product dissolution and PK
+    group: Dissolution
+    kind: dataset
+    cou_status: CONDITIONAL
+    trigger_text: The question compares a product with a reference product.
+    trigger: {property: reference_product_in_question, equals: true}
+    why: The reference product is the reference arm of the virtual bioequivalence trial.
+    alternatives: []
+    room_fields: [field:product.role, table:dissolution, table:concentrations, table:be_statistics]
+    data_category: rld_data
+    default_provider: CLIENT
+    sources: ["Wu 2023, PMID 36530026", "Wu 2024, PMID 38267737", "Kollipara 2024, PMID 39065727"]
+    note: "UNVERIFIED: PBBM review §1 row 24 (HIGH for generics) and §3 (no reference-product data was a rejection reason)."
+  # --- clinical ---------------------------------------------------------------------------------------------------
+  - id: vbe.clinical_pk_batches
+    label: Clinical PK for several formulations or batches, ideally including a non-bioequivalent batch
+    group: Observed data
+    kind: dataset
+    cou_status: USUALLY_NEEDED
+    escalates_to_required_when: model influence high (the model replaces a study or drives the label)
+    why: The model must be shown to tell a bioequivalent batch from one that is not; a missing non-bioequivalent batch was a common rejection reason.
+    alternatives: [fed and fasted PK, PK with a proton-pump inhibitor]
+    room_fields: [table:concentrations, field:product.batch, field:batch.use, topic:clinical_concentrations]
+    data_category: clinical_pk_oral
+    default_provider: CLIENT
+    sources: ["Heimbach 2024, PMID 39348508", "Mackie 2024, PMID 38600804", "Arora 2025, PMID 40300064"]
+    note: >-
+      UNVERIFIED: regulatory review §3.7 (U, 'guided by meaningful changes and feasible to produce'); the
+      alternatives are the PBBM review §3's (from Arora 2025).
+  - id: vbe.individual_pk
+    label: Individual-level PK from the bioequivalence or bridging studies
+    group: Observed data
+    kind: dataset
+    cou_status: REQUIRED
+    why: A virtual bioequivalence trial is built and checked at the level of the subject, not the mean.
+    alternatives: []
+    room_fields: [table:concentrations, table:pk_parameters, field:study.design, field:study.statistical_set]
+    data_category: clinical_pk_oral
+    default_provider: CLIENT
+    sources: ["Chenel 2026, PMID 42400597", "Bego 2022, PMID 34988679"]
+    note: "UNVERIFIED: regulatory review §3.7 ('Individual-level PK; between- and within-subject variability (IOV)' R for virtual BE), split here into the data and the variability."
+  - id: vbe.variability
+    label: Between- and within-subject variability of exposure (inter-occasion)
+    group: Observed data
+    kind: parameter
+    cou_status: REQUIRED
+    why: Virtual populations with too little variability gave conclusions regulators questioned.
+    alternatives: []
+    room_fields: [table:pk_parameters, table:be_statistics, field:study.be_result]
+    data_category: rld_data
+    default_provider: NOT_STATED
+    sources: ["Chenel 2026, PMID 42400597", "Bego 2022, PMID 34988679", "Mackie 2024, PMID 38600804"]
+    note: >-
+      UNVERIFIED: regulatory review §3.7 (R for virtual BE). No default provider, as in the live VBE template (the
+      owner's decision D-26): the data plan says who gives it.
+  - id: vbe.fed_state_data
+    label: Fed-state PK and dissolution
+    group: Food effect
+    kind: dataset
+    cou_status: CONDITIONAL
+    trigger_text: Bioequivalence must be shown under fed dosing.
+    trigger: {property: fed_dosing_in_scope, equals: true}
+    why: A fed bioequivalence conclusion needs a model verified under fed conditions.
+    alternatives: []
+    room_fields: [field:study.fed, field:study.meal_composition, table:concentrations, table:dissolution]
+    data_category: clinical_pk_fed
+    default_provider: CLIENT
+    sources: ["Chenel 2026, PMID 42400597"]
+    note: "UNVERIFIED: regulatory review §3.7 ('C (only if BE must be shown fed)'); the food-effect list then applies as well."
+  - id: vbe.fm_ddi_ontogeny
+    label: Fraction metabolised, DDI data and ontogeny
+    group: Elimination
+    kind: parameter
+    cou_status: NOT_NEEDED
+    why: A formulation comparison in the same population does not depend on which enzymes clear the drug.
+    alternatives: []
+    room_fields: [field:adme.metabolism, field:adme.ddi]
+    data_category: in_vitro_adme
+    default_provider: CLIENT
+    sources: ["Review: docs/research/2026-11-24-regulatory-data-by-context-of-use.md §3.7 (the row cites no primary source)"]
+    note: "UNVERIFIED: regulatory review §3.7 (N)."

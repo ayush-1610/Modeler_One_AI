@@ -15,6 +15,54 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Docs / Added — requirement lists per context of use, drafted from the literature as UNVERIFIED drafts for the owner's review (2026-11-24, decision D5)
+- **What:** a new sub-package `pbpk_domain/requirement_drafts/context_of_use/` with 12 YAML drafts and 147 items:
+  - `core.yaml`: the items every context of use (CoU) starts from;
+  - one file per CoU: DDI victim, DDI perpetrator, transporter DDI, food effect, paediatric, organ impairment (renal
+    and hepatic as two item sets), PBBM bridging and virtual BE, acid-reducing agents, first in human, special
+    populations;
+  - `context_only.yaml`: the manufacturing process, tablet hardness, the full excipient list and f2. These are kept as
+    context, never a model input and never "missing", and each names the data request it triggers instead.
+- **Each item has:**
+  - one status for its CoU: required, usually needed (with when it becomes required), conditional, optional or not
+    needed (with why);
+  - for a conditional item, its trigger twice: in words, and as a small structure code can evaluate over a property
+    vocabulary of 26 properties defined once in `core.yaml`, each saying how the Data room determines it;
+  - the alternatives when the item is missing;
+  - the Data room fields that satisfy it;
+  - the live data category and provider;
+  - its sources (PMID, DOI or guidance name, as the three 2026-11-24 reviews cite them);
+  - a note opening with `UNVERIFIED:`.
+- **Summary for review:** `docs/research/2026-11-24-cou-requirement-drafts-for-review.md`. It has a table per CoU
+  with an empty note column for the owner, and the open questions for the SME: 12 numbers the literature does not
+  give, written `threshold: SME`, and 20 statuses chosen where the reviews were silent or ambiguous.
+- **Why:** plan `docs/plans/2026-11-24-data-story-next-phase.md` §6. The Data room asks every project for one fixed
+  list (the manufacturing process for all, fed data for a fasted question). Whether an item is needed depends on the
+  CoU, the compound's properties and the model's risk. The owner decided (D5): draft the lists from the literature as
+  UNVERIFIED drafts; they become templates only after the owner's review; the locked templates are not changed.
+- **Science content, no rule:**
+  - no PK-Sim name, path or unit;
+  - no default value;
+  - no acceptance threshold;
+  - one trigger number, pKa above 5, stated by the PBBM review, with its source. Every other cut-off is left to the
+    SME.
+- **Impact: none on behaviour.** Nothing live reads the drafts:
+  - `applies_to` is empty in every file;
+  - the live loader (`modeler_project.requirements.load_templates`) lists only `pbpk_domain/requirements/`;
+  - no data plan, gate, client request or live template uses them;
+  - the locked templates and every locked file are unchanged.
+
+  The Data room may show the drafts later, labelled as drafts (Phase 2).
+- **Tests (T-42):**
+  - **`packages/project-model/tests/test_cou_requirement_drafts.py`** checks:
+    - the format;
+    - that every conditional trigger uses the core vocabulary in the grammar;
+    - that every PMID and DOI cited appears in one of the three reviews;
+    - that no harvested PK-Sim name, `|` path, unit, default or unsourced number appears;
+    - that the review summary lists every item;
+    - inertness: no derived matrix contains a draft item with every application picked.
+  - **`test_requirement_drafts.py`** now expects the new sub-package beside the three sub-domain drafts.
+
 ### Fixed — the campaigns list (HTTP 500); three open gaps of the data story; Docs — the next phase's plan and four literature reviews (2026-11-24)
 - **The campaigns could not be read (HTTP 500), seen on the server:**
   - **Cause.** One stored campaign written by an earlier build carried a key today's record no longer declares. The
