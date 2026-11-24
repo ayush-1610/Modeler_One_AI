@@ -16,7 +16,7 @@ import { join, resolve } from "node:path";
 
 import { expect, type APIRequestContext, type Page, test } from "@playwright/test";
 
-import { AUTH, finishStart } from "./fixtures/inputs";
+import { AUTH, finishStart, openStudy } from "./fixtures/inputs";
 
 const REPO = resolve(__dirname, "../../..");
 const NEW = "__new__";
@@ -431,22 +431,14 @@ test("Next opens its row whatever To do is narrowed to", async ({ page }) => {
   await page.unrouteAll({ behavior: "ignoreErrors" });
 });
 
-test("with two study cards open, a fact's link on one lands on that card's own form, never on the other's (CODE-1)", async ({ page, request }) => {
-  // 231-24 and 230-25 both lack their route: each card's facts, required items and blockers are its own places
+test("each study card in the panel holds its own places: a fact's link lands on that card's own form (CODE-1)", async ({ page, request }) => {
+  // 231-24 and 230-25 both lack their route: each card's facts, required items and blockers are its own places. One card
+  // is open at a time, in the side panel (the console redesign's slice 4b, D-I2): no place is ever on the page twice.
   const d = await read<Delivery>(request, "delivery");
   const id = (label: string) => d.subjects.find((s) => s.subject_type === "study" && s.label === label)!.subject;
   const [above, below] = [id("231-24"), id("230-25")];
   await page.goto(`/projects/${projectId}/inputs?tab=studies`);
-  for (const subject of [above, below]) {
-    const toggle = page.getByTestId(`delivery-subject-open-${subject}`);
-    if ((await toggle.getAttribute("aria-expanded")) !== "true") await toggle.click();
-  }
-  const first = page.getByTestId(`delivery-card-${above}`);
-  const second = page.getByTestId(`delivery-card-${below}`);
-  await expect(first.getByTestId(`delivery-gap-${above}-route`)).toBeVisible();
-  await expect(second.getByTestId(`delivery-gap-${below}-route`)).toBeVisible();
-  // no place a link can open, and no id, is on the page twice
-  const twice = await page.evaluate(() => {
+  const twice = () => page.evaluate(() => {
     const seen = new Map<string, number>();
     for (const el of document.querySelectorAll<HTMLElement>("[id], [data-testid]")) {
       const keys = [el.id ? `id ${el.id}` : "",
@@ -455,16 +447,20 @@ test("with two study cards open, a fact's link on one lands on that card's own f
     }
     return [...seen].filter(([, n]) => n > 1).map(([k]) => k);
   });
-  expect(twice).toEqual([]);
-  // the lower card's "not stated: the route…" puts the focus on its own route, inside its own card
-  await second.getByTestId("card-todo-fact:study:230-25").click();
-  const focused = page.locator(":focus");
-  await expect(focused).toHaveAttribute("data-testid", `delivery-enter-gap-${below}-route-value`);
-  expect(await focused.evaluate((el, card) => Boolean(el.closest(`[data-testid="${card}"]`)), `delivery-card-${below}`)).toBe(true);
-  // and the upper card's own link stays on the upper card
-  await first.getByTestId("card-todo-fact:study:231-24").click();
-  await expect(page.locator(":focus")).toHaveAttribute("data-testid", `delivery-enter-gap-${above}-route-value`);
+  for (const [subject, label] of [[below, "230-25"], [above, "231-24"]] as const) {
+    await openStudy(page, `delivery-subject-open-${subject}`);
+    const card = page.getByTestId(`delivery-card-${subject}`);
+    await expect(card.getByTestId(`delivery-gap-${subject}-route`)).toBeVisible();
+    await expect(page.getByTestId(`delivery-card-${subject === above ? below : above}`)).toHaveCount(0);   // one at a time
+    expect(await twice()).toEqual([]);
+    // the card's "not stated: the route…" puts the focus on its own route, inside its own card
+    await card.getByTestId(`card-todo-fact:study:${label}`).click();
+    const focused = page.locator(":focus");
+    await expect(focused).toHaveAttribute("data-testid", `delivery-enter-gap-${subject}-route-value`);
+    expect(await focused.evaluate((el, c) => Boolean(el.closest(`[data-testid="${c}"]`)), `delivery-card-${subject}`)).toBe(true);
+  }
 });
+
 
 test("a sheet-form draft's problems lead to its sheet, with the cells its own words name read as no sample (OWN-2 c)", async ({ page, request }) => {
   await page.setViewportSize({ width: 1440, height: 900 });

@@ -4,8 +4,9 @@
 // below 1024 px, never opened by hover. Three contexts, from the address: the portfolio, a project (its four steps with
 // where each stands, its records, Add data), and the platform's administration.
 //
-// Slice 1 of the redesign (docs/plans/2026-11-23-console-redesign-implementation.md) links only the pages that exist:
-// Your work, Campaigns, Help, the project Overview, Members, Settings, Compounds and Agent activity join with their slices.
+// Links only the pages that exist (docs/plans/2026-11-23-console-redesign-implementation.md): Home, Your work, Projects,
+// Campaigns and Help since slice 2; the project Overview, Compounds and Members since slice 3 (Settings came with the
+// sign-in work, 2026-11-24); Agent activity joins with slice 7.
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -14,6 +15,7 @@ import { createPortal } from "react-dom";
 
 import { Icon, type IconName } from "@/components/kit/icons";
 import { AddData, stepOf } from "@/components/library/AddData";
+import { useWorkCount } from "@/components/portfolio/useWork";
 import { useResource } from "@/lib/hooks";
 import { STEP_ROUTES, type StepId, type StepRow } from "@/lib/pipeline";
 import { stepReason } from "@/lib/words";
@@ -42,13 +44,24 @@ function Group({ label, testId, children }: { label: string; testId?: string; ch
 }
 
 function PortfolioNav({ path, admin }: { path: string; admin: boolean }) {
+  const work = useWorkCount();
   return (
     <>
       <nav className="sn-group" aria-label="Main">
         <span className="sn-heading">Modeler One</span>
         <ul>
-          <NavItem it={{ href: "/", label: "Projects", icon: "folder", active: path === "/" }} />
+          <NavItem it={{ href: "/", label: "Home", icon: "home", active: path === "/", testId: "nav-home" }} />
+          <li>
+            <Link href="/work" className="sn-item" aria-current={path.startsWith("/work") ? "page" : undefined} data-testid="nav-work" prefetch={false}>
+              <span className="sn-icon" aria-hidden><Icon name="checkc" /></span>
+              <span className="sn-text">Your work</span>
+              {work !== null && work > 0 && <span className="sn-count" aria-label={`${work} waiting`}>{work}</span>}
+            </Link>
+          </li>
+          <NavItem it={{ href: "/projects", label: "Projects", icon: "folder", active: path === "/projects", testId: "nav-projects" }} />
+          <NavItem it={{ href: "/campaigns", label: "Campaigns", icon: "pipeline", active: path.startsWith("/campaigns"), testId: "nav-campaigns" }} />
           <NavItem it={{ href: "/projects/start", label: "Start from proposal", icon: "fileplus", active: path.startsWith("/projects/start") }} />
+          <NavItem it={{ href: "/help", label: "Help", icon: "info", active: path.startsWith("/help"), testId: "nav-help-guide" }} />
         </ul>
       </nav>
       {admin && (
@@ -68,9 +81,9 @@ const ORDER: StepId[] = ["start", "inputs", "review", "run"];
 /** The step a page belongs to, from its address (the step bar's `current`). */
 function stepAt(path: string, base: string): StepId | null {
   const rest = path.slice(base.length);
-  if (rest === "" || rest === "/") return "run";
+  if (rest.startsWith("/campaigns")) return "run";
   if (rest.startsWith("/start")) return "start";
-  if (rest.startsWith("/inputs") || rest.startsWith("/dataroom")) return "inputs";
+  if (rest.startsWith("/inputs") || rest.startsWith("/dataroom") || rest.startsWith("/data-plan")) return "inputs";
   if (rest.startsWith("/plan")) return "review";
   return null;
 }
@@ -117,6 +130,8 @@ function StepsNav({ projectId, path }: { projectId: string; path: string }) {
                   {/* the Data room's link was always in the sidebar, whatever Start's state (dataroom.spec.ts) */}
                   <NavItem it={{ href: `${base}/dataroom`, label: "Data room", active: path.startsWith(`${base}/dataroom`), testId: "nav-dataroom", sub: true }} />
                   {!shut && <NavItem it={{ href: `${base}/inputs`, label: "Inputs", active: path.startsWith(`${base}/inputs`), testId: "nav-inputs", sub: true }} />}
+                  {/* which data the applications require and who provides each (P-13b, read-mostly) */}
+                  <NavItem it={{ href: `${base}/data-plan`, label: "Data plan", active: path.startsWith(`${base}/data-plan`), testId: "nav-data-plan", sub: true }} />
                 </ul>
               )}
             </li>
@@ -133,19 +148,24 @@ function ProjectNav({ projectId, path }: { projectId: string; path: string }) {
   const [adding, setAdding] = useState(false);
   return (
     <div data-testid="nav-project">
-      <Link href="/" className="sn-back"><Icon name="chevl" size={14} /> All projects</Link>
+      <Link href="/projects" prefetch={false} className="sn-back"><Icon name="chevl" size={14} /> All projects</Link>
       <div className="sn-project"><strong>{name ?? projectId}</strong></div>
       {/* "Add data" opens a card over the page, at any step (the document library plan) */}
       <button type="button" className="sn-action" data-testid="nav-add-data" onClick={() => setAdding(true)}>
         <span className="sn-icon" aria-hidden><Icon name="plus" /></span><span className="sn-text">Add data</span>
       </button>
+      <ul className="sn-top">
+        <NavItem it={{ href: base, label: "Overview", icon: "home", active: path === base || path === `${base}/`, testId: "nav-overview" }} />
+      </ul>
       <StepsNav projectId={projectId} path={path} />
       <Group label="Records">
+        <NavItem it={{ href: `${base}/compounds`, label: "Compounds", icon: "box", active: path.startsWith(`${base}/compounds`), testId: "nav-compounds" }} />
         <NavItem it={{ href: `${base}/library`, label: "Documents", icon: "doc", active: path.startsWith(`${base}/library`), testId: "nav-library" }} />
         <NavItem it={{ href: `${base}/history`, label: "History", icon: "clock", active: path.startsWith(`${base}/history`), testId: "nav-history" }} />
       </Group>
       {/* the sitemap's PROJECT group: who owns it, who it is shared with, where its client files may go (2026-11-24) */}
       <Group label="Project">
+        <NavItem it={{ href: `${base}/members`, label: "Members", icon: "users", active: path.startsWith(`${base}/members`), testId: "nav-members" }} />
         <NavItem it={{ href: `${base}/settings`, label: "Settings", icon: "sliders", active: path.startsWith(`${base}/settings`), testId: "nav-settings" }} />
       </Group>
       {/* over the whole page, not inside the navigation (its sticky position would hold the card under the page) */}

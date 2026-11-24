@@ -1,4 +1,4 @@
-// The dashboard when part of what it reads cannot be read (seen on the server, 2026-11-08 and again 2026-11-24: "The
+// Home (earlier the dashboard) when part of what it reads cannot be read (seen on the server, 2026-11-08 and again 2026-11-24: "The
 // campaigns could not be read (The API answered HTTP 500)"). It is the first page that reads every campaign at once, and
 // one stored campaign in an earlier shape failed that whole read. Now a key this version does not know is left out, and a
 // campaign that still does not read is named on the page with why; the rest of the list stands and is counted.
@@ -36,7 +36,7 @@ test("a campaign stored in an earlier shape no longer fails the list; one that c
     expect(data.campaigns.map((c) => c.id)).toContain(legacyId);
     expect(data.unreadable.map((u) => u.id)).toEqual([brokenId]);
     await page.goto("/");
-    await expect(page.getByTestId(`project-card-${projectId}`)).toBeVisible();
+    await expect(page.getByTestId("home-projects").getByTestId(`project-row-${projectId}`)).toBeVisible();
     await expect(page.getByTestId("dash-partial")).toContainText(`One campaign was stored in a shape this version cannot read`);
     await expect(page.getByTestId("dash-partial")).toContainText(brokenId);
     await expect(page.getByTestId("dash-partial")).not.toContainText("The campaigns could not be read");

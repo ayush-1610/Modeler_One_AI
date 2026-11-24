@@ -10,7 +10,7 @@ import { join, resolve } from "node:path";
 
 import { expect, type Page, test } from "@playwright/test";
 
-import { AUTH, finishStart } from "./fixtures/inputs";
+import { AUTH, finishStart, openCard, openStudy } from "./fixtures/inputs";
 
 const REPO = resolve(__dirname, "../../..");
 const XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
@@ -172,7 +172,9 @@ test("on a phone a study's and a product's card fit the window: their charts, ta
   // and a BE arm read on arrival, whose card asks for what the sheet does not say
   await page.getByTestId("client-upload-studies").setInputFiles(join(dir, "230-23 Fasting Reference.xlsx"));
   await expect(page.getByTestId("inputs-notice")).toContainText("1 file stored.");
+  await openStudy(page, "toggle-study:230-23-REF");                         // one card at a time, in the side panel (D-I2)
   await expect(page.getByTestId("group-study:230-23-REF").getByTestId("need-n")).toBeVisible();
+  await openCard(page, "CL-01");                                            // the template's study, to confirm
   const study = page.locator("[data-testid^='group-study:']", { has: page.getByTestId("dataset-stats") }).first();
   await expect(study.getByTestId("dataset-stats")).toBeAttached();
   expect(await sideways(page), "no sideways page scroll on the studies' cards").toBe(false);
@@ -181,6 +183,8 @@ test("on a phone a study's and a product's card fit the window: their charts, ta
   await expect(chip).toContainText("To confirm");
   expect(await chip.evaluate((el) => getComputedStyle(el).backgroundColor)).not.toBe(
     await study.evaluate((el) => getComputedStyle(el).backgroundColor));
+  // on a phone the side panel covers the page, as a sheet: it is put away before another area is chosen
+  await page.getByTestId("side-panel-close").click();
   await page.getByTestId("tab-formulations").click();
   await expect(page.locator("[data-testid^='group-product:']").first()).toBeVisible();
   expect(await sideways(page), "no sideways page scroll on the products' cards").toBe(false);

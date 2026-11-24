@@ -38,8 +38,11 @@ export const STATUS: Record<Status, { word: string; means: string }> = {
   missing: { word: "Missing", means: "needed and not found; a data request exists" },
 };
 
+// the four status words of Inputs where they fit (decision G1-1: Inputs' rules apply to both pages; the console
+// redesign, slice 4a): a section in order is Done, one with something to check is To confirm, one that lacks data is
+// Missing; a section with nothing delivered yet keeps its own words, as it is no task yet
 export const SECTION_STATE: Record<Section["status"], string> = {
-  ok: "In order", attention: "Needs a look", missing: "Missing", empty: "Nothing yet",
+  ok: "Done", attention: "To confirm", missing: "Missing", empty: "Nothing yet",
 };
 
 export const AREA: Record<DataRequest["area"], string> = {

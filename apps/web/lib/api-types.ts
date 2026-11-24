@@ -11732,6 +11732,10 @@ export interface components {
             name: string;
             /** Openquestions */
             openQuestions: number;
+            /** Owner */
+            owner?: string | null;
+            /** Owner Name */
+            owner_name?: string | null;
             /**
              * Pipeline
              * @default false
@@ -11741,6 +11745,8 @@ export interface components {
             questions?: components["schemas"]["QuestionRecord"][];
             /** Risk */
             risk: string;
+            /** Steps */
+            steps?: components["schemas"]["StepRow"][] | null;
         };
         /** ProjectRecord */
         ProjectRecord: {
@@ -16415,7 +16421,10 @@ export interface operations {
     };
     list_projects_api_v1_projects_get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Comma list of extra parts: steps, owner */
+                with?: string | null;
+            };
             header?: {
                 authorization?: string | null;
             };

@@ -115,7 +115,8 @@ test("sign-in through Keycloak, and a signature asks for the password and the au
   })).json(), PROJECT);
   expect(unsigned.detail.code).toBe("STEP_UP_REQUIRED");
 
-  // the decision is asked in the pop-up, on this page
+  // the decision opens from the flash bar on this page (the console redesign, slice 2)
+  await page.getByTestId("escalation-waiting").click();
   const card = page.getByTestId("escalation-popup");
   await expect(card).toContainText(`campaign ${ID}, stage S2`);
   await card.getByTestId("decision-select").selectOption("abort");
@@ -189,7 +190,7 @@ test("a new project opens to its creator, who adds a colleague; the colleague ca
   const status = () => colleague.evaluate(async (id) => (await fetch(`/api/v1/projects/${id}`)).status, projectId);
   expect(await status()).toBe(403);
 
-  await page.goto(`/projects/${projectId}`);
+  await page.goto(`/projects/${projectId}/members`);
   const panel = page.getByTestId("members-panel");
   await expect(panel.locator("tbody tr")).toHaveCount(1);
   await expect(panel.locator("tbody tr").first()).toContainText("Oidc Signer");
@@ -200,7 +201,7 @@ test("a new project opens to its creator, who adds a colleague; the colleague ca
   await expect(panel.locator("tbody tr").nth(1)).toContainText("Oidc Colleague");
 
   expect(await status()).toBe(200);
-  await colleague.goto(`/projects/${projectId}`);
+  await colleague.goto(`/projects/${projectId}/members`);
   await expect(colleague.getByTestId("members-panel")).toContainText("Oidc Colleague");
   await other.close();
 });

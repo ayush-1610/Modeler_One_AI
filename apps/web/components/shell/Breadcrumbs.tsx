@@ -14,7 +14,12 @@ const PROJECT_PAGES: Record<string, Crumb[]> = {
   start: [["Start", null]],
   dataroom: [["Data", null], ["Data room", null]],
   inputs: [["Data", null], ["Inputs", null]],
+  "data-plan": [["Data", null], ["Data plan", null]],
   plan: [["Review & sign", null]],
+  campaigns: [["Run", null]],
+  compounds: [["Compounds", null]],
+  members: [["Members", null]],
+  settings: [["Settings", null]],
   library: [["Documents", null]],
   history: [["History", null]],
 };
@@ -26,17 +31,20 @@ const ADMIN_PAGES: Record<string, string> = {
 
 function crumbsFor(path: string, name: string | null): Crumb[] {
   const parts = path.split("/").filter(Boolean).map(decodeURIComponent);
-  if (parts[0] === "projects" && parts[1] === "start") return [["Projects", "/"], ["Start from proposal", null]];
+  const TOP: Record<string, string> = { work: "Your work", campaigns: "Campaigns", help: "Help" };
+  if (parts.length === 1 && parts[0] === "projects") return [["Home", "/"], ["Projects", null]];
+  if (parts.length === 1 && TOP[parts[0]!]) return [["Home", "/"], [TOP[parts[0]!]!, null]];
+  if (parts[0] === "projects" && parts[1] === "start") return [["Projects", "/projects"], ["Start from proposal", null]];
   if (parts[0] === "projects" && parts[1]) {
     const base = `/projects/${encodeURIComponent(parts[1])}`;
     const project: Crumb = [name ?? parts[1], base];
     const page = parts[2];
-    if (!page) return [["Projects", "/"], [project[0], null], ["Run", null]];
-    if (page === "dataroom" && parts[3] === "report") return [["Projects", "/"], project, ["Data", null], ["Data room", `${base}/dataroom`], ["Evidence report", null]];
-    if (page === "compounds" && parts[3]) return [["Projects", "/"], project, ["Compounds", null], [parts[3], null]];
-    return [["Projects", "/"], project, ...(PROJECT_PAGES[page] ?? [[page, null]])];
+    if (!page) return [["Projects", "/projects"], [project[0], null]];
+    if (page === "dataroom" && parts[3] === "report") return [["Projects", "/projects"], project, ["Data", null], ["Data room", `${base}/dataroom`], ["Evidence report", null]];
+    if (page === "compounds" && parts[3]) return [["Projects", "/projects"], project, ["Compounds", `${base}/compounds`], [parts[3], null]];
+    return [["Projects", "/projects"], project, ...(PROJECT_PAGES[page] ?? [[page, null]])];
   }
-  if (parts[0] === "campaigns" && parts[1]) return [["Projects", "/"], [`Campaign ${parts[1]}`, null]];
+  if (parts[0] === "campaigns" && parts[1]) return [["Campaigns", "/campaigns"], [`Campaign ${parts[1]}`, null]];
   if (parts[0] === "admin") {
     if (!parts[1]) return [["Admin console", null]];
     return [["Admin console", "/admin"], [ADMIN_PAGES[parts[1]] ?? parts[1], null]];
@@ -51,7 +59,15 @@ export function Breadcrumbs() {
   const name = useResource("/api/v1/projects/{project_id}", { project_id: projectId ?? "" }, { enabled: Boolean(projectId), select: (d) => d.name }).data;
   // an admin address names the console only to the platform's owner (anyone else sees the app's 404 and no trace of it)
   const admin = useResource("/api/v1/me", {}, { enabled: path.startsWith("/admin"), select: (d) => d.admin }).data === true;
-  const crumbs = path.startsWith("/admin") && !admin ? [] : crumbsFor(path, name);
+  // a campaign sits under its project's Run (P-16): its project, read from the campaign, then the project's name
+  const cid = /^\/campaigns\/([^/]+)/.exec(path)?.[1];
+  const owner = useResource("/api/v1/campaigns/{campaign_id}", { campaign_id: cid ? decodeURIComponent(cid) : "" },
+                            { enabled: Boolean(cid), select: (d) => d.project as string }).data;
+  const ownerName = useResource("/api/v1/projects/{project_id}", { project_id: owner ?? "" }, { enabled: Boolean(owner), select: (d) => d.name }).data;
+  const crumbs = path.startsWith("/admin") && !admin ? []
+    : cid && owner ? [["Projects", "/projects"], [ownerName ?? owner, `/projects/${encodeURIComponent(owner)}`],
+                      ["Run", `/projects/${encodeURIComponent(owner)}/campaigns`], [`Campaign ${decodeURIComponent(cid)}`, null]] as Crumb[]
+    : crumbsFor(path, name);
   if (crumbs.length === 0) return null;
   return (
     <nav className="crumbs" aria-label="Breadcrumbs">

@@ -56,6 +56,7 @@ test("a project's settings hold where its files may go and who it is shared with
   await page.getByTestId("nav-settings").click();
   await expect(page).toHaveURL(new RegExp(`/projects/${projectId}/settings$`));
   await expect(page.getByTestId("files-go-said")).toContainText("In-house only");
-  await expect(page.getByTestId("members-panel")).toBeVisible();
+  await expect(page.getByTestId("settings-members")).toBeVisible();          // who it is shared with; managed on Members
+  await expect(page.getByTestId("settings-members-link")).toHaveAttribute("href", `/projects/${projectId}/members`);
   await page.screenshot({ path: test.info().outputPath("settings.png"), fullPage: true });
 });

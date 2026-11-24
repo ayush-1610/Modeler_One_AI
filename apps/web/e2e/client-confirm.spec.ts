@@ -9,7 +9,7 @@ import { join, resolve } from "node:path";
 
 import { expect, type Page, test } from "@playwright/test";
 
-import { SIDEBAR_PREFETCH, finishStart, requestsDuring } from "./fixtures/inputs";
+import { SIDEBAR_PREFETCH, finishStart, openCard, requestsDuring } from "./fixtures/inputs";
 
 const REPO = resolve(__dirname, "../../..");
 const AUTH = { Authorization: "Bearer dev" };
@@ -139,7 +139,9 @@ test("a study the client named at upload is linked to the sheet's other name onc
   await shot(page, "4-link-question");
   await link.getByRole("radio", { name: /Yes: EX-101 is EXZ-101/ }).check();
   await link.getByTestId("issue-confirm-link|EX-101").click();
-  const linked = page.getByTestId("group-study:EXZ-101");                          // regrouped under the study's name
+  // regrouped under the study's name, on its own card: the panel stays where the person was (one card at a time, D-I2)
+  await openCard(page, "EXZ-101");
+  const linked = page.getByTestId("group-study:EXZ-101");
   await expect(linked).toContainText("Done");
   await expect(linked.getByTestId("notes-study:EXZ-101")).toContainText("Also called EX-101");
   await linked.getByTestId("confirm-study:EXZ-101").click();

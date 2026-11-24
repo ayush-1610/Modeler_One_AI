@@ -1,6 +1,5 @@
 import Link from "next/link";
 
-import { OpenInDataRoom } from "@/components/dataroom/OpenInDataRoom";
 import { InputsWorkspace } from "@/components/inputs/InputsWorkspace";
 import { Hero } from "@/components/kit";
 import { Stepper } from "@/components/kit/Stepper";
@@ -45,8 +44,6 @@ export default async function InputsPage({ params, searchParams }: {
                        steps={(
                          <>
                            <Stepper projectId={projectId} current="inputs" sticky={false} />
-                           {/* the Inputs step's Data room, beside this page (plan 2026-11-21 v2 §4) */}
-                           <OpenInDataRoom projectId={projectId} />
                           {waiting && (
                             // inputs that have begun stay open; Start still says what it needs, in red
                             <div className="banner err" role="alert" data-testid="inputs-start-not-done">

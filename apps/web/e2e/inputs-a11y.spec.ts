@@ -19,7 +19,7 @@ import { join, resolve } from "node:path";
 
 import { expect, type APIRequestContext, type Locator, type Page, test } from "@playwright/test";
 
-import { AUTH, finishStart } from "./fixtures/inputs";
+import { AUTH, finishStart, openCard } from "./fixtures/inputs";
 
 const REPO = resolve(__dirname, "../../..");
 
@@ -55,17 +55,22 @@ const repeated = (panel: Locator) => panel.evaluate((root) => {
   return [...seen].filter(([, n]) => n > 1).map(([name, n]) => `${name} ×${n}`);
 });
 
-/** Every study card of Clinical studies open at once (a delivery study's and a sheet-form study's), each read. */
-async function openEveryStudy(page: Page) {
+/** Each study card of Clinical studies opened in turn in the side panel (one at a time since the console redesign's slice
+ *  4b, decision D-I2), each read: the names repeated on the studies' panel while each one is open, and how many opened. */
+async function eachStudy(page: Page): Promise<{ opened: number; found: string[] }> {
   const panel = page.locator("#inputs-panel-studies");
-  const closed = panel.locator('[aria-expanded="false"][data-testid^="delivery-subject-open-"], [aria-expanded="false"][data-testid^="toggle-"]');
-  for (let round = 0; round < 4 && await closed.count(); round += 1) {
-    for (let n = await closed.count(); n > 0; n -= 1) await closed.first().click();
+  const rows = page.getByTestId("studies-list").locator('tr [data-testid^="delivery-subject-open-"], tr [data-testid^="toggle-"]');
+  const n = await rows.count();
+  const found = new Set<string>();
+  for (let i = 0; i < n; i += 1) {
+    const toggle = rows.nth(i);
+    if ((await toggle.getAttribute("aria-expanded")) !== "true") await toggle.click();
+    await expect(toggle).toHaveAttribute("aria-expanded", "true");
+    await page.waitForLoadState("networkidle");
+    await expect(panel.locator('[data-testid^="delivery-card-reading-"]')).toHaveCount(0);
+    for (const x of await repeated(panel)) found.add(x);
   }
-  await expect(closed).toHaveCount(0);
-  await page.waitForLoadState("networkidle");
-  await expect(panel.locator('[data-testid^="delivery-card-reading-"]')).toHaveCount(0);
-  return panel.locator('[aria-expanded="true"][data-testid^="delivery-subject-open-"], [aria-expanded="true"][data-testid^="toggle-"]').count();
+  return { opened: n, found: [...found] };
 }
 
 test.describe.configure({ mode: "serial" });
@@ -279,14 +284,17 @@ test("repeated buttons and fields carry what they are about; a decision is said 
   const found: string[] = (await repeated(page.locator("#inputs-panel-todo"))).map((x) => `To do: ${x}`);
   for (const name of ["Dissolution RLD pH 6.8.xlsx", "Dissolution Test pH 6.8.xlsx"]) await table.getByTestId(`link-open-${fid(name)}`).click();
   // every other area as it opens (its first cards open): each study's, product's and file's buttons name it; on Clinical
-  // studies with every study's card open at once, so each card's forms, facts, tables and spot check name their study
+  // studies each study's card in turn in the side panel, so each card's forms, facts, tables and spot check name their study
   // (final review round 4: Route, Save this fact, Start the spot check, Open in To do … repeated once per card)
   for (const tab of ["compound", "formulations", "studies", "individuals", "settings", "files"]) {
     await page.getByTestId(`tab-${tab}`).click();
     await expect(page.locator(`#inputs-panel-${tab}`)).toBeVisible();
     await page.waitForLoadState("networkidle");
-    if (tab === "studies") expect(await openEveryStudy(page), "study cards open at once").toBeGreaterThan(2);
-    found.push(...(await repeated(page.locator(`#inputs-panel-${tab}`))).map((x) => `${tab}: ${x}`));
+    if (tab === "studies") {
+      const each = await eachStudy(page);
+      expect(each.opened, "study cards opened in turn").toBeGreaterThan(2);
+      found.push(...each.found.map((x) => `${tab}: ${x}`));
+    } else found.push(...(await repeated(page.locator(`#inputs-panel-${tab}`))).map((x) => `${tab}: ${x}`));
   }
   expect(found).toEqual([]);
 
@@ -593,10 +601,13 @@ test("the client-data template's project: with every study card open, no two con
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto(`/projects/${template}/inputs?tab=studies`);
   await expect(page.getByTestId("study-row-study:EX-101")).toBeVisible();
-  expect(await openEveryStudy(page), "study cards open at once").toBeGreaterThan(2);
+  const each = await eachStudy(page);
+  expect(each.opened, "study cards opened in turn").toBeGreaterThan(2);
   // EX-101's two datasets and charts, one per file, each named by its source (final review round 4)
+  const ex = page.getByTestId("toggle-study:EX-101");
+  if ((await ex.getAttribute("aria-expanded")) !== "true") await ex.click();
   await expect(page.getByTestId("group-study:EX-101").getByTestId("profile-chart").first()).toBeVisible();
-  const found = (await repeated(page.locator("#inputs-panel-studies"))).map((x) => `studies: ${x}`);
+  const found = each.found.map((x) => `studies: ${x}`);
   for (const tab of ["todo", "compound", "formulations", "individuals", "settings", "files"]) {
     await page.getByTestId(`tab-${tab}`).click();
     await expect(page.locator(`#inputs-panel-${tab}`)).toBeVisible();
@@ -671,59 +682,72 @@ test("with every values table, its pages, every list of more checks and a spot c
   await page.setViewportSize({ width: 1440, height: 900 });
   const found: string[] = [];
   const seen: Record<string, number> = {};
+  let drawn = false;
   for (const tab of ["studies", "formulations"] as const) {
     await page.goto(`/projects/${projectId}/inputs?tab=${tab}`);
     const panel = page.locator(`#inputs-panel-${tab}`);
     await expect(panel).toBeVisible();
     await page.waitForLoadState("networkidle");
-    const closed = panel.locator('[aria-expanded="false"][data-testid^="delivery-subject-open-"], [aria-expanded="false"][data-testid^="toggle-"]');
-    for (let round = 0; round < 4 && await closed.count(); round += 1) {
-      for (let n = await closed.count(); n > 0; n -= 1) await closed.first().click();
+    // each card in turn, opened in the side panel (one at a time since the console redesign's slice 4b, D-I2): a study
+    // from its row, a product from its head
+    const toggles = page.getByTestId("studies-list").locator('tr [data-testid^="delivery-subject-open-"], tr [data-testid^="toggle-"]');
+    const products = tab === "formulations"
+      ? [...await panel.locator(".panel-row strong").allInnerTexts(), ...await panel.getByTestId("product-cards").locator(".card-toggle .card-title").allInnerTexts()]
+      : [];
+    const cards = tab === "studies" ? await toggles.count() : products.length;
+    for (let c = 0; c < cards; c += 1) {
+      if (tab === "studies") {
+        const toggle = toggles.nth(c);
+        if ((await toggle.getAttribute("aria-expanded")) !== "true") await toggle.click();
+      } else {
+        await openCard(page, products[c]!);
+      }
+      await page.waitForLoadState("networkidle");
+      await expect(panel.locator('[data-testid^="delivery-card-reading-"]')).toHaveCount(0);
+      if (tab === "studies" && !drawn && await panel.locator('[data-testid^="spot-draw-"]').filter({ hasText: "Start the spot check" }).count()) {
+        drawn = true;
+        // a spot check drawn, its values shown with their two answers; two of them answered "does not match", so their
+        // "what differs" fields are there too (final review round 5: its source buttons repeated, by field id)
+        const draw = panel.locator('[data-testid^="spot-draw-"]').filter({ hasText: "Start the spot check" }).first();
+        await draw.click();
+        const spot = panel.locator('[data-testid^="spot-values-"]');
+        await expect(spot).toHaveCount(1);
+        expect(await spot.locator('[data-testid^="spot-source-"]').count(), "values drawn with a source").toBeGreaterThan(3);
+        for (const wrong of (await spot.locator('[data-testid^="spot-wrong-"]').all()).slice(0, 2)) await wrong.check();
+        await expect(spot.locator('[data-testid^="spot-note-"]')).toHaveCount(2);
+      }
+      // every folded values table shown, every closed one opened, every list of more checks opened: each table's pager
+      // ("Show 8 more", "Show all N") is there with them
+      for (const sel of ['[data-testid^="delivery-table-show-"]', '[data-testid^="delivery-table-toggle-"][aria-expanded="false"]',
+                         '[data-testid^="delivery-checks-more-"][aria-expanded="false"]']) {
+        for (let n = await panel.locator(sel).count(); n > 0; n -= 1) await panel.locator(sel).first().click();
+      }
+      // every observed dataset's points shown (its notes and flags with them) and its "Leave it out…" form open: with two
+      // datasets of one study open, their "Cancel" read alike (round 7)
+      for (let n = await panel.getByRole("button", { name: /^Show the points/ }).count(); n > 0; n -= 1) {
+        await panel.getByRole("button", { name: /^Show the points/ }).first().click();
+      }
+      const leave = panel.locator('[data-testid^="dataset-leave-"]:not([data-testid^="dataset-leave-cancel-"])');
+      const leaving = await leave.count();
+      seen[`${tab} leave`] = (seen[`${tab} leave`] ?? 0) + leaving;
+      for (let n = leaving; n > 0; n -= 1) await leave.first().click();
+      await expect(panel.locator('[data-testid^="dataset-leave-cancel-"]')).toHaveCount(leaving);
+      await page.waitForLoadState("networkidle");
+      seen[`${tab} tables`] = (seen[`${tab} tables`] ?? 0) + await panel.locator("table.delivery-values").count();
+      seen[`${tab} pagers`] = (seen[`${tab} pagers`] ?? 0) + await panel.locator('[data-testid^="delivery-table-more-"][data-testid$="-next"]').count();
+      const names = await computedNames(panel);
+      const designed = await byDesign(panel);
+      for (const [name, n] of names) {
+        if (n > 1 && designed[name] !== n) found.push(`${tab}: ${name} ×${n}`);
+        if (RAW_WORDS.test(plainOf(name.replace(/^\w+ “|”$/g, "")))) found.push(`${tab}: a raw id in ${name}`);
+      }
+      // nor in what the page shows (round 6: the more checks' notes printed "pk.Cmax: values in 'ng/mL'…")
+      for (const line of [...(await panel.innerText()).split("\n"), ...await titlesOf(panel)]) {
+        if (RAW_WORDS.test(plainOf(line))) found.push(`${tab}: a raw id in the text “${line.trim().slice(0, 140)}”`);
+      }
+      // the repeats left by design are only these, each inside its own table or question
+      for (const name of Object.keys(designed)) expect(name).toMatch(/^(button “(Field|Value|Time|Read by)”|radio “(matches|does not match)”)$/);
     }
-    await page.waitForLoadState("networkidle");
-    await expect(panel.locator('[data-testid^="delivery-card-reading-"]')).toHaveCount(0);
-    if (tab === "studies") {
-      // a spot check drawn, its values shown with their two answers; two of them answered "does not match", so their
-      // "what differs" fields are there too (final review round 5: its source buttons repeated, by field id)
-      const draw = panel.locator('[data-testid^="spot-draw-"]').filter({ hasText: "Start the spot check" }).first();
-      await expect(draw).toBeVisible();
-      await draw.click();
-      const spot = panel.locator('[data-testid^="spot-values-"]');
-      await expect(spot).toHaveCount(1);
-      expect(await spot.locator('[data-testid^="spot-source-"]').count(), "values drawn with a source").toBeGreaterThan(3);
-      for (const wrong of (await spot.locator('[data-testid^="spot-wrong-"]').all()).slice(0, 2)) await wrong.check();
-      await expect(spot.locator('[data-testid^="spot-note-"]')).toHaveCount(2);
-    }
-    // every folded values table shown, every closed one opened, every list of more checks opened: each table's pager
-    // ("Show 8 more", "Show all N") is there with them
-    for (const sel of ['[data-testid^="delivery-table-show-"]', '[data-testid^="delivery-table-toggle-"][aria-expanded="false"]',
-                       '[data-testid^="delivery-checks-more-"][aria-expanded="false"]']) {
-      for (let n = await panel.locator(sel).count(); n > 0; n -= 1) await panel.locator(sel).first().click();
-    }
-    // every observed dataset's points shown (its notes and flags with them) and its "Leave it out…" form open: with two
-    // datasets of one study open, their "Cancel" read alike (round 7)
-    for (let n = await panel.getByRole("button", { name: /^Show the points/ }).count(); n > 0; n -= 1) {
-      await panel.getByRole("button", { name: /^Show the points/ }).first().click();
-    }
-    const leave = panel.locator('[data-testid^="dataset-leave-"]:not([data-testid^="dataset-leave-cancel-"])');
-    seen[`${tab} leave`] = await leave.count();
-    for (let n = seen[`${tab} leave`]; n > 0; n -= 1) await leave.first().click();
-    await expect(panel.locator('[data-testid^="dataset-leave-cancel-"]')).toHaveCount(seen[`${tab} leave`]);
-    await page.waitForLoadState("networkidle");
-    seen[`${tab} tables`] = await panel.locator("table.delivery-values").count();
-    seen[`${tab} pagers`] = await panel.locator('[data-testid^="delivery-table-more-"][data-testid$="-next"]').count();
-    const names = await computedNames(panel);
-    const designed = await byDesign(panel);
-    for (const [name, n] of names) {
-      if (n > 1 && designed[name] !== n) found.push(`${tab}: ${name} ×${n}`);
-      if (RAW_WORDS.test(plainOf(name.replace(/^\w+ “|”$/g, "")))) found.push(`${tab}: a raw id in ${name}`);
-    }
-    // nor in what the page shows (round 6: the more checks' notes printed "pk.Cmax: values in 'ng/mL'…")
-    for (const line of [...(await panel.innerText()).split("\n"), ...await titlesOf(panel)]) {
-      if (RAW_WORDS.test(plainOf(line))) found.push(`${tab}: a raw id in the text “${line.trim().slice(0, 140)}”`);
-    }
-    // the repeats left by design are only these, each inside its own table or question
-    for (const name of Object.keys(designed)) expect(name).toMatch(/^(button “(Field|Value|Time|Read by)”|radio “(matches|does not match)”)$/);
   }
   // Client files, every file opened with its reading's tables and texts, and the other areas: no raw id in a name or the
   // text (round 6: "looks like a pk individual table", "PK_Summary!F7", "arithmetic_mean" in the template's problems)

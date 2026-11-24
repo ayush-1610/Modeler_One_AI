@@ -83,6 +83,118 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
     They are research reports, not SME-reviewed. Two findings about the locked acceptance ruleset (the `guest_2011`
     title; the 1.5-fold limit attributed to EMA) are listed for the SME, not edited.
 
+### Changed — the console redesign, slice 4b: Inputs' study and product cards open one at a time in a side panel (2026-11-24)
+- **What:** on Inputs, a study's card (Clinical studies) and a product's card (Products and dissolution) open in a side
+  panel on the right (`kit/SidePanel`), one at a time, instead of inside the list with up to three open at once. The
+  first card to confirm opens there by itself; a row's Open, a To do item or a study's release link opens another;
+  Previous and Next move through the list ("2 of 4"); Close or Escape puts it away. A card stays open when it stops
+  being the first to confirm (confirmed: it shows what its signature loaded; blinded by a fact just entered) rather than
+  the panel jumping under the person's hand. Where it sits follows AWS's split panel: on the right from a 1600 px window
+  (the page narrows to make room, the list keeping its width), docked at the bottom below that (55 % of the height, the
+  list full width above it), a sheet over the page on a phone. The panel takes the focus on its title and is named by
+  its study or product; a value's source opened in it is brought into view by the panel's own scroll, never the page's.
+- **Why:** the owner's Gate 3 answer (a side panel) and decision D-I2 (2026-11-24): one card at a time wins over the rule
+  of 2026-11-05 that kept up to three open in the list.
+- **Not built: the impact preview** before confirming a changed signed card again. The confirmation lands several
+  records through the intake landing; an honest preview needs a dry run of that landing as a new route (none exists:
+  `POST /impact` previews one artifact's content, which the browser cannot compute for a landing). Left for the owner's
+  decision (plan §11).
+- **Impact:** no API change; every test id kept, each on the page once. Specs updated for one card at a time
+  (`client-data`, `delivery`, `inputs-a11y` (each study's and product's card checked in turn), `inputs-blinded-follow`,
+  `inputs-data-cards` (Next, the panel's name, focus, position and Escape), `inputs-frame`, `inputs-owner-job`,
+  `inputs-task-first` (CODE-1: each card's links land on its own form, one card on the page at a time), `client-confirm`
+  (a study linked to its other name is opened on its new card)); new spec helpers
+  `openCard` and `openStudy` (`e2e/fixtures/inputs.ts`).
+
+### Changed — the console redesign, slice 4a: the Data plan, the Data room in Inputs' words, the model system on Inputs (2026-11-24)
+- **What:**
+  - **Data plan** (`/projects/{id}/data-plan`, P-13b, new; the owner's answer Q1: read-mostly): every requirement the
+    brief's applications derive (`GET /requirements`), what it is needed for, who provides it, its purpose and status
+    (Open, Done, Not available, Waived; "Open" is the plan's "not marked covered yet", never "no value": Inputs may
+    already hold it), filtered by status and provider, each opening the area of Inputs where it
+    is settled. Nothing is edited on it. In the side navigation under Data.
+  - **Data room** sections say where they stand in Inputs' words (decision G1-1): Done, To confirm, Missing; a section
+    with nothing delivered keeps "Nothing yet". The mapping (from In order, Needs a look, Missing) is for the owner's
+    review (`design-review/DECISIONS.md` D-I2).
+  - **"Earlier page" links removed** (G1-1): the Data room's footer link to Inputs, and Inputs' "Open in the Data
+    room" (`OpenInDataRoom`, deleted). Both pages are reached from the side navigation's Data step.
+  - **Model system** moves from Run to Inputs' Compound area (a model input; it shows only when the project models more
+    than one compound).
+  - **Fixed:** the Overview's Recent activity showed the ten oldest events: the audit read lists the newest first.
+- **Why:** the plan's slice 4, first half (the owner, 2026-11-24: slice 4 in two PRs; D-I2).
+- **Kept:** the observed-studies list stays on Run: Review & sign's Overall Data does not list the studies Inputs holds,
+  so it cannot stand in for the Run page's list as the check that Inputs' studies reach the campaign (OWN-13).
+- **Impact:** no API change. Specs: `dataroom` (no "earlier page" link), `model-system` (on Inputs); new `data-plan.spec.ts`.
+
+### Changed — the console redesign, slice 3: a project's Overview, Run, Compounds, Members and Settings (2026-11-24)
+- **What:**
+  - **Overview** (`/projects/{id}`, P-10, new): the project's address, before the Run page, now says where it stands:
+    its four steps (state, what each waits on, a link; a later step says "after Start" until Start is done), the next
+    action as the page's one primary button, the questions of interest, what waits on this person here, the latest
+    campaign, the last ten audit events and links to its records.
+  - **Run** moves to `/projects/{id}/campaigns` (P-15): whether a campaign can run and what it lacks, Run campaign, the
+    studies a campaign fits, the model system (until slice 4 moves it to Inputs) and the campaigns. The Run step, the
+    side navigation and every "Run" link point there; an old bookmark to `/projects/{id}` lands on the Overview.
+  - **Compounds** (`/projects/{id}/compounds`, P-17, new): each compound's role in the model system and how complete
+    its CPF is, each opening its CPF; values stay filled in on Inputs.
+  - **Members** (`/projects/{id}/members`, P-22): the members panel, moved out of the Run page.
+  - **Settings** (P-23, added by the sign-in work the same day): now also the owner, archive and restore with a reason
+    (the owner only; the others are told who does it), the blinding (shown; set on Review & sign), and who it is shared
+    with as a summary linking to Members (one home per decision).
+  - **Notices:** on the Overview, Members and Settings, an archived project says so (who, when, why) and a project
+    shared with the person to read says only its owner, named, changes it. The archived state is read from the
+    project list: `GET /projects/{id}` does not carry it, so Settings' archived banner had never shown.
+  - Side navigation: Overview; Records adds Compounds; Project adds Members. Breadcrumbs: Run, Compounds, Members,
+    Settings; a campaign's breadcrumb sits under its project's Run.
+- **Why:** the plan's slice 3 (`docs/plans/2026-11-23-console-redesign-implementation.md`), P-10, P-15, P-17, P-22, P-23
+  (`design-review/PAGE_INVENTORY.md`, `PRODUCT_SITEMAP.md` §3).
+- **Impact:** no API change. Specs updated: `members`, `oidc-signing` (Keycloak only, not run here), `auth-pages`,
+  `model-system`, `model-inputs`, `inputs-owner-job`, `campaign-monitor`, `console-shell` (four more pages); new
+  `project-frame.spec.ts`.
+
+### Changed — the console redesign, slice 2: Home, Your work, Projects, Campaigns, Help; decisions asked from a flash bar (2026-11-24)
+- **What:**
+  - **Home** (`/`, P-01) replaces the dashboard: four counters, each a link to the list it counts; Your work (top five,
+    "View all"); the projects with their four steps and next action; risk across programs; recent campaigns.
+  - **Your work** (`/work`, P-02, new): one list of links to what waits on this person across projects, filtered by
+    text, kind and project. Listed only for who may act: a project's owner for its steps, a reviewer it is shared
+    with for its signature, whoever the API says may decide an escalation (`can_decide`). Nothing is decided there
+    (decision G1-3). Its count is in the top bar and the side navigation (Gate 3). `/review` now lands here.
+  - **Projects** (`/projects`, P-03, new route): the table by default (steps, next action, risk, open questions,
+    owner, History, Archive / Restore with a reason; only the owner sees Archive), the cards as an option.
+  - **Campaigns** (`/campaigns`, P-05, new): every campaign of the person's projects, with status and budget used.
+  - **Help** (`/help`, P-30): the user guide page another session added on `main` the same day (it renders
+    `docs/USING_THE_TOOL.md`, as the page inventory asks) is kept; slice 2's own topic page was dropped in the merge.
+    The side navigation and the top bar link to it; below 760 px its contents now sit above the guide (it scrolled
+    486 px sideways on a phone; `console-shell.spec.ts` now checks `/help` too).
+  - **Decisions:** an open escalation no longer opens a pop-up on every page. A flash bar says "A decision is waiting"
+    on that campaign's project pages and on the campaign's own page, for those who may decide it; the signed
+    decision opens from its Decide button (the same dialog and step-up). Your work lists it as a link; an escalation
+    whose campaign is not recorded yet is decided on the campaign's page, which Your work links to.
+  - Shell: side navigation Home, Your work, Projects, Campaigns, Start from proposal, Help; top bar Your work (n) and
+    Help; breadcrumbs start at Home or Projects. `kit/Table` (filter, sort, empty state), `StepsMini`.
+  - **Fixed:** below 1000 px, Review & sign's one column grew to its MS-01 diagram's width (960 px) and pushed the
+    page sideways, once the plan held studies; the column now shrinks and the diagram scrolls in its own box
+    (`plan.css`, found by `console-shell.spec.ts` at 390 px).
+- **Why:** the plan's slice 2 (`docs/plans/2026-11-23-console-redesign-implementation.md`), the pages approved at
+  Gates 2 to 4 (`design-review/PAGE_INVENTORY.md` P-01, P-02, P-03, P-05, P-30; `PRODUCT_SITEMAP.md` "Escalation notice").
+  The pop-up interrupted every page, including pages unrelated to the campaign.
+- **Impact:** the old dashboard (`components/dashboard/Dashboard.tsx`) is removed; its test ids live on (`dash-new-project`,
+  `kpi-*`, `dash-attention`, `dash-risk`, `dash-partial`, `dash-view-*`, `dash-search`, `project-card-*`). Specs updated:
+  `dashboard`, `dashboard-partial`, `projects-archive`, `start-project`, `shell`, `escalation-popup`, `feedback`,
+  `oidc-signing` (Keycloak only, not run here), `console-shell` (five more pages); new `portfolio.spec.ts`.
+
+### Added — the console redesign, slice 2: the project list carries each project's steps and owner on request (2026-11-24)
+- **What:** `GET /projects?with=steps,owner` adds to each project its four steps (`steps`, exactly as
+  `GET /projects/{id}/steps` answers them) and its owner (`owner`, the id, and `owner_name`, as `GET /projects/{id}/members` says them).
+  Either part alone works; an unknown part is refused (422) in words. Without `with`, the list is unchanged.
+- **Why:** redesign R-N03. Home, Your work and Projects need every project's step state and owner; today that is one
+  `/steps` and one `/members` request per project. Measured with 50 projects: 11 ms for the one request, 790 ms for the
+  100 it replaces (container, stub data), so no cache.
+- **Contract:** additive (`ProjectListItem.steps`, `.owner`, `.owner_name`, the `with` query). `docs/api/openapi.json`,
+  `apps/web/lib/api-types.ts` regenerated. Tests: `services/api/tests/test_project_list_with.py` (same steps as the
+  route, a member sees only what is shared with them, payload unchanged without `with`, unknown part refused).
+
 ### Fixed — the Data room's second layer: no silent wrong number, and code refuses what the AI describes wrong (2026-11-24)
 - **Why:**
   - The same three new deliveries, read end to end by Nemotron Ultra, came out 61 % right while code was 97 % right on
@@ -1251,7 +1363,6 @@ them to be fixed now, ahead of the redesign.
   7bb1 itself was checked in a browser on a copy of the review data (plan §5). e2e/inputs-work.spec.ts: `followFrom` and `signWaitsWords`. The two new follow tests
   fail on round 5's web at their same-visit assertions; the whole e2e suite passes (146 of 146). Software test data (the
   made-up Exampleamide; the stub engine, a software fixture). No locked file; no SME rule; no API contract change.
-
 
 ### Fixed — final review round 6, the product a study's own file names, and the plan link (round 5's downstream-why skeptic; plan 2026-11-14 §5) — science-adjacent
 - **A study whose own file names its product is settled by that product only (`modeler_project.formulation_way`).** The

@@ -111,3 +111,29 @@ export async function projectWithInputs(request: APIRequestContext, drug: string
   }
   return projectId;
 }
+
+/** Open a study's or a product's card in Inputs' side panel by its title (the console redesign's slice 4b: one card open
+ *  at a time, decision D-I2); nothing when it is the one already open there. A study opens from its row in the list, a
+ *  product from its head. */
+export async function openCard(page: Page, title: string) {
+  const panel = page.locator('[data-testid="study-panel"], [data-testid="product-panel"]');
+  const heading = panel.getByRole("heading", { name: title, exact: true });
+  if (await heading.count()) return;
+  // on a phone the panel covers the list: it is put away first, as a person would
+  if (await panel.count()) await panel.getByTestId("side-panel-close").click();
+  const row = page.getByRole("button", { name: `Open the card of ${title}`, exact: true });
+  if (await row.count()) await row.click();
+  else await page.locator(".card-toggle", { has: page.locator(".card-title", { hasText: new RegExp(`^${title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`) }) }).click();
+  await heading.waitFor();
+}
+
+/** Open a study's card in the side panel by its row's toggle (its test id), putting away another open card first. */
+export async function openStudy(page: Page, toggleTestId: string) {
+  const toggle = page.getByTestId(toggleTestId);
+  await toggle.waitFor();
+  if ((await toggle.getAttribute("aria-expanded")) === "true") return;
+  const panel = page.locator('[data-testid="study-panel"], [data-testid="product-panel"]');
+  if (await panel.count()) await panel.getByTestId("side-panel-close").click();
+  await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+}

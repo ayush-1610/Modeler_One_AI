@@ -13,6 +13,7 @@ import { Logo } from "@/components/Nav";
 import { Icon } from "@/components/kit/icons";
 import { toast } from "@/components/kit/Motion";
 import { forgetReasons } from "@/components/kit/Reason";
+import { useWorkCount } from "@/components/portfolio/useWork";
 import { useResource } from "@/lib/hooks";
 
 /** Whether the API answers: its open-escalations read (the one the decision pop-up polls), every half minute. */
@@ -59,10 +60,21 @@ function ProjectSwitcher() {
             : <ul className="popover-list">{list.slice(0, 12).map((p) => (
                 <li key={p.id}><Link href={`/projects/${encodeURIComponent(p.id)}`}>{p.name}
                   <span className="muted"> · {p.compounds.join(", ")}</span></Link></li>))}</ul>}
-          <Link className="popover-foot" href="/">All projects</Link>
+          <Link className="popover-foot" href="/projects" prefetch={false}>All projects</Link>
         </div>
       )}
     </div>
+  );
+}
+
+/** "Your work (n)": the count of what waits on this person, a link to the list (Gate 3: the count in both places). */
+function TopWork() {
+  const n = useWorkCount();
+  return (
+    <Link href="/work" prefetch={false} className="topbar-link" data-testid="top-work" aria-label={n ? `Your work, ${n} waiting` : "Your work"}>
+      <Icon name="checkc" /><span className="topbar-link-text">Your work</span>
+      {n !== null && n > 0 && <span className="topbar-count">{n}</span>}
+    </Link>
   );
 }
 
@@ -83,8 +95,9 @@ export function TopBar({ user, navOpen, onMenu }: { user?: string | null; navOpe
       <Link href="/" className="topbar-brand" aria-label="Modeler One, home"><Logo size={26} light /><span>Modeler One</span></Link>
       <ProjectSwitcher />
       <span className="grow" />
+      <TopWork />
       {/* the user guide, the AI keys path among it (app/help, 2026-11-24) */}
-      <Link href="/help" className="topbar-help" prefetch={false} data-testid="nav-help">Help</Link>
+      <Link href="/help" prefetch={false} className="topbar-link" data-testid="nav-help" aria-label="Help"><Icon name="info" /><span className="topbar-link-text">Help</span></Link>
       {/* the API's answer, not a guess: green when its reads answer, grey when they do not; a click asks again */}
       <button type="button" className={`topbar-api${live ? " live" : ""}`} onClick={() => void recheck()} data-testid="nav-conn"
               title={live ? "Live: the API answers" : live === false ? "The API does not answer" : "Checking the API"}

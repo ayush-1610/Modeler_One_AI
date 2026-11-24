@@ -47,14 +47,24 @@ test("a delivery with four studies is reviewed one study at a time, each as data
   await expect(page.getByTestId("group-study:CL-3").getByTestId("profile-chart")).toHaveCount(0);
   await expect(page.getByTestId("toggle-study:CL-3")).toHaveText("Open");
   await shot(page, "1-one-study-at-a-time");
-  // any study opens from its row, with its own data
+  // any study opens from its row, with its own data, in the side panel, one at a time (decision D-I2)
   await page.getByTestId("toggle-study:CL-3").click();
   const third = page.getByTestId("group-study:CL-3");
   await expect(third.getByTestId("dataset-stats")).toContainText("123");                // 3 × 41
-  // confirming the open one moves to the next to confirm
+  await expect(first).toHaveCount(0);                                                   // the panel shows one study
+  await page.getByTestId("toggle-study:CL-1").click();
+  // confirming the open one keeps it open, saying what was confirmed; Next moves to the next study
   await first.getByTestId("confirm-study:CL-1").click();
   // said once, on the card's head line: who confirmed it and how; the group inside does not repeat it (final review OWN-14)
   await expect(page.getByTestId("card-loaded-study:CL-1")).toContainText(/Confirmed with the sheet form by dev-user on \d{1,2} \w{3} \d{4}, \d\d:\d\d\./);
   await expect(first.getByTestId("group-confirmed-study:CL-1")).toHaveCount(0);
+  await page.getByTestId("side-panel-next").click();
   await expect(page.getByTestId("group-study:CL-2").getByTestId("profile-chart")).toBeVisible();
+  // the panel is named by its study, takes the focus on its title, says where it is, and Escape puts it away
+  const panel = page.getByRole("complementary", { name: "Study CL-2" });
+  await expect(panel.getByRole("heading", { name: "CL-2" })).toBeFocused();
+  await expect(panel).toContainText("2 of 4");
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("study-panel")).toHaveCount(0);
+  await expect(page.getByTestId("toggle-study:CL-2")).toHaveAttribute("aria-expanded", "false");
 });

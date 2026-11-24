@@ -67,3 +67,7 @@ stub engine with synthetic data; no number in them is a PBPK result). Gate 2 cor
 | 2026-11-23 | Gate 4 approved; prepare the implementation plan | apps/web baseline, plan | Archive made and verified; implementation plan written | Charter Phase 9 |
 | 2026-11-23 | Authorised slices 0 and 1; PR per slice; push archive refs; merge into `main` first; QA without `auth.py` | Shell, all pages | Slice 0 done (tag push refused, owner pushes it); slice 1 built: the console shell; R-S02 fixed | Owner's implementation go-ahead |
 | 2026-11-24 | Slice 1 looked too much like the old design; propose ten AWS designs; chose option 5 as drawn | Visual style, all pages | `console-options/` (ten designs); D-I1; slice 1 restyled | Owner's review of slice 1 |
+| 2026-11-24 | Slice 1 approved; proceed to slice 2 | Portfolio pages, decisions | Slice 1 merged (#174); slice 2 built: Home, Your work, Projects, Campaigns, Help, R-N03, decision flash bar | Owner's review |
+| 2026-11-24 | Slice 2 approved; proceed to slice 3 | Project frame | Slice 2 merged (#175); slice 3 built: Overview, Run at /campaigns, Compounds, Members, Settings |  Owner's review |
+| 2026-11-24 | Slice 3 approved; slice 4: study cards in a side panel one at a time; two PRs | Data, Inputs | Slice 3 merged (#176); D-I2; slice 4a built |  Owner's review and answers |
+| 2026-11-24 | Slice 4a approved; proceed to 4b | Inputs cards | 4a merged (#177); 4b built: study and product cards in a side panel; impact preview left for the owner | Owner's review |
