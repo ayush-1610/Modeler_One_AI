@@ -29,7 +29,7 @@ export const STEP_ROUTES: Record<StepId, (projectId: string) => string> = {
   start: (p) => `/projects/${p}/start`,
   inputs: (p) => `/projects/${p}/inputs`,
   review: (p) => `/projects/${p}/plan`,
-  run: (p) => `/projects/${p}`,
+  run: (p) => `/projects/${p}/campaigns`,
 };
 
 export const getSteps = cache(async (projectId: string): Promise<Live<StepRow[]>> => {

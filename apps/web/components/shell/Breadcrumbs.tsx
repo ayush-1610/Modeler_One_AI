@@ -15,6 +15,10 @@ const PROJECT_PAGES: Record<string, Crumb[]> = {
   dataroom: [["Data", null], ["Data room", null]],
   inputs: [["Data", null], ["Inputs", null]],
   plan: [["Review & sign", null]],
+  campaigns: [["Run", null]],
+  compounds: [["Compounds", null]],
+  members: [["Members", null]],
+  settings: [["Settings", null]],
   library: [["Documents", null]],
   history: [["History", null]],
 };
@@ -34,9 +38,9 @@ function crumbsFor(path: string, name: string | null): Crumb[] {
     const base = `/projects/${encodeURIComponent(parts[1])}`;
     const project: Crumb = [name ?? parts[1], base];
     const page = parts[2];
-    if (!page) return [["Projects", "/projects"], [project[0], null], ["Run", null]];
+    if (!page) return [["Projects", "/projects"], [project[0], null]];
     if (page === "dataroom" && parts[3] === "report") return [["Projects", "/projects"], project, ["Data", null], ["Data room", `${base}/dataroom`], ["Evidence report", null]];
-    if (page === "compounds" && parts[3]) return [["Projects", "/projects"], project, ["Compounds", null], [parts[3], null]];
+    if (page === "compounds" && parts[3]) return [["Projects", "/projects"], project, ["Compounds", `${base}/compounds`], [parts[3], null]];
     return [["Projects", "/projects"], project, ...(PROJECT_PAGES[page] ?? [[page, null]])];
   }
   if (parts[0] === "campaigns" && parts[1]) return [["Campaigns", "/campaigns"], [`Campaign ${parts[1]}`, null]];
@@ -54,7 +58,15 @@ export function Breadcrumbs() {
   const name = useResource("/api/v1/projects/{project_id}", { project_id: projectId ?? "" }, { enabled: Boolean(projectId), select: (d) => d.name }).data;
   // an admin address names the console only to the platform's owner (anyone else sees the app's 404 and no trace of it)
   const admin = useResource("/api/v1/me", {}, { enabled: path.startsWith("/admin"), select: (d) => d.admin }).data === true;
-  const crumbs = path.startsWith("/admin") && !admin ? [] : crumbsFor(path, name);
+  // a campaign sits under its project's Run (P-16): its project, read from the campaign, then the project's name
+  const cid = /^\/campaigns\/([^/]+)/.exec(path)?.[1];
+  const owner = useResource("/api/v1/campaigns/{campaign_id}", { campaign_id: cid ? decodeURIComponent(cid) : "" },
+                            { enabled: Boolean(cid), select: (d) => d.project as string }).data;
+  const ownerName = useResource("/api/v1/projects/{project_id}", { project_id: owner ?? "" }, { enabled: Boolean(owner), select: (d) => d.name }).data;
+  const crumbs = path.startsWith("/admin") && !admin ? []
+    : cid && owner ? [["Projects", "/projects"], [ownerName ?? owner, `/projects/${encodeURIComponent(owner)}`],
+                      ["Run", `/projects/${encodeURIComponent(owner)}/campaigns`], [`Campaign ${decodeURIComponent(cid)}`, null]] as Crumb[]
+    : crumbsFor(path, name);
   if (crumbs.length === 0) return null;
   return (
     <nav className="crumbs" aria-label="Breadcrumbs">

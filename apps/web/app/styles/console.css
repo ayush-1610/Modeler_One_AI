@@ -255,6 +255,12 @@ a.counter:hover { border-color: var(--c-accent); color: var(--c-ink); }
   .content .help-toc { position: static; }
 }
 
+/* key-value pairs in a panel (Overview's latest campaign) */
+.kv-list { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 8px 16px; margin: 0; }
+.kv-list dt { color: var(--c-ink-3); font-weight: 600; font-size: var(--fs-sm); }
+.kv-list dd { margin: 0; }
+.sn-top { list-style: none; margin: var(--sp-2) 0 0; padding: 0; }
+
 /* ---------- alerts: a bordered, tinted box with the word; the colour is the second cue ---------- */
 .banner { border: 1px solid; border-radius: var(--rad-md); padding: 12px 16px; font-weight: 400; color: var(--c-ink); }
 .banner strong { font-weight: 600; }

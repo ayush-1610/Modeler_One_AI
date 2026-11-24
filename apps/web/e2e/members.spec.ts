@@ -9,7 +9,7 @@ test("a new project lists its creator as its member", async ({ page, request }) 
   expect(created.ok()).toBeTruthy();
   const projectId = (await created.json()).data.id as string;
 
-  await page.goto(`/projects/${projectId}`);
+  await page.goto(`/projects/${projectId}/members`);                        // Members, its own page (slice 3)
   const panel = page.getByTestId("members-panel");
   await expect(panel).toContainText("development sign-in opens every project");
   await expect(panel.getByTestId("member-dev-user")).toContainText("Dev User");

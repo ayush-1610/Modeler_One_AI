@@ -33,7 +33,7 @@ test.afterEach(() => dropEscalations());
 
 test("a campaign on the published Dapagliflozin model's real data runs from the project page to the monitor", async ({ page, request }) => {
   const { projectId, compound } = await fromTemplate(request, "dapagliflozin-osp");
-  await page.goto(`/projects/${projectId}`);
+  await page.goto(`/projects/${projectId}/campaigns`);                      // Run (the console redesign, slice 3)
   await page.getByRole("button", { name: "Run campaign" }).click();
 
   await page.waitForURL(/\/campaigns\/[^/]+$/);
@@ -63,7 +63,7 @@ test("a campaign that is not recorded says so and never shows sample data", asyn
 
 test("the illustrative example runs, but its verdicts are shown as test only (plan §9.4)", async ({ page, request }) => {
   const { projectId } = await fromTemplate(request, "aciclovir-illustrative");
-  await page.goto(`/projects/${projectId}`);
+  await page.goto(`/projects/${projectId}/campaigns`);                      // Run (the console redesign, slice 3)
   await page.getByRole("button", { name: "Run campaign" }).click();
   await page.waitForURL(/\/campaigns\/[^/]+$/);
   await expect(page.getByTestId("campaign-status")).toHaveText(TERMINAL, { timeout: 8 * 60_000 });

@@ -15,6 +15,32 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — the console redesign, slice 3: a project's Overview, Run, Compounds, Members and Settings (2026-11-24)
+- **What:**
+  - **Overview** (`/projects/{id}`, P-10, new): the project's address, before the Run page, now says where it stands:
+    its four steps (state, what each waits on, a link; a later step says "after Start" until Start is done), the next
+    action as the page's one primary button, the questions of interest, what waits on this person here, the latest
+    campaign, the last ten audit events and links to its records.
+  - **Run** moves to `/projects/{id}/campaigns` (P-15): whether a campaign can run and what it lacks, Run campaign, the
+    studies a campaign fits, the model system (until slice 4 moves it to Inputs) and the campaigns. The Run step, the
+    side navigation and every "Run" link point there; an old bookmark to `/projects/{id}` lands on the Overview.
+  - **Compounds** (`/projects/{id}/compounds`, P-17, new): each compound's role in the model system and how complete
+    its CPF is, each opening its CPF; values stay filled in on Inputs.
+  - **Members** (`/projects/{id}/members`, P-22): the members panel, moved out of the Run page.
+  - **Settings** (P-23, added by the sign-in work the same day): now also the owner, archive and restore with a reason
+    (the owner only; the others are told who does it), the blinding (shown; set on Review & sign), and who it is shared
+    with as a summary linking to Members (one home per decision).
+  - **Notices:** on the Overview, Members and Settings, an archived project says so (who, when, why) and a project
+    shared with the person to read says only its owner, named, changes it. The archived state is read from the
+    project list: `GET /projects/{id}` does not carry it, so Settings' archived banner had never shown.
+  - Side navigation: Overview; Records adds Compounds; Project adds Members. Breadcrumbs: Run, Compounds, Members,
+    Settings; a campaign's breadcrumb sits under its project's Run.
+- **Why:** the plan's slice 3 (`docs/plans/2026-11-23-console-redesign-implementation.md`), P-10, P-15, P-17, P-22, P-23
+  (`design-review/PAGE_INVENTORY.md`, `PRODUCT_SITEMAP.md` §3).
+- **Impact:** no API change. Specs updated: `members`, `oidc-signing` (Keycloak only, not run here), `auth-pages`,
+  `model-system`, `model-inputs`, `inputs-owner-job`, `campaign-monitor`, `console-shell` (four more pages); new
+  `project-frame.spec.ts`.
+
 ### Changed — the console redesign, slice 2: Home, Your work, Projects, Campaigns, Help; decisions asked from a flash bar (2026-11-24)
 - **What:**
   - **Home** (`/`, P-01) replaces the dashboard: four counters, each a link to the list it counts; Your work (top five,
