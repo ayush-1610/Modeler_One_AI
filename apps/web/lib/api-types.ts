@@ -701,6 +701,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project_id}/agent-runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Agent Runs
+         * @description The project's agent runs, newest first, `limit` at a time; `before` (a run's id, the last page's `next_before`)
+         *     gives the older ones after it (R-N05). Only this company's runs of this project.
+         */
+        get: operations["list_agent_runs_api_v1_projects__project_id__agent_runs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project_id}/agent-runs/{run_id}": {
         parameters: {
             query?: never;
@@ -3080,7 +3101,14 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * Get Signatures
+         * @description The signatures given on this project's records (R-N09), newest first: every `signature.create` event of the
+         *     company's audit chain whose record is the project's (its id starts with the project's: an intake confirmation, the
+         *     MAP and its deviations, the Data room's publication) or a decision on one of its campaigns' escalations (signed as
+         *     "{campaign_id}-{stage}"), which the project's audit trail, filtered by the project's prefix, does not list.
+         */
+        get: operations["get_signatures_api_v1_projects__project_id__signatures_get"];
         put?: never;
         /** Create Signature */
         post: operations["create_signature_api_v1_projects__project_id__signatures_post"];
@@ -3522,6 +3550,49 @@ export interface components {
             steps: {
                 [key: string]: unknown;
             }[];
+        };
+        /** AgentRunList */
+        AgentRunList: {
+            /** Next Before */
+            next_before: string | null;
+            /** Runs */
+            runs: components["schemas"]["AgentRunRow"][];
+        };
+        /**
+         * AgentRunRow
+         * @description One agent run on a project as Agent activity lists it (R-N05): who started it, on which model, how long, what it
+         *     used, how many tool calls the runtime refused, and the model it fell back from. No cost: that stays in the admin
+         *     console.
+         */
+        AgentRunRow: {
+            /** Agent */
+            agent: string;
+            /** Agent Label */
+            agent_label: string | null;
+            /** Fallback From */
+            fallback_from: string | null;
+            /** Finished At */
+            finished_at: string | null;
+            /** Input Tokens */
+            input_tokens: number;
+            /** Model */
+            model: string;
+            /** Output Tokens */
+            output_tokens: number;
+            /** Provider */
+            provider: string | null;
+            /** Refusals */
+            refusals: number;
+            /** Run Id */
+            run_id: string;
+            /** Started At */
+            started_at: string;
+            /** Started By */
+            started_by: string | null;
+            /** Status */
+            status: string;
+            /** Turns */
+            turns: number;
         };
         /** AgentSet */
         AgentSet: {
@@ -7685,6 +7756,13 @@ export interface components {
             errors: components["schemas"]["ErrorItem"][];
             meta: components["schemas"]["Meta"];
         };
+        /** Envelope[AgentRunList] */
+        Envelope_AgentRunList_: {
+            data: components["schemas"]["AgentRunList"];
+            /** Errors */
+            errors: components["schemas"]["ErrorItem"][];
+            meta: components["schemas"]["Meta"];
+        };
         /** Envelope[AgentsPage] */
         Envelope_AgentsPage_: {
             data: components["schemas"]["AgentsPage"];
@@ -8185,6 +8263,13 @@ export interface components {
         /** Envelope[SheetView] */
         Envelope_SheetView_: {
             data: components["schemas"]["SheetView"];
+            /** Errors */
+            errors: components["schemas"]["ErrorItem"][];
+            meta: components["schemas"]["Meta"];
+        };
+        /** Envelope[SignatureRegister] */
+        Envelope_SignatureRegister_: {
+            data: components["schemas"]["SignatureRegister"];
             /** Errors */
             errors: components["schemas"]["ErrorItem"][];
             meta: components["schemas"]["Meta"];
@@ -13626,6 +13711,16 @@ export interface components {
          * @enum {string}
          */
         SignatureMeaning: "Authored" | "Reviewed" | "Approved" | "QA Released";
+        /**
+         * SignatureRegister
+         * @description A project's signatures, newest first, and whether the company's audit chain verifies (a broken chain says so).
+         */
+        SignatureRegister: {
+            /** Chain Verifies */
+            chain_verifies: boolean;
+            /** Signatures */
+            signatures: components["schemas"]["SignatureRow"][];
+        };
         /** SignatureRequest */
         SignatureRequest: {
             meaning: components["schemas"]["SignatureMeaning"];
@@ -13635,6 +13730,32 @@ export interface components {
             record_sha256: string;
             /** Record Type */
             record_type: string;
+        };
+        /**
+         * SignatureRow
+         * @description One signature given on a record of a project (R-N09), read from the company's audit chain (`signature.create`).
+         */
+        SignatureRow: {
+            /** Manifestation */
+            manifestation: string;
+            /** Meaning */
+            meaning: string;
+            /** Printed Name */
+            printed_name: string | null;
+            /** Record Id */
+            record_id: string;
+            /** Record Sha256 */
+            record_sha256: string;
+            /** Record Type */
+            record_type: string;
+            /** Seq */
+            seq: number;
+            /** Signature Id */
+            signature_id: string;
+            /** Signed At */
+            signed_at: string;
+            /** Signer Id */
+            signer_id: string;
         };
         /** SignatureView */
         SignatureView: {
@@ -16631,6 +16752,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Envelope_EvidencePage_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_agent_runs_api_v1_projects__project_id__agent_runs_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                before?: string | null;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_AgentRunList_"];
                 };
             };
             /** @description Validation Error */
@@ -21208,6 +21365,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Envelope_RequirementsPage_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_signatures_api_v1_projects__project_id__signatures_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_SignatureRegister_"];
                 };
             };
             /** @description Validation Error */

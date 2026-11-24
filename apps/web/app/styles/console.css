@@ -338,3 +338,5 @@ html:has(.area-bar) { scroll-padding-top: calc(var(--topbar-h) + 76px); }
   .topbar, .sidenav, .crumbs, .page-actions, .skip-link, .mo-toast, .shell-flash { display: none !important; }
   .content { padding: 0; }
 }
+/* Agent activity (slice 7): an agent's name reads on one or two lines, never one word a line */
+.run-agent { display: inline-block; min-width: 16ch; }

@@ -16,6 +16,7 @@ import { useMemo, useState } from "react";
 import { DocumentViewer } from "@/components/brief/DocumentViewer";
 import { EmptyState, InlineIssue } from "@/components/kit";
 import { Dialog } from "@/components/kit/Dialog";
+import { SidePanel } from "@/components/kit/SidePanel";
 import { SortHeader, TableMore } from "@/components/kit/SortableTable";
 import { RELATED_STEPS } from "@/components/library/AddData";
 import { send, type Schema } from "@/lib/api";
@@ -208,9 +209,15 @@ export function LibraryTable({ projectId }: { projectId: string }) {
   if (!page.data) return <p className="muted">Loading the library…</p>;
   const roles = [...new Set(rows.map((r) => r.role))];
 
+  // the document open in the side panel, and its neighbours in the list as it is shown (Previous, Next)
+  const at = open ? shown.findIndex((r) => r.sha256 === open) : -1;
+  const openRow = open ? rows.find((r) => r.sha256 === open) ?? null : null;
   return (
-    <div data-testid="library">
-      <div className="library-tools">
+    <section className="tbl library" data-testid="library" aria-labelledby="library-title">
+      <div className="tbl-head">
+        <h2 id="library-title">Documents<span className="tbl-count"> ({rows.length})</span></h2>
+      </div>
+      <div className="tbl-tools library-tools">
         <input type="search" aria-label="Search the library" placeholder="Search names, values, parameters…" value={query}
                data-testid="library-search" onChange={(e) => setQuery(e.target.value)} />
         <select aria-label="Role" value={role} data-testid="library-role" onChange={(e) => setRole(e.target.value)}>
@@ -235,12 +242,12 @@ export function LibraryTable({ projectId }: { projectId: string }) {
           <option value="oldest">oldest first</option>
           <option value="name">by name</option>
         </select>
-        <span className="muted">{filtered.length} of {rows.length}</span>
+        <span className="muted fs-13">{filtered.length} of {rows.length}</span>
       </div>
       {rows.length === 0 ? (
         <EmptyState title="No documents yet">The proposal, and every file added with “+ Add data”, appear here.</EmptyState>
       ) : (
-        <div className="table-scroll">
+        <div className="tbl-scroll">
           <table className="library-table">
             <thead>
               <tr><SortHeader view={view} col="name" label="Document" /><SortHeader view={view} col="added" label="Added" />
@@ -282,14 +289,15 @@ export function LibraryTable({ projectId }: { projectId: string }) {
       )}
       {rows.length > 0 && <TableMore view={view} noun="documents" testId="library-more" />}
       {change && <ChangeDialog key={change.row.sha256} projectId={projectId} change={change} onClose={() => setChange(null)} />}
+      {/* a document opens beside the list, which stays usable (the console's side panel, slice 7) */}
       {open && docs.data && (
-        <Dialog title="The document" size="wide" onClose={() => setOpen(null)} testId="library-viewer">
-          <DocumentViewer projectId={projectId} documents={docs.data.documents} focus={{ sha256: open, page: 1, quote: null }} />
-          <div className="dialog-actions">
-            <button type="button" className="btn" onClick={() => setOpen(null)}>Close</button>
-          </div>
-        </Dialog>
+        <SidePanel title={openRow?.name ?? "The document"} label={`Document ${openRow?.name ?? ""}`} testId="library-viewer"
+                   onClose={() => setOpen(null)} position={at >= 0 ? `${at + 1} of ${shown.length}` : undefined}
+                   onPrev={at > 0 ? () => setOpen(shown[at - 1].sha256) : null}
+                   onNext={at >= 0 && at < shown.length - 1 ? () => setOpen(shown[at + 1].sha256) : null}>
+          <DocumentViewer key={open} projectId={projectId} documents={docs.data.documents} focus={{ sha256: open, page: 1, quote: null }} />
+        </SidePanel>
       )}
-    </div>
+    </section>
   );
 }

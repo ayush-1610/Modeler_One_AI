@@ -15,6 +15,39 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — the console redesign, slice 7: Records (History in tabs, the signature register, Agent activity, Documents) (2026-11-24)
+- **What:**
+  - **History (P-21)** in four tabs whose choice is in the address: **Audit trail** (a console table with a filter and
+    sortable heads), **Signatures** (the new register below), **Versions** (every artifact, one opened on its changes)
+    and **Out of date** (what was made from inputs that have since changed, or a line saying nothing is). Whether the
+    company's hash chain verifies is said in the header, on every tab.
+  - **Agent activity (P-19, new page, "Agent activity" under Records in the side navigation)**: each agent run on the
+    project, the agent named in words (as the admin console names it), its model and the one it fell back from, who
+    started it, when, how long it took, its status, turns, tokens and refused calls; fifty at a time. A run opens on
+    its steps (P-19b): each answer of the model, tool call, refusal and model switch, in words, with a filter.
+  - **Documents (P-18)**: the page is "Documents" with an "Add documents" action, the table a console panel, and a
+    document opens in the side panel beside the list (Previous and Next through the list) instead of a dialog over it.
+  - **`GET /projects/{id}/agent-runs`** (R-N05, any member): the project's agent runs, newest first, `limit` at a
+    time with a run-id cursor (`before`, the last page's `next_before`). Each run: agent, provider and model, who
+    started it, when it started and finished, status, the model's turns, tokens in and out, the tool calls the
+    runtime refused (`tool_call_rejected` steps) and the model it fell back from (a `model_switch` step), and the
+    agent's name in words (`platform_settings.AGENTS`). Only this company's runs of this project; no cost (it stays in
+    the admin console).
+  - **`GET /projects/{id}/signatures`** (R-N09, any member): the signatures given on the project's records, read from
+    the company's audit chain (`signature.create`), newest first, with whether the chain verifies. A record is the
+    project's when its id starts with the project's (an intake confirmation, the MAP and its deviations, the Data
+    room's publication) or when it is a decision on one of its campaigns' escalations (`{campaign_id}-{stage}`).
+- **Why:** the console redesign's slice 7 (plan 2026-11-23 §6: History's Signatures tab, Agent activity). R-N09 asked
+  for a test of a suspected gap; the test confirms it: an escalation decision's signature is **not** in the
+  project's audit trail (its filter keeps only ids that start with the project's), and it is in the new register.
+- **Impact:** two read routes (`AgentRunList`, `SignatureRegister`; `docs/api/openapi.json`, `lib/api-types.ts`). No
+  locked file changed (`compliance/signatures.py` is read, not changed). Tests: `test_records_api.py` (paging, other
+  projects and companies left out, refusals and fallbacks; a decision on the project's campaign listed and one on
+  another project's not; non-members refused). Specs: new `records` (History's tabs, a signature given through the API
+  in the register, the audit filter, a version opened, Out of date; Agent activity from the side navigation with a
+  seeded run, opened on its steps); `start-project` (the versions are on their tab); `library` unchanged and green
+  (the document opens in the side panel under the same test id). Software test data only.
+
 ### Changed — the console redesign, slice 6: the campaign page in tabs, the kit chart, the Package tab, the decision form (2026-11-24)
 - **What:**
   - **Tabs.** A campaign (P-16) shows one part at a time, in tabs whose choice is in the address (`?tab=`, links: the

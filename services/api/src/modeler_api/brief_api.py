@@ -23,7 +23,7 @@ import uuid
 from dataclasses import asdict
 from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
@@ -45,9 +45,11 @@ from modeler_api.deps import (
 )
 from modeler_api.intake_jobs import READ_ROLES, ingest_for_reading, read_later
 from modeler_api.memberships import record_creator
+from modeler_api.platform_settings import AGENTS
 from modeler_api.responses import answers, envelope
 from modeler_api.views.brief import (
     AgentRunDetail,
+    AgentRunList,
     BriefImpact,
     BriefPage,
     DocumentFigures,
@@ -640,6 +642,40 @@ def answer_question(project_id: str, question_id: str, body: QuestionAnswer, pri
 
 
 # --- agent runs ----------------------------------------------------------------------------------------------
+
+
+def _run_row(root: str, record: dict[str, Any]) -> dict[str, Any]:
+    """A run as Agent activity lists it: its record's keys, and what its steps say (turns, refusals, a fallback)."""
+    steps = agent_jobs.run_steps(root, record["run_id"])
+    kinds = [s.get("kind") for s in steps]
+    switch = next((s.get("content") or {} for s in steps if s.get("kind") == "model_switch"), None)
+    named = re.match(r"A\d+", record["agent"])          # "A4-sheet-reading" is A4 (platform_settings.AGENTS)
+    return {"run_id": record["run_id"], "agent": record["agent"],
+            "agent_label": AGENTS.get(named.group(0)) if named else None, "provider": record.get("provider"),
+            "model": record["model"], "started_by": record.get("started_by"), "started_at": record["started_at"],
+            "finished_at": record.get("finished_at"), "status": record["status"], "turns": kinds.count("model_turn"),
+            "input_tokens": int(record.get("input_tokens") or 0), "output_tokens": int(record.get("output_tokens") or 0),
+            "refusals": kinds.count("tool_call_rejected"), "fallback_from": (switch or {}).get("from")}
+
+
+@router.get("/projects/{project_id}/agent-runs", **answers(AgentRunList))
+def list_agent_runs(project_id: str, principal: Reader, store: StoreDep,
+                    limit: Annotated[int, Query(ge=1, le=200)] = 50, before: str | None = None) -> dict[str, Any]:
+    """The project's agent runs, newest first, `limit` at a time; `before` (a run's id, the last page's `next_before`)
+    gives the older ones after it (R-N05). Only this company's runs of this project."""
+    ws = workspace_for(project_id, principal, store)
+    root = getattr(store, "root", "")
+    runs = sorted(agent_jobs.project_runs(root, ws.tenant_id, project_id),
+                  key=lambda r: (r["started_at"], r["run_id"]), reverse=True)
+    start = 0
+    if before is not None:
+        at = next((i for i, r in enumerate(runs) if r["run_id"] == before), None)
+        if at is None:
+            raise HTTPException(status_code=404, detail="no such agent run on this project")
+        start = at + 1
+    page = runs[start:start + limit]
+    more = start + limit < len(runs)
+    return envelope({"runs": [_run_row(root, r) for r in page], "next_before": page[-1]["run_id"] if page and more else None})
 
 
 @router.get("/projects/{project_id}/agent-runs/{run_id}", **answers(AgentRunDetail))

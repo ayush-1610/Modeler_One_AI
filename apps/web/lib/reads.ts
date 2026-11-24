@@ -84,6 +84,18 @@ export const getCampaign = cache(async (campaignId: string): Promise<Live<Campai
 export const getCampaignPackage = cache(async (campaignId: string) =>
   serverGet("/api/v1/campaigns/{campaign_id}/package", { campaign_id: campaignId }));
 
+/** The signatures given on a project's records, escalation decisions on its campaigns included (R-N09). */
+export const getSignatures = cache(async (projectId: string) =>
+  serverGet("/api/v1/projects/{project_id}/signatures", { project_id: projectId }));
+
+/** A project's agent runs, newest first, a page at a time (`before`: the last page's `next_before`; R-N05). */
+export const getAgentRuns = cache(async (projectId: string, before?: string) =>
+  serverGet("/api/v1/projects/{project_id}/agent-runs", { project_id: projectId }, { limit: "50", before }));
+
+/** One agent run's record and its steps. */
+export const getAgentRun = cache(async (projectId: string, runId: string) =>
+  serverGet("/api/v1/projects/{project_id}/agent-runs/{run_id}", { project_id: projectId, run_id: runId }));
+
 export const getEscalations = cache(async (): Promise<Live<Escalation[]>> => {
   return pick(await serverGet("/api/v1/escalations", {}), (d) => d.escalations.map((e) => narrow<Escalation>(e)));
 });
