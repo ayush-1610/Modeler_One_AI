@@ -318,6 +318,31 @@ streams; every Data room turn and switch is recorded; each answer names the mode
 - The Keycloak suite passes on a local Keycloak 26.7.5. The rest of the sitemap's new pages wait for the redesign
   slices.
 
+**2026-11-24: the data upload story, tested on new data.**
+- Three new made-up deliveries were built to differ from Exampleamide the way real files differ:
+  - **Novaprazole:** a food-effect crossover with a merged-header XLSX, a Phoenix NCA CSV and a DOCX synopsis.
+  - **Zelitrex:** a parallel study with a long CSV, site-subject ids and µg/L.
+  - **Quorafen:** a multiple-dose study from a PDF listing, with ND, decimal commas and a DOCX brochure.
+  - Scripts, keys and runs are in the session scratchpad (not in the repo).
+- Code with correct descriptions went from 70 % to 97 % right after the first layer (`test_dataroom_layouts.py`).
+- End to end on Nemotron Ultra: 41 % → 61 % → 74 % right, with silently wrong values down from 48 to 9.
+  - Most of what remains is said, not hidden (missing, with a reason).
+  - Zelitrex is 94 %, with only the planted errors flagged.
+- Novaprazole's last run lost its concentration table to a description code now refuses (`TIME_ROLE_WITH_A_TIME`,
+  `NO_VALUE_COLUMN`; the room now says so). It was not re-measured: NVIDIA's free tier refused further requests that day
+  (HTTP 429).
+- NVIDIA's free tier answers HTTP 429 when three deliveries run at once: run them one by one, or list GroqCloud behind
+  it.
+- **Verdict:** not yet for an unattended client delivery. Yes as an assistant whose table descriptions a modeler
+  confirms one by one: every value has its source, and what code cannot read it says.
+- **Next:**
+  - a single-arm study tied to its product;
+  - "0.1 N HCl" as a pH;
+  - merged XLSX title cells;
+  - the A6 question stage's 2–9 minutes;
+  - an owner decision on the Tmax tolerance at actual times (SME ruleset);
+  - the same test on a real delivery on the server's in-house model.
+
 **Open, in order:**
 1. Score A6–A10 on the sample delivery per model. Nemotron Ultra, 2026-11-22: 31 of 34 values on the key files
    (every set and exposure; the dissolution file failed on NVIDIA's 502s). Still to score: Qwen Coder on the server,
