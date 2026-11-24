@@ -10,7 +10,7 @@ read on the Inputs step's Studies tab, and nothing is approved (D-27): the one r
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any
 
 from fastapi import APIRouter, File, Form, HTTPException, Response, UploadFile
 from pydantic import BaseModel, Field, ValidationError
@@ -77,7 +77,7 @@ from modeler_project.client_data import (
     submission,
     submissions,
 )
-from modeler_project.client_review import ReviewError, edit_fact, product_confirmed, reopen, select
+from modeler_project.client_review import ReviewError, product_confirmed, reopen, select
 from modeler_project.client_review import confirm as confirm_group
 from modeler_project.client_review import groups as review_groups
 from modeler_project.dataset_points import card_points
@@ -740,11 +740,6 @@ class ReviewReopen(ReviewGroupRef):
     issue: str = Field(min_length=1)
 
 
-class ReviewEdit(ReviewGroupRef):
-    field: Literal["dose_mg", "route", "food_state", "formulation", "n", "lloq"]
-    value: float | str
-
-
 def _act(project_id: str, principal, store, fn) -> dict[str, Any]:
     ws = workspace_for(project_id, principal, store)
     try:
@@ -769,12 +764,6 @@ def select_option(project_id: str, body: ReviewSelect, principal: Writer, store:
 def reopen_issue(project_id: str, body: ReviewReopen, principal: Writer, store: StoreDep) -> dict[str, Any]:
     """Change a settled conflict or question before its group is confirmed."""
     return _act(project_id, principal, store, lambda ws: reopen(ws, body.group, body.issue, by=principal.user_id))
-
-
-@router.post("/projects/{project_id}/client-review:edit", **answers(ClientReviewPage))
-def edit_study_fact(project_id: str, body: ReviewEdit, principal: Writer, store: StoreDep) -> dict[str, Any]:
-    """An item-level edit before the group is confirmed: one fact of a study (the audit keeps before and after)."""
-    return _act(project_id, principal, store, lambda ws: edit_fact(ws, body.group, body.field, body.value, by=principal.user_id))
 
 
 class ReviewFinish(BaseModel):

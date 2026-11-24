@@ -24699,45 +24699,6 @@
         "title": "ReviewCounts",
         "type": "object"
       },
-      "ReviewEdit": {
-        "properties": {
-          "field": {
-            "enum": [
-              "dose_mg",
-              "route",
-              "food_state",
-              "formulation",
-              "n",
-              "lloq"
-            ],
-            "title": "Field",
-            "type": "string"
-          },
-          "group": {
-            "minLength": 1,
-            "title": "Group",
-            "type": "string"
-          },
-          "value": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "string"
-              }
-            ],
-            "title": "Value"
-          }
-        },
-        "required": [
-          "group",
-          "field",
-          "value"
-        ],
-        "title": "ReviewEdit",
-        "type": "object"
-      },
       "ReviewFact": {
         "additionalProperties": false,
         "properties": {
@@ -35962,75 +35923,6 @@
           }
         },
         "summary": "Confirm Review Group",
-        "tags": [
-          "client-data"
-        ]
-      }
-    },
-    "/api/v1/projects/{project_id}/client-review:edit": {
-      "post": {
-        "description": "An item-level edit before the group is confirmed: one fact of a study (the audit keeps before and after).",
-        "operationId": "edit_study_fact_api_v1_projects__project_id__client_review_edit_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "project_id",
-            "required": true,
-            "schema": {
-              "title": "Project Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "authorization",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Authorization"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ReviewEdit"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Envelope_ClientReviewPage_"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Edit Study Fact",
         "tags": [
           "client-data"
         ]

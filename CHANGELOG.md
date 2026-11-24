@@ -25,6 +25,11 @@ chain (R-B13) and `pbpk_domain.snapshot.parameter_transfer` (R-B13b) stay until 
   (REMEDIATION §2, #20). The plan canvas generates, persists and signs the MAP (`plan_api`); nothing called the route.
   Its request and answer models (`MapGenerateRequest`, `MapGenerated`) go with it; the MS-01 generator
   (`pbpk_domain.campaign.map.generate_map`) stays, used by the plan and the readiness check.
+- **`POST /projects/{id}/client-review:edit`** and `client_review.edit_fact`: one fact of a sheet-form study set before
+  its group is confirmed (REMEDIATION §2, #21, "verify, then retire"). Verified: the web never called it; a sheet read
+  by code takes its facts through `client-review:finish`, and any study fact of a dataset is set through
+  `datasets/{id}:study` (the same `set_study_facts`, used by Studies, To do and Individuals), so no fact could be
+  corrected only through `:edit`.
 
 ### Changed — the console redesign, slice 8: the admin console in the console style, a Companies page (2026-11-24)
 - **What:**

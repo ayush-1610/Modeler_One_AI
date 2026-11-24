@@ -1115,26 +1115,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/projects/{project_id}/client-review:edit": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Edit Study Fact
-         * @description An item-level edit before the group is confirmed: one fact of a study (the audit keeps before and after).
-         */
-        post: operations["edit_study_fact_api_v1_projects__project_id__client_review_edit_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/projects/{project_id}/client-review:finish": {
         parameters: {
             query?: never;
@@ -12144,18 +12124,6 @@ export interface components {
             /** Open */
             open: number;
         };
-        /** ReviewEdit */
-        ReviewEdit: {
-            /**
-             * Field
-             * @enum {string}
-             */
-            field: "dose_mg" | "route" | "food_state" | "formulation" | "n" | "lloq";
-            /** Group */
-            group: string;
-            /** Value */
-            value: number | string;
-        };
         /** ReviewFact */
         ReviewFact: {
             /** Field */
@@ -16986,43 +16954,6 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["ReviewGroupRef"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Envelope_ClientReviewPage_"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    edit_study_fact_api_v1_projects__project_id__client_review_edit_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                authorization?: string | null;
-            };
-            path: {
-                project_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ReviewEdit"];
             };
         };
         responses: {
