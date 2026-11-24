@@ -79,6 +79,11 @@ export const getCampaign = cache(async (campaignId: string): Promise<Live<Campai
   return pick(await serverGet("/api/v1/campaigns/{campaign_id}", { campaign_id: campaignId }), (d) => narrow<CampaignDetail>(d));
 });
 
+/** A campaign's S7 package as the API answers it (`GET /campaigns/{id}/package`): reproduction, hashes, files, the PK-Sim
+ *  projects and the report's issues. 404 (notFound) until S7 has run. */
+export const getCampaignPackage = cache(async (campaignId: string) =>
+  serverGet("/api/v1/campaigns/{campaign_id}/package", { campaign_id: campaignId }));
+
 export const getEscalations = cache(async (): Promise<Live<Escalation[]>> => {
   return pick(await serverGet("/api/v1/escalations", {}), (d) => d.escalations.map((e) => narrow<Escalation>(e)));
 });

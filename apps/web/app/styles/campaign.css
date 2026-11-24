@@ -24,3 +24,26 @@ table.heat td:first-child { min-width: 220px; }
 table.heat td.heat-cell { min-width: 44px; text-align: center; font-variant-numeric: tabular-nums; }
 table.heat td.heat-cell.out { background: repeating-linear-gradient(135deg, transparent 0 4px, var(--line-soft) 4px 5px); }
 .cycles { margin: 0; padding-left: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+
+/* ---- the campaign page in the console (the redesign's slice 6): its facts on one line, the tabs (links, the tab in
+   the address), each part a panel; the stage being run is marked in the stages table ---- */
+.kv-list.kv-inline { display: flex; flex-wrap: wrap; gap: 4px 6px; margin: 0 0 var(--sp-4); font-size: 13px; align-items: baseline; }
+.kv-list.kv-inline dt { font-size: 13px; }
+.kv-list.kv-inline dd { margin: 0 18px 0 0; }
+.tabs.page-tabs { margin: var(--sp-4) 0; overflow-x: auto; scrollbar-width: thin; }
+.tabs.page-tabs a { white-space: nowrap; text-decoration: none; }
+.tabs.page-tabs + .panel, .tabs.page-tabs ~ .panel + .panel, .tabs.page-tabs ~ .panel + .card, .tabs.page-tabs ~ .card + .panel {
+  margin-top: var(--sp-4); }
+.tabs.page-tabs + .panel { margin-top: 0; }
+[data-testid="campaign-stages"] tr.current td { background: var(--c-accent-tint); }
+[data-testid="campaign-stages"] tr.current td:first-child { box-shadow: inset 3px 0 0 var(--c-accent); }
+.chart-tools { display: flex; justify-content: flex-end; margin-bottom: var(--sp-2); }
+.chart-plot { width: 100%; height: 360px; }
+.chart-data { margin-top: var(--sp-3); font-size: 13px; }
+.chart-data summary { cursor: pointer; color: var(--c-ink-2); }
+.chart-data .tbl-scroll { max-height: 320px; overflow: auto; margin-top: var(--sp-2); }
+/* the signed decision of a stopped stage, in its dialog (opened from the flash bar) */
+.decision-facts { margin-bottom: var(--sp-4); padding: var(--sp-3) var(--sp-4); border: 1px solid var(--c-border); border-radius: var(--rad-md);
+  background: var(--c-surface-2, var(--c-surface)); }
+.decision-form .field { margin-top: var(--sp-3); }
+.decision-submit { margin-top: var(--sp-4); align-items: center; gap: var(--sp-3); flex-wrap: wrap; }

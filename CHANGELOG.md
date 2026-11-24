@@ -15,6 +15,29 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — the console redesign, slice 6: the campaign page in tabs, the kit chart, the Package tab, the decision form (2026-11-24)
+- **What:**
+  - **Tabs.** A campaign (P-16) shows one part at a time, in tabs whose choice is in the address (`?tab=`, links: the
+    page stays drawn on the server): Stages · Fit · Rounds · Feedback · Prediction (S6, only once S6 gave one) ·
+    Package (S7). Above them, always: the compound, the question, the status and the risk, the campaign's facts on
+    one line, and the banners that say the numbers are not PBPK evidence (software fixture, test-only data),
+    **unchanged**.
+  - **Stages** is a table (stage, what it does, status, rounds; the stage being run marked) with the stage notes and
+    the time budget (a meter with its value). **Rounds** holds the round history, the model development history and
+    the influence map. **Feedback** says when there is none.
+  - **`kit/Chart`** replaces `ConcentrationTimePlot`: the same Plotly chart with a Log / Linear switch, the page's own
+    type, an accessible name, an empty state in words, and its numbers as a table under it.
+  - **Package** reads `GET /campaigns/{id}/package` (only on its tab): reproduction, release, the package and data
+    bundle hashes, the PK-Sim projects and why one is missing, the report check's issues and notes, the downloads.
+  - **The decision form** (opened from the flash bar or the Feedback tab): what stopped as facts (stage, why in
+    words with its code, evidence), its fields labelled, the result said in place.
+- **Why:** the console redesign's slice 6 (plan 2026-11-23 §6; P-16); the owner's "Slice 5 approved, proceed to slice
+  6" (2026-11-24).
+- **Impact:** no API change. Specs: `campaign-monitor` (the influence map and the judged studies on Rounds), `feedback`
+  (its tab in the address), `vbe` (the Prediction tab), new `campaign-tabs` (a seeded campaign: the fixture banner
+  above the tabs, Stages by default, no Runs or Prediction tab, the chart's scale and table, the rounds, the package as
+  the API answers it, Feedback's empty state). Software test data only; nothing here is a simulation.
+
 ### Changed — the console redesign, slice 5: Review & sign in tabs, read-only polish, "Back to the MS-01 default" (2026-11-24)
 - **What:** Review & sign (P-14) shows one part of the review at a time, in tabs under a bar that stays in view: Studies
   and roles · The inputs · The estimation plan · The validation plan · Applications · Credibility · Validator and
