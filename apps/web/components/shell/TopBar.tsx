@@ -1,7 +1,8 @@
 "use client";
 
 // The console's top bar (design-review/DESIGN_SYSTEM.md §4): the mark and name to Home, "Go to project…", the API's
-// state, and the person. White, so the one accent reads on it (a dark bar would hold #001B94 at 1.35:1).
+// state, and the person. The brand's navy, #001B94, with white on it (13.9:1): design option 5, chosen 2026-11-24
+// (design-review/DECISIONS.md D-I1).
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -79,7 +80,7 @@ export function TopBar({ user, navOpen, onMenu }: { user?: string | null; navOpe
               aria-label={navOpen ? "Close the navigation" : "Open the navigation"} data-testid="nav-menu">
         <Icon name={navOpen ? "x" : "menu"} size={18} />
       </button>
-      <Link href="/" className="topbar-brand" aria-label="Modeler One, home"><Logo size={26} /><span>Modeler One</span></Link>
+      <Link href="/" className="topbar-brand" aria-label="Modeler One, home"><Logo size={26} light /><span>Modeler One</span></Link>
       <ProjectSwitcher />
       <span className="grow" />
       {/* the API's answer, not a guess: green when its reads answer, grey when they do not; a click asks again */}

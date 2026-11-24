@@ -6,7 +6,6 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-import { Icon } from "@/components/kit/icons";
 import { useResource } from "@/lib/hooks";
 
 type Crumb = [label: string, href: string | null];
@@ -62,7 +61,7 @@ export function Breadcrumbs() {
           return (
             <li key={`${i}-${label}`}>
               {href && !last ? <Link href={href} prefetch={false}>{label}</Link> : <span aria-current={last ? "page" : undefined}>{label}</span>}
-              {!last && <Icon name="chevr" size={12} className="crumb-sep" />}
+              {!last && <span className="crumb-sep" aria-hidden>/</span>}
             </li>
           );
         })}

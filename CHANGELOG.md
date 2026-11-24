@@ -15,6 +15,20 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — the console redesign, slice 1 restyled to the owner's chosen design, option 5 "Brand Navy bar" (2026-11-24)
+- **What:** the owner found slice 1's first styling too close to the look being replaced and asked for ten AWS-console
+  design options (`design-review/console-options/`); they chose option 5 (`design-review/DECISIONS.md` D-I1). The
+  tokens (`app/styles/tokens.css`) and the console sheet (`app/styles/console.css`) now draw it: the top bar in the
+  brand navy `#001B94` with white text and a white logo (`Logo light`), a white "Go to project" field and the API state
+  as a pill; rounded, inset side-navigation items with each step's state on a tinted disc and "Add data" as an outlined
+  button; "/" breadcrumbs; bordered 10 px panels; navy-outlined secondary buttons; segmented tabs; bordered, tinted
+  alerts with ink text; tinted status pills; the dashboard's tiles and cards flat white, no glow and no lift.
+- **Why:** the shell had changed but every page's contents still carried the old cards, red-text banners, gradients and
+  chips, so the app still looked like the 7 Nov design. The shared pieces now follow option 5 on every page; each
+  page's own layout follows in its slice (Data room and Inputs slice 4, Review & sign slice 5).
+- **Impact:** appearance only; no test id, route or behaviour changed. `DESIGN_SYSTEM.md` points to D-I1 where they
+  differ.
+
 ### Changed — the console redesign, slice 1: the console shell on every page (2026-11-23, the owner's authorisation)
 - **What:** every page now sits in one shell (`components/shell/`): a white top bar (logo and name to Home, "Go to
   project…" search over the person's open projects, the API's live state, the person and Sign out), a fixed side

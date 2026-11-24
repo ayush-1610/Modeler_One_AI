@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Option 8, Workflow steps</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#001B94}a:hover{color:#00136B}
+</style>
+</helmet>
+<div style="min-height: 1240px; background: #FFFFFF; color: #0F141A; font-family: 'IBM Plex Sans', Arial, sans-serif; font-size: 14px; line-height: 20px;">
+
+  <header style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; padding: 8px 16px; min-height: 48px; box-sizing: border-box; background: #0F141A; color: #FFFFFF;">
+    <a href="#" style="display: flex; align-items: center; gap: 10px; color: #FFFFFF; text-decoration: none; font-weight: 700; font-size: 16px;">
+      <svg viewBox="0 0 64 64" width="26" height="26" aria-hidden="true"><path d="M8 50 C 13 50, 15 17, 23 17 S 36 40, 58 46" fill="none" stroke="#C9B8FF" stroke-width="5" stroke-linecap="round"></path><circle cx="8" cy="50" r="5" fill="#C9B8FF"></circle><circle cx="23" cy="17" r="4" fill="#0F141A" stroke="#FFFFFF" stroke-width="3"></circle><circle cx="42" cy="38.6" r="3.4" fill="#0F141A" stroke="#F0A8D0" stroke-width="3"></circle></svg>
+      Modeler One
+    </a>
+    <span style="color: #8C8C94;">/</span>
+    <button type="button" style="height: 30px; padding: 0 12px; border: 1px solid #424650; border-radius: 8px; background: #161D26; color: #FFFFFF; font: inherit; font-weight: 600; cursor: pointer;">Renalide PBPK ▾</button>
+    <span style="flex: 1 1 0;"></span>
+    <span style="display: inline-flex; align-items: center; gap: 6px; color: #D1D1D6;"><span style="width: 8px; height: 8px; border-radius: 50%; background: #29AD32;"></span>API live</span>
+    <span style="font-weight: 600;">Asha Rao</span>
+  </header>
+
+  <div style="display: flex; flex-wrap: wrap; align-items: stretch;">
+    <nav aria-label="Main" style="flex: 0 0 60px; box-sizing: border-box; padding: 12px 0; display: flex; flex-direction: column; align-items: center; gap: 6px; background: #F4F4F6; border-right: 1px solid #DCDCE0;">
+      <a href="#" aria-label="Projects" title="Projects" style="display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 10px; color: #424650;"><svg viewBox="0 0 16 16" width="18" height="18" aria-hidden="true"><path d="M1.5 4h5l1.5 1.5h6.5v8h-13z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"></path></svg></a>
+      <a href="#" aria-label="Your work" title="Your work" style="display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 10px; color: #424650;"><svg viewBox="0 0 16 16" width="18" height="18" aria-hidden="true"><path d="M3 2.5h10v11H3zM5.5 6h5M5.5 8.5h5M5.5 11h3" fill="none" stroke="currentColor" stroke-width="1.4"></path></svg></a>
+      <a href="#" aria-label="Renalide PBPK, this project" title="This project" aria-current="page" style="display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 10px; background: #E4E8FB; color: {{accent}};"><svg viewBox="0 0 16 16" width="18" height="18" aria-hidden="true"><path d="M2 12.5C3.5 12.5 4 4 6 4s3.5 6 12 7.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"></path></svg></a>
+      <a href="#" aria-label="Documents" title="Documents" style="display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 10px; color: #424650;"><svg viewBox="0 0 16 16" width="18" height="18" aria-hidden="true"><path d="M4 1.5h5.5L12.5 4.5v10h-8.5zM9.5 1.5v3h3" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"></path></svg></a>
+      <a href="#" aria-label="History" title="History" style="display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 10px; color: #424650;"><svg viewBox="0 0 16 16" width="18" height="18" aria-hidden="true"><circle cx="8" cy="8" r="6.2" fill="none" stroke="currentColor" stroke-width="1.4"></circle><path d="M8 4.5V8l2.5 1.5" fill="none" stroke="currentColor" stroke-width="1.4"></path></svg></a>
+      <span style="flex: 1;"></span>
+      <a href="#" aria-label="Help" title="Help" style="display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 10px; color: #424650;"><svg viewBox="0 0 16 16" width="18" height="18" aria-hidden="true"><circle cx="8" cy="8" r="6.2" fill="none" stroke="currentColor" stroke-width="1.4"></circle><path d="M6.3 6.2a1.8 1.8 0 113 1.4c-.8.5-1.3.9-1.3 1.8M8 11.4v.2" fill="none" stroke="currentColor" stroke-width="1.4"></path></svg></a>
+    </nav>
+
+    <nav aria-label="Project steps" style="flex: 1 1 250px; max-width: 100%; box-sizing: border-box; padding: 28px 24px;">
+      <div style="font-size: 12px; color: #656871;">Renalide PBPK</div>
+      <ol style="margin: 12px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 0;">
+        <li style="display: flex; gap: 12px;"><div style="display: flex; flex-direction: column; align-items: center;"><span style="display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 50%; background: #037F0C; color: #FFFFFF; font-size: 13px;">✓</span><span style="flex: 1; width: 2px; min-height: 28px; background: #037F0C;"></span></div><div style="padding-bottom: 16px;"><div style="font-size: 12px; color: #656871;">Step 1</div><a href="#" style="font-weight: 600; text-decoration: none; color: #0F141A;">Start</a></div></li>
+        <li style="display: flex; gap: 12px;"><div style="display: flex; flex-direction: column; align-items: center;"><span style="display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 50%; background: #037F0C; color: #FFFFFF; font-size: 13px;">✓</span><span style="flex: 1; width: 2px; min-height: 28px; background: #037F0C;"></span></div><div style="padding-bottom: 16px;"><div style="font-size: 12px; color: #656871;">Step 2</div><a href="#" style="font-weight: 600; text-decoration: none; color: #0F141A;">Data</a><div style="margin-top: 4px; display: flex; flex-direction: column; gap: 2px;"><a href="#" style="text-decoration: none;">Data room</a><a href="#" style="text-decoration: none;">Inputs</a></div></div></li>
+        <li style="display: flex; gap: 12px;"><div style="display: flex; flex-direction: column; align-items: center;"><span style="display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 50%; background: #037F0C; color: #FFFFFF; font-size: 13px;">✓</span><span style="flex: 1; width: 2px; min-height: 28px; background: #C6C6CD;"></span></div><div style="padding-bottom: 16px;"><div style="font-size: 12px; color: #656871;">Step 3</div><a href="#" style="font-weight: 600; text-decoration: none; color: #0F141A;">Review &amp; sign</a></div></li>
+        <li style="display: flex; gap: 12px;"><div style="display: flex; flex-direction: column; align-items: center;"><span style="display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 50%; background: {{accent}}; color: #FFFFFF; font-size: 13px; font-weight: 700;">4</span></div><div><div style="font-size: 12px; color: #656871;">Step 4</div><a href="#" aria-current="step" style="font-weight: 700; text-decoration: none; color: {{accent}};">Run</a><div style="margin-top: 2px; font-size: 12px; color: #8D6605; font-weight: 600;">Waiting for a decision</div></div></li>
+      </ol>
+    </nav>
+
+    <main style="flex: 999 1 560px; min-width: 0; box-sizing: border-box; padding: 24px 40px 48px 8px; display: flex; flex-direction: column; gap: 18px;">
+      <nav aria-label="Breadcrumbs" style="display: flex; flex-wrap: wrap; gap: 6px; color: #656871;">
+        <a href="#" style="color: {{accent}}; text-decoration: none;">Projects</a><span aria-hidden="true">›</span>
+        <a href="#" style="color: {{accent}}; text-decoration: none;">Renalide PBPK</a><span aria-hidden="true">›</span>
+        <a href="#" style="color: {{accent}}; text-decoration: none;">Run</a><span aria-hidden="true">›</span>
+        <span aria-current="page">camp-7f3a</span>
+      </nav>
+      <div>
+        <div style="font-size: 13px; color: #656871;">Step 4 of 4</div>
+        <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px;">
+          <h1 style="margin: 0; font-size: 28px; line-height: 36px; font-weight: 700;">Run: campaign camp-7f3a</h1>
+          <span style="color: #8D6605; font-weight: 700;">▲ Escalated</span>
+        </div>
+        <p style="margin: 4px 0 0; color: #424650;">Renalide · accept within 1.5-fold at medium model risk · current stage S1, IV disposition</p>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 12px; padding: 12px 16px; border: 2px solid #E0B400; border-radius: 12px; background: #FFFBE6;">
+        <svg viewBox="0 0 16 16" width="18" height="18" aria-hidden="true"><path d="M8 1.5l7 12.5H1z" fill="none" stroke="#8D6605" stroke-width="1.5" stroke-linejoin="round"></path><path d="M8 6v4M8 11.6v.4" stroke="#8D6605" stroke-width="1.6"></path></svg>
+        <span style="flex: 1;"><strong>A decision is waiting.</strong> S1 stopped: no permitted action is left.</span>
+        <button type="button" style="height: 34px; padding: 0 18px; border: 0; border-radius: 18px; background: {{accent}}; color: #FFFFFF; font: inherit; font-weight: 700; cursor: pointer;">Decide the escalation</button>
+      </div>
+      <div style="display: flex; align-items: center; gap: 12px; padding: 12px 16px; border: 1px solid #C6C6CD; border-radius: 12px; background: #F8F8FA;">
+        <svg viewBox="0 0 16 16" width="18" height="18" aria-hidden="true"><circle cx="8" cy="8" r="7" fill="none" stroke="#424650" stroke-width="1.5"></circle><path d="M8 7v4.5M8 4.6v.4" stroke="#424650" stroke-width="1.6"></path></svg>
+        <span><strong>Not a PBPK result.</strong> This campaign ran on a software test fixture; its numbers check the software path only.</span>
+      </div>
+
+      <section aria-label="Campaign" style="border: 1px solid #C6C6CD; border-radius: 12px;">
+        <div style="padding: 14px 20px; border-bottom: 1px solid #E9EBED;"><h2 style="margin: 0; font-size: 18px; font-weight: 700;">Campaign</h2></div>
+        <div style="display: flex; flex-wrap: wrap; gap: 14px 28px; padding: 16px 20px;">
+          <sc-for list="{{kv}}" as="k" hint-placeholder-count="6">
+            <div style="flex: 1 1 180px; min-width: 0;"><div style="color: #656871;">{{k.label}}</div><div style="margin-top: 2px; font-weight: 600;">{{k.value}}</div></div>
+          </sc-for>
+        </div>
+      </section>
+
+      <section aria-label="Stages" style="border: 1px solid #C6C6CD; border-radius: 12px; overflow: hidden;">
+        <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 14px 20px; border-bottom: 1px solid #E9EBED;">
+          <h2 style="margin: 0; font-size: 18px; font-weight: 700;">Stages</h2><span style="color: #656871;">(9)</span><span style="flex: 1;"></span>
+          <a href="#" style="color: {{accent}}; font-weight: 600; text-decoration: none;">Fit</a><a href="#" style="color: {{accent}}; font-weight: 600; text-decoration: none;">Rounds</a><a href="#" style="color: {{accent}}; font-weight: 600; text-decoration: none;">Feedback</a><a href="#" style="color: {{accent}}; font-weight: 600; text-decoration: none;">Package</a>
+        </div>
+        <div style="overflow-x: auto;">
+          <div role="table" aria-label="Stages" style="min-width: 680px;">
+            <div role="row" style="display: grid; grid-template-columns: 64px minmax(170px, 1.3fr) 150px 80px minmax(200px, 2fr); padding: 0 20px; border-bottom: 1px solid #C6C6CD; font-weight: 600; color: #424650;">
+              <span role="columnheader" style="padding: 9px 0;">Stage</span><span role="columnheader" style="padding: 9px 0;">Name</span><span role="columnheader" style="padding: 9px 0;">Verdict</span><span role="columnheader" style="padding: 9px 20px 9px 0; text-align: right;">Rounds</span><span role="columnheader" style="padding: 9px 0;">Limits</span>
+            </div>
+            <sc-for list="{{stages}}" as="s" hint-placeholder-count="9">
+              <div role="row" style="display: grid; grid-template-columns: 64px minmax(170px, 1.3fr) 150px 80px minmax(200px, 2fr); padding: 0 20px; border-bottom: 1px solid #F0F0F2;">
+                <span role="cell" style="padding: 9px 0; font-weight: 700;">{{s.id}}</span>
+                <span role="cell" style="padding: 9px 0;">{{s.name}}</span>
+                <span role="cell" style="padding: 9px 0;">
+                  <sc-if value="{{s.passed}}" hint-placeholder-val="{{true}}"><span style="color: #037F0C; font-weight: 600;">✓ Passed</span></sc-if>
+                  <sc-if value="{{s.escalated}}"><span style="color: #8D6605; font-weight: 700;">▲ Escalated</span></sc-if>
+                  <sc-if value="{{s.pending}}"><span style="color: #656871;">○ Not started</span></sc-if>
+                </span>
+                <span role="cell" style="padding: 9px 20px 9px 0; text-align: right;">{{s.rounds}}</span>
+                <span role="cell" style="padding: 9px 0; color: #424650;">{{s.limits}}</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </section>
+
+      <div style="display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 12px; padding-top: 6px; border-top: 1px solid #E9EBED;">
+        <a href="#" style="color: {{accent}}; font-weight: 600; text-decoration: none;">‹ Back to Review &amp; sign</a>
+        <span style="flex: 1;"></span>
+        <button type="button" style="height: 36px; padding: 0 18px; border: 2px solid {{accent}}; border-radius: 18px; background: #FFFFFF; color: {{accent}}; font: inherit; font-weight: 700; cursor: pointer;">Stop campaign</button>
+        <button type="button" disabled style="height: 36px; padding: 0 18px; border: 0; border-radius: 18px; background: #E9EBED; color: #656871; font: inherit; font-weight: 700;">Report and package (after S7)</button>
+      </div>
+      <p style="margin: 0; font-size: 12px; color: #656871;">Mock data for design review. The global menu shrinks to icons; the project's four steps lead every page.</p>
+    </main>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"accent":{"editor":"color","default":"#001B94","options":["#001B94","#0972D3","#EC7211","#0F766E"]},"$preview":{"width":1440,"height":1240}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const lim = "96 min · 4 rounds (signed MAP)";
+    const st = (id, name, v, rounds, limits) => ({ id, name, rounds, limits, passed: v === "p", escalated: v === "e", pending: v === "n" });
+    return {
+      accent: this.props.accent ?? "#001B94",
+      kv: [
+        { label: "Compound", value: "Renalide" },
+        { label: "Current stage", value: "S1 · IV disposition" },
+        { label: "Time budget", value: "18 % used, 1 h 26 min of 8 h" },
+        { label: "Acceptance", value: "Within 1.5-fold, medium risk" },
+        { label: "Started", value: "2026-11-22 09:14" },
+        { label: "Plan", value: "MAP v2, signed by Asha Rao" },
+      ],
+      stages: [
+        st("S0", "Readiness", "p", "1", "—"),
+        st("S1", "IV disposition", "e", "2", lim),
+        st("S2", "Oral fasted", "n", "—", "—"),
+        st("S3", "Formulation / fed", "n", "—", "—"),
+        st("SJ", "Joint refinement", "n", "—", "—"),
+        st("S4", "Internal validation", "n", "—", "—"),
+        st("S5", "External validation", "n", "—", "—"),
+        st("S6", "Prediction", "n", "—", "—"),
+        st("S7", "Report and package", "n", "—", "—"),
+      ],
+    };
+  }
+}
+</script>
+</body>
+</html>

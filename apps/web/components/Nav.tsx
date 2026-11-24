@@ -7,11 +7,20 @@ import { useId } from "react";
 
 /** The product's mark, "Dose to curve" (plan 2026-11-21 v2 §10, option A): a concentration curve rising from a dose
  *  point and settling, one line through small nodes, indigo to magenta, on a transparent background (no box). The same
- *  mark is the app's icon (app/icon.svg). */
-export function Logo({ size = 28 }: { size?: number }) {
+ *  mark is the app's icon (app/icon.svg). `light`: the same mark in white for the console's navy top bar (design option 5,
+ *  2026-11-24), where the indigo line would vanish. */
+export function Logo({ size = 28, light = false }: { size?: number; light?: boolean }) {
   // each mark its own gradient: a second mark on the page (the report's cover) must not lean on the sidebar's, which
   // print hides
   const gradient = `mo-la-${useId().replace(/:/g, "")}`;
+  if (light) return (
+    <svg className="brand-logo" aria-hidden viewBox="0 0 64 64" width={size} height={size}>
+      <path d="M8 50 C 13 50, 15 17, 23 17 S 36 40, 58 46" fill="none" stroke="#FFFFFF" strokeWidth="5" strokeLinecap="round" />
+      <circle cx="8" cy="50" r="5" fill="#FFFFFF" />
+      <circle cx="23" cy="17" r="4" fill="#001B94" stroke="#FFFFFF" strokeWidth="3" />
+      <circle cx="42" cy="38.6" r="3.4" fill="#001B94" stroke="#F5B8DA" strokeWidth="3" />
+    </svg>
+  );
   return (
     <svg className="brand-logo" aria-hidden viewBox="0 0 64 64" width={size} height={size}>
       <defs>
