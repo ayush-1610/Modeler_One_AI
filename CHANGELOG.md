@@ -13,6 +13,28 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 
 ## [Unreleased] — make the pipeline do real PBPK, S0 → S7
 
+### Added — the Data room's calibration run, one command on the server (decision D2) (2026-11-24)
+- **Why:** D2: one run on Claude, about $5, on a made-up delivery, whose cost and accuracy the owner sees before any other
+  Claude spend. A Claude key cannot be given to this cloud session (Anthropic's hosts take no network secret here), and
+  the owner keeps the key on the server (D1, Admin → Keys). So the run is a server command.
+- **What:**
+  - `bash deploy/server/calibrate_dataroom.sh` (`deploy/dev/calibrate_dataroom.py`): every Data room agent once on
+    the made-up Exampleamide delivery, on a preset's models (default "Claude demo": Opus 5.5 extracts, Sonnet 5.5
+    elsewhere), with the key active in Admin → Keys.
+  - A hard run cap (default $5.50). The month's cap (Admin → Limits) applies too. Each paid call is priced and recorded
+    on the platform's paid ledger, so the month counts it. The cap pauses the run; it never fails it.
+  - `--dry` names the models, the estimate ($3.90) and this month's spend, and calls nothing.
+  - It prints COST by agent and ACCURACY against the hand-written answers, and writes `report.json` under
+    `_platform/calibration/`. No project is touched.
+  - `synthetic.score_room`: any room against the hand-written answers, value by value (60 rows: the card's products,
+    roles and regulator; the study's sets, exposures, arms and facts; dissolution, f2 by batch and pH, solubility,
+    substance).
+  - Nemotron Ultra's recorded run (the repository's fixture) is the free baseline on the same rows: 51 OK, 4 wrong,
+    5 missing.
+- **Tests:** `services/api/tests/test_calibrate_dataroom.py` (a scripted model: dry run, cap and ledger, a preset with
+  no key); `test_the_answer_key_scores_itself_full_and_the_recorded_run_says_what_it_missed`.
+- **Docs:** `docs/USING_THE_TOOL.md` §6b, step 6.
+
 ### Added — the end-to-end test from a made-up delivery to a signed MAP (plan 2026-11-24 §7, phase 4, B10) (2026-11-24)
 - **Why:** phase 4 ends with the walk from upload to a signed MAP; each part had its own tests, never the whole path.
 - **What:** `apps/web/e2e/dataroom-to-map.spec.ts`, on the made-up Exampleamide (software test data), with no model and
