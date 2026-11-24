@@ -127,7 +127,7 @@ test("an extracted delivery shows its study and dissolution, a decision is taken
   await page.goto(`/projects/${projectId}/dataroom`);
   await expect(page.getByTestId("question-text-shown")).toContainText("reformulated Exampleamide tablet");
   await expect(page.getByTestId("headline-files")).toContainText("10");
-  await expect(page.getByTestId("headline-decisions")).toContainText("9");
+  await expect(page.getByTestId("headline-decisions")).toContainText("10");   // nine of the room, and which applications the question has (the requirement drafts, D5)
   await expect(page.getByTestId("overview-conflicts").getByTestId("conflict")).toHaveCount(2);
   await page.getByTestId("question-confirm").click();
   await expect(page.getByTestId("question-confirmed")).toBeVisible();
