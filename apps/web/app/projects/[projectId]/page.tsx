@@ -39,7 +39,8 @@ export default async function ProjectOverview({ params }: { params: Promise<{ pr
   const me = liveMe.data ? { user_id: liveMe.data.user_id, roles: liveMe.data.roles } : null;
   const work = workItems([{ ...project, steps: steps ?? undefined, owner: members?.owner ?? null, owner_name: members?.owner_name ?? null }],
                          liveEscalations.data ?? [], campaigns, me).filter((w) => w.projectId === project.id);
-  const events = (liveAudit.data?.events ?? []).slice(-10).reverse();
+  // the audit read lists the newest first (project_api.get_audit)
+  const events = (liveAudit.data?.events ?? []).slice(0, 10);
   const questions = project.questions ?? [];
   // until Start is done, a later step that has not begun does not open (as in the side navigation; page review 1)
   const startDone = (steps ?? []).find((x) => x.step === "start")?.state === "done";

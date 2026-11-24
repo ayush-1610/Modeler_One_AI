@@ -173,3 +173,5 @@ QA needs no `auth.py` change (a membership admit and the read roles), so it wait
 | 3 | Model system moves to Inputs → Compound | stays on Run | it moves with Inputs in slice 4 |
 | 3 | Settings and Members separate | Settings (built the same day by the sign-in work, with the members panel) shows who it is shared with as a summary; Members manages them | one home per decision |
 | 3 | read-only notice as a flash bar on every project page | a notice on Overview, Members and Settings | the other pages' own edit controls are reworked in their slices (4 to 7) |
+| 4 | one PR | 4a (Data plan, Data room words, links, model system) and 4b (Inputs' cards in a side panel, impact preview) | the owner, 2026-11-24 (D-I2) |
+| 4 | observed studies removed from Run | kept | Review & sign's Overall Data does not list the studies Inputs holds; the Run list is the downstream check of OWN-13. A later change could give Review & sign that list, then Run's goes |

@@ -39,6 +39,7 @@ import { downloadTemplate, fileArea, whereShown } from "./TabFiles";
 import { OpenSheetContext, type SheetAsk } from "./openSheet";
 import { type Readiness, type StatusFilter, TodoTab } from "./TodoTab";
 import { useInputsWork } from "./useInputsWork";
+import { SystemPanel } from "@/components/system/SystemPanel";
 import { ValueReuse } from "./ValueReuse";
 
 // The areas, in a bar across the top that stays in view (plan 2026-11-14 slice 1; the 2026-11-06 segmented-control
@@ -766,6 +767,9 @@ function Workspace({ projectId, initialTab, initialOnly, initialStatus, steps }:
           )}
           <SheetGroups projectId={projectId} groups={sheetsFor("compound").filter((g) => !only || g.state === "to_confirm")} run={run}
                        title="Sheets not linked to the compound yet" testId="compound-sheets" />
+          {/* the model system (parent, metabolites; their dose fractions): a model input, so here since the console
+              redesign's slice 4a (before, on the Run page); nothing when the project models one compound */}
+          {!only && <SystemPanel projectId={projectId} />}
           {!only && <ValueReuse projectId={projectId} run={run} />}
           <InputRows rows={listed("compound")} todo={panelTodo("compound")} projectId={projectId} run={run} grouped
                    empty={only ? "Nothing on Compound needs you now." : "The compound's values appear here as the client's files, the literature and PubChem fill them."} />

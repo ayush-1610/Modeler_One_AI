@@ -6,7 +6,6 @@
 // PK-Sim inputs section speaks PK-Sim's own names.
 
 import { useQueryClient } from "@tanstack/react-query";
-import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
@@ -138,7 +137,6 @@ export function DataRoom({ projectId }: { projectId: string }) {
           {!room.data && !room.problem && <p className="muted">Opening the Data room…</p>}
           <p className="dr-foot muted">
             {room.data?.rules && <span>{rulesLabel(room.data.rules)}</span>}
-            <Link href={`/projects/${encodeURIComponent(projectId)}/inputs`} prefetch={false}>The earlier Inputs page</Link>
           </p>
         </div>
         {chip && <SourceDrawer projectId={projectId} chip={chip} onClose={() => setChip(null)} />}

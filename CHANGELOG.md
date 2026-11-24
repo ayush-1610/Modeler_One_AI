@@ -15,6 +15,25 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — the console redesign, slice 4a: the Data plan, the Data room in Inputs' words, the model system on Inputs (2026-11-24)
+- **What:**
+  - **Data plan** (`/projects/{id}/data-plan`, P-13b, new; the owner's answer Q1: read-mostly): every requirement the
+    brief's applications derive (`GET /requirements`), what it is needed for, who provides it, its purpose and status
+    (Missing, Done, Not available, Waived), filtered by status and provider, each opening the area of Inputs where it
+    is settled. Nothing is edited on it. In the side navigation under Data.
+  - **Data room** sections say where they stand in Inputs' words (decision G1-1): Done, To confirm, Missing; a section
+    with nothing delivered keeps "Nothing yet". The mapping (from In order, Needs a look, Missing) is for the owner's
+    review (`design-review/DECISIONS.md` D-I2).
+  - **"Earlier page" links removed** (G1-1): the Data room's footer link to Inputs, and Inputs' "Open in the Data
+    room" (`OpenInDataRoom`, deleted). Both pages are reached from the side navigation's Data step.
+  - **Model system** moves from Run to Inputs' Compound area (a model input; it shows only when the project models more
+    than one compound).
+  - **Fixed:** the Overview's Recent activity showed the ten oldest events: the audit read lists the newest first.
+- **Why:** the plan's slice 4, first half (the owner, 2026-11-24: slice 4 in two PRs; D-I2).
+- **Kept:** the observed-studies list stays on Run: Review & sign's Overall Data does not list the studies Inputs holds,
+  so it cannot stand in for the Run page's list as the check that Inputs' studies reach the campaign (OWN-13).
+- **Impact:** no API change. Specs: `dataroom` (no "earlier page" link), `model-system` (on Inputs); new `data-plan.spec.ts`.
+
 ### Changed — the console redesign, slice 3: a project's Overview, Run, Compounds, Members and Settings (2026-11-24)
 - **What:**
   - **Overview** (`/projects/{id}`, P-10, new): the project's address, before the Run page, now says where it stands:

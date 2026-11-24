@@ -28,7 +28,7 @@ test("a model system is shown, its dose fractions are edited, and a study names 
   };
   expect((await request.put(`/api/v1/projects/${projectId}/system`, { headers: AUTH, data: links })).ok()).toBeTruthy();
 
-  await page.goto(`/projects/${projectId}/campaigns`);                      // Run (slice 3; Inputs from slice 4)
+  await page.goto(`/projects/${projectId}/inputs?tab=compound`);            // a model input: Inputs' Compound area (slice 4a)
   const panel = page.getByTestId("system-panel");
   await expect(panel.getByTestId("system-compound-Metabolamide")).toContainText("metabolite");
   await expect(panel.getByTestId("system-analyte-Parentamide")).toContainText("S1 · S2 · S3 · SJ · S4 · S5");
@@ -46,7 +46,7 @@ test("a model system is shown, its dose fractions are edited, and a study names 
   expect((await stored.json()).data.system.products["Parentamide HCl 10 mg"].Parentamide).toBe(0.912);
 
   // a study added on the Inputs step names what it measures and the product it gives, chosen from the system
-  await page.getByRole("link", { name: "Add data" }).click();
+  await page.getByTestId("tab-studies").click();                            // from the Compound area to Clinical studies
   await page.waitForURL(/\/inputs\?tab=studies$/);
   await page.getByTestId("type-table").click();
   await expect(page.getByTestId("typed-analyte")).toContainText("Metabolamide (judged at SM, SJ, S4, S5)");
