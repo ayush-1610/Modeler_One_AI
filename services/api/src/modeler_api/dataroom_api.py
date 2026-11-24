@@ -25,6 +25,7 @@ Reading is for the project's members; every change is for the roles that edit In
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import threading
@@ -59,6 +60,7 @@ from modeler_intake.room import Part, document_parts, page_png, reading_pdf
 from modeler_intake.room_specs import QuestionCard
 from modeler_project import ProjectStore
 from modeler_project.dataroom import DataRoomStore, DataRoomView, room_view
+from modeler_project.dataroom.checklist import DECISION as APPLICATIONS_DECISION
 from modeler_project.dataroom.model import FileView, Value
 from modeler_project.dataroom.publish import (
     Publication,
@@ -305,7 +307,19 @@ def put_dataroom_question(project_id: str, principal: Writer, store: StoreDep, b
     if not body.card.question.strip():
         raise HTTPException(status_code=422, detail="say what the modelling must answer")
     room.set_question(body.card, by=principal.user_id, confirmed=body.confirmed, reason=body.reason)
+    if body.confirmed:
+        _draft_brief(room, principal)
     return _answer(room, principal)
+
+
+def _draft_brief(room: DataRoomStore, principal: Principal) -> None:
+    """Start's brief drafted from what the room now holds (plan 2026-11-24 §7, B4): the confirmed card, the applications
+    decision, what was sent. Drafts only: a person's value is never overwritten. A missing card or brief never fails the
+    room's own route."""
+    from modeler_project.brief_from_room import RoomError, draft_brief_from_room
+
+    with contextlib.suppress(RoomError):
+        draft_brief_from_room(room.ws, by=principal.user_id)
 
 
 class RoomChoice(BaseModel):
@@ -327,6 +341,8 @@ def decide_in_dataroom(project_id: str, decision_id: str, principal: Writer, sto
     if body.chosen != decision.suggested and not body.reason.strip():
         raise HTTPException(status_code=422, detail="say why you chose another option than the one suggested")
     room.decide(decision_id, body.chosen, by=principal.user_id, reason=body.reason.strip())
+    if decision_id == APPLICATIONS_DECISION:
+        _draft_brief(room, principal)
     return _answer(room, principal)
 
 
@@ -442,6 +458,7 @@ def publish_dataroom(project_id: str, principal: Writer, store: StoreDep, settin
     room.audit(actor=by, action="dataroom.publish", resource_id=f"publication/{pub_id}",
                after={**counts, "superseded_ids": written["superseded_evidence"] + written["superseded_datasets"],
                       "basis_sha256": digest, "signature_id": signature.signature_id}, reason=reason)
+    _draft_brief(room, principal)  # before the inputs are refreshed, so their readiness reads the new brief
     refresh_inputs(room.ws, by=by)  # the inputs follow every change (redesign §3.2)
     return envelope({**counts, "publication": pub_id, "basis_sha256": digest, "notes": list(plan.notes),
                      "signature_id": signature.signature_id, "manifestation": signature.manifestation()})

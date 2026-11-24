@@ -13,6 +13,19 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 
 ## [Unreleased] — make the pipeline do real PBPK, S0 → S7
 
+### Changed — Start's brief is drafted from the Data room by itself: on confirming the card, choosing the applications, and sending (2026-11-24)
+- **Why:** plan 2026-11-24 §7 (B4). The two Phase 4 changes merged here: "Send to the model" corrected, and the brief,
+  plan and MAP reading the room. Start was filled from the room only by its button.
+- **What:** the Data room's routes call `brief_from_room.draft_brief_from_room` (`dataroom_api._draft_brief`):
+  - when the question card is confirmed;
+  - when the `applications` decision is chosen;
+  - after "Send to the model", before the inputs are refreshed, so their readiness reads the new brief.
+
+  It only drafts (DRAFTED, with the quotes it rests on). A person's value is never overwritten. A missing card or brief
+  never fails the room's route.
+- **Test:** `test_confirming_the_card_and_choosing_the_applications_in_the_room_fill_start_without_a_click`. A person's
+  own context of use stays theirs.
+
 ### Added — science: Start, the model plan, the MAP and the VBE panel read what the Data room's send rests on (plan 2026-11-24 §7, phase 4: R2, B4–B8) (2026-11-24)
 - **Why:** phase 4 of `docs/plans/2026-11-24-data-story-next-phase.md` (§7: a modeller does not type again at Start or
   on Review & sign what the delivery already said). A read-only trace found the room's confirmed applications ignored

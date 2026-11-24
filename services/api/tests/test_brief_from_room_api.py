@@ -103,3 +103,26 @@ def test_start_is_filled_from_the_rooms_confirmed_card_and_advises_where_a_perso
     again = c.post(f"{brief}:from-dataroom", headers=H).json()["data"]
     assert again["drafted"] == [] and again["kept"] == ["qoi.text"] and len(again["advice"]) == 1
     assert c.get(brief, headers=H).json()["data"]["brief"]["fields"]["qoi.text"]["value"] == "Predict exposure of the 50 mg tablet"
+
+
+def test_confirming_the_card_and_choosing_the_applications_in_the_room_fill_start_without_a_click(client):
+    """The hook-up (plan 2026-11-24 §7, B4): the room's own routes draft Start's brief when the card is confirmed and
+    when the applications are chosen; a person's value stays theirs."""
+    c, store = client
+    pid = _project(c)
+    room = _room(store, pid, confirmed=False)
+    base = f"/api/v1/projects/{pid}/dataroom"
+    confirmed = c.put(f"{base}/question", headers=H, json={"card": QUESTION.model_dump(), "confirmed": True,
+                                                           "reason": "as read"})
+    assert confirmed.status_code == 200, confirmed.text
+    fields = c.get(f"/api/v1/projects/{pid}/brief", headers=H).json()["data"]["brief"]["fields"]
+    assert (fields["qoi.text"]["status"], fields["qoi.text"]["value"]) == ("DRAFTED", QUESTION.question)
+    # a person's own context of use, then the applications chosen in the room: drafted around it, never over it
+    assert c.put(f"/api/v1/projects/{pid}/brief", headers=H, json={"changes": [
+        {"path": "qoi.context_of_use", "status": "EDITED", "value": "Our own words"}]}).status_code == 200
+    decision = next(d for d in room_view(room).decisions if d.id == "applications")
+    chose = c.post(f"{base}/decisions/applications", headers=H, json={"chosen": decision.suggested, "reason": ""})
+    assert chose.status_code == 200, chose.text
+    fields = c.get(f"/api/v1/projects/{pid}/brief", headers=H).json()["data"]["brief"]["fields"]
+    assert fields["qoi.context_of_use"]["value"] == "Our own words"
+    assert "APP-14 virtual bioequivalence" in fields["qoi.applications"]["value"]
