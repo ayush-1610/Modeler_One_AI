@@ -686,23 +686,32 @@ def _send_room(room, *, drop=(), files=(), decisions=None, entered=(), question=
 
 
 FE_CODES = "Treatments: A = Refamide 100 mg tablet, fasted; B = Refamide 100 mg tablet after a high-fat breakfast."
-FE_MEAL = "A high-fat breakfast was served 30 minutes before dosing."
+FE_MEAL = "A high-fat breakfast was served 30 minutes before dosing; lunch 4 h and dinner 10 h after dosing."
+FE_TIMES = "30 minutes before dosing; lunch 4 h and dinner 10 h after dosing"
 FE_CARD = QuestionCard(question="What is the food effect on Refamide exposure?", products=[
     ProductRef(name="Refamide 100 mg", role="reference"), ProductRef(name="Exampleamide 100 mg", role="test")])
 
 
-def _food_effect(codes: str = FE_CODES, a: str = "Refamide 100 mg tablet, fasted") -> tuple:
-    return ("fe.txt", f"{codes}\n{FE_MEAL}\n", (), [
+def _food_effect(codes: str = FE_CODES, a: str = "Refamide 100 mg tablet, fasted",
+                 b: str = "Refamide 100 mg tablet after a high-fat breakfast", meal: str = FE_MEAL,
+                 times: str = FE_TIMES) -> tuple:
+    composition = [Fact(field="study.meal_composition", subject="EX-01", value="high-fat breakfast", quote=meal)]
+    return ("fe.txt", f"{codes}\n{meal}\n", (), [
         Fact(field="study.treatment_code", subject="A", value=a, product="Refamide 100 mg", quote=codes),
-        Fact(field="study.treatment_code", subject="B", value="Refamide 100 mg tablet after a high-fat breakfast",
-             product="Refamide 100 mg", quote=codes),
-        Fact(field="study.meal_composition", subject="EX-01", value="high-fat breakfast", quote=FE_MEAL),
-        Fact(field="study.meal_times", subject="EX-01", value="30 minutes before dosing", quote=FE_MEAL)])
+        Fact(field="study.treatment_code", subject="B", value=b, product="Refamide 100 mg", quote=codes),
+        *(composition if "high-fat breakfast" in meal else []),
+        Fact(field="study.meal_times", subject="EX-01", value=times, quote=meal)])
 
 
-def test_a_food_effect_study_sends_the_meal_on_its_fed_arm_only_and_never_calibrates_on_it(room):
-    # R1: every study meal went on every arm, and the round builder adds a meal whenever there is one: the fasted arm of
-    # a food-effect study was simulated fed. B9: the fed arm was "calibration"; the room only proposes the plan
+def _meal(t: float) -> dict:
+    # every meal of a study takes its one meal decision's template (here high-fat, from the composition): a known gap
+    return {"time_h": t, "template": "Meal: High-fat breakfast (Human)", "name": "High-fat breakfast (Human)"}
+
+
+def test_a_food_effect_study_gives_the_fed_meal_to_its_fed_arm_only_and_the_later_meals_to_every_arm(room):
+    # R1: every study meal went on every arm: the fasted arm of a food-effect study had the fed breakfast. "Fasted" is the
+    # condition at dosing: the protocol's lunch and dinner are every arm's day. B9: the fed arm was "calibration"; the
+    # room only proposes the plan
     from modeler_project.dataroom.publish import plan_publication
 
     view = _send_room(room, drop=("study.treatment_code",), question=FE_CARD, files=[_food_effect()])
@@ -711,11 +720,10 @@ def test_a_food_effect_study_sends_the_meal_on_its_fed_arm_only_and_never_calibr
     plan = plan_publication(view, by="u")
     assert plan.blocked == ()
     sent = {d.study["study_id"]: d.study for d in plan.datasets}
-    assert (sent["EX-01-A"]["food_state"], sent["EX-01-A"]["meals"]) == ("fasted", [])
-    assert sent["EX-01-B"]["food_state"] == "fed"
-    assert sent["EX-01-B"]["meals"] == [{"time_h": -0.5, "template": "Meal: High-fat breakfast (Human)",
-                                         "name": "High-fat breakfast (Human)"}]
-    assert any(n.startswith("EX-01 arm A: fasted") and "a fasted arm carries no meal" in n for n in plan.notes)
+    assert (sent["EX-01-A"]["food_state"], sent["EX-01-A"]["meals"]) == ("fasted", [_meal(4.0), _meal(10.0)])
+    assert (sent["EX-01-B"]["food_state"], sent["EX-01-B"]["meals"]) == ("fed", [_meal(-0.5), _meal(4.0), _meal(10.0)])
+    assert any(n.startswith("EX-01 arm A: fasted at dosing, so the fed condition's meal at -0.5 h is not given to it")
+               and "the meals after the dose (4, 10 h) are" in n for n in plan.notes)
     rows = {r.observed.split(" (")[0]: r for r in view.plan}
     assert (rows["EX-01 arm A"].role, rows["EX-01 arm B"].role) == ("calibration", "verification")
     assert "food-effect question" in rows["EX-01 arm B"].why and "never fitted" in rows["EX-01 arm B"].why
@@ -731,6 +739,38 @@ def test_fed_arms_naming_different_meals_block_sending_with_what_to_decide(room)
         codes, a="Refamide 100 mg tablet after a standard breakfast")])
     (why,) = [b for b in plan_publication(view, by="u").blocked if b.startswith("EX-01:")]
     assert "A: a standard meal; B: a high-fat meal" in why and "decide which meal each fed arm had" in why
+
+
+def test_a_later_meal_one_arm_names_is_that_arms_and_a_meal_no_rule_places_blocks(room):
+    from modeler_project.dataroom.assemble import meal_times
+    from modeler_project.dataroom.publish import plan_publication
+
+    # the sign of a meal's time places it: a dose given after the meal puts the meal before the dose
+    assert meal_times("the dose was given 30 minutes after the start of a high-fat breakfast") == [-0.5]
+    assert meal_times("dinner 10 h after dosing, breakfast 30 min before dosing") == [-0.5, 10.0]
+    # a snack after the dose that only the fed arm's definition names is that arm's; the lunch is every arm's
+    codes = ("Treatments: A = Refamide 100 mg tablet, fasted; "
+             "B = Refamide 100 mg tablet after a high-fat breakfast with a snack 2 h after dosing.")
+    meal = "A high-fat breakfast was served 30 minutes before dosing; a snack 2 h and lunch 4 h after dosing."
+    view = _send_room(room, drop=("study.treatment_code",), question=FE_CARD, files=[_food_effect(
+        codes, b="Refamide 100 mg tablet after a high-fat breakfast with a snack 2 h after dosing", meal=meal,
+        times="30 minutes before dosing; a snack 2 h and lunch 4 h after dosing")])
+    plan = plan_publication(view, by="u")
+    assert plan.blocked == ()
+    sent = {d.study["study_id"]: [m["time_h"] for m in d.study["meals"]] for d in plan.datasets}
+    assert sent == {"EX-01-A": [4.0], "EX-01-B": [-0.5, 2.0, 4.0]}
+    assert any(n.startswith("EX-01 arm A: the meal at 2 h is another arm's") for n in plan.notes)
+    # a meal before the dose in a study no arm of which is fed: which arm was fed, or when the meal was served?
+    breakfast = "A high-fat breakfast was served 30 minutes before dosing."
+    fasted = plan_publication(_send_room(room, files=[("meal.txt", f"{breakfast}\n", (), [
+        Fact(field="study.meal_times", subject="EX-01", value="30 minutes before dosing", quote=breakfast)])]), by="u")
+    assert any(b.startswith("EX-01: a meal at -0.5 h, at or before the dose, is a fed condition's, and no arm is fed")
+               for b in fasted.blocked)
+    # a fed arm whose meals are all after the dose: its fed meal is not given
+    later = "Lunch 4 h and dinner 10 h after dosing."
+    fed_late = plan_publication(_send_room(room, drop=("study.treatment_code",), question=FE_CARD, files=[_food_effect(
+        meal=later, times="Lunch 4 h and dinner 10 h after dosing")]), by="u")
+    assert any(b.startswith("EX-01 arm B: fed, but the meals given are all after the dose (4, 10 h)") for b in fed_late.blocked)
 
 
 def test_sending_again_replaces_the_rooms_earlier_items_and_inputs_reads_the_latest(room, tmp_path):

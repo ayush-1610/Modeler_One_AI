@@ -18,9 +18,12 @@ Where each item is from (ICH M15), never a guess:
 - each dataset: its concentration file and place (`RoomStudy.sources`), and the analyte and matrix the files state.
 
 What each arm's study record says:
-- food state: the arm's own (its definition's words, else the study's statement); the study's meals go only on its
-  fed arms, a fasted arm never carries one; meals that cannot be given to one fed arm each (fed arms naming different
-  meals) block the send with what to decide;
+- food state: the arm's own (its definition's words, else the study's statement), the condition at dosing; meals
+  (`_place_meals`): one at or before the dose is the fed condition's and goes only on the fed arms; one after the dose
+  is every arm's day and goes on every arm, fasted ones too, unless an arm's own definition ties it to that arm; a meal
+  no rule places (a meal before the dose and no fed arm, a fed arm with meals only after the dose, meals with no time,
+  fed arms naming different meals) blocks the send with what to decide. Every meal of a study takes the study's one
+  meal decision's template (a known gap: a fed breakfast and later standard meals share it);
 - route: oral, the one the room sends (a route stated otherwise blocks; one not stated is said);
 - design: single dose; a multiple-dose study blocks ("the model is built from single-dose data"): its profiles are per
   day from each day's dose, and the regimen is free text, so no dose interval or count is mapped by guess;
@@ -63,7 +66,7 @@ the plan and the MAP to read. Its shape (`publication_record`; format "dataroom-
                               "not_told", "compared", "passed", "explained", "investigate", "differ", "tiers",
                               "summary"}],                                   # `model.NcaReproduction` as JSON
         "blq": [{"study_id", "lloq", "unit", "analysis_set", "arithmetic_mean", "geometric_mean"}],
-        "notes": ["<each non-blocking remark of the plan: meals not given to a fasted arm, water not stated, …>"]},
+        "notes": ["<each non-blocking remark of the plan: the fed meal not given to a fasted arm, water not stated, …>"]},
      "evidence": [{"id", "target", "value", "unit", "source_type", "provider", "extraction", "note"}],
      "datasets": [{"id", "study_id", "n", "route", "design", "formulation", "food_state", "meals", "water_ml_per_kg",
                    "demographics", "demographics_choice", "analyte", "matrix", "note"}],
@@ -91,6 +94,7 @@ from modeler_project.dataroom.assemble import (
     POPULATION_LABELS,
     WATER_DEFAULT,
     convention_words,
+    meal_times,
     release_remark,
     stated_demographic,
 )
@@ -298,19 +302,58 @@ def _meal_kind(text: str) -> str:
     return ""
 
 
-def _meals(rows: list[InputRow], sid: str) -> tuple[list[dict[str, Any]], str, str]:
-    """The study's meals as PK-Sim meal events (the harvested template the meal decision chose, at each time read), the
-    times as written, and why they cannot be read ("" when they can)."""
+def _meals(rows: list[InputRow], sid: str) -> tuple[list[dict[str, Any]], str]:
+    """The study's meals as PK-Sim meal events (the harvested template the meal decision chose, at each time read, in
+    hours after the dose), and why they cannot be read ("" when they can): a meal with no time cannot be given to the
+    arms it was served to."""
     meals: list[dict[str, Any]] = []
-    said = []
     for r in rows:
         if r.block == "event" and r.owner == sid:
             if r.value is None:
-                return [], "", f"{sid}: its meal times could not be read ({r.note})"
-            said.append(f"{r.value} h")
+                return [], (f"{sid}: its meal times could not be read ({r.note}): say when each meal was served, so each "
+                            "goes on the arms it was served to")
             for t in re.findall(r"-?\d+(?:\.\d+)?", str(r.value)):
                 meals.append({"time_h": float(t), "template": r.name, "name": r.name.split(": ", 1)[-1]})
-    return meals, "; ".join(said), ""
+    return sorted(meals, key=lambda m: m["time_h"]), ""
+
+
+def _hours(meals: list[dict[str, Any]]) -> str:
+    return ", ".join(f"{m['time_h']:g}" for m in meals) + " h"
+
+
+def _place_meals(sid: str, arms: list[Arm], food: dict[str, str | None], meals: list[dict[str, Any]]
+                 ) -> tuple[dict[str, list[dict[str, Any]]], list[str], list[str]]:
+    """Each arm's meals, what is said about them, and what keeps them from being placed. "Fasted" is the condition at
+    dosing; the protocol's later meals are every arm's day:
+    - a meal at or before the dose (time ≤ 0) is the fed condition's: it goes only on the fed arms;
+    - a meal after the dose goes on every arm, fasted ones too, unless the files tie it to some arms (an arm's own
+      definition names its time): then only on those;
+    - a meal before the dose with no fed arm, or a fed arm with meals only after the dose (its fed meal not given), cannot
+      be placed: the send is blocked with what to decide."""
+    before = [m for m in meals if m["time_h"] <= 0]
+    after = [m for m in meals if m["time_h"] > 0]
+    own = {a.treatment: set(meal_times(a.meaning) or ()) for a in arms}
+    placed: dict[str, list[dict[str, Any]]] = {}
+    said: list[str] = []
+    blocked: list[str] = []
+    if before and not any(food[a.treatment] == "fed" for a in arms):
+        blocked.append(f"{sid}: a meal at {_hours(before)}, at or before the dose, is a fed condition's, and no arm is fed: "
+                       "decide which arm was dosed fed (its definition), or when the meal was served")
+    for arm in arms:
+        fed = food[arm.treatment] == "fed"
+        if fed and after and not before:
+            blocked.append(f"{sid} arm {arm.treatment}: fed, but the meals given are all after the dose ({_hours(after)}): "
+                           "say when its fed meal was served (at or before the dose)")
+        tied = [m for m in after if not any(m["time_h"] in times for times in own.values())
+                or m["time_h"] in own[arm.treatment]]
+        placed[arm.treatment] = (before if fed else []) + tied
+        if not fed and before:
+            said.append(f"{sid} arm {arm.treatment}: fasted at dosing, so the fed condition's meal at {_hours(before)} is "
+                        "not given to it" + (f"; the meals after the dose ({_hours(tied)}) are" if tied else ""))
+        if len(tied) < len(after):
+            said.append(f"{sid} arm {arm.treatment}: the meal at {_hours([m for m in after if m not in tied])} is another "
+                        "arm's (its definition names it), not given to this one")
+    return placed, said, blocked
 
 
 def _individual(study: RoomStudy, get: dict[str, InputRow]) -> tuple[dict[str, Any] | None, str, str]:
@@ -419,7 +462,7 @@ def _dataset(study: RoomStudy, arm: Arm, set_name: str, *, view: DataRoomView, r
     n = profile.n_subjects
     record = {"study_id": f"{sid}-{treatment}", "n": n, "design": "SD", "crossover": len(study.periods) > 1,
               "route": "oral", "dose_mg": dose.value, "formulation": formulation, "formulation_name": formulation_name,
-              "food_state": food, "meals": meals if food == "fed" else [], "water_ml_per_kg": water_ml,
+              "food_state": food, "meals": meals, "water_ml_per_kg": water_ml,
               "demographics": demographics, "statistic": "mean_sd", "n_timepoints": len(times)}
     if study.lloq is not None:
         record["lloq"] = study.lloq
@@ -579,17 +622,24 @@ def plan_publication(view: DataRoomView, *, by: str, ws: Workspace | None = None
         sent = [a for a in study.arms if a.treatment in treatments]
         food_rows = {r.owner: r for r in rows if r.name == "Food state" and (r.owner == sid or r.owner.startswith(f"{sid} · "))}
         food = {a.treatment: (food_rows.get(f"{sid} · {a.treatment}") or food_rows.get(sid)) for a in sent}
-        meals, meal_times_said, meal_problem = _meals(rows, sid)
-        fed = [a for a in sent if food[a.treatment] is not None and food[a.treatment].value == "fed"]  # type: ignore[union-attr]
+        meals, meal_problem = _meals(rows, sid)
+        if meal_problem:
+            blocked.append(meal_problem)
+            continue
+        states = {a.treatment: str(food[a.treatment].value) if food[a.treatment] is not None else None  # type: ignore[union-attr]
+                  for a in sent}
+        fed = [a for a in sent if states[a.treatment] == "fed"]
         kinds = {a.treatment: k for a in fed if (k := _meal_kind(a.meaning))}
-        if meals and len(set(kinds.values())) > 1:
+        if any(m["time_h"] <= 0 for m in meals) and len(set(kinds.values())) > 1:
             blocked.append(f"{sid}: its fed arms name different meals (" + "; ".join(f"{t}: {k}" for t, k in sorted(kinds.items()))
                            + "), and the study's one meal decision would give every fed arm the same: decide which meal "
                            "each fed arm had (a meal per arm is not sent yet)")
             continue
-        if meal_problem and fed:
-            blocked.append(meal_problem)
+        placed, said, unplaced = _place_meals(sid, sent, states, meals)
+        if unplaced:
+            blocked += unplaced
             continue
+        notes += said
         found: list[ObservedDataset] = []
         for arm in sent:
             if not arm.product:
@@ -608,12 +658,10 @@ def plan_publication(view: DataRoomView, *, by: str, ws: Workspace | None = None
             if state is None or state.value not in ("fed", "fasted"):
                 blocked.append(f"{sid} arm {arm.treatment}: the study does not say fed or fasted")
                 continue
-            if state.value == "fasted" and meals:
-                notes.append(f"{sid} arm {arm.treatment}: fasted, so the study's meals ({meal_times_said} after the dose) "
-                             "are not simulated for it: a fasted arm carries no meal")
             kind = "ir_capsule" if any(_CAPSULE.search(w) for w in _product_words(view, arm)[1]) else "ir_tablet"
             got, why = _dataset(study, arm, set_name, view=view, rows=rows, by=by, formulation_name=formulations[arm.product],
-                                formulation=kind, route_note=route_note, food=str(state.value), meals=meals, notes=notes)
+                                formulation=kind, route_note=route_note, food=str(state.value),
+                                meals=placed[arm.treatment], notes=notes)
             if got is None:
                 blocked.append(why)
             else:

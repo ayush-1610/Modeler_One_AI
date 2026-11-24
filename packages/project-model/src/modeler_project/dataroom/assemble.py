@@ -266,13 +266,18 @@ def food_of(text: str) -> str | None:
 def meal_times(text: str) -> list[float] | None:
     """Meal times in hours after the dose (negative: before it) from words: "lunch 4 h and dinner 10 h after dosing",
     "30 minutes before dosing", "at 4, 8 and 12 hours post-dose"; None when no time is written with its unit (a clock
-    time such as "07:30" is not a time after the dose)."""
+    time such as "07:30" is not a time after the dose). The first direction word after a time decides it ("dinner 10 h
+    after dosing, breakfast 30 min before" is 10 and −0.5), and a dose given after the meal puts the meal before the dose
+    ("the dose 30 minutes after the start of breakfast" is −0.5): a meal's sign is what places it on the fed arms only."""
     out: list[float] = []
-    for m in re.finditer(r"((?:\d+(?:\.\d+)?\s*(?:,|and|&|or)\s*)*\d+(?:\.\d+)?)\s*" + _TIME_WORDS + r"\b(?=(.{0,40}))",
+    for m in re.finditer(r"((?:\d+(?:\.\d+)?\s*(?:,|and|&|or)\s*)*\d+(?:\.\d+)?)\s*" + _TIME_WORDS + r"\b(?=(.{0,60}))",
                          text, re.IGNORECASE):
         numbers = [float(x) for x in re.findall(r"\d+(?:\.\d+)?", m.group(1))]
         factor = 1 / 60 if m.group(2).lower().startswith("min") else 1.0
-        before = re.search(r"\b(before|prior|pre)", m.group(3), re.IGNORECASE) is not None
+        way = re.search(r"\b(before|prior|pre|after|post)", m.group(3), re.IGNORECASE)
+        before = way is not None and (way.group(1).lower() in ("before", "prior", "pre") or re.match(
+            r"\s*(?:the\s+)?(?:start|beginning|onset|initiation)\s+of\b|\s*(?:a\s+|the\s+)?(?:[\w-]+\s+){0,2}?"
+            r"(?:meal|breakfast)\b", m.group(3)[way.end():], re.IGNORECASE) is not None)
         out.extend(round((-x if before else x) * factor, 4) for x in numbers)
     return sorted(set(out)) or None
 
@@ -1105,14 +1110,18 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
         meal = chosen.get(f"meal:{sid}")
         times = next((v for v in view.facts if v.key.startswith("study.meal_times")), None)
         if meal:
-            parsed = meal_times(times.as_written) if times else None
+            # the meal times, and the fed condition's meal where the fed statement times it ("a high-fat breakfast 30
+            # minutes before dosing"): the sign of each time is what places it (before the dose: the fed arms only)
+            timed = [v for v in (times, fed) if v is not None and meal_times(v.as_written)]
+            parsed = sorted({t for v in timed for t in meal_times(v.as_written) or ()}) or None
             inputs_rows.append(InputRow(
                 block="event", owner=sid, name=MEAL_HIGH_FAT if meal == "high_fat" else MEAL_STANDARD, label="Meal",
                 value="; ".join(f"{t:g}" for t in parsed) if parsed else None, unit="h after the dose (negative: before)",
-                status=times.status if parsed and times else "missing", sources=times.sources if times else (),
+                status=timed[0].status if parsed else "missing",  # type: ignore[arg-type]
+                sources=tuple(c for v in timed for c in v.sources) if parsed else times.sources if times else (),
                 decision=f"meal:{sid}",
-                note=(f"as written: {times.as_written}" if parsed else f"no time with its unit in {times.as_written!r}")
-                if times else "no meal time found"))
+                note=("as written: " + "; ".join(v.as_written for v in timed)) if parsed else
+                (f"no time with its unit in {times.as_written!r}" if times else "no meal time found")))
         for e in view.exposures:
             if e.statistic != "median":
                 inputs_rows.append(InputRow(block="target", owner=f"{sid} · {e.treatment}", name=e.metric,

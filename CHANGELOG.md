@@ -17,11 +17,22 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 - **Why:** a read-only trace of "Send to the model" (`modeler_project.dataroom.publish`) found study records that did
   not match the studies, sources that misstated where values came from (ICH M15), and resends that changed nothing.
   These models would have been built on the wrong protocol without any visible sign.
-- **R1, fasted arms simulated fed:** every meal of a study went on every arm, and the round builder adds a meal whenever
-  a record has one. Now meals go only on the arms whose food state is fed. Each arm's food state comes from its own
-  words, else from the study's statement: an arm "after a high-fat breakfast" beside an arm that says nothing, in a study
-  "after an overnight fast", is now one fed arm and one fasted arm (both were sent fasted). A fasted arm never carries a
-  meal, and the plan's notes say so. Fed arms that name different meals block the send, with what to decide.
+- **R1, fasted arms simulated fed:** every meal of a study went on every arm, the fed condition's breakfast included,
+  and the round builder adds a meal whenever a record has one. "Fasted" is the condition at dosing; the protocol's
+  later meals belong to every arm's day and change gastric emptying and later absorption. Now:
+  - A meal at or before the dose (time ≤ 0 h) is the fed condition's. It goes only on the fed arms, and the notes say
+    a fasted arm does not get it.
+  - A meal after the dose goes on every arm, fasted ones included (a standard lunch at 4 h, dinner at 10 h). If an
+    arm's own definition names its time, it goes on that arm only.
+  - The send is blocked, with what to decide, when a meal cannot be placed: a meal before the dose when no arm is
+    fed, a fed arm whose meals are all after the dose, meal times that cannot be read, or fed arms that name
+    different meals.
+  - Each arm's food state comes from its own words, else from the study's statement. An arm "after a high-fat
+    breakfast" beside an arm that says nothing, in a study "after an overnight fast", is now one fed arm and one
+    fasted arm (both were sent fasted).
+  - Meal times read the first direction word after a time. "The dose 30 minutes after the start of breakfast" is now
+    −0.5 h, not +0.5 h, so a fed breakfast no longer reads as a later meal. The fed statement's own timed meal is read
+    as well.
 - **R3, a second send changed nothing:** ids came from a chip's box and text, and Inputs kept the earliest dataset of a
   study id. Now an id follows what is sent (the target or study and its content), so the same content is skipped. A send
   that carries a new item for a target or study rejects the Data room's earlier item, "superseded by publication <id>",
@@ -75,12 +86,12 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
   - `docs/api/openapi.json` and `apps/web/lib/api-types.ts` are regenerated, and the page lists the notes.
 - **Impact:**
   - No locked file, ruleset or acceptance criterion changed; the Data room's rules stay UNVERIFIED at 0.1.
-  - The synthetic Exampleamide delivery is fasted. Its meals at 4 h and 10 h are no longer simulated, and the notes say
-    so.
-  - Tests: `packages/project-model/tests/test_dataroom.py` (seven new) and `services/api/tests/test_dataroom_api.py`.
+  - The synthetic Exampleamide delivery is fasted at dosing. Both arms keep its meals at 4 h and 10 h after the dose.
+  - Tests: `packages/project-model/tests/test_dataroom.py` (eight new) and `services/api/tests/test_dataroom_api.py`.
 - **Known gaps:**
   - A study's meals share its one meal decision's template. A fed arm's high-fat breakfast and the standard lunches
-    after it all go with the chosen template.
+    after it all go with the chosen template. The room's meal row carries times, not a kind per meal, so no per-meal
+    template is chosen.
   - A multiple-dose study is refused, not mapped.
   - An individual with no stated mean age is left to Inputs.
 

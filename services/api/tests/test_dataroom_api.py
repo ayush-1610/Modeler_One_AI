@@ -184,10 +184,9 @@ def test_send_to_the_model_waits_on_the_decisions_then_is_signed_once_with_the_s
     data = sent.json()["data"]
     assert (data["evidence"], data["datasets"], data["skipped"], data["superseded"]) == (len(plan["evidence"]), 2, 0, 0)
     assert "Reviewed" in data["manifestation"] and data["signature_id"]
-    # what is sent otherwise than the files suggest is said before and after: the fasted arms' meals left out, the
-    # releases a Weibull curve does not describe (the SME decides)
-    assert plan["notes"] == data["notes"]
-    assert any("EX-01 arm A: fasted" in n and "carries no meal" in n for n in plan["notes"])
+    # what is sent otherwise than the files suggest is said before and after: the releases a Weibull curve does not
+    # describe (the SME decides). The study is fasted at dosing; its meals at 4 h and 10 h after the dose are every arm's
+    assert plan["notes"] == data["notes"] and not any("meal" in n for n in plan["notes"])
     assert any("LOT-X levels off at 87 %" in n and "the SME decides" in n for n in plan["notes"])
     # what the send rested on, kept for the plan and the MAP: its sha256 is in what the signature covers
     record = room_store.publication(data["publication"])
@@ -212,6 +211,8 @@ def test_send_to_the_model_waits_on_the_decisions_then_is_signed_once_with_the_s
                              "arithmetic_mean": "below the LLOQ counted as 0",
                              "geometric_mean": "below the LLOQ left out (quantifiable values only)"}]
     assert basis["notes"] == plan["notes"] and {d["food_state"] for d in record["datasets"]} == {"fasted"}
+    assert [[(m["time_h"], m["template"]) for m in d["meals"]] for d in record["datasets"]] == [
+        [(4.0, "Meal: Standard (Human)"), (10.0, "Meal: Standard (Human)")]] * 2
     assert len(basis["nca_reproduction"]) == 1 and isinstance(basis["nca_differ"], list)
     again = c.post(f"{API}/publish", headers=H, json={"reason": "again"}).json()["data"]
     assert (again["evidence"], again["datasets"], again["skipped"], again["superseded"]) == (0, 0, len(plan["evidence"]) + 2, 0)
