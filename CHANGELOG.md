@@ -15,6 +15,31 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — the console redesign, slice 4c: what confirming a changed card again would change, read before signing (2026-11-24)
+- **What:** `GET /projects/{id}/delivery/subjects/{type}/{subject}/impact` (any member) plans the subject's landing as
+  `:confirm` plans it and answers, without signing or writing anything: each dataset the landing would load new, revise
+  (a new version), accept or set aside, each evidence item it would load, accept or hold, the dissolution rows it would
+  load and those an earlier confirmation loaded that it would remove, the legacy datasets it would reject, and every
+  artifact downstream that would go stale: the study catalog and the CPF that the inputs' re-assembly rewrites after a
+  landing, and what derives from them, a signed MAP among them (`needs_signature`: it must be signed again). Refused for
+  a blinded study (409 BLINDED: what it would load names its values) and when the landing cannot be planned (409
+  LANDING_REFUSED). On Inputs, the dialog of "Confirm again and sign…" on a card confirmed before shows it under "What
+  signing again changes", read fresh each time it opens; signed work going stale is said in a warning line.
+  `intake_landing.preview_landing` decides each record as `land` does, through helpers both now share (`_beside`: a
+  dataset beside the register's version; `_earlier`: the confirmations a new one supersedes); `Workspace.downstream`
+  and `Workspace.impact_item` are the breadth-first walk `Workspace.impact` already did, taken out so the preview uses
+  it too (no behaviour change to `impact`).
+- **Why:** the owner's go-ahead for 4c (2026-11-24): the impact preview the console redesign plans for Data, left out of
+  4b because no dry run of the landing existed.
+- **Impact:** an API addition (`DeliveryImpact`; `docs/api/openapi.json`, `lib/api-types.ts` regenerated). Tests:
+  `test_what_confirming_a_changed_study_again_would_change_is_read_before_signing_and_nothing_is_written` (a value
+  corrected after the signature: two profiles new, the two landed set aside, a signed MAP listed to sign again, nothing
+  written by the read, and the confirmation that follows does what the preview said); the product test reads its
+  dissolution rows first; the blinded-route test adds the refusal; the route-count ratchets 22 → 23 and 23 → 24. Spec
+  `delivery.spec.ts`: no impact section on a first confirmation; after a correction, "Confirm again and sign…" reads
+  `/impact` once and lists the datasets and the project records that follow, and nothing is written. Software test
+  data only (Exampleamide); nothing here is a simulation.
+
 ### Changed — the console redesign, slice 4b: Inputs' study and product cards open one at a time in a side panel (2026-11-24)
 - **What:** on Inputs, a study's card (Clinical studies) and a product's card (Products and dissolution) open in a side
   panel on the right (`kit/SidePanel`), one at a time, instead of inside the list with up to three open at once. The

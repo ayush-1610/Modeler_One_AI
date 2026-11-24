@@ -1842,6 +1842,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project_id}/delivery/subjects/{type}/{subject}/impact": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Impact
+         * @description What confirming the subject now would change, before anything is signed (the console redesign's slice 4c): the
+         *     datasets and evidence its landing would load, revise, accept or set aside, the dissolution rows it would load and
+         *     remove, and every artifact downstream that would go stale (a signed MAP must then be signed again). The landing is
+         *     planned as `:confirm` plans it; nothing is signed or written. Refused for a blinded study (409 BLINDED: what it
+         *     would load names its values) and while the landing cannot be planned (409 LANDING_REFUSED).
+         */
+        get: operations["get_impact_api_v1_projects__project_id__delivery_subjects__type___subject__impact_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project_id}/delivery/subjects/{type}/{subject}/spot-check": {
         parameters: {
             query?: never;
@@ -5792,6 +5816,56 @@ export interface components {
             value: string;
         };
         /**
+         * DeliveryImpact
+         * @description What confirming the subject now would load, replace and set aside, and which artifacts it would make stale (a
+         *     signed MAP among them must be signed again), computed without signing or writing anything (the console redesign's
+         *     slice 4c). `supersedes`: the current confirmation the new one would supersede (null: a first confirmation).
+         */
+        DeliveryImpact: {
+            /** Affected */
+            affected: components["schemas"]["AffectedView"][];
+            /** Changes */
+            changes: boolean;
+            /** Datasets */
+            datasets: components["schemas"]["DeliveryImpactChange"][];
+            /** Dissolution Removed */
+            dissolution_removed: number;
+            /** Dissolution Rows */
+            dissolution_rows: number;
+            /** Evidence */
+            evidence: components["schemas"]["DeliveryImpactChange"][];
+            /** Held */
+            held: string[];
+            /** Label */
+            label: string;
+            /** Reject Legacy */
+            reject_legacy: string[];
+            /** Subject */
+            subject: string;
+            /**
+             * Subject Type
+             * @enum {string}
+             */
+            subject_type: "study" | "product" | "compound";
+            /** Supersedes */
+            supersedes: string | null;
+        };
+        /**
+         * DeliveryImpactChange
+         * @description One dataset or evidence item of the landing as it would be decided (`intake_landing.LandingChange`).
+         */
+        DeliveryImpactChange: {
+            /**
+             * Change
+             * @enum {string}
+             */
+            change: "new" | "revised" | "accepted" | "unchanged" | "held" | "set_aside";
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+        };
+        /**
          * DeliveryIndividual
          * @description A study's simulated individual (D-29) as the landing would set it from the study's active values: one source
          *     for the card, Populations and individuals, and what loads (`intake_landing.study_individual`).
@@ -7708,6 +7782,13 @@ export interface components {
         /** Envelope[DataRoomView] */
         Envelope_DataRoomView_: {
             data: components["schemas"]["DataRoomView"];
+            /** Errors */
+            errors: components["schemas"]["ErrorItem"][];
+            meta: components["schemas"]["Meta"];
+        };
+        /** Envelope[DeliveryImpact] */
+        Envelope_DeliveryImpact_: {
+            data: components["schemas"]["DeliveryImpact"];
             /** Errors */
             errors: components["schemas"]["ErrorItem"][];
             meta: components["schemas"]["Meta"];
@@ -18759,6 +18840,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Envelope_DeliverySubject_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_impact_api_v1_projects__project_id__delivery_subjects__type___subject__impact_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+                type: "study" | "product" | "compound";
+                subject: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_DeliveryImpact_"];
                 };
             };
             /** @description Validation Error */

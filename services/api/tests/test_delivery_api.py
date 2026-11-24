@@ -21,6 +21,7 @@ import re
 import time
 import types
 import uuid
+from collections import Counter
 from pathlib import Path
 from typing import Any, get_args
 
@@ -43,6 +44,7 @@ from modeler_intake.mapping_spec import Role
 from modeler_intake.source import parse_document, region_grid
 from modeler_project import (
     ArtifactKind,
+    ArtifactStatus,
     FileProjectStore,
     Workspace,
     client_data,
@@ -713,6 +715,71 @@ def test_an_interrupted_landing_completes_on_a_second_confirm_with_no_new_signat
 
 
 @pytest.mark.req("T-47", "F-403", "T-06", "F-404", "T-05")
+def test_what_confirming_a_changed_study_again_would_change_is_read_before_signing_and_nothing_is_written(project):
+    """The console redesign's slice 4c: before a study is confirmed again, its impact is read (`/impact`, any member):
+    what its landing would load, revise or set aside, and every artifact downstream that would go stale, a signed MAP
+    among them (it must be signed again). Nothing is signed or written by reading it."""
+    p = project()
+    path = _ready(p)
+    first = p.get(f"{path}/impact", token="viewer")
+    assert first.status_code == 200, first.text
+    preview = first.json()["data"]
+    assert (preview["supersedes"], preview["changes"], preview["label"]) == (None, True, "230-23")
+    assert [d["change"] for d in preview["datasets"]] == ["new", "new"]
+    # the inputs are re-assembled from the new datasets: the study catalog and its readiness check, nothing signed
+    assert [(a["ref"]["kind"], a["needs_signature"]) for a in preview["affected"]] == [("study_catalog", False), ("readiness", False)]
+    assert all(d["label"].startswith("230-23, 50 mg") for d in preview["datasets"])
+    assert p.post(f"{path}:confirm").status_code == 200
+    (confirmation,) = review.confirmations(p.ws)
+    landed = {d["id"] for d in preview["datasets"]}
+    assert {d.id for d in all_datasets(p.ws)} == landed
+
+    # the record it signed, again: nothing would change
+    same = p.get(f"{path}/impact").json()["data"]
+    assert (same["supersedes"], same["changes"], same["affected"]) == (confirmation.id, False, [])
+    assert {d["change"] for d in same["datasets"]} == {"unchanged"}
+
+    # a MAP signed on the inputs this landing made (a stand-in: only its place downstream matters here)
+    catalog = p.ws.latest(ArtifactKind.STUDY_CATALOG, "main")
+    assert catalog is not None and landed & {up.id for up in catalog.derived_from}
+    signed_map = p.ws.commit(ArtifactKind.MAP, "main", {"stand_in": True}, derived_from=[catalog.ref], actor="u1", reason="test")
+    p.ws.approve(signed_map.ref, by="u1", signature_id="sig-test")
+
+    # a value of the study corrected: confirming again would replace its profile and make the signed MAP stale
+    card = p.card(path)
+    value = next(v for t in card["tables"] for v in t["values"] if v["verbatim"] == "25.2")
+    assert p.post(f"{path}:enter", {"value": 25.4, "supersedes": value["id"], "why": "a typing error"}).status_code == 200
+    before = (len(p.events()), [d.model_dump() for d in all_datasets(p.ws)], len(IntakeStore(p.ws).review.entries()),
+              [v.ref for v in p.ws.list()], len(p.ws.store.approvals("t1", "p1")))
+    changed = p.get(f"{path}/impact", token="viewer")
+    assert changed.status_code == 200, changed.text
+    impact = changed.json()["data"]
+    assert impact["supersedes"] == confirmation.id and impact["changes"] is True
+    # the study's values are other values now (another digest): its profiles land under new ids, the earlier ones set aside
+    assert Counter(d["change"] for d in impact["datasets"]) == {"new": 2, "set_aside": 2}, impact["datasets"]
+    assert {d["id"] for d in impact["datasets"] if d["change"] == "set_aside"} == landed
+    affected = {(a["ref"]["kind"], a["ref"]["id"]): a for a in impact["affected"]}
+    assert affected[("study_catalog", "main")]["needs_signature"] is False
+    assert affected[("readiness", "main")]["needs_signature"] is False
+    assert affected[("map", "main")]["needs_signature"] is True and affected[("map", "main")]["status"] == "APPROVED"
+    assert affected[("map", "main")]["effect"].startswith("superseded when revised: the new version must be signed")
+    assert next(iter(affected)) == ("study_catalog", "main")                    # what the re-assembly writes first
+    # nothing written: no event, no register line, no review line, no artifact version, no approval
+    assert before == (len(p.events()), [d.model_dump() for d in all_datasets(p.ws)], len(IntakeStore(p.ws).review.entries()),
+                      [v.ref for v in p.ws.list()], len(p.ws.store.approvals("t1", "p1")))
+    # confirmed again, the landing does what the preview said
+    _spot_check(p, path)
+    assert p.post(f"{path}:confirm").status_code == 200
+    states = {d.id: d.state for d in all_datasets(p.ws)}
+    assert all(states[d["id"]] is EvidenceState.ACCEPTED for d in impact["datasets"] if d["change"] == "new")
+    assert all(states[d["id"]] is EvidenceState.REJECTED for d in impact["datasets"] if d["change"] == "set_aside")
+    assert p.ws.status(signed_map) is ArtifactStatus.STALE
+    # refused: a subject that is not the project's, an id that is not one
+    assert p.get("delivery/subjects/study/st-99999/impact").status_code == 404
+    assert p.get("delivery/subjects/study/..%2Fst-1/impact").status_code in (404, 422)
+
+
+@pytest.mark.req("T-47", "F-403", "T-06", "F-404", "T-05")
 def test_a_product_is_reviewed_and_confirmed_and_its_dissolution_lands_through_the_register(project):
     p = project()
     workbook = synthetic.messy_workbook()
@@ -735,6 +802,11 @@ def test_a_product_is_reviewed_and_confirmed_and_its_dissolution_lands_through_t
     card = _decide(p, path)
     assert [b["code"] for b in card["blockers"]] == ["SPOT_CHECK"]
     assert _spot_check(p, path)["state"] == "complete"
+    # what confirming it would load, read first (slice 4c): its dissolution rows, into the client's file
+    impact = p.get(f"{path}/impact").json()["data"]
+    assert impact["dissolution_rows"] > 0 and impact["dissolution_removed"] == 0 and impact["datasets"] == []
+    assert impact["changes"] is True and impact["held"] == card["held"]
+    assert [a["ref"]["kind"] for a in impact["affected"]] == []          # nothing is derived from the client's file yet
     assert p.post(f"{path}:confirm", token="plain").json()["detail"]["code"] == "STEP_UP_REQUIRED"
     signed = p.post(f"{path}:confirm")
     assert signed.status_code == 200, signed.text
@@ -742,6 +814,7 @@ def test_a_product_is_reviewed_and_confirmed_and_its_dissolution_lands_through_t
     assert done["signature"]["manifestation"].startswith("Dev User | Reviewed | ")
     landed = done["confirmation"]["landed"]
     assert landed["dissolution_records"] > 0 and landed["datasets"] == [] and landed["pending"] == card["held"]
+    assert landed["dissolution_records"] == impact["dissolution_rows"]
     (signature,) = p.events("signature.create")
     assert signature.resource_id == f"p1/{path.replace('subjects/', '')}" and signature.resource_type == "intake-confirmation"
     assert [len(p.events(a)) for a in ("intake.confirm", "intake.land")] == [1, 1]
@@ -1333,6 +1406,9 @@ def test_a_blinded_studys_values_blq_counts_and_source_cells_are_withheld_on_eve
     assert "BLQ_PRESENT" in {c["code"] for c in card["checks"]}                               # that a check ran is shown
     assert card["held"] is None and card["landing_problem"] is None
     assert "BLINDED" in [b["code"] for b in card["blockers"]]
+    # what confirming it would load names its values: not answered (the console redesign's slice 4c)
+    impact = p.get(f"{path}/impact")
+    assert impact.status_code == 409 and impact.json()["detail"]["code"] == "BLINDED" and _leaks(secrets, impact.text) == []
     assert not any(ch.isdigit() for b in card["blockers"] if b["code"] == "BLINDED" for ch in b["detail"].replace("D-15", ""))
     # the page: the row says blinded; a file that holds its values shows no caption, no outside text
     page = p.page()
@@ -1582,13 +1658,13 @@ def test_delivery_routes_defines_no_router_and_imports_no_module_that_defines_on
     # its handlers are client_api's routes: mounted on that router, covered by the response ratchet
     assert not hasattr(delivery_routes, "router")
     handlers = {r.endpoint for r in client_api.router.routes if isinstance(r, APIRoute) and "/delivery" in r.path}
-    assert len(handlers) == 22 and all(h.__module__ == "modeler_api.delivery_routes" for h in handlers)
+    assert len(handlers) == 23 and all(h.__module__ == "modeler_api.delivery_routes" for h in handlers)
 
 
 def test_every_delivery_route_and_the_admin_pipeline_route_has_a_typed_answer():
     routes = [r for router in (client_api.router, admin_api.router) for r in router.routes
               if isinstance(r, APIRoute) and ("/delivery" in r.path or r.path.endswith("/admin/pipeline"))]
-    assert len(routes) == 23
+    assert len(routes) == 24
     names = set()
     for route in routes:
         model = route.response_model
@@ -1598,7 +1674,7 @@ def test_every_delivery_route_and_the_admin_pipeline_route_has_a_typed_answer():
         names.add(data.__name__)
         assert route.response_model_exclude_unset is True
     assert names == {"DeliveryPage", "DeliverySubject", "DeliverySource", "DeliveryMapping", "DeliverySpotCheck",
-                     "DeliveryMappingVocabulary", "TriageStart", "PipelineHealth"}
+                     "DeliveryMappingVocabulary", "DeliveryImpact", "TriageStart", "PipelineHealth"}
     # no new model takes the name of a schema the API already published: FastAPI would rename both
     schemas = app.openapi()["components"]["schemas"]
     assert not [name for name in schemas if name.startswith("modeler_api__views__delivery")]
