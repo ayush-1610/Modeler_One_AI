@@ -297,9 +297,16 @@ repository):
 
 **2026-11-22, last: model failover.** When an agent's model cannot answer, the task starts again on the next model
 in the admin's list (Admin → Agents; empty by default). A failing model rests for later tasks; the in-house model
-streams; every Data room turn and switch is recorded; each answer names the model that wrote it. Open from the
-governance review: consent per client and provider, an in-house-only project, the report's "how it was made"
-section, and keeping A9 off A8's model.
+streams; every Data room turn and switch is recorded; each answer names the model that wrote it.
+
+**2026-11-23: the governance review's open items.**
+- Each project is in-house only until the client's written permission for a cloud service is recorded on its Data
+  room page. The gate (`agent_jobs.project_model`) leaves out every model on a service the project does not allow, for
+  A1, A4, the intake pipeline and A6–A10.
+- The evidence report has "How this report was made".
+- A9 checks each extraction on another model when the chain has one.
+- Each run is audited at its start and kept in the room's run history.
+- Still open: consent per client rather than per project, and an admin registry of clients' agreements.
 
 **Open, in order:**
 1. Score A6–A10 on the sample delivery per model. Nemotron Ultra, 2026-11-22: 31 of 34 values on the key files

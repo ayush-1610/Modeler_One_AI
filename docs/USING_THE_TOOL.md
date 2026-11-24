@@ -204,6 +204,17 @@ New projects use the Data room as their Inputs step (existing projects keep thei
       client who has agreed.
   - **A sensible list for client work today:** gpt-oss-120b (GroqCloud, Zero Data Retention on) behind the in-house
     Qwen Coder. For tests on made-up data, add Nemotron Ultra.
+  - **Each project decides where its files may go.** A project is in-house only until you record, on its Data room page
+    ("Where the files may go" → Change), the client's written permission for a cloud service: its reference (a letter,
+    an email, a contract clause), an end date if it has one, and why. A change asks you to confirm your identity and is
+    audited.
+    - Until then, a cloud model in an agent's setting or in the list is left out for that project's files.
+    - With no model left, the agent stops and says what to record. Set the agent to Qwen Coder, or record the
+      permission.
+    - Projects made before 2026-11-23 start in-house only too.
+  - **The evidence report says how it was made:** which model and service wrote each answer, and any switch. A9 checks
+    each extraction on another model than the one that wrote it, when the list has one; otherwise its note says it is
+    not a second opinion.
   - The in-house model now streams its answer. A slow model that is still writing is no longer cut off at
     `MODELER_LLM_TIMEOUT_S`, which now counts between pieces of the answer (three times it in all). If your proxy
     cannot stream with tools, set `MODELER_LLM_STREAM=0`.

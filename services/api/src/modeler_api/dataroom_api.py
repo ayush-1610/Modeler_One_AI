@@ -41,6 +41,7 @@ from modeler_api.deps import Reader, StoreDep, Writer, workspace_for
 from modeler_api.part11 import record_signature
 from modeler_api.responses import Envelope, answers, envelope
 from modeler_api.views.dataroom import (
+    DataPermissionsView,
     RoomPublication,
     RoomPublished,
     RoomRun,
@@ -392,6 +393,65 @@ def publish_dataroom(project_id: str, principal: Writer, store: StoreDep, settin
                after={**written, "signature_id": signature.signature_id}, reason=body.reason.strip())
     refresh_inputs(room.ws, by=by)  # the inputs follow every change (redesign §3.2)
     return envelope({**written, "signature_id": signature.signature_id, "manifestation": signature.manifestation()})
+
+
+# --- where the project's files may go (the governance review, 2026-11-22) -----------------------------------------
+
+
+class DataGrantBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    basis: str = "the client's written consent"
+    reference: str = ""             # the client's document: a letter, an email, a contract clause
+    expires: str = ""               # YYYY-MM-DD; empty for none
+
+
+class DataPermissionsBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    in_house_only: bool = True
+    services: dict[str, DataGrantBody] = Field(default_factory=dict)
+    reason: str = ""
+
+
+def _permissions(ws: Any) -> dict[str, Any]:
+    from datetime import UTC, datetime
+
+    from modeler_project.data_permissions import CLOUD_SERVICES, DataPermissions
+
+    perms, today = DataPermissions(ws), datetime.now(UTC).date()
+    doc = perms.doc()
+    grants = [{"service": p, "label": CLOUD_SERVICES[p], **{k: g.get(k, "") for k in ("basis", "reference", "expires", "by", "at")},
+               "in_force": perms.allows(p, today)} for p, g in doc["services"].items() if p in CLOUD_SERVICES]
+    history = [{"in_house_only": h["in_house_only"], "services": sorted(h["services"]), "by": h["by"], "at": h["at"],
+                "reason": h["reason"]} for h in reversed(doc.get("history", []))]
+    return envelope({"in_house_only": doc["in_house_only"], "grants": grants, "history": history,
+                     "services": [{"service": p, "label": label} for p, label in CLOUD_SERVICES.items()]})
+
+
+@router.get("/projects/{project_id}/data-permissions", **answers(DataPermissionsView))
+def get_data_permissions(project_id: str, principal: Reader, store: StoreDep) -> dict[str, Any]:
+    """Where this project's client files may be sent for an AI model to read: in-house only unless a cloud service has
+    the client's recorded permission."""
+    return _permissions(workspace_for(project_id, principal, store))
+
+
+@router.put("/projects/{project_id}/data-permissions", **answers(DataPermissionsView))
+def put_data_permissions(project_id: str, principal: Writer, store: StoreDep, body: DataPermissionsBody) -> dict[str, Any]:
+    """Record where this project's client files may go, as a whole: in-house only, or the cloud services the client
+    allowed, each with the client's written permission (its reference) and when it ends. Confirmed with the step-up and
+    audited; the agents follow it from their next request."""
+    from modeler_project.data_permissions import DataPermissions, PermissionError_
+
+    ws = workspace_for(project_id, principal, store)
+    if not body.reason.strip():
+        raise HTTPException(status_code=422, detail="say why (the client's permission, or why it is withdrawn)")
+    ensure_step_up(principal)
+    try:
+        DataPermissions(ws).set(in_house_only=body.in_house_only,
+                                services={p: g.model_dump() for p, g in body.services.items()},
+                                by=principal.user_id, reason=body.reason)
+    except PermissionError_ as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return _permissions(ws)
 
 
 # --- the source viewer ---------------------------------------------------------------------------------------------

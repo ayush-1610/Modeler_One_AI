@@ -93,6 +93,23 @@ class DataRoomStore:
     def agent_steps(self) -> list[dict[str, Any]]:
         return self._rows("agent_steps.jsonl")
 
+    def record_author(self, *, stage: str, file: str, model: str, identity: str, prompt: str, note: str = "") -> None:
+        """Who wrote a saved answer (a stage's, for a file or the delivery), append-only: the model's label, its
+        provider/model id, the prompt version, and a note (a checker that was not a second opinion). The evidence report's
+        "How this report was made" is read from it (the governance review, 2026-11-22, requirements 8 and 9)."""
+        self._append("authors.jsonl", {"at": _now(), "stage": stage, "file": file, "model": model, "identity": identity,
+                                       "prompt": prompt, "note": note})
+
+    def authors(self) -> list[dict[str, Any]]:
+        return self._rows("authors.jsonl")
+
+    def append_run(self, summary: dict[str, Any]) -> None:
+        """A finished run kept beside the live `run.json`, which the next run replaces."""
+        self._append("runs.jsonl", summary)
+
+    def runs(self) -> list[dict[str, Any]]:
+        return self._rows("runs.jsonl")
+
     def audit(self, *, actor: str, action: str, resource_id: str, after: dict[str, Any], reason: str | None = None) -> None:
         self.ws.store.audit(self.ws.tenant_id).append(actor=actor, action=action, resource_type="dataroom",
                                                       resource_id=f"{self.ws.project_id}/{resource_id}", after=after,

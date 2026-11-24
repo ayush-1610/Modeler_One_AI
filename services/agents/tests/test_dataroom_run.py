@@ -154,3 +154,51 @@ def test_a_stage_whose_model_does_not_answer_goes_on_with_the_next_and_says_so(t
     assert any(s["type"] == "model_switch" and s["to"] == "Nemotron Ultra" for s in steps)
     assert any(s["type"] == "model_turn" and s["stage"] == "question" for s in steps)
     HEALTH.reset()
+
+
+def test_each_answer_names_its_author_the_report_says_how_it_was_made_and_each_run_is_kept(tmp_path):
+    # the governance review, 2026-11-22: who wrote each file's reading, where it ran, the prompt; a run audited when it
+    # starts and kept when it ends
+    store = _store(tmp_path)
+    run_room(store, chat_for=lambda agent: None, actor="user:m", stages=["read"], use_ocr=False, workers=1)
+    model = Scripted({"submit_extraction": _extraction(store),
+                      "submit_writing": [{"findings": {"clinical": "EX-02: 4 subjects in the modeling set."}, "requests": {}}]})
+    run_room(store, chat_for=lambda agent: model, actor="user:m", stages=["triage", "extract", "write"], use_ocr=False)
+    authors = {(a["stage"], a["file"]): a for a in store.authors()}
+    assert ("extract", "conc.tsv") in authors and ("write", "") in authors and ("triage", "synopsis.md") in authors
+    assert authors[("extract", "conc.tsv")]["identity"] == "scripted/v1" and authors[("extract", "conc.tsv")]["prompt"]
+    view = room_view(store)
+    rows = {(m.stage, m.file): m for m in view.made_by}
+    assert rows[("extract", "conc.tsv")].model == "scripted/v1" and rows[("extract", "conc.tsv")].service == "scripted"
+    assert view.made_summary.startswith("Models: scripted/v1 on scripted for 2 files")
+    assert "Code read and checked every value" in view.made_summary
+    runs = store.runs()
+    assert [r["state"] for r in runs] == ["done", "done"] and runs[-1]["actor"] == "user:m"
+    starts = [r.event for r in store.ws.store.audit("t1").records() if r.event.action == "dataroom.run.start"]
+    assert len(starts) == 2 and starts[-1].after["stages"] == ["triage", "extract", "write"]
+
+
+def test_the_checker_starts_on_another_model_than_the_one_that_wrote_the_extraction(tmp_path):
+    # plan §9's second opinion (the governance review, 2026-11-22): A9 is not A8's model when the chain has another
+    from modeler_agents.llm import HEALTH, FallbackChat
+
+    store = _store(tmp_path)
+    run_room(store, chat_for=lambda agent: None, actor="user:m", stages=["read"], use_ocr=False, workers=1)
+    writer = Scripted({"submit_extraction": _extraction(store)})
+    run_room(store, chat_for=lambda agent: writer, actor="user:m", stages=["triage", "extract"], use_ocr=False)
+
+    class Other(Scripted):
+        provider, model = "scripted2", "v2"
+
+    review = {"tables": [{"table": 1, "ok": True, "issue": ""}]}
+    HEALTH.reset()
+    chain = FallbackChat([Scripted({"submit_review": [review] * 3}), Other({"submit_review": [review] * 3})],
+                         labels=["Writer", "Other"])
+    run_room(store, chat_for=lambda agent: chain, actor="user:m", stages=["check"], use_ocr=False)
+    check = [a for a in store.authors() if a["stage"] == "check"]
+    assert check and all(a["identity"] == "scripted2/v2" and a["note"] == "" for a in check)
+    alone = Scripted({"submit_review": [review] * 3})                 # no other model: said, not hidden
+    run_room(store, chat_for=lambda agent: alone, actor="user:m", stages=["check"], use_ocr=False, redo=["check"])
+    last = [a for a in store.authors() if a["stage"] == "check"][-1]
+    assert last["note"] == "not a second opinion: the same model wrote the extraction"
+    HEALTH.reset()

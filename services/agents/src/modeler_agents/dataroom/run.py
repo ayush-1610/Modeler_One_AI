@@ -65,7 +65,7 @@ def _why(error: str) -> str:
     return "its service did not answer"
 
 
-def run_room(store: DataRoomStore, *, chat_for: Callable[[str], ChatModel | None], actor: str,
+def run_room(store: DataRoomStore, *, chat_for: Callable[[str], ChatModel | str | None], actor: str,
              stages: Sequence[str] | None = None, redo: Sequence[str] = (), use_ocr: bool = True,
              workers: int | None = None, files: Sequence[str] | None = None,
              focus_chars: int | None = None) -> dict[str, Any]:
@@ -77,6 +77,9 @@ def run_room(store: DataRoomStore, *, chat_for: Callable[[str], ChatModel | None
 
     wanted = list(stages) if stages is not None else [sid for sid, _l, _a in RUN_STAGES]
     run = _Run(store, wanted, actor)
+    # who started which stages on which files, on the project's audit chain (the governance review, 2026-11-22)
+    store.audit(actor=actor, action="dataroom.run.start", resource_id="run",
+                after={"stages": wanted, "files": list(files or []), "redo": list(redo)})
     try:
         for sid, _label, agent in RUN_STAGES:
             if sid not in wanted:
@@ -90,8 +93,8 @@ def run_room(store: DataRoomStore, *, chat_for: Callable[[str], ChatModel | None
                          note=f"{len(read)} files, {sum(len(f.ocr_pages) for f in read)} scanned pages read by OCR")
                 continue
             model = chat_for(agent)
-            if model is None:
-                run.step(sid, state="skipped", note=f"no AI model is set up for {agent}: the admin console sets one")
+            if model is None or isinstance(model, str):      # none set up, or none this project's files may go to
+                run.step(sid, state="skipped", note=model or f"no AI model is set up for {agent}: the admin console sets one")
                 continue
             run.doc["agents"][agent] = f"{model.provider}/{model.model}"
             note = getattr(agent_stages, sid)(store, model, actor=actor, redo=sid in redo, only=set(files) if files else None,
@@ -117,4 +120,6 @@ def run_room(store: DataRoomStore, *, chat_for: Callable[[str], ChatModel | None
                 s["state"] = "failed"
     run.doc["finished_at"] = _now()
     run.save()
+    store.append_run({k: run.doc.get(k) for k in ("started_at", "finished_at", "state", "actor", "agents", "error")}
+                     | {"stages": [{k: s.get(k) for k in ("id", "state", "done", "total", "note")} for s in run.doc["stages"]]})
     return run.doc
