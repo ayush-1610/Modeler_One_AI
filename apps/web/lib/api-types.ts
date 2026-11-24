@@ -3265,7 +3265,8 @@ export interface paths {
         };
         /**
          * List Proposals
-         * @description Pending agent parameter proposals awaiting curator acceptance (review inbox).
+         * @description Pending agent parameter proposals awaiting curator acceptance. No screen reads them since the review inbox went
+         *     (2026-11-11); the route and its chain stay until their owner retires them (REMEDIATION R-B13).
          */
         get: operations["list_proposals_api_v1_proposals_get"];
         put?: never;
@@ -3319,7 +3320,9 @@ export interface paths {
         };
         /**
          * List Templates
-         * @description The wizard's starting points, the published real-data model first.
+         * @description The starting points, the published real-data model first. No screen reads them since the wizard went (R5); the
+         *     e2e suite and the showcase seeder build them through `reference_models`, and the route retires with its locked
+         *     boundary entry (REMEDIATION §2, #10).
          */
         get: operations["list_templates_api_v1_templates_get"];
         put?: never;

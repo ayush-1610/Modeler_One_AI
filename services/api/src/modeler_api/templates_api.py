@@ -25,7 +25,9 @@ PrincipalDep = Annotated[Principal, Depends(require_role(*_READ_ROLES))]
 
 @router.get("/templates", **answers(Templates))
 def list_templates(principal: PrincipalDep):
-    """The wizard's starting points, the published real-data model first."""
+    """The starting points, the published real-data model first. No screen reads them since the wizard went (R5); the
+    e2e suite and the showcase seeder build them through `reference_models`, and the route retires with its locked
+    boundary entry (REMEDIATION §2, #10)."""
     return envelope({"templates": starting_points()})
 
 

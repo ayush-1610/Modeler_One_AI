@@ -15,6 +15,9 @@ question of interest to a signed ICH M15 assessment table and a reviewer-reprodu
   results, server sizing
 - [docs/ARCHITECTURE_PACK.md](docs/ARCHITECTURE_PACK.md) — domain map, feature catalog, agents, validation strategy,
   open questions (v0.2)
+- [docs/USING_THE_TOOL.md](docs/USING_THE_TOOL.md) — the user guide: start the tool, load the worked examples, build a
+  model step by step (also the app's Help page)
+- [design-review/](design-review/README.md) — the console redesign: design system, page inventory, decisions
 
 ## Repository layout
 
@@ -28,7 +31,7 @@ question of interest to a signed ICH M15 assessment table and a reviewer-reprodu
 | `services/engine-worker` | Engine container and scripts: `r/run_job.R`, `r/run_pi.R` (one fitting start), `r/benchmark.R`, `golden/` engine checks, `scripts/ubuntu_engine_check.sh` |
 | `services/agents` | Claude agents: data mapping, parameter curation, literature research over MCP servers, with deterministic citation checks |
 | `packages/pbpk-domain/src/pbpk_domain/analysis_templates` | Versioned analysis templates per PBPK application (typed loader; locked, SME-governed) |
-| `apps/web` | Next.js front end starters |
+| `apps/web` | Next.js web app: the console (top bar, side navigation, one component kit in `components/kit`), every page reading the typed API |
 
 ## Quick start
 
@@ -36,6 +39,7 @@ question of interest to a signed ICH M15 assessment table and a reviewer-reprodu
 make sync     # uv workspace install (Python 3.12)
 make test     # all Python tests
 make api      # http://localhost:8000/docs
+npm --prefix apps/web install && npm --prefix apps/web run dev    # the web app, http://localhost:3000
 ```
 
 Engine on a compute server (Ubuntu 24.04; installs into the given directory and runs benchmark, golden round trip and

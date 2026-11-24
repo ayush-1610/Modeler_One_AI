@@ -38,6 +38,18 @@ chain (R-B13) and `pbpk_domain.snapshot.parameter_transfer` (R-B13b) stay until 
   now:** `tests/architecture/boundaries.toml`, a locked file, names `modeler_api.templates_api` among the routers whose
   answers are typed, so removing them is its own PR with the owner's approval (CLAUDE.md, locked files).
 
+### Changed — the console redesign, slice 9: README, the user guide, stale descriptions (2026-11-24)
+- **What:** `docs/USING_THE_TOOL.md` (the Help page) names the console's navigation: a "Finding your way" paragraph (the
+  top bar, the side navigation, breadcrumbs, tabs in the address); escalations wait in Your work and as the "A decision
+  is waiting" bar, not in the Review inbox; Start from proposal, Documents and Add data are in the side navigation, not
+  the sidebar; History's four tabs and Agent activity; the deploy pulls `main`. The README links the user guide and
+  `design-review/`, describes `apps/web` as the console (was "front end starters") and starts the web app. The
+  descriptions of `GET /proposals` and `GET /templates` say no screen reads them and why they still exist
+  (`docs/api/openapi.json` and `lib/api-types.ts` regenerated: descriptions only); four docstrings and a comment that
+  named the review inbox, the wizard or the campaign monitor (R-B17).
+- **Why:** the plan's slice 9 ("README and `docs/USING_THE_TOOL.md` updated"); R-B17 (stale docs).
+- **Impact:** words only; no route, shape or behaviour changes.
+
 ### Changed — the console redesign, slice 9: one component kit (2026-11-24)
 - **What:** `components/ui.tsx` and `components/kit/Motion.tsx` are gone; their pieces live in the kit under the names
   of the plan's component map (§2.1): `Card` → `kit/Panel` `Panel`; `RiskChip` and `ProvenanceChip` → `kit/Badge`

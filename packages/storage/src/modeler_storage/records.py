@@ -6,7 +6,8 @@ browser. Keys keep the names they have on disk (the web's camelCase included): t
 
 - `ProjectRecord` (`projects.json`): written by the API (create project, project start, the model system, blinding);
   read by the API and by the orchestrator, which reads `exploratory` before an S4/S5 gate is signed.
-- `ProposalRecord` (`proposals.json`): an agent's parameter proposal awaiting a curator (the review inbox).
+- `ProposalRecord` (`proposals.json`): an agent's parameter proposal awaiting a curator (no screen reads it since the
+  review inbox went; R-B13).
 - `CampaignRecord` (`campaigns.json`): the campaign monitor, written by the orchestrator's runner as a campaign runs;
   read by the API (the monitor, the package) and by the runner when it resumes after a decision.
 - `EscalationRecord` (`escalations.json`): a stage waiting on a signed decision, written by the runner.

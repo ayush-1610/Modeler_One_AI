@@ -8,7 +8,7 @@ on one is labelled "Not a PBPK result" on every page, so it can never be mistake
 
 ```bash
 cd ~/Modeler_One_AI            # the git checkout on the Mac
-git pull origin main-1czavz
+git pull origin main
 bash deploy/dev/deploy_to_server.sh      # rsync, install, build the web app, restart API + web, print the URL
 ```
 
@@ -39,8 +39,9 @@ at any time: examples already in the tool are skipped. It refuses to start with 
 S0 readiness → S1 IV → S2 oral fasted → S3 formulation / fed → S4 internal validation → S5 external validation → S6
 prediction (sensitivity, prediction intervals; **stops for your signature**) → S7 report and package.
 
-- **Escalations** land in the **Review inbox**. A stage escalates when the model misses the acceptance criteria
-  (1.5-fold at medium risk) on a study it must fit, and no permitted action fixes it. You decide there (accept with a
+- **Escalations** wait for you in **Your work**, and as a bar saying **A decision is waiting** on the campaign's page
+  and its project's pages, for the people who may decide. A stage escalates when the model misses the acceptance criteria
+  (1.5-fold at medium risk) on a study it must fit, and no permitted action fixes it. Open it to decide (accept with a
   justification, exclude data, change what is fitted, stop); every decision is signed and recorded. Published models
   do escalate on some studies: the pipeline judges them by the same rules as a new model.
 - **S7 package** (`package.zip`, only when the re-run of every bundled simulation reproduces the results at 1e-6):
@@ -50,28 +51,37 @@ prediction (sensitivity, prediction intervals; **stops for your signature**) →
 
 ## 4. Your own compound
 
-Every project starts from its proposal: **+ New project** (or **+ Start from proposal** in the sidebar), then four steps:
+**Finding your way.** The bar at the top holds **Your work** (everything waiting on you, with its count), **All
+projects**, **Help** and whether the API answers. The navigation on the left lists **Home**, **Your work**,
+**Projects**, **Campaigns** and **Start from proposal**; with a project open, its **Overview**, its four steps (each
+with its state), **Data plan**, then its records (**Compounds**, **Documents**, **History**, **Agent activity**), its
+**Members** and **Settings**, and **Add data**. The platform's owner also sees the **Admin console**. A page's
+breadcrumbs say where it is; a page's tabs keep their choice in its address, so a link opens on the same tab.
+
+Every project starts from its proposal: **Start from proposal** (in the navigation on the left), then four steps:
 **Start**, **Inputs**, **Review & sign** and **Run**. The Quick start wizard is gone (R5): to begin from a published OSP
 model, start the project for that drug and, on Inputs, **Take the published OSP model's values** (§7). The tool
 generates the analysis plan from your studies (the MS-01 data split), you sign it, and the campaign runs S0 → S7 on
 PK-Sim.
 
-**The Projects page** lists your projects, each with its **History** (its audit trail: every artifact's change, its
-members, and archiving). A project is never deleted: it is a Part 11 record. **Archive** hides a test or finished
+**The Projects page** lists your projects. Each project's **History** holds its records in four tabs: the **Audit
+trail** (every change, its members, archiving), the **Signatures** given on its records (escalation decisions
+included), every artifact's **Versions**, and what is **Out of date**. **Agent activity** lists every agent run on the
+project, and each run's steps. A project is never deleted: it is a Part 11 record. **Archive** hides a test or finished
 project from the list, with a reason, and keeps everything it holds; it still opens by its address. **Show archived**
 lists them, and **Restore** brings one back, with a reason. A project whose campaign is still running is not archived.
 
-**The Project Document Library** (in the sidebar, under **This project**, while a project is open) lists every document
+**Documents** (in the navigation, under the open project's records) lists every document
 of the project: the proposal, its annexes, the client's files, retrieved records. For each it shows who added it (a
 person, an agent or the system), its role, format and pages, its versions, and what the project took from it. Those
 contributions are the values, datasets and brief fields that cite the document, each linked to where it is used; a
 document nothing cites says so. Search, filter by role, by who added it or by status, sort, and open a document on its
 pages.
 
-**+ Add data** (in the sidebar, just above the library) adds files at any step: PDF, Word, Excel, CSV, JSON, Markdown or
+**Add data** (in the navigation, at the end of the open project's pages) adds files at any step: PDF, Word, Excel, CSV, JSON, Markdown or
 text. Say what they relate to: a step (the open page's step is preselected) and, if you like, a task such as
 "Formulations". Workbooks go to the client's data on Inputs and everything else to the documents as an annex; switch
-either per file. A document is never deleted: **Withdraw** it in the library, with a reason. It stays listed, marked
+either per file. A document is never deleted: **Withdraw** it on Documents, with a reason. It stays listed, marked
 withdrawn, and the agents no longer use it. Nothing new is taken from it (a value, a digitized figure, a client sheet)
 until it is **Restored**. Values already taken from it keep their source; reject them on Inputs if they must go.
 
@@ -127,7 +137,7 @@ PK-Sim: identical inputs must give identical curves (1e-6 of the peak). Results:
 
 ## 6. The client's spreadsheets (on Inputs → Studies)
 
-Add the client's files when you start the project (one upload with the proposal), with **+ Add data** in the sidebar,
+Add the client's files when you start the project (one upload with the proposal), with **Add data** in the navigation,
 or on the Inputs step's **Studies** tab (**Add the client's files**). Workbooks are split into sheets; PDF, Word and Markdown
 are kept as citable documents. The client-data template (**client-data template** on the same tab) is read
 automatically, cell by cell. The data plan, derived from the brief, ticks off what arrives. Nothing is approved.
@@ -371,7 +381,7 @@ The Review & sign page (`/projects/{id}/plan`) is where everything is reviewed o
   criteria** of that tier (the limits every round is judged by, provisional until the SME signs the ruleset) and an
   optional **internal target**, stricter than the tier only (the validator refuses a looser one). The signed MAP
   records it, and every round judges the internal studies' AUC and Cmax by it on top of the tier's limit (S5's
-  external studies by the tier alone; MS-01 §8). The campaign monitor and the report name it. The campaign's time budget and MS-01's fixed share of it
+  external studies by the tier alone; MS-01 §8). The campaign's page and the report name it. The campaign's time budget and MS-01's fixed share of it
   for each stage, as the MAP signs them (more time means a larger budget, signed again); and the limitations the MAP
   will name, the brief's stated assumptions among them.
 - **The live validator** lists what is still open; acknowledge a warning with a reason and it becomes a limitation.

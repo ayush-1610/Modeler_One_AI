@@ -1,5 +1,5 @@
-"""Answers about campaigns (phase 9d): the monitor and its review inbox (the orchestrator's records,
-`modeler_storage.records`), the S7 package, a generated MAP, a campaign start and a signature.
+"""Answers about campaigns (phase 9d): the campaign page and its escalations (the orchestrator's records,
+`modeler_storage.records`), the S7 package, a campaign start and a signature.
 
 A campaign start and a signature answer without the envelope, as they always have (the owner's choice of 2026-10-08,
 shapes kept).
