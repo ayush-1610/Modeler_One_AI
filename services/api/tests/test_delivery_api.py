@@ -1570,14 +1570,15 @@ def test_in_legacy_the_page_answers_enabled_false_and_no_other_delivery_route_do
         f"{subject}:link": {"file_sha256": sha, "confirmed": True}, f"{subject}:enter": {"field": "route", "value": "oral", **why},
         f"{subject}:confirm": None, f"{subject}/spot-check:draw": None,
         f"{subject}/spot-check": {"draw_id": "sd-1", "ticks": []}}
-    gets = ["delivery/source?value=f-1", "delivery/mappings/mp-0123456789ab", subject, "delivery/vocabulary", f"{subject}/spot-check"]
+    gets = ["delivery/source?value=f-1", "delivery/mappings/mp-0123456789ab", subject, "delivery/vocabulary", f"{subject}/spot-check",
+            f"{subject}/impact"]
     answers = [p.post(path, body) for path, body in posts.items()] + [p.get(path) for path in gets]
     for answer in answers:
         assert answer.status_code == 409, (answer.request.url, answer.text)
         assert answer.json()["detail"]["code"] == "INTAKE_PIPELINE_OFF"
     # every /delivery route but the page was asked, and nothing was written: no intake folder, no event
     mounted = {(m, r.path) for r in client_api.router.routes if isinstance(r, APIRoute) and "/delivery" in r.path for m in r.methods}
-    assert len(mounted) == len(posts) + len(gets) + 1 == 22
+    assert len(mounted) == len(posts) + len(gets) + 1 == 23
     assert not (Path(p.store.root) / "t1" / "projects" / "p1" / "intake").exists()
     assert [e.action for e in p.events() if e.action.startswith(("intake.", "signature."))] == []
 
