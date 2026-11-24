@@ -33,7 +33,7 @@ export function Hero({ title, lede, actions, testId }: {
   );
 }
 
-/** A step's page: its head, the project's steps under it (the Stepper, passed in), and its content beside an optional
+/** A step's page: its head, what the step waits on under it (kit/StepWaiting, passed in), and its content beside an optional
  *  side panel. `noReveal` is accepted and ignored: nothing fades in
  *  any more (the motion system is gone, decision G1-2). `slim` (opt-in): a shorter head and less
  *  space under it, so a page's own bar sits high (Inputs, plan 2026-11-14 slice 2); other pages keep theirs. `before`:

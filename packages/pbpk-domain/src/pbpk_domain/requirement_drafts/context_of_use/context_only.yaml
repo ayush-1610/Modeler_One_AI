@@ -1,0 +1,107 @@
+# DRAFT LIST, INERT: material kept as context. Never a model input, and never "missing".
+# Owner's decision D5 (docs/plans/2026-11-24-data-story-next-phase.md §6, §11): drafted from the literature as an
+# UNVERIFIED draft for the owner's review. Plan §6.1 found that every project was asked for the manufacturing process;
+# §6.2 and §6.3 item 4 say such material is kept as context, so it never raises an error.
+#
+# Where it came from: docs/research/2026-11-24-pbbm-absorption-inputs.md §0 ('Context only. Store these and use them
+# as triggers to request data, but do not turn them into model parameters'), §1 rows 4, 6 and 7, and §5 idea 8
+# ('Context-only store with triggers').
+#
+# Each item is NOT_NEEDED as a model input and is kept as context (kept_as: context): the Data room stores it with its
+# provenance when a delivery holds it, never lists it as missing, and never asks for it. What it does instead is
+# trigger a request for the data it acts through: triggers_request_for names those items (ids of the CoU drafts), and
+# trigger_request_text says when, in words. context_for names the CoU drafts in which it matters as context.
+# The statuses and the property vocabulary are defined in core.yaml.
+#
+# Inert: applies_to is empty and the live loader never lists this folder. No PK-Sim name, path or unit; no default
+# value; no acceptance threshold (no f2 limit, no hardness range).
+id: cou-draft-context-only
+version: "0.1-draft"
+status: DRAFT_UNVERIFIED
+context_of_use: "Material a delivery may hold that is stored as context for every context of use, never used as a model input and never reported missing."
+applies_to: []
+derived_from:
+  PBBM review: docs/research/2026-11-24-pbbm-absorption-inputs.md
+items:
+  - id: ctx.manufacturing_process
+    label: The manufacturing process and its changes (narrative, equipment, granulation route, milling, compression, coating)
+    group: Context
+    kind: formulation
+    cou_status: NOT_NEEDED
+    kept_as: context
+    why: >-
+      The process acts on exposure only through disintegration and dissolution, which must be measured; a product
+      particle size fitted to dissolution captures its effect.
+    trigger_request_text: >-
+      A process change between the batches or products compared, or a process named as under study, triggers a
+      request for the dissolution and disintegration of the affected batches and, where they exist, their clinical PK.
+    triggers_request_for: [vbe.dissolution_profiles, vbe.disintegration, vbe.clinical_pk_batches]
+    context_for: [pbbm_bridging_vbe]
+    alternatives: []
+    room_fields: [topic:manufacturing, table:process, field:product.composition_change]
+    data_category: formulation
+    default_provider: CLIENT
+    sources: ["Pepin 2024, PMID 38946085", "Mackie 2024, PMID 38600804", "Arora 2025, PMID 40300064"]
+    note: >-
+      UNVERIFIED: PBBM review §0 and §1 row 7 (context only as an input, HIGH as context). ANVISA cited an incomplete
+      understanding of how material attributes and process parameters relate to quality (Mackie 2024).
+  - id: ctx.tablet_hardness
+    label: Tablet hardness, friability, porosity and compression force
+    group: Context
+    kind: formulation
+    cou_status: NOT_NEEDED
+    kept_as: context
+    why: They act only through disintegration and dissolution, and serve to choose clinically relevant variant batches.
+    trigger_request_text: >-
+      A difference between the batches or products compared triggers a request for the disintegration and dissolution
+      of those batches.
+    triggers_request_for: [vbe.disintegration, vbe.dissolution_profiles]
+    context_for: [pbbm_bridging_vbe]
+    alternatives: []
+    room_fields: [table:process, topic:manufacturing]
+    data_category: formulation
+    default_provider: CLIENT
+    sources: ["Pepin 2024, PMID 38946085", "Arora 2025, PMID 40300064 (Table 8)"]
+    note: "UNVERIFIED: PBBM review §0 and §1 row 6 (context only as an input)."
+  - id: ctx.full_excipient_list
+    label: The full excipient list beyond the functional classes (kept for the qualitative and quantitative comparison of test and reference)
+    group: Context
+    kind: formulation
+    cou_status: NOT_NEEDED
+    kept_as: context
+    why: Only functional excipients change exposure; the full list is kept to compare test and reference qualitatively and quantitatively.
+    trigger_request_text: >-
+      A test-versus-reference difference in a functional class (sugar alcohols, surfactants, pH modifiers, permeation
+      modifiers, polymers), especially for a BCS class III drug, triggers a request for the amounts per dose of those
+      excipients.
+    triggers_request_for: [vbe.functional_excipients]
+    context_for: [pbbm_bridging_vbe, pediatric]
+    alternatives: []
+    room_fields: [table:composition, topic:composition]
+    data_category: formulation
+    default_provider: CLIENT
+    sources: ["Pepin 2024, PMID 38946085", "Fang 2025, PMID 41115505", "García-Arieta 2014, PMID 25236823"]
+    note: >-
+      UNVERIFIED: PBBM review §0 (context only beyond the functional classes) and §5 idea 3 (excipient classifier).
+      Any amount threshold is the SME's.
+  - id: ctx.f2
+    label: f2 similarity factors between dissolution profiles
+    group: Context
+    kind: dataset
+    cou_status: NOT_NEEDED
+    kept_as: context
+    why: >-
+      f2 is a regulatory comparator, not a model input: models have shown bioequivalence where f2 failed, and for BCS
+      class III the reverse risk exists.
+    trigger_request_text: >-
+      An f2 value without the profiles behind it triggers a request for the full profiles, unit by unit, with the
+      method; it also flags the question of interest (which batches are compared, in which media).
+    triggers_request_for: [vbe.dissolution_profiles, vbe.unit_level_dissolution, vbe.dissolution_method]
+    context_for: [pbbm_bridging_vbe]
+    alternatives: []
+    room_fields: [field:dissolution.f2]
+    data_category: dissolution
+    default_provider: CLIENT
+    sources: ["Xie 2015, PMID 25315411", "Kourentas 2023, PMID 36788163", "Laisney 2022, PMID 34678270",
+              "Ruiz-Picazo 2019, PMID 31835294"]
+    note: "UNVERIFIED: PBBM review §0 and §1 row 4 (context only; flags the question of interest)."

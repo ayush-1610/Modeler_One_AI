@@ -6,15 +6,22 @@
     question.json                the question card, and who confirmed it when
     triage/<sha256>.json         the triage agent's answer for one file
     extractions/<sha256>.json    the extractor's answer for one file (tables described, facts quoted), with its model
-    reviews/<sha256>.json        the checker's issues with one file's tables
+    reviews/<sha256>.json        the checker's issues with one file's tables, and the extraction they were found in
     writing.json                 the writer's finding lines and request wording (numbers checked against the room)
     decisions.jsonl              the modeler's decisions, append-only: the last line per decision id stands
     entered.jsonl                values entered by a person, append-only, with the reason
     requests.jsonl               data request edits (wording, status), append-only
-    run.json                     the background run: stage, counts, per-agent model, errors
+    run.json                     the background run: stage, counts, per-agent model, errors; a pause (why, where, when
+                                 it resumes)
 
 Every decision, entered value and confirmation is also written to the project's audit trail (21 CFR Part 11: who, when,
-what, why). No path is built from input that is not a checked sha256.
+what, why). No path is built from input that is not a checked sha256. Every stored answer is written to a temporary file
+and renamed into place (`atomic_write_text`), so a crash while writing leaves the previous answer whole, never half of
+the next; the append-only logs skip a line a crash cut short.
+
+The agents' answers are also kept for the whole tenant, by every input that can change them, in
+`<root>/<tenant>/dataroom_cache/` (`answer_cache`), so another project's run with the same file, question and model
+reuses them.
 """
 
 from __future__ import annotations
@@ -206,9 +213,25 @@ class DataRoomStore:
     def extractions(self) -> list[Extraction]:
         return [e for f in self.files() if not f.duplicate_of and (got := self.extraction(f.sha256)) for e in (got[0],)]
 
-    def put_review(self, sha256: str, issues: list[dict[str, Any]], *, agent: str) -> None:
+    def extraction_stamp(self, sha256: str) -> str:
+        """The stored extraction of a file as it now stands (the sha256 of its record; "" when there is none): a review
+        names the extraction it checked, so it stands until the extraction is made again."""
+        path = self._path("extractions", f"{_sha(sha256)}.json")
+        return hashlib.sha256(path.read_bytes()).hexdigest() if path.exists() else ""
+
+    def put_review(self, sha256: str, issues: list[dict[str, Any]], *, agent: str, extraction: str = "") -> None:
+        """The checker's issues with one file's tables, and the extraction they were found in (`extraction_stamp`)."""
         atomic_write_text(self._path("reviews", f"{_sha(sha256)}.json"), json.dumps(
-            {"issues": issues, "agent": agent, "at": _now()}, indent=1, ensure_ascii=False))
+            {"issues": issues, "agent": agent, "at": _now(), "extraction": extraction}, indent=1, ensure_ascii=False))
+
+    def review(self, sha256: str) -> dict[str, Any] | None:
+        return self._read_json("reviews", f"{_sha(sha256)}.json")
+
+    def review_current(self, sha256: str) -> bool:
+        """Whether the file's review checked its extraction as it now stands: a run (or a paused run resumed) does not
+        check it again. A review kept before reviews named their extraction is checked once more."""
+        row = self.review(sha256)
+        return bool(row and row.get("extraction") and row["extraction"] == self.extraction_stamp(sha256))
 
     def reviews(self) -> dict[str, list[dict[str, Any]]]:
         """The checker's issues per file path."""

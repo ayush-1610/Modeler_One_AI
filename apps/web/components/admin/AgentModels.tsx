@@ -32,7 +32,7 @@ function RunsOn({ row }: { row: Row }) {
 
 /** The efforts a provider takes: Claude's own, GroqCloud's (low, medium, high), none for the others. */
 function effortsFor(page: Page, provider: string): string[] {
-  return provider === "bedrock" ? page.efforts : provider === "groq" ? page.groq_efforts : [];
+  return provider === "bedrock" || provider === "anthropic" ? page.efforts : provider === "groq" ? page.groq_efforts : [];
 }
 
 /** A provider's one-click model and effort, the form's starting point when the provider is changed in it. */
@@ -105,7 +105,7 @@ function AgentEditor({ row, page, onSaved }: { row: Row; page: Page; onSaved: (p
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const needsModel = page.providers.find((p) => p.id === provider)?.needs_model ?? false;
-  const claude = provider === "bedrock";
+  const claude = provider === "bedrock" || provider === "anthropic";
   const efforts = effortsFor(page, provider);
   const changed = provider !== row.provider || (needsModel && model.trim() !== row.model)
     || (efforts.length > 0 && effort !== row.effort) || (claude && fallback !== row.fallback);
@@ -169,6 +169,47 @@ function AgentEditor({ row, page, onSaved }: { row: Row; page: Page; onSaved: (p
   );
 }
 
+/** One click for every agent at once (plan 2026-11-24 §3): Free, In-house only, Claude demo, Claude all Opus, each with
+ *  its estimated cost for one delivery of about ten files (an estimate until the calibration run measures it). */
+function Presets({ page, onSaved }: { page: Page; onSaved: (p: Page) => void }) {
+  const [busy, setBusy] = useState<string | null>(null);
+  const [problem, setProblem] = useState<string | null>(null);
+
+  async function apply(id: string) {
+    setBusy(id);
+    setProblem(null);
+    const env = await send("post", "/api/v1/admin/agents:preset", {}, { preset: id, reason: ONE_CLICK });
+    setBusy(null);
+    if (env.errors?.length || !env.data) { setProblem(env.errors?.[0]?.message ?? "no answer"); return; }
+    onSaved(env.data);
+  }
+
+  return (
+    <Panel title="Presets">
+      <p className="muted" style={{ marginTop: 0 }}>
+        One click puts every agent on a preset; the next run of each takes it. The cost is an estimate for one delivery of
+        about ten files, until the first Claude run measures it.
+      </p>
+      <div className="model-pick" role="group" aria-label="Presets" data-testid="agent-presets">
+        {page.presets.map((p) => (
+          <button key={p.id} type="button" className={`model-choice${p.current ? " on" : ""}`} aria-pressed={p.current}
+                  disabled={p.missing_keys.length > 0 || busy !== null} onClick={() => void apply(p.id)}
+                  title={p.what} data-testid={`agent-preset-${p.id}`}>
+            <span className="model-choice-name">
+              {p.label}{p.current && <span className="model-choice-on"> · in use</span>}
+              {busy === p.id && <span className="model-choice-on"> · switching…</span>}
+            </span>
+            <span className="model-caps">{p.usd_per_delivery > 0 ? `≈ $${p.usd_per_delivery.toFixed(2)} a delivery` : "no charge"}</span>
+            <span className="model-choice-note">{p.what}</span>
+            {p.missing_keys.length > 0 && <span className="model-choice-note">Add a key under Keys first</span>}
+          </button>
+        ))}
+      </div>
+      {problem && <div className="banner err" style={{ marginTop: 10 }} data-testid="agent-preset-problem">{problem}</div>}
+    </Panel>
+  );
+}
+
 /** Every agent onto one provider in one step (the owner, 2026-11-11): Claude on Bedrock, or back to the in-house model
  *  when Bedrock is lost. A provider whose key is not active is refused by the API, and offered here only once it is. */
 function SwitchEveryAgent({ page, onSaved }: { page: Page; onSaved: (p: Page) => void }) {
@@ -182,7 +223,7 @@ function SwitchEveryAgent({ page, onSaved }: { page: Page; onSaved: (p: Page) =>
   const [done, setDone] = useState<string | null>(null);
   const chosen = page.providers.find((p) => p.id === provider);
   const needsModel = chosen?.needs_model ?? false;
-  const claude = provider === "bedrock";
+  const claude = provider === "bedrock" || provider === "anthropic";
   const efforts = effortsFor(page, provider);
   const usable = !needsModel || Boolean(chosen?.has_active_key);
   const now = [...new Set(page.agents.map((a) => (a.runs_on.enabled ? `${a.runs_on.provider} · ${a.runs_on.model}` : "off")))];
@@ -340,6 +381,7 @@ export function AgentModels({ initial }: { initial: Page }) {
   return (
     <>
       <datalist id="claude-models">{page.claude_models.map((m) => <option key={m} value={m} />)}</datalist>
+      <Presets page={page} onSaved={setPage} />
       <SwitchEveryAgent page={page} onSaved={setPage} />
       <FailoverChain key={page.chain.set_at ?? "none"} page={page} onSaved={setPage} />
       <Panel title="Each agent's model">

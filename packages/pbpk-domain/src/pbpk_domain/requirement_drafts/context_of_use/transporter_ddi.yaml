@@ -1,0 +1,133 @@
+# DRAFT REQUIREMENT LIST, INERT: transporter-mediated drug-drug interaction (the drug as transporter substrate or
+# inhibitor).
+# Owner's decision D5 (docs/plans/2026-11-24-data-story-next-phase.md §6, §11): drafted from the literature as an
+# UNVERIFIED draft for the owner's review; it becomes a template only after that review, through a locked-file change
+# with a version bump. The locked templates (pbpk_domain/requirements/*.yaml) are not changed.
+#
+# Where it came from: docs/research/2026-11-24-regulatory-data-by-context-of-use.md §3.3 (the transporter-DDI table)
+# and §1 (transporter DDI is still treated as less established; EMA qualified few transporter-perpetrator uses).
+# Statuses, the trigger grammar and the property vocabulary are defined once in core.yaml.
+#
+# Inert: applies_to is empty and the live loader never lists this folder. No PK-Sim name, path or unit; no default
+# value; no acceptance threshold.
+id: cou-draft-transporter-ddi
+version: "0.1-draft"
+status: DRAFT_UNVERIFIED
+context_of_use: "Predict a drug-drug interaction mediated by an uptake or efflux transporter, with the drug as substrate or as inhibitor."
+applies_to: []
+derived_from:
+  regulatory review: docs/research/2026-11-24-regulatory-data-by-context-of-use.md
+items:
+  - id: tddi.transporter_kinetics
+    label: Transporter kinetics (Km and Vmax, or active intrinsic clearance) and inhibition constants (Ki or IC50), with the test system and substrate
+    group: Transporters
+    kind: parameter
+    cou_status: REQUIRED
+    why: Transporter kinetics are scaled from these in vitro data to the body.
+    alternatives: []
+    room_fields: [field:adme.transporters]
+    data_category: in_vitro_adme
+    default_provider: CLIENT
+    record_with: [test system, probe substrate, unbound concentrations]
+    sources: ["Chenel 2026, PMID 42400597", "Taskar 2020, PMID 31628859"]
+    note: "UNVERIFIED: regulatory review §3.3 (R)."
+  - id: tddi.abundance_scaling
+    label: Transporter abundance and the empirical scaling factors used
+    group: Transporters
+    kind: parameter
+    cou_status: REQUIRED
+    why: In vitro transporter data tend to under-predict in vivo activity, so scaling factors are applied and must be justified.
+    alternatives: []
+    room_fields: []
+    room_gap: true
+    data_category: in_vitro_adme
+    default_provider: LITERATURE
+    sources: ["Taskar 2021, PMID 33397250", "Vijaywargi 2023, PMID 36413625"]
+    note: "UNVERIFIED: regulatory review §3.3 (R). The room has no field for abundance or scaling factors; they usually come from the literature."
+  - id: tddi.extended_clearance
+    label: Contribution of transporters versus enzymes to clearance (extended clearance)
+    group: Transporters
+    kind: parameter
+    cou_status: REQUIRED
+    why: Which step limits clearance decides whether a transporter inhibitor changes exposure; it is hard to determine and a recognised gap.
+    alternatives: []
+    room_fields: [field:adme.transporters, field:adme.metabolism]
+    data_category: in_vitro_adme
+    default_provider: CLIENT
+    sources: ["Shebley 2018, PMID 29315504 (Table 5)", "Storelli 2023 (Consensus only)"]
+    note: "UNVERIFIED: regulatory review §3.3 (R)."
+  - id: tddi.clinical_ddi_probe_inhibitor
+    label: Clinical DDI study with a probe transporter inhibitor
+    group: DDI
+    kind: dataset
+    cou_status: USUALLY_NEEDED
+    escalates_to_required_when: model influence high (the model replaces a study or drives the label)
+    why: Transporter DDI predictions have under-predicted observed interactions, and EMA qualified few transporter-perpetrator uses.
+    alternatives: []
+    room_fields: [field:adme.ddi, field:study.comedication, table:concentrations]
+    data_category: clinical_ddi
+    default_provider: CLIENT
+    sources: ["Paul 2025, PMID 39748538", "Li Y 2025, PMID 41304751 (secondary analysis; verify)"]
+    note: "UNVERIFIED: regulatory review §3.3 ('R at high impact'), the probenecid example."
+  - id: tddi.endogenous_biomarker
+    label: Endogenous transporter biomarker data
+    group: Transporters
+    kind: dataset
+    cou_status: OPTIONAL
+    why: Proposed to raise confidence in the transporter model.
+    alternatives: []
+    room_fields: [table:concentrations, field:study.analyte]
+    data_category: other
+    default_provider: CLIENT
+    sources: ["Vijaywargi 2023, PMID 36413625", "Rodrigues 2025, PMID 40671325"]
+    note: "UNVERIFIED: regulatory review §3.3 gives 'O/U'; OPTIONAL is my choice. The review marks the choice of biomarker as its own suggestion (verify)."
+  - id: tddi.renal_secretion_evidence
+    label: Renal clearance and fraction excreted unchanged, against filtration (unbound fraction times GFR), as evidence of secretion
+    group: Elimination
+    kind: dataset
+    cou_status: CONDITIONAL
+    trigger_text: Renal elimination is substantial (fraction excreted unchanged above a cut-off the SME sets), or the drug is actively secreted.
+    trigger:
+      any:
+        - {property: renal_secretion, equals: true}
+        - {property: fraction_excreted_unchanged, direction: above, threshold: SME}
+    why: It separates filtration from transporter-mediated secretion, which a renal transporter inhibitor changes.
+    alternatives: []
+    room_fields: [field:adme.excretion, field:adme.cl, field:adme.fu]
+    data_category: urine_feces
+    default_provider: CLIENT
+    sources: ["Johnson 2021, PMID 34288581", "Hsueh 2018, PMID 28738449"]
+    note: "UNVERIFIED: regulatory review §3.3 ('C (renal transporters)'). The review gives no fraction for 'substantial' (threshold SME)."
+  - id: tddi.intestinal_efflux
+    label: Intestinal efflux (P-gp or BCRP) during absorption
+    group: Transporters
+    kind: parameter
+    cou_status: CONDITIONAL
+    trigger_text: The drug is a P-gp or BCRP substrate.
+    trigger: {property: transporter_families, any_of: [P-gp, BCRP]}
+    why: Missing absorption-phase mechanisms were cited as a deficiency.
+    alternatives: []
+    room_fields: [field:adme.transporters, field:substance.permeability]
+    data_category: in_vitro_adme
+    default_provider: CLIENT
+    sources: ["Li Y 2025, PMID 41304751 (secondary analysis; verify)"]
+    note: >-
+      UNVERIFIED: regulatory review §3.3 (C). The PBBM review §1 row 19 adds that an in vitro efflux ratio alone does
+      not prove an in vivo effect.
+  - id: tddi.transporter_genotype
+    label: PK by transporter genotype (for example SLCO1B1)
+    group: Transporters
+    kind: dataset
+    cou_status: CONDITIONAL
+    trigger_text: The drug is a substrate of a polymorphic transporter (the review's example is SLCO1B1, the OATP1B1 gene).
+    trigger: {property: transporter_families, any_of: [OATP]}
+    why: Drug-gene interactions add to drug-drug interactions for substrates of polymorphic transporters.
+    alternatives: []
+    room_fields: [table:concentrations]
+    room_gap: true
+    data_category: clinical_ddi
+    default_provider: CLIENT
+    sources: ["Prieto Garcia 2022, PMID 35722750"]
+    note: >-
+      UNVERIFIED: regulatory review §3.3 (C). The trigger names only the review's example family; which other
+      transporters count as polymorphic is for the SME. The room has no genotype field.

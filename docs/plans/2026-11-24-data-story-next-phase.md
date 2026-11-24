@@ -420,6 +420,19 @@ Each phase ends with tests, the CHANGELOG, a merge to `main` and a short report 
 | D7 | Send the two ruleset findings (§8) to the SME? | **Yes.** |
 | D8 | The phase order of §10? | As written; tell me if demos must come sooner. |
 
+### Decided by the owner, 2026-11-24 (all eight approved; "go ahead with all phases")
+
+| # | Decision |
+|---|---|
+| D1 | API key. The owner creates a Console workspace "Modeler One", creates the key inside it, sets a **$90 spend limit** on the workspace, and adds the key on the server through Admin → Keys. |
+| D2 | One calibration run, about $5, on a **made-up delivery only**, after phases 1 and 4. Its **cost and accuracy are shown to the owner before any other Claude spend.** |
+| D3 | A hard cap for **paid models only**: **$10 per run, $90 per month**. Reaching it **pauses** the run and never fails it. Free and in-house models stay warn-only. |
+| D4 | Option A: standard media recognised by convention (0.1 N HCl → pH 1.2, …), labelled "by convention, not stated" and confirmed once per project. The table stays **UNVERIFIED**, with a version bump (`dataroom_rules.yaml` 0.1 → 0.2: SME-governed, not on the locked list). |
+| D5 | Requirement lists drafted from the literature as **UNVERIFIED drafts**. They become templates only after the owner's review. **The locked templates are not changed.** |
+| D6 | Anthropic is treated like NVIDIA and Groq: a client's files go to it only with the client's written permission recorded on the project. Made-up demo data needs none. |
+| D7 | Both ruleset findings go in a short note the owner can forward; the locked file is not edited. |
+| D8 | The phase order of §10 as written. |
+
 ---
 
 ## Appendix: the literature reviews

@@ -1,0 +1,179 @@
+# DRAFT REQUIREMENT LIST, INERT: drug-drug interaction, the drug as perpetrator (reversible inhibition, time-dependent
+# inhibition, induction).
+# Owner's decision D5 (docs/plans/2026-11-24-data-story-next-phase.md §6, §11): drafted from the literature as an
+# UNVERIFIED draft for the owner's review; it becomes a template only after that review, through a locked-file change
+# with a version bump. The locked templates (pbpk_domain/requirements/*.yaml, here app_ddi.yaml) are not changed.
+#
+# Where it came from: docs/research/2026-11-24-regulatory-data-by-context-of-use.md §3.2 (the DDI-perpetrator table),
+# §6 (what reviewers flag), and docs/research/2026-11-24-clinical-pk-data-curation.md §7 (multiple-dose studies).
+# Statuses, the trigger grammar and the property vocabulary are defined once in core.yaml.
+#
+# Inert: applies_to is empty and the live loader never lists this folder. No PK-Sim name, path or unit; no default
+# value; no acceptance threshold.
+id: cou-draft-ddi-perpetrator
+version: "0.1-draft"
+status: DRAFT_UNVERIFIED
+context_of_use: "Predict how much the drug, given at its therapeutic regimen, changes the exposure of other drugs cleared by an enzyme it inhibits or induces."
+applies_to: []
+derived_from:
+  regulatory review: docs/research/2026-11-24-regulatory-data-by-context-of-use.md
+  clinical-data review: docs/research/2026-11-24-clinical-pk-data-curation.md
+items:
+  - id: ddip.reversible_ki
+    label: Reversible inhibition constant (unbound, corrected for binding in the incubation) and the mechanism of inhibition
+    group: DDI
+    kind: parameter
+    cou_status: CONDITIONAL
+    trigger_text: The drug is a reversible inhibitor.
+    trigger: {property: perpetrator_mechanisms, any_of: [reversible_inhibition]}
+    why: It sets the strength of the interaction.
+    alternatives: []
+    room_fields: [field:adme.ddi]
+    data_category: in_vitro_adme
+    default_provider: CLIENT
+    record_with: [test system, probe substrate, unbound fraction in the incubation]
+    sources: ["Chenel 2026, PMID 42400597", "Shebley 2018, PMID 29315504"]
+    note: "UNVERIFIED: regulatory review §3.2 ('R if inhibitor'). A single unverified Ki was an FDA objection (§6, Li Y 2025)."
+  - id: ddip.tdi_kinact_ki
+    label: Time-dependent inhibition (kinact and KI), with the pre-incubation conditions
+    group: DDI
+    kind: parameter
+    cou_status: CONDITIONAL
+    trigger_text: The drug is a time-dependent inhibitor.
+    trigger: {property: perpetrator_mechanisms, any_of: [time_dependent_inhibition]}
+    why: The assay conditions change the derived constants, so they must be documented with them.
+    alternatives: []
+    room_fields: [field:adme.ddi]
+    data_category: in_vitro_adme
+    default_provider: CLIENT
+    record_with: [pre-incubation time, dilution, test system]
+    sources: ["Chenel 2026, PMID 42400597"]
+    note: "UNVERIFIED: regulatory review §3.2 ('R if TDI')."
+  - id: ddip.induction_ec50_emax
+    label: Induction EC50 and Emax, with the calibration approach
+    group: DDI
+    kind: parameter
+    cou_status: CONDITIONAL
+    trigger_text: The drug is an inducer.
+    trigger: {property: perpetrator_mechanisms, any_of: [induction]}
+    why: Induction is extrapolated from these data, and an FDA review reportedly rejected an in vitro calibration approach.
+    alternatives: []
+    room_fields: [field:adme.ddi]
+    data_category: in_vitro_adme
+    default_provider: CLIENT
+    record_with: [donors, endpoint (mRNA or activity), calibrator used]
+    sources: ["Hariparsad 2022, PMID 34862964", "Li Y 2025, PMID 41304751 (secondary analysis; verify)"]
+    note: "UNVERIFIED: regulatory review §3.2 ('R if inducer'); induction calibrated without clinical DDI data was an FDA objection (§6)."
+  - id: ddip.interaction_site_exposure
+    label: Exposure at the interaction site (unbound fraction, blood-to-plasma ratio, hepatic uptake, gut concentration from dose and solubility)
+    group: DDI
+    kind: parameter
+    cou_status: REQUIRED
+    why: The perpetrator acts through its concentration at the enzyme, and EMA rejected an intestinal CYP3A prediction built without it.
+    alternatives: []
+    room_fields: [field:adme.fu, field:adme.bp_ratio, field:adme.transporters, field:study.dose, field:substance.solubility]
+    data_category: in_vitro_adme
+    default_provider: CLIENT
+    sources: ["Shebley 2018, PMID 29315504"]
+    note: "UNVERIFIED: regulatory review §3.2 (R), the lenvatinib example."
+  - id: ddip.steady_state_pk
+    label: Clinical PK at the therapeutic regimen (steady state), with the full dosing history
+    group: Observed data
+    kind: dataset
+    cou_status: REQUIRED
+    why: The perpetrator's own exposure over the dosing interval drives the size of the interaction.
+    alternatives: []
+    room_fields: [table:concentrations, field:study.regimen, field:study.dose, field:study.dates, topic:clinical_concentrations]
+    data_category: clinical_pk_md
+    default_provider: CLIENT
+    record_with: [actual dose times, trough series, accumulation]
+    sources: ["Chenel 2026, PMID 42400597", "Hanke 2018, PMID 30091221", "Momper 2025, PMID 39446891"]
+    note: >-
+      UNVERIFIED: regulatory review §3.2 (R); what to extract from a multiple-dose study follows the clinical-data
+      review §7 (time dependence shows in the accumulation).
+  - id: ddip.clinical_ddi_sensitive_substrate
+    label: Clinical DDI study with a sensitive index substrate
+    group: DDI
+    kind: dataset
+    cou_status: USUALLY_NEEDED
+    escalates_to_required_when: >-
+      the drug is an inducer or a mixed inhibitor and inducer, the model extrapolates to other substrates for the
+      label, or model influence is high (the model replaces a study or drives the label)
+    why: Verifying the model with a substrate that is not sensitive was judged circular.
+    alternatives: []
+    room_fields: [field:adme.ddi, field:study.comedication, table:concentrations]
+    data_category: clinical_ddi
+    default_provider: CLIENT
+    record_with: [substrate, its dose and timing, within-subject ratios of AUC and Cmax]
+    sources: ["Li Y 2025, PMID 41304751 (secondary analysis; verify)", "Shebley 2018, PMID 29315504"]
+    note: "UNVERIFIED: regulatory review §3.2 ('U; R for induction or mixed perpetrators and for label extrapolation')."
+  - id: ddip.verified_victim_models
+    label: Verified models of the index substrates
+    group: DDI
+    kind: system
+    cou_status: REQUIRED
+    why: The perpetrator model is qualified against verified substrate models.
+    alternatives: []
+    room_fields: []
+    room_gap: false
+    data_category: other
+    default_provider: LIBRARY
+    sources: ["Frechen 2021, PMID 33946131"]
+    note: "UNVERIFIED: regulatory review §3.2 (R). From the OSP model library, never from client files."
+  - id: ddip.sensitivity_on_constants
+    label: Sensitivity analysis over the ranges of the inhibition and induction constants
+    group: Model evaluation
+    kind: activity
+    overrides: core.sensitivity_analysis
+    cou_status: REQUIRED
+    why: The predicted interaction can change class within a plausible range of the constant, which decides whether a clinical study is needed.
+    alternatives: []
+    room_fields: []
+    room_gap: false
+    data_category: other
+    default_provider: PROPOSAL
+    sources: ["Shebley 2018, PMID 29315504 (Table 5)", "Taskar 2025 (Consensus only)", "Li Y 2025, PMID 41304751 (secondary analysis; verify)"]
+    note: "UNVERIFIED: regulatory review §3.2 (R). An activity of the modeller, stated in the analysis plan."
+  - id: ddip.metabolites_and_net_effect
+    label: Inhibitory metabolites, and the net effect when the drug both inhibits and induces
+    group: DDI
+    kind: parameter
+    cou_status: CONDITIONAL
+    trigger_text: The drug has an active or inhibitory metabolite, or it both inhibits and induces.
+    trigger:
+      any:
+        - {property: active_metabolite, equals: true}
+        - all:
+            - {property: perpetrator_mechanisms, any_of: [induction]}
+            - {property: perpetrator_mechanisms, any_of: [reversible_inhibition, time_dependent_inhibition]}
+    why: Leaving out an inhibitory metabolite or the opposing mechanism was a cited omission.
+    alternatives: []
+    room_fields: [field:adme.ddi, field:adme.metabolism, field:study.analyte]
+    data_category: in_vitro_adme
+    default_provider: CLIENT
+    sources: ["Li Y 2025, PMID 41304751 (secondary analysis; verify)", "Hariparsad 2022, PMID 34862964"]
+    note: "UNVERIFIED: regulatory review §3.2 (C)."
+  - id: ddip.own_fm
+    label: Fraction metabolised of the perpetrator's own clearance
+    group: Elimination
+    kind: parameter
+    cou_status: NOT_NEEDED
+    why: The perpetrator's own pathways do not set the effect on the victim; when the same model is also used as a victim, the DDI-victim list applies.
+    alternatives: []
+    room_fields: [field:adme.metabolism]
+    data_category: in_vitro_adme
+    default_provider: CLIENT
+    sources: ["Review: docs/research/2026-11-24-regulatory-data-by-context-of-use.md §3.2 (the row cites no primary source)"]
+    note: "UNVERIFIED: regulatory review §3.2 ('N (U if the same model is also used as a victim)')."
+  - id: ddip.fed_pk_dissolution
+    label: Fed PK and dissolution
+    group: Food effect
+    kind: dataset
+    cou_status: NOT_NEEDED
+    why: The interaction is predicted for the perpetrator's systemic and gut exposure at its regimen, not for its formulation's behaviour with food.
+    alternatives: []
+    room_fields: [field:study.fed, table:dissolution]
+    data_category: clinical_pk_fed
+    default_provider: CLIENT
+    sources: ["Review: docs/research/2026-11-24-regulatory-data-by-context-of-use.md §3.2 (the row cites no primary source)"]
+    note: "UNVERIFIED: regulatory review §3.2 (N)."

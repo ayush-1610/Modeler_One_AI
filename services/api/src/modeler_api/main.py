@@ -6,13 +6,14 @@ The system routes (health, snapshot preview F-101, M15 validation F-401, run sub
 
 from __future__ import annotations
 
+import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from modeler_api import agent_jobs
+from modeler_api import agent_jobs, dataroom_runs
 from modeler_api.admin_api import router as admin_router
 from modeler_api.archive_api import router as archive_router
 from modeler_api.brief_api import router as brief_router
@@ -20,6 +21,7 @@ from modeler_api.campaign_api import router as campaign_router
 from modeler_api.client_api import router as client_router
 from modeler_api.config import check_auth, check_part11, get_settings
 from modeler_api.dataroom_api import router as dataroom_router
+from modeler_api.deps import get_project_store
 from modeler_api.escalations import router as escalations_router
 from modeler_api.evidence_api import router as evidence_router
 from modeler_api.inputs_api import router as inputs_router
@@ -36,6 +38,8 @@ from modeler_api.templates_api import router as templates_router
 from modeler_api.write_api import router as write_router
 from modeler_contracts.runtime import runtime_env
 
+_log = logging.getLogger(__name__)
+
 
 @asynccontextmanager
 async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
@@ -47,7 +51,22 @@ async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
     check_part11(get_settings(), runtime)
     # why the agents are off, by the setting to change, in the server's log (a project's pages say it in words)
     agent_jobs.log_agents_status()
+    # the Data room's paused runs resume by themselves after a restart too: a timer for each (plan 2026-11-24 §4)
+    _pick_up_paused_runs()
     yield
+
+
+def _pick_up_paused_runs() -> None:
+    settings = get_settings()
+    if not settings.read_root:
+        return
+    try:
+        found = dataroom_runs.pick_up(get_project_store(settings))
+    except OSError as exc:          # the store unreadable at the start: the API still starts, and says why
+        _log.warning("the Data room's paused runs were not picked up: %s", exc)
+        return
+    if found:
+        _log.info("%d paused Data room runs will resume by themselves", found)
 
 
 app = FastAPI(title="Modeler One API", version="0.1.0", lifespan=_lifespan)

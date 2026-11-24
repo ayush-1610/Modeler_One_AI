@@ -16,7 +16,7 @@ export function Skeleton({ rows = [72, 88, 64], tall = false }: { rows?: number[
   );
 }
 
-/** A whole page while it is read: its head (tone, pill and, where it never changes, its title) and its body as cards
+/** A whole page while it is read: its head (tone and, where it never changes, its title) and its body as cards
  *  or rows. */
 export function PageSkeleton({ tone, eyebrow, title = "Loading…", body = "rows", wide = false }: {
   tone?: HeroTone; eyebrow?: string; title?: ReactNode;

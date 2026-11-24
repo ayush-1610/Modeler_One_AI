@@ -267,3 +267,33 @@ def test_a_single_arm_study_is_tied_to_its_product_and_says_how():
     one = QuestionCard(question="q", products=[ProductRef(name=clinical, role="reference")])
     tied, _ = _single_arm(study.model_copy(update={"arms": ()}), one)
     assert {a.product for a in tied} == {clinical} and tied[0].tied == "the question card's only product"
+
+
+def test_a_medium_named_without_its_ph_takes_its_conventional_ph_only_once_confirmed():
+    """Decision D4 (the owner, 2026-11-24): "0.1 N HCl" is pH 1.2 by convention. Code proposes it, labelled "by
+    convention, not stated", and uses it only once a person confirms it for the project."""
+    from modeler_project.dataroom.assemble import MEDIA_CONVENTION, _media_by_convention
+    from modeler_project.dataroom.model import DissolutionView, SolubilityRow
+    from modeler_project.dataroom.rules import load_rules
+
+    rules = load_rules()
+    assert rules.version == "0.3" and rules.status == "UNVERIFIED"
+    assert rules.convention_ph("Dissolution in 0.1 N HCl, 900 mL") == 1.2
+    assert rules.convention_ph("FeSSIF-V2") == 5.8 and rules.convention_ph("FeSSIF") == 5.0   # the longest name first
+    assert rules.convention_ph("phosphate buffer") is None and rules.convention_ph("HCl solution") is None
+    diss = [DissolutionView(id="d1", medium="0.1 N HCl", ph_convention=1.2),
+            DissolutionView(id="d2", medium="pH 6.8 phosphate buffer", ph=6.8)]
+    sol = [SolubilityRow(medium="0,1 N HCl", ph=1.2), SolubilityRow(medium="FaSSIF", ph_convention=6.5)]
+    # not confirmed: nothing applied, one decision asked, the suggestion alone applies nothing
+    same_diss, same_sol, asked = _media_by_convention(diss, sol, {})
+    assert asked is not None and asked.id == MEDIA_CONVENTION and asked.suggested == "use" and asked.chosen is None
+    assert "0.1 N HCl → pH 1.2" in asked.question and "FaSSIF → pH 6.5" in asked.question
+    assert same_diss[0].ph is None and same_sol[1].ph is None
+    # confirmed once for the project: applied and labelled
+    used_diss, used_sol, _ = _media_by_convention(diss, sol, {MEDIA_CONVENTION: {"chosen": "use", "by": "ana"}})
+    assert (used_diss[0].ph, used_diss[0].ph_by_convention) == (1.2, True)
+    assert (used_diss[1].ph, used_diss[1].ph_by_convention) == (6.8, False)            # a stated pH is never replaced
+    assert (used_sol[1].ph, used_sol[1].ph_by_convention) == (6.5, True)
+    # left as written
+    kept_diss, _, _ = _media_by_convention(diss, sol, {MEDIA_CONVENTION: {"chosen": "leave"}})
+    assert kept_diss[0].ph is None
