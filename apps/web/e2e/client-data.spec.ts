@@ -8,7 +8,7 @@ import { join, resolve } from "node:path";
 
 import { expect, test } from "@playwright/test";
 
-import { finishStart, openFile } from "./fixtures/inputs";
+import { finishStart, openCard, openFile } from "./fixtures/inputs";
 
 const REPO = resolve(__dirname, "../../..");
 
@@ -54,6 +54,7 @@ test("client files are read cell by cell, sorted, and what the checklist did not
 
   // dissolution, on Products and dissolution: each profile fitted (PK-Sim Weibull), test vs reference compared by f2
   await page.getByTestId("tab-formulations").click();
+  await openCard(page, "Test 10 mg");                                         // its card compares it with the reference
   await expect(page.getByTestId("f2-row")).toContainText("similar");
   // the client's product is confirmed first, inline: its data load only then (plan 2026-11-03 §3.3)
   const product = page.locator("[data-testid^='group-product:']", { hasText: "Test 10 mg" });
@@ -64,6 +65,7 @@ test("client files are read cell by cell, sorted, and what the checklist did not
   await expect(page.getByTestId(`card-loaded-${productId}`)).toContainText(/Confirmed with the sheet form by dev-user on \d{1,2} \w{3} \d{4}, \d\d:\d\d\./);
   await expect(product.getByTestId(`group-confirmed-${productId}`)).toHaveCount(0);
   // on its product's card a profile is named without the product (final review OWN-10): the card's title says it
+  await openCard(page, "Test 10 mg");                                         // one product card at a time (D-I2)
   const testCard = page.locator("[data-testid^='product-card-']", { has: page.locator(".card-title", { hasText: /^Test 10 mg$/ }) });
   const testProfile = testCard.locator("li[data-testid^='profile-']").first();
   await expect(testProfile).toContainText("t50 18 min");
@@ -97,6 +99,7 @@ test("client files are read cell by cell, sorted, and what the checklist did not
   await page.screenshot({ path: test.info().outputPath("client-data.png"), fullPage: true });
   await page.getByTestId("tab-formulations").click();
   // its own product's card, the profile named by what tells it apart (the card's title names the product)
+  await openCard(page, "Raw 10 mg");
   const rawCard = page.locator("[data-testid^='product-card-']", { has: page.locator(".card-title", { hasText: /^Raw 10 mg$/ }) });
   await expect(rawCard.locator("li[data-testid^='profile-']").first()).toContainText("phosphate pH 6.8");
   // the proposed release model flows in, held for the review; PK-Sim has confirmed the equation, so the value carries

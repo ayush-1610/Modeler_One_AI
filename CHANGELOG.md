@@ -15,6 +15,26 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — the console redesign, slice 4b: Inputs' study and product cards open one at a time in a side panel (2026-11-24)
+- **What:** on Inputs, a study's card (Clinical studies) and a product's card (Products and dissolution) open in a side
+  panel on the right (`kit/SidePanel`), one at a time, instead of inside the list with up to three open at once. The
+  first card to confirm opens there by itself; a row's Open, a To do item or a study's release link opens another;
+  Previous and Next move through the list ("2 of 4"); Close or Escape puts it away. A card stays open when it stops
+  being the first to confirm (confirmed: it shows what its signature loaded; blinded by a fact just entered) rather than
+  the panel jumping under the person's hand. A wide window makes room for the panel; on a phone it covers the page as a
+  sheet. The panel takes the focus on its title and is named by its study or product.
+- **Why:** the owner's Gate 3 answer (a side panel) and decision D-I2 (2026-11-24): one card at a time wins over the rule
+  of 2026-11-05 that kept up to three open in the list.
+- **Not built: the impact preview** before confirming a changed signed card again. The confirmation lands several
+  records through the intake landing; an honest preview needs a dry run of that landing as a new route (none exists:
+  `POST /impact` previews one artifact's content, which the browser cannot compute for a landing). Left for the owner's
+  decision (plan §11).
+- **Impact:** no API change; every test id kept, each on the page once. Specs updated for one card at a time
+  (`client-data`, `delivery`, `inputs-a11y` (each study's and product's card checked in turn), `inputs-blinded-follow`,
+  `inputs-data-cards` (Next, the panel's name, focus, position and Escape), `inputs-frame`, `inputs-owner-job`,
+  `inputs-task-first` (CODE-1: each card's links land on its own form, one card on the page at a time)); new spec helpers
+  `openCard` and `openStudy` (`e2e/fixtures/inputs.ts`).
+
 ### Changed — the console redesign, slice 4a: the Data plan, the Data room in Inputs' words, the model system on Inputs (2026-11-24)
 - **What:**
   - **Data plan** (`/projects/{id}/data-plan`, P-13b, new; the owner's answer Q1: read-mostly): every requirement the

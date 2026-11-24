@@ -175,3 +175,5 @@ QA needs no `auth.py` change (a membership admit and the read roles), so it wait
 | 3 | read-only notice as a flash bar on every project page | a notice on Overview, Members and Settings | the other pages' own edit controls are reworked in their slices (4 to 7) |
 | 4 | one PR | 4a (Data plan, Data room words, links, model system) and 4b (Inputs' cards in a side panel, impact preview) | the owner, 2026-11-24 (D-I2) |
 | 4 | observed studies removed from Run | kept | Review & sign's Overall Data does not list the studies Inputs holds; the Run list is the downstream check of OWN-13. A later change could give Review & sign that list, then Run's goes |
+| 4b | impact preview before confirming a changed signed card again (`POST /impact`) | not built | `POST /impact` previews one artifact's next content; a card's confirmation lands several records through the intake landing, so an honest preview needs a new dry-run route of the landing (M, the intake code reviewed in seven rounds). For the owner: a 4c PR, or later |
+| 4b | the up-to-three-open rule (2026-11-05) | one card at a time in the side panel | D-I2 |

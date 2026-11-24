@@ -39,6 +39,7 @@ import { downloadTemplate, fileArea, whereShown } from "./TabFiles";
 import { OpenSheetContext, type SheetAsk } from "./openSheet";
 import { type Readiness, type StatusFilter, TodoTab } from "./TodoTab";
 import { useInputsWork } from "./useInputsWork";
+import { SidePanel } from "@/components/kit/SidePanel";
 import { SystemPanel } from "@/components/system/SystemPanel";
 import { ValueReuse } from "./ValueReuse";
 
@@ -194,6 +195,8 @@ function Workspace({ projectId, initialTab, initialOnly, initialStatus, steps }:
   const [cardFocus, setCardFocus] = useState<CardFocus | null>(null);
   // the products and the compound open on their cards (a study opens under its row in Clinical studies)
   const [cardsOpen, setCardsOpen] = useState<Record<string, boolean>>({});
+  // a product card asked for (a To do item, a study's release link): it opens in the side panel (D-I2)
+  const [productAsk, setProductAsk] = useState<{ key: string; at: number } | null>(null);
   // the client files opened on their sheets, and the last sheet form saved, held while another area is shown
   const [filesOpen, setFilesOpen] = useState<ReadonlySet<string>>(new Set());
   const [lastSheet, rememberSheet] = useState<FilesShown["memory"]["last"]>(null);
@@ -489,6 +492,7 @@ function Workspace({ projectId, initialTab, initialOnly, initialStatus, steps }:
   function openCard(s: Subject, anchor?: string) {
     setTab(s.area);
     setCardsOpen((was) => ({ ...was, [s.key]: true }));
+    if (s.kind === "product") setProductAsk({ key: s.key, at: Date.now() });     // in the side panel (D-I2)
     setCardFocus({ key: s.key, anchor, at: Date.now() });
     bringIntoView(anchor ?? cardAnchor(s), cardAnchor(s), anchor ? cardAnchor(s) : undefined);
   }
@@ -515,6 +519,7 @@ function Workspace({ projectId, initialTab, initialOnly, initialStatus, steps }:
       : undefined;
     if (card) {
       setCardsOpen((was) => ({ ...was, [card.key]: true }));
+      if (card.kind === "product") setProductAsk({ key: card.key, at });          // in the side panel (D-I2)
       setCardFocus({ key: card.key, ref: w.subject, group, anchor: w.anchor, at });
     }
     const fallback = item.todo?.kind === "regimen" ? `study-${item.todo.target}` : item.todo?.kind === "demographics" ? `individual-${item.todo.target}`
@@ -588,6 +593,7 @@ function Workspace({ projectId, initialTab, initialOnly, initialStatus, steps }:
   const dissolution = client.data?.dissolution;
   const profileLabel = (id: string) => profileText(dissolution?.profiles.find((p) => p.id === id)?.label ?? id);
   const products = cardsFor("formulations").filter((s) => s.kind === "product");
+
   // what gives a tablet study its formulation as the project stands (round 4: the API's, the step bar's and To do's lever):
   // a product's dissolution profile here, products without one, or no product at all; each study's own (round 5)
   const formulationWay = todo.find((t) => t.kind === "formulation")?.way ?? null;
@@ -782,12 +788,11 @@ function Workspace({ projectId, initialTab, initialOnly, initialStatus, steps }:
           {products.length > 0 && (
             <section className="subject-cards" data-testid="product-cards" aria-label="The client's products">
               <h2 className="area-section-title">The client&apos;s products <span className="muted">({products.length})</span></h2>
-              {products.map((s) => (
-                <ProductCard key={s.key} subject={s} env={env} open={cardOpen(s, opens(products, s))}
-                             onToggle={() => toggleCard(s, opens(products, s))}
+              <ProductPanelList products={products} ask={productAsk} card={(s, open, toggle) => (
+                <ProductCard key={s.key} subject={s} env={env} open={open} onToggle={toggle}
                              profiles={profilesOf(s)} comparisons={dissolution?.comparisons ?? []} label={profileLabel}
                              problems={dissolution?.problems ?? []} release={releaseOf(s, view as unknown as InputsLike)} />
-              ))}
+              )} />
             </section>
           )}
           <SheetGroups projectId={projectId} groups={sheetsFor("formulations").filter((g) => !only || g.state === "to_confirm")} run={run}
@@ -922,5 +927,43 @@ function Workspace({ projectId, initialTab, initialOnly, initialStatus, steps }:
     </PageShell>
     </ReachContext.Provider>
     </OpenSheetContext.Provider>
+  );
+}
+
+/** The client's products, one card open at a time in the side panel (the owner's decision D-I2): the one asked for (a To
+ *  do item, a study's release link), else the first to confirm, which stays open once confirmed (it shows what was
+ *  loaded) rather than the panel jumping to the next; none once the person closes it. The list keeps every product's
+ *  head; the open one's controls are in the panel, so each is on the page once. */
+function ProductPanelList({ products, ask, card }: {
+  products: Subject[];
+  ask: { key: string; at: number } | null;
+  card: (s: Subject, open: boolean, toggle: () => void) => ReactNode;
+}) {
+  const [chosen, setChosen] = useState<string | null | undefined>(undefined);
+  const current = products.find((x) => !x.done && !x.blinded)?.key ?? null;
+  const [shown, setShown] = useState<string | null>(current);
+  useEffect(() => {
+    if (current === shown) return;
+    if (chosen === undefined && shown && products.some((x) => x.key === shown)) setChosen(shown);
+    setShown(current);
+  }, [current]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (ask) setChosen(ask.key); }, [ask]);
+  const openKey = chosen === undefined ? current : chosen;
+  const open = openKey ? products.find((x) => x.key === openKey) ?? null : null;
+  const at = open ? products.indexOf(open) : -1;
+  return (
+    <>
+      {products.map((s) => (s.key === openKey ? (
+        <div key={s.key} className="panel-row open"><strong>{s.label}</strong><span className="muted fs-13">open in the panel</span></div>
+      ) : card(s, false, () => setChosen(s.key))))}
+      {open && (
+        <SidePanel title={open.label} label={`Product ${open.label}`} testId="product-panel" onClose={() => setChosen(null)}
+                   position={`${at + 1} of ${products.length}`}
+                   onPrev={at > 0 ? () => setChosen(products[at - 1]!.key) : null}
+                   onNext={at < products.length - 1 ? () => setChosen(products[at + 1]!.key) : null}>
+          {card(open, true, () => setChosen(null))}
+        </SidePanel>
+      )}
+    </>
   );
 }
