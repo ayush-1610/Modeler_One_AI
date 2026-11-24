@@ -23,7 +23,7 @@ from pathlib import Path
 
 import pytest
 
-from modeler_api.templates_api import _BLANK_PARAMETERS
+from modeler_api.reference_models import _BLANK_PARAMETERS
 from modeler_project import evidence, inputs
 from modeler_project.evidence import EvidenceItem, SourceType
 from modeler_project.requirements import load_templates
@@ -177,6 +177,7 @@ def vocabulary() -> dict:
         "evidence._PHYSICAL": evidence._PHYSICAL,
         "map.STAGE_PLAN": {stage: {"fit_candidates": plan["fit_candidates"], "branches": plan["branches"]}
                            for stage, plan in STAGE_PLAN.items()},
+        # the snapshot's key keeps its first home's name: the table moved to reference_models (slice 9)
         "templates_api._BLANK_PARAMETERS": _BLANK_PARAMETERS,
     }
     return {
