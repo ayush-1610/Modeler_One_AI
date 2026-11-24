@@ -82,7 +82,7 @@ class RoomRunEstimateAgent(View):
 class RoomRunEstimate(View):
     """What the next run is expected to cost on paid models (`modeler_agents.dataroom.cost`; plan 2026-11-24 §2.4), from
     the files still to read and their sizes: tokens ≈ characters / 4, per file 8.5 to 10 calls and 9,000 to 13,000
-    output tokens (measured, §2.2), each agent's share at its model's list price. `paid` false: no agent starts on a
+    output tokens (measured, §2.2), each agent's measured share at its model's list price. `paid` false: no agent starts on a
     paid model, and the run costs nothing in dollars. The caps a paid run stops at, and this month's paid spend."""
 
     paid: bool

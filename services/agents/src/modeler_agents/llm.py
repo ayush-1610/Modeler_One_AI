@@ -477,10 +477,12 @@ def chat_model_from_env(env: Mapping[str, str] | None = None) -> ChatModel | Non
                              "deploy/server/modeler-secrets.env.example), or choose each agent's model in the admin console")
     if provider == "bedrock":
         return _bedrock(env)
+    if provider == "anthropic":
+        return _anthropic(env)
     defaults = PROVIDERS.get(provider)
     if defaults is None:
-        raise LLMConfigError(f"unknown MODELER_LLM_PROVIDER {provider!r}; use one of: {', '.join(PROVIDERS)}, bedrock or "
-                             "disabled")
+        raise LLMConfigError(f"unknown MODELER_LLM_PROVIDER {provider!r}; use one of: {', '.join(PROVIDERS)}, bedrock, "
+                             "anthropic or disabled")
     key = (env.get(defaults.key_env) or "").strip()
     if not key:
         raise LLMConfigError(f"MODELER_LLM_PROVIDER={provider} needs {defaults.key_env} in the environment")
@@ -504,6 +506,37 @@ def chat_model_from_env(env: Mapping[str, str] | None = None) -> ChatModel | Non
     # the in-house model streams unless MODELER_LLM_STREAM=0 (a proxy that cannot stream with tools)
     chat.stream = provider == "litellm" and (env.get("MODELER_LLM_STREAM") or "1").strip() != "0"
     return chat
+
+
+def _claude_options(env: Mapping[str, str], provider: str) -> tuple[str, str | None, float]:
+    """The model, effort and timeout every Claude connection takes from its configuration."""
+    from modeler_agents.claude import EFFORTS
+
+    model = (env.get("MODELER_LLM_MODEL") or "").strip()
+    if not model:
+        example = "anthropic.claude-opus-5-5" if provider == "bedrock" else "claude-opus-5-5"
+        raise LLMConfigError(f"MODELER_LLM_PROVIDER={provider} needs MODELER_LLM_MODEL (e.g. {example})")
+    effort = (env.get("MODELER_LLM_EFFORT") or "").strip() or None
+    if effort and effort not in EFFORTS:
+        raise LLMConfigError(f"MODELER_LLM_EFFORT must be one of {', '.join(EFFORTS)}, not {effort!r}")
+    try:
+        timeout = float((env.get("MODELER_LLM_TIMEOUT_S") or "").strip() or DEFAULT_TIMEOUT_S)
+    except ValueError as exc:
+        raise LLMConfigError("MODELER_LLM_TIMEOUT_S must be a number of seconds") from exc
+    return model, effort, timeout
+
+
+def _anthropic(env: Mapping[str, str]) -> ChatModel:
+    """Claude on Anthropic's own API with a Console key (decision D1, 2026-11-24)."""
+    from modeler_agents.claude import ClaudeAPIChat
+
+    key = (env.get("ANTHROPIC_API_KEY") or "").strip()
+    if not key:
+        raise LLMConfigError("MODELER_LLM_PROVIDER=anthropic needs ANTHROPIC_API_KEY: add the Console key in the admin "
+                             "console (Keys)")
+    model, effort, timeout = _claude_options(env, "anthropic")
+    return ClaudeAPIChat(model=model, api_key=key, effort=effort, fallback=(env.get("MODELER_LLM_FALLBACK") or "").strip()
+                         or None, timeout_s=timeout)
 
 
 def _bedrock(env: Mapping[str, str]) -> ChatModel:
@@ -628,6 +661,13 @@ class FallbackChat:
         checker is not the model that wrote what it checks), unless no other can answer."""
         return ChainConversation(self, avoid=avoid)
 
+    def start(self, avoid: str = "") -> int:
+        """The model a new conversation starts on, without starting one: the first that is not resting and is not
+        `avoid`, else the first not resting, else the first."""
+        usable = [i for i in range(len(self.models)) if self.health.usable(self.key(i))]
+        other = [i for i in usable if f"{self.models[i].provider}/{self.models[i].model}" != avoid]
+        return (other or usable or [0])[0]
+
     def complete(self, messages: list[dict[str, Any]], tools: list[dict[str, Any]]) -> ChatResult:
         return self.conversation().complete(messages, tools)      # one request on its own: a conversation of one
 
@@ -637,9 +677,7 @@ class ChainConversation:
 
     def __init__(self, chain: FallbackChat, avoid: str = ""):
         self.chain = chain
-        usable = [i for i in range(len(chain.models)) if chain.health.usable(chain.key(i))]
-        other = [i for i in usable if f"{chain.models[i].provider}/{chain.models[i].model}" != avoid]
-        self.index = (other or usable or [0])[0]
+        self.index = chain.start(avoid)
         self.switches: list[dict[str, str]] = []
         if self.index:
             why = ("it is resting after a recent failure" if not chain.health.usable(chain.key(0))
@@ -721,6 +759,11 @@ class Tool:
                                                  "parameters": self.parameters}}
 
 
+#: the task message's key for the length of its shared start (`run_tool_loop(shared=…)`); only Claude's client reads it,
+#: the Chat Completions clients send the message's standard keys only (`_plain`)
+CACHE_PREFIX = "cache_prefix_chars"
+
+
 @dataclass
 class LoopOutcome:
     status: Literal["COMPLETED", "INCOMPLETE", "LLM_UNAVAILABLE"]
@@ -736,9 +779,14 @@ class LoopOutcome:
 
 
 def run_tool_loop(model: ChatModel, *, system: str, user: str, tools: list[Tool], max_turns: int = 30,
-                  log_step: Callable[[dict[str, Any]], None] = lambda step: None,
+                  log_step: Callable[[dict[str, Any]], None] = lambda step: None, shared: str = "",
                   on_restart: Callable[[], None] = lambda: None) -> LoopOutcome:
     """Let the model work through `tools` until it answers without calling one, or `max_turns` is reached.
+
+    `shared`: the start of the task that many conversations share word for word (the Data room's delivery block, the
+    same for every file of a delivery); the task is `shared` then `user`. The task message carries the shared part's
+    length (`CACHE_PREFIX`), so a client that caches a prefix (Claude) can mark the end of that part, and the next file's
+    request reads it from the cache; the other clients send the task as one text.
 
     Every model turn and every tool call (arguments and the handler's answer) is passed to `log_step`, the agent run's
     append-only step log. A handler that raises answers the model with the error instead of ending the run.
@@ -756,7 +804,10 @@ def run_tool_loop(model: ChatModel, *, system: str, user: str, tools: list[Tool]
 
     def ident() -> str:
         return f"{model.provider}/{model.model}"
-    messages: list[dict[str, Any]] = [{"role": "system", "content": system}, {"role": "user", "content": user}]
+    task: dict[str, Any] = {"role": "user", "content": shared + user}
+    if shared and user:
+        task[CACHE_PREFIX] = len(shared)
+    messages: list[dict[str, Any]] = [{"role": "system", "content": system}, task]
     usage: dict[str, int] = {"input_tokens": 0, "output_tokens": 0}
     window: int | None = None          # the model's context window, in tokens, once a refusal has said it
     share = FIT_SHARE
@@ -810,7 +861,7 @@ def run_tool_loop(model: ChatModel, *, system: str, user: str, tools: list[Tool]
             log_step({"type": "conversation_restarted", "turn": turn, "on": getattr(model, "label", ""), "why": str(exc)})
             on_restart()
             again = run_tool_loop(model, system=system, user=user, tools=tools, max_turns=max_turns, log_step=log_step,
-                                  on_restart=on_restart)
+                                  shared=shared, on_restart=on_restart)
             merged = {k: usage.get(k, 0) + again.usage.get(k, 0) for k in {*usage, *again.usage}}
             return LoopOutcome(again.status, again.final_text, turn - 1 + again.turns, merged, error=again.error,
                                answered_by=again.answered_by, answered_on=again.answered_on, failure=again.failure)

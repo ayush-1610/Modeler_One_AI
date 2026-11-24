@@ -207,10 +207,24 @@ class AgentChain(View):
     notice: str
 
 
+class AgentPreset(View):
+    """A one-click setting for every agent at once (plan 2026-11-24 §3): what it does, its estimated cost for one
+    delivery of about ten files (0 for free and in-house models; an estimate until the calibration run measures it), the
+    providers it needs, those with no active key, and whether the agents are on it now."""
+
+    id: str
+    label: str
+    what: str
+    usd_per_delivery: float
+    providers: list[str]
+    missing_keys: list[str]
+    current: bool
+
+
 class AgentsPage(View):
     """`efforts` and `claude_models`: the choices for an agent on Claude (Bedrock's model ids); `groq_efforts`: on
     GroqCloud; `choices`: the one-click choices each agent's row offers; `chain`: what every agent goes on with when its
-    model fails."""
+    model fails; `presets`: one click for every agent at once."""
 
     agents: list[AgentRow]
     chain: AgentChain
@@ -221,6 +235,7 @@ class AgentsPage(View):
     efforts: list[str]
     groq_efforts: list[str]
     claude_models: list[str]
+    presets: list[AgentPreset]
 
 
 class KeyField(View):

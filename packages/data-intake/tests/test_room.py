@@ -13,11 +13,13 @@ import pytest
 
 from modeler_intake.ocr import _line_words
 from modeler_intake.room import (
+    document_parts,
     document_text,
     find_quote,
     is_junk,
     numbers_in,
     page_png,
+    parts_sha256,
     read_delivery,
     read_file,
     reading_pdf,
@@ -333,3 +335,13 @@ def test_a_title_merged_across_a_sheet_is_read_once_and_a_group_header_keeps_its
     assert lines[3] == "Subject | Time (h) | Time (h) | Time (h) | Time (h)"
     assert lines[4] == "Subject | 0 | 1 | 2 | 4"
     assert lines[5] == "101 | BLQ | 12.5 | 8.1 | 3.3"
+
+
+def test_the_lines_an_agent_reads_have_one_sha256_whatever_read_them_and_another_when_a_cell_moves():
+    # the answer cache's reader key (plan 2026-11-24 §5 item 2): the same lines give the same sha256; a cell split or
+    # moved by another reading gives another, so an answer pointing into the old lines is never reused on the new ones
+    a = document_parts(read_file("a.tsv", b"SUB\tTIME\tCONC\n1\t0.5\t12.5\n").document)
+    again = document_parts(read_file("a.tsv", b"SUB\tTIME\tCONC\n1\t0.5\t12.5\n").document)
+    moved = document_parts(read_file("a.tsv", b"SUB\tTIME\tCONC\n1\t\t0.5\t12.5\n").document)
+    assert len(parts_sha256(a)) == 64 and parts_sha256(a) == parts_sha256(again)
+    assert parts_sha256(a) != parts_sha256(moved)

@@ -229,7 +229,7 @@ New projects use the Data room as their Inputs step (existing projects keep thei
 every number from the cells and checks every quote against the file. A quote that is not in the file, or a value that
 is not in its quote, is refused and never reaches the room.
 
-## 6b. AI model keys, end to end (the server, GroqCloud, NVIDIA)
+## 6b. AI model keys, end to end (the server, GroqCloud, NVIDIA, the Claude API)
 
 The agents run on the in-house model by default, which needs no cloud key. A cloud model needs a key from its
 service. The key is stored sealed on the server, chosen per agent, and allowed per project. Never paste a key into
@@ -261,6 +261,18 @@ Coder. It is LiteLLM's own master key, set when LiteLLM was started on the serve
 - **NVIDIA API catalog** (Nemotron Ultra): sign in at build.nvidia.com, open a model's page (for example Nemotron),
   choose "Get API Key" and copy it. It starts with `nvapi-`. The trial's terms let NVIDIA use what it is sent:
   made-up data only, unless the client has agreed in writing.
+- **The Claude API** (Claude Opus 5.5 and Sonnet 5.5, with Anthropic's own Console key; decisions D1 and D3 of
+  `docs/plans/2026-11-24-data-story-next-phase.md`):
+  1. Sign in to the Claude Console. Create a **workspace** named "Modeler One".
+  2. In that workspace's limits, set a **spend limit of $90**. The Console then stops requests before the credit
+     runs out, whatever the platform does.
+  3. Inside that workspace, create an API key named for the server (e.g. "modeler-server"). Copy it: it is shown
+     once and starts with `sk-ant-`. If the Console asks "identity federation or an API key", choose **Continue with an
+     API key** (our server has no cloud identity for federation).
+  4. Store it in step 4 below as **"Claude API (Anthropic Console)"**. Its **Test** lists the models the key may use:
+     no message is sent and nothing is spent.
+  5. It is a paid service: the platform pauses a run at **$10** and stops paid use for the month at **$90** (Admin →
+     Limits), and a client's files go to it only with the client's written permission (step 6).
 
 **Step 4. Store the key on the server, from the console** (no restart, no file):
 1. Admin → Keys → Add a key. Choose the service, paste the key and give a reason. Confirm your identity when asked.
@@ -270,20 +282,27 @@ Coder. It is LiteLLM's own master key, set when LiteLLM was started on the serve
 4. A key older than 90 days is marked for rotation: add a new one, test it, make it active.
 
 **Step 5. Choose the models.** Admin → Models:
-- one click per agent: Qwen Coder (in-house), gpt-oss-120b (GroqCloud), Nemotron Ultra (NVIDIA), Claude;
+- **Presets**, one click for every agent, each with its estimated cost for a ten-file delivery: Free (NVIDIA and
+  GroqCloud), In-house only, Claude demo (Opus 5.5 extracts, Sonnet 5.5 for the rest), Claude all Opus. A preset whose
+  service has no active key says so and changes nothing;
+- one click per agent: Qwen Coder (in-house), Claude (on Bedrock), Claude Opus 5.5 or Sonnet 5.5 (the Claude API),
+  gpt-oss-120b (GroqCloud), Nemotron Ultra (NVIDIA);
 - "When a model cannot answer": the models every agent goes on with, in order (§6a).
 
 **Step 6. Allow it for the project.** A project's client files go to no cloud service until its owner or an
 administrator records the client's written permission: Data room → "Where the files may go" → Change → tick the
 service, name the client's document (a letter, an email, a contract clause), add an end date if there is one, and a
-reason. Until then the agents use the in-house model only for that project, and stop and say so if they have none.
+reason. Until then the agents use the in-house model only for that project, and stop and say so if they have none. The
+Claude API counts as a cloud service here, like GroqCloud and NVIDIA. For a project of **made-up demo data** there is
+no client: tick the service and write "made-up demo data, no client" as the document, so the record says why.
 
 **Step 7. Check it works.** Admin → System status shows each service's active key, its last test and whether the
 agents have a model. On a project, the Data room's run says which model wrote each answer, and the evidence report's
 "How this report was made" lists them.
 
 **Without the console** (one model for every agent, from the secrets file): set `MODELER_LLM_PROVIDER=groq` with
-`GROQ_API_KEY=`, or `MODELER_LLM_PROVIDER=nvidia` with `NVIDIA_API_KEY=`, then restart. The console's per-agent
+`GROQ_API_KEY=`, `MODELER_LLM_PROVIDER=nvidia` with `NVIDIA_API_KEY=`, or `MODELER_LLM_PROVIDER=anthropic` with
+`ANTHROPIC_API_KEY=` and `MODELER_LLM_MODEL=claude-sonnet-5-5`, then restart. The console's per-agent
 choices, when made, take precedence over the file.
 
 ## 7. Inputs (step 2): from every source to a ready CPF

@@ -13,7 +13,7 @@ import { oidcConfig } from "@/lib/oidc";
 
 export const metadata = { title: "System status · Modeler One" };
 
-const AI_SERVICES = ["litellm", "groq", "nvidia", "bedrock", "openai_compat"];
+const AI_SERVICES = ["litellm", "groq", "nvidia", "bedrock", "anthropic", "openai_compat"];
 
 function State({ ok, children, testId }: { ok: boolean | null; children: React.ReactNode; testId?: string }) {
   const word = ok === null ? "Not set" : ok ? "OK" : "Needs attention";
@@ -67,7 +67,7 @@ export default async function SystemPage() {
             </tbody>
           </table>
           <p className="muted">Add, test and activate keys on <Link href="/admin/keys">Keys</Link>; the steps are in{" "}
-            <Link href="/help#6b-ai-model-keys-end-to-end-the-server-groqcloud-nvidia">Help → AI model keys</Link>.</p>
+            <Link href="/help#6b-ai-model-keys-end-to-end-the-server-groqcloud-nvidia-the-claude-api">Help → AI model keys</Link>.</p>
         </section>
         <section className="card" aria-labelledby="sys-agents">
           <h2 id="sys-agents">What the agents run on now</h2>

@@ -30,10 +30,24 @@ _log = logging.getLogger(__name__)
 # --- the configured model ------------------------------------------------------------------------------------------
 
 
+def _metered(model: Any, agent: str | None, read_root: str) -> Any:
+    """`model` with each of its paid models (`platform_settings.PAID_PROVIDERS`) recording every call's cost on the
+    month's paid ledger (`PaidSpend`), with no cap: the month's paid spend counts every agent's calls (A1 … A10), and
+    the Data room's run moves its models behind its own capped budget (`dataroom_run`)."""
+    from modeler_agents.spend import SpendBudget, guard_paid
+
+    if not read_root:
+        return model
+    ledger = platform_settings.PaidSpend(read_root)
+    return guard_paid(model, SpendBudget(run_cap=None, month_cap=None, record=ledger.record),
+                      platform_settings.PAID_PROVIDERS, agent or "")
+
+
 def chat_model(agent: str | None = None) -> tuple[Any | None, str | None]:
-    """The chat model `agent` (A1 … A5) runs on, or None with the configuration error (None too when agents are off):
+    """The chat model `agent` (A1 … A10) runs on, or None with the configuration error (None too when agents are off):
     the admin console's setting for it with its provider's active key (`platform_settings`), else the server's
-    environment. Read at each start, so a change in the console needs no restart."""
+    environment. Read at each start, so a change in the console needs no restart. Each paid model records its calls'
+    cost on the month's paid ledger (`_metered`)."""
     from modeler_agents.llm import FallbackChat, LLMConfigError, chat_model_from_env
 
     settings = get_settings()
@@ -53,9 +67,10 @@ def chat_model(agent: str | None = None) -> tuple[Any | None, str | None]:
         except LLMConfigError:
             continue
     if not chain:
-        return model, None
-    return FallbackChat([model, *(m for _l, m in chain)],
-                        labels=[f"{model.provider}/{model.model}", *(label for label, _m in chain)]), None
+        return _metered(model, agent, settings.read_root), None
+    return _metered(FallbackChat([model, *(m for _l, m in chain)],
+                                 labels=[f"{model.provider}/{model.model}", *(label for label, _m in chain)]),
+                    agent, settings.read_root), None
 
 
 def project_model(agent: str, ws: Any) -> tuple[Any | None, str | None]:
@@ -164,7 +179,19 @@ def test_key(provider: str, fields: dict[str, str]) -> tuple[bool, str]:
             False, f"no list of models from {fields['base_url']}: check the address and the key")
     if provider == "bedrock":
         return _test_bedrock(fields)
+    if provider == "anthropic":
+        from modeler_agents.claude import check_api_key
+
+        return check_api_key(fields["api_key"])
     return False, f"{provider} keys cannot be tested yet"
+
+
+def estimate_delivery_usd(models: dict[str, str]) -> float:
+    """The estimated cost of one ten-file Data room delivery with each agent on the given model id
+    (`modeler_agents.usage_report.estimate_delivery_usd`; the seam to the agents for the admin console's presets)."""
+    from modeler_agents.usage_report import estimate_delivery_usd as estimate
+
+    return estimate(models)
 
 
 CLAUDE_MODELS = ("anthropic.claude-opus-5-5", "anthropic.claude-sonnet-5-5", "anthropic.claude-haiku-5-5")

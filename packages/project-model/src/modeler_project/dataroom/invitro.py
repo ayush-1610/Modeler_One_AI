@@ -230,6 +230,7 @@ def dissolution_views(table: ReadTable, *, products: dict[str, str] | None = Non
                 "may describe it better (a decision)")))
         views.append(DissolutionView(
             id=_view_id(table.id, group), product=product, batch=batch, medium=medium, ph=ph,
+            ph_convention=rules.convention_ph(medium) if ph is None else None,
             apparatus=const.get("apparatus", ""), rpm=rpm, volume_ml=volume, n_units=n_units, times_min=tuple(times),
             mean=tuple(means), sd=tuple(sds), client_mean=tuple(client_mean), weibull=fit.to_content(),
             weibull_curve=weibull_curve(fit, times[-1] if times else 0.0),
@@ -323,7 +324,8 @@ def solubility_rows(tables: Sequence[ReadTable], *, dose_mg: float | None, mediu
             ph = parse_number(one["ph"].text, decimal_comma=table.decimal_comma) if "ph" in one else _ph_of(medium)
             need = round(dose_mg / mg_ml, 2) if dose_mg and mg_ml else None
             out.append(SolubilityRow(
-                medium=medium, ph=ph, solubility_mg_ml=mg_ml, as_written=f"{text} {col_unit}".strip(),
+                medium=medium, ph=ph, ph_convention=rules.convention_ph(medium) if ph is None else None,
+                solubility_mg_ml=mg_ml, as_written=f"{text} {col_unit}".strip(),
                 volume_for_dose_ml=need, fraction_in_glass=round(min(1.0, mg_ml * glass / dose_mg), 4) if need else None,
                 fraction_in_medium=(round(min(1.0, mg_ml * medium_volume_ml / dose_mg), 4)
                                     if need and medium_volume_ml else None),
@@ -347,8 +349,10 @@ def solubility_from_facts(facts: Sequence[CheckedFact], *, dose_mg: float | None
         text = f"{f.fact.subject} {f.fact.value} {f.fact.quote}"      # the medium's pH: not from the agent's note
         need = round(dose_mg / mg_ml, 2) if dose_mg and mg_ml else None
         medium = _medium_of(f.fact.subject, f.fact.quote)
+        ph = _ph_of(text)
         out.append(SolubilityRow(
-            medium=medium.strip(), ph=_ph_of(text), solubility_mg_ml=mg_ml,
+            medium=medium.strip(), ph=ph, ph_convention=rules.convention_ph(medium) if ph is None else None,
+            solubility_mg_ml=mg_ml,
             as_written=f"{f.fact.value} {f.fact.unit}".strip(), volume_for_dose_ml=need,
             fraction_in_glass=round(min(1.0, mg_ml * glass / dose_mg), 4) if need else None,
             fraction_in_medium=round(min(1.0, mg_ml * medium_volume_ml / dose_mg), 4) if need and medium_volume_ml else None,

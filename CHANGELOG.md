@@ -49,7 +49,7 @@ month, paid models only; free and in-house models stay warn-only).
     loses none.
   - A timer re-reads the record under the project's lease, so two workers never resume a run twice.
   - **At once on an administrator's change:**
-    - a model or the chain switched: every paused run;
+    - a model, the chain or a preset switched: every paused run;
     - a key added or made active: the provider and no-model pauses;
     - the paid cap changed: the cap's pauses.
   - Recording the client's permission ("Where the files may go") resumes that project's `no_model` pause.
@@ -61,12 +61,16 @@ month, paid models only; free and in-house models stay warn-only).
 - **Write-then-rename:** already true of every stored Data room answer (`atomic_write_text`). It is now pinned by a
   crash test and a check that the store writes no file in place.
 - **The hard cap for paid models** (`modeler_agents.spend`, `platform_settings.PAID_PROVIDERS` = bedrock, anthropic):
-  - Each paid model of a Data room agent runs behind a guard. Before every call it checks the run's and the month's
-    paid spend, platform-wide, against the caps. Reaching one pauses the run (`budget_cap`), with no timed resume.
-  - After every call, the call's cost is recorded at list prices (`usage_report.call_cost`, the usage page's prices) in
-    `_platform/paid_spend/<YYYY-MM>.jsonl`, with the run's id.
+  - **Every agent's paid model is metered** (`agent_jobs.chat_model`, A1–A10): after every call, its cost is recorded at
+    list prices (`usage_report.call_cost`, the usage page's prices) in `_platform/paid_spend/<YYYY-MM>.jsonl`. So the
+    month's paid spend counts every agent's paid calls. A1–A5 have no cap: they keep the warn-only limits.
+  - Each paid model of a Data room agent runs behind the run's capped budget (the same guard, moved, never a second
+    one). Before every call it checks the run's and the month's paid spend, platform-wide, against the caps. Reaching
+    one pauses the run (`budget_cap`), with no timed resume. Its calls are recorded with the run's id.
   - A chain never fails over to its free model on a cap. Free and in-house models are never wrapped and keep the
     warn-only limits unchanged.
+  - The guard forwards the model's own name, effort and address, so the answer cache's key (`FallbackChat.start()`)
+    names the real model behind it, and a cached answer costs nothing.
   - **The defaults** are $10 a run and $90 a month (`_platform/paid_caps.json`). They are editable on Admin → Limits
     (`PUT /admin/limits/paid`), with a fresh step-up and a reason, audited `admin.paid_cap.set` with before and after.
     A run's cap may not be above the month's.
@@ -77,8 +81,8 @@ month, paid models only; free and in-house models stay warn-only).
   - Per file: 8.5 to 10 calls; input = calls × (4,000 + half the file's tokens, capped at 20,000); output 9,000 to
     13,000 tokens × 1.5 for thinking. These are §2.2's measured ratios: 85–100 calls, 0.5–1.1 M in and 0.09–0.13 M out
     for 10 files.
-  - Each agent's share (A6 5 %, A7 15 %, A8 60 %, A9 15 %, A10 5 %, our estimate) is priced at its own model's list
-    price, without the cache.
+  - Each agent's share is the measured one (`usage_report.DELIVERY_TOKENS`, which the presets' estimate uses too:
+    extraction about 84 % of the input). It is priced at the agent's own model's list price, without the cache.
   - Ten 40,000-character files, all on Opus 5.5: $5.76 to $7.50, the plan's "$5–8 without the cache".
 - **The page** (`Intake.tsx`):
   - A paused run says, for example: "Paused at extraction: 3 of 8 files done. Nemotron Ultra could not answer (too many
@@ -94,20 +98,157 @@ month, paid models only; free and in-house models stay warn-only).
 - **Impact:** a quota or an outage no longer costs a person's "Run again", and nothing finished is paid for twice. A
   paid model cannot spend past $10 a run or $90 a month without the administrator's word.
 - **Tests:**
-  - `services/agents/tests/test_dataroom_pause.py` (7): pause and a resume with no call for finished units; the rests;
-    `no_model`; the cap; no failover on a cap; the step restarted on the next model; the checker's skip.
-  - `test_spend.py` (4): call pricing, the guard, the estimate's ratios, the files still to read.
+  - `services/agents/tests/test_dataroom_pause.py` (8): pause and a resume with no call for finished units; the rests;
+    `no_model`; the cap; no failover on a cap; the answer cache keyed by the real model behind the cap's guard; the
+    step restarted on the next model; the checker's skip.
+  - `test_spend.py` (5): call pricing, the guard, every agent metered once, the estimate's ratios, the files still to
+    read.
   - `packages/project-model/tests/test_dataroom_store_writes.py` (3).
-  - `services/api/tests/test_dataroom_pause_api.py` (5): Resume now and its roles; the clock and the restart pick-up;
-    the estimate; a paid run paused at the cap and resumed when it is raised; a model's, a key's and a permission's
-    change.
+  - `services/api/tests/test_dataroom_pause_api.py` (6): Resume now and its roles; the clock and the restart pick-up;
+    the estimate; a paid run paused at the cap and resumed when it is raised; another agent's paid calls counted in the
+    month; a model's, a key's and a permission's change.
   - The e2e `dataroom.spec.ts` gains a paused-run flow (its fixture writes the paused record; no model).
+- **With the answer cache** (merged the same day):
+  - A cached unit is a finished unit: a resumed run asks no model for it.
+  - A re-extraction made on the checker's issues carries `checker_issues` whether it came from the model or the
+    cache, so it is never sent back twice.
+  - A cached review names the extraction it checked.
+  - The check after the extractor's second pass is its own look in the cache (`recheck`).
 - **Known gaps:**
-  - The month's paid spend counts the Data room's paid calls. A1–A5 on a paid model are not metered by the cap (they
-    still show on Admin → Usage).
   - The Data room's own runs do not appear on Admin → Usage. This predates this change: they are not recorded under
-    `agent_runs`.
-  - The agents' shares in the estimate are our estimate, until the calibration run (D2) measures them.
+    `agent_runs`. Their paid calls are on the paid ledger and in the month's paid spend.
+  - The calls and tokens per file are measured on Nemotron's tokenizer, until the calibration run (D2) measures them
+    on Claude.
+
+### Changed — science: a medium named without its pH takes its pH by convention once confirmed (`dataroom_rules.yaml` 0.2, UNVERIFIED) (2026-11-24)
+- **Why:** gap 2 of the data story. "0.1 N HCl" (Quorafen and Zelitrex) and "FaSSIF" carry no pH, so the profiles in
+  them had none: no f2 against the reference's profile at pH 1.2, and a data request for a medium that was in fact
+  there. The owner chose option A (D4 of `docs/plans/2026-11-24-data-story-next-phase.md`).
+- **The table** (`media_by_convention`, version 0.1 → 0.2, status stays **UNVERIFIED** until the SME signs):
+
+| Medium | pH by convention |
+|---|---|
+| 0.1 N HCl (0.1 M HCl) | 1.2 |
+| SGF | 1.2 |
+| FaSSGF | 1.6 |
+| FaSSIF and FaSSIF-V2 | 6.5 |
+| FeSSIF-V2 | 5.8 |
+| FeSSIF | 5.0 |
+| SIF | 6.8 |
+
+  Names are matched as whole words, the longest first (`Rules.convention_ph`).
+- **How it applies:**
+  - A dissolution profile or solubility row whose medium is named without a pH gets `ph_convention`.
+  - The room asks one decision for the project (`media-ph-convention`, naming each medium and its pH).
+  - **Only an explicit "use"** puts the pH in place, marked `ph_by_convention`. The suggestion alone applies nothing.
+  - A stated pH is never replaced.
+- **On the page:** the profile and the solubility row say "pH 1.2 by convention, not stated", either confirmed for
+  this project or waiting for confirmation under Decisions.
+- **API contract:** `DissolutionView` and `SolubilityRow` gain `ph_convention` and `ph_by_convention`; snapshot and web
+  types regenerated.
+- **Test:** `test_a_medium_named_without_its_ph_takes_its_conventional_ph_only_once_confirmed`.
+
+### Added — Claude on Anthropic's own API with a Console key; one-click presets for every agent (2026-11-24)
+- **Why:** the owner's decisions D1 and D6 on `docs/plans/2026-11-24-data-story-next-phase.md`. Claude was reachable
+  only on Amazon Bedrock, so the owner's $100 Console credit could not be used. The admin page also needed an easier
+  switch between models.
+- **The Claude API as a provider** (`anthropic`):
+  - `modeler_agents.claude.ClaudeAPIChat` shares the Bedrock client's request, caching, effort, fallback on an
+    overloaded model and usage (`_ClaudeChat`).
+  - A refusal is re-run by the server inside the same call: the admin console's fallback model, else Anthropic's
+    default by refusal category (`fallbacks`, beta `server-side-fallback-2026-07-01`).
+  - **The key:** Admin → Keys → "Claude API (Anthropic Console)". Its Test lists the models the key may use (no message
+    sent, nothing spent: `check_api_key`).
+  - **The models:** one-click choices "Claude Opus 5.5 (Claude API)" and "Claude Sonnet 5.5 (Claude API)", with the
+    same effort and fallback controls as Bedrock.
+  - Configurable without the console too: `MODELER_LLM_PROVIDER=anthropic`, `ANTHROPIC_API_KEY`.
+- **A cloud service needing the client's permission (D6):** `anthropic` is now in `data_permissions.CLOUD_SERVICES`.
+  The gate let any provider it did not list through as if in-house, so without this a client's files could have gone
+  to the Claude API with no recorded permission. A made-up demo project records "made-up demo data, no client" instead.
+- **Presets** (Admin → Models; `POST /api/v1/admin/agents:preset`), one click for every agent:
+  - **Free:** Nemotron Ultra; gpt-oss-120b for A9.
+  - **In-house only:** Qwen Coder.
+  - **Claude demo:** Opus 5.5 for A8, Sonnet 5.5 for the rest.
+  - **Claude, all Opus:** with Sonnet 5.5 for A9, which never runs on A8's model.
+
+  Each shows its estimated cost for a ten-file delivery (`usage_report.estimate_delivery_usd`, from the measured
+  tokens per agent; about $3.90 and $4.23, an estimate until the calibration run). A preset whose service has no active
+  key is refused with nothing changed. Each agent's change is its own audit event.
+- **API contract:** `AgentsPage.presets` (`AgentPreset`) and the preset route; snapshot and web types regenerated.
+- **Docs:**
+  - `docs/USING_THE_TOOL.md` §6b gives the owner's steps for the Claude API key: a Console workspace "Modeler One", a
+    $90 spend limit on it, the key, Test, Make active, the presets, and the project's permission.
+  - `docs/research/2026-11-24-note-for-the-sme-acceptance-ruleset.md` holds the two ruleset findings for the SME (D7),
+    linked from `docs/SME_SIGNOFF.md`; the locked ruleset is not edited.
+- **Tests:**
+  - `services/agents/tests/test_claude_api.py`: the request, the fallbacks, key errors, configuration and the free key
+    check, against a stand-in HTTP transport.
+  - `services/api/tests/test_admin_platform.py`: the key, the agent on it, `CLOUD_SERVICES`, and the presets with their
+    refusals.
+
+### Added — the Data room's exact answer cache, and one cached start for every file of a delivery (plan 2026-11-24 §5 items 2 and 3; 2026-11-24)
+- **Why:**
+  - Every run asked the models again for every file. A demo shown again, a delivery sent again in a new project, or a
+    run again after a fix to one file paid for every file once more.
+  - Each file's request began with its own instructions: the extractor's fields and table roles were built into its
+    system prompt per file. The provider's prompt cache could not carry one file's start to the next (the research
+    review, `docs/research/2026-11-24-ai-extraction-cost-reliability.md` §B1–B2).
+- **The answer cache** (`modeler_project.dataroom.answer_cache`), used by A7 triage, A8 extraction and A9 check:
+  - **Where it lives:** `<root>/<tenant>/dataroom_cache/<stage>/<key sha256>.json`, beside the tenant's projects. It is
+    never read for another tenant (client confidentiality). **To clear it:** delete that folder, or call
+    `AnswerCache(ws).clear()`. No admin page clears it yet.
+  - **The key, exactly:**
+    - the tenant, the stage and the prompt version;
+    - the file's sha256 and its path in the delivery (the prompt names it);
+    - the reader: parser and parser version, the version of the lines the agents read (`modeler_intake.room.LINES_VERSION`,
+      new, now `2`), and the sha256 of those lines (`parts_sha256`);
+    - the model the conversation starts on: provider/model id, its service address (OpenAI-compatible services), its
+      effort;
+    - the stage's other inputs, by name. A7: the question. A8: the card's question, products and checklist as the
+      prompt shows them, the triage's topics and reason, the page budget, the checker's feedback. A9: the extraction's
+      tables, and whether this is the first look or the look after the extractor's second pass;
+    - the sha256 of the first request as sent (instructions, tool definitions, task).
+
+    An entry is used only when its stored key equals the asked key, field by field. Never a "similar" answer.
+  - **Only answers code accepted:** an entry is written only when the last submission had no problem left, and only by
+    the model the key names (a chain that switched models in the middle of a file writes nothing). It is checked again
+    against this project's file before it is used.
+  - **A hit** stores the answer in this project's room as if answered. The author is the model that wrote it, with the
+    note "reused: same file, same question, same model (from project X, run Y)" (Y: when that run started). The agents'
+    record gets an `answer_reused` step, and the stage's note counts them. No model is called.
+  - **Redo:** a run asked to redo a stage asks the model again, and its answer replaces the entry.
+- **Cache-friendly prompt order (prompt version `dataroom-5`):**
+  - The extractor's instructions are now one text for every file. The fields and table roles a file's topics need
+    moved into the file's block (`extract_vocabulary`), so a small model's request is the same size as before.
+  - Every request now starts with the same bytes for every file of a delivery: the instructions, the tools (they
+    already named no file; now tested), then the delivery's block (A8: question, products, checklist; A7: the
+    question), then the file's block last.
+  - `run_tool_loop(shared=…)` marks where the delivery's block ends. Claude's client puts a cache breakpoint there
+    (three of a request's four: the instructions, the delivery's block, the conversation). The other clients send one
+    text; the order alone serves a provider's own prefix caching.
+  - `FallbackChat.start()` says which model a conversation would start on, without starting one.
+- **Measured** (`services/agents/tests/test_dataroom_cache.py`): a recording fake model on the made-up Exampleamide
+  delivery (10 files), answering with the recorded Nemotron answers; no model is called.
+
+  | Agent | First run (project p1) | Second run, same tenant, new project | Another tenant |
+  |---|---|---|---|
+  | A6 question | 3 calls | 3 calls | 3 calls |
+  | A7 triage | 20 calls, 10 files | **0** | 20 calls |
+  | A8 extract | 24 calls, 9 files | **0** | 24 calls |
+  | A9 check | 12 calls, 6 files | **0** | 12 calls |
+  | A10 write | 3 calls | 3 calls | 3 calls |
+
+  A call is one request: a file takes at least two (the submission, then "done"). The saving in dollars on Claude is
+  not measured here.
+- **Known gaps:**
+  - A6's card and A10's text are not cached. With a real model, a card drafted again in other words changes the triage
+    and extraction keys, so those are asked again (as they must be: their prompts differ). A run again in the same
+    project, or the same confirmed card, reuses them.
+  - An answer whose last submission code still refused in part (5 of the 9 recorded extractions, if the model does not
+    leave out what was refused) is never cached and is asked again each run.
+- **Impact:** no API or contract change. The new prompt version means no answer written before it is reused. New tests
+  in `services/agents/tests/test_dataroom_cache.py`, `test_claude_bedrock.py`, `test_llm.py`,
+  `packages/project-model/tests/test_dataroom_answer_cache.py` and `packages/data-intake/tests/test_room.py`.
 
 ### Fixed — the campaigns list (HTTP 500); three open gaps of the data story; Docs — the next phase's plan and four literature reviews (2026-11-24)
 - **The campaigns could not be read (HTTP 500), seen on the server:**

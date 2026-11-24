@@ -200,6 +200,31 @@ def test_a_paid_run_pauses_at_the_cap_and_raising_the_cap_resumes_it(client, tmp
     assert [(e.before["run_usd"], e.after["run_usd"], e.reason) for e in events][-1] == (2.5, 60.0, "the demo needs more")
 
 
+def test_the_months_paid_spend_counts_every_agents_paid_calls(client, tmp_path, monkeypatch):
+    # A2 on a paid model is metered on the same ledger (no cap: it only warns); its spend counts towards the month's cap
+    # a Data room run stops at
+    researcher = agent_jobs._metered(_PaidFake(), "A2", str(tmp_path))
+    for _ in range(2):
+        researcher.complete([{"role": "system", "content": ""}, {"role": "user", "content": "x"}],
+                            [{"type": "function", "function": {"name": "submit_writing"}}])
+    rows = ps.PaidSpend(str(tmp_path)).rows()
+    assert [r["agent"] for r in rows] == ["A2", "A2"] and ps.PaidSpend(str(tmp_path)).month_usd() == 2.0
+    assert client.put("/api/v1/admin/limits/paid", json={"run_usd": 1, "month_usd": 2, "reason": "a test's month"},
+                      headers=_as("owner")).status_code == 200
+    extractor = _PaidFake()
+    monkeypatch.setattr(agent_jobs, "project_model", lambda agent, ws: (extractor, None))
+    up = client.post(f"{API}/uploads", headers=_as("t"), files=[("files", ("delivery.zip", delivery_zip(), "application/zip"))])
+    assert up.status_code == 201
+    assert client.post(f"{API}/run", headers=_as("t"), json={}).status_code == 202
+    room = _room(tmp_path)
+    deadline = time.monotonic() + 60
+    while room.run().get("state") in ("running", None) and time.monotonic() < deadline:
+        time.sleep(0.05)
+    pause = room.run()["pause"]
+    assert pause["reason"] == "budget_cap" and pause["said"] == "Paid models reached this month's $2 limit (Admin → Limits)."
+    assert extractor.calls == 0
+
+
 def test_a_change_of_a_model_a_key_or_a_permission_resumes_the_runs_it_may_unblock(client, tmp_path):
     rate, cap, nokey = _room(tmp_path, "t1", "p1"), _room(tmp_path, "t1", "p2"), _room(tmp_path, "t2", "p3")
     _paused(rate, "provider_unavailable", datetime.now(UTC) + timedelta(days=1))

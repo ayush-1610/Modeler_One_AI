@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import pytest
 
-from modeler_agents.dataroom.cost import estimate, files_to_do
+from modeler_agents.dataroom.cost import SHARES, estimate, files_to_do
 from modeler_agents.llm import ChatResult
 from modeler_agents.spend import BudgetCapReached, SpendBudget, guard_paid, uses_paid
 from modeler_agents.usage_report import call_cost, price_key
@@ -58,6 +58,22 @@ def test_the_guard_refuses_a_paid_call_at_the_cap_and_records_each_call():
     assert guard_paid(free, month, PAID) is free and not uses_paid(free, PAID)
 
 
+def test_every_agents_paid_calls_are_metered_once_and_a_run_moves_them_behind_its_cap():
+    # every agent's paid model is metered with no cap (A1 … A5 only warn); the Data room's run moves the same guard
+    # behind its own budget, so each call is recorded once, on the run's budget
+    metered, capped = [], []
+    meter = SpendBudget(run_cap=None, month_cap=None, record=metered.append)
+    inner = _Model("anthropic", "claude-opus-5-5")
+    guarded = guard_paid(inner, meter, PAID, "A2")
+    for _ in range(3):
+        guarded.complete([], [])                       # no cap: never refused
+    assert len(metered) == 3 and metered[0]["agent"] == "A2"
+    run = SpendBudget(run_cap=10, month_cap=90, record=capped.append)
+    assert guard_paid(guarded, run, PAID, "A8") is guarded and guarded.inner is inner
+    guarded.complete([], [])
+    assert len(metered) == 3 and [r["agent"] for r in capped] == ["A8"] and run.run_spent == pytest.approx(1.0)
+
+
 def test_a_paid_runs_estimate_follows_the_measured_ratios_and_prices_only_the_paid_agents():
     # ten files of 40,000 characters (10,000 tokens each) on Claude Opus 5.5: §2.2's 10-file delivery
     files = [(f"f{i}.pdf", 40_000) for i in range(10)]
@@ -69,9 +85,12 @@ def test_a_paid_runs_estimate_follows_the_measured_ratios_and_prices_only_the_pa
     # 0.765 M input at $4 and 90 k output × 1.5 at $20 … 0.9 M and 130 k: the plan's "$5–8 without the cache"
     assert (got["usd_low"], got["usd_high"]) == (pytest.approx(5.76), pytest.approx(7.5))
     assert got["usd"] == pytest.approx((got["usd_low"] + got["usd_high"]) / 2, abs=0.01)
-    # only the extractor on a paid model: its 60 % share
+    # only the extractor on a paid model: its measured share of the input and of the output (`DELIVERY_TOKENS`)
+    share_in, share_out = SHARES["A8"]
+    assert 0.8 < share_in < 0.9 and sum(s for s, _o in SHARES.values()) == pytest.approx(1.0)
     mixed = {**{a: ("nvidia", "nvidia/nemotron-3-ultra-550b-a55b") for a in opus}, "A8": opus["A8"]}
-    assert estimate(files, mixed, PAID)["usd_high"] == pytest.approx(0.6 * 7.5)
+    high = (share_in * got["input_tokens_high"] * 4 + share_out * 130_000 * 1.5 * 20) / 1e6
+    assert estimate(files, mixed, PAID)["usd_high"] == pytest.approx(high, abs=0.01)
     free = estimate(files, {a: ("litellm", "qwen-coder") for a in opus}, PAID)
     assert not free["paid"] and free["usd"] == 0.0
     # a very large file is read through the tools, a page at a time: its tokens are capped

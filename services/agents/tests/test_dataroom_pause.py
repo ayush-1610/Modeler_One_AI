@@ -193,6 +193,32 @@ def test_a_cap_never_fails_over_to_the_free_model_and_a_free_model_is_never_capp
     HEALTH.reset()
 
 
+def test_a_paid_model_behind_the_cap_is_keyed_in_the_answer_cache_by_its_own_name(tmp_path):
+    # the cap's guard wraps the chain's paid model: the cache's key must still name that model, so another project of
+    # the tenant reuses its answers with no call, and no spend
+    HEALTH.reset()
+    store, used = _read(tmp_path)
+    paid, rows = PaidModel(usage={"input_tokens": 1_000}), []
+    budget = SpendBudget(run_cap=100, month_cap=900, record=rows.append)
+
+    def chain(agent: str):
+        return guard_paid(FallbackChat([paid, Counting()], labels=["Claude", "Nemotron Ultra"]), budget, PAID, agent)
+
+    run_room(store, chat_for=lambda agent: chain(agent) if agent == "A7" else None, actor="user:m", stages=["triage"])
+    assert sorted(paid.files("submit_triage")) == sorted(used) and rows
+    keys = [json.loads(p.read_text())["key"]["model"] for p in (tmp_path / "t1" / "dataroom_cache").rglob("*.json")]
+    assert keys and set(keys) == {"bedrock/anthropic.claude-opus-5-5"}
+    other = DataRoomStore(Workspace(FileProjectStore(tmp_path), "t1", "p2"))
+    other.add_upload("Exampleamide delivery.zip", delivery_zip(), by="user:m")
+    run_room(other, chat_for=lambda agent: None, actor="user:m", stages=["read"], use_ocr=False, workers=1)
+    again, spent = PaidModel(), len(rows)
+    doc = run_room(other, chat_for=lambda agent: guard_paid(again, budget, PAID, agent) if agent == "A7" else None,
+                   actor="user:m", stages=["triage"])
+    assert doc["state"] == "done" and again.calls == [] and len(rows) == spent
+    assert all(f.triage is not None for f in other.files() if f.path in used)
+    HEALTH.reset()
+
+
 def test_a_switch_in_the_middle_of_a_step_starts_it_again_on_the_next_model_whose_answer_is_kept(tmp_path):
     # plan §4: the next model restarts the step (one file, one stage) rather than going on with the other's conversation
     HEALTH.reset()
@@ -254,10 +280,18 @@ def test_the_checker_does_not_check_again_a_file_whose_review_checked_its_extrac
     again = Counting()
     run_room(store, chat_for=lambda agent: again, actor="user:m", stages=["check"])
     assert again.calls == []
-    # an extraction made again is checked again, alone
+    # an extraction written again, the same, is checked again from the answer cache: no model call
     one = next(f for f in store.files() if f.path == checked[0])
     extraction, agent = store.extraction(one.sha256)
     store.put_extraction(extraction, one.sha256, agent={**agent, "model": "another"})
+    assert not store.review_current(one.sha256)
+    cached = Counting()
+    run_room(store, chat_for=lambda agent: cached, actor="user:m", stages=["check"])
+    assert cached.calls == [] and store.review_current(one.sha256)
+    # an extraction that changed is checked again by the model, alone
+    changed = extraction.model_copy(update={"tables": [t.model_copy(update={"about": "described again"})
+                                                       for t in extraction.tables]})
+    store.put_extraction(changed, one.sha256, agent={**agent, "model": "another"})
     after = Counting()
     run_room(store, chat_for=lambda agent: after, actor="user:m", stages=["check"])
     assert after.files("submit_review") == [checked[0]]

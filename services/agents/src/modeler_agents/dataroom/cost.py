@@ -13,8 +13,9 @@ the agents still have to read:
 A file not read yet counts its bytes as its characters (an overestimate for a PDF or a workbook, bounded by the cap). A
 file already extracted, or sorted as not needed, is not read again (a re-run, a resumed run) and costs nothing.
 
-The work is shared between the agents (our estimate, not measured): A6 the question 5 %, A7 sorting 15 %, A8
-extraction 60 %, A9 checking 15 %, A10 writing 5 %. Each agent's share is priced at its own model's list price
+The work is shared between the agents as the same stored runs measured it (`usage_report.DELIVERY_TOKENS`, the presets'
+estimate per delivery): of the input, A6 the question about 4 %, A7 sorting 8 %, A8 extraction 84 %, A9 checking 3 %,
+A10 writing 1 %; of the output, likewise by its own split. Each agent's share is priced at its own model's list price
 (`usage_report.PRICES`, the prices of the usage page; a model it does not price as the dearest), without the cache: the
 run is cached at every turn, so it usually costs less. A free model's share costs nothing.
 """
@@ -25,16 +26,19 @@ import hashlib
 from collections.abc import Collection, Mapping
 from typing import Any
 
-from modeler_agents.usage_report import DEAREST, PRICES, price_key
+from modeler_agents.usage_report import DEAREST, DELIVERY_TOKENS, PRICES, THINKING_FACTOR, price_key
 from modeler_project.dataroom.store import DataRoomStore
 
 CALLS_PER_FILE = (8.5, 10.0)
 PROMPT_TOKENS = 4_000
 READ_CAP_TOKENS = 20_000
 OUTPUT_PER_FILE = (9_000, 13_000)
-THINKING = 1.5
+THINKING = THINKING_FACTOR
 CHARS_PER_TOKEN = 4
-SHARES = {"A6": 0.05, "A7": 0.15, "A8": 0.60, "A9": 0.15, "A10": 0.05}
+# each agent's share of a delivery's (input, output) tokens, as measured
+SHARES: dict[str, tuple[float, float]] = {
+    agent: (tokens_in / sum(i for i, _o in DELIVERY_TOKENS.values()), tokens_out / sum(o for _i, o in DELIVERY_TOKENS.values()))
+    for agent, (tokens_in, tokens_out) in DELIVERY_TOKENS.items()}
 
 
 def files_to_do(store: DataRoomStore) -> list[tuple[str, int]]:
@@ -73,7 +77,7 @@ def estimate(files: list[tuple[str, int]], models: Mapping[str, tuple[str, str]]
     outputs = tuple(o * len(files) for o in OUTPUT_PER_FILE)
     usd = [0.0, 0.0]
     agents = []
-    for agent, share in SHARES.items():
+    for agent, (share_in, share_out) in SHARES.items():
         provider, model = models.get(agent, ("", ""))
         costs = provider in paid
         agents.append({"agent": agent, "provider": provider, "model": model, "paid": costs})
@@ -81,7 +85,7 @@ def estimate(files: list[tuple[str, int]], models: Mapping[str, tuple[str, str]]
             continue
         p_in, _write, _read, p_out = PRICES[price_key(model) or DEAREST]
         for i in (0, 1):
-            usd[i] += share * (inputs[i] * p_in + outputs[i] * THINKING * p_out) / 1e6
+            usd[i] += (share_in * inputs[i] * p_in + share_out * outputs[i] * THINKING * p_out) / 1e6
     low, high = (round(u, 2) for u in usd)
     return {"paid": any(a["paid"] for a in agents), "files": len(files), "characters": sum(c for _p, c in files),
             "calls_low": calls[0], "calls_high": calls[1], "input_tokens_low": inputs[0], "input_tokens_high": inputs[1],
@@ -90,4 +94,5 @@ def estimate(files: list[tuple[str, int]], models: Mapping[str, tuple[str, str]]
             "basis": ("tokens ≈ characters / 4 of each file's text; per file 8.5 to 10 model calls, each sending the "
                       "instructions (about 4,000 tokens) and half the file's text read so far, and 9,000 to 13,000 "
                       "output tokens × 1.5 for thinking (measured on three 8 to 11-file deliveries, plan 2026-11-24 "
-                      "§2.2); each agent's share at its model's list price, without the cache")}
+                      "§2.2); each agent's measured share (extraction about 84 % of the input) at its model's list "
+                      "price, without the cache")}

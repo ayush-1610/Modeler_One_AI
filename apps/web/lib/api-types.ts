@@ -66,6 +66,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/agents:preset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Set Preset
+         * @description Put every agent on one preset in one step (plan 2026-11-24 §3): Free, In-house only, Claude demo, Claude all Opus.
+         *     Each agent's change is its own audit event with the same reason. Refused, with nothing changed, when a provider the
+         *     preset needs has no active key.
+         */
+        post: operations["set_preset_api_v1_admin_agents_preset_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/companies": {
         parameters: {
             query?: never;
@@ -3506,6 +3528,28 @@ export interface components {
             /** Reason */
             reason: string;
         };
+        /**
+         * AgentPreset
+         * @description A one-click setting for every agent at once (plan 2026-11-24 §3): what it does, its estimated cost for one
+         *     delivery of about ten files (0 for free and in-house models; an estimate until the calibration run measures it), the
+         *     providers it needs, those with no active key, and whether the agents are on it now.
+         */
+        AgentPreset: {
+            /** Current */
+            current: boolean;
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /** Missing Keys */
+            missing_keys: string[];
+            /** Providers */
+            providers: string[];
+            /** Usd Per Delivery */
+            usd_per_delivery: number;
+            /** What */
+            what: string;
+        };
         /** AgentProvider */
         AgentProvider: {
             /** Has Active Key */
@@ -3585,7 +3629,7 @@ export interface components {
          * AgentsPage
          * @description `efforts` and `claude_models`: the choices for an agent on Claude (Bedrock's model ids); `groq_efforts`: on
          *     GroqCloud; `choices`: the one-click choices each agent's row offers; `chain`: what every agent goes on with when its
-         *     model fails.
+         *     model fails; `presets`: one click for every agent at once.
          */
         AgentsPage: {
             /** Agents */
@@ -3602,6 +3646,8 @@ export interface components {
             groq_efforts: string[];
             /** History */
             history: components["schemas"]["AgentChange"][];
+            /** Presets */
+            presets: components["schemas"]["AgentPreset"][];
             /** Providers */
             providers: components["schemas"]["AgentProvider"][];
         };
@@ -7436,6 +7482,13 @@ export interface components {
             n_units: number;
             /** Ph */
             ph: number | null;
+            /**
+             * Ph By Convention
+             * @default false
+             */
+            ph_by_convention: boolean;
+            /** Ph Convention */
+            ph_convention: number | null;
             /**
              * Plateau
              * @default false
@@ -11765,6 +11818,13 @@ export interface components {
             /** Stages */
             stages?: string[] | null;
         };
+        /** PresetSet */
+        PresetSet: {
+            /** Preset */
+            preset: string;
+            /** Reason */
+            reason: string;
+        };
         /** Problem */
         Problem: {
             /** Code */
@@ -13097,7 +13157,7 @@ export interface components {
          * RoomRunEstimate
          * @description What the next run is expected to cost on paid models (`modeler_agents.dataroom.cost`; plan 2026-11-24 §2.4), from
          *     the files still to read and their sizes: tokens ≈ characters / 4, per file 8.5 to 10 calls and 9,000 to 13,000
-         *     output tokens (measured, §2.2), each agent's share at its model's list price. `paid` false: no agent starts on a
+         *     output tokens (measured, §2.2), each agent's measured share at its model's list price. `paid` false: no agent starts on a
          *     paid model, and the run costs nothing in dollars. The caps a paid run stops at, and this month's paid spend.
          */
         RoomRunEstimate: {
@@ -13910,6 +13970,13 @@ export interface components {
             medium: string;
             /** Ph */
             ph: number | null;
+            /**
+             * Ph By Convention
+             * @default false
+             */
+            ph_by_convention: boolean;
+            /** Ph Convention */
+            ph_convention: number | null;
             /** Solubility Mg Ml */
             solubility_mg_ml: number | null;
             /**
@@ -15476,6 +15543,41 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["AgentSet"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_AgentsPage_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_preset_api_v1_admin_agents_preset_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PresetSet"];
             };
         };
         responses: {

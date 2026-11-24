@@ -155,12 +155,13 @@ def _why(error: str) -> str:
 
 
 def _check_again(store: DataRoomStore, chat_for: Callable[[str], ChatModel | str | None], actor: str,
-                 files: Sequence[str] | None, focus_chars: int | None, agent_stages: Any) -> str:
+                 files: Sequence[str] | None, focus_chars: int | None, agent_stages: Any, redo: Sequence[str] = ()) -> str:
     """The checker's findings back to the extractor, once: each file A9 flagged is extracted again with its issues in
     the prompt, then checked again (a new delivery, 2026-11-24: A9 saw the error, A8 never heard of it). One round per
     extraction: an extraction made on the checker's issues (`checker_issues`) is checked again but never sent back, so a
     run cannot loop, and a run resumed after a pause in the middle of the round finishes it (the files already sent back
-    are only checked) without sending a file back twice. What A9 still finds after it stays on the room as before."""
+    are only checked) without sending a file back twice. What A9 still finds after it stays on the room as before. Both
+    steps use the answer cache unless the run was asked to redo their stage (`redo`)."""
     flagged: dict[str, list[dict[str, Any]]] = {}
     pending: set[str] = set()                       # sent back before a pause, not yet checked again
     for f in store.files():
@@ -183,10 +184,12 @@ def _check_again(store: DataRoomStore, chat_for: Callable[[str], ChatModel | str
     noop = lambda *_a, **_k: None
     if flagged:
         agent_stages.extract(store, extractor, actor=actor, redo=True, only=set(flagged), step=noop,
-                             focus_chars=focus_chars or agent_stages.FOCUS_CHARS, feedback=flagged)
-    # an extraction made again is checked again; one that got no new answer keeps its review and is not asked again
+                             focus_chars=focus_chars or agent_stages.FOCUS_CHARS, feedback=flagged,
+                             reuse="extract" not in redo)
+    # an extraction made again is checked again (its own look in the cache); one that got no new answer keeps its review
+    # and is not asked again
     agent_stages.check(store, checker, actor=actor, redo=False, only=set(flagged) | pending, step=noop,
-                       focus_chars=focus_chars or agent_stages.FOCUS_CHARS)
+                       focus_chars=focus_chars or agent_stages.FOCUS_CHARS, reuse="check" not in redo, recheck=True)
     said = []
     if flagged:
         still = sum(1 for path, issues in store.reviews().items() if path in flagged and issues)
@@ -267,7 +270,7 @@ def run_room(store: DataRoomStore, *, chat_for: Callable[[str], ChatModel | str 
             note = getattr(agent_stages, sid)(store, model, actor=actor, redo=sid in redo, only=only,
                                               focus_chars=focus_chars or agent_stages.FOCUS_CHARS, step=step)
             note = note or run.stage(sid)["note"]
-            if sid == "check" and (again := _check_again(store, chat_for, actor, files, focus_chars, agent_stages)):
+            if sid == "check" and (again := _check_again(store, chat_for, actor, files, focus_chars, agent_stages, redo)):
                 note += f"; {again}"
             switches = getattr(model, "switches", [])
             if switches:

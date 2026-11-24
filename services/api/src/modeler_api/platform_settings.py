@@ -60,6 +60,7 @@ AGENT_PROVIDERS: dict[str, str] = {
     "off": "Off (every step on its manual path)",
     "litellm": "In-house model (LiteLLM proxy)",
     "bedrock": "Claude on Amazon Bedrock",
+    "anthropic": "Claude API (Anthropic Console key)",
     "groq": "gpt-oss-120b on GroqCloud",
     "nvidia": "NVIDIA API catalog",
     "openai_compat": "Another OpenAI-compatible service",
@@ -77,6 +78,17 @@ MODEL_CHOICES: tuple[dict[str, Any], ...] = (
     {"id": "claude", "label": "Claude", "provider": "bedrock", "model": "anthropic.claude-opus-5-5", "effort": "",
      "tools": True, "reads_scans": True,
      "terms": "Amazon Bedrock, in your AWS account: Bedrock does not use inputs to train models."},
+    # Anthropic's own Claude API with the Console key (D1, 2026-11-24); paid: the hard cap of D3 applies
+    {"id": "claude-api-opus", "label": "Claude Opus 5.5 (Claude API)", "provider": "anthropic", "model": "claude-opus-5-5",
+     "effort": "", "tools": True, "reads_scans": True,
+     "terms": "Anthropic's Claude API under its commercial terms: inputs are not used to train models (check the current "
+              "terms in the Console). Paid: the per-run and monthly caps apply. Client files go to it only with the "
+              "client's written permission recorded on the project."},
+    {"id": "claude-api-sonnet", "label": "Claude Sonnet 5.5 (Claude API)", "provider": "anthropic",
+     "model": "claude-sonnet-5-5", "effort": "", "tools": True, "reads_scans": True,
+     "terms": "Anthropic's Claude API under its commercial terms: inputs are not used to train models (check the current "
+              "terms in the Console). Paid: the per-run and monthly caps apply. Client files go to it only with the "
+              "client's written permission recorded on the project."},
     {"id": "gpt-oss-120b", "label": "gpt-oss-120b", "provider": "groq", "model": "openai/gpt-oss-120b", "effort": "medium",
      "tools": True, "reads_scans": False,
      "terms": "GroqCloud: does not train on inputs; turn on Zero Data Retention in its console before sending client "
@@ -87,6 +99,31 @@ MODEL_CHOICES: tuple[dict[str, Any], ...] = (
      "terms": "NVIDIA's trial: inputs may be used to improve NVIDIA's products. For testing and made-up data, not "
               "client files."},
 )
+# One-click presets for every agent at once (plan 2026-11-24 §3, approved by the owner): each agent's provider, model,
+# effort and fallback. A9 always runs on a model other than A8's: its second opinion must not be the extractor's own.
+_NEMOTRON = ("nvidia", "nvidia/nemotron-3-ultra-550b-a55b", "", "")
+_GPT_OSS = ("groq", "openai/gpt-oss-120b", "medium", "")
+_QWEN = ("litellm", "qwen-coder", "", "")
+_SONNET = ("anthropic", "claude-sonnet-5-5", "", "")
+_OPUS = ("anthropic", "claude-opus-5-5", "", "claude-sonnet-5-5")
+PRESETS: tuple[dict[str, Any], ...] = (
+    {"id": "free", "label": "Free",
+     "what": "NVIDIA's Nemotron Ultra for every agent, GroqCloud's gpt-oss-120b for the second opinion (A9). Free trial "
+             "services: for made-up data, or client files only with the client's written permission.",
+     "agents": {a: (_GPT_OSS if a == "A9" else _NEMOTRON) for a in AGENTS}},
+    {"id": "in-house", "label": "In-house only",
+     "what": "The model on your server for every agent: client files never leave it.",
+     "agents": dict.fromkeys(AGENTS, _QWEN)},
+    {"id": "claude-demo", "label": "Claude demo",
+     "what": "Claude Opus 5.5 extracts (A8); Claude Sonnet 5.5 for the question, sorting, the second opinion and the "
+             "report. The split of plan §2.3. Paid: the per-run and monthly caps apply.",
+     "agents": {a: (_OPUS if a == "A8" else _SONNET) for a in AGENTS}},
+    {"id": "claude-opus", "label": "Claude, all Opus",
+     "what": "Claude Opus 5.5 for every agent; Claude Sonnet 5.5 for the second opinion (A9). The most accurate, the "
+             "most expensive. Paid: the per-run and monthly caps apply.",
+     "agents": {a: (_SONNET if a == "A9" else _OPUS) for a in AGENTS}},
+)
+
 # Each provider's key fields: (name, label, secret, required). Bedrock takes a Bedrock API key, or an AWS access key
 # with its secret (`anthropic.AnthropicBedrockMantle`); the region is not a secret. GroqCloud's address is fixed.
 KEY_PROVIDERS: dict[str, dict[str, Any]] = {
@@ -96,6 +133,8 @@ KEY_PROVIDERS: dict[str, dict[str, Any]] = {
                 "fields": (("aws_region", "AWS region", False, True), ("api_key", "Bedrock API key", True, False),
                            ("aws_access_key", "AWS access key ID", True, False),
                            ("aws_secret_key", "AWS secret access key", True, False))},
+    # Anthropic's own Claude API: one Console key, made in the Console workspace that carries the spend limit (D1)
+    "anthropic": {"label": "Claude API (Anthropic Console)", "fields": (("api_key", "Claude API key", True, True),)},
     "groq": {"label": "gpt-oss-120b on GroqCloud", "fields": (("api_key", "GroqCloud API key", True, True),)},
     "nvidia": {"label": "NVIDIA API catalog (build.nvidia.com)", "fields": (("api_key", "NVIDIA API key", True, True),)},
     # any OpenAI-compatible Chat Completions service (Cerebras, NVIDIA's API catalog, OpenRouter …): its address and key;
@@ -286,7 +325,7 @@ class AgentSettings:
             raise SettingsError(f"unknown provider {provider!r}; one of: {', '.join(AGENT_PROVIDERS)}")
         if provider in KEY_PROVIDERS and not model.strip():
             raise SettingsError(f"{AGENT_PROVIDERS[provider]} needs a model name")
-        claude, groq = provider == "bedrock", provider == "groq"
+        claude, groq = provider in ("bedrock", "anthropic"), provider == "groq"
         if claude and effort and effort not in EFFORTS:
             raise SettingsError(f"effort is one of {', '.join(EFFORTS)}")
         if groq and effort and effort not in GROQ_EFFORTS:
@@ -391,6 +430,9 @@ def setting_env(setting: dict[str, Any], key: dict[str, str]) -> dict[str, str]:
         if key.get("api_key"):
             return env | {"BEDROCK_API_KEY": key["api_key"]}
         return env | {"AWS_ACCESS_KEY_ID": key["aws_access_key"], "AWS_SECRET_ACCESS_KEY": key["aws_secret_key"]}
+    if setting["provider"] == "anthropic":
+        return {"MODELER_LLM_PROVIDER": "anthropic", "ANTHROPIC_API_KEY": key["api_key"], "MODELER_LLM_MODEL": setting["model"],
+                "MODELER_LLM_EFFORT": setting.get("effort") or "", "MODELER_LLM_FALLBACK": setting.get("fallback") or ""}
     if setting["provider"] == "groq":
         return {"MODELER_LLM_PROVIDER": "groq", "GROQ_API_KEY": key["api_key"], "MODELER_LLM_MODEL": setting["model"],
                 "MODELER_LLM_EFFORT": setting.get("effort") or ""}
