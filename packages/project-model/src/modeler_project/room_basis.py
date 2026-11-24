@@ -178,6 +178,7 @@ class RoomBasis(_B):
     blq: tuple[str, ...] = ()
     be: tuple[BeSummary, ...] = ()
     full: bool = True                        # False: the card and the applications only (`room_basis(full=False)`)
+    basis_sha256: str = ""                   # source "snapshot": the sha256 of the send's basis its signature covers
 
     @property
     def codes(self) -> tuple[str, ...]:
@@ -189,14 +190,16 @@ class RoomBasis(_B):
 
 
 def room_basis(ws: Workspace, *, full: bool = True) -> RoomBasis | None:
-    """What the room's send rests on, or None when the project has no Data room or no question card. `full=False` reads
-    the card and the applications decision only (no assembly of the room): what Start and the Inputs check need.
-
-    The one place the room is read for the brief, the plan, the MAP and the VBE panel: switch it to the send's snapshot
-    here."""
+    """What the room's send rests on, or None when the project has no Data room or no question card: the newest send's
+    snapshot once the room was sent ("snapshot", the record its signature covers), else the live room ("live"). So the
+    brief, the plan, the MAP and the VBE panel take what was sent, and a decision changed in the room later reaches
+    them only with the next send. `full=False` reads the live card and applications decision only (no assembly of the
+    room): what Start's advice and the Inputs check need, which follow the room as it is now."""
     store = DataRoomStore(ws)
     if not store.available:
         return None
+    if full and (sent := sent_basis(store)) is not None:
+        return sent
     card, confirmed = store.question()
     if card is None:
         return None
@@ -206,6 +209,20 @@ def room_basis(ws: Workspace, *, full: bool = True) -> RoomBasis | None:
         paths = {f.path: f.sha256 for f in store.files()}
         return _card_part(card, confirmed, decision, paths).model_copy(update={"full": False})
     return basis_from_view(room_view(store))
+
+
+def sent_basis(store: DataRoomStore) -> RoomBasis | None:
+    """The newest send's reading of the room (`publish.publication_basis`, format 2 on), or None before the first send
+    or when the newest send was recorded before the snapshot was kept (the live room is read then, as it was)."""
+    sends = store.publications()
+    if not sends:
+        return None
+    newest = sends[-1]
+    kept = (newest.get("basis") or {}).get("room_basis")
+    if not kept:
+        return None
+    return RoomBasis.model_validate(kept).model_copy(update={"source": "snapshot",
+                                                             "basis_sha256": str(newest.get("basis_sha256", ""))})
 
 
 def _cite(chip: Chip) -> RoomCite | None:

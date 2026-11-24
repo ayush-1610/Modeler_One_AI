@@ -394,6 +394,9 @@ streams; every Data room turn and switch is recorded; each answer names the mode
       nothing. The walk found and fixed two defects: the VBE TEST suggestion (the reformulated product first) and the Run
       step's wording once the MAP is signed. It also found one locked-file wording for the SME (the split's fed-study
       limitation on a fasted-only question; CHANGELOG).
+    - After a send, the brief, the plan, the MAP and the VBE panel read the send's signed snapshot of the room
+      (`room_basis` source "snapshot", basis format 2), not the live room.
+    - The calibration run is one server command (`deploy/server/calibrate_dataroom.sh`).
 - **Next:**
   - the calibration run on Claude (D2: about $5, a made-up delivery; its cost and accuracy go to the owner before
     any other Claude spend). Ready: the owner runs `bash deploy/server/calibrate_dataroom.sh` on the server once the

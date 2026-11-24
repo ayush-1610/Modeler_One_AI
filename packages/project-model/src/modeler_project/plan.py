@@ -338,6 +338,10 @@ def room_limitations(room: RoomBasis | None) -> tuple[str, ...]:
     if room is None or not room.confirmed or not room.full:
         return ()
     lines = []
+    if room.source == "snapshot" and room.basis_sha256:
+        lines.append("Data room: what the MAP takes from the Data room is what was sent, as its signed record holds it "
+                     f"(basis sha256 {room.basis_sha256[:12]}); a change made in the room after it reaches the MAP only "
+                     "with the next send")
     for d in room.decisions:
         if d.waiting:
             lines.append(f"Data room decision not made when the inputs were sent: {d.title}")

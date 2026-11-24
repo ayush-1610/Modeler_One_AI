@@ -54,7 +54,7 @@ the plan and the MAP to read. Its shape (`publication_record`; format "dataroom-
      "signed_record_sha256": "<sha256 of the record the signature covers>",
      "basis_sha256": "<sha256 of `basis`, canonical JSON: sort_keys, separators (',', ':'), UTF-8>",
      "basis": {
-        "format": "dataroom-publication-basis/1",
+        "format": "dataroom-publication-basis/2",     # /2 added "room_basis"; a /1 basis has none
         "rules": "<the Data room rules' label and version>",
         "question": {"card": <QuestionCard as JSON> | null, "confirmed": bool, "confirmed_by": str, "confirmed_at": str},
         "applications": null | {"chosen": "<option id, e.g. pbbm_bridging_vbe+food_effect>", "by_person": bool,
@@ -66,7 +66,8 @@ the plan and the MAP to read. Its shape (`publication_record`; format "dataroom-
                               "not_told", "compared", "passed", "explained", "investigate", "differ", "tiers",
                               "summary"}],                                   # `model.NcaReproduction` as JSON
         "blq": [{"study_id", "lloq", "unit", "analysis_set", "arithmetic_mean", "geometric_mean"}],
-        "notes": ["<each non-blocking remark of the plan: the fed meal not given to a fasted arm, water not stated, …>"]},
+        "notes": ["<each non-blocking remark of the plan: the fed meal not given to a fasted arm, water not stated, …>"],
+        "room_basis": <modeler_project.room_basis.RoomBasis as JSON> | null},   # what the brief, plan, MAP and VBE read
      "evidence": [{"id", "target", "value", "unit", "source_type", "provider", "extraction", "note"}],
      "datasets": [{"id", "study_id", "n", "route", "design", "formulation", "food_state", "meals", "water_ml_per_kg",
                    "demographics", "demographics_choice", "analyte", "matrix", "note"}],
@@ -107,7 +108,7 @@ from modeler_project.workspace import Workspace
 
 SUPERSEDED = "superseded by publication"
 FORMAT = "dataroom-publication/1"
-BASIS_FORMAT = "dataroom-publication-basis/1"
+BASIS_FORMAT = "dataroom-publication-basis/2"
 _LITERATURE_TOPICS = {"literature", "label"}          # as `assemble` tells a literature file (its triage's topics)
 _SENT_PREFIXES = ("ev-dr", "ds-dr")                     # the ids "Send to the model" gives
 
@@ -679,7 +680,13 @@ def plan_publication(view: DataRoomView, *, by: str, ws: Workspace | None = None
 
 def publication_basis(view: DataRoomView, plan: Publication, *, question: dict[str, Any] | None = None) -> dict[str, Any]:
     """What a send rests on, for the plan and the MAP to read (the shape is in the module docstring). `question`: the
-    store's record of the question card (who confirmed it, when)."""
+    store's record of the question card (who confirmed it, when). `room_basis` is the reading of the room the brief,
+    the plan, the MAP and the VBE panel take (`modeler_project.room_basis`), as it stood when sent: after a send they
+    read it from here, so a decision changed in the room later reaches them only with the next send."""
+    # imported here: room_basis reads this module (`slug`)
+    from modeler_project.room_basis import basis_from_view
+
+    room = basis_from_view(view)
     apps = next((d for d in view.decisions if d.id == checklist.DECISION), None)
     in_force = checklist.chosen_applications(apps)
     chosen = {d.id: d.chosen or d.suggested for d in view.decisions}
@@ -713,6 +720,7 @@ def publication_basis(view: DataRoomView, plan: Publication, *, question: dict[s
                  "arithmetic_mean": "below the LLOQ counted as 0",
                  "geometric_mean": "below the LLOQ left out (quantifiable values only)"} for s in view.studies],
         "notes": list(plan.notes),
+        "room_basis": room.model_dump(mode="json") if room is not None else None,
     }
 
 

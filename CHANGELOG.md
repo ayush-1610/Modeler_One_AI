@@ -13,6 +13,23 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 
 ## [Unreleased] — make the pipeline do real PBPK, S0 → S7
 
+### Changed — after a send, the brief, the plan, the MAP and the VBE panel read what was sent, not the live room (2026-11-24)
+- **Why:** a traceability gap (Part 11, ICH M15). `room_basis` read the live room. A decision changed in the room after
+  "Send to the model" therefore reached the plan and the signed MAP's limitations, while the CPF still held the values
+  sent. The signed record and the model could disagree.
+- **What:**
+  - Each send keeps its reading of the room (`RoomBasis`) in its signed record (`basis.room_basis`; basis format
+    `dataroom-publication-basis/2`). The signature covers its sha256, as before.
+  - `room_basis(ws)` reads the newest send's snapshot (source "snapshot") once there is one, and the live room before.
+    A send recorded before the snapshot was kept (format 1) falls back to the live room, as before.
+  - `room_basis(ws, full=False)` (Start's advice, the Inputs check) still follows the room as it is now.
+  - The MAP names it: "Data room: what the MAP takes from the Data room is what was sent, as its signed record holds it
+    (basis sha256 …)". An unchanged re-send keeps the same sha256, so the line does not change.
+- **Impact:** a decision changed in the room after a send reaches Start's drafts, the plan and the MAP only with the
+  next send. Start's advice still shows where Start differs from the room's current card.
+- **Tests:** `test_after_a_send_the_brief_plan_and_map_read_what_was_sent_until_the_next_send`,
+  `test_a_send_recorded_before_the_snapshot_was_kept_reads_the_live_room`.
+
 ### Added — the Data room's calibration run, one command on the server (decision D2) (2026-11-24)
 - **Why:** D2: one run on Claude, about $5, on a made-up delivery, whose cost and accuracy the owner sees before any other
   Claude spend. A Claude key cannot be given to this cloud session (Anthropic's hosts take no network secret here), and

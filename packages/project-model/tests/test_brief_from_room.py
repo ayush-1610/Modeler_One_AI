@@ -426,3 +426,51 @@ def test_the_review_pins_the_suggestion_on_the_vbe_application_only(ws):
     assert vbe["suggested"]["test_formulation"]["value"] == "Exampleamide_100_mg_reformulated"   # the arm the question asks about
     [plain] = review_applications(plan, cpf, validate(plan, cpf, ROWS))["pinned"]
     assert plain["suggested"] is None
+
+
+# --- after a send, the snapshot ---------------------------------------------------------------------------------------
+
+
+def _send(ws: Workspace, pub_id: str, *, keep_snapshot: bool = True) -> dict:
+    """A send's record, as "Send to the model" writes it (without the evidence and datasets the registers take)."""
+    from modeler_project.dataroom.publish import plan_publication, publication_basis, publication_record
+
+    store = DataRoomStore(ws)
+    view = room_view(store)
+    plan = plan_publication(view, by="u1", ws=ws)
+    basis = publication_basis(view, plan, question=store.question_record())
+    if not keep_snapshot:                           # a send recorded before the snapshot was kept (format 1)
+        basis = {k: v for k, v in basis.items() if k != "room_basis"} | {"format": "dataroom-publication-basis/1"}
+    record = publication_record(pub_id, basis=basis, plan=plan, written={"evidence": 0, "datasets": 0, "skipped": 0,
+                                                                        "superseded": 0}, by="u1", reason="sent")
+    store.put_publication(pub_id, record)
+    return record
+
+
+def test_after_a_send_the_brief_plan_and_map_read_what_was_sent_until_the_next_send(ws):
+    store = DataRoomStore(ws)
+    assert room_basis(ws).source == "live"
+    record = _send(ws, "pub-20261124T100000Z-aaaaaa")
+    sent = room_basis(ws)
+    assert (sent.source, sent.basis_sha256) == ("snapshot", record["basis_sha256"])
+    assert sent.model_dump(exclude={"source", "basis_sha256"}) == basis_from_view(room_view(store)).model_dump(
+        exclude={"source", "basis_sha256"})
+    # a decision changed in the room after the send: the plan's basis keeps what was sent; the live card read follows
+    population = next(d for d in room_view(store).decisions if d.id.startswith("population:"))
+    other = next(o.id for o in population.options if o.id != population.suggested)
+    store.decide(population.id, other, by="Dr Modeller", reason="changed after the send")
+    assert room_basis(ws).decisions == sent.decisions
+    assert room_basis(ws, full=False).source == "live"
+    (line, *_rest) = room_limitations(room_basis(ws))
+    assert line.startswith("Data room: what the MAP takes from the Data room is what was sent") and \
+        record["basis_sha256"][:12] in line
+    # the next send carries the change
+    _send(ws, "pub-20261124T110000Z-bbbbbb")
+    assert room_basis(ws).decisions != sent.decisions
+    assert any("changed after the send" in d.reason for d in room_basis(ws).decisions)
+
+
+def test_a_send_recorded_before_the_snapshot_was_kept_reads_the_live_room(ws):
+    _send(ws, "pub-20261124T100000Z-cccccc", keep_snapshot=False)
+    assert room_basis(ws).source == "live"
+    assert not any(line.startswith("Data room: what the MAP") for line in room_limitations(room_basis(ws)))
