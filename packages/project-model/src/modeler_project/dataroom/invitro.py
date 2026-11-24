@@ -85,7 +85,12 @@ def _view_id(table_id: str, group: str) -> str:
 
 def dissolution_views(table: ReadTable, *, products: dict[str, str] | None = None,
                       rules: Rules | None = None) -> tuple[list[DissolutionView], list[Problem]]:
-    """One profile per side-by-side group of a dissolution table (a batch, a product), units down and times across."""
+    """One profile per group of a dissolution table (a batch, a product, a medium), in any of the three layouts a lab
+    writes (a new delivery, 2026-11-24: the second and third read nothing and said nothing):
+    - units down and times across (each time a column with its time in the header);
+    - times down and units across (a "time" column; each unit a value column);
+    - one line per unit and time (a "unit", a "time" and a "value" column; a "batch" or "medium" column groups them).
+    A line whose "statistic" cell says mean, SD or RSD is the client's own summary, as a summary line is."""
     rules = rules or load_rules()
     desc = table.description
     products = products or {}
@@ -93,28 +98,48 @@ def dissolution_views(table: ReadTable, *, products: dict[str, str] | None = Non
     const = {k.lower(): v for k, v in desc.constants.items()}
     medium = const.get("medium", "")
     problems: list[Problem] = []
-    groups: dict[str, dict[float, list[tuple[float | None, Chip]]]] = defaultdict(lambda: defaultdict(list))
+    # group -> unit -> time (min) -> (number, chip); the units keep the order they are met in
+    data: dict[str, dict[tuple, dict[float, tuple[float | None, Chip]]]] = defaultdict(lambda: defaultdict(dict))
     summaries: dict[str, dict[str, dict[float, tuple[str, Chip]]]] = defaultdict(lambda: defaultdict(dict))
-    units_per_group: dict[str, int] = defaultdict(int)
+    group_medium: dict[str, str] = {}
+    untimed = 0
     for row in table.rows:
-        cells = [c for c in row.cells if c.role == "value" and c.time is not None]
-        if row.summary:
-            for c in cells:
-                summaries[c.group][row.summary.lower()][c.time * factor] = (c.text, c.chip)
-            continue
-        seen: set[str] = set()
-        for c in cells:
-            number = parse_number(c.text)
+        one = {c.role: c for c in row.cells if c.role in ("unit", "time", "batch", "medium", "statistic")}
+        row_time = parse_number(one["time"].text, decimal_comma=table.decimal_comma) if "time" in one else None
+        row_group = " · ".join(one[r].text.strip() for r in ("batch", "medium") if r in one and one[r].text.strip())
+        statistic = one["statistic"].text.strip().lower().rstrip(":") if "statistic" in one else ""
+        summary = (row.summary or ("mean" if statistic in ("mean", "avg", "average") else
+                                   statistic if statistic in ("sd", "rsd", "%rsd", "rsd%", "cv", "cv%") else "")).lower()
+        for c in (c for c in row.cells if c.role == "value"):
+            t = c.time if c.time is not None else row_time
+            group = c.group or row_group
+            if "medium" in one and one["medium"].text.strip():
+                group_medium[group] = one["medium"].text.strip()
+            if t is None:
+                untimed += 1
+                continue
+            if summary:
+                summaries[group][summary][t * factor] = (c.text, c.chip)
+                continue
+            number = parse_number(c.text, decimal_comma=table.decimal_comma)
             if number is None and c.text.strip():
                 problems.append(Problem(code="UNREADABLE_VALUE", where=c.chip,
                                         message=f"line {row.line}: {c.text!r} is not a percentage dissolved"))
-            groups[c.group][c.time * factor].append((number, c.chip))
-            seen.add(c.group)
-        for g in seen:
-            units_per_group[g] += 1
+            # the unit a value belongs to: its line (times across), its own unit cell (one line per unit and time), or
+            # its column (times down, units across)
+            unit = (("line", row.line) if c.time is not None else ("unit", one["unit"].text.strip()) if "unit" in one
+                    else ("column", c.chip.cell))
+            data[group][unit][t * factor] = (number, c.chip)
+    if untimed and not data:
+        problems.append(Problem(code="NO_TIME_FOR_VALUES", severity="error", message=(
+            f"the dissolution table on {desc.part} of {desc.file}: {untimed} values have no time (none in their column's "
+            "header and no time column on their line); no profile is read from it")))
     views: list[DissolutionView] = []
     tol_digit, rsd_tol = rules.dissolution.client_mean_tolerance_last_digit, rules.dissolution.rsd_tolerance_points
-    for group, by_time in groups.items():
+    for group, units in data.items():
+        unit_keys = list(units)
+        by_time: dict[float, list[tuple[float | None, Chip]]] = {
+            t: [units[u][t] for u in unit_keys if t in units[u]] for t in sorted({t for u in unit_keys for t in units[u]})}
         empty = [t for t, got in by_time.items() if not any(x is not None for x, _ in got)]
         if empty:
             problems.append(Problem(code="TIME_WITHOUT_VALUES", message=(
@@ -122,8 +147,8 @@ def dissolution_views(table: ReadTable, *, products: dict[str, str] | None = Non
         times = sorted(t for t in by_time if t not in empty)
         if not times:
             continue
-        n_units = units_per_group[group]
-        vessels = [tuple(by_time[t][i][0] if i < len(by_time[t]) else None for t in times) for i in range(n_units)]
+        n_units = len(unit_keys)
+        vessels = [tuple(units[u][t][0] if t in units[u] else None for t in times) for u in unit_keys]
         means, sds, chips = [], [], []
         own: list[Problem] = []
         for t in times:
@@ -137,19 +162,20 @@ def dissolution_views(table: ReadTable, *, products: dict[str, str] | None = Non
         rsd_row = next((summary[k] for k in ("rsd", "cv", "%rsd", "rsd%") if k in summary), {})
         for i, t in enumerate(times):
             text, chip = mean_row.get(t, ("", None))
-            theirs = parse_number(text) if text else None
+            theirs = parse_number(text, decimal_comma=table.decimal_comma) if text else None
             client_mean.append(theirs)
             if theirs is not None and abs(theirs - means[i]) > tol_digit * 10 ** -_decimals(text) + 1e-9:
                 own.append(Problem(code="MEAN_ROW_DIFFERS", where=chip, message=(
                     f"{t:g} min: the client's mean {text} %, the units' mean {means[i]:.2f} %")))
             rtext, rchip = rsd_row.get(t, ("", None))
-            rsd = parse_number(rtext) if rtext else None
+            rsd = parse_number(rtext, decimal_comma=table.decimal_comma) if rtext else None
             if rsd is not None and sds[i] is not None and means[i] > 0:
                 ours = 100 * sds[i] / means[i]
                 if abs(ours - rsd) > rsd_tol + 10 ** -_decimals(rtext):
                     own.append(Problem(code="RSD_ROW_DIFFERS", where=rchip, message=(
                         f"{t:g} min: the client's RSD {rtext} %, the units' {ours:.2f} %")))
-        batch = const.get("batch", "") or group
+        medium = group_medium.get(group) or const.get("medium", "")
+        batch = const.get("batch", "") or group.split(" · ")[0]
         product = products.get(_norm(batch), const.get("product", "")) or products.get(_norm(group), "")
         ph = _ph_of(const.get("ph", ""), medium) if not parse_number(const.get("ph", "")) else parse_number(const["ph"])
         volume = _quantity(const.get("volume", "") or medium, {"ml": 1.0, "l": 1000.0}, bare=True)
@@ -250,14 +276,14 @@ def solubility_rows(tables: Sequence[ReadTable], *, dose_mg: float | None, mediu
             if "solubility" not in one or not one["solubility"].text.strip():
                 continue
             text = one["solubility"].text.strip()
-            number = parse_number(text)
+            number = parse_number(text, decimal_comma=table.decimal_comma)
             col_unit = one["solubility"].unit or unit
             mg_ml = _mg_per_ml(number, col_unit) if number is not None else None
             if number is not None and mg_ml is None:
                 problems.append(Problem(code="UNIT_UNKNOWN", where=one["solubility"].chip,
                                         message=f"line {row.line}: solubility unit {col_unit!r} is not one code converts"))
             medium = one["medium"].text.strip() if "medium" in one else ""
-            ph = parse_number(one["ph"].text) if "ph" in one else _ph_of(medium)
+            ph = parse_number(one["ph"].text, decimal_comma=table.decimal_comma) if "ph" in one else _ph_of(medium)
             need = round(dose_mg / mg_ml, 2) if dose_mg and mg_ml else None
             out.append(SolubilityRow(
                 medium=medium, ph=ph, solubility_mg_ml=mg_ml, as_written=f"{text} {col_unit}".strip(),

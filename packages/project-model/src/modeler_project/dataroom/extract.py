@@ -14,6 +14,7 @@ import hashlib
 import re
 import statistics
 import unicodedata
+from collections.abc import Iterable
 from itertools import pairwise
 
 from modeler_intake.room import Line, Part, document_parts, find_quote, numbers_in, unmarked
@@ -24,17 +25,55 @@ from modeler_project.dataroom.model import CheckedFact, Chip, Problem, ReadCell,
 _NUMBER = re.compile(r"^[<>≤≥~]?\s*[-−+]?\d[\d,]*(?:\.\d+)?(?:[eE][-+]?\d+)?$|^[-−+]?\.\d+$")
 
 
-def parse_number(text: str) -> float | None:
-    """A cell's number: "12.5", "1,234.5", "−3", "1.2e-3"; None for anything else ("<0.5", "BLQ", ".", "12 (3)")."""
+# a header that writes the time-zero sample in words ("Pre-dose", "predose", "Baseline"): time 0
+_PREDOSE = re.compile(r"(?i)\bpre[\s-]?dose\b|\bbaseline\b")
+_DECIMAL_COMMA = re.compile(r"^[-+]?\d+,\d+$|^[-+]?\d{1,3}(?:\.\d{3})+,\d+$")
+_SURELY_DECIMAL_COMMA = re.compile(r"^[-+]?0,\d+$|^[-+]?\d+,(?:\d{1,2}|\d{4,})$|^[-+]?\d{1,3}(?:\.\d{3})+,\d+$")
+_SURELY_DECIMAL_POINT = re.compile(r"^[-+]?\d*\.\d+(?:[eE][-+]?\d+)?$|^[-+]?[1-9]\d{0,2}(?:,\d{3})+\.\d+$")
+
+
+def parse_number(text: str, *, decimal_comma: bool = False) -> float | None:
+    """A cell's number: "12.5", "1,234.5", "−3", "1.2e-3"; None for anything else ("<0.5", "BLQ", ".", "12 (3)").
+    With `decimal_comma` (the table writes "0,058" and "1.234,5", `uses_decimal_comma`), the comma is the decimal mark.
+    Without it a comma is read only as a thousands separator, and only where it can be nothing else: "0,058" is never
+    58 (a new delivery, 2026-11-24: a decimal comma read as thousands made a concentration 1,000 times too high)."""
     raw = unicodedata.normalize("NFKC", text).strip().replace("−", "-")
+    if decimal_comma and _DECIMAL_COMMA.match(raw):
+        try:
+            return float(raw.replace(".", "").replace(",", "."))
+        except ValueError:
+            return None
     if not raw or not _NUMBER.match(raw) or raw[0] in "<>≤≥~":
         return None
-    if "," in raw and not re.fullmatch(r"[-+]?\d{1,3}(?:,\d{3})+(?:\.\d+)?", raw):
+    if "," in raw and not re.fullmatch(r"[-+]?[1-9]\d{0,2}(?:,\d{3})+(?:\.\d+)?", raw):
         return None          # a decimal comma or a list: not guessed
     try:
         return float(raw.replace(",", ""))
     except ValueError:
         return None
+
+
+def uses_decimal_comma(texts: Iterable[str]) -> bool | None:
+    """Whether a table's numbers are written with a decimal comma: True when some cell can only be a decimal comma
+    ("0,058", "2,9", "1.234,5") and none can only be a decimal point ("2.5", "1,234.5"); False when none is; None when
+    the table writes both (its comma cells are then left unread and said)."""
+    cells = [unicodedata.normalize("NFKC", t).strip().replace("−", "-") for t in texts]
+    comma = any(_SURELY_DECIMAL_COMMA.match(c) for c in cells)
+    point = any(_SURELY_DECIMAL_POINT.match(c) for c in cells)
+    if comma and point:
+        return None
+    return comma
+
+
+def token_sets(desc: TableDescription) -> tuple[set[str], set[str]]:
+    """A table's missing-sample and below-LLOQ markers, lower case. A marker the description names as below the LLOQ
+    leaves the default missing list ("ND" is "not detected" in many labs: a new delivery, 2026-11-24); one the
+    description itself names as both stays both, and is refused (TOKEN_BOTH_MISSING_AND_BLQ)."""
+    blq = {t.strip().lower() for t in desc.blq_tokens}
+    missing = {t.strip().lower() for t in desc.missing_tokens}
+    if "missing_tokens" not in desc.model_fields_set:
+        missing -= blq
+    return missing, blq
 
 
 def parts_by_name(doc: SourceDocument) -> dict[str, Part]:
@@ -106,7 +145,8 @@ def read_table(desc: TableDescription, doc: SourceDocument, *, file: str, sha256
     wanted = [k for k in range(desc.first_line, desc.last_line + 1) if k not in desc.skip_lines]
     wanted += [k for k in summary_of if k not in wanted]
     problems: list[Problem] = []
-    both = {t.strip().lower() for t in desc.missing_tokens} & {t.strip().lower() for t in desc.blq_tokens}
+    missing_set, blq_set = token_sets(desc)
+    both = missing_set & blq_set
     if both:
         # "BLQ" listed as a missing sample too made every value below the LLOQ a missing sample (Nemotron on the
         # synthetic delivery, 2026-11-22): the subject sets and the AUC set changed
@@ -130,7 +170,8 @@ def read_table(desc: TableDescription, doc: SourceDocument, *, file: str, sha256
         if not desc.header_lines:
             problems.append(Problem(code="TIME_NOT_CHECKED", message=(
                 f"column {spec.index}: no header lines are named, so its time {spec.time:g} is not checked")))
-        elif spec.time not in {x for text in above.get(spec.index, ()) for x in numbers_in(text)}:
+        elif spec.time not in {x for text in above.get(spec.index, ()) for x in numbers_in(text)} and not (
+                spec.time == 0 and any(_PREDOSE.search(text) for text in above.get(spec.index, ()))):
             problems.append(Problem(code="TIME_NOT_IN_HEADER", severity="error", message=(
                 f"column {spec.index}: the time {spec.time:g} is not written above it "
                 f"(header lines {', '.join(map(str, desc.header_lines))})")))
@@ -155,10 +196,19 @@ def read_table(desc: TableDescription, doc: SourceDocument, *, file: str, sha256
             text = cell.text if cell is not None else ""
             chip = Chip(**chip_base, cell=spec.index, text=text, box=cell.box if cell is not None else None,
                         ref=cell.ref if cell is not None else "")
-            cells.append(ReadCell(role=spec.role, text=text, chip=chip, label=spec.label, unit=spec.unit, time=spec.time,
+            # the column's header: the agent's label, else what the file writes above it ("Day" over a period column)
+            label = spec.label or " ".join(above.get(spec.index, ())).strip()
+            cells.append(ReadCell(role=spec.role, text=text, chip=chip, label=label, unit=spec.unit, time=spec.time,
                                   group=spec.group))
         rows.append(ReadRow(line=k, cells=tuple(cells), summary=summary_of.get(k, "")))
-    return ReadTable(id=tid, description=desc, sha256=sha256, rows=tuple(rows), problems=tuple(problems))
+    ids = ("subject", "period", "treatment", "sequence", "batch", "medium", "arm", "group", "visit")
+    mark = uses_decimal_comma(c.text for r in rows for c in r.cells if c.role not in ids)
+    if mark is None:
+        problems.append(Problem(code="DECIMAL_MARK_MIXED", severity="error", message=(
+            f"the table on {desc.part} of {file} writes numbers with a decimal point and with a decimal comma: its "
+            "comma numbers are left unread")))
+    return ReadTable(id=tid, description=desc, sha256=sha256, rows=tuple(rows), problems=tuple(problems),
+                     decimal_comma=bool(mark))
 
 
 def _value_in_quote(value: str, quote: str) -> bool:

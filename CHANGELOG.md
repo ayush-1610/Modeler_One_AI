@@ -58,6 +58,45 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
   `apps/web/lib/api-types.ts` regenerated. Tests: `services/api/tests/test_project_list_with.py` (same steps as the
   route, a member sees only what is shared with them, payload unchanged without `with`, unknown part refused).
 
+### Fixed — the Data room on deliveries it had never seen (2026-11-24, tested on new made-up data)
+- **How they were found:**
+  - Three new made-up deliveries (Novaprazole, Zelitrex, Quorafen) were built to differ from Exampleamide the way real
+    CRO and sponsor files differ.
+  - Each was read with hand-written correct descriptions (so any failure is code's, not the agent's), and with
+    Nemotron Ultra end to end.
+  - Software test data only.
+- **What code got wrong, and now does right:**
+  - **Site-subject ids read as ranges:** "01-007" listed as excluded was read as subjects 1 to 7, so the sets changed.
+    `subjects_in` now resolves a token against the study's own subjects first. Without them, a subject part written
+    longer than its site, with its zeros, is one id. "03-05" stays a range.
+  - **A decimal comma read as a thousands separator:** "0,058" was 58 (1,000 times too high); "2,9" was unread.
+    - Each table's decimal mark is now decided once from its own cells (`extract.uses_decimal_comma`,
+      `ReadTable.decimal_comma`) and used for every number in it.
+    - A table that writes both marks is said (`DECIMAL_MARK_MIXED`) and its comma numbers left unread.
+    - Without a decimal comma, "0,058" is never read as a thousands number.
+  - **A "Pre-dose" header** is time 0, as "0" is.
+  - **Dissolution in two more layouts** was read as nothing, silently.
+    - Times down with units across, and one line per unit and time (with a batch or medium column), now each give
+      their profile.
+    - Values with no time anywhere are said (`NO_TIME_FOR_VALUES`).
+  - **A parallel study's PK table** names the arm in words ("Reference") where the data writes a code ("R"), or not at
+    all. Its rows matched no profile. A subject with one profile and one PK row now meets it.
+  - **Multiple-dose studies** (Day 1, Day 7; no treatment column) were read as a replicate design of one treatment, with
+    no exposure.
+    - Each day is now its own profile, with its own exposures (`MULTIPLE_DOSE`, said on the study).
+    - AUC to infinity is not shown for any day after the first: it has no meaning at steady state. The AUC over the
+      sampled interval is AUCτ when the sampling spans it.
+    - A study day is recognised from the period or treatment column's own header ("Day"), which the reader now keeps
+      from the file.
+  - **"ND" named as below the LLOQ** clashed with the default missing-sample markers and the whole table was refused. A
+    marker the description names as below the LLOQ now leaves the default list. The description naming one as both is
+    still refused.
+- **Tests:** `packages/project-model/tests/test_dataroom_layouts.py` (10, one per layout).
+- **Impact:**
+  - Studies and dissolution reports written these ways now give sets, exposures and profiles instead of nothing, or a
+    wrong number.
+  - No ruleset changed. The AUCτ wording and the steady-state rule are code's display rules, not new acceptance rules.
+
 ### Added — the way in: sign-in pages, the Keycloak theme, account, Help, Settings, System status (2026-11-24, the owner's request)
 - **What:**
   - **Only the project's owner or an administrator records where its files may go.** `PUT /data-permissions` passes the
@@ -1119,7 +1158,6 @@ them to be fixed now, ahead of the redesign.
   7bb1 itself was checked in a browser on a copy of the review data (plan §5). e2e/inputs-work.spec.ts: `followFrom` and `signWaitsWords`. The two new follow tests
   fail on round 5's web at their same-visit assertions; the whole e2e suite passes (146 of 146). Software test data (the
   made-up Exampleamide; the stub engine, a software fixture). No locked file; no SME rule; no API contract change.
-
 
 ### Fixed — final review round 6, the product a study's own file names, and the plan link (round 5's downstream-why skeptic; plan 2026-11-14 §5) — science-adjacent
 - **A study whose own file names its product is settled by that product only (`modeler_project.formulation_way`).** The

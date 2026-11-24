@@ -82,6 +82,7 @@ class ReadTable(_B):
     sha256: str = ""
     rows: tuple[ReadRow, ...] = ()
     problems: tuple[Problem, ...] = ()
+    decimal_comma: bool = False      # its numbers use a decimal comma ("0,058"): `extract.uses_decimal_comma`
 
 
 class CheckedFact(_B):
