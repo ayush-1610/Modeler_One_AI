@@ -13,7 +13,6 @@ from pydantic import Field
 
 from modeler_api.views.common import View
 from modeler_storage.records import CampaignRecord, EscalationRecord
-from pbpk_domain.campaign.map import MapDocument
 
 
 class UnreadableRecord(View):
@@ -60,11 +59,6 @@ class CampaignPackage(View):
     artifacts: list[str]
     pksim_projects: list[str]
     project_notes: list[str]
-
-
-class MapGenerated(View):
-    question_id: str
-    map: MapDocument
 
 
 class CampaignStarted(View):

@@ -1,9 +1,9 @@
-"""Campaign-facing endpoints: generate a MAP, start a campaign (task T-17 <-> T-16/T-13 API surface).
+"""Campaign-facing endpoints: start a campaign (task T-17 <-> T-16/T-13 API surface).
 
-`map:generate` runs the MS-01 MAP generator (`pbpk_domain.campaign.map.generate_map`) for a question's CPF,
-studies and context; the split is computed deterministically here. Both endpoints require an authenticated
-project member (T-06). Starting a campaign runs it through the configured execution backend: the single-node
-``local`` executor in-process (the no-Docker path — no Temporal needed) or the Temporal cluster (``temporal``).
+Starting a campaign requires an authenticated project member (T-06) and runs it through the configured execution
+backend: the single-node ``local`` executor in-process (the no-Docker path — no Temporal needed) or the Temporal
+cluster (``temporal``). The MAP comes from the plan canvas (`plan_api`), which generates, persists and signs it;
+`map:generate`, a stateless MAP from a client-supplied CPF, is retired (the console redesign's slice 9).
 """
 
 from __future__ import annotations
@@ -19,42 +19,11 @@ from modeler_api.config import SettingsDep
 from modeler_api.execution import RunnerDep
 from modeler_api.responses import answers_without_envelope
 from modeler_api.run_guard import require_cpf_matches_map, require_signed_limits, require_signed_map
-from modeler_api.views.campaigns import CampaignStarted, MapGenerated
-from pbpk_domain.campaign.map import generate_map
-from pbpk_domain.campaign.split import QuestionOfInterest, StudyRecord, split_studies
-from pbpk_domain.cpf.models import CPF
-from pbpk_domain.m15 import Rating
+from modeler_api.views.campaigns import CampaignStarted
 
 router = APIRouter(prefix="/api/v1", tags=["campaigns"])
 
 Author = Annotated[Principal, Depends(require_role("modeler-curator", "modeler-reviewer"))]
-
-
-class MapGenerateRequest(BaseModel):
-    compound: str = Field(min_length=1)
-    cpf: CPF
-    studies: list[StudyRecord] = Field(min_length=1)
-    question: QuestionOfInterest = QuestionOfInterest()
-    objective: str = Field(min_length=1)
-    context_of_use: str = Field(min_length=1)
-    food_effect_in_question: bool = False
-    model_risk: Rating
-    engine_image_digest: str = Field(min_length=1)
-    software_versions: dict[str, str]
-
-
-@router.post("/projects/{project_id}/questions/{question_id}/map:generate", **answers_without_envelope(MapGenerated))
-def generate_map_endpoint(project_id: str, question_id: str, request: MapGenerateRequest, principal: Author) -> dict[str, Any]:
-    """Generate the MAP (version 1, DRAFT) for a question from its CPF, studies and context."""
-    require_project(project_id, principal)
-    split = split_studies(request.studies, request.question)
-    document = generate_map(
-        compound=request.compound, cpf=request.cpf, studies=request.studies, split=split,
-        objective=request.objective, context_of_use=request.context_of_use,
-        food_effect_in_question=request.food_effect_in_question, model_risk=request.model_risk,
-        engine_image_digest=request.engine_image_digest, software_versions=request.software_versions,
-    )
-    return {"question_id": question_id, "map": document.model_dump(mode="json")}
 
 
 class CampaignStartRequest(BaseModel):

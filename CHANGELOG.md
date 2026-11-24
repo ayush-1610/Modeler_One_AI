@@ -21,6 +21,10 @@ chain (R-B13) and `pbpk_domain.snapshot.parameter_transfer` (R-B13b) stay until 
 - **`POST /campaigns/{id}/feedback:decide`**: a thin alias of `escalation:resolve` at stage S5 (REMEDIATION §2, #19).
   The web decides a failed external validation through `escalation:resolve`; no script used the alias. Its tests now
   call `escalation:resolve` at S5 and check the alias answers nothing.
+- **`POST /projects/{id}/questions/{q}/map:generate`**: a stateless MAP built from a CPF the client sent, saved nowhere
+  (REMEDIATION §2, #20). The plan canvas generates, persists and signs the MAP (`plan_api`); nothing called the route.
+  Its request and answer models (`MapGenerateRequest`, `MapGenerated`) go with it; the MS-01 generator
+  (`pbpk_domain.campaign.map.generate_map`) stays, used by the plan and the readiness check.
 
 ### Changed — the console redesign, slice 8: the admin console in the console style, a Companies page (2026-11-24)
 - **What:**
