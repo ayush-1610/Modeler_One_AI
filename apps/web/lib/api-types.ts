@@ -4603,6 +4603,75 @@ export interface components {
             /** Template */
             template: boolean;
         };
+        /**
+         * ClientMean
+         * @description A mean profile as the client's own table states it (plan 2026-11-24 §8 feature 5): which statistic and which
+         *     spread, read from the table's own words, never assumed; SEM is turned into SD only where n is stated.
+         */
+        ClientMean: {
+            /**
+             * Group
+             * @default
+             */
+            group: string;
+            /** N */
+            n: number | null;
+            /**
+             * Note
+             * @default
+             */
+            note: string;
+            /**
+             * Points
+             * @default []
+             */
+            points: components["schemas"]["ClientMeanPoint"][];
+            /**
+             * Sources
+             * @default []
+             */
+            sources: components["schemas"]["Chip"][];
+            /**
+             * Spread
+             * @default
+             * @enum {string}
+             */
+            spread: "sd" | "cv_percent" | "sem" | "geometric_sd" | "geometric_cv_percent" | "range" | "";
+            /**
+             * Spread As Written
+             * @default
+             */
+            spread_as_written: string;
+            /**
+             * Statistic
+             * @default
+             * @enum {string}
+             */
+            statistic: "arithmetic_mean" | "geometric_mean" | "median" | "";
+            /**
+             * Statistic As Written
+             * @default
+             */
+            statistic_as_written: string;
+            /**
+             * Unit
+             * @default
+             */
+            unit: string;
+        };
+        /** ClientMeanPoint */
+        ClientMeanPoint: {
+            /** N */
+            n: number | null;
+            /** Sd */
+            sd: number | null;
+            /** Spread */
+            spread: number | null;
+            /** Time H */
+            time_h: number;
+            /** Value */
+            value: number | null;
+        };
         /** ClientReviewPage */
         ClientReviewPage: {
             /** Groups */
@@ -4728,13 +4797,32 @@ export interface components {
              * @default false
              */
             changed: boolean;
+            /**
+             * Class By
+             * @default
+             */
+            class_by: string;
+            /**
+             * Class Label
+             * @default
+             */
+            class_label: string;
             /** Component */
             component: string;
+            /**
+             * Excipient Class
+             * @default
+             */
+            excipient_class: string;
             /**
              * Function
              * @default
              */
             function: string;
+            /** Mg */
+            mg: {
+                [key: string]: number;
+            };
             /**
              * Sources
              * @default []
@@ -5142,10 +5230,19 @@ export interface components {
          */
         DataRoomView: {
             /**
+             * Absorption
+             * @default []
+             */
+            absorption: components["schemas"]["LimitingStep"][];
+            /**
              * Adme
              * @default []
              */
             adme: components["schemas"]["Value"][];
+            /** Checks */
+            checks: {
+                [key: string]: components["schemas"]["Problem"][];
+            };
             /**
              * Composition
              * @default []
@@ -7448,6 +7545,13 @@ export interface components {
              */
             sd: (number | null)[];
             /**
+             * Sink Basis
+             * @default
+             */
+            sink_basis: string;
+            /** Sink Index */
+            sink_index: number | null;
+            /**
              * Sources
              * @default []
              */
@@ -7566,6 +7670,17 @@ export interface components {
             not_read: string[];
             /** Reading */
             reading: string[];
+        };
+        /** DoseNumber */
+        DoseNumber: {
+            /** Dose Number */
+            dose_number: number;
+            /** Medium */
+            medium: string;
+            /** Ph */
+            ph: number | null;
+            /** Solubility Mg Ml */
+            solubility_mg_ml: number;
         };
         /**
          * DosePhase
@@ -9461,6 +9576,11 @@ export interface components {
              */
             note: string;
             /**
+             * Origin
+             * @default
+             */
+            origin: string;
+            /**
              * Owner
              * @default
              */
@@ -9943,6 +10063,42 @@ export interface components {
             id: string;
             /** Name */
             name: string;
+        };
+        /**
+         * LimitingStep
+         * @description Which step may limit absorption (plan 2026-11-24 §8 feature 8): a product's dose against each measured solubility
+         *     (the dose number, Amidon 1995) and what it says in words. `product` empty: the drug's one dose.
+         */
+        LimitingStep: {
+            /**
+             * Dose As Written
+             * @default
+             */
+            dose_as_written: string;
+            /** Dose Mg */
+            dose_mg: number;
+            /**
+             * Dose Numbers
+             * @default []
+             */
+            dose_numbers: components["schemas"]["DoseNumber"][];
+            /**
+             * Product
+             * @default
+             */
+            product: string;
+            /**
+             * Sources
+             * @default []
+             */
+            sources: components["schemas"]["Chip"][];
+            /**
+             * Statements
+             * @default []
+             */
+            statements: string[];
+            /** Volume Ml */
+            volume_ml: number;
         };
         /**
          * LimitsPage
@@ -10901,6 +11057,72 @@ export interface components {
             structure: components["schemas"]["Structure"];
             /** Studies */
             studies: components["schemas"]["StudyView"][];
+        };
+        /**
+         * NcaReproduction
+         * @description The client's NCA reproduced, its method found (plan 2026-11-24 §8 feature 3): the settings that reproduce most of
+         *     the client's values, which of them those values tell apart, and how many values fall in each tier.
+         */
+        NcaReproduction: {
+            /**
+             * Compared
+             * @default 0
+             */
+            compared: number;
+            /**
+             * Differ
+             * @default 0
+             */
+            differ: number;
+            /**
+             * Explained
+             * @default 0
+             */
+            explained: number;
+            /**
+             * Investigate
+             * @default 0
+             */
+            investigate: number;
+            /** Not Told */
+            not_told: {
+                [key: string]: string;
+            };
+            /**
+             * Passed
+             * @default 0
+             */
+            passed: number;
+            settings: components["schemas"]["NcaSettings"];
+            /**
+             * Summary
+             * @default
+             */
+            summary: string;
+            /**
+             * Tiers
+             * @default
+             */
+            tiers: string;
+            /**
+             * Told Apart
+             * @default []
+             */
+            told_apart: string[];
+        };
+        /**
+         * NcaSettings
+         * @description One combination of the NCA settings a client may have used (dataroom_rules nca.reproduce), in words.
+         */
+        NcaSettings: {
+            /** Blq */
+            blq: string;
+            /** Integration */
+            integration: string;
+            /** Lambda Z */
+            lambda_z: string;
+            /** Time Basis */
+            time_basis: string;
         };
         /** ObservedDataset */
         ObservedDataset: {
@@ -13075,6 +13297,11 @@ export interface components {
              */
             arms: components["schemas"]["Arm"][];
             /**
+             * Client Means
+             * @default []
+             */
+            client_means: components["schemas"]["ClientMean"][];
+            /**
              * Concentration Unit
              * @default
              */
@@ -13105,6 +13332,7 @@ export interface components {
              * @default
              */
             nca_method_client: string;
+            nca_reproduction: components["schemas"]["NcaReproduction"] | null;
             /**
              * Periods
              * @default []
@@ -13748,6 +13976,8 @@ export interface components {
              * @default
              */
             as_written: string;
+            /** Dose Number */
+            dose_number: number | null;
             /** Fraction In Glass */
             fraction_in_glass: number | null;
             /** Fraction In Medium */
@@ -14534,10 +14764,19 @@ export interface components {
             lambda_z: number | null;
             /** Period */
             period: string;
+            /**
+             * Settings Note
+             * @default
+             */
+            settings_note: string;
             /** Subject */
             subject: string;
             /** T Half */
             t_half: number | null;
+            /** Tiers */
+            tiers: {
+                [key: string]: string;
+            };
             /** Tmax */
             tmax: number | null;
             /** Tmax Actual */

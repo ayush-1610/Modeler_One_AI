@@ -2,7 +2,10 @@
 # are the platform's proposal (the owner, 2026-11-22: "you decide"); every one is shown on screen and a person may
 # override it with a reason. PROVISIONAL: UNVERIFIED until the SME signs. Read by modeler_project.dataroom.rules; a
 # change here is a science change (CHANGELOG entry, version bump, the owner's approval).
-version: "0.2"
+# 0.3 (2026-11-24): the science checks of plan 2026-11-24 §8 features 3–9 (nca.reproduce, flags, permeability,
+# dissolution's bell / lag / sink entries, solubility.ph_match, excipient_classes). Each value added in 0.3 is the
+# literature review's proposal or, where it says so, the platform's placeholder: awaiting the SME.
+version: "0.3"
 status: UNVERIFIED
 analysis_sets:
   evaluable_min_quantifiable: 3      # an evaluable profile has at least this many quantifiable concentrations after dosing
@@ -17,14 +20,61 @@ nca:
   blq_after_first: exclude           # below the LLOQ after it: left out (kept in the table)
   tolerance_percent: 1.0             # our value and the client's differ by more than this: a conflict, both shown
   tmax_tolerance_h: 0.05              # 3 min: the client's Tmax may be at the actual sampling time
+  # The client's NCA reproduced, its method found (plan 2026-11-24 §8 feature 3): code computes each profile with every
+  # combination of these settings, keeps the one that reproduces most of the client's values, and puts each value in a
+  # tier. No tolerance for re-computing a sponsor's NCA is published: the tiers are the literature review's PROPOSAL
+  # (docs/research/2026-11-24-clinical-pk-data-curation.md §3; ≤ 1 % allows for concentrations rounded to 3
+  # significant figures, Heatherington 1998's "agreement"), awaiting the SME.
+  reproduce:
+    pass_percent: 1.0                # ≤ this: reproduced (the same settings)
+    investigate_percent: 5.0         # ≤ this: investigate, a setting differs; above it, and no setting tried explains
+                                     # it: the data differ, ask the client
+    integration: [linear-up/log-down, linear]          # the first of each list is ours
+    time_basis: [nominal, actual]                      # actual: only where the data give actual sampling times
+    blq:                                               # below the LLOQ before / after the first quantifiable sample
+      - {before: zero, after: exclude}                 # ours (blq_leading, blq_after_first)
+      - {before: zero, after: zero}
+      - {before: exclude, after: exclude}
+      - {before: zero, after: half_lloq}               # LLOQ/2: only when the study states its LLOQ
+    lambda_z: [best_fit, 3, 4, 5]                      # best_fit: the best adjusted R² (ours); n: the last n points
+# Exclusions are flags with their reasons, never deletions (plan 2026-11-24 §8 feature 4): a flagged profile stays in
+# every set and a person decides. The values are the literature review's PROPOSAL
+# (docs/research/2026-11-24-clinical-pk-data-curation.md §3–§4), awaiting the SME.
+flags:
+  predose_max_percent_of_cmax: 5     # a pre-dose concentration above this % of the profile's Cmax (EMA 2010 BE
+                                     # guideline, FDA BE guidance, ICH M13A [REG – recalled, verify]); not on a
+                                     # multiple-dose study's later days, whose pre-dose sample is a trough
+  auc_extrapolated_max_percent: 20   # AUC0–inf with more than this % extrapolated is unreliable (Dunvald 2022)
+  terminal_span_min_half_lives: 1.5  # the λz points span at least this many half-lives for a reliable t½ (Noe 2019,
+                                     # low assay noise; 2.5 with high noise)
+  vomiting_max_tmax_multiple: 2      # vomiting at or before this × the arm's median Tmax, immediate release (EMA 2010;
+                                     # FDA [REG – recalled, verify]; sponsor protocols differ: read the SAP); only when
+                                     # the delivery states a vomiting event
+  # a sample taken outside a window around its nominal time, where the data give actual times. No published window was
+  # found (the review cites Takahashi 2026 without its lengths): the platform's PLACEHOLDER, for the SME to set
+  sample_window_percent: 10          # of the nominal time …
+  sample_window_min_minutes: 5       # … and never narrower than this
 dissolution:
   client_mean_tolerance_last_digit: 1   # the client's mean row may differ from ours by one unit of its last digit
   rsd_tolerance_points: 0.5
   very_rapid_percent: 85                # ≥ 85 % within 15 min: similar without f2 (pbpk_domain dissolution ruleset)
   very_rapid_within_min: 15
   plateau_below_percent: 95             # a profile whose highest mean stays below this is flagged: it may need a table formulation
+  # the dissolution checks (plan 2026-11-24 §8 feature 7; the pitfalls of docs/research/2026-11-24-pbbm-absorption-inputs.md
+  # §3). The units f2 needs are the locked dissolution ruleset's (pbpk_domain/rulesets/dissolution_similarity.yaml
+  # f2.min_units), read from it, not copied here
+  bell_drop_points: 5                   # a mean more than this many points below an earlier one: a bell shape (degradation
+                                        # or a form change). No published value: the platform's PLACEHOLDER (the same 5
+                                        # points pbpk_domain.dissolution.check_profile uses), for the SME
+  lag_below_percent: 5                  # the first time point below this: a likely disintegration lag. No published
+                                        # value: the platform's PLACEHOLDER, for the SME
+  sink_index_min: 3                     # Cs × V / dose below this: not sink conditions (USP <1092>: a volume of at least
+                                        # three times the saturation volume [recalled, verify])
 solubility:
-  glass_volume_ml: 250                  # the dose fraction that dissolves in a glass of water
+  glass_volume_ml: 250                  # the dose fraction that dissolves in a glass of water; also the dose number's
+                                        # volume (Amidon 1995: Do = dose / (250 mL × Cs))
+  ph_match: 0.1                         # a dissolution medium meets a solubility row of its pH within this (a pH written
+                                        # to one decimal: 6.8 and a measured 6.81)
 conflicts:
   relative_tolerance_percent: 1.0       # two sources of one number differ by more than this: a conflict
 # A medium the files name without its pH, and the pH it has by convention (the owner, 2026-11-24, decision D4 of
@@ -39,3 +89,59 @@ media_by_convention:
   - {names: ["fessif-v2", "fessif v2"], ph: 5.8}
   - {names: ["fessif"], ph: 5.0}
   - {names: ["simulated intestinal fluid", "sif"], ph: 6.8}
+# The lab's reference compounds of a permeability assay (plan 2026-11-24 §8 feature 6): a permeability the files give
+# for one of them is the lab's calibration set, kept as evidence, never the drug's own permeability. Metoprolol and
+# minoxidil are the high/low dividers of the PBBM review (docs/research/2026-11-24-pbbm-absorption-inputs.md §2); the
+# rest are the model drugs of the ICH M9 / FDA BCS permeability method suitability lists [recalled, verify]. Names
+# matched as whole words. UNVERIFIED.
+permeability:
+  reference_compounds: [metoprolol, minoxidil, antipyrine, caffeine, carbamazepine, fluvastatin, ketoprofen, naproxen,
+                        propranolol, theophylline, verapamil, amoxicillin, atenolol, furosemide, hydrochlorothiazide,
+                        pindolol, ranitidine, acyclovir, chlorothiazide, enalaprilat, famotidine, mannitol, nadolol,
+                        lucifer yellow, inulin, fitc-dextran, polyethylene glycol 4000, digoxin, paclitaxel, quinidine,
+                        vinblastine]
+# Excipients by function (plan 2026-11-24 §8 feature 9): a component's class by its name, else by the function the
+# files write beside it; names and words matched as whole words, the longest first. The classes are the PBBM review's
+# functional classes (docs/research/2026-11-24-pbbm-absorption-inputs.md §1 rows 8a–8e, §5 idea 3); the name lists are
+# common pharmaceutical usage, the platform's PROPOSAL. A test-versus-reference difference within a class is flagged
+# with no threshold, for the SME to judge (the review's < 400 mg for sugar alcohols stays out until the SME sets one).
+# UNVERIFIED.
+excipient_classes:
+  - id: sugar_alcohol
+    label: sugar alcohols and osmotic agents
+    names: [mannitol, sorbitol, xylitol, maltitol, erythritol, isomalt, lactitol, glycerol, glycerin]
+    functions: [osmotic agent, osmotic]
+  - id: surfactant
+    label: surfactants
+    names: [sodium lauryl sulfate, sodium lauryl sulphate, sodium dodecyl sulfate, sls, polysorbate 80, polysorbate 20,
+            polysorbate, tween 80, tween, poloxamer, poloxamer 188, poloxamer 407, docusate sodium, vitamin e tpgs, tpgs,
+            polyoxyl 35 castor oil, polyoxyl 40 hydrogenated castor oil, cremophor, kolliphor, sorbitan monooleate,
+            labrasol, cetrimide]
+    functions: [surfactant, wetting agent, solubiliser, solubilizer, emulsifier]
+  - id: ph_modifier
+    label: pH modifiers and buffers
+    names: [citric acid, tartaric acid, fumaric acid, malic acid, succinic acid, sodium bicarbonate, sodium carbonate,
+            potassium bicarbonate, calcium carbonate, magnesium carbonate, magnesium oxide, magnesium hydroxide,
+            sodium citrate, trisodium citrate, sodium phosphate, potassium phosphate, calcium phosphate,
+            tribasic calcium phosphate, dibasic calcium phosphate, calcium hydrogen phosphate,
+            calcium monohydrogen phosphate, meglumine, trometamol, tromethamine, arginine]
+    functions: [ph modifier, ph adjuster, buffer, buffering agent, alkalising agent, alkalizing agent, acidifier,
+                acidifying agent]
+  - id: disintegrant
+    label: disintegrants
+    names: [croscarmellose sodium, croscarmellose, crospovidone, sodium starch glycolate,
+            low-substituted hydroxypropyl cellulose, l-hpc, carmellose calcium, carboxymethylcellulose calcium]
+    functions: [disintegrant, superdisintegrant]
+  - id: polymer
+    label: polymers (ASD and precipitation inhibitors)
+    names: [hypromellose acetate succinate, hpmcas, hpmc-as, hypromellose, hpmc, hydroxypropyl methylcellulose, povidone,
+            pvp, polyvinylpyrrolidone, copovidone, pvp-va, soluplus, methacrylic acid copolymer, eudragit,
+            hydroxypropyl cellulose, cellulose acetate phthalate]
+    functions: [precipitation inhibitor, crystallisation inhibitor, crystallization inhibitor, polymer carrier,
+                solid dispersion]
+  - id: lipid
+    label: lipids
+    names: [glyceryl monostearate, glyceryl behenate, glyceryl monocaprylate, medium-chain triglycerides,
+            caprylic/capric triglyceride, labrafil, labrafac, capmul, gelucire, maisine, peceol, castor oil, sesame oil,
+            soybean oil, corn oil, olive oil, lecithin, phosphatidylcholine, oleic acid]
+    functions: [lipid, oil, lipid vehicle]

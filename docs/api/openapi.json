@@ -3252,6 +3252,165 @@
         "title": "ClientFileStarted",
         "type": "object"
       },
+      "ClientMean": {
+        "additionalProperties": false,
+        "description": "A mean profile as the client's own table states it (plan 2026-11-24 §8 feature 5): which statistic and which\nspread, read from the table's own words, never assumed; SEM is turned into SD only where n is stated.",
+        "properties": {
+          "group": {
+            "default": "",
+            "title": "Group",
+            "type": "string"
+          },
+          "n": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "N"
+          },
+          "note": {
+            "default": "",
+            "title": "Note",
+            "type": "string"
+          },
+          "points": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/ClientMeanPoint"
+            },
+            "title": "Points",
+            "type": "array"
+          },
+          "sources": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/Chip"
+            },
+            "title": "Sources",
+            "type": "array"
+          },
+          "spread": {
+            "default": "",
+            "enum": [
+              "sd",
+              "cv_percent",
+              "sem",
+              "geometric_sd",
+              "geometric_cv_percent",
+              "range",
+              ""
+            ],
+            "title": "Spread",
+            "type": "string"
+          },
+          "spread_as_written": {
+            "default": "",
+            "title": "Spread As Written",
+            "type": "string"
+          },
+          "statistic": {
+            "default": "",
+            "enum": [
+              "arithmetic_mean",
+              "geometric_mean",
+              "median",
+              ""
+            ],
+            "title": "Statistic",
+            "type": "string"
+          },
+          "statistic_as_written": {
+            "default": "",
+            "title": "Statistic As Written",
+            "type": "string"
+          },
+          "unit": {
+            "default": "",
+            "title": "Unit",
+            "type": "string"
+          }
+        },
+        "required": [
+          "group",
+          "statistic",
+          "statistic_as_written",
+          "spread",
+          "spread_as_written",
+          "n",
+          "points",
+          "unit",
+          "note",
+          "sources"
+        ],
+        "title": "ClientMean",
+        "type": "object"
+      },
+      "ClientMeanPoint": {
+        "additionalProperties": false,
+        "properties": {
+          "n": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "N"
+          },
+          "sd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sd"
+          },
+          "spread": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Spread"
+          },
+          "time_h": {
+            "title": "Time H",
+            "type": "number"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "time_h",
+          "value",
+          "spread",
+          "n",
+          "sd"
+        ],
+        "title": "ClientMeanPoint",
+        "type": "object"
+      },
       "ClientReviewPage": {
         "additionalProperties": false,
         "properties": {
@@ -3576,14 +3735,36 @@
             "title": "Changed",
             "type": "boolean"
           },
+          "class_by": {
+            "default": "",
+            "title": "Class By",
+            "type": "string"
+          },
+          "class_label": {
+            "default": "",
+            "title": "Class Label",
+            "type": "string"
+          },
           "component": {
             "title": "Component",
+            "type": "string"
+          },
+          "excipient_class": {
+            "default": "",
+            "title": "Excipient Class",
             "type": "string"
           },
           "function": {
             "default": "",
             "title": "Function",
             "type": "string"
+          },
+          "mg": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Mg",
+            "type": "object"
           },
           "sources": {
             "default": [],
@@ -3599,6 +3780,10 @@
           "function",
           "amounts",
           "changed",
+          "excipient_class",
+          "class_label",
+          "class_by",
+          "mg",
           "sources"
         ],
         "title": "CompositionRow",
@@ -4731,6 +4916,14 @@
         "additionalProperties": false,
         "description": "The Data room of one project, as the page and the report show it.",
         "properties": {
+          "absorption": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/LimitingStep"
+            },
+            "title": "Absorption",
+            "type": "array"
+          },
           "adme": {
             "default": [],
             "items": {
@@ -4738,6 +4931,16 @@
             },
             "title": "Adme",
             "type": "array"
+          },
+          "checks": {
+            "additionalProperties": {
+              "items": {
+                "$ref": "#/components/schemas/Problem"
+              },
+              "type": "array"
+            },
+            "title": "Checks",
+            "type": "object"
           },
           "composition": {
             "default": [],
@@ -4895,6 +5098,7 @@
           "products",
           "composition",
           "solubility",
+          "absorption",
           "dissolution",
           "f2",
           "studies",
@@ -4903,6 +5107,7 @@
           "plan",
           "inputs",
           "problems",
+          "checks",
           "made_by",
           "made_summary"
         ],
@@ -11728,6 +11933,22 @@
             "title": "Sd",
             "type": "array"
           },
+          "sink_basis": {
+            "default": "",
+            "title": "Sink Basis",
+            "type": "string"
+          },
+          "sink_index": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sink Index"
+          },
           "sources": {
             "default": [],
             "items": {
@@ -11819,6 +12040,8 @@
           "weibull_curve",
           "very_rapid",
           "plateau",
+          "sink_index",
+          "sink_basis",
           "sources",
           "problems"
         ],
@@ -12070,6 +12293,42 @@
           "not_read"
         ],
         "title": "DocumentsRead",
+        "type": "object"
+      },
+      "DoseNumber": {
+        "additionalProperties": false,
+        "properties": {
+          "dose_number": {
+            "title": "Dose Number",
+            "type": "number"
+          },
+          "medium": {
+            "title": "Medium",
+            "type": "string"
+          },
+          "ph": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ph"
+          },
+          "solubility_mg_ml": {
+            "title": "Solubility Mg Ml",
+            "type": "number"
+          }
+        },
+        "required": [
+          "medium",
+          "ph",
+          "solubility_mg_ml",
+          "dose_number"
+        ],
+        "title": "DoseNumber",
         "type": "object"
       },
       "DosePhase": {
@@ -17465,6 +17724,11 @@
             "title": "Note",
             "type": "string"
           },
+          "origin": {
+            "default": "",
+            "title": "Origin",
+            "type": "string"
+          },
           "owner": {
             "default": "",
             "title": "Owner",
@@ -17522,7 +17786,8 @@
           "status",
           "sources",
           "decision",
-          "note"
+          "note",
+          "origin"
         ],
         "title": "InputRow",
         "type": "object"
@@ -18892,6 +19157,65 @@
           "name"
         ],
         "title": "LimitTargetProject",
+        "type": "object"
+      },
+      "LimitingStep": {
+        "additionalProperties": false,
+        "description": "Which step may limit absorption (plan 2026-11-24 §8 feature 8): a product's dose against each measured solubility\n(the dose number, Amidon 1995) and what it says in words. `product` empty: the drug's one dose.",
+        "properties": {
+          "dose_as_written": {
+            "default": "",
+            "title": "Dose As Written",
+            "type": "string"
+          },
+          "dose_mg": {
+            "title": "Dose Mg",
+            "type": "number"
+          },
+          "dose_numbers": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/DoseNumber"
+            },
+            "title": "Dose Numbers",
+            "type": "array"
+          },
+          "product": {
+            "default": "",
+            "title": "Product",
+            "type": "string"
+          },
+          "sources": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/Chip"
+            },
+            "title": "Sources",
+            "type": "array"
+          },
+          "statements": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Statements",
+            "type": "array"
+          },
+          "volume_ml": {
+            "title": "Volume Ml",
+            "type": "number"
+          }
+        },
+        "required": [
+          "product",
+          "dose_mg",
+          "dose_as_written",
+          "volume_ml",
+          "dose_numbers",
+          "statements",
+          "sources"
+        ],
+        "title": "LimitingStep",
         "type": "object"
       },
       "LimitsPage": {
@@ -21394,6 +21718,109 @@
           "deviations"
         ],
         "title": "ModelPlan",
+        "type": "object"
+      },
+      "NcaReproduction": {
+        "additionalProperties": false,
+        "description": "The client's NCA reproduced, its method found (plan 2026-11-24 §8 feature 3): the settings that reproduce most of\nthe client's values, which of them those values tell apart, and how many values fall in each tier.",
+        "properties": {
+          "compared": {
+            "default": 0,
+            "title": "Compared",
+            "type": "integer"
+          },
+          "differ": {
+            "default": 0,
+            "title": "Differ",
+            "type": "integer"
+          },
+          "explained": {
+            "default": 0,
+            "title": "Explained",
+            "type": "integer"
+          },
+          "investigate": {
+            "default": 0,
+            "title": "Investigate",
+            "type": "integer"
+          },
+          "not_told": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Not Told",
+            "type": "object"
+          },
+          "passed": {
+            "default": 0,
+            "title": "Passed",
+            "type": "integer"
+          },
+          "settings": {
+            "$ref": "#/components/schemas/NcaSettings"
+          },
+          "summary": {
+            "default": "",
+            "title": "Summary",
+            "type": "string"
+          },
+          "tiers": {
+            "default": "",
+            "title": "Tiers",
+            "type": "string"
+          },
+          "told_apart": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Told Apart",
+            "type": "array"
+          }
+        },
+        "required": [
+          "settings",
+          "told_apart",
+          "not_told",
+          "compared",
+          "passed",
+          "explained",
+          "investigate",
+          "differ",
+          "tiers",
+          "summary"
+        ],
+        "title": "NcaReproduction",
+        "type": "object"
+      },
+      "NcaSettings": {
+        "additionalProperties": false,
+        "description": "One combination of the NCA settings a client may have used (dataroom_rules nca.reproduce), in words.",
+        "properties": {
+          "blq": {
+            "title": "Blq",
+            "type": "string"
+          },
+          "integration": {
+            "title": "Integration",
+            "type": "string"
+          },
+          "lambda_z": {
+            "title": "Lambda Z",
+            "type": "string"
+          },
+          "time_basis": {
+            "title": "Time Basis",
+            "type": "string"
+          }
+        },
+        "required": [
+          "integration",
+          "time_basis",
+          "blq",
+          "lambda_z"
+        ],
+        "title": "NcaSettings",
         "type": "object"
       },
       "ObservedDataset": {
@@ -27261,6 +27688,14 @@
             "title": "Arms",
             "type": "array"
           },
+          "client_means": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/ClientMean"
+            },
+            "title": "Client Means",
+            "type": "array"
+          },
           "concentration_unit": {
             "default": "",
             "title": "Concentration Unit",
@@ -27312,6 +27747,16 @@
             "default": "",
             "title": "Nca Method Client",
             "type": "string"
+          },
+          "nca_reproduction": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NcaReproduction"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "periods": {
             "default": [],
@@ -27370,6 +27815,8 @@
           "nca",
           "exposures",
           "nca_method_client",
+          "nca_reproduction",
+          "client_means",
           "concentration_unit",
           "lloq",
           "problems"
@@ -29002,6 +29449,17 @@
             "title": "As Written",
             "type": "string"
           },
+          "dose_number": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dose Number"
+          },
           "fraction_in_glass": {
             "anyOf": [
               {
@@ -29096,6 +29554,7 @@
           "volume_for_dose_ml",
           "fraction_in_glass",
           "fraction_in_medium",
+          "dose_number",
           "sources"
         ],
         "title": "SolubilityRow",
@@ -31070,6 +31529,11 @@
             "title": "Period",
             "type": "string"
           },
+          "settings_note": {
+            "default": "",
+            "title": "Settings Note",
+            "type": "string"
+          },
           "subject": {
             "title": "Subject",
             "type": "string"
@@ -31084,6 +31548,13 @@
               }
             ],
             "title": "T Half"
+          },
+          "tiers": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Tiers",
+            "type": "object"
           },
           "tmax": {
             "anyOf": [
@@ -31125,7 +31596,9 @@
           "t_half",
           "lambda_z",
           "client",
-          "differences"
+          "differences",
+          "tiers",
+          "settings_note"
         ],
         "title": "SubjectNca",
         "type": "object"
