@@ -28342,7 +28342,7 @@
       },
       "RoomPublication": {
         "additionalProperties": false,
-        "description": "What \"Send to the model\" would send now (`modeler_project.dataroom.publish.plan_publication`, nothing written),\nand what keeps it from being sent, in words.",
+        "description": "What \"Send to the model\" would send now (`modeler_project.dataroom.publish.plan_publication`, nothing written),\nwhat keeps it from being sent, and what is sent otherwise than the files might suggest (a fasted arm's meals left\nout, water not stated, a release a Weibull curve does not describe), in words.",
         "properties": {
           "blocked": {
             "items": {
@@ -28364,12 +28364,20 @@
             },
             "title": "Evidence",
             "type": "array"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
           }
         },
         "required": [
           "evidence",
           "datasets",
-          "blocked"
+          "blocked",
+          "notes"
         ],
         "title": "RoomPublication",
         "type": "object"
@@ -28393,8 +28401,12 @@
       },
       "RoomPublished": {
         "additionalProperties": false,
-        "description": "What was sent, signed: items written, items already in the project (skipped), and the signature.",
+        "description": "What was sent, signed: items written, items already in the project (skipped), the Data room's earlier items it\nreplaced (superseded), the publication whose record keeps what the send rested on, and the signature.",
         "properties": {
+          "basis_sha256": {
+            "title": "Basis Sha256",
+            "type": "string"
+          },
           "datasets": {
             "title": "Datasets",
             "type": "integer"
@@ -28407,6 +28419,17 @@
             "title": "Manifestation",
             "type": "string"
           },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "publication": {
+            "title": "Publication",
+            "type": "string"
+          },
           "signature_id": {
             "title": "Signature Id",
             "type": "string"
@@ -28414,12 +28437,20 @@
           "skipped": {
             "title": "Skipped",
             "type": "integer"
+          },
+          "superseded": {
+            "title": "Superseded",
+            "type": "integer"
           }
         },
         "required": [
           "evidence",
           "datasets",
           "skipped",
+          "superseded",
+          "publication",
+          "basis_sha256",
+          "notes",
           "signature_id",
           "manifestation"
         ],
@@ -28965,6 +28996,14 @@
             "title": "Sets",
             "type": "array"
           },
+          "sources": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/Chip"
+            },
+            "title": "Sources",
+            "type": "array"
+          },
           "study_id": {
             "title": "Study Id",
             "type": "string"
@@ -28994,7 +29033,8 @@
           "client_means",
           "concentration_unit",
           "lloq",
-          "problems"
+          "problems",
+          "sources"
         ],
         "title": "RoomStudy",
         "type": "object"
@@ -40106,7 +40146,7 @@
     },
     "/api/v1/projects/{project_id}/dataroom/publication": {
       "get": {
-        "description": "What \"Send to the model\" would send now (evidence items and observed datasets) and what blocks it; nothing is\nwritten.",
+        "description": "What \"Send to the model\" would send now (evidence items and observed datasets), what blocks it (a study already\nin the project through Delivery or Inputs too), and what is sent otherwise than the files might suggest; nothing is\nwritten.",
         "operationId": "get_dataroom_publication_api_v1_projects__project_id__dataroom_publication_get",
         "parameters": [
           {
@@ -40165,7 +40205,7 @@
     },
     "/api/v1/projects/{project_id}/dataroom/publish": {
       "post": {
-        "description": "Send the room's confirmed inputs to the model: compound and release values as accepted evidence, each arm's mean\nprofile as an accepted observed dataset, so Review & sign starts from them. Signed with the token's recent step-up\n(403 `STEP_UP_REQUIRED`); refused (409 with every reason, nothing signed) while anything blocks it. Sending again\nadds only what changed.",
+        "description": "Send the room's confirmed inputs to the model: compound and release values as accepted evidence, each arm's mean\nprofile as an accepted observed dataset, so Review & sign starts from them. Signed with the token's recent step-up\n(403 `STEP_UP_REQUIRED`); refused (409 with every reason, nothing signed) while anything blocks it. Sending again\nadds only what changed, and what it replaces is rejected, superseded by this publication. What the send rested on\n(the confirmed question, the applications, every decision with its reason, the open data requests, the NCA values\nthe data do not reproduce, the means' BLQ convention) is kept as the publication's record\n(`dataroom/publications/<id>.json`), and the signature covers its sha256.",
         "operationId": "publish_dataroom_api_v1_projects__project_id__dataroom_publish_post",
         "parameters": [
           {

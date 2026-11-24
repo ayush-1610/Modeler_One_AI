@@ -247,6 +247,9 @@ class RoomStudy(_B):
     concentration_unit: str = ""
     lloq: float | None = None
     problems: tuple[Problem, ...] = ()
+    # the concentration tables the profiles are read from, one chip per table (its file, part and first data line): the
+    # source "Send to the model" gives each arm's dataset (ICH M15), and the place a Delivery confirmation is matched by
+    sources: tuple[Chip, ...] = ()
 
 
 # --- in vitro ---------------------------------------------------------------------------------------------------------

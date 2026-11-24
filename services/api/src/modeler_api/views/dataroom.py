@@ -147,19 +147,26 @@ class PublicationItem(View):
 
 class RoomPublication(View):
     """What "Send to the model" would send now (`modeler_project.dataroom.publish.plan_publication`, nothing written),
-    and what keeps it from being sent, in words."""
+    what keeps it from being sent, and what is sent otherwise than the files might suggest (a fasted arm's meals left
+    out, water not stated, a release a Weibull curve does not describe), in words."""
 
     evidence: list[PublicationItem]
     datasets: list[PublicationItem]
     blocked: list[str]
+    notes: list[str]
 
 
 class RoomPublished(View):
-    """What was sent, signed: items written, items already in the project (skipped), and the signature."""
+    """What was sent, signed: items written, items already in the project (skipped), the Data room's earlier items it
+    replaced (superseded), the publication whose record keeps what the send rested on, and the signature."""
 
     evidence: int
     datasets: int
     skipped: int
+    superseded: int
+    publication: str                 # its record: dataroom/publications/<publication>.json
+    basis_sha256: str                # of the record's basis, which the signature covers
+    notes: list[str]
     signature_id: str
     manifestation: str
 

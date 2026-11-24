@@ -1466,7 +1466,8 @@ export interface paths {
         };
         /**
          * Get Dataroom Publication
-         * @description What "Send to the model" would send now (evidence items and observed datasets) and what blocks it; nothing is
+         * @description What "Send to the model" would send now (evidence items and observed datasets), what blocks it (a study already
+         *     in the project through Delivery or Inputs too), and what is sent otherwise than the files might suggest; nothing is
          *     written.
          */
         get: operations["get_dataroom_publication_api_v1_projects__project_id__dataroom_publication_get"];
@@ -1492,7 +1493,10 @@ export interface paths {
          * @description Send the room's confirmed inputs to the model: compound and release values as accepted evidence, each arm's mean
          *     profile as an accepted observed dataset, so Review & sign starts from them. Signed with the token's recent step-up
          *     (403 `STEP_UP_REQUIRED`); refused (409 with every reason, nothing signed) while anything blocks it. Sending again
-         *     adds only what changed.
+         *     adds only what changed, and what it replaces is rejected, superseded by this publication. What the send rested on
+         *     (the confirmed question, the applications, every decision with its reason, the open data requests, the NCA values
+         *     the data do not reproduce, the means' BLQ convention) is kept as the publication's record
+         *     (`dataroom/publications/<id>.json`), and the signature covers its sha256.
          */
         post: operations["publish_dataroom_api_v1_projects__project_id__dataroom_publish_post"];
         delete?: never;
@@ -13701,7 +13705,8 @@ export interface components {
         /**
          * RoomPublication
          * @description What "Send to the model" would send now (`modeler_project.dataroom.publish.plan_publication`, nothing written),
-         *     and what keeps it from being sent, in words.
+         *     what keeps it from being sent, and what is sent otherwise than the files might suggest (a fasted arm's meals left
+         *     out, water not stated, a release a Weibull curve does not describe), in words.
          */
         RoomPublication: {
             /** Blocked */
@@ -13710,6 +13715,8 @@ export interface components {
             datasets: components["schemas"]["PublicationItem"][];
             /** Evidence */
             evidence: components["schemas"]["PublicationItem"][];
+            /** Notes */
+            notes: string[];
         };
         /** RoomPublish */
         RoomPublish: {
@@ -13721,19 +13728,28 @@ export interface components {
         };
         /**
          * RoomPublished
-         * @description What was sent, signed: items written, items already in the project (skipped), and the signature.
+         * @description What was sent, signed: items written, items already in the project (skipped), the Data room's earlier items it
+         *     replaced (superseded), the publication whose record keeps what the send rested on, and the signature.
          */
         RoomPublished: {
+            /** Basis Sha256 */
+            basis_sha256: string;
             /** Datasets */
             datasets: number;
             /** Evidence */
             evidence: number;
             /** Manifestation */
             manifestation: string;
+            /** Notes */
+            notes: string[];
+            /** Publication */
+            publication: string;
             /** Signature Id */
             signature_id: string;
             /** Skipped */
             skipped: number;
+            /** Superseded */
+            superseded: number;
         };
         /** RoomQuestionBody */
         RoomQuestionBody: {
@@ -13973,6 +13989,11 @@ export interface components {
              * @default []
              */
             sets: components["schemas"]["SubjectSet"][];
+            /**
+             * Sources
+             * @default []
+             */
+            sources: components["schemas"]["Chip"][];
             /** Study Id */
             study_id: string;
             /**
