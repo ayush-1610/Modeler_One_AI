@@ -55,6 +55,10 @@ chain (R-B13) and `pbpk_domain.snapshot.parameter_transfer` (R-B13b) stay until 
   tray's list, the Inputs "more" fold, eleven unused utilities, and the comments they left behind. A class built from
   data (a status, a severity, a step's state) is kept when its value can arrive; two `:not(.x)` guards in console.css
   and targets.css stay as they are (they change nothing, and removing them would change specificity).
+- **Unused code removed:** 14 exports nothing imports (the template types of the retired wizard in `lib/writes.ts`,
+  `getArtifact`, `STATUS_CHIP`, `DELIVERY_WORDS`, `StepperSkeleton` and nine type aliases); the loading pages' ignored
+  `stepper` prop and its `.stepper-wrap` style; two unused imports; and a document read on the products and populations
+  lists whose answer nothing used (one request fewer when those lists open).
 - **Why:** B-05 (two kits side by side) and B-09 (the motion system), retired in the plan's slice 9, and its exit
   check "no orphan": no module is unimported and no stylesheet rule is unreachable.
 - **Impact:** no page looks or behaves differently: each piece keeps its markup, classes and test ids (the toast's

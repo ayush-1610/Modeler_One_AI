@@ -23,7 +23,6 @@ export function BriefList({ projectId, group, fields, title, lede, testId, addAt
   addAt?: number | null;
 }) {
   const page = useResource("/api/v1/projects/{project_id}/brief", { project_id: projectId }, { select: (d) => narrow<BriefView>(d) });
-  const docs = useResource("/api/v1/projects/{project_id}/documents", { project_id: projectId });
   const { run } = useMutation();
   const [adding, setAdding] = useState(false);
   const [removing, setRemoving] = useState<number | null>(null);

@@ -18,7 +18,7 @@ import { useState } from "react";
 import type { Comparison, Profile } from "@/components/client/types";
 import { send } from "@/lib/api";
 import { cardAnchor, normLabel, releaseAnchor, type Subject } from "@/lib/inputsWork";
-import { askAt, inputsHref, profileText, valueWord } from "@/lib/words";
+import { askAt, inputsHref, profileText } from "@/lib/words";
 
 import { releaseAfter } from "../after";
 import { ReleaseView } from "../DatasetView";
@@ -253,4 +253,3 @@ export function ProductCard({ subject, env, open, onToggle, profiles, comparison
 }
 
 /** A product's role as the dissolution names it (TEST, RLD, …), in words. */
-export const roleWord = (p: Profile) => valueWord(String(p.key.role ?? ""));

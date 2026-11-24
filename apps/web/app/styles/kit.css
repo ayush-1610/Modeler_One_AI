@@ -1,13 +1,9 @@
-/* The redesign's kit (components/kit): the step bar, page shell, side panel, empty state, inline issue, table box and
+/* The redesign's kit (components/kit): the "Waiting on you" line, page shell, empty state, inline issue, table box and
  * dialog. Built only from the theme tokens in globals.css. */
 
-/* ---- the four steps ---- */
-.stepper-wrap { margin: 2px 0 22px; }
-/* the line that joins one step to the next */
-/* a step after an unfinished Start: shown, not opened (page review 1) */
+/* ---- what the page's step waits on (kit/StepWaiting) ---- */
 .step-waiting { margin: 10px 0 0; font-size: 13px; color: var(--ink-dim); max-width: none; }
 .step-waiting strong { color: var(--warn-ink); font-weight: 600; }
-
 
 /* ---- a step's page ---- */
 .shell-body.with-side { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 20px; align-items: start; }

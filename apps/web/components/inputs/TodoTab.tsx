@@ -19,7 +19,7 @@ import { useMemo, useState } from "react";
 import { MappingReview } from "@/components/delivery/MappingReview";
 import { LiveRegion } from "@/components/kit/LiveRegion";
 import { STEP_ROUTES } from "@/lib/pipeline";
-import { GROUPS, GROUP_LEDE, GROUP_TITLE, INLINE_TODO, restoredText, type Group, type Subject, type WorkItem, type WorkModel } from "@/lib/inputsWork";
+import { GROUPS, GROUP_LEDE, GROUP_TITLE, INLINE_TODO, type Group, type Subject, type WorkItem, type WorkModel } from "@/lib/inputsWork";
 import { STATUS_TONE, STATUS_WORD, type Status, askStudies, plural } from "@/lib/words";
 
 import { IssueCard } from "./ClientConfirm";

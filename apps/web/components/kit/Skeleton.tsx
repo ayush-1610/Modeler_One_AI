@@ -16,20 +16,10 @@ export function Skeleton({ rows = [72, 88, 64], tall = false }: { rows?: number[
   );
 }
 
-/** Where the project's four steps will be, while they are read (the Stepper streams in after the page's head). */
-export function StepperSkeleton() {
-  return (
-    // in the step bar's own place and size (.stepper-wrap), so the page does not shift when the steps arrive
-    <div className="stepper-wrap" aria-hidden data-testid="stepper-loading">
-      <div className="skeleton"><div className="skeleton-row pill" /></div>
-    </div>
-  );
-}
-
-/** A whole page while it is read: its head (tone, pill and, where it never changes, its title), the step bar for a
- *  project's step pages, and its body as cards or rows. */
-export function PageSkeleton({ tone, eyebrow, title = "Loading…", stepper = false, body = "rows", wide = false }: {
-  tone?: HeroTone; eyebrow?: string; title?: ReactNode; stepper?: boolean;
+/** A whole page while it is read: its head (tone, pill and, where it never changes, its title) and its body as cards
+ *  or rows. */
+export function PageSkeleton({ tone, eyebrow, title = "Loading…", body = "rows", wide = false }: {
+  tone?: HeroTone; eyebrow?: string; title?: ReactNode;
   /** "cards": two columns of cards (a project's overview); "canvas": one large block (the plan); "rows": a list. */
   body?: "cards" | "canvas" | "rows";
   wide?: boolean;
@@ -38,7 +28,6 @@ export function PageSkeleton({ tone, eyebrow, title = "Loading…", stepper = fa
     <main aria-busy="true" className={wide ? "wide" : undefined}>
       <Hero tone={tone} eyebrow={eyebrow} title={title}
             lede={<span className="page-loading" role="status" data-testid="page-loading">Reading the page from the API.</span>} />
-      {/* `stepper` is accepted and ignored: the steps are in the side navigation now (console redesign, slice 1) */}
       {body === "cards" && (
         <div className="skeleton skeleton-cols mt-32" aria-hidden>
           <div className="skeleton-row card" /><div className="skeleton-row card" />

@@ -318,7 +318,7 @@
 .dr-report-foot { font-size: 13px; color: var(--ink-quiet); }
 
 @media print {
-  .skip-link, .stepper-wrap, .dr-report-bar, .dialog-backdrop, [data-testid="escalation-popup"] { display: none !important; }
+  .skip-link, .dr-report-bar, .dialog-backdrop, [data-testid="escalation-popup"] { display: none !important; }
   .content { padding: 0 !important; max-width: none; }
   body { background: #fff; font-size: 10.5pt; }
   body::before { display: none; }

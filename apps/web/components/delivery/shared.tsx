@@ -24,7 +24,6 @@ export type Subject = Schema<"DeliverySubject">;
 export type Value = Schema<"DeliveryValue">;
 export type MappingRow = Schema<"DeliveryMappingRow">;
 export type Blocker = Schema<"DeliveryBlocker">;
-export type Rules = Schema<"DeliveryRules">;
 export type SubjectKind = SubjectRow["subject_type"];
 
 /** What stands in place of a blinded study's value, everywhere. */
