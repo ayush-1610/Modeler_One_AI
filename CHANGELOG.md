@@ -61,7 +61,19 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
     the run.
   - A9 is told how its table display is written: most of its earlier issues misread its own separators.
   - The prompts changed: `PROMPT_VERSION` dataroom-3.
-- **Contract:** `Section.computed` added (code's own finding).
+- **The client's NCA compared by its own rule and times:**
+  - AUC to infinity is compared by the client's rule: for a linear-trapezoid client, our linear AUC plus the same
+    extrapolated part. It had flagged 17 subjects whose values were right.
+  - Tmax is compared at the actual time of our own Cmax sample when the data gives actual times (`SubjectNca.tmax_actual`,
+    `Sample.actual_h`). Five nominal-time flags were false.
+  - Result: the planted 3 % error is the only one flagged.
+- **More refusals:**
+  - A column given role "time" that has a time written above it is refused (`TIME_ROLE_WITH_A_TIME`). Twelve
+    concentration columns described so had read no concentration at all.
+  - A concentration or dissolution table with no value column is refused.
+- **Duplicates:** among byte-identical files, the original's name wins over "… - Copy" or "…(1)", whichever the archive
+  lists first.
+- **Contract:** `Section.computed` (code's own finding) and `SubjectNca.tmax_actual` added.
 - **Tests:**
   - `test_dataroom_layouts.py`: 17 tests;
   - `test_dataroom_run.py`: the checker-to-extractor round.
