@@ -96,7 +96,8 @@ export function TopBar({ user, navOpen, onMenu }: { user?: string | null; navOpe
       <ProjectSwitcher />
       <span className="grow" />
       <TopWork />
-      <Link href="/help" prefetch={false} className="topbar-link" data-testid="top-help" aria-label="Help"><Icon name="info" /><span className="topbar-link-text">Help</span></Link>
+      {/* the user guide, the AI keys path among it (app/help, 2026-11-24) */}
+      <Link href="/help" prefetch={false} className="topbar-link" data-testid="nav-help" aria-label="Help"><Icon name="info" /><span className="topbar-link-text">Help</span></Link>
       {/* the API's answer, not a guess: green when its reads answer, grey when they do not; a click asks again */}
       <button type="button" className={`topbar-api${live ? " live" : ""}`} onClick={() => void recheck()} data-testid="nav-conn"
               title={live ? "Live: the API answers" : live === false ? "The API does not answer" : "Checking the API"}
@@ -106,14 +107,16 @@ export function TopBar({ user, navOpen, onMenu }: { user?: string | null; navOpe
       {user ? (
         <span className="topbar-user">
           <span className="avatar" aria-hidden>{initials(user)}</span>
-          <span data-testid="signed-in">Signed in as <strong>{user}</strong></span>
+          <span data-testid="signed-in">Signed in as{" "}
+            <Link href="/account" prefetch={false} className="topbar-account" data-testid="nav-account"><strong>{user}</strong></Link></span>
           {/* a route handler, not a page: a full navigation; the reasons this tab kept for the person are forgotten first */}
           <a href="/auth/logout" data-testid="sign-out" onClick={forgetReasons}>Sign out</a>
         </span>
       ) : (
         <span className="topbar-user" data-testid="dev-sign-in">
           <span className="avatar" aria-hidden>M1</span>
-          <span><strong>Development sign-in</strong><span className="topbar-role"> · no named user</span></span>
+          <span><Link href="/account" prefetch={false} className="topbar-account" data-testid="nav-account"><strong>Development sign-in</strong></Link>
+            <span className="topbar-role"> · no named user</span></span>
         </span>
       )}
     </header>

@@ -310,6 +310,16 @@ streams; every Data room turn and switch is recorded; each answer names the mode
 - Each run is audited at its start and kept in the room's run history.
 - Still open: consent per client rather than per project, and an admin registry of clients' agreements.
 
+**2026-11-24: the way in, and the missing pages.**
+- Only the project's owner or an administrator records where its files may go.
+- `/signin`, `/signed-out`, `/no-access`, `/account`, and the Keycloak login theme `modeler-one` (`keycloak.sh theme`,
+  then select it once in Keycloak's admin console on the server).
+- The realm file now imports into a fresh Keycloak (a description over 255 characters had stopped it).
+- `/help` draws the user guide; §6b is the AI keys path end to end.
+- New pages: `/projects/{id}/settings` and `/admin/system`.
+- The Keycloak suite passes on a local Keycloak 26.7.5. The rest of the sitemap's new pages wait for the redesign
+  slices.
+
 **Open, in order:**
 1. Score A6–A10 on the sample delivery per model. Nemotron Ultra, 2026-11-22: 31 of 34 values on the key files
    (every set and exposure; the dissolution file failed on NVIDIA's 502s). Still to score: Qwen Coder on the server,

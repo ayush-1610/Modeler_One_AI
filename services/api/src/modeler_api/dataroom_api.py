@@ -30,14 +30,15 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, File, HTTPException, Query, Response, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile
 from pydantic import BaseModel, ConfigDict, Field
 
 from modeler_api import agent_jobs, jobs
-from modeler_api.auth import ensure_step_up
+from modeler_api.auth import Principal, ensure_step_up, require_role
 from modeler_api.compliance.signatures import SignatureMeaning, Signer, sign_after_step_up
 from modeler_api.config import SettingsDep
-from modeler_api.deps import Reader, StoreDep, Writer, workspace_for
+from modeler_api.deps import READ_ROLES, WRITE_ROLES, Reader, StoreDep, Writer, workspace_for
+from modeler_api.ownership import ADMIN, ensure_owner_or_admin, owner_or_admin
 from modeler_api.part11 import record_signature
 from modeler_api.responses import Envelope, answers, envelope
 from modeler_api.views.dataroom import (
@@ -412,7 +413,11 @@ class DataPermissionsBody(BaseModel):
     reason: str = ""
 
 
-def _permissions(ws: Any) -> dict[str, Any]:
+# who records where a project's files may go: its owner or an administrator (the owner, 2026-11-24)
+Governor = Annotated[Principal, Depends(require_role(*WRITE_ROLES, ADMIN))]
+
+
+def _permissions(ws: Any, changes: tuple[bool, str]) -> dict[str, Any]:
     from datetime import UTC, datetime
 
     from modeler_project.data_permissions import CLOUD_SERVICES, DataPermissions
@@ -424,24 +429,29 @@ def _permissions(ws: Any) -> dict[str, Any]:
     history = [{"in_house_only": h["in_house_only"], "services": sorted(h["services"]), "by": h["by"], "at": h["at"],
                 "reason": h["reason"]} for h in reversed(doc.get("history", []))]
     return envelope({"in_house_only": doc["in_house_only"], "grants": grants, "history": history,
+                     "you_change_it": changes[0], "who_changes_it": changes[1],
                      "services": [{"service": p, "label": label} for p, label in CLOUD_SERVICES.items()]})
 
 
 @router.get("/projects/{project_id}/data-permissions", **answers(DataPermissionsView))
-def get_data_permissions(project_id: str, principal: Reader, store: StoreDep) -> dict[str, Any]:
+def get_data_permissions(project_id: str, principal: Annotated[Principal, Depends(require_role(*READ_ROLES, ADMIN))],
+                         store: StoreDep, settings: SettingsDep) -> dict[str, Any]:
     """Where this project's client files may be sent for an AI model to read: in-house only unless a cloud service has
-    the client's recorded permission."""
-    return _permissions(workspace_for(project_id, principal, store))
+    the client's recorded permission; whether the reader may change it (its owner or an administrator)."""
+    return _permissions(workspace_for(project_id, principal, store), owner_or_admin(project_id, principal, settings))
 
 
 @router.put("/projects/{project_id}/data-permissions", **answers(DataPermissionsView))
-def put_data_permissions(project_id: str, principal: Writer, store: StoreDep, body: DataPermissionsBody) -> dict[str, Any]:
+def put_data_permissions(project_id: str, principal: Governor, store: StoreDep, settings: SettingsDep,
+                         body: DataPermissionsBody) -> dict[str, Any]:
     """Record where this project's client files may go, as a whole: in-house only, or the cloud services the client
-    allowed, each with the client's written permission (its reference) and when it ends. Confirmed with the step-up and
-    audited; the agents follow it from their next request."""
+    allowed, each with the client's written permission (its reference) and when it ends. Only the project's owner or an
+    administrator (403 `NOT_OWNER_OR_ADMIN`). Confirmed with the step-up and audited; the agents follow it from their
+    next request."""
     from modeler_project.data_permissions import DataPermissions, PermissionError_
 
     ws = workspace_for(project_id, principal, store)
+    ensure_owner_or_admin(project_id, principal, settings)
     if not body.reason.strip():
         raise HTTPException(status_code=422, detail="say why (the client's permission, or why it is withdrawn)")
     ensure_step_up(principal)
@@ -451,7 +461,7 @@ def put_data_permissions(project_id: str, principal: Writer, store: StoreDep, bo
                                 by=principal.user_id, reason=body.reason)
     except PermissionError_ as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
-    return _permissions(ws)
+    return _permissions(ws, owner_or_admin(project_id, principal, settings))
 
 
 # --- the source viewer ---------------------------------------------------------------------------------------------

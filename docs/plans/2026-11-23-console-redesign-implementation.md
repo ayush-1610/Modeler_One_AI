@@ -168,3 +168,4 @@ QA needs no `auth.py` change (a membership admit and the read roles), so it wait
 | 2 | Your work and Projects show "waiting since" / "updated" | not shown | no timestamp on a step or project in the API; recorded for later |
 | 2 | the flash bar sits under the page header | at the top of the content, above the breadcrumbs | the shell mounts one flash for every page; moving it under each page's header comes with the PageHeader component |
 | 2 | the decision dialog restyled with the flash | the existing dialog, opened from the flash | its restyle is slice 6 (campaign page) |
+| 2 | Help (P-30) in slice 2 | the user guide page another session added on `main` (renders `docs/USING_THE_TOOL.md`) | two Help pages arrived the same day; the one that renders the guide is what the page inventory asks for |

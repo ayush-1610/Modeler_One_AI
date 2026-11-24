@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { headers } from "next/headers";
 import localFont from "next/font/local";
 
 // The console redesign's tokens first (design-review/DESIGN_SYSTEM.md §2-3): every colour, size and radius is one of them.
@@ -32,10 +33,13 @@ import "./styles/targets.css";
 import "./styles/utilities.css";
 // the console: shell, header, panels, controls, tables, banners, dialogs (the redesign, slice 1); after every page sheet
 import "./styles/console.css";
+// the pages before and after the app (sign in, signed out, no access) and the account page (2026-11-24)
+import "./styles/auth.css";
 import { EscalationPopup } from "@/components/campaign/EscalationPopup";
 import { Toaster } from "@/components/kit/Motion";
 import { AppShell } from "@/components/shell/AppShell";
 import { Providers } from "@/components/Providers";
+import { SHELL_HEADER } from "@/lib/oidc";
 import { signedInId, signedInName } from "@/lib/session";
 
 // Plex was drawn for technical work: unambiguous figures, a real voice, and a mono companion for the
@@ -62,6 +66,14 @@ export const metadata = {
 export default async function RootLayout({ children }: { children: ReactNode }) {
   const user = await signedInName();
   const person = await signedInId();
+  // the sign-in pages, signed out and no access (proxy.ts): no sidebar, no escalation pop-up, nothing read from the API
+  if ((await headers()).get(SHELL_HEADER) === "none") {
+    return (
+      <html lang="en" className={`${sans.variable} ${mono.variable}`}>
+        <body className="auth-body">{children}</body>
+      </html>
+    );
+  }
   return (
     <html lang="en" className={`${sans.variable} ${mono.variable}`}>
       <body>

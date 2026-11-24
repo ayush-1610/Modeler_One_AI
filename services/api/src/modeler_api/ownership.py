@@ -19,6 +19,11 @@ from modeler_api.memberships import memberships_for
 SIGNING_ROUTES = frozenset({("POST", "/api/v1/projects/{project_id}/signatures"),
                             ("POST", "/api/v1/projects/{project_id}/plan:sign")})
 REVIEWER = "modeler-reviewer"
+ADMIN = "modeler-admin"
+# The project changes only its owner or an administrator makes (the owner, 2026-11-24: "restrict granting permission to
+# the project owner and admin"): where the project's client files may be sent. These routes check
+# instead of the owner rule (`ensure_owner_or_admin`).
+OWNER_OR_ADMIN_ROUTES = frozenset({("PUT", "/api/v1/projects/{project_id}/data-permissions")})
 
 
 def owner_guard(request: Request, principal: CurrentPrincipal, settings: SettingsDep) -> None:
@@ -31,8 +36,11 @@ def owner_guard(request: Request, principal: CurrentPrincipal, settings: Setting
     project_id = request.path_params.get("project_id")
     if not project_id:
         return
-    route = request.scope.get("route")
-    ensure_owner(project_id, principal, settings, signing=(request.method, getattr(route, "path", "")) in SIGNING_ROUTES)
+    route = (request.method, getattr(request.scope.get("route"), "path", ""))
+    if route in OWNER_OR_ADMIN_ROUTES:
+        ensure_owner_or_admin(project_id, principal, settings)
+        return
+    ensure_owner(project_id, principal, settings, signing=route in SIGNING_ROUTES)
 
 
 def ensure_owner(project_id: str, principal: Principal, settings: Settings, *, signing: bool = False) -> None:
@@ -49,6 +57,27 @@ def ensure_owner(project_id: str, principal: Principal, settings: Settings, *, s
     raise HTTPException(status_code=403, detail={"code": "NOT_OWNER",
                                                  "message": f"only the project's owner, {name}, changes it; it is shared "
                                                             "with you to read"})
+
+
+def owner_or_admin(project_id: str, principal: Principal, settings: Settings) -> tuple[bool, str]:
+    """Whether `principal` may make a change only the project's owner or an administrator makes, and who makes it, in
+    words. Stricter than `ensure_owner`: a project with no owner on record leaves it to an administrator, never to its
+    members. The pilot's DEV principal (`*`) passes, as everywhere."""
+    if ADMIN in principal.roles or not settings.read_root or "*" in principal.projects:
+        return True, "the project's owner or an administrator"
+    memberships = memberships_for(settings, principal.tenant_id)
+    owner = memberships.owner(project_id)
+    if owner is None:
+        return False, "an administrator (the project has no owner on record)"
+    name = next((p.name for p in memberships.people() if p.subject == owner), owner)
+    return owner == principal.user_id, f"the project's owner, {name}, or an administrator"
+
+
+def ensure_owner_or_admin(project_id: str, principal: Principal, settings: Settings) -> None:
+    """403 unless `principal` is the project's owner or an administrator (`owner_or_admin`)."""
+    allowed, who = owner_or_admin(project_id, principal, settings)
+    if not allowed:
+        raise HTTPException(status_code=403, detail={"code": "NOT_OWNER_OR_ADMIN", "message": f"only {who} changes this"})
 
 
 def may_change(project_id: str, principal: Principal, settings: Settings, *, signing: bool = False) -> bool:

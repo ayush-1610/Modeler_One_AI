@@ -8,6 +8,7 @@
 #   keycloak.sh start     start it (idempotent)          keycloak.sh stop     stop it
 #   keycloak.sh status    is it up, and where             keycloak.sh env      the lines for ~/.modeler-secrets.env
 #   keycloak.sh migrate-db   move every realm, user and authenticator enrolment from the file database to PostgreSQL
+#   keycloak.sh theme     copy in the product's sign-in pages (deploy/keycloak/themes/modeler-one); restart after
 #
 # Settings (environment, default in brackets):
 #   MODELER_KEYCLOAK_HOST   the name or address browsers use for this server [this server's first address]
@@ -36,6 +37,7 @@ HTTPS_PORT="${MODELER_KEYCLOAK_HTTPS_PORT:-8443}"
 HOST="${MODELER_KEYCLOAK_HOST:-$(hostname -I 2>/dev/null | awk '{print $1}')}"
 PUBLIC="https://$HOST:$HTTPS_PORT"
 REALM_FILE="$REPO/deploy/keycloak/realm-modeler.json"
+THEMES="$REPO/deploy/keycloak/themes"
 PID_FILE="$LOGS/keycloak.pid"
 
 die() { echo "keycloak.sh: $*" >&2; exit 1; }
@@ -136,10 +138,28 @@ PY
   echo "$out"
 }
 
+# The product's own sign-in pages (deploy/keycloak/themes/modeler-one: Keycloak's keycloak.v2 pages with Modeler One's
+# look and words), copied into Keycloak's themes folder, which Keycloak reads when it starts. The realm file names it as
+# its login theme; a realm imported before it existed keeps Keycloak's pages until it is chosen once (`theme` says how).
+install_theme() {
+  [ -d "$KC_HOME/themes" ] || die "Keycloak is not installed: run 'keycloak.sh install'"
+  rm -rf "$KC_HOME/themes/modeler-one"
+  cp -R "$THEMES/modeler-one" "$KC_HOME/themes/modeler-one"
+  echo "theme: modeler-one copied to $KC_HOME/themes"
+}
+
+cmd_theme() {
+  install_theme
+  echo "Next: 'keycloak.sh stop', then 'keycloak.sh start' (Keycloak reads its themes when it starts)."
+  echo "Once, for a realm imported before 2026-11-24: Keycloak's admin console > realm 'modeler' > Realm settings >"
+  echo "  Themes > Login theme: modeler-one > Save. The sign-in page then shows Modeler One's name and look."
+}
+
 cmd_install() {
   mkdir -p "$KC_ROOT"
   install_java
   install_keycloak
+  install_theme
   make_certificate
   running && die "stop Keycloak before importing the realm ('keycloak.sh stop')"
   # --override false: a realm that already exists (its users, their TOTP) is kept, never replaced by the file.
@@ -240,5 +260,6 @@ case "${1:-}" in
   status) cmd_status ;;
   env) cmd_env ;;
   migrate-db) cmd_migrate_db ;;
-  *) sed -n '2,20p' "$0"; exit 2 ;;
+  theme) cmd_theme ;;
+  *) sed -n '2,21p' "$0"; exit 2 ;;
 esac

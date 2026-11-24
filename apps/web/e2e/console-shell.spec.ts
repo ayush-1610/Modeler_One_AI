@@ -41,7 +41,7 @@ async function check(page: Page, path: string) {
 
 test("every main page: named controls, one heading, no sideways scroll, at 1440 and 390 px", async ({ page, request }) => {
   const id = await projectWithInputs(request, "Consolamide", [{ study_id: "iv-100", route: "iv_infusion", dose_mg: 100 }]);
-  const pages = ["/", "/work", "/projects", "/campaigns", "/help", "/help/words", "/projects/start", `/projects/${id}`, `/projects/${id}/start`, `/projects/${id}/inputs`, `/projects/${id}/dataroom`,
+  const pages = ["/", "/work", "/projects", "/campaigns", "/help", "/projects/start", `/projects/${id}`, `/projects/${id}/start`, `/projects/${id}/inputs`, `/projects/${id}/dataroom`,
                  `/projects/${id}/plan`, `/projects/${id}/library`, `/projects/${id}/history`, "/no-such-page"];
   for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: 900 });

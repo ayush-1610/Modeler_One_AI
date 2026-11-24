@@ -4550,10 +4550,20 @@
             },
             "title": "Services",
             "type": "array"
+          },
+          "who_changes_it": {
+            "title": "Who Changes It",
+            "type": "string"
+          },
+          "you_change_it": {
+            "title": "You Change It",
+            "type": "boolean"
           }
         },
         "required": [
           "in_house_only",
+          "you_change_it",
+          "who_changes_it",
           "grants",
           "services",
           "history"
@@ -37266,7 +37276,7 @@
     },
     "/api/v1/projects/{project_id}/data-permissions": {
       "get": {
-        "description": "Where this project's client files may be sent for an AI model to read: in-house only unless a cloud service has\nthe client's recorded permission.",
+        "description": "Where this project's client files may be sent for an AI model to read: in-house only unless a cloud service has\nthe client's recorded permission; whether the reader may change it (its owner or an administrator).",
         "operationId": "get_data_permissions_api_v1_projects__project_id__data_permissions_get",
         "parameters": [
           {
@@ -37323,7 +37333,7 @@
         ]
       },
       "put": {
-        "description": "Record where this project's client files may go, as a whole: in-house only, or the cloud services the client\nallowed, each with the client's written permission (its reference) and when it ends. Confirmed with the step-up and\naudited; the agents follow it from their next request.",
+        "description": "Record where this project's client files may go, as a whole: in-house only, or the cloud services the client\nallowed, each with the client's written permission (its reference) and when it ends. Only the project's owner or an\nadministrator (403 `NOT_OWNER_OR_ADMIN`). Confirmed with the step-up and audited; the agents follow it from their\nnext request.",
         "operationId": "put_data_permissions_api_v1_projects__project_id__data_permissions_put",
         "parameters": [
           {

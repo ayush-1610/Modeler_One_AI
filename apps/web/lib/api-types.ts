@@ -1211,14 +1211,15 @@ export interface paths {
         /**
          * Get Data Permissions
          * @description Where this project's client files may be sent for an AI model to read: in-house only unless a cloud service has
-         *     the client's recorded permission.
+         *     the client's recorded permission; whether the reader may change it (its owner or an administrator).
          */
         get: operations["get_data_permissions_api_v1_projects__project_id__data_permissions_get"];
         /**
          * Put Data Permissions
          * @description Record where this project's client files may go, as a whole: in-house only, or the cloud services the client
-         *     allowed, each with the client's written permission (its reference) and when it ends. Confirmed with the step-up and
-         *     audited; the agents follow it from their next request.
+         *     allowed, each with the client's written permission (its reference) and when it ends. Only the project's owner or an
+         *     administrator (403 `NOT_OWNER_OR_ADMIN`). Confirmed with the step-up and audited; the agents follow it from their
+         *     next request.
          */
         put: operations["put_data_permissions_api_v1_projects__project_id__data_permissions_put"];
         post?: never;
@@ -5032,6 +5033,10 @@ export interface components {
             in_house_only: boolean;
             /** Services */
             services: components["schemas"]["DataService"][];
+            /** Who Changes It */
+            who_changes_it: string;
+            /** You Change It */
+            you_change_it: boolean;
         };
         /**
          * DataPlanStatus

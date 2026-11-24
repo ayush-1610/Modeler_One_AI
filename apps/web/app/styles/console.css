@@ -248,13 +248,12 @@ a.counter:hover { border-color: var(--c-accent); color: var(--c-ink); }
 .view-switch button { min-height: 30px; padding: 0 12px; border: 0; border-radius: 7px; background: none; color: var(--c-ink-2); font: inherit;
   font-weight: 600; cursor: pointer; }
 .view-switch button[aria-pressed="true"] { background: var(--c-surface); color: var(--c-accent); box-shadow: var(--elev-tab); }
-.help-layout { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: var(--sp-5); align-items: start; }
-@media (max-width: 760px) { .help-layout { grid-template-columns: minmax(0, 1fr); } }
-.help-topics { display: grid; gap: 2px; }
-.help-topics a { padding: 8px 12px; border-radius: var(--rad-md); color: var(--c-ink); text-decoration: none; }
-.help-topics a:hover { background: var(--c-surface-2); }
-.help-topics a[aria-current="page"] { background: var(--c-accent-tint); color: var(--c-accent); font-weight: 600; }
-.help-body p { max-width: 75ch; }
+
+/* Help (the user guide, app/help): one column on a phone, its contents above the guide (auth.css sets the desktop grid) */
+@media (max-width: 760px) {
+  .content .help-layout { grid-template-columns: minmax(0, 1fr); }
+  .content .help-toc { position: static; }
+}
 
 /* ---------- alerts: a bordered, tinted box with the word; the colour is the second cue ---------- */
 .banner { border: 1px solid; border-radius: var(--rad-md); padding: 12px 16px; font-weight: 400; color: var(--c-ink); }
@@ -299,7 +298,7 @@ a.counter:hover { border-color: var(--c-accent); color: var(--c-ink); }
 /* Sticky parts of a page stick below the top bar, which stays at the top of the window (otherwise they slide under it) */
 .area-bar { top: var(--topbar-h); }
 html:has(.area-bar) { scroll-padding-top: calc(var(--topbar-h) + 76px); }
-.dr-rail, .dash-side, .shell-side, .brief-side { top: calc(var(--topbar-h) + 16px); }
+.dr-rail, .dash-side, .shell-side, .brief-side, .content .help-toc { top: calc(var(--topbar-h) + 16px); }
 .overall-data { top: calc(var(--topbar-h) + 12px); max-height: calc(100vh - var(--topbar-h) - 24px); }
 @media (max-width: 900px) {
   .area-bar { top: var(--topbar-h); }

@@ -60,7 +60,7 @@ function PortfolioNav({ path, admin }: { path: string; admin: boolean }) {
           <NavItem it={{ href: "/projects", label: "Projects", icon: "folder", active: path === "/projects", testId: "nav-projects" }} />
           <NavItem it={{ href: "/campaigns", label: "Campaigns", icon: "pipeline", active: path.startsWith("/campaigns"), testId: "nav-campaigns" }} />
           <NavItem it={{ href: "/projects/start", label: "Start from proposal", icon: "fileplus", active: path.startsWith("/projects/start") }} />
-          <NavItem it={{ href: "/help", label: "Help", icon: "info", active: path.startsWith("/help"), testId: "nav-help" }} />
+          <NavItem it={{ href: "/help", label: "Help", icon: "info", active: path.startsWith("/help"), testId: "nav-help-guide" }} />
         </ul>
       </nav>
       {admin && (
@@ -156,6 +156,10 @@ function ProjectNav({ projectId, path }: { projectId: string; path: string }) {
         <NavItem it={{ href: `${base}/library`, label: "Documents", icon: "doc", active: path.startsWith(`${base}/library`), testId: "nav-library" }} />
         <NavItem it={{ href: `${base}/history`, label: "History", icon: "clock", active: path.startsWith(`${base}/history`), testId: "nav-history" }} />
       </Group>
+      {/* the sitemap's PROJECT group: who owns it, who it is shared with, where its client files may go (2026-11-24) */}
+      <Group label="Project">
+        <NavItem it={{ href: `${base}/settings`, label: "Settings", icon: "sliders", active: path.startsWith(`${base}/settings`), testId: "nav-settings" }} />
+      </Group>
       {/* over the whole page, not inside the navigation (its sticky position would hold the card under the page) */}
       {adding && createPortal(<AddData key={projectId} projectId={projectId} step={stepOf(path)} onClose={() => setAdding(false)} />, document.body)}
     </div>
@@ -167,7 +171,7 @@ function AdminNav({ path }: { path: string }) {
   const items: [string, string, IconName][] = [
     ["/admin", "Overview", "home"], ["/admin/people", "People", "users"], ["/admin/usage", "Usage and cost", "chart"],
     ["/admin/models", "Agents and models", "cpu"], ["/admin/keys", "Keys", "key"], ["/admin/limits", "Limits", "gauge"],
-    ["/admin/pipeline", "Intake pipeline", "pipeline"],
+    ["/admin/pipeline", "Intake pipeline", "pipeline"], ["/admin/system", "System status", "checkc"],
   ];
   return (
     <>

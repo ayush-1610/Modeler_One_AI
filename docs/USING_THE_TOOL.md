@@ -174,7 +174,7 @@ New projects use the Data room as their Inputs step (existing projects keep thei
    publishes the inputs into the stores Review & sign and Run already use.
 7. **Export the report.** It opens the evidence report as a printable page; save it as PDF.
 
-**Choosing the models.** Admin → Agents lists the Data room's five agents, A6 to A10.
+**Choosing the models.** Admin → Models lists the Data room's five agents, A6 to A10.
 - **By default they run on the in-house Qwen Coder** (the server's LiteLLM proxy). An agent nobody clicked follows the
   server's environment. It is free, and client files never leave the server.
 - **One check on the server:** Ollama should give Qwen a context window of at least 32,000 tokens. Ollama's default
@@ -189,7 +189,7 @@ New projects use the Data room as their Inputs step (existing projects keep thei
   catalog). GroqCloud's free tier allows 8,000 tokens a minute and per request, and 200,000 a day: too little for a
   whole delivery. For NVIDIA, create a key at build.nvidia.com (trial credits) and add it under Admin → Keys → "NVIDIA
   API catalog"; the address is fixed. Check its trial terms before you send it client files.
-- **When a model cannot answer** (Admin → Agents → "When a model cannot answer"): list, in order, the models every
+- **When a model cannot answer** (Admin → Models → "When a model cannot answer"): list, in order, the models every
   agent goes on with. When an agent's model gives no answer in time, has spent its daily limit, or its service is
   down, refuses the key or does not serve the model, the agent starts that task again on the next model in the list.
   A failure that will repeat rests the model for the next tasks too: 10 minutes after a timeout, 6 hours after a
@@ -228,6 +228,63 @@ New projects use the Data room as their Inputs step (existing projects keep thei
 **What the AI may and may not do.** It says where a table is and what its columns mean, and quotes facts. Code reads
 every number from the cells and checks every quote against the file. A quote that is not in the file, or a value that
 is not in its quote, is refused and never reaches the room.
+
+## 6b. AI model keys, end to end (the server, GroqCloud, NVIDIA)
+
+The agents run on the in-house model by default, which needs no cloud key. A cloud model needs a key from its
+service. The key is stored sealed on the server, chosen per agent, and allowed per project. Never paste a key into
+a chat, an email, a document or the repository. If one ever was, make a new one and retire the old one.
+
+**Step 1. The server's master key (once).** It seals every key the console stores.
+1. On the server, open `~/.modeler-secrets.env` (copied from `deploy/server/modeler-secrets.env.example`, mode 600).
+2. If `MODELER_MASTER_KEY=` is empty, make one: `python3 -c 'import os,base64;print(base64.b64encode(os.urandom(32)).decode())'`.
+   Put it after the `=`.
+3. Restart the stack: `bash deploy/server/stop_modeler.sh`, then `bash deploy/server/run_modeler.sh`.
+4. Keep a copy of this line somewhere safe, outside the server. Changing or losing it makes every stored key
+   unreadable: they must then be added again.
+
+**Step 2. The in-house model's key (the LiteLLM proxy on the server).** This is the key the agents use for Qwen
+Coder. It is LiteLLM's own master key, set when LiteLLM was started on the server:
+1. Find how LiteLLM runs: `ps -ef | grep -i litellm`. The command shows its config file (`--config ...yaml`), if any.
+2. The key is either `general_settings: master_key:` in that config file, or the `LITELLM_MASTER_KEY` variable of
+   the process that started it. It usually starts with `sk-`.
+3. Put it in `~/.modeler-secrets.env` as `LITELLM_KEY=` (with `LITELLM_BASE=http://127.0.0.1:4000/v1` and
+   `MODELER_LLM_MODEL=qwen-coder`), or in the console: Admin → Keys → Add a key → "In-house model (LiteLLM proxy)",
+   with the proxy address and the key.
+4. Check it: `source ~/.modeler-secrets.env && uv run python -m modeler_agents.llm_check`.
+
+**Step 3. Get a cloud key** (only for the services you will use):
+- **GroqCloud** (gpt-oss-120b): sign in at console.groq.com, open API Keys, create a key and copy it. It is shown
+  once and starts with `gsk_`. Before any client file goes there, turn on Zero Data Retention for your organization
+  in the console's data settings. The free tier allows about 8,000 tokens a minute: enough for a check, too little
+  for a whole delivery.
+- **NVIDIA API catalog** (Nemotron Ultra): sign in at build.nvidia.com, open a model's page (for example Nemotron),
+  choose "Get API Key" and copy it. It starts with `nvapi-`. The trial's terms let NVIDIA use what it is sent:
+  made-up data only, unless the client has agreed in writing.
+
+**Step 4. Store the key on the server, from the console** (no restart, no file):
+1. Admin → Keys → Add a key. Choose the service, paste the key and give a reason. Confirm your identity when asked.
+   The page then shows only the key's last 4 characters; the key itself is never shown again.
+2. Press **Test**. It asks the service for the models it serves with this key (no cost) and records the answer.
+3. Press **Make active**. The service's earlier key, if any, is retired.
+4. A key older than 90 days is marked for rotation: add a new one, test it, make it active.
+
+**Step 5. Choose the models.** Admin → Models:
+- one click per agent: Qwen Coder (in-house), gpt-oss-120b (GroqCloud), Nemotron Ultra (NVIDIA), Claude;
+- "When a model cannot answer": the models every agent goes on with, in order (§6a).
+
+**Step 6. Allow it for the project.** A project's client files go to no cloud service until its owner or an
+administrator records the client's written permission: Data room → "Where the files may go" → Change → tick the
+service, name the client's document (a letter, an email, a contract clause), add an end date if there is one, and a
+reason. Until then the agents use the in-house model only for that project, and stop and say so if they have none.
+
+**Step 7. Check it works.** Admin → System status shows each service's active key, its last test and whether the
+agents have a model. On a project, the Data room's run says which model wrote each answer, and the evidence report's
+"How this report was made" lists them.
+
+**Without the console** (one model for every agent, from the secrets file): set `MODELER_LLM_PROVIDER=groq` with
+`GROQ_API_KEY=`, or `MODELER_LLM_PROVIDER=nvidia` with `NVIDIA_API_KEY=`, then restart. The console's per-agent
+choices, when made, take precedence over the file.
 
 ## 7. Inputs (step 2): from every source to a ready CPF
 

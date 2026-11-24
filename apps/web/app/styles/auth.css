@@ -1,0 +1,53 @@
+/* The pages before and after the app (sign in, signed out, no access; components/auth/AuthPage.tsx) and the account
+   page: the design system's tokens (design-review/DESIGN_SYSTEM.md §2, accent #001B94), the same look as the sign-in
+   form at Keycloak (deploy/keycloak/themes/modeler-one). */
+.auth-body { background: #F8FAFC; color: #0F172A; margin: 0; }
+.auth-page { min-height: 100vh; display: grid; align-content: center; justify-items: center; gap: 20px; padding: 32px 16px;
+             box-sizing: border-box; }
+.auth-brand { display: flex; align-items: center; gap: 12px; font-size: 24px; font-weight: 600; letter-spacing: -0.01em; }
+.auth-card { width: 100%; max-width: 440px; box-sizing: border-box; background: #FFFFFF; border: 1px solid #E2E8F0;
+             border-top: 3px solid #001B94; border-radius: 8px; padding: 32px; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06); }
+.auth-card h1 { font-size: 22px; line-height: 28px; font-weight: 600; margin: 0 0 12px; }
+.auth-card p { margin: 0 0 12px; line-height: 22px; color: #334155; }
+.auth-card .banner { margin: 0 0 16px; }
+.auth-go { display: flex; justify-content: center; width: 100%; min-height: 40px; box-sizing: border-box; margin: 8px 0 16px; }
+.auth-card .btn { border-radius: 6px; text-decoration: none; align-items: center; }
+.auth-card .btn.primary { background: #001B94; border-color: #001B94; color: #FFFFFF; }
+.auth-card .btn.primary:hover { background: #00136B; }
+.auth-card .btn:focus-visible { outline: 2px solid #001B94; outline-offset: 2px; }
+.auth-notes { margin: 0; padding-left: 18px; color: #475569; font-size: 14px; line-height: 21px; display: grid; gap: 6px; }
+.auth-acts { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 16px; }
+.auth-foot { margin: 0; color: #64748B; font-size: 13px; }
+
+/* the account page */
+.account-grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); margin-top: 16px; }
+.account-grid .card h2 { font-size: 17px; margin: 0 0 12px; }
+.account-facts { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 0 0 12px; }
+.account-facts dt { color: #475569; }
+.account-facts dd { margin: 0; overflow-wrap: anywhere; }
+.account-acts { display: flex; gap: 8px; flex-wrap: wrap; margin: 4px 0 12px; }
+.topbar-account, .topbar-help { color: inherit; text-decoration: none; }
+.topbar-account:hover, .topbar-account:focus-visible, .topbar-help:hover, .topbar-help:focus-visible { text-decoration: underline; }
+.topbar-help { margin-right: 12px; font-size: 14px; }
+
+/* Help: the guide with its contents beside it (one column on a phone) */
+.help-layout { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 24px; margin-top: 16px; align-items: start; }
+.help-toc { position: sticky; top: 16px; font-size: 14px; line-height: 20px; }
+.help-toc ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+.help-body { max-width: 860px; line-height: 1.6; overflow-wrap: anywhere; }
+.help-body h2 { margin: 36px 0 12px; scroll-margin-top: 16px; font-size: 22px; line-height: 28px; font-weight: 600;
+                color: #0F172A; text-transform: none; letter-spacing: normal; }
+.help-body h3 { font-size: 17px; margin: 24px 0 8px; color: #0F172A; }
+.help-body h3, .help-body h4 { scroll-margin-top: 16px; }
+.help-body pre { overflow-x: auto; background: #F1F5F9; padding: 12px; border-radius: 6px; }
+.help-body table { border-collapse: collapse; }
+.help-body th, .help-body td { border: 1px solid #E2E8F0; padding: 6px 10px; text-align: left; vertical-align: top; }
+@media (max-width: 900px) { .help-layout { grid-template-columns: 1fr; } .help-toc { position: static; } }
+
+/* System status: a state word in the status colours (DESIGN_SYSTEM §2: pass, warn, neutral), compact tables */
+.status-chip { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 13px; line-height: 20px; }
+.status-chip.ok { color: #17663A; background: #E7F4EC; }
+.status-chip.warn { color: #9A4500; background: #FDF1E4; }
+.status-chip.muted { color: #475569; background: #F1F5F9; }
+.table-compact { width: 100%; border-collapse: collapse; font-size: 14px; margin-bottom: 12px; }
+.table-compact th, .table-compact td { text-align: left; vertical-align: top; padding: 6px 8px; border-bottom: 1px solid #E2E8F0; }

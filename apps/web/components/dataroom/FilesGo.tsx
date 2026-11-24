@@ -4,7 +4,7 @@
 // 2026-11-22): in-house only until a cloud service has the client's written permission, recorded here with its
 // reference and its end. The agents that read client files follow it from their next request; a model the project does
 // not allow is left out, and with none left the run stops and says so. A change is confirmed with the step-up and
-// audited.
+// audited. Only the project's owner or an administrator changes it (the owner, 2026-11-24); others see who does.
 
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -63,7 +63,10 @@ export function FilesGo({ projectId }: { projectId: string }) {
     <section className="dr-files-go" data-testid="files-go" aria-label="Where this project's files may go">
       <p>
         <strong>Where the files may go:</strong> <span data-testid="files-go-said">{said}</span>{" "}
-        {!open && <button type="button" className="btn small" onClick={start} data-testid="files-go-change">Change</button>}
+        {!open && p.you_change_it && (
+          <button type="button" className="btn small" onClick={start} data-testid="files-go-change">Change</button>
+        )}
+        {!p.you_change_it && <span className="muted" data-testid="files-go-who">Only {p.who_changes_it} changes this.</span>}
       </p>
       {open && (
         <div className="dr-files-go-form">

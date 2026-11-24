@@ -73,3 +73,17 @@ def test_the_consoles_service_account_has_no_sign_in_and_only_the_roles_it_needs
     assert "secret" not in console                                     # never in the repository: set in Keycloak
     (account,) = [u for u in REALM["users"] if u.get("serviceAccountClientId") == "modeler-admin-api"]
     assert sorted(account["clientRoles"]["realm-management"]) == ["manage-users", "query-users", "view-realm", "view-users"]
+
+
+def test_the_realm_imports_into_a_fresh_keycloak_and_signs_in_on_the_products_own_pages():
+    """Found by importing the realm into Keycloak 26.7.5 on 2026-11-24: a client's description over 255 characters
+    stops the import ("Value too long for column DESCRIPTION"), so a fresh install could not start. The sign-in pages
+    are the product's own theme (deploy/keycloak/themes/modeler-one), copied in by deploy/server/keycloak.sh."""
+    too_long = [c["clientId"] for c in REALM["clients"] if len(c.get("description") or "") > 255]
+    assert too_long == []
+    assert REALM["loginTheme"] == "modeler-one"
+    theme = Path(__file__).parents[3] / "deploy" / "keycloak" / "themes" / "modeler-one" / "login"
+    properties = (theme / "theme.properties").read_text(encoding="utf-8")
+    assert "parent=keycloak.v2" in properties
+    for style in properties.split("styles=")[1].splitlines()[0].split():
+        assert style == "css/styles.css" or (theme / "resources" / style).is_file(), style   # styles.css: the parent's

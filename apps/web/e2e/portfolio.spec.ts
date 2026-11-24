@@ -1,5 +1,5 @@
 // The portfolio's new pages (the console redesign, slice 2): Your work lists, as links, what waits on this person across
-// projects and filters it; Campaigns lists every campaign of their projects; Help explains in plain words. Nothing is
+// projects and filters it; Campaigns lists every campaign of their projects; Help (the user guide) sits in the shell. Nothing is
 // decided on these pages (the owner's decision G1-3). Campaign state is seeded software test data, no engine run.
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -35,7 +35,7 @@ test("Your work lists each waiting step as a link, filters it, and the counts ag
   await page.waitForURL(new RegExp(`/projects/${projectId}/start$`));
 });
 
-test("Campaigns lists every campaign of the person's projects, and Help explains in plain words", async ({ page, request }) => {
+test("Campaigns lists every campaign of the person's projects, and Help is in the shell", async ({ page, request }) => {
   const created = await request.post("/api/v1/projects", { headers: AUTH, data: { name: `Campaignlist ${Date.now()}`, compound: "Listol" } });
   const projectId = (await created.json()).data.id as string;
   const id = `camp-list-${Date.now()}`;
@@ -55,10 +55,8 @@ test("Campaigns lists every campaign of the person's projects, and Help explains
   await expect(row.getByRole("link", { name: id })).toHaveAttribute("href", `/campaigns/${id}`);
   await page.screenshot({ path: test.info().outputPath("campaigns.png"), fullPage: true });
 
+  // Help is the user guide (docs/USING_THE_TOOL.md, auth-pages.spec.ts), in the console shell with its breadcrumbs
   await page.goto("/help");
-  await expect(page.getByRole("heading", { name: "Getting started" })).toBeVisible();
-  await page.getByTestId("help-words").click();
-  await page.waitForURL(/\/help\/words$/);
-  await expect(page.getByText("Missing: no file or source gives the value yet.")).toBeVisible();
-  await expect(page.getByRole("navigation", { name: "Breadcrumbs" })).toContainText("Status words");
+  await expect(page.getByTestId("help-toc")).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Breadcrumbs" })).toContainText("Help");
 });

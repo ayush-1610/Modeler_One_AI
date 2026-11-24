@@ -26,8 +26,10 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
   - **Projects** (`/projects`, P-03, new route): the table by default (steps, next action, risk, open questions,
     owner, History, Archive / Restore with a reason; only the owner sees Archive), the cards as an option.
   - **Campaigns** (`/campaigns`, P-05, new): every campaign of the person's projects, with status and budget used.
-  - **Help** (`/help`, P-30, new): getting started, status words, signatures, blinding, the MS-01 stages, results and
-    test runs, in plain words (what the product does today; no new rule).
+  - **Help** (`/help`, P-30): the user guide page another session added on `main` the same day (it renders
+    `docs/USING_THE_TOOL.md`, as the page inventory asks) is kept; slice 2's own topic page was dropped in the merge.
+    The side navigation and the top bar link to it; below 760 px its contents now sit above the guide (it scrolled
+    486 px sideways on a phone; `console-shell.spec.ts` now checks `/help` too).
   - **Decisions:** an open escalation no longer opens a pop-up on every page. A flash bar says "A decision is waiting"
     on that campaign's project pages and on the campaign's own page, for those who may decide it; the signed
     decision opens from its Decide button (the same dialog and step-up). Your work lists it as a link; an escalation
@@ -55,6 +57,75 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
 - **Contract:** additive (`ProjectListItem.steps`, `.owner`, `.owner_name`, the `with` query). `docs/api/openapi.json`,
   `apps/web/lib/api-types.ts` regenerated. Tests: `services/api/tests/test_project_list_with.py` (same steps as the
   route, a member sees only what is shared with them, payload unchanged without `with`, unknown part refused).
+
+### Added — the way in: sign-in pages, the Keycloak theme, account, Help, Settings, System status (2026-11-24, the owner's request)
+- **What:**
+  - **Only the project's owner or an administrator records where its files may go.** `PUT /data-permissions` passes the
+    owner rule for an administrator (`ownership.OWNER_OR_ADMIN_ROUTES`) and refuses everyone else with
+    `NOT_OWNER_OR_ADMIN`, saying who changes it. A project with no owner on record leaves it to an administrator, not to
+    its members. `GET` says `you_change_it` and `who_changes_it`. The panel shows Change only to them.
+  - **Sign-in pages in the product's look:**
+    - `/signin`: the product's sign-in page. A first visit lands there instead of on Keycloak's form. A session that has
+      just ended goes straight back to Keycloak, so no password is asked while Keycloak still knows the person. A
+      sign-in that did not complete says why there, not on a bare HTML page.
+    - `/signed-out`: where sign-out ends, at Keycloak and here.
+    - `/no-access`: a person signed in with no Modeler One role is told what to ask for, instead of every page refusing.
+    - `/account`: name, company, roles in words, the session, "Change your password or authenticator" (Keycloak's
+      account page), Sign out. Reached from the person's name in the sidebar.
+    - `app/global-error.tsx` for an error in the layout itself.
+    - The sign-in pages draw without the sidebar (`proxy.ts` sets `x-modeler-shell`).
+  - **Keycloak's form in the product's look:** `deploy/keycloak/themes/modeler-one`, Keycloak's `keycloak.v2` login
+    theme with the design system's tokens, the mark and the words. CSS and messages only, no template copied, so a
+    Keycloak upgrade keeps working. The realm names it (`loginTheme`). `keycloak.sh install` copies it in, and
+    `keycloak.sh theme` copies it into an existing install and says how to select it once.
+  - **Fixed: the realm file could not be imported into a fresh Keycloak.** `modeler-admin-api`'s description was 322
+    characters; Keycloak's column holds 255 ("Value too long for column DESCRIPTION"). It was shortened, and
+    `test_keycloak_realm.py` now checks every description and the theme.
+  - **Help (`/help`):** the user guide (`docs/USING_THE_TOOL.md`) drawn from the repository the server runs, with its
+    contents beside it (`lib/markdown.tsx`, no new dependency).
+  - **§6b of the guide, "AI model keys, end to end":**
+    - the server's master key;
+    - the in-house LiteLLM proxy's key (where to find it on the server);
+    - getting a GroqCloud and an NVIDIA key;
+    - storing, testing and activating a key from Admin → Keys;
+    - choosing the models;
+    - allowing a service per project;
+    - checking it all on System status.
+  - **Project Settings (`/projects/{id}/settings`):** where the files may go, and the members. It reuses the same
+    components and rules.
+  - **System status (`/admin/system`, administrators only):**
+    - whether the API answers;
+    - how people sign in;
+    - whether the master key opens the stored keys;
+    - each AI service's active key and its last test;
+    - what each agent runs on now.
+  - **In the console shell (redesign slice 1, merged the same day):** Help and the person's name (to the account page) in
+    the top bar; the project's Settings under "Project" in its navigation; System status in the administration's.
+  - **Fixed: pages scrolled sideways on a phone.** A screen-reader-only column label in a wide table escaped the
+    table's scroll box and widened the page (Documents at 390 px: 303 px). Found by the console's own layout test;
+    `.sr-only` is now pinned to its containing block's corner. The sign-in pages have their own loading state: the app's
+    skeleton reads the API through its breadcrumbs, which a person not signed in cannot.
+- **Proved:**
+  - The Keycloak browser suite (`oidc-signing.spec.ts`, 7 tests: sign-in, the signature step-up, members, sign-out,
+    account, no access, a failed sign-in, System status) passes against Keycloak 26.7.5 with the repository's realm
+    and theme imported.
+  - The same release as the server's script, checksum identical, run locally for the test.
+  - The development-sign-in pages: `auth-pages.spec.ts`.
+- **Why:** the owner: "we need to work in login page, and see what all other pages we need to have and we are missing
+  those add that"; "help me with steps ... to getting the api keys"; "restrict granting permission to the project owner
+  and admin".
+- **Impact:**
+  - People signing in see Modeler One before and at Keycloak.
+  - On the server, run `bash deploy/server/keycloak.sh theme`, restart Keycloak, and select the theme once in its admin
+    console (the realm there was imported before the theme existed).
+  - **Still missing from the approved sitemap** (design-review/PRODUCT_SITEMAP.md), left to the console redesign's
+    slices, which restyle every page:
+    - Your work (`/work`);
+    - the Projects and Campaigns lists as their own pages;
+    - the Data plan;
+    - the Compounds list;
+    - Agent activity (needs a list route, R-N05);
+    - Members as its own page (it is on Settings now).
 
 ### Changed — the console redesign, slice 1 restyled to the owner's chosen design, option 5 "Brand Navy bar" (2026-11-24)
 - **What:** the owner found slice 1's first styling too close to the look being replaced and asked for ten AWS-console
