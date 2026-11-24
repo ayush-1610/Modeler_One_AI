@@ -15,6 +15,59 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — the console redesign, slice 8: the admin console in the console style, a Companies page (2026-11-24)
+- **What:**
+  - **Companies (P-24, new page, "Companies" in the console's side navigation):** every company as a console table
+    with a filter and sortable heads: people, projects, archived, runs, runs that did not finish, tokens in and out,
+    the estimated cost; "Add a company" under it; each company opens on its own page (disable or enable with a reason
+    there). Breadcrumbs: Admin console / Companies / the company.
+  - **Overview:** counters (companies and how many are disabled, people, projects and archived, whether the agents are
+    on), each a link; what every company's agents used; the platform block, pointing to System status. The companies
+    table moved to Companies.
+  - **The row of console tabs at the top of each admin page is gone:** the side navigation (since slice 1) lists the
+    console's pages. On the pages with costs, "Costs as if run on" is a segmented switch in the page header.
+  - **System status:** the engine's own panel (R-N08 below): whether it answers, what it is (a software fixture said in
+    bold), its command, engine id, image digest, where runs go, when it was checked; the platform and the engine side
+    by side, the keys and the agents full width.
+- **Why:** the console redesign's slice 8 (plan 2026-11-23 §6: console restyle, Companies list, System status + R-N08);
+  the owner's "Slice 7 approved, proceed to slice 8" (2026-11-24).
+- **Impact:** no API change beyond R-N08 below. `admin-console` spec green (non-administrators still get the app's 404
+  on every console page). The administrator's pages were looked at through a local harness (the real API with a test
+  administrator verifier, as the API tests use): the DEV sign-in is not an administrator, so no e2e spec signs in as one.
+
+### Added — the console redesign, slice 8: whether the engine answers, on System status (R-N08) (2026-11-24)
+- **What:** `GET /admin/system` (the platform owner's): the deployment, the execution backend, and the engine: its kind
+  (`pksim`, `software-fixture`, `unknown`), the command's words, the engine id and image digest it records (the digest
+  null while it is the development placeholder), whether it answers, what was checked in words, and when. The check
+  (`modeler_api.engine_check`) starts the configured engine command **without a job**, its lightest call: `run_job.R`
+  loads R and its packages and stops on its usage line, `docker_engine.sh` stops on its usage line before Docker is
+  asked, the development stub starts and stops. Nothing is simulated. 20 s at most; the answer is kept a minute under
+  `<read root>/_platform/engine-check.json`, so every API process reads the same one. A software fixture is named as
+  one ("not PK-Sim: its numbers are never PBPK results"). The development default command comes through the
+  orchestrator's seam (`execution.development_engine_command`).
+- **Why:** R-N08 (design-review/BACKEND_CHANGE_REQUIREMENTS.md): System status could not say whether the engine
+  answers (the doctor has no engine probe).
+- **Impact:** an API addition (`SystemStatus`, `EngineStatus`; contract and `lib/api-types.ts` regenerated). The engine
+  scripts (locked) are only called. Tests: `test_admin_system.py` (the stub answers and is named a fixture; an R
+  runner that answers its usage line is reachable, one whose packages do not load, that does not answer in time, whose
+  program or script is missing is not; started without a job; the answer kept; the owner's only).
+
+### Changed — the console redesign, slice 8: the QA role reads every project of its company (R-S05) (2026-11-24)
+- **What:** `modeler-qa`, offered by Admin → People until now with no effect, is a read role (`deps.READ_ROLES`,
+  `read_api`, `templates_api`). A person whose roles are QA (no curator or reviewer role) is admitted to **every project
+  of their company** to read it (`memberships.admit`, `memberships.reads_only`), and **changes and signs none**:
+  `ownership.may_change` refuses them every change and signature, a project with no owner on record included (whose
+  members otherwise edit it), so an escalation decision, a generic signature, a member added or an archive are refused.
+  A person who is QA and a curator or reviewer is not granted the company's projects: their memberships stay what they
+  read and change. Another company's projects stay closed. The web lets QA through its sign-in gate
+  (`lib/oidc.ts` `ACCESS_ROLES`).
+- **Why:** R-S05 (design-review/REMEDIATION_PLAN.md, the owner's default: QA reads every project of its company), built
+  in slice 8 as the owner asked, without touching `auth.py` (locked): `require_project` is unchanged, the grant is in
+  the platform's own memberships.
+- **Impact:** no API shape change. Tests: `test_qa_reads.py` (QA lists and reads every project of its company and none
+  of another's; creating, signing, adding a member and archiving refused on an owned project and on one with no owner;
+  a QA-and-curator person keeps only their memberships).
+
 ### Added — the console redesign, slice 7: Records (History in tabs, the signature register, Agent activity, Documents) (2026-11-24)
 - **What:**
   - **History (P-21)** in four tabs whose choice is in the address: **Audit trail** (a console table with a filter and

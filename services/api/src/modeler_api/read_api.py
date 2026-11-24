@@ -39,7 +39,7 @@ __all__ = ["FileReadStore", "ReadStore", "get_read_store", "project_cpf_view", "
 router = APIRouter(prefix="/api/v1", tags=["read"])
 
 # any authenticated member of the tenant may read; writes have their own stricter roles
-_READ_ROLES = ("modeler-viewer", "modeler-curator", "modeler-reviewer")
+_READ_ROLES = ("modeler-viewer", "modeler-curator", "modeler-reviewer", "modeler-qa")
 
 def get_read_store(settings: SettingsDep) -> ReadStore:
     if not settings.read_root:

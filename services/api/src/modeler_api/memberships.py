@@ -31,13 +31,30 @@ def archive_for(settings: Settings, tenant_id: str) -> ProjectArchive:
     return ProjectArchive(store.root, tenant_id, store.audit(tenant_id))
 
 
+QA = "modeler-qa"
+_CHANGERS = frozenset({"modeler-curator", "modeler-reviewer"})
+
+
+def reads_only(principal: Principal) -> bool:
+    """QA (R-S05, the owner's default): reads every project of its company and changes or signs none. A person who may
+    also change projects (a curator, a reviewer) is not granted it: their memberships are what they read and change, so
+    holding QA never opens the company's other projects to their changes (`ownership.may_change`)."""
+    return QA in principal.roles and not principal.roles & _CHANGERS
+
+
 def admit(principal: Principal, settings: Settings) -> Principal:
-    """The principal with its platform memberships added to the token's projects."""
+    """The principal with its platform memberships added to the token's projects; for QA, every project of its company
+    (`reads_only`: to read them; every change and signature is refused it)."""
     if not settings.read_root or "*" in principal.projects:
         return principal
     memberships = memberships_for(settings, principal.tenant_id)
     memberships.remember(principal.user_id, principal.printed_name)
-    return dataclasses.replace(principal, projects=principal.projects | memberships.projects_of(principal.user_id))
+    projects = principal.projects | memberships.projects_of(principal.user_id)
+    if reads_only(principal):
+        from modeler_storage.filestore import FileReadStore
+
+        projects |= {str(p["id"]) for p in FileReadStore(settings.read_root).list_projects(principal.tenant_id) if p.get("id")}
+    return dataclasses.replace(principal, projects=frozenset(projects))
 
 
 def record_creator(settings: Settings, principal: Principal, project_id: str) -> None:

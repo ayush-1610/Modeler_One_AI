@@ -12481,6 +12481,77 @@
         "title": "EngineIdentity",
         "type": "object"
       },
+      "EngineStatus": {
+        "additionalProperties": false,
+        "description": "Whether the engine answers (R-N08, `engine_check`): its kind, the command's words, the engine id and image\ndigest it records (null while the digest is the development placeholder), and what was checked, in words.",
+        "properties": {
+          "checked_at": {
+            "title": "Checked At",
+            "type": "string"
+          },
+          "command": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command"
+          },
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "engine_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Engine Id"
+          },
+          "image_digest": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image Digest"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "reachable": {
+            "title": "Reachable",
+            "type": "boolean"
+          },
+          "timeout_s": {
+            "title": "Timeout S",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "kind",
+          "command",
+          "engine_id",
+          "image_digest",
+          "reachable",
+          "detail",
+          "checked_at",
+          "timeout_s"
+        ],
+        "title": "EngineStatus",
+        "type": "object"
+      },
       "Envelope_AgentRunDetail_": {
         "additionalProperties": false,
         "properties": {
@@ -14529,6 +14600,31 @@
           "errors"
         ],
         "title": "Envelope[Studies]",
+        "type": "object"
+      },
+      "Envelope_SystemStatus_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/SystemStatus"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[SystemStatus]",
         "type": "object"
       },
       "Envelope_SystemView_": {
@@ -31800,6 +31896,30 @@
         "title": "SystemFormation",
         "type": "object"
       },
+      "SystemStatus": {
+        "additionalProperties": false,
+        "description": "System status's own read (R-N08): the deployment, the execution backend and the engine.",
+        "properties": {
+          "deployment": {
+            "title": "Deployment",
+            "type": "string"
+          },
+          "engine": {
+            "$ref": "#/components/schemas/EngineStatus"
+          },
+          "execution_backend": {
+            "title": "Execution Backend",
+            "type": "string"
+          }
+        },
+        "required": [
+          "deployment",
+          "execution_backend",
+          "engine"
+        ],
+        "title": "SystemStatus",
+        "type": "object"
+      },
       "SystemView": {
         "additionalProperties": false,
         "description": "The project's model system as stored (`pbpk_domain.system`): compounds, roles, products, analytes.",
@@ -34557,6 +34677,56 @@
           }
         },
         "summary": "Pipeline Health",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/system": {
+      "get": {
+        "description": "System status (P-32, R-N08): the deployment, the execution backend, and whether the engine answers, its\nconfigured command started without a job (`engine_check`; kept a minute; nothing is simulated).",
+        "operationId": "system_status_api_v1_admin_system_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_SystemStatus_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "System Status",
         "tags": [
           "admin"
         ]

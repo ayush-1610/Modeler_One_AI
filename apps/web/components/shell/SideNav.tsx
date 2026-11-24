@@ -177,9 +177,10 @@ function ProjectNav({ projectId, path }: { projectId: string; path: string }) {
 }
 
 function AdminNav({ path }: { path: string }) {
-  const at = (href: string) => (href === "/admin" ? path === "/admin" || path.startsWith("/admin/companies") : path.startsWith(href));
+  const at = (href: string) => (href === "/admin" ? path === "/admin" : path.startsWith(href));
   const items: [string, string, IconName][] = [
-    ["/admin", "Overview", "home"], ["/admin/people", "People", "users"], ["/admin/usage", "Usage and cost", "chart"],
+    ["/admin", "Overview", "home"], ["/admin/companies", "Companies", "box"], ["/admin/people", "People", "users"],
+    ["/admin/usage", "Usage and cost", "chart"],
     ["/admin/models", "Agents and models", "cpu"], ["/admin/keys", "Keys", "key"], ["/admin/limits", "Limits", "gauge"],
     ["/admin/pipeline", "Intake pipeline", "pipeline"], ["/admin/system", "System status", "checkc"],
   ];

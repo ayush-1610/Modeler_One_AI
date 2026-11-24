@@ -98,9 +98,10 @@ export function clearTokens(jar: CookieJar, config: OidcConfig) {
   for (const name of [COOKIE.access, COOKIE.refresh, COOKIE.id, COOKIE.request]) jar.set(name, "", cookieOptions(config, 0));
 }
 
-/** The realm roles that open Modeler One (the API's read roles and the console's administrator). A person signed in
- *  with none of them has no access yet: the proxy shows app/no-access instead of pages that would each refuse. */
-export const ACCESS_ROLES = ["modeler-viewer", "modeler-curator", "modeler-reviewer", "modeler-admin"] as const;
+/** The realm roles that open Modeler One (the API's read roles, QA's among them since R-S05, and the console's
+ *  administrator). A person signed in with none of them has no access yet: the proxy shows app/no-access instead of
+ *  pages that would each refuse. */
+export const ACCESS_ROLES = ["modeler-viewer", "modeler-curator", "modeler-reviewer", "modeler-qa", "modeler-admin"] as const;
 
 /** A token's realm roles (Keycloak's `realm_access.roles`), [] when it carries none. */
 export function realmRoles(jwt: string | undefined): string[] {

@@ -26,6 +26,8 @@ export const getCompany = (tenantId: string, priced: PricedAs) =>
 export const getUsage = (query: { since?: string; tenant_id?: string; priced_as: PricedAs }) =>
   serverGet("/api/v1/admin/usage", {}, query);
 export const getAgents = () => serverGet("/api/v1/admin/agents", {});
+/** The deployment, the execution backend and whether the engine answers (R-N08; started without a job, kept a minute). */
+export const getSystem = () => serverGet("/api/v1/admin/system", {});
 export const getKeys = () => serverGet("/api/v1/admin/keys", {});
 export const getLimits = (priced: PricedAs) => serverGet("/api/v1/admin/limits", {}, { priced_as: priced });
 export const getPeople = () => serverGet("/api/v1/admin/people", {});

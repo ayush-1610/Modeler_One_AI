@@ -1,4 +1,3 @@
-import { AdminTabs } from "@/components/admin/AdminParts";
 import { People } from "@/components/admin/People";
 import { Hero } from "@/components/kit";
 import { ApiProblem } from "@/components/ui";
@@ -14,7 +13,6 @@ export default async function PeoplePage() {
   return (
     <main>
       <Hero tone="admin" eyebrow="Admin console" title="People" lede={LEDE} />
-      <AdminTabs here="people" />
       {live.problem && <ApiProblem problem={live.problem} />}
       {live.data && <People initial={live.data} />}
     </main>

@@ -20,3 +20,11 @@ def get_campaign_runner() -> CampaignRunner:
 
 
 RunnerDep = Annotated[CampaignRunner, Depends(get_campaign_runner)]
+
+
+def development_engine_command() -> str:
+    """The engine a development checkout runs when MODELER_ENGINE_COMMAND is unset (its stub engine, a software
+    fixture): the orchestrator's own answer, asked through this seam (System status, R-N08)."""
+    from modeler_orchestrator.local_runner import development_engine
+
+    return development_engine()

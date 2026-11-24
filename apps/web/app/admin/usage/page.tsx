@@ -1,4 +1,4 @@
-import { AdminTabs, UsageKpis, UsageTable } from "@/components/admin/AdminParts";
+import { PricingSwitch, UsageKpis, UsageTable } from "@/components/admin/AdminParts";
 import { Hero } from "@/components/kit";
 import { ApiProblem, Card } from "@/components/ui";
 import { getUsage, hideUnlessAdmin, pricedAs, tokens, usd, when } from "@/lib/admin";
@@ -21,7 +21,7 @@ export default async function UsagePage({ searchParams }: {
   return (
     <main>
       <Hero tone="admin" eyebrow="Admin console" title="Usage and cost" lede={LEDE} />
-      <AdminTabs here="usage" priced={priced} base="/admin/usage" query={{ since, tenant_id: tenant }} />
+      <PricingSwitch priced={priced} base="/admin/usage" query={{ since, tenant_id: tenant }} />
       {live.problem && <ApiProblem problem={live.problem} />}
       <Card>
         <form className="admin-filter" method="get" action="/admin/usage" data-testid="usage-filter">
