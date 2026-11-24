@@ -47,9 +47,18 @@ chain (R-B13) and `pbpk_domain.snapshot.parameter_transfer` (R-B13b) stay until 
   "Waiting on you" line, still named `Stepper` from when it was the step bar, is `kit/StepWaiting`; its ignored
   `sticky` prop is gone, and Start no longer mounts it (Start passed `waiting={false}`, so it drew nothing). The
   kit's unused `SidePanel` box (`kit/index`, no importer; the side panel is `kit/SidePanel`) is gone.
-- **Why:** B-05 (two kits side by side) and B-09 (the motion system), retired in the plan's slice 9.
+- **Dead CSS removed (268 lines of 3,074, 14 stylesheets):** every selector that names a class no source file can
+  produce (no string in `app/`, `components/` or `lib/` holds it), and the blocks of pieces gone since earlier
+  slices: the old sidebar and its navigation (`.sidebar`, `.nav*`, `.app`), the step bar (`.stepper`), the campaign's
+  stage rail (`.timeline`, `.stage`), the dashboard's KPI row, side panels and risk bar (`.dash-*`, `.kpis`,
+  `.attention`, `.riskbar`), the brief page (`.brief-*`), the old step header (`.shell-head`, `.eyebrow`), the reading
+  tray's list, the Inputs "more" fold, eleven unused utilities, and the comments they left behind. A class built from
+  data (a status, a severity, a step's state) is kept when its value can arrive; two `:not(.x)` guards in console.css
+  and targets.css stay as they are (they change nothing, and removing them would change specificity).
+- **Why:** B-05 (two kits side by side) and B-09 (the motion system), retired in the plan's slice 9, and its exit
+  check "no orphan": no module is unimported and no stylesheet rule is unreachable.
 - **Impact:** no page looks or behaves differently: each piece keeps its markup, classes and test ids (the toast's
-  class is `toast`, was `mo-toast`).
+  class is `toast`, was `mo-toast`); the removed CSS matched no element.
 
 ### Changed — the console redesign, slice 8: the admin console in the console style, a Companies page (2026-11-24)
 - **What:**

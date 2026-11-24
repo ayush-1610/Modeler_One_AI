@@ -118,31 +118,22 @@ h3 { font-size: var(--fs-sm); color: var(--c-ink-3); letter-spacing: 0; }
 .step-waiting { margin: 0 0 var(--sp-3); max-width: none; }
 
 /* ---------- panels ---------- */
-.card, .dash-panel, .input-block, .start-block, .side-panel, .empty-state, .start-continue {
+.card, .input-block, .start-block, .empty-state, .start-continue {
   background: var(--c-surface); border: 1px solid var(--c-border); border-radius: var(--rad-lg); box-shadow: var(--elev-1); }
 .card { padding: var(--sp-5); }
 .card + .card { margin-top: var(--sp-4); }
-.card-head h2, .card > h2, .dash-panel h2, .start-block-head h2, .input-block-title { font-size: 17px; letter-spacing: 0; font-weight: 600; }
+.card-head h2, .card > h2, .start-block-head h2, .input-block-title { font-size: 17px; letter-spacing: 0; font-weight: 600; }
 .start-block { padding: var(--sp-5); }
 .start-block-head p { font-size: var(--fs-md); color: var(--c-ink-3); }
 .start-block-n { background: var(--c-accent); }
 .input-block { padding: var(--sp-2) var(--sp-5); }
 .cols-2 { gap: var(--sp-4); margin-top: var(--sp-4); }
 
-/* ---------- the dashboard's pieces in the console's terms: flat white tiles and cards, no glow, nothing that lifts ---------- */
-.dash-panel { padding: var(--sp-4) var(--sp-5); }
-.dash-kpi { background: var(--c-surface); border-color: var(--c-border); border-radius: var(--rad-lg); box-shadow: var(--elev-1); transition: border-color 120ms; }
-.dash-kpi:hover { transform: none; border-color: var(--c-accent); }
-.dash-kpi:active { transform: none; }
-.dash-kpi-label { font-size: var(--fs-xs); font-weight: 600; color: var(--c-ink-3); }
-.dash-kpi-value { font-size: 32px; font-weight: 600; letter-spacing: -0.02em; }
+/* ---------- the project cards in the console's terms: flat white cards, no glow, nothing that lifts ---------- */
 .pcard { background: var(--c-surface); border-color: var(--c-border); border-radius: var(--rad-lg); box-shadow: var(--elev-1); animation: none;
   transition: border-color 120ms; }
 .pcard:hover { transform: none; box-shadow: var(--elev-1); border-color: var(--c-accent); }
 .pcard:active { transform: none; }
-.dash-seg { padding: 4px; border-radius: var(--rad-lg); background: var(--c-surface-3); }
-.dash-seg button { min-height: 32px; border-radius: 7px; font-weight: 600; color: var(--c-ink-2); transition: none; }
-.dash-seg button[aria-pressed="true"] { color: var(--c-accent); box-shadow: var(--elev-tab); }
 
 /* ---------- buttons: outlined in navy, the page's one primary filled ---------- */
 .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 36px; padding: 0 16px;
@@ -155,11 +146,9 @@ h3 { font-size: var(--fs-sm); color: var(--c-ink-3); letter-spacing: 0; }
 .btn.ghost { border-color: transparent; background: none; }
 .btn.ghost:hover:not(:disabled) { background: var(--c-accent-tint); border-color: transparent; }
 .btn.tiny, .btn.small { min-height: 30px; padding: 0 12px; font-size: var(--fs-sm); }
-.btn.danger { color: var(--c-fail); border-color: var(--c-fail); }
-.btn.danger:hover:not(:disabled) { background: var(--c-fail-bg); color: var(--c-fail); border-color: var(--c-fail); }
 .btn:disabled { opacity: 0.45; cursor: not-allowed; }
 .page-actions .btn { min-height: 38px; padding: 0 18px; }
-.link-btn, .sb-change, .clip-more, .inputs-more summary::after { color: var(--c-accent); }
+.link-btn, .sb-change, .clip-more { color: var(--c-accent); }
 
 /* ---------- tabs: a segmented control, the current one raised in white ---------- */
 .tabs:not(.rail) { display: flex; flex-wrap: nowrap; gap: 4px; width: fit-content; max-width: 100%; margin: 0 0 var(--sp-4); padding: 4px;
@@ -180,7 +169,7 @@ h3 { font-size: var(--fs-sm); color: var(--c-ink-3); letter-spacing: 0; }
 :where(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]), select, textarea):hover { border-color: var(--c-ink-3); }
 input::placeholder, textarea::placeholder { color: var(--c-ink-muted); }
 input[type="checkbox"], input[type="radio"] { accent-color: var(--c-accent); }
-.dash-tools input[type="search"], .library-tools input[type="search"] { border-radius: var(--rad-md); border-color: var(--c-control-edge); background: var(--c-surface); }
+.library-tools input[type="search"] { border-radius: var(--rad-md); border-color: var(--c-control-edge); background: var(--c-surface); }
 
 /* ---------- status labels: a tinted pill with the word, never colour alone ---------- */
 .chip { display: inline-flex; align-items: center; gap: 4px; border-radius: var(--rad-pill); padding: 2px 10px; font-size: var(--fs-xs);
@@ -327,7 +316,7 @@ a.counter:hover { border-color: var(--c-accent); color: var(--c-ink); }
 /* Sticky parts of a page stick below the top bar, which stays at the top of the window (otherwise they slide under it) */
 .area-bar { top: var(--topbar-h); }
 html:has(.area-bar) { scroll-padding-top: calc(var(--topbar-h) + 76px); }
-.dr-rail, .dash-side, .shell-side, .brief-side, .content .help-toc { top: calc(var(--topbar-h) + 16px); }
+.dr-rail, .shell-side, .content .help-toc { top: calc(var(--topbar-h) + 16px); }
 .overall-data { top: calc(var(--topbar-h) + 12px); max-height: calc(100vh - var(--topbar-h) - 24px); }
 @media (max-width: 900px) {
   .area-bar { top: var(--topbar-h); }
