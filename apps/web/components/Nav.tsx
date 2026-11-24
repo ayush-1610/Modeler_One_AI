@@ -1,44 +1,26 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useEffect, useId, useState } from "react";
-import { createPortal } from "react-dom";
-import { useQueryClient } from "@tanstack/react-query";
+// The product's mark. The console's navigation itself is components/shell (the redesign, slice 1); this file keeps the
+// mark because the evidence report's cover draws it too (components/dataroom/Report.tsx).
 
-import { AddData, stepOf } from "@/components/library/AddData";
-import { toast } from "@/components/kit/Motion";
-import { forgetReasons } from "@/components/kit/Reason";
-import { useResource } from "@/lib/hooks";
-
-// Line icons, drawn on a 24-unit grid with the stroke of the text (plan 2026-11-06-app-design-merge §3 A).
-const ICONS = {
-  projects: "M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z",
-  start: "M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z M14 3v5h5 M12 12v6 M9 15h6",
-  add: "M12 5v14 M5 12h14",
-  library: "M4 19.5A2.5 2.5 0 0 1 6.5 17H20 M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z",
-  history: "M12 7v5l3 2 M21 12a9 9 0 1 1-3-6.7 M21 4v5h-5",
-  room: "M3 7.5 12 3l9 4.5-9 4.5z M3 7.5V17l9 4.5 9-4.5V7.5 M12 12v9.5",
-  admin: "M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z M9 12l2 2 4-4",
-  collapse: "M4 6h10 M4 12h6 M4 18h10 M20 8l-4 4 4 4",
-} as const;
-
-function Icon({ d }: { d: string }) {
-  return (
-    <svg className="nav-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5"
-         strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d={d} /></svg>
-  );
-}
-
-const PIN_KEY = "modeler-nav-pinned";
+import { useId } from "react";
 
 /** The product's mark, "Dose to curve" (plan 2026-11-21 v2 §10, option A): a concentration curve rising from a dose
  *  point and settling, one line through small nodes, indigo to magenta, on a transparent background (no box). The same
- *  mark is the app's icon (app/icon.svg). */
-export function Logo({ size = 28 }: { size?: number }) {
+ *  mark is the app's icon (app/icon.svg). `light`: the same mark in white for the console's navy top bar (design option 5,
+ *  2026-11-24), where the indigo line would vanish. */
+export function Logo({ size = 28, light = false }: { size?: number; light?: boolean }) {
   // each mark its own gradient: a second mark on the page (the report's cover) must not lean on the sidebar's, which
   // print hides
   const gradient = `mo-la-${useId().replace(/:/g, "")}`;
+  if (light) return (
+    <svg className="brand-logo" aria-hidden viewBox="0 0 64 64" width={size} height={size}>
+      <path d="M8 50 C 13 50, 15 17, 23 17 S 36 40, 58 46" fill="none" stroke="#FFFFFF" strokeWidth="5" strokeLinecap="round" />
+      <circle cx="8" cy="50" r="5" fill="#FFFFFF" />
+      <circle cx="23" cy="17" r="4" fill="#001B94" stroke="#FFFFFF" strokeWidth="3" />
+      <circle cx="42" cy="38.6" r="3.4" fill="#001B94" stroke="#F5B8DA" strokeWidth="3" />
+    </svg>
+  );
   return (
     <svg className="brand-logo" aria-hidden viewBox="0 0 64 64" width={size} height={size}>
       <defs>
@@ -52,148 +34,4 @@ export function Logo({ size = 28 }: { size?: number }) {
       <circle cx="42" cy="38.6" r="3.4" fill="#fff" stroke="#A8307F" strokeWidth="3" />
     </svg>
   );
-}
-
-/** Whether the API answers: its open-escalations read (the same read the decision pop-up polls), every half minute.
- *  The review inbox it once counted for is gone (2026-11-11): a decision is asked on the page the person is on. */
-function useApiLive(): boolean | null {
-  const esc = useResource("/api/v1/escalations", {}, { select: (d) => d.escalations.length, poll: () => true, interval: 30_000 });
-  // the API answered (live) or not; null until the first answer
-  return esc.data !== null ? true : esc.problem ? false : null;
-}
-
-type Item = { href: string; label: string; icon: string; active: boolean; testId?: string; prefetch?: boolean };
-
-function NavLink({ l }: { l: Item }) {
-  return (
-    <Link href={l.href} className={l.active ? "active" : ""} aria-current={l.active ? "page" : undefined} title={l.label} data-testid={l.testId}
-          prefetch={l.prefetch}>
-      <span className="nav-glyph"><Icon d={l.icon} /></span>
-      <span className="nav-text">{l.label}</span>
-    </Link>
-  );
-}
-
-/** The sidebar (the "Modeler One App" design): a rail of icons that opens over the page when the pointer or the keyboard
- *  is in it, or stays open when pinned (kept in this browser). The work (projects, a new one), the open
- *  project's own pages, and the person. `user` is the person signed in through Keycloak; with the DEV sign-in
- *  there is none to show. */
-export function Nav({ user }: { user?: string | null }) {
-  const path = usePathname();
-  const is = (href: string) => (href === "/" ? path === "/" : path.startsWith(href));
-  const project = /^\/projects\/([^/]+)/.exec(path)?.[1];
-  const open = project && project !== "start" ? decodeURIComponent(project) : null;
-  const [adding, setAdding] = useState(false);
-  const [pinned, setPinned] = useState(false);
-  const [hover, setHover] = useState(false);
-  // opened by the keyboard: only a visible focus opens the panel (a click leaves focus behind and must not hold it open)
-  const [keys, setKeys] = useState(false);
-  // on a phone the sidebar is a bar along the top; its menu opens over the page (the 2026-11-11 audit, item 3)
-  const [menu, setMenu] = useState(false);
-  // a new page closes a panel that is not pinned, and the phone's menu
-  useEffect(() => { setHover(false); setKeys(false); setMenu(false); }, [path]);
-  const live = useApiLive();
-  const queries = useQueryClient();
-  const recheck = async () => {
-    await queries.refetchQueries({ queryKey: ["/api/v1/escalations"] });
-    const state = queries.getQueryState(["/api/v1/escalations", {}, {}]);
-    toast(state?.status === "success" ? "The API answers: live data" : "The API does not answer; nothing on screen is current");
-  };
-
-  useEffect(() => {
-    try { setPinned(localStorage.getItem(PIN_KEY) === "1"); } catch { /* no storage: a rail */ }
-  }, []);
-  const togglePin = () => {
-    const next = !pinned;
-    setPinned(next);
-    try { if (next) localStorage.setItem(PIN_KEY, "1"); else localStorage.removeItem(PIN_KEY); } catch { /* this page only */ }
-  };
-
-  const work: Item[] = [
-    { href: "/", label: "Projects", icon: ICONS.projects, active: is("/") || Boolean(open) },
-    { href: "/projects/start", label: "Start from proposal", icon: ICONS.start, active: is("/projects/start") },
-  ];
-  // the console's link only for the platform's owner (the API's own answer; it refuses everyone else in any case)
-  const admin = useResource("/api/v1/me", {}, { select: (d) => d.admin }).data === true;
-  const projectHref = open ? `/projects/${encodeURIComponent(open)}` : "";
-  const isOpen = pinned || hover || keys;
-
-  return (
-    <aside className={`sidebar${isOpen ? " open" : ""}${pinned ? " pinned" : ""}${menu ? " menu-open" : ""}`} data-testid="sidebar"
-           onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
-           // choosing a destination closes the panel even with the pointer still on it; it opens again when the pointer
-           // leaves and comes back (a panel held open over the next page would cover its left edge)
-           onClickCapture={(e) => { if ((e.target as Element).closest("a, .nav-action")) { setHover(false); setKeys(false); setMenu(false); } }}
-           onMouseMove={(e) => { const r = e.currentTarget.getBoundingClientRect(); e.currentTarget.style.setProperty("--my", `${(e.clientY - r.top).toFixed(0)}px`); }}
-           onFocus={(e) => setKeys((e.target as Element).matches(":focus-visible"))}
-           onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setKeys(false); }}>
-      <div className="brand">
-        <Logo />
-        <span className="nav-text">Modeler One</span>
-        <button type="button" className="nav-pin" onClick={togglePin} aria-pressed={pinned} aria-label="Keep the panel open"
-                title="Keep the panel open" data-testid="nav-pin">
-          <Icon d={ICONS.collapse} />
-        </button>
-        <button type="button" className="nav-menu" onClick={() => setMenu(!menu)} aria-expanded={menu} aria-controls="nav-panel"
-                aria-label={menu ? "Close the menu" : "Open the menu"} data-testid="nav-menu">
-          <Icon d={menu ? "M6 6l12 12 M18 6L6 18" : "M4 7h16 M4 12h16 M4 17h16"} />
-        </button>
-      </div>
-      <div className="nav-panel" id="nav-panel">
-      <nav className="nav" aria-label="Main">
-        <span className="nav-heading"><span className="nav-heading-text">Work</span></span>
-        {work.map((l) => <NavLink key={l.href} l={l} />)}
-      </nav>
-      {admin && (
-        <nav className="nav" aria-label="Platform" data-testid="nav-platform">
-          <span className="nav-heading"><span className="nav-heading-text">Platform</span></span>
-          <NavLink l={{ href: "/admin", label: "Admin console", icon: ICONS.admin, active: is("/admin"), testId: "nav-admin" }} />
-        </nav>
-      )}
-      {open && (
-        // the open project's own pages (the document library plan): "Add data" opens a card over the page, at any step,
-        // directly above the project's library
-        <nav className="nav nav-project" aria-label="This project" data-testid="nav-project">
-          <span className="nav-heading"><span className="nav-heading-text">This project</span></span>
-          <button type="button" className="nav-action" data-testid="nav-add-data" onClick={() => setAdding(true)} title="Add data">
-            <span className="nav-glyph"><Icon d={ICONS.add} /></span><span className="nav-text">Add data</span>
-          </button>
-          {/* the Inputs step's Data room (plan 2026-11-21 v2 §4: beside the earlier Inputs page); not prefetched, so a
-              page drawn again on the server asks for nothing more than before */}
-          <NavLink l={{ href: `${projectHref}/dataroom`, label: "Data room", icon: ICONS.room, active: path.includes("/dataroom"),
-                        testId: "nav-dataroom", prefetch: false }} />
-          <NavLink l={{ href: `${projectHref}/library`, label: "Project Document Library", icon: ICONS.library,
-                        active: path.endsWith("/library"), testId: "nav-library" }} />
-          <NavLink l={{ href: `${projectHref}/history`, label: "History", icon: ICONS.history,
-                        active: path.endsWith("/history"), testId: "nav-history" }} />
-        </nav>
-      )}
-      {/* over the whole page, not inside the sidebar (its sticky position would hold the card under the page) */}
-      {open && adding && createPortal(
-        <AddData key={open} projectId={open} step={stepOf(path)} onClose={() => setAdding(false)} />, document.body)}
-      <div className="nav-foot">
-        <div className="nav-user" data-testid={user ? "signed-in" : "dev-sign-in"}>
-          <span className="nav-avatar" aria-hidden>{user ? initials(user) : "M1"}</span>
-          {user ? (
-            <span className="nav-text">
-              Signed in as <strong>{user}</strong>
-              {/* a route handler, not a page: a full navigation; the reasons this tab kept for the person are forgotten first */}
-              <a href="/auth/logout" data-testid="sign-out" onClick={forgetReasons}>Sign out</a>
-            </span>
-          ) : (
-            <span className="nav-text"><strong>Development sign-in</strong><span className="nav-role">no named user</span></span>
-          )}
-          {/* the API's answer, not a guess: green when its reads answer, grey when they do not; a click asks again */}
-          <button type="button" className={`nav-conn${live ? " live" : ""}`} onClick={() => void recheck()} data-testid="nav-conn"
-                  title={live ? "Live: the API answers" : live === false ? "The API does not answer" : "Checking the API"}
-                  aria-label={live ? "Live: the API answers. Check again" : "The API does not answer. Check again"} />
-        </div>
-      </div>
-      </div>
-    </aside>
-  );
-}
-
-function initials(name: string): string {
-  return name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join("");
 }

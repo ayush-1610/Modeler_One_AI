@@ -135,4 +135,4 @@ export type FeedbackDecision = {
   note?: string;
 };
 
-export type Escalation = Narrow<Schema<"EscalationRecord">, { feedback?: FeedbackDiagnosis | null }>;
+export type Escalation = Narrow<Schema<"EscalationItem">, { feedback?: FeedbackDiagnosis | null }>;

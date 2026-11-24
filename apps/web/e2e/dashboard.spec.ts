@@ -1,10 +1,10 @@
 // The dashboard and the sidebar (plan 2026-11-06-app-design-merge §3 A): every number is read from the API, each
-// project's card shows its four steps and opens the step that waits, and the sidebar is a rail that opens on hover and can be pinned.
+// project's card shows its four steps and opens the step that waits, and the side navigation is fixed (console redesign).
 import { expect, test } from "@playwright/test";
 
 import { AUTH } from "./fixtures/inputs";
 
-test("the dashboard reads each project's steps, filters by them, and the sidebar opens and pins", async ({ page, request }) => {
+test("the dashboard reads each project's steps, filters by them, and the side navigation is fixed", async ({ page, request }) => {
   const started = await request.post("/api/v1/projects:initiate", { headers: AUTH, multipart: {
     drug_name: "Dashboardine", extract: "false",
     files: { name: "proposal.md", mimeType: "text/markdown", buffer: Buffer.from("# Proposal\nPBPK model.") } } });
@@ -34,23 +34,14 @@ test("the dashboard reads each project's steps, filters by them, and the sidebar
   await page.getByTestId("dash-view-list").click();
   await expect(page.getByTestId(`project-row-${projectId}`)).toBeVisible();
 
-  // the sidebar is a rail that opens over the page on hover and can be pinned open; the pin survives a reload
+  // the side navigation is fixed and always open on a desktop (the console redesign, decision G1-2: no hover-open rail,
+  // no pin): its links are named, and the current page is marked
   const nav = page.getByRole("navigation", { name: "Main" });
-  await expect(page.getByTestId("sidebar")).not.toHaveClass(/open/);
-  // named on the rail too (this was the "Review inbox" link, removed 2026-11-11; escalation-popup.spec.ts checks that an
-  // escalation's attention item opens its campaign)
+  await expect(page.getByTestId("sidebar")).toBeVisible();
+  await expect(nav.getByRole("link", { name: "Projects" })).toHaveAttribute("aria-current", "page");
   await expect(nav.getByRole("link", { name: "Start from proposal" })).toBeVisible();
-  await page.getByTestId("sidebar").hover();
-  await expect(page.getByTestId("sidebar")).toHaveClass(/open/);
-  await page.getByTestId("nav-pin").click();
-  await page.mouse.move(900, 600);
-  await expect(page.getByTestId("sidebar")).toHaveClass(/pinned/);
-  await page.reload();
-  await expect(page.getByTestId("sidebar")).toHaveClass(/pinned/);
-  await page.screenshot({ path: test.info().outputPath("dashboard-pinned.png") });
-  await page.getByTestId("nav-pin").click();
-  await page.mouse.move(900, 600);
-  await expect(page.getByTestId("sidebar")).not.toHaveClass(/pinned/);
+  await expect(page.getByTestId("nav-pin")).toHaveCount(0);
+  await page.screenshot({ path: test.info().outputPath("dashboard-shell.png") });
 
   // inside a project, the sidebar holds its own pages, History among them
   await page.goto(`/projects/${projectId}/start`);

@@ -61,7 +61,9 @@ export function EscalationPopup() {
   const mine = useResource("/api/v1/campaigns", {}, { query: { project: project ? decodeURIComponent(project) : undefined },
                                                     select: (d) => d.campaigns.map((c) => c.id), enabled: Boolean(project) });
   const onScreen = first ? [first] : campaign ? [decodeURIComponent(campaign)] : project ? mine.data ?? [] : [];
-  const open = (live.data?.escalations ?? []).map((e) => narrow<Escalation>(e));
+  // only the decisions this person may take (R-S02: the API says so per escalation, with the decide route's own rule); a
+  // member who may only read is no longer asked for a signature the route would refuse
+  const open = (live.data?.escalations ?? []).filter((e) => e.can_decide).map((e) => narrow<Escalation>(e));
   // on a project's page the order is known once its campaigns are read (or could not be): the first dialog waits for it
   const orderReady = !project || mine.data !== null || mine.problem !== null;
 
