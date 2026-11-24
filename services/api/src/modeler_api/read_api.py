@@ -24,11 +24,12 @@ from modeler_api.deps import get_project_store
 from modeler_api.memberships import archive_for
 from modeler_api.ownership import may_change
 from modeler_api.responses import answers, envelope
+from modeler_api.stored_records import read_list, readable
 from modeler_api.views.campaigns import CampaignPackage, Campaigns, Escalations
 from modeler_api.views.read import CpfView, Projects, ProjectSystem, Proposals, Studies, StudyRow
 from modeler_project import ProjectStore, Workspace
 from modeler_storage.filestore import FileReadStore, ReadStore
-from modeler_storage.records import CampaignRecord, ProjectRecord
+from modeler_storage.records import CampaignRecord, EscalationRecord, ProjectRecord
 from pbpk_domain.cpf.models import ParameterStatus
 
 # re-exported so existing imports (`from modeler_api.read_api import FileReadStore`) keep working
@@ -102,10 +103,14 @@ def _member_of(principal: Principal, project: str | None) -> bool:
 @router.get("/campaigns", **answers(Campaigns))
 def list_campaigns(principal: PrincipalDep, store: StoreDep, project: str | None = None):
     """List the tenant's campaigns (summary + stage/round detail); ``?project=`` narrows to one project."""
-    campaigns = [c for c in store.list_campaigns(principal.tenant_id) if _member_of(principal, c.get("project"))]
+    campaigns = [c for c in store.list_campaigns(principal.tenant_id)
+                 if not isinstance(c, dict) or _member_of(principal, c.get("project"))]
     if project:
-        campaigns = [c for c in campaigns if c.get("project") == project]
-    return envelope({"campaigns": campaigns})
+        campaigns = [c for c in campaigns if isinstance(c, dict) and c.get("project") == project]
+    # a campaign stored by an earlier build is read without the keys this one does not know; one that still does not
+    # read is named with why, so it no longer fails the whole list (the server, 2026-11-24)
+    shown, unreadable = read_list(CampaignRecord, campaigns, "campaign")
+    return envelope({"campaigns": shown, **({"unreadable": unreadable} if unreadable else {})})
 
 
 @router.get("/campaigns/{campaign_id}", **answers(CampaignRecord))
@@ -118,7 +123,11 @@ def get_campaign(campaign_id: str, principal: PrincipalDep, store: StoreDep):
     project_id = campaign.get("project")
     if project_id:
         require_project(project_id, principal)
-    return envelope(campaign)
+    record, problems = readable(CampaignRecord, campaign)
+    if record is None:
+        raise HTTPException(status_code=409, detail=f"campaign {campaign_id} was stored in a shape this version cannot "
+                                                    f"read: {'; '.join(problems)}")
+    return envelope(record)
 
 
 # --- the S7 package: summary and downloads ------------------------------------------------------------------
@@ -255,12 +264,15 @@ def list_escalations(principal: PrincipalDep, store: StoreDep, settings: Setting
     names its campaign, not its project, so its project is its campaign's; one whose campaign is not (yet) recorded has
     no project to check and stays listed, as a campaign with no project does (the decision pop-up reads this list alone,
     so a decision is asked even before its campaign's record can be read)."""
-    projects = {c.get("id"): c.get("project") for c in store.list_campaigns(principal.tenant_id)}
-    listed = [e for e in store.list_escalations(principal.tenant_id) if _member_of(principal, projects.get(e.get("campaignId")))]
+    projects = {c.get("id"): c.get("project") for c in store.list_campaigns(principal.tenant_id) if isinstance(c, dict)}
+    listed = [e for e in store.list_escalations(principal.tenant_id)
+              if not isinstance(e, dict) or _member_of(principal, projects.get(e.get("campaignId")))]
+    listed, unreadable = read_list(EscalationRecord, listed, "escalation")
     # whether this person may decide each one: the rule `escalation:resolve` applies (its owner, or a reviewer it is shared
     # with; a campaign with no project recorded has no owner to check, as the route has none) (R-S02)
     return envelope({"escalations": [{**e, "can_decide": (not (p := projects.get(e.get("campaignId"))))
-                                      or may_change(p, principal, settings, signing=True)} for e in listed]})
+                                      or may_change(p, principal, settings, signing=True)} for e in listed],
+                     **({"unreadable": unreadable} if unreadable else {})})
 
 
 @router.get("/proposals", **answers(Proposals))

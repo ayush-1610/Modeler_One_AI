@@ -9,13 +9,24 @@ from __future__ import annotations
 
 from typing import Any
 
+from pydantic import Field
+
 from modeler_api.views.common import View
 from modeler_storage.records import CampaignRecord, EscalationRecord
 from pbpk_domain.campaign.map import MapDocument
 
 
+class UnreadableRecord(View):
+    """A stored record this build cannot read (a key it needs is missing, a value of the wrong kind), named with why,
+    so one record written in an earlier shape no longer fails its whole list (`modeler_api.stored_records`)."""
+
+    id: str
+    problems: list[str]
+
+
 class Campaigns(View):
     campaigns: list[CampaignRecord]
+    unreadable: list[UnreadableRecord] = Field(default_factory=list)
 
 
 class EscalationItem(EscalationRecord):
@@ -26,6 +37,7 @@ class EscalationItem(EscalationRecord):
 
 class Escalations(View):
     escalations: list[EscalationItem]
+    unreadable: list[UnreadableRecord] = Field(default_factory=list)
 
 
 class ReportIssue(View):

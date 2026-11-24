@@ -382,6 +382,27 @@ def _a1(row: int, column: int) -> str:
     return f"{letters}{row}"
 
 
+def _title_once(row: int, cols: dict[int, str], origins: dict[int, str]) -> None:
+    """A sheet row whose only text is one merged cell (a title merged across the table) keeps that text once, in its
+    first cell (the new deliveries, 2026-11-24: a listing's three title lines read as 17 copies each, wherever an agent
+    or a column label looked). A merged cell beside other text (a group header over its columns, "Subject" merged down
+    two header rows) keeps its copies: each labels its own column or row. A row of copies only (a title merged down as
+    well) keeps one empty place, so every line keeps its number."""
+    filled = {origins[c] for c, text in cols.items() if text.strip()}
+    copies = [c for c, text in cols.items() if text.strip() and origins[c] != _a1(row, c)]
+    if len(filled) != 1 or not copies:
+        return
+    (origin,) = filled
+    text = cols[copies[0]]
+    here = [c for c in cols if origins[c] == origin == _a1(row, c)]
+    first = min(cols)
+    cols.clear()
+    if here:
+        cols[here[0]] = text
+    else:
+        cols[first] = ""
+
+
 def document_parts(doc: SourceDocument) -> list[Part]:
     """The document as numbered parts of lines of located cells: one part per PDF page, per sheet, and the Word or text
     body. What the agents read, what a table description points into, and what a quote is checked against."""
@@ -391,8 +412,12 @@ def document_parts(doc: SourceDocument) -> list[Part]:
                           lines=tuple(_page_lines(page.words))))
     for sheet in doc.sheets:
         rows: dict[int, dict[int, str]] = {}
+        origins: dict[int, dict[int, str]] = {}
         for cell in sheet.cells:
             rows.setdefault(cell.row, {})[cell.column] = cell.text
+            origins.setdefault(cell.row, {})[cell.column] = cell.merged_from or _a1(cell.row, cell.column)
+        for r, cols in rows.items():
+            _title_once(r, cols, origins[r])
         lines = []
         for number, r in enumerate(sorted(rows), start=1):
             cols = rows[r]

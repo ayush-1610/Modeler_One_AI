@@ -25,7 +25,7 @@ from modeler_project.dataroom.extract import check_fact, read_table
 from modeler_project.dataroom.model import FileView
 from modeler_project.dataroom.store import DataRoomStore
 
-PROMPT_VERSION = "dataroom-3"
+PROMPT_VERSION = "dataroom-4"
 MAX_LINES = 120          # lines one read returns
 PREVIEW_LINES = 80       # lines of each of the first parts the triage agent sees (40 misjudged a LIMS export, 2026-11-24)
 
@@ -213,7 +213,57 @@ D clinical: per study the design, dose, products and batches per treatment, fast
   LLOQ, demographics, disposition (who completed, who was excluded and why), individual concentrations, the client's
   NCA and BE results.
 Each checklist item gets topics from: """ + ", ".join(TOPICS) + """.
-Each product is {"name": as the files name it, "role": reference | test | original | reformulated | other}."""
+Each product is {"name": as the files name it, "role": reference | test | original | reformulated | other}.
+Work from the digest: it names every file, its parts and the lines code found that may state the question, the
+products and the design, each exactly as written (quote from them). Open a file only for a quote you still need, by a
+part the digest names. A quote is a sentence a document states, never a line of a data table. Keep the checklist
+short: one item per input the question needs (25 at most), its why in 12 words at most. Submit once the card is whole."""
+
+
+_ASKS = re.compile(r"(?i)\b(?:objective|aim|purpose|question|scope|request|propos|deliverable|waiver|biowaiver|"
+                   r"bioequivalen|food[- ]effect|virtual|PBPK|PBBM|safe space|specification|FDA|EMA|PMDA|MHRA|agency|"
+                   r"regulator|submission|ANDA|NDA|MAA|variation|bridg|comparab)")
+_PRODUCTS = re.compile(r"(?i)\b\d+(?:[.,]\d+)?\s*(?:mg|µg|mcg)\b.{0,60}\b(?:tablet|capsule|suspension|solution|granule|"
+                       r"formulation|film-coated)|\b(?:reference|test product|comparator|RLD|new formulation|current "
+                       r"formulation|batch|lot)\b")
+DIGEST_CHARS = 7000      # the digest A6 reads first: every file, its parts, the lines that may state the question
+
+
+def question_digest(docs: dict[str, tuple[FileView, SourceDocument]], order: Sequence[str] = (),
+                    budget: int = DIGEST_CHARS, per_file: int = 8) -> str:
+    """What code reads from every file before A6 starts, so A6 writes the question card from one page and does not
+    open the files one by one (2026-11-24: A6 took 2 to 9 minutes, every run spending its 14 turns reading files one
+    call at a time, guessing part names: "sheet:Sheet1", "body" for a text export). Per file: its kind, its parts with
+    their lines, its first line, and the lines that may state the question, a product or the design, as written."""
+    out, used = [], 0
+    for path in list(order) + [p for p in docs if p not in order]:
+        f, doc = docs[path]
+        parts = _parts(doc)
+        names = ", ".join(f"{p.name} ({len(p.lines)} lines)" for p in parts[:8]) + (
+            f", and {len(parts) - 8} more" if len(parts) > 8 else "")
+        lines = [f"=== {path} ({f.kind}) · parts: {names or 'none read'}"]
+        seen: set[str] = set()
+        for part in parts:
+            for ln in part.lines:
+                text = ln.text.strip()
+                if not text or text in seen or text.count("|") >= 4:      # a table's row is read from its description
+                    continue
+                first = part is parts[0] and ln.number == next((x.number for x in part.lines if x.text.strip()), 0)
+                if first or _ASKS.search(text) or _PRODUCTS.search(text) or _DESIGN.search(text):
+                    seen.add(text)
+                    lines.append(f"{part.name} L{ln.number}: {text[:240]}")
+                if len(lines) > per_file:
+                    break
+            if len(lines) > per_file:
+                break
+        block = "\n".join(lines)
+        if used + len(block) > budget:
+            out.append(f"=== {path} ({f.kind}) · parts: {names or 'none read'}")
+            used += len(out[-1])
+            continue
+        out.append(block)
+        used += len(block)
+    return "\n".join(out)
 
 
 def question(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, step: Step, only: set[str] | None = None,
@@ -229,8 +279,10 @@ def question(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, 
         name = path.lower()
         return (3 * any(w in name for w in ("proposal", "request", "scope", "email", "pasted", "letter"))
                 + 2 * bool(t and set(t.topics) & {"question", "regulatory"}) + (f.kind in ("docx", "image")))
-    ranked = sorted(docs.items(), key=lambda kv: -weight(kv[0], kv[1][0]))[:4]
+    order = [p for p, _v in sorted(docs.items(), key=lambda kv: -weight(kv[0], kv[1][0]))]
+    ranked = [(p, docs[p]) for p in order[:3]]
     per_file = max(800, focus_chars // 4)
+    digest = question_digest(docs, order)
     material = "\n\n".join(f"=== {p}\n{_focus(d, ['question'], budget=per_file)}" for p, (_f, d) in ranked)
     saved: list[BaseModel] = []
 
@@ -245,12 +297,21 @@ def question(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, 
                 problems.append(f"quote for {fact.field}: {got.problem}")
         return problems
 
-    tools = _doc_tools(docs) + [_submit_tool("submit_question", QuestionCard, check, saved,
-                                             "Submit the question card (with the quotes it rests on).")]
+    submit = _submit_tool("submit_question", QuestionCard, check, saved,
+                          "Submit the question card (with the quotes it rests on).")
+    tools = _doc_tools(docs) + [submit]
     step(0, 1, "reading the proposal and the request")
-    outcome = _loop(store, "question", "", model, system=QUESTION_SYSTEM, tools=tools, max_turns=14, user=(
-        f"The delivery's files:\n{listing}\n\nThe pages most likely to state the question:\n{material}\n\n"
-        "Write the question card (each quote with its file)."))
+    # first from the digest and the pages alone, with no file to open: a model given the tools opened the files one per
+    # turn even with the digest in hand (2026-11-24); the tools come back only when no card could be saved
+    outcome = _loop(store, "question", "", model, system=QUESTION_SYSTEM, tools=[submit], max_turns=3, user=(
+        f"The delivery, as code read it (every file, its parts, the lines that may state the question):\n{digest}\n\n"
+        f"The pages most likely to state the question:\n{material}\n\n"
+        "Write the question card from these now (each quote with its file), and submit it."))
+    if not saved and not _too_large(outcome.error):
+        outcome = _loop(store, "question", "", model, system=QUESTION_SYSTEM, tools=tools, max_turns=8, user=(
+            f"The delivery, as code read it (every file, its parts, the lines that may state the question):\n{digest}\n\n"
+            f"The pages most likely to state the question:\n{material}\n\n"
+            "Write the question card (each quote with its file); open a file only for a quote you still need."))
     if not saved and _too_large(outcome.error):
         material = "\n\n".join(f"=== {p}\n{_focus(d, ['question'], budget=per_file // 3)}" for p, (_f, d) in ranked[:2])
         outcome = _loop(store, "question", "", model, system=QUESTION_SYSTEM, tools=tools, max_turns=8, user=(

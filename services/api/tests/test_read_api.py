@@ -314,3 +314,50 @@ def test_every_project_principal_still_sees_every_campaign_and_escalation():
     c = client_with(claims(projects=("*",)), TwoProjectStore())
     assert len(c.get("/api/v1/campaigns", headers=_auth()).json()["data"]["campaigns"]) == 3
     assert len(c.get("/api/v1/escalations", headers=_auth()).json()["data"]["escalations"]) == 4
+
+
+class EarlierShapeStore(FakeStore):
+    """Campaigns and an escalation as an earlier build stored them: one with a key this build no longer declares (here
+    and inside a stage), one missing a key this build needs."""
+
+    def list_campaigns(self, tenant_id):
+        legacy = {**_campaign(), "id": "camp-legacy", "legacyField": True}
+        legacy["stages"] = [{"stage": "S0", "label": "Inputs", "status": "PASSED", "rounds": [], "oldNote": "x"}]
+        broken = {k: v for k, v in _campaign().items() if k != "status"} | {"id": "camp-broken"}
+        return [_campaign(), legacy, broken, "not a record"]
+
+    def list_escalations(self, tenant_id):
+        return [*super().list_escalations(tenant_id),
+                {"id": "esc-old", "campaignId": "camp-101", "stage": "S5", "reasonCode": "X", "evidence": "e",
+                 "options": [], "retiredKey": 1},
+                {"id": "esc-broken", "campaignId": "camp-101"}]
+
+
+def test_a_campaign_stored_in_an_earlier_shape_does_not_fail_the_list():
+    """The server, 2026-11-24: one stored campaign with a key this build does not know answered the whole list with
+    HTTP 500 ("The campaigns could not be read; 'Running now' is not shown"). The key is left out; a campaign that still
+    does not read is named with why; the rest of the list stands."""
+    c = client_with(claims(projects=("example-a",)), store=EarlierShapeStore())
+    r = c.get("/api/v1/campaigns", headers=_auth())
+    assert r.status_code == 200
+    data = r.json()["data"]
+    assert [x["id"] for x in data["campaigns"]] == ["camp-101", "camp-legacy"]
+    legacy = data["campaigns"][1]
+    assert "legacyField" not in legacy and "oldNote" not in legacy["stages"][0]
+    named = {u["id"]: u["problems"] for u in data["unreadable"]}
+    assert set(named) == {"camp-broken", "?"}
+    assert any(p.startswith("status:") for p in named["camp-broken"])
+    # its own page reads it too, and one that cannot be read says why instead of failing
+    assert c.get("/api/v1/campaigns/camp-legacy", headers=_auth()).status_code == 200
+    broken = c.get("/api/v1/campaigns/camp-broken", headers=_auth())
+    assert broken.status_code == 409 and "status" in broken.json()["detail"]
+    # the escalations, read on every page, the same way
+    e = c.get("/api/v1/escalations", headers=_auth())
+    assert e.status_code == 200
+    assert [x["id"] for x in e.json()["data"]["escalations"]] == ["esc-1", "esc-old"]
+    assert [u["id"] for u in e.json()["data"]["unreadable"]] == ["esc-broken"]
+
+
+def test_a_list_with_nothing_unreadable_answers_as_before():
+    data = client_with(claims()).get("/api/v1/campaigns", headers=_auth()).json()["data"]
+    assert "unreadable" not in data

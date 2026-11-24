@@ -228,3 +228,25 @@ def test_what_the_checker_finds_goes_back_to_the_extractor_once(tmp_path):
     again = sorted({p for p in prompts if "A checker read your earlier description" in p})   # one conversation, two calls
     assert len(again) == 1 and "column 3 is the period" in again[0] and "File: conc.tsv" in again[0]
     assert store.reviews() == {}
+
+
+def test_the_question_stage_reads_a_digest_of_every_file_first():
+    """A6 took 2 to 9 minutes (2026-11-24): it spent its 14 turns opening files one by one and guessing part names. Code
+    now gives it every file's parts and the lines that may state the question, products and design, quotable as
+    written; a table's rows are left to its description."""
+    from modeler_agents.dataroom.stages import question_digest
+    from modeler_intake.room import read_file
+    from modeler_project.dataroom.model import FileView
+
+    letter = read_file("Cover letter.txt", (b"Dear team,\nWe ask for a PBPK model that supports the switch from the "
+                                            b"clinical formulation (reference) to the commercial formulation (test).\n"
+                                            b"Kind regards\n"))
+    conc = read_file("conc.csv", b"Subject,Day,Time,Conc,Unit\n301,1,0.5,12.5,nmol/L\n301,1,1,30.1,nmol/L\n")
+    docs = {f.path: (FileView(path=f.path, name=f.path, sha256=f.sha256, kind=f.kind, state=f.state), f.document)
+            for f in (letter, conc)}
+    digest = question_digest(docs, ["Cover letter.txt"])
+    assert digest.index("=== Cover letter.txt") < digest.index("=== conc.csv")
+    assert "We ask for a PBPK model that supports the switch" in digest         # the request, as written
+    assert "parts: sheet:conc (3 lines)" in digest                              # a part named, never guessed
+    assert "301 | 1 | 0.5" not in digest                                         # a table's row is not a quote
+    assert len(question_digest(docs, budget=60)) < 200                          # past the budget, a file is named only

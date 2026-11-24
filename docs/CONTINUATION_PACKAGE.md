@@ -335,11 +335,22 @@ streams; every Data room turn and switch is recorded; each answer names the mode
   it.
 - **Verdict:** not yet for an unattended client delivery. Yes as an assistant whose table descriptions a modeler
   confirms one by one: every value has its source, and what code cannot read it says.
-- **Next:**
-  - a single-arm study tied to its product;
-  - "0.1 N HCl" as a pH;
-  - merged XLSX title cells;
-  - the A6 question stage's 2–9 minutes;
+- **Done later the same day:**
+  - a single-arm study tied to its product, with the page saying how;
+  - merged XLSX title cells read once;
+  - A6 writes from a code-built digest: Quorafen took 3 turns, not 14, and 84 % fewer input tokens;
+  - the campaigns list no longer fails on a campaign stored in an earlier shape (the server's HTTP 500).
+- **Next:** the owner's review of **`docs/plans/2026-11-24-data-story-next-phase.md`**. It asks eight decisions (§11):
+  - the Claude API key;
+  - a $5 calibration run;
+  - a hard cap for paid models;
+  - "0.1 N HCl" (gap 2);
+  - requirement drafts from the literature;
+  - the client-permission rule for Anthropic;
+  - two ruleset findings for the SME;
+  - the phase order.
+
+  The literature behind it is in `docs/research/2026-11-24-*.md`. Also still open:
   - an owner decision on the Tmax tolerance at actual times (SME ruleset);
   - the same test on a real delivery on the server's in-house model.
 

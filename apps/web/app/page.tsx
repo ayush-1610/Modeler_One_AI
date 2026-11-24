@@ -1,7 +1,7 @@
 import { Dashboard, type DashboardProject, type Attention } from "@/components/dashboard/Dashboard";
 import { ApiProblem } from "@/components/ui";
 import { getSteps, STEP_ROUTES, type StepRow } from "@/lib/pipeline";
-import { getCampaigns, getEscalations, getProjects } from "@/lib/reads";
+import { getCampaignList, getEscalations, getProjects } from "@/lib/reads";
 
 // What a project's next action is called, by the step it waits at (plan 2026-11-06-app-design-merge §3 A).
 const NEXT: Record<StepRow["step"], string> = {
@@ -21,12 +21,13 @@ function standing(steps: StepRow[] | null): Pick<DashboardProject, "state" | "fo
 }
 
 export default async function DashboardPage() {
-  const [live, liveCampaigns, liveEscalations] = await Promise.all([getProjects(), getCampaigns(), getEscalations()]);
+  const [live, liveCampaigns, liveEscalations] = await Promise.all([getProjects(), getCampaignList(), getEscalations()]);
   const projects = live.data ?? [];
   // the steps are read per project (no list route carries them yet: plan §4, gap 3); archived projects are not asked
   const liveSteps = await Promise.all(projects.map((p) => (p.archived ? Promise.resolve(null) : getSteps(p.id))));
   const steps = liveSteps.map((s) => s?.data ?? null);
-  const campaigns = liveCampaigns.data ?? [];
+  const campaigns = liveCampaigns.data?.campaigns ?? [];
+  const unreadable = liveCampaigns.data?.unreadable ?? [];
   const escalations = liveEscalations.data ?? [];
 
   const rows: DashboardProject[] = projects.map((p, i) => {
@@ -54,10 +55,11 @@ export default async function DashboardPage() {
   ];
 
   // Only the projects are needed to show the page. Any other read that fails is named with what it leaves out, so a
-  // figure is never shown as 0 when it could not be read (one stored campaign the API cannot answer with fails the whole
-  // campaign list).
+  // figure is never shown as 0 when it could not be read. A campaign stored in a shape this version cannot read no longer
+  // fails the whole list (the server, 2026-11-24): the API names it, and so does the page.
   const partial = [
     liveCampaigns.problem && `The campaigns could not be read (${liveCampaigns.problem}); "Running now" is not shown.`,
+    unreadable.length > 0 && `${unreadable.length === 1 ? "One campaign was" : `${unreadable.length} campaigns were`} stored in a shape this version cannot read, so ${unreadable.length === 1 ? "it is" : "they are"} not counted: ${unreadable.map((u) => `${u.id} (${u.problems.join("; ")})`).join(", ")}.`,
     liveEscalations.problem && `The escalations could not be read (${liveEscalations.problem}); they are missing from "Needs your attention".`,
     liveSteps.some((s) => s?.problem) && `The steps of ${liveSteps.filter((s) => s?.problem).length} project(s) could not be read; their cards say "Steps not read".`,
   ].filter((m): m is string => Boolean(m));

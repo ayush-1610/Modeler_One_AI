@@ -1168,6 +1168,11 @@
               }
             ]
           },
+          "tied": {
+            "default": "",
+            "title": "Tied",
+            "type": "string"
+          },
           "treatment": {
             "title": "Treatment",
             "type": "string"
@@ -1178,7 +1183,8 @@
           "meaning",
           "product",
           "role",
-          "source"
+          "source",
+          "tied"
         ],
         "title": "Arm",
         "type": "object"
@@ -2670,6 +2676,13 @@
               "$ref": "#/components/schemas/CampaignRecord"
             },
             "title": "Campaigns",
+            "type": "array"
+          },
+          "unreadable": {
+            "items": {
+              "$ref": "#/components/schemas/UnreadableRecord"
+            },
+            "title": "Unreadable",
             "type": "array"
           }
         },
@@ -14682,6 +14695,13 @@
               "$ref": "#/components/schemas/EscalationItem"
             },
             "title": "Escalations",
+            "type": "array"
+          },
+          "unreadable": {
+            "items": {
+              "$ref": "#/components/schemas/UnreadableRecord"
+            },
+            "title": "Unreadable",
             "type": "array"
           }
         },
@@ -31717,6 +31737,29 @@
           }
         },
         "title": "Uncertainty",
+        "type": "object"
+      },
+      "UnreadableRecord": {
+        "additionalProperties": false,
+        "description": "A stored record this build cannot read (a key it needs is missing, a value of the wrong kind), named with why,\nso one record written in an earlier shape no longer fails its whole list (`modeler_api.stored_records`).",
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "problems": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Problems",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "problems"
+        ],
+        "title": "UnreadableRecord",
         "type": "object"
       },
       "Usage": {
