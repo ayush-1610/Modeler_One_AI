@@ -15,6 +15,49 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — the console redesign, slice 2: Home, Your work, Projects, Campaigns, Help; decisions asked from a flash bar (2026-11-24)
+- **What:**
+  - **Home** (`/`, P-01) replaces the dashboard: four counters, each a link to the list it counts; Your work (top five,
+    "View all"); the projects with their four steps and next action; risk across programs; recent campaigns.
+  - **Your work** (`/work`, P-02, new): one list of links to what waits on this person across projects, filtered by
+    text, kind and project. Listed only for who may act: a project's owner for its steps, a reviewer it is shared
+    with for its signature, whoever the API says may decide an escalation (`can_decide`). Nothing is decided there
+    (decision G1-3). Its count is in the top bar and the side navigation (Gate 3). `/review` now lands here.
+  - **Projects** (`/projects`, P-03, new route): the table by default (steps, next action, risk, open questions,
+    owner, History, Archive / Restore with a reason; only the owner sees Archive), the cards as an option.
+  - **Campaigns** (`/campaigns`, P-05, new): every campaign of the person's projects, with status and budget used.
+  - **Help** (`/help`, P-30): the user guide page another session added on `main` the same day (it renders
+    `docs/USING_THE_TOOL.md`, as the page inventory asks) is kept; slice 2's own topic page was dropped in the merge.
+    The side navigation and the top bar link to it; below 760 px its contents now sit above the guide (it scrolled
+    486 px sideways on a phone; `console-shell.spec.ts` now checks `/help` too).
+  - **Decisions:** an open escalation no longer opens a pop-up on every page. A flash bar says "A decision is waiting"
+    on that campaign's project pages and on the campaign's own page, for those who may decide it; the signed
+    decision opens from its Decide button (the same dialog and step-up). Your work lists it as a link; an escalation
+    whose campaign is not recorded yet is decided on the campaign's page, which Your work links to.
+  - Shell: side navigation Home, Your work, Projects, Campaigns, Start from proposal, Help; top bar Your work (n) and
+    Help; breadcrumbs start at Home or Projects. `kit/Table` (filter, sort, empty state), `StepsMini`.
+  - **Fixed:** below 1000 px, Review & sign's one column grew to its MS-01 diagram's width (960 px) and pushed the
+    page sideways, once the plan held studies; the column now shrinks and the diagram scrolls in its own box
+    (`plan.css`, found by `console-shell.spec.ts` at 390 px).
+- **Why:** the plan's slice 2 (`docs/plans/2026-11-23-console-redesign-implementation.md`), the pages approved at
+  Gates 2 to 4 (`design-review/PAGE_INVENTORY.md` P-01, P-02, P-03, P-05, P-30; `PRODUCT_SITEMAP.md` "Escalation notice").
+  The pop-up interrupted every page, including pages unrelated to the campaign.
+- **Impact:** the old dashboard (`components/dashboard/Dashboard.tsx`) is removed; its test ids live on (`dash-new-project`,
+  `kpi-*`, `dash-attention`, `dash-risk`, `dash-partial`, `dash-view-*`, `dash-search`, `project-card-*`). Specs updated:
+  `dashboard`, `dashboard-partial`, `projects-archive`, `start-project`, `shell`, `escalation-popup`, `feedback`,
+  `oidc-signing` (Keycloak only, not run here), `console-shell` (five more pages); new `portfolio.spec.ts`.
+
+### Added — the console redesign, slice 2: the project list carries each project's steps and owner on request (2026-11-24)
+- **What:** `GET /projects?with=steps,owner` adds to each project its four steps (`steps`, exactly as
+  `GET /projects/{id}/steps` answers them) and its owner (`owner`, the id, and `owner_name`, as `GET /projects/{id}/members` says them).
+  Either part alone works; an unknown part is refused (422) in words. Without `with`, the list is unchanged.
+- **Why:** redesign R-N03. Home, Your work and Projects need every project's step state and owner; today that is one
+  `/steps` and one `/members` request per project. Measured with 50 projects: 11 ms for the one request, 790 ms for the
+  100 it replaces (container, stub data), so no cache.
+- **Contract:** additive (`ProjectListItem.steps`, `.owner`, `.owner_name`, the `with` query). `docs/api/openapi.json`,
+  `apps/web/lib/api-types.ts` regenerated. Tests: `services/api/tests/test_project_list_with.py` (same steps as the
+  route, a member sees only what is shared with them, payload unchanged without `with`, unknown part refused).
+
 ### Fixed — the Data room's second layer: no silent wrong number, and code refuses what the AI describes wrong (2026-11-24)
 - **Why:**
   - The same three new deliveries, read end to end by Nemotron Ultra, came out 61 % right while code was 97 % right on
@@ -1183,7 +1226,6 @@ them to be fixed now, ahead of the redesign.
   7bb1 itself was checked in a browser on a copy of the review data (plan §5). e2e/inputs-work.spec.ts: `followFrom` and `signWaitsWords`. The two new follow tests
   fail on round 5's web at their same-visit assertions; the whole e2e suite passes (146 of 146). Software test data (the
   made-up Exampleamide; the stub engine, a software fixture). No locked file; no SME rule; no API contract change.
-
 
 ### Fixed — final review round 6, the product a study's own file names, and the plan link (round 5's downstream-why skeptic; plan 2026-11-14 §5) — science-adjacent
 - **A study whose own file names its product is settled by that product only (`modeler_project.formulation_way`).** The

@@ -23644,6 +23644,28 @@
             "title": "Openquestions",
             "type": "integer"
           },
+          "owner": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner"
+          },
+          "owner_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Name"
+          },
           "pipeline": {
             "default": false,
             "title": "Pipeline",
@@ -23659,6 +23681,20 @@
           "risk": {
             "title": "Risk",
             "type": "string"
+          },
+          "steps": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/StepRow"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Steps"
           }
         },
         "required": [
@@ -34967,6 +35003,24 @@
       "get": {
         "operationId": "list_projects_api_v1_projects_get",
         "parameters": [
+          {
+            "description": "Comma list of extra parts: steps, owner",
+            "in": "query",
+            "name": "with",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Comma list of extra parts: steps, owner",
+              "title": "With"
+            }
+          },
           {
             "in": "header",
             "name": "authorization",

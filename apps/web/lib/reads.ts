@@ -17,6 +17,15 @@ export const getProjects = cache(async (): Promise<Live<Project[]>> => {
   return pick(await serverGet("/api/v1/projects", {}), (d) => d.projects);
 });
 
+/** The projects with each one's four steps and its owner (`?with=steps,owner`, the redesign's R-N03): one read for Home,
+ *  Your work and Projects instead of one `/steps` and one `/members` per project. */
+export const getPortfolio = cache(async (): Promise<Live<Project[]>> => {
+  return pick(await serverGet("/api/v1/projects", {}, { with: "steps,owner" }), (d) => d.projects);
+});
+
+/** The signed-in person: their id (to tell the projects they own) and their roles. */
+export const getMe = cache(async () => serverGet("/api/v1/me", {}));
+
 export const getProject = cache(async (projectId: string): Promise<Live<ProjectDetail>> => {
   return serverGet("/api/v1/projects/{project_id}", { project_id: projectId });
 });

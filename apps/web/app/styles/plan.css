@@ -1,7 +1,7 @@
 /* P5 model plan (L3): Overall Data panel, D3 canvas, D1/D2 flows, validator, diff, drop dialog. */
 .content:has(> main.wide) { max-width: 1520px; }
 .plan-layout { display: grid; grid-template-columns: 270px minmax(0, 1fr); gap: 16px; align-items: start; }
-@media (max-width: 1000px) { .plan-layout { grid-template-columns: 1fr; } .overall-data { position: static; max-height: none; } }
+@media (max-width: 1000px) { .plan-layout { grid-template-columns: minmax(0, 1fr); } .overall-data { position: static; max-height: none; } }
 .overall-data { position: sticky; top: 12px; max-height: calc(100vh - 24px); overflow: auto; padding: 12px; border: 1px solid var(--line);
                 border-radius: var(--radius); background: var(--surface); }
 .overall-data h2 { font-size: 16px; margin: 0 0 4px; }

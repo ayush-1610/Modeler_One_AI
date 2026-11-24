@@ -13,6 +13,7 @@ from pydantic import ConfigDict
 
 from modeler_api.studies import ObservedProfile, StudyUpload
 from modeler_api.views.common import Number, View
+from modeler_api.views.project import StepRow
 from modeler_storage.records import ProjectRecord, ProposalRecord
 
 
@@ -26,6 +27,10 @@ class ArchivedView(View):
 
 class ProjectListItem(ProjectRecord):
     archived: ArchivedView | None = None
+    # only with `?with=steps` / `?with=owner` (the redesign's R-N03); absent otherwise
+    steps: list[StepRow] | None = None
+    owner: str | None = None             # the owner's id (`GET /me`'s `user_id` when it is this person)
+    owner_name: str | None = None
 
 
 class Projects(View):

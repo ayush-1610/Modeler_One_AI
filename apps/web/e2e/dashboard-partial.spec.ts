@@ -1,4 +1,4 @@
-// The dashboard when part of what it reads fails (seen on the server, 2026-11-08: "The API answered HTTP 500"). It is the
+// Home (earlier the dashboard) when part of what it reads fails (seen on the server, 2026-11-08: "The API answered HTTP 500"). It is the
 // first page that reads every campaign at once, and one stored campaign in an earlier shape fails that whole read. The
 // page still shows the projects, names the read that failed and what it leaves out, and never shows that figure as 0.
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -26,7 +26,7 @@ test("a campaign list the API cannot answer leaves the dashboard up, says so, an
   try {
     expect((await request.get("/api/v1/campaigns", { headers: AUTH })).status()).toBe(500);    // the failure itself
     await page.goto("/");
-    await expect(page.getByTestId(`project-card-${projectId}`)).toBeVisible();
+    await expect(page.getByTestId("home-projects").getByTestId(`project-row-${projectId}`)).toBeVisible();
     await expect(page.getByTestId("dash-partial")).toContainText("The campaigns could not be read");
     await expect(page.getByTestId("kpi-running-now")).toContainText("—");
     await expect(page.getByTestId("kpi-running-now")).toContainText("could not be read");

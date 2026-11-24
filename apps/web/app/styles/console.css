@@ -42,6 +42,13 @@ h3 { font-size: var(--fs-sm); color: var(--c-ink-3); letter-spacing: 0; }
 .topbar-user a { margin-left: var(--sp-1); color: var(--c-on-accent); font-weight: 500; text-decoration-color: rgba(255, 255, 255, 0.6); }
 .topbar-user a:hover { color: var(--c-on-accent); text-decoration-color: currentColor; }
 .topbar-role { color: #D6DCF5; }
+.topbar-link { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 10px; border-radius: var(--rad-md);
+  color: var(--c-on-accent); font-weight: 500; text-decoration: none; white-space: nowrap; }
+.topbar-link:hover { background: rgba(255, 255, 255, 0.14); color: var(--c-on-accent); }
+.topbar-count { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 6px; border-radius: var(--rad-pill);
+  background: var(--c-flash); color: var(--c-ink); font-size: var(--fs-xs); font-weight: 600; }
+.sn-count { display: inline-grid; place-items: center; min-width: 22px; height: 20px; padding: 0 6px; border-radius: var(--rad-pill);
+  background: var(--c-warn-bg); color: var(--c-warn); font-size: var(--fs-xs); font-weight: 600; }
 .avatar { display: inline-grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: var(--c-surface);
   color: var(--c-accent); font-size: 12px; font-weight: 600; flex: none; }
 .switcher { position: relative; }
@@ -191,6 +198,63 @@ thead th { background: var(--c-canvas); color: var(--c-ink-2); font-size: var(--
 th, td { padding: 11px var(--sp-4); border-bottom-color: var(--c-border-soft); }
 tbody tr:hover { background: #FAFBFD; }
 
+/* ---------- the console's table (kit/Table): a bordered panel, a header with its count, tools, sortable heads ---------- */
+.tbl { background: var(--c-surface); border: 1px solid var(--c-border); border-radius: var(--rad-lg); box-shadow: var(--elev-1); overflow: hidden; }
+.tbl + .tbl { margin-top: var(--sp-5); }
+.tbl-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2) var(--sp-3); padding: 14px var(--sp-5); }
+.tbl-head h2 { margin: 0; }
+.tbl-head .grow { flex: 1; }
+.tbl-count { color: var(--c-ink-3); font-weight: 400; }
+.tbl-tools { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2) var(--sp-3); padding: 0 var(--sp-5) 14px; }
+.tbl-tools input[type="search"] { flex: 0 1 320px; min-width: 180px; padding: 0 12px; }
+.tbl-tools select { padding: 0 10px; }
+.tbl-scroll { overflow-x: auto; }
+.tbl-tools.first { padding-top: 14px; }
+.tbl .pcards { padding: 0 var(--sp-5) var(--sp-5); }
+.tbl table { width: 100%; border-collapse: collapse; }
+.tbl th, .tbl td { text-align: left; vertical-align: middle; }
+.tbl th.num, .tbl td.num { text-align: right; }
+.tbl tbody tr:last-child td { border-bottom: 0; }
+.tbl-sort { display: inline-flex; align-items: center; gap: 6px; padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; }
+.tbl-arrow { color: var(--c-ink-3); font-size: 10px; }
+.tbl-empty { padding: var(--sp-6) var(--sp-5); color: var(--c-ink-3); border-top: 1px solid var(--c-border-soft); }
+.steps-mini { display: inline-flex; gap: 3px; vertical-align: middle; }
+.steps-mini i { width: 18px; height: 6px; border-radius: 3px; background: var(--c-surface-3); }
+.steps-mini i.done { background: var(--c-pass-dot); }
+.steps-mini i.needs_you { background: var(--c-warn-dot); }
+.steps-mini i.running { background: var(--c-accent); }
+/* the portfolio's pages (slice 2): two columns on a wide screen, one below */
+.home-cols { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: var(--sp-5); align-items: start; }
+.home-cols > div { display: grid; gap: var(--sp-5); min-width: 0; }
+@media (max-width: 1100px) { .home-cols { grid-template-columns: minmax(0, 1fr); } }
+.counters { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--sp-4); margin-bottom: var(--sp-5); }
+@media (max-width: 760px) { .counters { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.counter { display: grid; gap: 4px; padding: var(--sp-4) var(--sp-5); background: var(--c-surface); border: 1px solid var(--c-border);
+  border-radius: var(--rad-lg); box-shadow: var(--elev-1); color: var(--c-ink); text-decoration: none; }
+a.counter:hover { border-color: var(--c-accent); color: var(--c-ink); }
+.counter-label { font-size: var(--fs-xs); font-weight: 600; color: var(--c-ink-3); }
+.counter-value { font-size: 28px; line-height: 1.1; font-weight: 600; font-variant-numeric: tabular-nums; }
+.counter.warn .counter-value { color: var(--c-warn); }
+.counter.accent .counter-value { color: var(--c-accent); }
+.counter-sub { font-size: var(--fs-xs); color: var(--c-ink-3); }
+.panel { background: var(--c-surface); border: 1px solid var(--c-border); border-radius: var(--rad-lg); box-shadow: var(--elev-1); }
+.panel-head { display: flex; align-items: center; gap: var(--sp-3); padding: 14px var(--sp-5) 0; }
+.panel-head h2 { margin: 0; }
+.panel-head .grow { flex: 1; }
+.panel-body { padding: var(--sp-3) var(--sp-5) var(--sp-5); }
+.list-plain { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-2); }
+.list-plain li { display: flex; flex-wrap: wrap; align-items: center; gap: 6px var(--sp-2); }
+.view-switch { display: inline-flex; gap: 4px; padding: 4px; border-radius: var(--rad-lg); background: var(--c-surface-3); }
+.view-switch button { min-height: 30px; padding: 0 12px; border: 0; border-radius: 7px; background: none; color: var(--c-ink-2); font: inherit;
+  font-weight: 600; cursor: pointer; }
+.view-switch button[aria-pressed="true"] { background: var(--c-surface); color: var(--c-accent); box-shadow: var(--elev-tab); }
+
+/* Help (the user guide, app/help): one column on a phone, its contents above the guide (auth.css sets the desktop grid) */
+@media (max-width: 760px) {
+  .content .help-layout { grid-template-columns: minmax(0, 1fr); }
+  .content .help-toc { position: static; }
+}
+
 /* ---------- alerts: a bordered, tinted box with the word; the colour is the second cue ---------- */
 .banner { border: 1px solid; border-radius: var(--rad-md); padding: 12px 16px; font-weight: 400; color: var(--c-ink); }
 .banner strong { font-weight: 600; }
@@ -202,6 +266,9 @@ tbody tr:hover { background: #FAFBFD; }
 /* the flash bar: something waits on this person (a decision); solid, with its own button */
 .flash { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-3); padding: 10px 16px; border-radius: var(--rad-md);
   background: var(--c-flash); color: var(--c-ink); }
+.flash .ico, .flash > svg { flex: none; }
+.flash-text { flex: 1 1 320px; min-width: 0; }
+.shell-flash { margin: var(--sp-4) 0 0; }
 .flash .btn { border-color: var(--c-ink); color: var(--c-ink); background: transparent; min-height: 30px; }
 .flash .btn:hover:not(:disabled) { background: rgba(255, 255, 255, 0.4); border-color: var(--c-ink); color: var(--c-ink); }
 
@@ -219,7 +286,7 @@ tbody tr:hover { background: #FAFBFD; }
 }
 @media (max-width: 760px) {
   .switcher-btn { min-width: 0; width: 40px; justify-content: center; padding: 0; }
-  .switcher-btn span, .topbar-api-text, .topbar-user > span:not(.avatar), .topbar-brand span { display: none; }
+  .switcher-btn span, .topbar-api-text, .topbar-link-text, .topbar-user > span:not(.avatar), .topbar-brand span { display: none; }
   .topbar-user [data-testid="signed-in"] { display: none; }
 }
 @media (max-width: 640px) {
@@ -231,7 +298,7 @@ tbody tr:hover { background: #FAFBFD; }
 /* Sticky parts of a page stick below the top bar, which stays at the top of the window (otherwise they slide under it) */
 .area-bar { top: var(--topbar-h); }
 html:has(.area-bar) { scroll-padding-top: calc(var(--topbar-h) + 76px); }
-.dr-rail, .dash-side, .shell-side, .brief-side { top: calc(var(--topbar-h) + 16px); }
+.dr-rail, .dash-side, .shell-side, .brief-side, .content .help-toc { top: calc(var(--topbar-h) + 16px); }
 .overall-data { top: calc(var(--topbar-h) + 12px); max-height: calc(100vh - var(--topbar-h) - 24px); }
 @media (max-width: 900px) {
   .area-bar { top: var(--topbar-h); }
@@ -239,6 +306,6 @@ html:has(.area-bar) { scroll-padding-top: calc(var(--topbar-h) + 76px); }
 }
 
 @media print {
-  .topbar, .sidenav, .crumbs, .page-actions, .skip-link, .mo-toast, .decision-waiting { display: none !important; }
+  .topbar, .sidenav, .crumbs, .page-actions, .skip-link, .mo-toast, .shell-flash { display: none !important; }
   .content { padding: 0; }
 }

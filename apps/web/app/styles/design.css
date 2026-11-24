@@ -86,8 +86,6 @@ td.num, th.num { white-space: nowrap; }
 .inputs-more[open] .checks { margin-top: 12px; }
 
 /* a decision put off with "Decide later": a small control in the bottom-right corner, on every page, that opens it again */
-.decision-waiting { position: fixed; right: 20px; bottom: 20px; z-index: 45; }
-.decision-waiting .btn { box-shadow: var(--elev-2); }
 
 /* the toast: one calm sentence for an action's result (components/kit/Motion.tsx `Toaster`) */
 .mo-toast { position: fixed; left: 50%; bottom: 24px; z-index: 60; transform: translateX(-50%); max-width: min(640px, calc(100vw - 32px));

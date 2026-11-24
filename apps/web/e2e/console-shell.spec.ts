@@ -31,13 +31,17 @@ async function check(page: Page, path: string) {
   await expect(page.locator("main h1").first()).toBeVisible();
   expect(await page.locator("h1").count(), `${path}: one top heading`).toBe(1);
   expect(await unnamed(page), `${path}: every control named`).toEqual([]);
-  const wide = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
-  expect(wide, `${path}: no sideways scroll`).toBeLessThanOrEqual(1);
+  // the page's own width, and what sticks out past the window (outside a box that scrolls by itself), named on failure
+  const [wide, who] = await page.evaluate(() => [document.documentElement.scrollWidth - window.innerWidth,
+    [...document.querySelectorAll("body *")].filter((e) => e.getBoundingClientRect().right > window.innerWidth + 1
+      && !e.closest(".table-scroll, .tbl-scroll, .dag-scroll, .tabs")).slice(0, 6)
+      .map((e) => `${e.tagName.toLowerCase()}.${(e.getAttribute("class") || "").split(" ")[0]}`).join(", ")] as const);
+  expect(wide, `${path}: no sideways scroll (${who})`).toBeLessThanOrEqual(1);
 }
 
 test("every main page: named controls, one heading, no sideways scroll, at 1440 and 390 px", async ({ page, request }) => {
   const id = await projectWithInputs(request, "Consolamide", [{ study_id: "iv-100", route: "iv_infusion", dose_mg: 100 }]);
-  const pages = ["/", "/projects/start", `/projects/${id}`, `/projects/${id}/start`, `/projects/${id}/inputs`, `/projects/${id}/dataroom`,
+  const pages = ["/", "/work", "/projects", "/campaigns", "/help", "/projects/start", `/projects/${id}`, `/projects/${id}/start`, `/projects/${id}/inputs`, `/projects/${id}/dataroom`,
                  `/projects/${id}/plan`, `/projects/${id}/library`, `/projects/${id}/history`, "/no-such-page"];
   for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: 900 });
