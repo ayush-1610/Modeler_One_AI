@@ -78,7 +78,8 @@ def test_a_delivery_is_uploaded_and_read_with_agents_off_every_agent_stage_sayin
     assert len(again.json()["data"]["uploads"]) == 1                             # the same bytes are stored once
     room = c.get(API, headers=H).json()["data"]
     assert len(room["files"]) == 10 and room["studies"] == [] and room["question"] is None
-    assert [s["id"] for s in room["sections"]][:2] == ["files", "substance"]
+    assert [s["id"] for s in room["sections"]][:3] == ["files", "requirements", "substance"]
+    assert room["requirements"] is None                                           # no question card yet
     assert next(s for s in room["sections"] if s["id"] == "files")["finding"] == "10 files read"
     # one run at a time: a run held anywhere refuses a second start
     lease = FileJobRegistry(store.root).claim("t1", "p1", "dataroom")

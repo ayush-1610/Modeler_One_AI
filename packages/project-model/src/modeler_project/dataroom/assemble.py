@@ -14,6 +14,7 @@ from typing import Any
 from modeler_intake.room import document_text, unmarked
 from modeler_intake.room_specs import Extraction, QuestionCard
 from modeler_intake.source_model import SourceDocument
+from modeler_project.dataroom import checklist
 from modeler_project.dataroom.clinical import _code_key, study_view, subject_id
 from modeler_project.dataroom.extract import check_fact, number_of, parse_number, read_table
 from modeler_project.dataroom.invitro import (
@@ -80,17 +81,9 @@ COMPOUND = (("phys.mw", "Molecular weight", "substance.mw", "g/mol"),
             ("perm.intestinal", "Specific intestinal permeability (transcellular)", "substance.permeability", "cm/min"))
 # a permeability measured in a cell or membrane assay, as files write it
 _CELL_ASSAY = re.compile(r"(?i)caco|mdck|pampa|\bpapp\b|apparent\s+permeab|lls?-?pk1|\bcm\s*/\s*s(?:ec)?\b|\bnm\s*/\s*s\b|10\s*[-−]\s*6")
-# Which checklist topics a fact field or a table kind covers
-_TOPIC_FIELDS = {"clinical_design": ("study.design", "study.id", "study.regimen"), "dosing_and_meals": ("study.dose", "study.fed",
-                 "study.fasting", "study.meal", "study.water"), "clinical_demographics": ("study.age", "study.weight", "study.sex"),
-                 "clinical_disposition": ("study.completed", "study.excluded", "study.n_"), "bioanalysis": ("study.lloq",
-                 "study.analyte", "study.matrix"), "be_statistics": ("study.be_result",), "drug_substance": ("substance.",),
-                 "adme": ("adme.",), "composition": ("product.composition",), "solubility": ("substance.solubility",),
-                 "particle_size": ("substance.particle_size",), "label": ("adme.", "substance.")}
-_TOPIC_TABLES = {"clinical_concentrations": ("concentrations",), "clinical_pk": ("pk_parameters",),
-                 "clinical_demographics": ("demographics",), "clinical_disposition": ("disposition",),
-                 "dissolution": ("dissolution",), "composition": ("composition",), "solubility": ("solubility",),
-                 "particle_size": ("particle_size",), "be_statistics": ("be_statistics",), "drug_substance": ("physchem",)}
+# Which checklist topics a fact field or a table kind covers (the requirement checklist reads the same map)
+_TOPIC_FIELDS = checklist.TOPIC_FIELDS
+_TOPIC_TABLES = checklist.TOPIC_TABLES
 _LITERATURE_TOPICS = {"literature", "label"}
 
 
@@ -679,16 +672,33 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
                 evidence=view.sources[:1])))
     chosen = {d.id: _pick(d) for d in decisions}
 
+    # --- what the question needs (plan 2026-11-24 §6): the requirement drafts per context of use, UNVERIFIED -----------
+    # the applications read from the question card (a decision, first), then each item of their lists with its coverage
+    applications = checklist.applications_decision(question, inputs.decisions)
+    if applications is not None:
+        decisions.insert(0, applications)
+    cell_assay = [v for v in own_permeability
+                  if _CELL_ASSAY.search(" ".join([v.as_written, v.unit] + [c.text for c in v.sources]))]
+    evidence = checklist.Evidence(
+        facts=facts, tables=tables, files=inputs.files, solubility=solubility,
+        pkas=checklist.pka_values(facts, pka_type),
+        cell_permeability=cell_assay, entered={field: entered[key] for key, _l, field, _u in COMPOUND if key in entered},
+        arm_food=[(food, a.source) for s in studies for a in s.arms if (food := food_of(a.meaning))])
+    needs = checklist.requirements(question, applications, evidence)
+    # the question card's checklist items that ask only for context-only material (the manufacturing process): kept as
+    # context, their request marked not needed (a person may open it again)
+    context_items = checklist.context_checklist(question)
+
     # --- data requests -------------------------------------------------------------------------------------------------
     requests: list[DataRequest] = []
 
-    def request(area: str, title: str, why: str, checklist: str = "", input: str = "") -> None:
+    def request(area: str, title: str, why: str, checklist: str = "", input: str = "", status: str = "open") -> None:
         n = sum(1 for r in requests if r.area == area) + 1
         rid = f"{area}-{n:02d}"
         edit = inputs.request_edits.get(rid, {})
         wording = edit.get("wording") or inputs.writing.get("requests", {}).get(title, "")
         requests.append(DataRequest(id=rid, area=area, title=title, why=why, wording=wording,  # type: ignore[arg-type]
-                                    status=edit.get("status", "open"), checklist=checklist, input=input))  # type: ignore[arg-type]
+                                    status=edit.get("status", status), checklist=checklist, input=input))  # type: ignore[arg-type]
 
     covered_topics: set[str] = set()
     for topic, prefixes in _TOPIC_FIELDS.items():
@@ -700,6 +710,10 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
     if question and inputs.question_confirmed:
         for item in question.checklist:
             if item.required and item.topics and not set(item.topics) & covered_topics:
+                if (ctx := context_items.get(item.id)) is not None:
+                    request(item.area, item.label, f"Kept as context, not asked for: {ctx.why.rstrip('.')}. "
+                            f"{checklist.DRAFT_WORDS}", item.id, status="not_needed")
+                    continue
                 request(item.area, item.label, item.why or "needed for the question and not found in the delivery", item.id)
     for view in studies:
         for s, why in view.excluded.items():
@@ -735,8 +749,6 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
             where = written.get((ph, medium)) or (f"pH {ph:g}" if ph is not None else "the medium the test product was run in")
             request("B", f"Reference product dissolution in {where}",
                     "the test product was tested in this medium and the reference was not: no comparison is possible")
-    cell_assay = [v for v in own_permeability
-                  if _CELL_ASSAY.search(" ".join([v.as_written, v.unit] + [c.text for c in v.sources]))]
     if cell_assay and not reference_compounds:
         request("C", "The lab's reference compounds for the permeability assay", (
             f"the delivery gives {len(cell_assay)} cell-assay permeabilit{'y' if len(cell_assay) == 1 else 'ies'} "
@@ -752,6 +764,23 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
         if not found and key not in entered and not asked:
             request("C", label, "a compound input of the model, not in the delivery: from the client, or from literature (marked so)",
                     field, input=key)
+    # the checklist's missing items, after the room's own requests (their codes stay as they were): what, why, the
+    # accepted alternatives, "(draft requirement, UNVERIFIED)"; one the room already makes is not made twice. Nothing
+    # not needed, inapplicable, not known, optional or context-only is asked for.
+    if needs is not None:
+        asked_in: dict[str, str] = {}
+        if question and inputs.question_confirmed:
+            for ask in checklist.asks(needs.items):
+                same = checklist.already_asked(ask, requests)
+                if same is None:
+                    request(ask.area, ask.title, ask.why, ask.item)
+                    same = requests[-1]
+                asked_in[ask.item] = same.id
+        for cid, ctx in context_items.items():
+            if got := next((r for r in requests if r.checklist == cid), None):
+                asked_in.setdefault(ctx.id, got.id)
+        needs = needs.model_copy(update={"items": tuple(
+            i.model_copy(update={"request": asked_in[i.id]}) if i.id in asked_in else i for i in needs.items)})
 
     # --- PK-Sim inputs ---------------------------------------------------------------------------------------------------
     inputs_rows: list[InputRow] = []
@@ -974,6 +1003,7 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
     sections = [
         section("files", "Files", f"{len(inputs.files)} files read" + (f", {n_ocr} scanned pages read by our OCR" if n_ocr else ""),
                 all(f.state in ("read", "partly_read") for f in inputs.files), not inputs.files),
+        section("requirements", "Requirements for this question", *checklist.finding(needs)),
         section("substance", "Drug substance", f"{len(substance)} {'property' if len(substance) == 1 else 'properties'} found",
                 not any(v.status == "conflict" for v in substance), not substance),
         section("adme", "ADME and disposition", f"{len(adme)} {'fact' if len(adme) == 1 else 'facts'} found", True, not adme),
@@ -1005,7 +1035,7 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
                         adme=tuple(adme), products=tuple(products), composition=tuple(composition), solubility=tuple(solubility),
                         absorption=tuple(absorption), dissolution=tuple(diss), f2=tuple(f2s), studies=tuple(studies),
                         decisions=tuple(decisions), requests=tuple(requests), plan=tuple(plan), inputs=tuple(inputs_rows),
-                        problems=tuple(problems), checks=checks)
+                        problems=tuple(problems), checks=checks, requirements=needs)
 
 
 # a value the files state was fitted to clinical PK, not measured

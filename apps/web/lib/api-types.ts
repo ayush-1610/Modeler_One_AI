@@ -5309,6 +5309,7 @@ export interface components {
              * @default []
              */
             requests: components["schemas"]["DataRequest"][];
+            requirements: components["schemas"]["Requirements"] | null;
             /** Rules */
             rules: string;
             /**
@@ -12104,6 +12105,35 @@ export interface components {
             projects: components["schemas"]["ProjectListItem"][];
         };
         /**
+         * PropertyRead
+         * @description A compound, product or question property a trigger names (core.yaml's vocabulary), as code read it from the room.
+         */
+        PropertyRead: {
+            /**
+             * Basis
+             * @default
+             */
+            basis: string;
+            /** How */
+            how: string;
+            /**
+             * Known
+             * @default false
+             */
+            known: boolean;
+            /** Label */
+            label: string;
+            /** Name */
+            name: string;
+            /**
+             * Sources
+             * @default []
+             */
+            sources: components["schemas"]["Chip"][];
+            /** Value */
+            value: string;
+        };
+        /**
          * Proposal
          * @description An A5 departure from the plan, shown in the diff until a person accepts or rejects it.
          */
@@ -12395,6 +12425,21 @@ export interface components {
             template: boolean;
         };
         /**
+         * ReadPhrase
+         * @description An application read from the question card, with the words that matched, as written ("'food effect' (question)").
+         */
+        ReadPhrase: {
+            /** Application */
+            application: string;
+            /** Label */
+            label: string;
+            /**
+             * Words
+             * @default []
+             */
+            words: string[];
+        };
+        /**
          * ReadingItem
          * @description One file in the project's reading queue (plan 2026-11-10, R3: the reading tray).
          */
@@ -12646,6 +12691,146 @@ export interface components {
             to_harvest: number;
             /** Undetermined */
             undetermined: number;
+        };
+        /**
+         * RequirementItem
+         * @description One item of the checklist for this question, with its coverage (the ledger of plan §6.4): found where, missing
+         *     with the files searched, not needed and why, or kept as context.
+         */
+        RequirementItem: {
+            /**
+             * Alternatives
+             * @default []
+             */
+            alternatives: string[];
+            /**
+             * Applies
+             * @default
+             * @enum {string}
+             */
+            applies: "yes" | "no" | "unknown" | "";
+            /**
+             * By
+             * @default []
+             */
+            by: string[];
+            /**
+             * Chips
+             * @default []
+             */
+            chips: components["schemas"]["Chip"][];
+            /**
+             * Coverage
+             * @enum {string}
+             */
+            coverage: "found" | "found_in_part" | "missing" | "to_ask" | "absent" | "person_checks" | "not_from_delivery" | "not_needed" | "context";
+            /** Coverage Text */
+            coverage_text: string;
+            /**
+             * Escalates
+             * @default
+             */
+            escalates: string;
+            /**
+             * Found
+             * @default []
+             */
+            found: string[];
+            /** Group */
+            group: string;
+            /** Id */
+            id: string;
+            /** Kind */
+            kind: string;
+            /** Label */
+            label: string;
+            /**
+             * Level
+             * @enum {string}
+             */
+            level: "required" | "usually_needed" | "conditional" | "to_ask" | "optional" | "not_needed" | "context";
+            /**
+             * Note
+             * @default
+             */
+            note: string;
+            /**
+             * Others
+             * @default []
+             */
+            others: string[];
+            /**
+             * Record With
+             * @default []
+             */
+            record_with: string[];
+            /**
+             * Request
+             * @default
+             */
+            request: string;
+            /**
+             * Room Gap
+             * @default false
+             */
+            room_gap: boolean;
+            /**
+             * Searched
+             * @default []
+             */
+            searched: string[];
+            /**
+             * Sources
+             * @default []
+             */
+            sources: string[];
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "REQUIRED" | "USUALLY_NEEDED" | "CONDITIONAL" | "OPTIONAL" | "NOT_NEEDED";
+            /**
+             * Trigger
+             * @default
+             */
+            trigger: string;
+            /**
+             * Trigger State
+             * @default
+             */
+            trigger_state: string;
+            /** Why */
+            why: string;
+        };
+        /**
+         * Requirements
+         * @description The checklist for this question from the requirement drafts per context of use: a draft, UNVERIFIED, awaiting the
+         *     owner's and the SME's review. No data plan, gate or live template reads it.
+         */
+        Requirements: {
+            /** Applications */
+            applications: string[];
+            /** Chosen */
+            chosen: boolean;
+            /**
+             * Items
+             * @default []
+             */
+            items: components["schemas"]["RequirementItem"][];
+            /** Label */
+            label: string;
+            /**
+             * Properties
+             * @default []
+             */
+            properties: components["schemas"]["PropertyRead"][];
+            /**
+             * Read
+             * @default []
+             */
+            read: components["schemas"]["ReadPhrase"][];
+            /** Version */
+            version: string;
         };
         /** RequirementsPage */
         RequirementsPage: {

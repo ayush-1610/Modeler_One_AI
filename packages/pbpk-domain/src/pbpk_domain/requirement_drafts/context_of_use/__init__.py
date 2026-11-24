@@ -29,12 +29,16 @@ Inert by construction:
 - ``modeler_project.requirements.load_templates`` lists ``pbpk_domain.requirements`` only, one level deep; this is a
   sub-package of a sibling package, so no data plan, client request, reconciliation, gate or live template reads them;
 - each file's ``applies_to`` is empty, so a loader that found one would select it for no project;
-- the Data room may show them, labelled as drafts, but nothing derives a requirement, a "missing" item or a data
-  request from them until a draft is promoted.
+- the Data room may show them, labelled as drafts: plan phase 2 (the owner's "go ahead with all phases",
+  2026-11-24) wires them to the Data room's own checklist for the question, its coverage ledger and its own data
+  requests, each marked "draft, UNVERIFIED (awaiting the owner's and the SME's review)" or "(draft requirement,
+  UNVERIFIED)". Nothing else derives a requirement, a "missing" item or a request from them until a draft is promoted.
 
-This package holds data only: nothing here reads the files. Their one reader is
-``packages/project-model/tests/test_cou_requirement_drafts.py``, which checks the format, the sources and the
-inertness. A summary for review is ``docs/research/2026-11-24-cou-requirement-drafts-for-review.md``. A draft becomes
-a template only through a locked-file change (``pbpk_domain/requirements/*.yaml``) with the owner's approval, after the
-SME's review, with a version bump.
+This package holds data only: nothing here reads the files. Their readers are the Data room's loader
+``modeler_project.dataroom.drafts`` (read once, its shape checked; ``modeler_project.dataroom.checklist`` builds the
+room's checklist from it) and ``packages/project-model/tests/test_cou_requirement_drafts.py``, which checks the
+format, the sources and the inertness. A summary for review is
+``docs/research/2026-11-24-cou-requirement-drafts-for-review.md``. A draft becomes a template only through a
+locked-file change (``pbpk_domain/requirements/*.yaml``) with the owner's approval, after the SME's review, with a
+version bump.
 """

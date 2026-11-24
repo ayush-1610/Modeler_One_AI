@@ -15,6 +15,88 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — science: the Data room asks for what the question needs, from the requirement drafts per context of use (plan 2026-11-24 §6, phase 2; the drafts stay UNVERIFIED) (2026-11-24)
+- **Why:** phase 2 of `docs/plans/2026-11-24-data-story-next-phase.md` (§6, decision D5; the owner's "go ahead with all
+  phases"). A6 wrote the room's checklist from one fixed list: every project was asked for the manufacturing process,
+  and nothing told a fasted DDI question from a food-effect one. The drafts
+  (`pbpk_domain/requirement_drafts/context_of_use/`, UNVERIFIED) give each item a status per application, a trigger
+  over the compound's properties, and the room fields that satisfy it. Code reads them; no AI model is asked anything
+  new.
+- **What changed:**
+  - `modeler_project.dataroom.drafts`: the twelve drafts read once (importlib.resources), their shape checked (the item
+    keys core.yaml documents, the five statuses, a trigger in the grammar over the property vocabulary on CONDITIONAL
+    items only, overrides of core items only, the room's vocabulary, declared sub-contexts); `items_for` gives a context
+    of use's list with the core merged and its overrides applied.
+  - `modeler_project.dataroom.checklist`:
+    1. **Which applications:** the confirmed question card's question, approach, context of use and regulator are
+       matched by whole words against a phrase table (`PHRASES`: food effect / fed; DDI, interaction, inhibitor,
+       inducer, CYP… with the side read from "victim" / "perpetrator" / "inhibits" / "induces", else both;
+       transporter, OATP, P-gp; paediatric, children, infant; renal or hepatic impairment; bioequivalence, VBE,
+       bridging, site change, scale-up, safe space, dissolution specification, PBBM, biowaiver; PPI, H2, antacid,
+       pH-dependent; first-in-human, starting dose; pregnan…, elderly, geriatric, ethnic…). A decision
+       `applications` (first among the decisions) offers the combination read (suggested), each application alone,
+       and "none of these (core items only)", each with the words that matched. Until a person chooses, the checklist
+       follows the suggestion, labelled "as read from the question card". Like every decision, it is chosen before
+       "Send to the model".
+    2. **Properties and triggers:** code reads what core.yaml says it can: a weak base and its highest basic pKa (each
+       pKa of a fact typed by its own words, "pKa1 (basic) = 4.1; pKa2 (acidic) = 9.3"), the gastric-to-intestinal
+       solubility ratio (pH 1–2 over the row nearest pH 6.5), a salt, a BCS class the delivery states, metabolism and
+       the enzymes named, the fraction excreted unchanged in urine, the transporters named (a negated clause names
+       none), an in vitro permeability supplied, subject-level concentrations, fed dosing in scope (a meal served after
+       the dose is not fed dosing), a reference product on the card. Everything else is "not known" (a person answers,
+       or it needs the SME's cut-off). A trigger is met, not met or not known; a cut-off written `SME` is never
+       invented: that condition stays not known and decides nothing (the trigger is decided only where the rest
+       decides it); the sourced cut-off (pKa above 5) is applied.
+    3. **The ledger:** each item once, the strictest status across the applications winning (REQUIRED >
+       USUALLY_NEEDED > CONDITIONAL that applies > not known > OPTIONAL > NOT_NEEDED), naming the applications that set
+       it and the others' lower status; its coverage: found (the facts, tables, topics or entered values, with their
+       chips; a solubility or particle-size table satisfies its field), missing (with the files searched: those whose
+       triage topics match the item's, else every used file), "applies if … (not known from the delivery)", not
+       needed (why), context only, found in part / a person checks (the room has no place, or only part of one), or
+       not from the delivery (the modeller's tasks, the platform's library).
+    4. **Data requests:** each missing REQUIRED item (and CONDITIONAL item that applies) and each missing
+       USUALLY_NEEDED item (said so) becomes a request after the room's own requests (their codes unchanged),
+       lettered by its data category: what, why, "If it is not available: …" where the draft gives alternatives,
+       "(draft requirement, UNVERIFIED)". A request the room already makes for the same thing (the same item id or
+       title; the room's own request for the same compound value, `SAME_ASK`) is not made twice; the ledger names the
+       request either way. Nothing NOT_NEEDED, inapplicable, not known, optional or context-only is asked for.
+  - The question card's checklist items that ask only for context-only material (the manufacturing process: a topic no
+    draft item asks data for) keep their request and its code, now "not needed" by default with why ("Kept as context,
+    not asked for … (draft requirement, UNVERIFIED)"); a person may open it again. The context item says so.
+  - `DataRoomView.requirements`; a section "Requirements for this question" (`requirements`, after Files) whose line
+    counts found, missing, to ask, for a person to check and not needed; the page's new section
+    (`components/dataroom/requirements.tsx`, `data-testid="dr-requirements"`): the draft label first, the applications
+    with the words read, the items grouped by status with their coverage line and source chips, "Not needed for this
+    question (n)" and "Context only (n)" folded, and what code read about the compound and the question.
+  - The drafts package's docstring and the review summary (`docs/research/2026-11-24-cou-requirement-drafts-for-review.md`
+    §7) say what now reads the drafts.
+- **API contract:** `DataRoomView` gains `requirements` (`Requirements`, `RequirementItem`, `PropertyRead`,
+  `ReadPhrase`; null without a question card); `sections` gains `requirements` (second); `decisions` may start with
+  `applications`. `docs/api/openapi.json` and `apps/web/lib/api-types.ts` regenerated.
+- **Science status:** the drafts are unchanged and stay **UNVERIFIED** (0.1-draft), labelled so on every item and
+  request; the phrase table, the property readings and `SAME_ASK` are code's reading, for the owner's and the SME's
+  review. No data plan, client request of the data plan, gate or live template reads the drafts
+  (`test_cou_requirement_drafts.py` still checks it); the locked templates are untouched.
+- **Effect on the three made-up deliveries** (their stored runs re-assembled, no model called): novaprazole reads PBBM,
+  bridging and virtual BE + food effect ("PBBM", "biowaiver"; "food effect", "fed"): 35 found, 2 missing, 1 to ask, 8
+  for a person to check, 2 not needed, 4 context; zelitrex reads PBBM, bridging and virtual BE ("bioequivalence", "VBE",
+  "site change"): 26 found, 3 missing, 1 to ask, 5 for a person to check, 3 not needed (fed BE data: the study is
+  fasted); quorafen reads the same ("bioequivalence", "bridging", "formulation change"): 26 found, 3 missing, 1 to
+  ask, 5 for a person to check, 3 not needed (fed BE data: the breakfast 2 h after the dose is not fed dosing). Each
+  gains two requests (the solid form, the functional excipients' amounts); a missing permeability is the room's own
+  request; the manufacturing request is "not needed". The value-by-value scores are unchanged (53/4/30, 69/0/0,
+  48/2/16 OK/WRONG/MISSING, the same with the checklist switched off).
+- **Known gaps:** coverage is any-of over an item's room fields, so an item named by a generic field is "found" by
+  related data (intravenous PK by an oral concentrations table): the coverage line says what was found, and the drafts
+  may mark such items as a room gap. A6's prompt still holds the fixed checklist and A10's material lists every request
+  (also those not needed): the `stages.py` changes are described in the session's report, not made here (another
+  change is being merged there).
+- **Tests:** `packages/project-model/tests/test_dataroom_requirements.py` (T-47): the loader (merge, overrides,
+  sub-contexts, refusals), each phrase family and the combinations, triggers (met, not met, not known, SME cut-offs),
+  the properties, coverage (found, missing with the files searched, not needed, context, room gap, activity),
+  requests (wording, alternatives, letters, no duplicates, nothing not needed, only once the card is confirmed);
+  `test_dataroom.py` and `test_dataroom_api.py` take the new section.
+
 ### Added — science: the Data room's science checks, features 3–9 of the next-phase plan (`dataroom_rules.yaml` 0.3, UNVERIFIED) (2026-11-24)
 - **Why:** phase 3 of `docs/plans/2026-11-24-data-story-next-phase.md` (§8, approved by the owner with "go ahead with
   all phases"). The literature reviews (`docs/research/2026-11-24-clinical-pk-data-curation.md` §3–§5,

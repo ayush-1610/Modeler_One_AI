@@ -5050,6 +5050,16 @@
             "title": "Requests",
             "type": "array"
           },
+          "requirements": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Requirements"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "rules": {
             "title": "Rules",
             "type": "string"
@@ -5108,6 +5118,7 @@
           "inputs",
           "problems",
           "checks",
+          "requirements",
           "made_by",
           "made_summary"
         ],
@@ -24472,6 +24483,57 @@
         "title": "Projects",
         "type": "object"
       },
+      "PropertyRead": {
+        "additionalProperties": false,
+        "description": "A compound, product or question property a trigger names (core.yaml's vocabulary), as code read it from the room.",
+        "properties": {
+          "basis": {
+            "default": "",
+            "title": "Basis",
+            "type": "string"
+          },
+          "how": {
+            "title": "How",
+            "type": "string"
+          },
+          "known": {
+            "default": false,
+            "title": "Known",
+            "type": "boolean"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "sources": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/Chip"
+            },
+            "title": "Sources",
+            "type": "array"
+          },
+          "value": {
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "label",
+          "how",
+          "value",
+          "known",
+          "basis",
+          "sources"
+        ],
+        "title": "PropertyRead",
+        "type": "object"
+      },
       "Proposal": {
         "additionalProperties": false,
         "description": "An A5 departure from the plan, shown in the diff until a person accepts or rejects it.",
@@ -25133,6 +25195,35 @@
         "title": "ReadFile",
         "type": "object"
       },
+      "ReadPhrase": {
+        "additionalProperties": false,
+        "description": "An application read from the question card, with the words that matched, as written (\"'food effect' (question)\").",
+        "properties": {
+          "application": {
+            "title": "Application",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "words": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Words",
+            "type": "array"
+          }
+        },
+        "required": [
+          "application",
+          "label",
+          "words"
+        ],
+        "title": "ReadPhrase",
+        "type": "object"
+      },
       "ReadingItem": {
         "additionalProperties": false,
         "description": "One file in the project's reading queue (plan 2026-11-10, R3: the reading tray).",
@@ -25786,6 +25877,268 @@
           "to_harvest"
         ],
         "title": "RequirementCounts",
+        "type": "object"
+      },
+      "RequirementItem": {
+        "additionalProperties": false,
+        "description": "One item of the checklist for this question, with its coverage (the ledger of plan §6.4): found where, missing\nwith the files searched, not needed and why, or kept as context.",
+        "properties": {
+          "alternatives": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Alternatives",
+            "type": "array"
+          },
+          "applies": {
+            "default": "",
+            "enum": [
+              "yes",
+              "no",
+              "unknown",
+              ""
+            ],
+            "title": "Applies",
+            "type": "string"
+          },
+          "by": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "By",
+            "type": "array"
+          },
+          "chips": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/Chip"
+            },
+            "title": "Chips",
+            "type": "array"
+          },
+          "coverage": {
+            "enum": [
+              "found",
+              "found_in_part",
+              "missing",
+              "to_ask",
+              "absent",
+              "person_checks",
+              "not_from_delivery",
+              "not_needed",
+              "context"
+            ],
+            "title": "Coverage",
+            "type": "string"
+          },
+          "coverage_text": {
+            "title": "Coverage Text",
+            "type": "string"
+          },
+          "escalates": {
+            "default": "",
+            "title": "Escalates",
+            "type": "string"
+          },
+          "found": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Found",
+            "type": "array"
+          },
+          "group": {
+            "title": "Group",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "level": {
+            "enum": [
+              "required",
+              "usually_needed",
+              "conditional",
+              "to_ask",
+              "optional",
+              "not_needed",
+              "context"
+            ],
+            "title": "Level",
+            "type": "string"
+          },
+          "note": {
+            "default": "",
+            "title": "Note",
+            "type": "string"
+          },
+          "others": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Others",
+            "type": "array"
+          },
+          "record_with": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Record With",
+            "type": "array"
+          },
+          "request": {
+            "default": "",
+            "title": "Request",
+            "type": "string"
+          },
+          "room_gap": {
+            "default": false,
+            "title": "Room Gap",
+            "type": "boolean"
+          },
+          "searched": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Searched",
+            "type": "array"
+          },
+          "sources": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Sources",
+            "type": "array"
+          },
+          "status": {
+            "enum": [
+              "REQUIRED",
+              "USUALLY_NEEDED",
+              "CONDITIONAL",
+              "OPTIONAL",
+              "NOT_NEEDED"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "trigger": {
+            "default": "",
+            "title": "Trigger",
+            "type": "string"
+          },
+          "trigger_state": {
+            "default": "",
+            "title": "Trigger State",
+            "type": "string"
+          },
+          "why": {
+            "title": "Why",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "group",
+          "kind",
+          "status",
+          "level",
+          "applies",
+          "trigger",
+          "trigger_state",
+          "escalates",
+          "why",
+          "alternatives",
+          "record_with",
+          "sources",
+          "by",
+          "others",
+          "coverage",
+          "coverage_text",
+          "found",
+          "chips",
+          "searched",
+          "room_gap",
+          "request",
+          "note"
+        ],
+        "title": "RequirementItem",
+        "type": "object"
+      },
+      "Requirements": {
+        "additionalProperties": false,
+        "description": "The checklist for this question from the requirement drafts per context of use: a draft, UNVERIFIED, awaiting the\nowner's and the SME's review. No data plan, gate or live template reads it.",
+        "properties": {
+          "applications": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Applications",
+            "type": "array"
+          },
+          "chosen": {
+            "title": "Chosen",
+            "type": "boolean"
+          },
+          "items": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/RequirementItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "properties": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/PropertyRead"
+            },
+            "title": "Properties",
+            "type": "array"
+          },
+          "read": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/ReadPhrase"
+            },
+            "title": "Read",
+            "type": "array"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "label",
+          "version",
+          "applications",
+          "chosen",
+          "read",
+          "properties",
+          "items"
+        ],
+        "title": "Requirements",
         "type": "object"
       },
       "RequirementsPage": {
