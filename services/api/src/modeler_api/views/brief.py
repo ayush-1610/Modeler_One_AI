@@ -305,6 +305,7 @@ class AgentRunRow(View):
 
     run_id: str
     agent: str
+    agent_label: str | None            # the agent in words, as the admin console names it ("A2 · searches the literature")
     provider: str | None
     model: str
     started_by: str | None

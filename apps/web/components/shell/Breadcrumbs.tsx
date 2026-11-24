@@ -22,6 +22,7 @@ const PROJECT_PAGES: Record<string, Crumb[]> = {
   settings: [["Settings", null]],
   library: [["Documents", null]],
   history: [["History", null]],
+  "agent-activity": [["Agent activity", null]],
 };
 
 const ADMIN_PAGES: Record<string, string> = {
@@ -42,6 +43,9 @@ function crumbsFor(path: string, name: string | null): Crumb[] {
     if (!page) return [["Projects", "/projects"], [project[0], null]];
     if (page === "dataroom" && parts[3] === "report") return [["Projects", "/projects"], project, ["Data", null], ["Data room", `${base}/dataroom`], ["Evidence report", null]];
     if (page === "compounds" && parts[3]) return [["Projects", "/projects"], project, ["Compounds", `${base}/compounds`], [parts[3], null]];
+    if (page === "agent-activity" && parts[3]) {
+      return [["Projects", "/projects"], project, ["Agent activity", `${base}/agent-activity`], [`Run ${parts[3]}`, null]];
+    }
     return [["Projects", "/projects"], project, ...(PROJECT_PAGES[page] ?? [[page, null]])];
   }
   if (parts[0] === "campaigns" && parts[1]) return [["Campaigns", "/campaigns"], [`Campaign ${parts[1]}`, null]];

@@ -45,6 +45,7 @@ from modeler_api.deps import (
 )
 from modeler_api.intake_jobs import READ_ROLES, ingest_for_reading, read_later
 from modeler_api.memberships import record_creator
+from modeler_api.platform_settings import AGENTS
 from modeler_api.responses import answers, envelope
 from modeler_api.views.brief import (
     AgentRunDetail,
@@ -648,7 +649,9 @@ def _run_row(root: str, record: dict[str, Any]) -> dict[str, Any]:
     steps = agent_jobs.run_steps(root, record["run_id"])
     kinds = [s.get("kind") for s in steps]
     switch = next((s.get("content") or {} for s in steps if s.get("kind") == "model_switch"), None)
-    return {"run_id": record["run_id"], "agent": record["agent"], "provider": record.get("provider"),
+    named = re.match(r"A\d+", record["agent"])          # "A4-sheet-reading" is A4 (platform_settings.AGENTS)
+    return {"run_id": record["run_id"], "agent": record["agent"],
+            "agent_label": AGENTS.get(named.group(0)) if named else None, "provider": record.get("provider"),
             "model": record["model"], "started_by": record.get("started_by"), "started_at": record["started_at"],
             "finished_at": record.get("finished_at"), "status": record["status"], "turns": kinds.count("model_turn"),
             "input_tokens": int(record.get("input_tokens") or 0), "output_tokens": int(record.get("output_tokens") or 0),

@@ -80,6 +80,7 @@ def test_a_projects_agent_runs_are_listed_newest_first_with_refusals_and_fallbac
     assert [r["run_id"] for r in data["runs"]] == [second, first] and data["next_before"] is None
     newest, oldest = data["runs"]
     assert (newest["agent"], newest["model"], newest["started_by"], newest["status"]) == ("A2", "qwen", "u1", "COMPLETED")
+    assert newest["agent_label"] == "A2 · searches the literature"
     assert (newest["fallback_from"], newest["refusals"]) == ("ollama/qwen", 0)
     assert (oldest["refusals"], oldest["fallback_from"], oldest["turns"]) == (2, None, 1)
     assert (oldest["input_tokens"], oldest["output_tokens"]) == (1200, 300) and oldest["finished_at"]

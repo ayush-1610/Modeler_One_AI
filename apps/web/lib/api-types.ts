@@ -3567,6 +3567,8 @@ export interface components {
         AgentRunRow: {
             /** Agent */
             agent: string;
+            /** Agent Label */
+            agent_label: string | null;
             /** Fallback From */
             fallback_from: string | null;
             /** Finished At */

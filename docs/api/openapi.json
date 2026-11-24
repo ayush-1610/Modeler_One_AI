@@ -482,6 +482,17 @@
             "title": "Agent",
             "type": "string"
           },
+          "agent_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agent Label"
+          },
           "fallback_from": {
             "anyOf": [
               {
@@ -562,6 +573,7 @@
         "required": [
           "run_id",
           "agent",
+          "agent_label",
           "provider",
           "model",
           "started_by",

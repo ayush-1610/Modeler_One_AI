@@ -1,10 +1,18 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 
-import { preloadSteps, Stepper } from "@/components/kit/Stepper";
-import { ApiProblem, Card, StatusChip } from "@/components/ui";
+import { ApiProblem, StatusChip } from "@/components/ui";
+import { AuditTable, SignatureTable } from "@/components/records/HistoryTables";
 import { getArtifacts, getAudit, getHistory, getStale, type Change } from "@/lib/pipeline";
+import { getSignatures } from "@/lib/reads";
 import { Hero } from "@/components/kit";
 import { Clip } from "@/components/kit/Clip";
+
+// A project's History (P-21, the console redesign's slice 7): one record at a time, in tabs whose choice is in the
+// address (?tab=): the audit trail (`GET /audit`), the signatures given on its records (`GET /signatures`, R-N09: the
+// decisions on its campaigns' escalations included, which the audit trail's filter leaves out), every artifact's
+// versions (`GET /artifacts`, a version's changes from `/history`), and what is out of date (`GET /stale`). Whether
+// the company's hash chain verifies is said in the header, on every tab. Nothing is ever deleted, only superseded.
 
 function show(value: unknown): string {
   if (value === null || value === undefined) return "—";
@@ -12,8 +20,10 @@ function show(value: unknown): string {
   return JSON.stringify(value);
 }
 
-const AUDIT_SHOWN = 50;
 const ARTIFACTS_SHOWN = 25;
+const TABS = ["audit", "signatures", "versions", "stale"] as const;
+type Tab = (typeof TABS)[number];
+const TAB_LABEL: Record<Tab, string> = { audit: "Audit trail", signatures: "Signatures", versions: "Versions", stale: "Out of date" };
 
 function ChangeRow({ change }: { change: Change }) {
   return (
@@ -25,161 +35,178 @@ function ChangeRow({ change }: { change: Change }) {
   );
 }
 
-/** Versions, staleness and the audit trail of a project (plan §13): nothing is ever deleted, only superseded. */
+function Panel({ title, aside, children, testId }: { title: string; aside?: ReactNode; children: ReactNode; testId?: string }) {
+  return (
+    <section className="panel" data-testid={testId}>
+      <div className="panel-head"><h2>{title}</h2><span className="grow" />{aside}</div>
+      <div className="panel-body">{children}</div>
+    </section>
+  );
+}
+
 export default async function HistoryPage({
   params, searchParams,
 }: {
   params: Promise<{ projectId: string }>;
-  searchParams: Promise<{ kind?: string; id?: string; show?: string; audit?: string; artifacts?: string }>;
+  searchParams: Promise<{ tab?: string; kind?: string; id?: string; show?: string; artifacts?: string }>;
 }) {
   const { projectId } = await params;
-  const { kind, id, show: only, audit: auditAll, artifacts: artifactsAll } = await searchParams;
-  preloadSteps(projectId); // the step bar's read runs beside the page's own, not after them (audit item 9)
-  const [artifacts, stale, audit, history] = await Promise.all([
-    getArtifacts(projectId),
-    getStale(projectId),
+  const { tab: asked, kind, id, show: only, artifacts: artifactsAll } = await searchParams;
+  // a version's link (?kind=&id=) opens Versions; else the tab asked for, else the audit trail
+  const tab: Tab = TABS.find((t) => t === asked) ?? (kind && id ? "versions" : "audit");
+  const [audit, stale, artifacts, history, signatures] = await Promise.all([
     getAudit(projectId),
-    kind && id ? getHistory(projectId, kind, id) : Promise.resolve(null),
+    getStale(projectId),
+    tab === "versions" ? getArtifacts(projectId) : Promise.resolve(null),
+    tab === "versions" && kind && id ? getHistory(projectId, kind, id) : Promise.resolve(null),
+    tab === "signatures" ? getSignatures(projectId) : Promise.resolve(null),
   ]);
-  const problem = artifacts.problem ?? stale.problem ?? audit.problem;
+  const base = `/projects/${encodeURIComponent(projectId)}/history`;
+  const here = (q: Record<string, string | undefined>) => {
+    const p = new URLSearchParams({ tab: "versions" });
+    for (const [k, v] of Object.entries({ kind, id, show: only, artifacts: artifactsAll, ...q })) if (v) p.set(k, v);
+    return `${base}?${p.toString()}`;
+  };
   // the artifacts by kind, with how many of each; one kind at a time when asked (`?show=evidence`)
   const kinds = new Map<string, number>();
-  for (const a of artifacts.data ?? []) kinds.set(a.kind, (kinds.get(a.kind) ?? 0) + 1);
-  const matching = (artifacts.data ?? []).filter((a) => !only || a.kind === only);
+  for (const a of artifacts?.data ?? []) kinds.set(a.kind, (kinds.get(a.kind) ?? 0) + 1);
+  const matching = (artifacts?.data ?? []).filter((a) => !only || a.kind === only);
   const listed = artifactsAll === "all" ? matching : matching.slice(0, ARTIFACTS_SHOWN);
-  const here = (q: Record<string, string | undefined>) => {
-    const p = new URLSearchParams();
-    for (const [k, v] of Object.entries({ kind, id, show: only, audit: auditAll, artifacts: artifactsAll, ...q })) if (v) p.set(k, v);
-    const s = p.toString();
-    return `/projects/${projectId}/history${s ? `?${s}` : ""}`;
-  };
-  // the audit trail newest first; the last 50 unless all are asked for (`?audit=all`)
-  const events = [...(audit.data?.events ?? [])].reverse();
-  const shownEvents = auditAll === "all" ? events : events.slice(0, AUDIT_SHOWN);
+  const staleRows = stale.data ?? [];
+  const verifies = audit.data?.chain_verifies;
 
   return (
     <main>
       <Hero tone="history" eyebrow="Project record" title="History"
-            lede={<>Every phase output is a version that names the exact inputs it was made from. An edit creates a new version;
-              anything made from the old one is marked <strong>stale</strong> with its reason, never deleted or silently redone.</>} />
-      <Stepper projectId={projectId} />
-      {problem && <ApiProblem problem={problem} />}
+            lede={<>Every output is a version that names the inputs it was made from. An edit makes a new version; what was made
+              from the old one is marked <strong>out of date</strong> with its reason, never deleted or silently redone.</>}
+            actions={verifies === undefined ? null : (
+              <span className={`chip ${verifies ? "low" : "high"}`} data-testid="history-chain">
+                {verifies ? "hash chain verifies" : "hash chain BROKEN"}</span>
+            )} />
 
-      {stale.data && stale.data.length > 0 && (
-        <Card title="Stale — made from inputs that have since changed">
-          <table>
-            <thead><tr><th>Artifact</th><th>Why</th></tr></thead>
-            <tbody>
-              {stale.data.map((s) => (
-                <tr key={`${s.ref.kind}/${s.ref.id}`}>
-                  <td><code>{s.ref.kind}/{s.ref.id}@v{s.ref.version}</code></td>
-                  <td>{s.reasons.join("; ")}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </Card>
+      <nav className="tabs page-tabs" aria-label="History" data-testid="history-tabs">
+        {TABS.map((t) => (
+          <Link key={t} href={`${base}?tab=${t}`} prefetch={false} scroll={false} aria-current={t === tab ? "page" : undefined}
+                data-testid={`history-tab-${t}`}>
+            {TAB_LABEL[t]}
+            {t === "audit" && audit.data && <span className="tab-count">{audit.data.events.length}</span>}
+            {t === "stale" && staleRows.length > 0 && <span className="tab-count">{staleRows.length}</span>}
+          </Link>
+        ))}
+      </nav>
+
+      {tab === "audit" && (
+        audit.problem ? <ApiProblem problem={audit.problem} />
+          : <AuditTable events={audit.data?.events ?? []} projectId={projectId} />
       )}
 
-      <Card title="Artifacts">
-        {kinds.size > 1 && (
-          <nav className="filter-links" aria-label="Show artifacts of one kind" data-testid="history-kinds">
-            <a href={here({ show: undefined })} aria-current={!only}>All<span className="count">{artifacts.data?.length ?? 0}</span></a>
-            {[...kinds].map(([k, n]) => (
-              <a key={k} href={here({ show: k })} aria-current={only === k}>{k}<span className="count">{n}</span></a>
-            ))}
-          </nav>
-        )}
-        {listed.length > 0 ? (
+      {tab === "signatures" && (
+        signatures?.problem ? <ApiProblem problem={signatures.problem} /> : (
           <>
-          <table>
-            <thead><tr><th>Artifact</th><th className="num">Version</th><th>Status</th><th>Last change</th><th>By</th></tr></thead>
-            <tbody>
-              {listed.map((a) => (
-                <tr key={`${a.kind}/${a.id}`}>
-                  <td>
-                    <Link href={here({ kind: a.kind, id: a.id })}>
-                      <code>{a.kind}/{a.id}</code>
-                    </Link>
-                  </td>
-                  <td className="num">v{a.version}</td>
-                  <td><StatusChip status={a.status} /></td>
-                  <td><Clip text={a.reason} /></td>
-                  <td className="muted">{a.created_by}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {matching.length > listed.length && (
-            <p className="muted m-12-0-0" data-testid="artifacts-more">
-              {listed.length} of {matching.length}. <a href={here({ artifacts: "all" })}>Show all {matching.length}</a>
-            </p>
-          )}
+            <p className="muted fs-13 mt-0">Every signature given on this project&apos;s records, decisions on its campaigns included,
+              read from the company&apos;s hash-chained audit trail. Each binds its record&apos;s hash.</p>
+            <SignatureTable signatures={signatures?.data?.signatures ?? []} />
           </>
-        ) : (
-          <p className="muted m-0">Nothing recorded yet. Start with the technical proposal (P0).</p>
-        )}
-      </Card>
+        )
+      )}
 
-      {history?.data && (
-        <Card title={`${kind}/${id}: every version`}>
-          {history.data.map((row) => (
-            <div key={row.version} className="mb-16">
-              <div className="row">
-                <strong>v{row.version}</strong>
-                <StatusChip status={row.status} />
-                <span className="muted">{new Date(row.created_at).toLocaleString()} · {row.created_by}</span>
-                <span className="flex-1 minw-0"><Clip text={row.reason} /></span>
-              </div>
-              {row.approvals.map((a) => (
-                <p key={a.at} className="muted m-4-0">
-                  {a.meaning} by {a.printed_name || a.by} · {new Date(a.at).toLocaleString()}
-                  {a.signature_id ? " · signed (Part 11)" : ""}
-                </p>
+      {tab === "versions" && (
+        <>
+          {artifacts?.problem && <ApiProblem problem={artifacts.problem} />}
+          <Panel title="Artifacts" aside={<span className="muted fs-13">{matching.length} of {artifacts?.data?.length ?? 0}</span>}
+                 testId="history-artifacts">
+            {kinds.size > 1 && (
+              <nav className="filter-links" aria-label="Show artifacts of one kind" data-testid="history-kinds">
+                <a href={here({ show: undefined })} aria-current={!only}>All<span className="count">{artifacts?.data?.length ?? 0}</span></a>
+                {[...kinds].map(([k, n]) => (
+                  <a key={k} href={here({ show: k })} aria-current={only === k}>{k}<span className="count">{n}</span></a>
+                ))}
+              </nav>
+            )}
+            {listed.length > 0 ? (
+              <>
+                <div className="tbl-scroll">
+                  <table>
+                    <thead><tr><th scope="col">Artifact</th><th scope="col" className="num">Version</th><th scope="col">Status</th>
+                      <th scope="col">Last change</th><th scope="col">By</th></tr></thead>
+                    <tbody>
+                      {listed.map((a) => (
+                        <tr key={`${a.kind}/${a.id}`}>
+                          <td><Link href={here({ kind: a.kind, id: a.id })} prefetch={false}><code>{a.kind}/{a.id}</code></Link></td>
+                          <td className="num">v{a.version}</td>
+                          <td><StatusChip status={a.status} /></td>
+                          <td><Clip text={a.reason} /></td>
+                          <td className="muted">{a.created_by}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                {matching.length > listed.length && (
+                  <p className="muted m-12-0-0" data-testid="artifacts-more">
+                    {listed.length} of {matching.length}. <a href={here({ artifacts: "all" })}>Show all {matching.length}</a>
+                  </p>
+                )}
+              </>
+            ) : (
+              <p className="muted m-0">Nothing recorded yet. Start with the technical proposal.</p>
+            )}
+          </Panel>
+          {history?.data && (
+            <Panel title={`${kind}/${id}: every version`} testId="history-versions">
+              {history.data.map((row) => (
+                <div key={row.version} className="mb-16">
+                  <div className="row">
+                    <strong>v{row.version}</strong>
+                    <StatusChip status={row.status} />
+                    <span className="muted">{new Date(row.created_at).toLocaleString()} · {row.created_by}</span>
+                    <span className="flex-1 minw-0"><Clip text={row.reason} /></span>
+                  </div>
+                  {row.approvals.map((a) => (
+                    <p key={a.at} className="muted m-4-0">
+                      {a.meaning} by {a.printed_name || a.by} · {new Date(a.at).toLocaleString()}
+                      {a.signature_id ? " · signed (Part 11)" : ""}
+                    </p>
+                  ))}
+                  {row.changes.length > 0 && (
+                    <div className="tbl-scroll">
+                      <table>
+                        <thead><tr><th scope="col">Field</th><th scope="col">Before</th><th scope="col">After</th></tr></thead>
+                        <tbody>{row.changes.slice(0, 200).map((c) => <ChangeRow key={c.path} change={c} />)}</tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
               ))}
-              {row.changes.length > 0 && (
+            </Panel>
+          )}
+        </>
+      )}
+
+      {tab === "stale" && (
+        stale.problem ? <ApiProblem problem={stale.problem} /> : (
+          <Panel title="Out of date" aside={<span className="muted fs-13">made from inputs that have since changed</span>}
+                 testId="history-stale">
+            {staleRows.length === 0 ? <p className="muted m-0" data-testid="stale-none">Nothing is out of date: every version is
+              made from the latest of its inputs.</p> : (
+              <div className="tbl-scroll">
                 <table>
-                  <thead><tr><th>Field</th><th>Before</th><th>After</th></tr></thead>
-                  <tbody>{row.changes.slice(0, 200).map((c) => <ChangeRow key={c.path} change={c} />)}</tbody>
+                  <thead><tr><th scope="col">Artifact</th><th scope="col">Why</th></tr></thead>
+                  <tbody>
+                    {staleRows.map((s) => (
+                      <tr key={`${s.ref.kind}/${s.ref.id}`}>
+                        <td><Link href={here({ kind: s.ref.kind, id: s.ref.id })} prefetch={false}><code>{s.ref.kind}/{s.ref.id}@v{s.ref.version}</code></Link></td>
+                        <td>{s.reasons.join("; ")}</td>
+                      </tr>
+                    ))}
+                  </tbody>
                 </table>
-              )}
-            </div>
-          ))}
-        </Card>
+              </div>
+            )}
+          </Panel>
+        )
       )}
-
-      <Card title={`Audit trail${events.length ? ` · ${events.length} events, newest first` : ""}`} action={audit.data ? (
-        <span className={`chip ${audit.data.chain_verifies ? "low" : "high"}`}>
-          {audit.data.chain_verifies ? "hash chain verifies" : "hash chain BROKEN"}
-        </span>) : undefined}>
-        {events.length > 0 ? (
-          <>
-          <table>
-            <thead><tr><th className="num">#</th><th>When</th><th>Who</th><th>Action</th><th>Record</th><th>Reason</th></tr></thead>
-            <tbody>
-              {shownEvents.map((e) => (
-                <tr key={e.seq}>
-                  <td className="num">{e.seq}</td>
-                  <td className="muted">{new Date(e.occurred_at).toLocaleString()}</td>
-                  <td>{e.actor}</td>
-                  <td><code>{e.action}</code></td>
-                  <td><code>{e.resource_type}:{e.resource_id.split("/").slice(1).join("/")}</code></td>
-                  <td><Clip text={e.reason} /></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {events.length > shownEvents.length && (
-            <p className="muted m-12-0-0" data-testid="audit-more">
-              The {shownEvents.length} most recent of {events.length}.{" "}
-              <a href={here({ audit: "all" })}>Show all {events.length}</a>
-            </p>
-          )}
-          </>
-        ) : (
-          <p className="muted m-0">No events yet.</p>
-        )}
-      </Card>
     </main>
   );
 }

@@ -6,7 +6,7 @@
 //
 // Links only the pages that exist (docs/plans/2026-11-23-console-redesign-implementation.md): Home, Your work, Projects,
 // Campaigns and Help since slice 2; the project Overview, Compounds and Members since slice 3 (Settings came with the
-// sign-in work, 2026-11-24); Agent activity joins with slice 7.
+// sign-in work, 2026-11-24); Agent activity since slice 7.
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -162,6 +162,8 @@ function ProjectNav({ projectId, path }: { projectId: string; path: string }) {
         <NavItem it={{ href: `${base}/compounds`, label: "Compounds", icon: "box", active: path.startsWith(`${base}/compounds`), testId: "nav-compounds" }} />
         <NavItem it={{ href: `${base}/library`, label: "Documents", icon: "doc", active: path.startsWith(`${base}/library`), testId: "nav-library" }} />
         <NavItem it={{ href: `${base}/history`, label: "History", icon: "clock", active: path.startsWith(`${base}/history`), testId: "nav-history" }} />
+        <NavItem it={{ href: `${base}/agent-activity`, label: "Agent activity", icon: "cpu", active: path.startsWith(`${base}/agent-activity`),
+                       testId: "nav-agent-activity" }} />
       </Group>
       {/* the sitemap's PROJECT group: who owns it, who it is shared with, where its client files may go (2026-11-24) */}
       <Group label="Project">
