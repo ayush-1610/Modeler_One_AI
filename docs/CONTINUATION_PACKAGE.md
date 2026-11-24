@@ -222,8 +222,14 @@ T-05 → T-07 → T-08 → T-18 and T-09 in parallel.
 Slice 1 merged (#174, 2026-11-24). **Slice 2** (Home, Your work, Projects, Campaigns, Help; R-N03; decisions from a
 flash bar) merged (#175). **Slice 3** (a project's Overview, Run at /campaigns, Compounds, Members, Settings) is a PR
 from the session branch; slice 3 merged (#176). **Slice 4a** (Data plan, Data room words, model system on Inputs) is a
-PR; slice 4a merged (#177). **Slice 4b** (Inputs' study and product cards in a side panel, one at a time) is a PR; the
-impact preview is not built and waits for the owner's decision (needs a dry-run route of the intake landing). Deviations: the plan's §11. QA (R-S05) needs no `auth.py`: slice 8.
+PR; slice 4a merged (#177). **Slice 4b** (Inputs' study and product cards in a side panel, one at a time) merged (#178). **Slice 4c** (what
+confirming a changed card again would change, read before signing: `GET …/delivery/subjects/{type}/{subject}/impact`, a
+dry run of the intake landing, shown in the "Confirm again and sign" dialog) merged (#179). **Slice 5** (Review & sign in
+tabs, read-only polish, "Back to the MS-01 default" with its dry run) merged (#180). **Slice 6** (the campaign page in
+tabs, the kit chart, the Package tab from `GET /package`, the decision form) merged (#181). **Slice 7** (Records: History
+in four tabs, the signature register R-N09, Agent activity R-N05, Documents with the side panel) merged (#182). **Slice
+8** (the admin console restyled, a Companies page, System status with the engine check R-N08, QA reads its company's
+projects R-S05 without `auth.py`) is a PR; slice 9 (cleanup) waits for the owner's review. R-N09's open question is answered: escalation decisions were missing from a project's History. Deviations: the plan's §11. QA (R-S05) is built in slice 8, without `auth.py`.
 
 The owner's charter: an AWS-console-inspired redesign, design first, through four approval gates; no production change
 before Gate 4 and a separate go-ahead. Everything is in `design-review/` (start at its `README.md`). Gate 1 (discovery),
@@ -232,13 +238,14 @@ Gate 4 (`DESIGN_SYSTEM.md`, `prototype-hifi/index.html`, `API_PAGE_MAPPING.md`, 
 are approved too (2026-11-23). **Phase 9 is ready for review:** the frontend is archived and verified
 (`design-review/ARCHIVE.md`) and the plan is `docs/plans/2026-11-23-console-redesign-implementation.md`. Implementation
 waits for the owner's explicit go-ahead and the five decisions in that plan's §10.
-- **To confirm with a test (R-N09):** escalation-decision signatures may be missing from a project's History, because
-  `GET /projects/{id}/audit` keeps only resource ids prefixed by the project.
+- **Confirmed by a test (R-N09), and closed in slice 7:** escalation-decision signatures were missing from a project's
+  History, because `GET /projects/{id}/audit` keeps only resource ids prefixed by the project; History's Signatures tab
+  reads `GET /projects/{id}/signatures`, which includes them.
 - **Defects found** (`design-review/REMEDIATION_PLAN.md` §1). **Fixed 2026-11-23** at the owner's go-ahead: the
   campaign and escalation lists ignored project membership (R-S01); viewers got 403 on Review & sign (R-S03); two
   modelling routes took no sign-in (R-S04). **Open:** a member who may not sign still sees the escalation pop-up
-  (R-S02, into the redesign); `modeler-qa` grants nothing (R-S05; the owner's default: QA reads every project of its
-  company); Temporal-path signing routes take a password in the body (R-S06, before any Temporal deployment).
+  (R-S02, into the redesign); `modeler-qa` granted nothing (R-S05: **closed in slice 8**, QA reads every project of its
+  company and changes or signs none); Temporal-path signing routes take a password in the body (R-S06, before any Temporal deployment).
 - Gate 2 answers (2026-11-23): a read-only Data plan page under Data; no reference-model start on Create project, the
   `/templates` routes retire only after the campaign-monitor e2e and the showcase script stop using them (the
   importer stays: Inputs' published-model source and the T-56 kit use it); the logo stays.

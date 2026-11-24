@@ -90,7 +90,7 @@ export function DrugAndFiles({ projectId, view, documents, save, open, marks }: 
         <p className="start-files" data-testid="start-files">
           {shown.length} {shown.length === 1 ? "file" : "files"}: {shown.map((d) => d.name).join(", ")}.{" "}
           <Link href={`/projects/${encodeURIComponent(projectId)}/library`} data-testid="start-library">
-            See them in the Project Document Library</Link>, with what each contributed.
+            See them in Documents</Link>, with what each contributed.
         </p>
       )}
       <p className="muted start-add-hint">Add more files with <strong>+ Add data</strong> in the sidebar.</p>

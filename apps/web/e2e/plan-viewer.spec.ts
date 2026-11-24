@@ -25,6 +25,25 @@ test("a viewer reads the model plan and is offered no signature", async ({ page,
   await expect(page.getByTestId("plan-read-only")).toContainText("You can read this plan");
   await expect(page.getByTestId("node-S1")).toContainText("iv-250");        // the plan itself, read
   await expect(page.getByTestId("approve-and-sign")).toHaveCount(0);        // no signature offered
+  // every tab reads the plan and offers no control that would only be refused (the console redesign's slice 5)
+  await expect(page.getByTestId("overall-data").getByTestId("chip-po-50")).toHaveAttribute("draggable", "false");
+  await expect(page.getByTestId("review-studies")).toBeVisible();
+  await expect(page.locator("[data-testid^='leave-out-'], [data-testid^='unlock-']")).toHaveCount(0);
+  await expect(page.getByTestId("blinding-toggle")).toHaveCount(0);
+  await page.getByTestId("review-tab-inputs").click();
+  await expect(page.getByTestId("review-table")).toBeVisible();
+  await expect(page.locator("[data-testid^='exclude-']")).toHaveCount(0);
+  await page.getByTestId("review-tab-estimation").click();
+  await expect(page.getByTestId("estimation-plan")).toBeVisible();
+  await expect(page.locator("[data-testid^='estimate-'], [data-testid^='fix-'], [data-testid='group-add']")).toHaveCount(0);
+  await page.getByTestId("review-tab-credibility").click();
+  await expect(page.getByTestId("risk-and-budget")).toContainText("Time budget");
+  await expect(page.getByTestId("risk-and-budget").locator("select, input, button")).toHaveCount(0);
+  await expect(page.getByTestId("target-save")).toHaveCount(0);
+  await page.getByTestId("review-tab-validator").click();
+  await expect(page.getByTestId("validator")).toBeVisible();
+  await expect(page.getByTestId("validator").getByRole("button")).toHaveCount(0);
+  await expect(page).toHaveURL(/\/plan\?tab=validator$/);
   expect(reads.length).toBeGreaterThan(0);
   expect(reads.every((p) => p.endsWith("/plan:view"))).toBe(true);           // never the writer's GET /plan
 });

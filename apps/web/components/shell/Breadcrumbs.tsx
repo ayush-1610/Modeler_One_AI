@@ -22,11 +22,12 @@ const PROJECT_PAGES: Record<string, Crumb[]> = {
   settings: [["Settings", null]],
   library: [["Documents", null]],
   history: [["History", null]],
+  "agent-activity": [["Agent activity", null]],
 };
 
 const ADMIN_PAGES: Record<string, string> = {
   people: "People", usage: "Usage and cost", models: "Agents and models", keys: "Keys", limits: "Limits",
-  pipeline: "Intake pipeline", companies: "Company",
+  pipeline: "Intake pipeline", companies: "Companies", system: "System status",
 };
 
 function crumbsFor(path: string, name: string | null): Crumb[] {
@@ -42,11 +43,15 @@ function crumbsFor(path: string, name: string | null): Crumb[] {
     if (!page) return [["Projects", "/projects"], [project[0], null]];
     if (page === "dataroom" && parts[3] === "report") return [["Projects", "/projects"], project, ["Data", null], ["Data room", `${base}/dataroom`], ["Evidence report", null]];
     if (page === "compounds" && parts[3]) return [["Projects", "/projects"], project, ["Compounds", `${base}/compounds`], [parts[3], null]];
+    if (page === "agent-activity" && parts[3]) {
+      return [["Projects", "/projects"], project, ["Agent activity", `${base}/agent-activity`], [`Run ${parts[3]}`, null]];
+    }
     return [["Projects", "/projects"], project, ...(PROJECT_PAGES[page] ?? [[page, null]])];
   }
   if (parts[0] === "campaigns" && parts[1]) return [["Campaigns", "/campaigns"], [`Campaign ${parts[1]}`, null]];
   if (parts[0] === "admin") {
     if (!parts[1]) return [["Admin console", null]];
+    if (parts[1] === "companies" && parts[2]) return [["Admin console", "/admin"], ["Companies", "/admin/companies"], [parts[2], null]];
     return [["Admin console", "/admin"], [ADMIN_PAGES[parts[1]] ?? parts[1], null]];
   }
   return [];

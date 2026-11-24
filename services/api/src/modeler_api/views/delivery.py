@@ -11,7 +11,7 @@ from __future__ import annotations
 from typing import Any, Literal
 
 from modeler_api.views.brief import RequestLineView
-from modeler_api.views.common import AgentsStatus, Number, View
+from modeler_api.views.common import AffectedView, AgentsStatus, Number, View
 
 SubjectKind = Literal["study", "product", "compound"]
 
@@ -604,6 +604,36 @@ class DeliverySubject(View):
     rules: DeliveryRules
     decisions: list[DeliveryDecision]         # what its signature binds, newest first
     signature: DeliverySignature | None = None    # set by `:confirm` when it signed
+
+
+# --- what confirming would change ---------------------------------------------------------------------------------------------
+
+
+class DeliveryImpactChange(View):
+    """One dataset or evidence item of the landing as it would be decided (`intake_landing.LandingChange`)."""
+
+    id: str
+    label: str
+    change: Literal["new", "revised", "accepted", "unchanged", "held", "set_aside"]
+
+
+class DeliveryImpact(View):
+    """What confirming the subject now would load, replace and set aside, and which artifacts it would make stale (a
+    signed MAP among them must be signed again), computed without signing or writing anything (the console redesign's
+    slice 4c). `supersedes`: the current confirmation the new one would supersede (null: a first confirmation)."""
+
+    subject_type: SubjectKind
+    subject: str
+    label: str
+    supersedes: str | None
+    changes: bool                             # false: confirming changes nothing the model reads
+    datasets: list[DeliveryImpactChange]
+    evidence: list[DeliveryImpactChange]
+    dissolution_rows: int                     # the dissolution rows it loads
+    dissolution_removed: int                  # the rows an earlier confirmation loaded, which it removes
+    reject_legacy: list[str]                  # still proposed overlapping legacy datasets it rejects
+    held: list[str]
+    affected: list[AffectedView]
 
 
 # --- the spot check ---------------------------------------------------------------------------------------------------------

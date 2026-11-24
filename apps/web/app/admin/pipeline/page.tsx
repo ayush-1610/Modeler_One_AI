@@ -1,4 +1,3 @@
-import { AdminTabs } from "@/components/admin/AdminParts";
 import { Hero } from "@/components/kit";
 import { ApiProblem, Card } from "@/components/ui";
 import { getPipeline, hideUnlessAdmin, percent, when, type PipelineCounts } from "@/lib/admin";
@@ -73,7 +72,7 @@ export default async function PipelinePage({ searchParams }: { searchParams: Pro
   return (
     <main>
       <Hero tone="admin" eyebrow="Admin console" title="Intake pipeline" lede={LEDE} />
-      <AdminTabs here="pipeline" />
+      
       {live.problem && <ApiProblem problem={live.problem} />}
       <Card>
         <form className="admin-filter" method="get" action="/admin/pipeline" data-testid="pipeline-filter">

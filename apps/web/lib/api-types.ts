@@ -391,6 +391,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/system": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * System Status
+         * @description System status (P-32, R-N08): the deployment, the execution backend, and whether the engine answers, its
+         *     configured command started without a job (`engine_check`; kept a minute; nothing is simulated).
+         */
+        get: operations["system_status_api_v1_admin_system_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/usage": {
         parameters: {
             query?: never;
@@ -738,6 +759,27 @@ export interface paths {
          * @description A person supplies the paper the agent asked for; it is stored as a citable document.
          */
         post: operations["fulfil_request_api_v1_projects__project_id__access_requests__request_id__fulfil_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/agent-runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Agent Runs
+         * @description The project's agent runs, newest first, `limit` at a time; `before` (a run's id, the last page's `next_before`)
+         *     gives the older ones after it (R-N05). Only this company's runs of this project.
+         */
+        get: operations["list_agent_runs_api_v1_projects__project_id__agent_runs_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1928,6 +1970,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project_id}/delivery/subjects/{type}/{subject}/impact": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Impact
+         * @description What confirming the subject now would change, before anything is signed (the console redesign's slice 4c): the
+         *     datasets and evidence its landing would load, revise, accept or set aside, the dissolution rows it would load and
+         *     remove, and every artifact downstream that would go stale (a signed MAP must then be signed again). The landing is
+         *     planned as `:confirm` plans it; nothing is signed or written. Refused for a blinded study (409 BLINDED: what it
+         *     would load names its values) and while the landing cannot be planned (409 LANDING_REFUSED).
+         */
+        get: operations["get_impact_api_v1_projects__project_id__delivery_subjects__type___subject__impact_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project_id}/delivery/subjects/{type}/{subject}/spot-check": {
         parameters: {
             query?: never;
@@ -2830,7 +2896,11 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Unlock Placement */
+        /**
+         * Unlock Placement
+         * @description A study a person placed, given back to the MS-01 default ("Back to the MS-01 default" on Review & sign). ``dry_run``
+         *     says what it would change (the validator, the diff, whether it is a MAP deviation) and saves nothing.
+         */
         post: operations["unlock_placement_api_v1_projects__project_id__plan_placements__study_id__unlock_post"];
         delete?: never;
         options?: never;
@@ -3138,7 +3208,14 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * Get Signatures
+         * @description The signatures given on this project's records (R-N09), newest first: every `signature.create` event of the
+         *     company's audit chain whose record is the project's (its id starts with the project's: an intake confirmation, the
+         *     MAP and its deviations, the Data room's publication) or a decision on one of its campaigns' escalations (signed as
+         *     "{campaign_id}-{stage}"), which the project's audit trail, filtered by the project's prefix, does not list.
+         */
+        get: operations["get_signatures_api_v1_projects__project_id__signatures_get"];
         put?: never;
         /** Create Signature */
         post: operations["create_signature_api_v1_projects__project_id__signatures_post"];
@@ -3602,6 +3679,49 @@ export interface components {
             steps: {
                 [key: string]: unknown;
             }[];
+        };
+        /** AgentRunList */
+        AgentRunList: {
+            /** Next Before */
+            next_before: string | null;
+            /** Runs */
+            runs: components["schemas"]["AgentRunRow"][];
+        };
+        /**
+         * AgentRunRow
+         * @description One agent run on a project as Agent activity lists it (R-N05): who started it, on which model, how long, what it
+         *     used, how many tool calls the runtime refused, and the model it fell back from. No cost: that stays in the admin
+         *     console.
+         */
+        AgentRunRow: {
+            /** Agent */
+            agent: string;
+            /** Agent Label */
+            agent_label: string | null;
+            /** Fallback From */
+            fallback_from: string | null;
+            /** Finished At */
+            finished_at: string | null;
+            /** Input Tokens */
+            input_tokens: number;
+            /** Model */
+            model: string;
+            /** Output Tokens */
+            output_tokens: number;
+            /** Provider */
+            provider: string | null;
+            /** Refusals */
+            refusals: number;
+            /** Run Id */
+            run_id: string;
+            /** Started At */
+            started_at: string;
+            /** Started By */
+            started_by: string | null;
+            /** Status */
+            status: string;
+            /** Turns */
+            turns: number;
         };
         /** AgentSet */
         AgentSet: {
@@ -6006,6 +6126,56 @@ export interface components {
             value: string;
         };
         /**
+         * DeliveryImpact
+         * @description What confirming the subject now would load, replace and set aside, and which artifacts it would make stale (a
+         *     signed MAP among them must be signed again), computed without signing or writing anything (the console redesign's
+         *     slice 4c). `supersedes`: the current confirmation the new one would supersede (null: a first confirmation).
+         */
+        DeliveryImpact: {
+            /** Affected */
+            affected: components["schemas"]["AffectedView"][];
+            /** Changes */
+            changes: boolean;
+            /** Datasets */
+            datasets: components["schemas"]["DeliveryImpactChange"][];
+            /** Dissolution Removed */
+            dissolution_removed: number;
+            /** Dissolution Rows */
+            dissolution_rows: number;
+            /** Evidence */
+            evidence: components["schemas"]["DeliveryImpactChange"][];
+            /** Held */
+            held: string[];
+            /** Label */
+            label: string;
+            /** Reject Legacy */
+            reject_legacy: string[];
+            /** Subject */
+            subject: string;
+            /**
+             * Subject Type
+             * @enum {string}
+             */
+            subject_type: "study" | "product" | "compound";
+            /** Supersedes */
+            supersedes: string | null;
+        };
+        /**
+         * DeliveryImpactChange
+         * @description One dataset or evidence item of the landing as it would be decided (`intake_landing.LandingChange`).
+         */
+        DeliveryImpactChange: {
+            /**
+             * Change
+             * @enum {string}
+             */
+            change: "new" | "revised" | "accepted" | "unchanged" | "held" | "set_aside";
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+        };
+        /**
          * DeliveryIndividual
          * @description A study's simulated individual (D-29) as the landing would set it from the study's active values: one source
          *     for the card, Populations and individuals, and what loads (`intake_landing.study_individual`).
@@ -7832,9 +8002,39 @@ export interface components {
             /** Kind */
             kind: string;
         };
+        /**
+         * EngineStatus
+         * @description Whether the engine answers (R-N08, `engine_check`): its kind, the command's words, the engine id and image
+         *     digest it records (null while the digest is the development placeholder), and what was checked, in words.
+         */
+        EngineStatus: {
+            /** Checked At */
+            checked_at: string;
+            /** Command */
+            command: string | null;
+            /** Detail */
+            detail: string;
+            /** Engine Id */
+            engine_id: string | null;
+            /** Image Digest */
+            image_digest: string | null;
+            /** Kind */
+            kind: string;
+            /** Reachable */
+            reachable: boolean;
+            /** Timeout S */
+            timeout_s: number;
+        };
         /** Envelope[AgentRunDetail] */
         Envelope_AgentRunDetail_: {
             data: components["schemas"]["AgentRunDetail"];
+            /** Errors */
+            errors: components["schemas"]["ErrorItem"][];
+            meta: components["schemas"]["Meta"];
+        };
+        /** Envelope[AgentRunList] */
+        Envelope_AgentRunList_: {
+            data: components["schemas"]["AgentRunList"];
             /** Errors */
             errors: components["schemas"]["ErrorItem"][];
             meta: components["schemas"]["Meta"];
@@ -7947,6 +8147,13 @@ export interface components {
         /** Envelope[DataRoomView] */
         Envelope_DataRoomView_: {
             data: components["schemas"]["DataRoomView"];
+            /** Errors */
+            errors: components["schemas"]["ErrorItem"][];
+            meta: components["schemas"]["Meta"];
+        };
+        /** Envelope[DeliveryImpact] */
+        Envelope_DeliveryImpact_: {
+            data: components["schemas"]["DeliveryImpact"];
             /** Errors */
             errors: components["schemas"]["ErrorItem"][];
             meta: components["schemas"]["Meta"];
@@ -8343,6 +8550,13 @@ export interface components {
             errors: components["schemas"]["ErrorItem"][];
             meta: components["schemas"]["Meta"];
         };
+        /** Envelope[SignatureRegister] */
+        Envelope_SignatureRegister_: {
+            data: components["schemas"]["SignatureRegister"];
+            /** Errors */
+            errors: components["schemas"]["ErrorItem"][];
+            meta: components["schemas"]["Meta"];
+        };
         /** Envelope[SnapshotPreview] */
         Envelope_SnapshotPreview_: {
             data: components["schemas"]["SnapshotPreview"];
@@ -8388,6 +8602,13 @@ export interface components {
         /** Envelope[Studies] */
         Envelope_Studies_: {
             data: components["schemas"]["Studies"];
+            /** Errors */
+            errors: components["schemas"]["ErrorItem"][];
+            meta: components["schemas"]["Meta"];
+        };
+        /** Envelope[SystemStatus] */
+        Envelope_SystemStatus_: {
+            data: components["schemas"]["SystemStatus"];
             /** Errors */
             errors: components["schemas"]["ErrorItem"][];
             meta: components["schemas"]["Meta"];
@@ -14043,6 +14264,16 @@ export interface components {
          * @enum {string}
          */
         SignatureMeaning: "Authored" | "Reviewed" | "Approved" | "QA Released";
+        /**
+         * SignatureRegister
+         * @description A project's signatures, newest first, and whether the company's audit chain verifies (a broken chain says so).
+         */
+        SignatureRegister: {
+            /** Chain Verifies */
+            chain_verifies: boolean;
+            /** Signatures */
+            signatures: components["schemas"]["SignatureRow"][];
+        };
         /** SignatureRequest */
         SignatureRequest: {
             meaning: components["schemas"]["SignatureMeaning"];
@@ -14052,6 +14283,32 @@ export interface components {
             record_sha256: string;
             /** Record Type */
             record_type: string;
+        };
+        /**
+         * SignatureRow
+         * @description One signature given on a record of a project (R-N09), read from the company's audit chain (`signature.create`).
+         */
+        SignatureRow: {
+            /** Manifestation */
+            manifestation: string;
+            /** Meaning */
+            meaning: string;
+            /** Printed Name */
+            printed_name: string | null;
+            /** Record Id */
+            record_id: string;
+            /** Record Sha256 */
+            record_sha256: string;
+            /** Record Type */
+            record_type: string;
+            /** Seq */
+            seq: number;
+            /** Signature Id */
+            signature_id: string;
+            /** Signed At */
+            signed_at: string;
+            /** Signer Id */
+            signer_id: string;
         };
         /** SignatureView */
         SignatureView: {
@@ -15144,6 +15401,17 @@ export interface components {
             metabolite: string;
             /** Process */
             process: string;
+        };
+        /**
+         * SystemStatus
+         * @description System status's own read (R-N08): the deployment, the execution backend and the engine.
+         */
+        SystemStatus: {
+            /** Deployment */
+            deployment: string;
+            engine: components["schemas"]["EngineStatus"];
+            /** Execution Backend */
+            execution_backend: string;
         };
         /**
          * SystemView
@@ -16509,6 +16777,37 @@ export interface operations {
             };
         };
     };
+    system_status_api_v1_admin_system_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_SystemStatus_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     usage_api_v1_admin_usage_get: {
         parameters: {
             query?: {
@@ -17138,6 +17437,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Envelope_EvidencePage_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_agent_runs_api_v1_projects__project_id__agent_runs_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                before?: string | null;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_AgentRunList_"];
                 };
             };
             /** @description Validation Error */
@@ -19450,6 +19785,41 @@ export interface operations {
             };
         };
     };
+    get_impact_api_v1_projects__project_id__delivery_subjects__type___subject__impact_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+                type: "study" | "product" | "compound";
+                subject: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_DeliveryImpact_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_spot_check_api_v1_projects__project_id__delivery_subjects__type___subject__spot_check_get: {
         parameters: {
             query?: never;
@@ -21196,7 +21566,9 @@ export interface operations {
     };
     unlock_placement_api_v1_projects__project_id__plan_placements__study_id__unlock_post: {
         parameters: {
-            query?: never;
+            query?: {
+                dry_run?: boolean;
+            };
             header?: {
                 authorization?: string | null;
             };
@@ -21214,7 +21586,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Envelope_PlanPage_"];
+                    "application/json": components["schemas"]["Envelope_Union_PlanPage__PlacementPreview__"];
                 };
             };
             /** @description Validation Error */
@@ -21744,6 +22116,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Envelope_RequirementsPage_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_signatures_api_v1_projects__project_id__signatures_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_SignatureRegister_"];
                 };
             };
             /** @description Validation Error */

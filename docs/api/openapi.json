@@ -496,6 +496,150 @@
         "title": "AgentRunDetail",
         "type": "object"
       },
+      "AgentRunList": {
+        "additionalProperties": false,
+        "properties": {
+          "next_before": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Before"
+          },
+          "runs": {
+            "items": {
+              "$ref": "#/components/schemas/AgentRunRow"
+            },
+            "title": "Runs",
+            "type": "array"
+          }
+        },
+        "required": [
+          "runs",
+          "next_before"
+        ],
+        "title": "AgentRunList",
+        "type": "object"
+      },
+      "AgentRunRow": {
+        "additionalProperties": false,
+        "description": "One agent run on a project as Agent activity lists it (R-N05): who started it, on which model, how long, what it\nused, how many tool calls the runtime refused, and the model it fell back from. No cost: that stays in the admin\nconsole.",
+        "properties": {
+          "agent": {
+            "title": "Agent",
+            "type": "string"
+          },
+          "agent_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agent Label"
+          },
+          "fallback_from": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fallback From"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "input_tokens": {
+            "title": "Input Tokens",
+            "type": "integer"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "output_tokens": {
+            "title": "Output Tokens",
+            "type": "integer"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
+          },
+          "refusals": {
+            "title": "Refusals",
+            "type": "integer"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "started_at": {
+            "title": "Started At",
+            "type": "string"
+          },
+          "started_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started By"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "turns": {
+            "title": "Turns",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "run_id",
+          "agent",
+          "agent_label",
+          "provider",
+          "model",
+          "started_by",
+          "started_at",
+          "finished_at",
+          "status",
+          "turns",
+          "input_tokens",
+          "output_tokens",
+          "refusals",
+          "fallback_from"
+        ],
+        "title": "AgentRunRow",
+        "type": "object"
+      },
       "AgentSet": {
         "properties": {
           "effort": {
@@ -7066,6 +7210,136 @@
         "title": "DeliveryGap",
         "type": "object"
       },
+      "DeliveryImpact": {
+        "additionalProperties": false,
+        "description": "What confirming the subject now would load, replace and set aside, and which artifacts it would make stale (a\nsigned MAP among them must be signed again), computed without signing or writing anything (the console redesign's\nslice 4c). `supersedes`: the current confirmation the new one would supersede (null: a first confirmation).",
+        "properties": {
+          "affected": {
+            "items": {
+              "$ref": "#/components/schemas/AffectedView"
+            },
+            "title": "Affected",
+            "type": "array"
+          },
+          "changes": {
+            "title": "Changes",
+            "type": "boolean"
+          },
+          "datasets": {
+            "items": {
+              "$ref": "#/components/schemas/DeliveryImpactChange"
+            },
+            "title": "Datasets",
+            "type": "array"
+          },
+          "dissolution_removed": {
+            "title": "Dissolution Removed",
+            "type": "integer"
+          },
+          "dissolution_rows": {
+            "title": "Dissolution Rows",
+            "type": "integer"
+          },
+          "evidence": {
+            "items": {
+              "$ref": "#/components/schemas/DeliveryImpactChange"
+            },
+            "title": "Evidence",
+            "type": "array"
+          },
+          "held": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Held",
+            "type": "array"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "reject_legacy": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Reject Legacy",
+            "type": "array"
+          },
+          "subject": {
+            "title": "Subject",
+            "type": "string"
+          },
+          "subject_type": {
+            "enum": [
+              "study",
+              "product",
+              "compound"
+            ],
+            "title": "Subject Type",
+            "type": "string"
+          },
+          "supersedes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Supersedes"
+          }
+        },
+        "required": [
+          "subject_type",
+          "subject",
+          "label",
+          "supersedes",
+          "changes",
+          "datasets",
+          "evidence",
+          "dissolution_rows",
+          "dissolution_removed",
+          "reject_legacy",
+          "held",
+          "affected"
+        ],
+        "title": "DeliveryImpact",
+        "type": "object"
+      },
+      "DeliveryImpactChange": {
+        "additionalProperties": false,
+        "description": "One dataset or evidence item of the landing as it would be decided (`intake_landing.LandingChange`).",
+        "properties": {
+          "change": {
+            "enum": [
+              "new",
+              "revised",
+              "accepted",
+              "unchanged",
+              "held",
+              "set_aside"
+            ],
+            "title": "Change",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "change"
+        ],
+        "title": "DeliveryImpactChange",
+        "type": "object"
+      },
       "DeliveryIndividual": {
         "additionalProperties": false,
         "description": "A study's simulated individual (D-29) as the landing would set it from the study's active values: one source\nfor the card, Populations and individuals, and what loads (`intake_landing.study_individual`).",
@@ -12543,6 +12817,77 @@
         "title": "EngineIdentity",
         "type": "object"
       },
+      "EngineStatus": {
+        "additionalProperties": false,
+        "description": "Whether the engine answers (R-N08, `engine_check`): its kind, the command's words, the engine id and image\ndigest it records (null while the digest is the development placeholder), and what was checked, in words.",
+        "properties": {
+          "checked_at": {
+            "title": "Checked At",
+            "type": "string"
+          },
+          "command": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Command"
+          },
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "engine_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Engine Id"
+          },
+          "image_digest": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image Digest"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "reachable": {
+            "title": "Reachable",
+            "type": "boolean"
+          },
+          "timeout_s": {
+            "title": "Timeout S",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "kind",
+          "command",
+          "engine_id",
+          "image_digest",
+          "reachable",
+          "detail",
+          "checked_at",
+          "timeout_s"
+        ],
+        "title": "EngineStatus",
+        "type": "object"
+      },
       "Envelope_AgentRunDetail_": {
         "additionalProperties": false,
         "properties": {
@@ -12566,6 +12911,31 @@
           "errors"
         ],
         "title": "Envelope[AgentRunDetail]",
+        "type": "object"
+      },
+      "Envelope_AgentRunList_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AgentRunList"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[AgentRunList]",
         "type": "object"
       },
       "Envelope_AgentsPage_": {
@@ -12966,6 +13336,31 @@
           "errors"
         ],
         "title": "Envelope[DataRoomView]",
+        "type": "object"
+      },
+      "Envelope_DeliveryImpact_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/DeliveryImpact"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[DeliveryImpact]",
         "type": "object"
       },
       "Envelope_DeliveryMappingVocabulary_": {
@@ -14368,6 +14763,31 @@
         "title": "Envelope[SheetView]",
         "type": "object"
       },
+      "Envelope_SignatureRegister_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/SignatureRegister"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[SignatureRegister]",
+        "type": "object"
+      },
       "Envelope_SnapshotPreview_": {
         "additionalProperties": false,
         "properties": {
@@ -14541,6 +14961,31 @@
           "errors"
         ],
         "title": "Envelope[Studies]",
+        "type": "object"
+      },
+      "Envelope_SystemStatus_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/SystemStatus"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[SystemStatus]",
         "type": "object"
       },
       "Envelope_SystemView_": {
@@ -29523,6 +29968,29 @@
         "title": "SignatureMeaning",
         "type": "string"
       },
+      "SignatureRegister": {
+        "additionalProperties": false,
+        "description": "A project's signatures, newest first, and whether the company's audit chain verifies (a broken chain says so).",
+        "properties": {
+          "chain_verifies": {
+            "title": "Chain Verifies",
+            "type": "boolean"
+          },
+          "signatures": {
+            "items": {
+              "$ref": "#/components/schemas/SignatureRow"
+            },
+            "title": "Signatures",
+            "type": "array"
+          }
+        },
+        "required": [
+          "chain_verifies",
+          "signatures"
+        ],
+        "title": "SignatureRegister",
+        "type": "object"
+      },
       "SignatureRequest": {
         "properties": {
           "meaning": {
@@ -29551,6 +30019,73 @@
           "record_sha256"
         ],
         "title": "SignatureRequest",
+        "type": "object"
+      },
+      "SignatureRow": {
+        "additionalProperties": false,
+        "description": "One signature given on a record of a project (R-N09), read from the company's audit chain (`signature.create`).",
+        "properties": {
+          "manifestation": {
+            "title": "Manifestation",
+            "type": "string"
+          },
+          "meaning": {
+            "title": "Meaning",
+            "type": "string"
+          },
+          "printed_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Printed Name"
+          },
+          "record_id": {
+            "title": "Record Id",
+            "type": "string"
+          },
+          "record_sha256": {
+            "title": "Record Sha256",
+            "type": "string"
+          },
+          "record_type": {
+            "title": "Record Type",
+            "type": "string"
+          },
+          "seq": {
+            "title": "Seq",
+            "type": "integer"
+          },
+          "signature_id": {
+            "title": "Signature Id",
+            "type": "string"
+          },
+          "signed_at": {
+            "title": "Signed At",
+            "type": "string"
+          },
+          "signer_id": {
+            "title": "Signer Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "signature_id",
+          "signer_id",
+          "printed_name",
+          "meaning",
+          "record_type",
+          "record_id",
+          "record_sha256",
+          "signed_at",
+          "manifestation",
+          "seq"
+        ],
+        "title": "SignatureRow",
         "type": "object"
       },
       "SignatureView": {
@@ -32323,6 +32858,30 @@
           "data_source"
         ],
         "title": "SystemFormation",
+        "type": "object"
+      },
+      "SystemStatus": {
+        "additionalProperties": false,
+        "description": "System status's own read (R-N08): the deployment, the execution backend and the engine.",
+        "properties": {
+          "deployment": {
+            "title": "Deployment",
+            "type": "string"
+          },
+          "engine": {
+            "$ref": "#/components/schemas/EngineStatus"
+          },
+          "execution_backend": {
+            "title": "Execution Backend",
+            "type": "string"
+          }
+        },
+        "required": [
+          "deployment",
+          "execution_backend",
+          "engine"
+        ],
+        "title": "SystemStatus",
         "type": "object"
       },
       "SystemView": {
@@ -35222,6 +35781,56 @@
         ]
       }
     },
+    "/api/v1/admin/system": {
+      "get": {
+        "description": "System status (P-32, R-N08): the deployment, the execution backend, and whether the engine answers, its\nconfigured command started without a job (`engine_check`; kept a minute; nothing is simulated).",
+        "operationId": "system_status_api_v1_admin_system_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_SystemStatus_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "System Status",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/api/v1/admin/usage": {
       "get": {
         "operationId": "usage_api_v1_admin_usage_get",
@@ -36398,6 +37007,93 @@
         "summary": "Fulfil Request",
         "tags": [
           "evidence"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/agent-runs": {
+      "get": {
+        "description": "The project's agent runs, newest first, `limit` at a time; `before` (a run's id, the last page's `next_before`)\ngives the older ones after it (R-N05). Only this company's runs of this project.",
+        "operationId": "list_agent_runs_api_v1_projects__project_id__agent_runs_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "before",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Before"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_AgentRunList_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Agent Runs",
+        "tags": [
+          "brief"
         ]
       }
     },
@@ -40932,6 +41628,88 @@
         ]
       }
     },
+    "/api/v1/projects/{project_id}/delivery/subjects/{type}/{subject}/impact": {
+      "get": {
+        "description": "What confirming the subject now would change, before anything is signed (the console redesign's slice 4c): the\ndatasets and evidence its landing would load, revise, accept or set aside, the dissolution rows it would load and\nremove, and every artifact downstream that would go stale (a signed MAP must then be signed again). The landing is\nplanned as `:confirm` plans it; nothing is signed or written. Refused for a blinded study (409 BLINDED: what it\nwould load names its values) and while the landing cannot be planned (409 LANDING_REFUSED).",
+        "operationId": "get_impact_api_v1_projects__project_id__delivery_subjects__type___subject__impact_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "type",
+            "required": true,
+            "schema": {
+              "enum": [
+                "study",
+                "product",
+                "compound"
+              ],
+              "title": "Type",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "subject",
+            "required": true,
+            "schema": {
+              "title": "Subject",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_DeliveryImpact_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Impact",
+        "tags": [
+          "client-data"
+        ]
+      }
+    },
     "/api/v1/projects/{project_id}/delivery/subjects/{type}/{subject}/spot-check": {
       "get": {
         "description": "The subject's latest spot check as it stands: its draw, its record and each value drawn, read only. Showing a\nrecorded spot check again draws nothing (a draw is written only by `:draw`, and once its ticks are recorded a draw\nasked again is a new one); a blinded study's values are withheld as everywhere.",
@@ -44444,6 +45222,7 @@
     },
     "/api/v1/projects/{project_id}/plan/placements/{study_id}:unlock": {
       "post": {
+        "description": "A study a person placed, given back to the MS-01 default (\"Back to the MS-01 default\" on Review & sign). ``dry_run``\nsays what it would change (the validator, the diff, whether it is a MAP deviation) and saves nothing.",
         "operationId": "unlock_placement_api_v1_projects__project_id__plan_placements__study_id__unlock_post",
         "parameters": [
           {
@@ -44462,6 +45241,16 @@
             "schema": {
               "title": "Study Id",
               "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "dry_run",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Dry Run",
+              "type": "boolean"
             }
           },
           {
@@ -44486,7 +45275,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Envelope_PlanPage_"
+                  "$ref": "#/components/schemas/Envelope_Union_PlanPage__PlacementPreview__"
                 }
               }
             },
@@ -45514,6 +46303,63 @@
       }
     },
     "/api/v1/projects/{project_id}/signatures": {
+      "get": {
+        "description": "The signatures given on this project's records (R-N09), newest first: every `signature.create` event of the\ncompany's audit chain whose record is the project's (its id starts with the project's: an intake confirmation, the\nMAP and its deviations, the Data room's publication) or a decision on one of its campaigns' escalations (signed as\n\"{campaign_id}-{stage}\"), which the project's audit trail, filtered by the project's prefix, does not list.",
+        "operationId": "get_signatures_api_v1_projects__project_id__signatures_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_SignatureRegister_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Signatures",
+        "tags": [
+          "signatures"
+        ]
+      },
       "post": {
         "operationId": "create_signature_api_v1_projects__project_id__signatures_post",
         "parameters": [

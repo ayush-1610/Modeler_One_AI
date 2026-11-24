@@ -338,3 +338,16 @@ html:has(.area-bar) { scroll-padding-top: calc(var(--topbar-h) + 76px); }
   .topbar, .sidenav, .crumbs, .page-actions, .skip-link, .mo-toast, .shell-flash { display: none !important; }
   .content { padding: 0; }
 }
+/* Agent activity (slice 7): an agent's name reads on one or two lines, never one word a line */
+.run-agent { display: inline-block; min-width: 16ch; }
+/* the admin console's "costs as if run on" switch (slice 8): the same segmented control, its choices links */
+.pricing-switch { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.view-switch a { display: inline-flex; align-items: center; min-height: 30px; padding: 0 12px; border-radius: 7px; color: var(--c-ink-2);
+  text-decoration: none; font-size: 13px; }
+.view-switch a.on { background: var(--c-surface); color: var(--c-accent); box-shadow: var(--elev-tab); }
+/* System status (slice 8): the platform and the engine side by side, the keys and the agents full width below */
+.sys-grid { grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); }
+.sys-wide { display: grid; gap: 16px; margin-top: 16px; }
+/* a console table followed by a card (Companies, then "Add a company") */
+.tbl + .card { margin-top: var(--sp-4); }
+.sys-grid > .card + .card, .sys-wide > .card + .card { margin-top: 0; }

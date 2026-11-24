@@ -1,10 +1,6 @@
 /* Step 3 · Review & sign (components/plan/PlanCanvas, components/review): the section links, the studies and roles, the
  * review table and credibility. Built only from the theme tokens in globals.css, like every other page. */
 
-.review-nav { display: flex; gap: 6px; flex-wrap: wrap; margin: 16px 0 4px; }
-.review-nav a { font-size: 13px; padding: 5px 11px; border-radius: 999px; border: 1px solid var(--line); color: var(--ink-dim);
-  text-decoration: none; background: var(--surface); }
-.review-nav a:hover { color: var(--ink); border-color: color-mix(in srgb, var(--sim) 45%, var(--line)); }
 .review-block { margin-top: 18px; scroll-margin-top: 16px; }
 .review-block > h2 { font-size: 17px; margin: 0 0 8px; letter-spacing: -0.01em; }
 .review-lede, .credibility-lede, .review-hint { font-size: 13px; max-width: none; }
@@ -76,3 +72,17 @@
 
 /* the source peek's icon beside where a value comes from (plan 2026-11-03 §3.3) */
 .review-source-head { display: flex; gap: 6px; align-items: flex-start; justify-content: space-between; }
+
+/* Review & sign in the console (the redesign's slice 5): the signature panel, then one tab at a time under a bar that
+   stays in view (as Inputs' areas); the canvas and Overall Data as panels; a read-only form shows its values unframed */
+.shell-main > .panel + .review-bar { margin-top: var(--sp-4); }
+.review-bar + .tabpanel .review-block:first-child { margin-top: var(--sp-4); }
+.review-block .panel + .panel, .plan-layout + .panel { margin-top: var(--sp-4); }
+.overall-data.panel { padding: 12px 14px; box-shadow: var(--elev-1); }
+html:has(.review-bar) .overall-data { top: calc(var(--topbar-h) + 72px); max-height: calc(100vh - var(--topbar-h) - 84px); }
+.plan-main.panel .panel-head { padding-bottom: 0; flex-wrap: wrap; }
+.plan-main.panel .view-switch { flex-wrap: wrap; }
+.tabpanel .cols-2 { margin-top: var(--sp-4); }
+.plain-fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+.plain-fieldset:disabled input, .plain-fieldset:disabled select { background: transparent; color: var(--ink); }
+.violations li > .chip { align-self: flex-start; }

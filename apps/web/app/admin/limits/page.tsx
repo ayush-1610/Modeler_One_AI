@@ -1,4 +1,4 @@
-import { AdminTabs, LimitWarnings } from "@/components/admin/AdminParts";
+import { PricingSwitch, LimitWarnings } from "@/components/admin/AdminParts";
 import { Limits } from "@/components/admin/Limits";
 import { Hero } from "@/components/kit";
 import { ApiProblem } from "@/components/ui";
@@ -16,7 +16,7 @@ export default async function LimitsPage({ searchParams }: { searchParams: Promi
   return (
     <main>
       <Hero tone="admin" eyebrow="Admin console" title="Limits" lede={LEDE} />
-      <AdminTabs here="limits" priced={priced} base="/admin/limits" />
+      <PricingSwitch priced={priced} base="/admin/limits" />
       {live.problem && <ApiProblem problem={live.problem} />}
       {live.data && (
         <>

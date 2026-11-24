@@ -58,8 +58,9 @@ test("a project starts from its proposal and the client's file in one upload, wi
   await page.goto("/projects");                                                       // the Projects table, the record view
   await page.getByTestId(`project-history-${projectId}`).click();
   await page.waitForURL(/\/history$/);
+  await expect(page.getByText("hash chain verifies")).toBeVisible();           // in the header, on every tab
+  await page.getByTestId("history-tab-versions").click();                     // the versions (slice 7)
   await expect(page.getByText("brief/main").first()).toBeVisible();
-  await expect(page.getByText("hash chain verifies")).toBeVisible();
 });
 
 test("each file is tagged at upload, and a tag the content contradicts is proposed and decided in one click",

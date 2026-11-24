@@ -50,6 +50,7 @@ from modeler_api.views.admin import (
     Overview,
     PeoplePage,
     PipelineHealth,
+    SystemStatus,
     UsagePage,
 )
 from modeler_contracts.runtime import runtime_env
@@ -208,6 +209,17 @@ def _grouped(runs: list[dict[str, Any]], key: Callable[[dict[str, Any]], str], l
 
 def _names(settings: Settings, tenants: Iterable[str]) -> dict[tuple[str, str], str]:
     return {(t, p.subject): p.name for t in tenants for p in memberships_for(settings, t).people()}
+
+
+@router.get("/admin/system", **answers(SystemStatus))
+def system_status(principal: Admin, settings: SettingsDep) -> dict[str, Any]:
+    """System status (P-32, R-N08): the deployment, the execution backend, and whether the engine answers, its
+    configured command started without a job (`engine_check`; kept a minute; nothing is simulated)."""
+    from modeler_api.engine_check import engine_status
+    from modeler_api.execution import development_engine_command
+
+    return envelope({"deployment": runtime_env().deployment_kind, "execution_backend": settings.execution_backend,
+                     "engine": engine_status(development_engine_command(), settings.read_root)})
 
 
 @router.get("/admin/pipeline", **answers(PipelineHealth))

@@ -425,3 +425,25 @@ class PipelineHealth(View):
     generated_at: str
     companies: list[PipelineCompany]
     all: PipelineCounts
+
+
+class EngineStatus(View):
+    """Whether the engine answers (R-N08, `engine_check`): its kind, the command's words, the engine id and image
+    digest it records (null while the digest is the development placeholder), and what was checked, in words."""
+
+    kind: str                          # pksim | software-fixture | unknown
+    command: str | None
+    engine_id: str | None
+    image_digest: str | None
+    reachable: bool
+    detail: str
+    checked_at: str
+    timeout_s: int
+
+
+class SystemStatus(View):
+    """System status's own read (R-N08): the deployment, the execution backend and the engine."""
+
+    deployment: str
+    execution_backend: str
+    engine: EngineStatus

@@ -39,6 +39,8 @@ test.beforeAll(() => {
 
 test("an unvalidated VBE says so before its probability of success", async ({ page }) => {
   await page.goto(`/campaigns/${ID}`);
+  await page.getByTestId("campaign-tab-prediction").click();               // the S6 prediction's tab (slice 6)
+  await expect(page).toHaveURL(new RegExp(`/campaigns/${ID}\\?tab=prediction$`));
   await expect(page.getByText("Virtual bioequivalence (S6)")).toBeVisible();
   await expect(page.getByTestId("vbe-validation")).toHaveText("not validated");
   await expect(page.getByTestId("vbe-not-validated")).toContainText("does not support a bioequivalence decision");

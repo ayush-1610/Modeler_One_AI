@@ -1,4 +1,3 @@
-import { AdminTabs } from "@/components/admin/AdminParts";
 import { AgentModels } from "@/components/admin/AgentModels";
 import { Hero } from "@/components/kit";
 import { ApiProblem } from "@/components/ui";
@@ -12,7 +11,7 @@ export default async function ModelsPage() {
     <main>
       <Hero tone="admin" eyebrow="Admin console" title="Models"
             lede="Which model each agent runs on. A change takes effect at the agent's next run, with its reason kept." />
-      <AdminTabs here="models" />
+      
       {live.problem && <ApiProblem problem={live.problem} />}
       {live.data && <AgentModels initial={live.data} />}
     </main>

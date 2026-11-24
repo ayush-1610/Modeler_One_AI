@@ -378,6 +378,167 @@ month, paid models only; free and in-house models stay warn-only).
     - inertness: no derived matrix contains a draft item with every application picked.
   - **`test_requirement_drafts.py`** now expects the new sub-package beside the three sub-domain drafts.
 
+### Changed — the console redesign, slice 8: the admin console in the console style, a Companies page (2026-11-24)
+- **What:**
+  - **Companies (P-24, new page, "Companies" in the console's side navigation):** every company as a console table
+    with a filter and sortable heads: people, projects, archived, runs, runs that did not finish, tokens in and out,
+    the estimated cost; "Add a company" under it; each company opens on its own page (disable or enable with a reason
+    there). Breadcrumbs: Admin console / Companies / the company.
+  - **Overview:** counters (companies and how many are disabled, people, projects and archived, whether the agents are
+    on), each a link; what every company's agents used; the platform block, pointing to System status. The companies
+    table moved to Companies.
+  - **The row of console tabs at the top of each admin page is gone:** the side navigation (since slice 1) lists the
+    console's pages. On the pages with costs, "Costs as if run on" is a segmented switch in the page header.
+  - **System status:** the engine's own panel (R-N08 below): whether it answers, what it is (a software fixture said in
+    bold), its command, engine id, image digest, where runs go, when it was checked; the platform and the engine side
+    by side, the keys and the agents full width.
+- **Why:** the console redesign's slice 8 (plan 2026-11-23 §6: console restyle, Companies list, System status + R-N08);
+  the owner's "Slice 7 approved, proceed to slice 8" (2026-11-24).
+- **Impact:** no API change beyond R-N08 below. `admin-console` spec green (non-administrators still get the app's 404
+  on every console page). The administrator's pages were looked at through a local harness (the real API with a test
+  administrator verifier, as the API tests use): the DEV sign-in is not an administrator, so no e2e spec signs in as one.
+
+### Added — the console redesign, slice 8: whether the engine answers, on System status (R-N08) (2026-11-24)
+- **What:** `GET /admin/system` (the platform owner's): the deployment, the execution backend, and the engine: its kind
+  (`pksim`, `software-fixture`, `unknown`), the command's words, the engine id and image digest it records (the digest
+  null while it is the development placeholder), whether it answers, what was checked in words, and when. The check
+  (`modeler_api.engine_check`) starts the configured engine command **without a job**, its lightest call: `run_job.R`
+  loads R and its packages and stops on its usage line, `docker_engine.sh` stops on its usage line before Docker is
+  asked, the development stub starts and stops. Nothing is simulated. 20 s at most; the answer is kept a minute under
+  `<read root>/_platform/engine-check.json`, so every API process reads the same one. A software fixture is named as
+  one ("not PK-Sim: its numbers are never PBPK results"). The development default command comes through the
+  orchestrator's seam (`execution.development_engine_command`).
+- **Why:** R-N08 (design-review/BACKEND_CHANGE_REQUIREMENTS.md): System status could not say whether the engine
+  answers (the doctor has no engine probe).
+- **Impact:** an API addition (`SystemStatus`, `EngineStatus`; contract and `lib/api-types.ts` regenerated). The engine
+  scripts (locked) are only called. Tests: `test_admin_system.py` (the stub answers and is named a fixture; an R
+  runner that answers its usage line is reachable, one whose packages do not load, that does not answer in time, whose
+  program or script is missing is not; started without a job; the answer kept; the owner's only).
+
+### Changed — the console redesign, slice 8: the QA role reads every project of its company (R-S05) (2026-11-24)
+- **What:** `modeler-qa`, offered by Admin → People until now with no effect, is a read role (`deps.READ_ROLES`,
+  `read_api`, `templates_api`). A person whose roles are QA (no curator or reviewer role) is admitted to **every project
+  of their company** to read it (`memberships.admit`, `memberships.reads_only`), and **changes and signs none**:
+  `ownership.may_change` refuses them every change and signature, a project with no owner on record included (whose
+  members otherwise edit it), so an escalation decision, a generic signature, a member added or an archive are refused.
+  A person who is QA and a curator or reviewer is not granted the company's projects: their memberships stay what they
+  read and change. Another company's projects stay closed. The web lets QA through its sign-in gate
+  (`lib/oidc.ts` `ACCESS_ROLES`).
+- **Why:** R-S05 (design-review/REMEDIATION_PLAN.md, the owner's default: QA reads every project of its company), built
+  in slice 8 as the owner asked, without touching `auth.py` (locked): `require_project` is unchanged, the grant is in
+  the platform's own memberships.
+- **Impact:** no API shape change. Tests: `test_qa_reads.py` (QA lists and reads every project of its company and none
+  of another's; creating, signing, adding a member and archiving refused on an owned project and on one with no owner;
+  a QA-and-curator person keeps only their memberships).
+
+### Added — the console redesign, slice 7: Records (History in tabs, the signature register, Agent activity, Documents) (2026-11-24)
+- **What:**
+  - **History (P-21)** in four tabs whose choice is in the address: **Audit trail** (a console table with a filter and
+    sortable heads), **Signatures** (the new register below), **Versions** (every artifact, one opened on its changes)
+    and **Out of date** (what was made from inputs that have since changed, or a line saying nothing is). Whether the
+    company's hash chain verifies is said in the header, on every tab.
+  - **Agent activity (P-19, new page, "Agent activity" under Records in the side navigation)**: each agent run on the
+    project, the agent named in words (as the admin console names it), its model and the one it fell back from, who
+    started it, when, how long it took, its status, turns, tokens and refused calls; fifty at a time. A run opens on
+    its steps (P-19b): each answer of the model, tool call, refusal and model switch, in words, with a filter.
+  - **Documents (P-18)**: the page is "Documents" with an "Add documents" action, the table a console panel, and a
+    document opens in the side panel beside the list (Previous and Next through the list) instead of a dialog over it.
+  - **`GET /projects/{id}/agent-runs`** (R-N05, any member): the project's agent runs, newest first, `limit` at a
+    time with a run-id cursor (`before`, the last page's `next_before`). Each run: agent, provider and model, who
+    started it, when it started and finished, status, the model's turns, tokens in and out, the tool calls the
+    runtime refused (`tool_call_rejected` steps) and the model it fell back from (a `model_switch` step), and the
+    agent's name in words (`platform_settings.AGENTS`). Only this company's runs of this project; no cost (it stays in
+    the admin console).
+  - **`GET /projects/{id}/signatures`** (R-N09, any member): the signatures given on the project's records, read from
+    the company's audit chain (`signature.create`), newest first, with whether the chain verifies. A record is the
+    project's when its id starts with the project's (an intake confirmation, the MAP and its deviations, the Data
+    room's publication) or when it is a decision on one of its campaigns' escalations (`{campaign_id}-{stage}`).
+- **Why:** the console redesign's slice 7 (plan 2026-11-23 §6: History's Signatures tab, Agent activity). R-N09 asked
+  for a test of a suspected gap; the test confirms it: an escalation decision's signature is **not** in the
+  project's audit trail (its filter keeps only ids that start with the project's), and it is in the new register.
+- **Impact:** two read routes (`AgentRunList`, `SignatureRegister`; `docs/api/openapi.json`, `lib/api-types.ts`). No
+  locked file changed (`compliance/signatures.py` is read, not changed). Tests: `test_records_api.py` (paging, other
+  projects and companies left out, refusals and fallbacks; a decision on the project's campaign listed and one on
+  another project's not; non-members refused). Specs: new `records` (History's tabs, a signature given through the API
+  in the register, the audit filter, a version opened, Out of date; Agent activity from the side navigation with a
+  seeded run, opened on its steps); `start-project` (the versions are on their tab); `library` unchanged and green
+  (the document opens in the side panel under the same test id). Software test data only.
+
+### Changed — the console redesign, slice 6: the campaign page in tabs, the kit chart, the Package tab, the decision form (2026-11-24)
+- **What:**
+  - **Tabs.** A campaign (P-16) shows one part at a time, in tabs whose choice is in the address (`?tab=`, links: the
+    page stays drawn on the server): Stages · Fit · Rounds · Feedback · Prediction (S6, only once S6 gave one) ·
+    Package (S7). Above them, always: the compound, the question, the status and the risk, the campaign's facts on
+    one line, and the banners that say the numbers are not PBPK evidence (software fixture, test-only data),
+    **unchanged**.
+  - **Stages** is a table (stage, what it does, status, rounds; the stage being run marked) with the stage notes and
+    the time budget (a meter with its value). **Rounds** holds the round history, the model development history and
+    the influence map. **Feedback** says when there is none.
+  - **`kit/Chart`** replaces `ConcentrationTimePlot`: the same Plotly chart with a Log / Linear switch, the page's own
+    type, an accessible name, an empty state in words, and its numbers as a table under it.
+  - **Package** reads `GET /campaigns/{id}/package` (only on its tab): reproduction, release, the package and data
+    bundle hashes, the PK-Sim projects and why one is missing, the report check's issues and notes, the downloads.
+  - **The decision form** (opened from the flash bar or the Feedback tab): what stopped as facts (stage, why in
+    words with its code, evidence), its fields labelled, the result said in place.
+  - **Fixed on Campaigns (P-05):** a campaign outside a project (a reference run, a seeded one) showed an empty,
+    unnamed project link; it now says "not in a project" (found by `console-shell` once `campaign-tabs` seeded one).
+- **Why:** the console redesign's slice 6 (plan 2026-11-23 §6; P-16); the owner's "Slice 5 approved, proceed to slice
+  6" (2026-11-24).
+- **Impact:** no API change. Specs: `campaign-monitor` (the influence map and the judged studies on Rounds), `feedback`
+  (its tab in the address), `vbe` (the Prediction tab), new `campaign-tabs` (a seeded campaign: the fixture banner
+  above the tabs, Stages by default, no Runs or Prediction tab, the chart's scale and table, the rounds, the package as
+  the API answers it, Feedback's empty state). Software test data only; nothing here is a simulation.
+
+### Changed — the console redesign, slice 5: Review & sign in tabs, read-only polish, "Back to the MS-01 default" (2026-11-24)
+- **What:** Review & sign (P-14) shows one part of the review at a time, in tabs under a bar that stays in view: Studies
+  and roles · The inputs · The estimation plan · The validation plan · Applications · Credibility · Validator and
+  changes. The tab is in the address (`?tab=`, the history entry replaced as on Inputs); an old link to a section
+  (`#review-studies`, Inputs' blinded study) opens its tab; the arrow keys move between tabs. The signature (the plan's
+  version, staleness, Draft with A5, the note, Approve and sign, the signed MAP and pending deviations) is a console
+  panel above the tabs; the validator's state is the header's badge. The canvas and Overall Data are panels, the three
+  diagrams a segmented switch; the move dialog is the kit dialog (focus kept inside, Escape closes) and says what the
+  move changes ("po-10 from S2 to S5", and when the MAP is signed that the signed MAP stands until the deviation is
+  signed). **"Back to the MS-01 default"** (`POST …/plan/placements/{study}:unlock`, unused until now) is offered on
+  each study a person placed, in the Studies table: its dry run (`?dry_run=true`, new, as a move's) says what it changes
+  and the validator's answer before anything is saved. **Read only:** a member who may not change the plan (viewer,
+  QA) is offered no control on any tab: no drag on the canvas, no fit, exclude, estimate, fix, group, leave out, put
+  back, acknowledge, decide, blinding switch or rebase; the model risk and the time budget read as values; the VBE
+  design's fields are shown, not editable. The validator's word on the internal target is shown beside the target, so
+  it is seen on Credibility.
+- **Why:** the console redesign's slice 5 (plan 2026-11-23 §5; P-14 in `design-review/PAGE_INVENTORY.md`); the owner's
+  "Slice 4b approved, build 4c, then proceed to slice 5" (2026-11-24).
+- **Impact:** an API addition: `dry_run` on `:unlock`, answering `PlacementPreview` as the move's dry run does
+  (`docs/api/openapi.json`, `lib/api-types.ts`); `test_plan_api` checks the dry run saves nothing. No change to what the
+  plan, the MAP or the signature hold. Specs: `model-plan` (tabs; the move's "what this changes"; the put-back dialog
+  opened and cancelled), `review-sign` and `applications` (the tab in the address), `plan-viewer` (every tab without a
+  control), new `review-tabs` (the address, the keyboard, an old section link, a study put back to the default).
+  Software test data only; nothing here is a simulation.
+
+### Added — the console redesign, slice 4c: what confirming a changed card again would change, read before signing (2026-11-24)
+- **What:** `GET /projects/{id}/delivery/subjects/{type}/{subject}/impact` (any member) plans the subject's landing as
+  `:confirm` plans it and answers, without signing or writing anything: each dataset the landing would load new, revise
+  (a new version), accept or set aside, each evidence item it would load, accept or hold, the dissolution rows it would
+  load and those an earlier confirmation loaded that it would remove, the legacy datasets it would reject, and every
+  artifact downstream that would go stale: the study catalog and the CPF that the inputs' re-assembly rewrites after a
+  landing, and what derives from them, a signed MAP among them (`needs_signature`: it must be signed again). Refused for
+  a blinded study (409 BLINDED: what it would load names its values) and when the landing cannot be planned (409
+  LANDING_REFUSED). On Inputs, the dialog of "Confirm again and sign…" on a card confirmed before shows it under "What
+  signing again changes", read fresh each time it opens; signed work going stale is said in a warning line.
+  `intake_landing.preview_landing` decides each record as `land` does, through helpers both now share (`_beside`: a
+  dataset beside the register's version; `_earlier`: the confirmations a new one supersedes); `Workspace.downstream`
+  and `Workspace.impact_item` are the breadth-first walk `Workspace.impact` already did, taken out so the preview uses
+  it too (no behaviour change to `impact`).
+- **Why:** the owner's go-ahead for 4c (2026-11-24): the impact preview the console redesign plans for Data, left out of
+  4b because no dry run of the landing existed.
+- **Impact:** an API addition (`DeliveryImpact`; `docs/api/openapi.json`, `lib/api-types.ts` regenerated). Tests:
+  `test_what_confirming_a_changed_study_again_would_change_is_read_before_signing_and_nothing_is_written` (a value
+  corrected after the signature: two profiles new, the two landed set aside, a signed MAP listed to sign again, nothing
+  written by the read, and the confirmation that follows does what the preview said); the product test reads its
+  dissolution rows first; the blinded-route test adds the refusal; the route-count ratchets 22 → 23 and 23 → 24. Spec
+  `delivery.spec.ts`: no impact section on a first confirmation; after a correction, "Confirm again and sign…" reads
+  `/impact` once and lists the datasets and the project records that follow, and nothing is written. Software test
+  data only (Exampleamide); nothing here is a simulation.
+
 ### Fixed — the campaigns list (HTTP 500); three open gaps of the data story; Docs — the next phase's plan and four literature reviews (2026-11-24)
 - **The campaigns could not be read (HTTP 500), seen on the server:**
   - **Cause.** One stored campaign written by an earlier build carried a key today's record no longer declares. The

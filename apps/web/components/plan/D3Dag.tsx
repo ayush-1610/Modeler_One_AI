@@ -2,6 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 
+import { useReadOnly } from "@/components/plan/ReadOnly";
 import { ROLE_LABEL, type OverallStudy, type PlanView, type Role, violationsFor } from "@/lib/plan";
 
 // D3 · development and validation DAG (plan §11.4). Nodes are stages; the datasets placed on them are chips. A dataset
@@ -35,8 +36,9 @@ export function StudyChip({ s, view, compact = false }: { s: OverallStudy; view:
   const issues = violationsFor(view, s.study_id);
   const level = issues.some((v) => v.severity === "error") ? "err" : issues.some((v) => !v.acknowledged) ? "warn" : "";
   const test = ["SYNTHETIC", "ILLUSTRATIVE", "UNRECORDED"].includes(s.origin);
+  const readOnly = useReadOnly();           // read only: nothing is dragged (a move would only be refused)
   return (
-    <div className={`study-chip ${level}`} draggable data-testid={`chip-${s.study_id}`}
+    <div className={`study-chip ${level}${readOnly ? " ghost" : ""}`} draggable={!readOnly} data-testid={`chip-${s.study_id}`}
          onDragStart={(e) => { e.dataTransfer.setData(STUDY_MIME, s.study_id); e.dataTransfer.setData("text/plain", s.study_id);
                                e.dataTransfer.effectAllowed = "move"; }}
          title={[s.rationale && `Why: ${s.rationale}`, s.reason && `Placed: ${s.reason}`, ...issues.map((v) => v.message)]
@@ -58,6 +60,7 @@ export function D3Dag({ view, onDrop, onLayout }: {
   onLayout: (layout: PlanView["plan"]["layout"]) => void;
 }) {
   const canvas = useRef<HTMLDivElement | null>(null);
+  const readOnly = useReadOnly();
   const [over, setOver] = useState<string | null>(null);
   const nodes = useMemo(() => DEFAULT_NODES.map((n) => ({ ...n, ...(view.plan.layout[n.id] ?? {}) })), [view.plan.layout]);
   const byId = Object.fromEntries(nodes.map((n) => [n.id, n])) as Record<NodeId, NodeSpec>;
@@ -138,7 +141,7 @@ export function D3Dag({ view, onDrop, onLayout }: {
                  onDragOver={n.role ? (e) => { accept(e); setOver(n.id); } : undefined}
                  onDragLeave={n.role ? () => setOver(null) : undefined}
                  onDrop={n.role ? dropStudy(n.role, n.title) : undefined}>
-              <div className="dag-node-head" draggable
+              <div className="dag-node-head" draggable={!readOnly}
                    onDragStart={(e) => {
                      const rect = (e.currentTarget.parentElement as HTMLElement).getBoundingClientRect();
                      const scale = rect.width / n.w;

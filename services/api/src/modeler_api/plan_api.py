@@ -309,10 +309,12 @@ def put_placement(project_id: str, study_id: str, body: PlacementRequest, princi
                    deviation=("role", study_id, f"placed in {body.role}"))
 
 
-@router.post("/projects/{project_id}/plan/placements/{study_id}:unlock", **answers(PlanPage))
-def unlock_placement(project_id: str, study_id: str, principal: Writer, store: StoreDep) -> dict[str, Any]:
+@router.post("/projects/{project_id}/plan/placements/{study_id}:unlock", **answers(PlanPage | PlacementPreview))
+def unlock_placement(project_id: str, study_id: str, principal: Writer, store: StoreDep, dry_run: bool = False) -> dict[str, Any]:
+    """A study a person placed, given back to the MS-01 default ("Back to the MS-01 default" on Review & sign). ``dry_run``
+    says what it would change (the validator, the diff, whether it is a MAP deviation) and saves nothing."""
     ws = workspace_for(project_id, principal, store)
-    return _change(ws, principal, lambda p: unlock(p, study_id), f"{study_id} back to the MS-01 default",
+    return _change(ws, principal, lambda p: unlock(p, study_id), f"{study_id} back to the MS-01 default", dry_run=dry_run,
                    deviation=("unlock", study_id, "back to the MS-01 default"))
 
 

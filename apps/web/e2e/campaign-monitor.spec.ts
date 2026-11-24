@@ -43,6 +43,7 @@ test("a campaign on the published Dapagliflozin model's real data runs from the 
   await expect(page.getByTestId("campaign-status")).toHaveText(TERMINAL, { timeout: 8 * 60_000 });
   await expect(page.getByTestId("campaign-stage-S0")).toContainText("passed");
   // T-54: the influence map (parameters × studies) is drawn from the signed MAP and the working parameter set
+  await page.getByTestId("campaign-tab-rounds").click();                    // the rounds' tab (slice 6)
   await expect(page.getByTestId("influence-map")).toBeVisible();
   await expect(page.getByTestId("influence-map")).toContainText("elim.hepatic.UGT1A9.clspec");
   await page.screenshot({ path: test.info().outputPath("monitor.png"), fullPage: true });
@@ -68,5 +69,6 @@ test("the illustrative example runs, but its verdicts are shown as test only (pl
   await page.waitForURL(/\/campaigns\/[^/]+$/);
   await expect(page.getByTestId("campaign-status")).toHaveText(TERMINAL, { timeout: 8 * 60_000 });
   await expect(page.getByTestId("real-data-warning")).toContainText("TEST ONLY: no real observed data");
+  await page.getByTestId("campaign-tab-rounds").click();                    // each round's judged studies (slice 6)
   await expect(page.getByText(/0 of 1 real/).first()).toBeVisible();
 });

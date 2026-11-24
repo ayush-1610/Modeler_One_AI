@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 
 import { FeedbackDiagnosisView } from "@/components/campaign/Feedback";
 import { Dialog } from "@/components/kit/Dialog";
@@ -15,8 +15,12 @@ type Result = { kind: "ok" | "err"; message: string } | null;
  *  server (the step bar's Run with it). */
 const DECIDED: After = { reads: ["/api/v1/escalations", "/api/v1/campaigns", "/api/v1/campaigns/{campaign_id}"], server: true };
 
+/** A stage's stop reason in words ("NO_PERMITTED_ACTION" → "no permitted action"); the code stays beside it. */
+const said = (code: string) => code.replace(/_/g, " ").toLowerCase();
+
 export function EscalationDecision({ escalation }: { escalation: Escalation }) {
   const { run, busy } = useMutation();
+  const ids = useId();
   const [choice, setChoice] = useState<string>("");
   const [rationale, setRationale] = useState("");
   const [confirming, setConfirming] = useState(false);
@@ -61,15 +65,18 @@ export function EscalationDecision({ escalation }: { escalation: Escalation }) {
   }
 
   return (
-    <div>
-      <div className="banner warn mb-12">
-        <strong>{escalation.reasonCode}</strong> — {escalation.evidence}
-      </div>
+    <div className="decision-form">
+      {/* what stopped, as the campaign recorded it (the console redesign's slice 6) */}
+      <dl className="kv-list decision-facts" data-testid="decision-facts">
+        <dt>Stage</dt><dd>{escalation.stage}</dd>
+        <dt>Why it stopped</dt><dd>{said(escalation.reasonCode)} <code className="muted">{escalation.reasonCode}</code></dd>
+        <dt>Evidence</dt><dd>{escalation.evidence}</dd>
+      </dl>
       {fb && <FeedbackDiagnosisView diagnosis={fb} />}
 
       <div className="field">
-        <label>Decision</label>
-        <select value={choice} onChange={(e) => setChoice(e.target.value)} data-testid="decision-select">
+        <label htmlFor={`${ids}-decision`}>Decision</label>
+        <select id={`${ids}-decision`} value={choice} onChange={(e) => setChoice(e.target.value)} data-testid="decision-select">
           <option value="">Select an option…</option>
           {escalation.options.map((o) => (
             <option key={o.id} value={o.id} disabled={!!o.disabled}>{o.label}{o.disabled ? " — not possible" : ""}</option>
@@ -121,21 +128,22 @@ export function EscalationDecision({ escalation }: { escalation: Escalation }) {
       )}
 
       <div className="field">
-        <label>Rationale</label>
-        <textarea rows={2} value={rationale} onChange={(e) => setRationale(e.target.value)}
+        <label htmlFor={`${ids}-rationale`}>Rationale</label>
+        <textarea id={`${ids}-rationale`} rows={2} value={rationale} onChange={(e) => setRationale(e.target.value)}
           placeholder="Recorded with the decision in the audit trail." />
       </div>
 
-      <div className="row">
+      <div className="row decision-submit">
         <button className="btn primary" disabled={!choice || busy || incomplete} onClick={() => setConfirming(true)}
           data-testid="decision-sign">
           Sign &amp; submit
         </button>
-        <span className="muted">Every decision is an approval and is signed (Part 11).</span>
+        <span className="muted fs-13">Every decision is an approval and is signed (Part 11).</span>
       </div>
 
       {result && (
-        <div className={`banner ${result.kind === "ok" ? "ok" : "err"} mt-12`}>
+        <div className={`banner ${result.kind === "ok" ? "ok" : "err"} mt-12`} role={result.kind === "ok" ? "status" : "alert"}
+             data-testid="decision-result">
           {result.message}
         </div>
       )}

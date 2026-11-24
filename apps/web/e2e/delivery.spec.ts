@@ -314,6 +314,8 @@ test("a delivery is reviewed by exception, spot-checked, signed and loaded once"
   await expect(dialog.getByTestId("delivery-confirm-rules")).toContainText("v0.1, UNVERIFIED");
   await expect(dialog.getByTestId("delivery-confirm-coverage")).toContainText("0 numbers not read in their tables");
   await expect(dialog.getByTestId("delivery-confirm-blockers")).toHaveCount(0);
+  // a first confirmation replaces nothing: no impact section (slice 4c)
+  await expect(dialog.getByTestId("delivery-confirm-impact")).toHaveCount(0);
   await shot(page, "7-confirm");
   // the API's refusal of a signature without a recent step-up opens the step-up over the dialog (the Keycloak
   // sign-in itself is oidc-signing.spec.ts); cancelled, nothing is signed and the dialog says why
@@ -405,4 +407,44 @@ test("a delivery is reviewed by exception, spot-checked, signed and loaded once"
   }
   await lines.getByRole("button", { name: /^Cancel: the dataset of / }).first().click();
   await expect(lines.getByRole("button", { name: /^Cancel: the dataset of / })).toHaveCount(1);
+
+  // --- a value corrected after the signature (its spot check ticked again through the API): "Confirm again and sign"
+  // first says what signing again would change, read without signing or writing anything (the console redesign's
+  // slice 4c): the study's values are other values now, so its two profiles load under new ids and the two it loaded
+  // are set aside; the inputs follow ---
+  const path = `delivery/subjects/study/${study.subject}`;
+  const fixed = await request.post(`${api}/${path}:enter`, { headers: AUTH,
+    data: { value: 25.4, supersedes: value.id, why: "a typing error in the file" } });
+  expect(fixed.ok(), await fixed.text()).toBeTruthy();
+  const redraw = (await (await request.post(`${api}/${path}/spot-check:draw`, { headers: AUTH })).json()).data as
+    { draw: { id: string }; wanted: string[] };
+  const ticked = await request.post(`${api}/${path}/spot-check`, { headers: AUTH,
+    data: { draw_id: redraw.draw.id, ticks: redraw.wanted.map((id) => ({ value_id: id, ok: true })) } });
+  expect(ticked.ok(), await ticked.text()).toBeTruthy();
+  await page.reload();
+  await page.getByTestId("tab-studies").click();
+  await open(study.subject);
+  await expect(page.getByTestId("card-changed-study:230-23")).toContainText(/Changed since signed by Dev User on .*: confirm again/);
+  const again = card.getByTestId(`delivery-confirm-${study.subject}`);
+  await expect(again).toHaveText("Confirm again and sign…");
+  const asked = await requests(page, async () => {
+    await again.click();
+    await expect(dialog.getByTestId("delivery-confirm-impact")).toBeVisible();
+    await expect(dialog.getByTestId("delivery-impact-datasets")).toBeVisible();
+  }, 500);
+  expect(asked.filter((r) => r.includes("/impact")), asked.join("\n")).toEqual([`GET ${path}/impact`]);
+  const impact = dialog.getByTestId("delivery-confirm-impact");
+  await expect(impact.getByTestId("delivery-impact-datasets")).toContainText("Datasets: 2 datasets loaded new, 2 datasets set aside (rejected)");
+  await expect(impact.getByTestId("delivery-impact-datasets")).toContainText("230-23, 50 mg, fasted, Exampleamide in plasma: loaded new");
+  await expect(impact.getByTestId("delivery-impact-datasets")).toContainText("230-23, 50 mg, fasted, Exampleamide-M1 in plasma: set aside");
+  await expect(impact.getByTestId("delivery-impact-resign")).toHaveCount(0);       // nothing downstream is signed yet
+  await impact.getByTestId("delivery-impact-affected").locator("summary").click();
+  await expect(impact.getByTestId("delivery-impact-affected")).toContainText(/The study catalog, version \d+: re-assemble the study catalog/);
+  await expect(dialog.getByTestId("delivery-confirm-sign")).toBeEnabled();
+  await shot(page, "9-confirm-again-impact");
+  // read, nothing written: the study's datasets are as they were
+  const still = await read<{ datasets: { study: { study_id: string }; state: string }[] }>("evidence");
+  expect(still.datasets.filter((d) => d.study.study_id === "230-23").map((d) => d.state)).toEqual(["ACCEPTED", "ACCEPTED"]);
+  await dialog.getByTestId("delivery-confirm-cancel").click();
+  await expect(dialog).toHaveCount(0);
 });

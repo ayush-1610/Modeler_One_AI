@@ -296,3 +296,29 @@ class BriefImpact(View):
 class AgentRunDetail(View):
     run: dict[str, Any]
     steps: list[dict[str, Any]]
+
+
+class AgentRunRow(View):
+    """One agent run on a project as Agent activity lists it (R-N05): who started it, on which model, how long, what it
+    used, how many tool calls the runtime refused, and the model it fell back from. No cost: that stays in the admin
+    console."""
+
+    run_id: str
+    agent: str
+    agent_label: str | None            # the agent in words, as the admin console names it ("A2 · searches the literature")
+    provider: str | None
+    model: str
+    started_by: str | None
+    started_at: str
+    finished_at: str | None
+    status: str
+    turns: int                         # the model's answers (model_turn steps)
+    input_tokens: int
+    output_tokens: int
+    refusals: int                      # tool calls the runtime refused (tool_call_rejected steps)
+    fallback_from: str | None          # the first model it switched away from (a model_switch step), if any
+
+
+class AgentRunList(View):
+    runs: list[AgentRunRow]            # newest first
+    next_before: str | None            # the next page: pass it as ?before= (null: no older run)

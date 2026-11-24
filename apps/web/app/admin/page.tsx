@@ -1,69 +1,67 @@
 import Link from "next/link";
 
-import { AdminTabs, LimitWarnings, USAGE_HEADS, UsageCells, UsageKpis } from "@/components/admin/AdminParts";
-import { AddCompany } from "@/components/admin/CompanyAdmin";
+import { LimitWarnings, PricingSwitch, UsageKpis } from "@/components/admin/AdminParts";
 import { Hero } from "@/components/kit";
 import { ApiProblem, Card } from "@/components/ui";
 import { getOverview, hideUnlessAdmin, pricedAs } from "@/lib/admin";
 
-const LEDE = "Every company on the platform, its people, its projects and what its agents used. Read-only: each look is " +
-  "recorded on the audit trail.";
+const LEDE = "The platform at a glance: the limits reached, what every company's agents used, and what the platform runs on. " +
+  "Read-only: each look is recorded on the audit trail.";
 
-/** The platform owner's console, its overview (docs/plans/2026-11-10-admin-console.md, build A). */
+/** The platform owner's console, its overview (docs/plans/2026-11-10-admin-console.md, build A; the console redesign's
+ *  slice 8: the companies are their own page, P-24). */
 export default async function AdminPage({ searchParams }: { searchParams: Promise<{ priced_as?: string }> }) {
   const priced = pricedAs((await searchParams).priced_as);
   const live = await getOverview(priced);
   hideUnlessAdmin(live.problem);
   const data = live.data;
   const agents = data?.system.agents;
+  const disabled = data?.companies.filter((c) => c.disabled).length ?? 0;
 
   return (
     <main>
-      <Hero tone="admin" eyebrow="Platform" title="Admin console" lede={LEDE} testId="admin-hero" />
-      <AdminTabs here="overview" priced={priced} base="/admin" />
+      <Hero tone="admin" eyebrow="Platform" title="Admin console" lede={LEDE} testId="admin-hero"
+            actions={<PricingSwitch priced={priced} base="/admin" />} />
       {live.problem && <ApiProblem problem={live.problem} />}
       {data && (
         <>
           <LimitWarnings warnings={data.warnings} month={data.month} priced={priced} />
-          <Card title="All companies">
+          <nav className="counters" aria-label="The platform at a glance" data-testid="admin-counters">
+            <Link className="counter" href={`/admin/companies?priced_as=${priced}`} prefetch={false} data-testid="admin-count-companies">
+              <span className="counter-label">Companies</span><span className="counter-value">{data.companies.length}</span>
+              <span className="counter-sub">{disabled ? `${disabled} disabled` : "all enabled"}</span>
+            </Link>
+            <Link className="counter" href="/admin/people" prefetch={false}>
+              <span className="counter-label">People</span>
+              <span className="counter-value">{data.companies.reduce((n, c) => n + c.people, 0)}</span>
+              <span className="counter-sub">across every company</span>
+            </Link>
+            <Link className="counter" href={`/admin/companies?priced_as=${priced}`} prefetch={false}>
+              <span className="counter-label">Projects</span>
+              <span className="counter-value">{data.companies.reduce((n, c) => n + c.projects, 0)}</span>
+              <span className="counter-sub">{data.companies.reduce((n, c) => n + c.archived, 0)} archived</span>
+            </Link>
+            <Link className="counter" href="/admin/system" prefetch={false}>
+              <span className="counter-label">Agents</span>
+              <span className="counter-value fs-18">{agents?.enabled ? "on" : "off"}</span>
+              <span className="counter-sub">{agents?.enabled ? `${agents.provider} · ${agents.model}` : (agents?.problem ?? "agents are off")}</span>
+            </Link>
+          </nav>
+          <Card title="What every company's agents used">
             <UsageKpis usage={data.total} />
+            <p className="muted mt-10 mb-0">
+              Costs are estimates: each run&apos;s recorded tokens priced at the chosen Claude model&apos;s list prices
+              with its conversations cached. The tokens are those of the model that ran the agents.{" "}
+              <Link href={`/admin/companies?priced_as=${priced}`}>Each company</Link> · <Link href={`/admin/usage?priced_as=${priced}`}>by agent, person, project or day</Link>
+            </p>
           </Card>
-          <Card title="Companies">
-            <div className="table-scroll">
-              <table data-testid="admin-companies">
-                <thead>
-                  <tr><th>Company</th><th className="num">People</th><th className="num">Projects</th>
-                    <th className="num">Archived</th>{USAGE_HEADS}</tr>
-                </thead>
-                <tbody>
-                  {data.companies.map((c) => (
-                    <tr key={c.tenant_id}>
-                      <td>
-                        <Link href={`/admin/companies/${encodeURIComponent(c.tenant_id)}?priced_as=${priced}`}>{c.tenant_id}</Link>
-                        {c.name && <div className="muted">{c.name}</div>}
-                        {c.disabled && <span className="chip high"><span className="chip-dot" />disabled</span>}
-                      </td>
-                      <td className="num">{c.people}</td>
-                      <td className="num">{c.projects}</td>
-                      <td className="num">{c.archived || "—"}</td>
-                      <UsageCells usage={c.usage} />
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </Card>
-          <AddCompany />
           <Card title="The platform">
             <dl className="facts" data-testid="admin-system">
               <dt>Deployment</dt><dd>{data.system.deployment}</dd>
               <dt>Agents</dt>
               <dd>{agents?.enabled ? `${agents.provider} · ${agents.model}` : (agents?.problem ?? "agents are off")}</dd>
+              <dt>Engine and keys</dt><dd><Link href="/admin/system">System status</Link></dd>
             </dl>
-            <p className="muted mt-10">
-              Costs are estimates: each run&apos;s recorded tokens priced at the chosen Claude model&apos;s list prices
-              with its conversations cached. The tokens are those of the model that ran the agents.
-            </p>
           </Card>
         </>
       )}

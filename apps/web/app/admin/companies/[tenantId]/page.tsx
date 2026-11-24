@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { AdminTabs, USAGE_HEADS, UsageCells, UsageKpis } from "@/components/admin/AdminParts";
+import { PricingSwitch, USAGE_HEADS, UsageCells, UsageKpis } from "@/components/admin/AdminParts";
 import { CompanyState } from "@/components/admin/CompanyAdmin";
 import { GiveProjects } from "@/components/admin/GiveProjects";
 import { Hero } from "@/components/kit";
@@ -24,7 +24,7 @@ export default async function CompanyPage({ params, searchParams }: {
     <main>
       <Hero tone="admin" eyebrow={<Link href={`/admin?priced_as=${priced}`}>Admin console</Link>} title={data?.name || tenantId}
             lede="Its people (everyone who has signed in), its projects (archived ones too) and what their agents used." />
-      <AdminTabs here="company" priced={priced} base={base} />
+      <PricingSwitch priced={priced} base={base} />
       {live.problem && <ApiProblem problem={live.problem} />}
       {data && (
         <>
