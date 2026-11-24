@@ -219,13 +219,17 @@ class DataRoomStore:
                 out[f.path] = row["issues"]
         return out
 
-    def put_writing(self, findings: dict[str, str], requests: dict[str, str], *, agent: str) -> None:
+    def put_writing(self, findings: dict[str, str], requests: dict[str, str], *, agent: str,
+                    basis: dict[str, str] | None = None) -> None:
+        """The writer's lines, with code's findings they were written against (`basis`): a line is shown only while code
+        still finds the same (assemble's `section`)."""
         atomic_write_text(self._path("writing.json"), json.dumps(
-            {"findings": findings, "requests": requests, "agent": agent, "at": _now()}, indent=1, ensure_ascii=False))
+            {"findings": findings, "requests": requests, "basis": basis or {}, "agent": agent, "at": _now()}, indent=1,
+            ensure_ascii=False))
 
     def writing(self) -> dict[str, dict[str, str]]:
         row = self._read_json("writing.json") or {}
-        return {"findings": row.get("findings", {}), "requests": row.get("requests", {})}
+        return {"findings": row.get("findings", {}), "requests": row.get("requests", {}), "basis": row.get("basis", {})}
 
     # --- the modeler's word -------------------------------------------------------------------------------------------------
 

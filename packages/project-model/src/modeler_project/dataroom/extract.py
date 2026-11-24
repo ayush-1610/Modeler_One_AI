@@ -76,6 +76,39 @@ def token_sets(desc: TableDescription) -> tuple[set[str], set[str]]:
     return missing, blq
 
 
+# what a legend says a marker is: below the LLOQ, or no sample at all
+_SAYS_BELOW = re.compile(r"(?i)below|<\s*(?:lloq|loq|lod|llq|\d)|not\s+quantif|non[-\s]?quantif|limit\s+of\s+(?:quantif|detect)|"
+                         r"\blloq\b|\bblq\b|\bbql\b|not\s+detect|undetect")
+_SAYS_NO_SAMPLE = re.compile(r"(?i)not\s+sampled|no\s+sample|sample\s+(?:missing|lost)|not\s+(?:collected|drawn|taken|"
+                             r"analy[sz]ed|available|done|reported)|missed|lost|haemoly|hemoly|insufficient")
+
+
+def _legend_problems(missing: set[str], blq: set[str], part: Part) -> list[Problem]:
+    """A marker the description counts as a missing sample that the file's own legend defines as below the LLOQ, or the
+    other way round (a new delivery, 2026-11-24: "NQ" was listed as missing although the footnote reads "NQ = not
+    quantifiable (< 0.20 ng/mL)"; every terminal sample became missing and the AUC set shrank from 9 subjects to 1)."""
+    text = "\n".join(line.text for line in part.lines)
+    out: list[Problem] = []
+    for token, wanted in [(t, "blq") for t in missing] + [(t, "missing") for t in blq]:
+        if not token or not re.search(r"[a-z]", token):
+            continue
+        for m in re.finditer(r"(?i)(?<![\w<])" + re.escape(token) + r"\s*(?:=|:|–|—|-|means|denotes|indicates)\s*([^\n|;]{3,100})",
+                             text):
+            said = m.group(1)
+            below, none = bool(_SAYS_BELOW.search(said)), bool(_SAYS_NO_SAMPLE.search(said))
+            if wanted == "blq" and below and not none:
+                out.append(Problem(code="MARKER_IS_BELOW_LLOQ", severity="error", message=(
+                    f"{token!r} is listed as a missing sample, but the file defines it as {m.group(0).strip()!r}: list it "
+                    "among the below-LLOQ markers (blq_tokens), not the missing ones")))
+                break
+            if wanted == "missing" and none and not below:
+                out.append(Problem(code="MARKER_IS_NO_SAMPLE", severity="error", message=(
+                    f"{token!r} is listed as below the LLOQ, but the file defines it as {m.group(0).strip()!r}: list it "
+                    "among the missing-sample markers (missing_tokens)")))
+                break
+    return out
+
+
 def parts_by_name(doc: SourceDocument) -> dict[str, Part]:
     return {part.name: part for part in document_parts(doc)}
 
@@ -153,6 +186,8 @@ def read_table(desc: TableDescription, doc: SourceDocument, *, file: str, sha256
         problems.append(Problem(code="TOKEN_BOTH_MISSING_AND_BLQ", severity="error", message=(
             f"{', '.join(sorted(both))}: listed both as a missing sample and as below the LLOQ; a value is one or the "
             "other (below the LLOQ is a measurement, a missing sample is none)")))
+    if desc.kind == "concentrations":
+        problems += _legend_problems(missing_set, blq_set, part)
     if desc.last_line < desc.first_line or not n:
         problems.append(Problem(code="EMPTY_RANGE", severity="error",
                                 message=f"the table on {desc.part} of {file} names no lines or no columns"))
@@ -222,6 +257,7 @@ def _value_in_quote(value: str, quote: str) -> bool:
     return bool(numbers) and all(x in in_quote for x in numbers)
 
 
+_SUBJECT_LISTS = ("study.completed_subjects", "study.statistical_set", "study.excluded_subjects")
 _ROLE_WORDS = ("reference", "test", "reformulat", "original", "innovator", "generic", "brand", "rld", "listed drug")
 
 
@@ -262,6 +298,12 @@ def check_fact(fact: Fact, doc: SourceDocument, *, file: str, sha256: str) -> Ch
             "and a fact quotes what a document states"))
     if fact.field == "study.treatment_code" and (why := _treatment_code_problem(fact)):
         return CheckedFact(fact=fact, ok=False, problem=why)
+    if fact.field in _SUBJECT_LISTS and re.fullmatch(r"(?i)\s*\d+\s*(?:subjects?|patients?|volunteers?|participants?)\s*\.?\s*",
+                                                     fact.value):
+        # "18 subjects" as the client's statistical set made an empty set that overrode the PK file's (2026-11-24)
+        return CheckedFact(fact=fact, ok=False, problem=(
+            "a set lists its subjects (e.g. '101, 102, 105' or '01-003 to 01-012'); a count goes in study.n_completed or "
+            "study.n_dosed"))
     if fact.field in ("study.dose", "product.strength") and not _MASS.search(f"{fact.value} {fact.unit}"):
         # "single oral dose of 1 tablet" gave a dose of 1 beside "1 x 90 mg" (Nemotron on the sample delivery)
         return CheckedFact(fact=fact, ok=False, problem=(
@@ -277,12 +319,24 @@ def check_fact(fact: Fact, doc: SourceDocument, *, file: str, sha256: str) -> Ch
                        chip=Chip(file=file, sha256=sha256, part=part, line=line, text=fact.quote.strip()))
 
 
+_BOUND = re.compile(r"^\s*(?:[<>≤≥]|(?:more|greater|less|fewer)\s+than\b|above\b|below\b|up\s+to\b|at\s+least\b|"
+                    r"at\s+most\b|not\s+less\s+than\b|not\s+more\s+than\b|nlt\b|nmt\b)", re.IGNORECASE)
+
+
+def is_bound(value: str) -> bool:
+    """A value written as a bound ("> 20 mg/mL", "less than 0.1", "NLT 85 %"): a limit, not the value."""
+    return bool(_BOUND.match(unicodedata.normalize("NFKC", value)))
+
+
 def number_of(value: str, unit: str = "") -> float | None:
-    """The one number a value holds: "90" -> 90; "2 x 50 mg" -> 100; "240±2 mL" -> 240; "0.00 / 0.50 / …", "18-44" and
-    "2,5" -> None (several numbers, none of them the value, or a decimal comma)."""
+    """The one number a value holds: "90" -> 90; "2 x 50 mg" -> 100; "240±2 mL" -> 240; "0.00 / 0.50 / …", "18-44",
+    "2,5" and "0,058 mg/mL" -> None (several numbers, or a decimal comma, which is not guessed: "0,058" was read as 58,
+    a thousands group, on a new delivery, 2026-11-24); "> 20 mg/mL" -> None (a bound, not the value: `is_bound`)."""
+    if is_bound(value):
+        return None
     text = unicodedata.normalize("NFKC", value)
-    if re.search(r"\d,(?:\d{1,2}|\d{4,})(?!\d)", text):
-        return None   # a decimal comma ("2,5 mg") is not guessed
+    if re.search(r"(?<![\d,.])(?:0,\d+|\d+,(?:\d{1,2}|\d{4,}))(?![\d,.])", text):
+        return None   # a decimal comma ("2,5 mg", "0,058 mg/mL") is not guessed
     # a tolerance or spread written after the value ("240±2 mL", "30 +/- 6") is not the value
     text = re.sub(r"\s*(?:±|\+/-|\+-)\s*\d+(?:\.\d+)?", "", text)
     times = re.fullmatch(r"\s*(\d+)\s*[x×]\s*(\d+(?:\.\d+)?)\s*(\S+)?\s*", text)

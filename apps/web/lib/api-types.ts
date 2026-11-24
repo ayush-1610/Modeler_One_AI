@@ -13280,6 +13280,11 @@ export interface components {
         /** Section */
         Section: {
             /**
+             * Computed
+             * @default
+             */
+            computed: string;
+            /**
              * Finding
              * @default
              */

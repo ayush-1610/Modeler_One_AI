@@ -22,7 +22,7 @@ import { Clinical, Dissolution, Formulation, Observed, Solubility, Values } from
 import { SourceDrawer } from "./SourceDrawer";
 import { Decisions, Inputs, Plan, Requests } from "./work";
 
-export const OVERVIEW: Section = { id: "overview", title: "Overview", finding: "", status: "ok" };
+export const OVERVIEW: Section = { id: "overview", title: "Overview", finding: "", status: "ok", computed: "" };
 
 /** One section's cards (the page and the report draw the same). */
 export function SectionBody({ id, room, run, projectId, go, withRequests = true }: {

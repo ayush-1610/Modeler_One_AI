@@ -322,6 +322,7 @@ class Section(_B):
     title: str
     finding: str = ""
     status: Literal["ok", "attention", "missing", "empty"] = "empty"
+    computed: str = ""      # code's own finding; the writer's line replaces it only while it was written against this one
 
 
 class MadeBy(_B):

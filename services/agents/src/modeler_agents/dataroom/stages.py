@@ -20,13 +20,14 @@ from modeler_intake.room import Part, document_parts, unmarked
 from modeler_intake.room_specs import FIELDS, ROLES, TOPICS, Extraction, FileTriage, QuestionCard
 from modeler_intake.source_model import SourceDocument
 from modeler_project.dataroom import room_view
+from modeler_project.dataroom.clinical import colliding_samples
 from modeler_project.dataroom.extract import check_fact, read_table
 from modeler_project.dataroom.model import FileView
 from modeler_project.dataroom.store import DataRoomStore
 
-PROMPT_VERSION = "dataroom-2"
+PROMPT_VERSION = "dataroom-3"
 MAX_LINES = 120          # lines one read returns
-PREVIEW_LINES = 40       # lines of each of the first parts the triage agent sees
+PREVIEW_LINES = 80       # lines of each of the first parts the triage agent sees (40 misjudged a LIMS export, 2026-11-24)
 
 Step = Callable[..., None]
 
@@ -275,6 +276,24 @@ declarations, a duplicate printout), with one plain sentence why. topics from: "
 study (its number) and the products the file is about, as written."""
 
 
+_DESIGN = re.compile(r"(?i)\b(?:cross-?over|parallel[- ]group|randomi[sz]ed|open[- ]label|single[- ]dose|multiple[- ]dose|"
+                     r"once daily|food[- ]effect|bioequivalence|relative bioavailability|steady[- ]state)\b")
+_SUBJECTS = re.compile(r"(?i)\b\d+\s+(?:healthy\s+)?(?:subjects|volunteers|patients|participants)\b|\bsubjects? (?:were|was) "
+                       r"(?:excluded|withdrawn|randomi[sz]ed|enrolled|dosed)")
+_DOSE = re.compile(r"(?i)\b\d+(?:[.,]\d+)?\s*mg\b")
+
+
+def _holds_inputs(doc: SourceDocument) -> str:
+    """Why a file must be extracted whatever the agent sorted it as: it states a study's design, its subjects and a dose,
+    as a protocol or a synopsis does (a new delivery, 2026-11-24: the synopsis was sorted as context, never extracted,
+    and the treatment codes, the dose, the design and an excluded subject were lost). "" when it does not."""
+    text = "\n".join(line.text for part in document_parts(doc) for line in part.lines)
+    design, subjects, dose = _DESIGN.search(text), _SUBJECTS.search(text), _DOSE.search(text)
+    if design and subjects and dose:
+        return f"it states the design ({design.group(0)!r}), the subjects ({subjects.group(0)!r}) and a dose ({dose.group(0)!r})"
+    return ""
+
+
 def triage(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, step: Step, only: set[str] | None = None,
           focus_chars: int = FOCUS_CHARS) -> str:
     docs = {p: v for p, v in _used_files(store).items() if only is None or p in only}
@@ -283,8 +302,13 @@ def triage(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, st
     context = f"The question: {card.question}\n" if card else ""
     for done, (path, f, doc) in enumerate(todo, start=1):
         saved: list[BaseModel] = []
-        tool = _submit_tool("submit_triage", FileTriage, lambda a, path=path: [] if a.path == path else
-                            [f"path must be {path!r}"], saved, "Submit the file's triage.")
+        def checked(a: BaseModel, path: str = path, doc: SourceDocument = doc) -> list[str]:
+            if a.path != path:  # type: ignore[attr-defined]
+                return [f"path must be {path!r}"]
+            why = _holds_inputs(doc) if a.purpose != "used" else ""  # type: ignore[attr-defined]
+            return [f"this file holds inputs ({why}): sort it as used, so it is extracted"] if why else []
+
+        tool = _submit_tool("submit_triage", FileTriage, checked, saved, "Submit the file's triage.")
         text = "\n\n".join(_numbered(part, 1, PREVIEW_LINES) for part in _parts(doc)[:2])
         sorted_by = _loop(store, "triage", path, model, system=TRIAGE_SYSTEM, tools=[tool], max_turns=4, user=(
             f"{context}File: {path} ({f.kind}, {f.pages} pages; parts: {len(_parts(doc))})\n\nIts first lines:\n{text}"))
@@ -348,6 +372,8 @@ def _extraction_problems(answer: Extraction, path: str, f: FileView, doc: Source
         problems += [f"table {i} ({table.kind}, {table.part}): {p.message}" for p in got.problems if p.severity == "error"]
         if not got.rows and not got.problems:
             problems.append(f"table {i} ({table.kind}, {table.part}): no data lines in {table.first_line}–{table.last_line}")
+        if table.kind == "concentrations" and got.rows and (why := colliding_samples(got)):
+            problems.append(f"table {i} ({table.kind}, {table.part}): {why}")
         unknown = {c.role for c in table.columns} - set(ROLES.get(table.kind, ())) - {"unit", "value", "time"}
         if unknown and table.kind in ROLES:
             problems.append(f"table {i}: roles not known for {table.kind}: {', '.join(sorted(unknown))}")
@@ -359,7 +385,9 @@ def _extraction_problems(answer: Extraction, path: str, f: FileView, doc: Source
 
 
 def extract(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, step: Step, only: set[str] | None = None,
-            focus_chars: int = FOCUS_CHARS) -> str:
+            focus_chars: int = FOCUS_CHARS, feedback: dict[str, list[dict[str, Any]]] | None = None) -> str:
+    """A8 on each used file. `feedback`: the checker's issues per file, for a second pass on the files it flagged (a new
+    delivery, 2026-11-24: A9 saw a Day column described as a group, but its finding never reached A8)."""
     docs = {p: v for p, v in _used_files(store).items() if only is None or p in only}
     card, _confirmed = store.question()
     checklist = "\n".join(f"- {c.id} [{c.area}] {c.label} (topics: {', '.join(c.topics)})" for c in (card.checklist if card else ()))
@@ -388,7 +416,7 @@ def extract(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, s
                     f"{'; the triage says: ' + t.reason if t else ''}\n\nIts parts: "
                     f"{', '.join(f'{p.name} ({len(p.lines)} lines)' for p in _parts(doc)[:120])}\n\n"
                     f"The pages most likely to hold what the checklist needs (open others with the tools):\n"
-                    f"{_focus(doc, topics, budget=budget)}")
+                    f"{_focus(doc, topics, budget=budget)}" + _feedback_text((feedback or {}).get(path, [])))
         budget = max(2000, focus_chars)
         outcome = _loop(store, "extract", path, model, system=extract_system(topics), user=user(budget), tools=tools,
                         max_turns=14)
@@ -409,6 +437,16 @@ def extract(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, s
     return f"{len(todo) - len(failed)} of {len(todo)} files extracted" + (f"; {len(failed)} gave no answer" if failed else "")
 
 
+def _feedback_text(issues: list[dict[str, Any]]) -> str:
+    """The checker's issues on an earlier description of this file, for the extractor's second pass."""
+    if not issues:
+        return ""
+    lines = "\n".join(f"- table {i.get('table', '?')}: {i.get('issue', '')}" for i in issues[:12])
+    return ("\n\nA checker read your earlier description of this file against its pages and found:\n" + lines +
+            "\nDescribe the file again. Where an issue is right, correct the description; where it is wrong, keep what "
+            "the pages show.")
+
+
 def _search_one(path: str, doc: SourceDocument) -> Tool:
     def search(text: str) -> str:
         want = unmarked(text)
@@ -425,9 +463,13 @@ def _search_one(path: str, doc: SourceDocument) -> Tool:
 CHECK_SYSTEM = _COMMON + """
 
 Your job (A9): a second reader. You get one file's table descriptions, each with the header lines and the first data
-lines as code read them (role = cell text). Say for each table whether the roles fit the headers (a time under the
-right column, the treatment code not taken for the period, a batch block not shifted by one cell). Answer with the
-submit tool: one item per table, ok true or false, and the issue in one sentence."""
+lines as code read them. Each data line is shown as its cells separated by " ; ", each cell as role@time[group]=text:
+the role the description gave the column, the time written above it (if any), its side-by-side group (if any), then
+the cell's text as the file writes it. That is code's display, not the file's layout: never report the separators or
+the role names as a fault of the file. Say for each table whether the roles fit the headers (a time under the right
+column, the treatment code not taken for the period, a study day or visit not left as a mere group, a batch block not
+shifted by one cell, below-LLOQ markers not counted as missing samples). Answer with the submit tool: one item per
+table, ok true or false, and the issue in one sentence a correction can act on."""
 
 
 class _Review(BaseModel):
@@ -491,7 +533,7 @@ def write(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, ste
           focus_chars: int = FOCUS_CHARS) -> str:
     view = room_view(store)
     material = json.dumps({
-        "sections": [s.model_dump() for s in view.sections],
+        "sections": [{"id": s.id, "title": s.title, "finding": s.computed, "status": s.status} for s in view.sections],
         "studies": [{"study": s.study_id, "sets": {x.label: len(x.subjects) for x in s.sets}, "excluded": s.excluded,
                      "exposures": [e.model_dump() for e in s.exposures]} for s in view.studies],
         "dissolution": [{"product": d.product, "batch": d.batch, "medium": d.medium, "very_rapid": d.very_rapid,
@@ -513,7 +555,7 @@ def write(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, ste
     a = saved[0]
     store.put_writing({k: v for k, v in a.findings.items() if _numbers_ok(v, material)},  # type: ignore[attr-defined]
                       {k: v for k, v in a.requests.items() if _numbers_ok(v, material)},  # type: ignore[attr-defined]
-                      agent=written.answered_by)
+                      agent=written.answered_by, basis={s.id: s.computed for s in view.sections})
     store.record_author(stage="write", file="", model=written.answered_by, identity=written.answered_on,
                         prompt=PROMPT_VERSION)
     step(1, 1, "written")
