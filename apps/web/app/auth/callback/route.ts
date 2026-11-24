@@ -5,10 +5,11 @@ import { claims, COOKIE, cookieOptions, oidcConfig, safeReturn, storeTokens } fr
 
 type Pending = { state: string; nonce: string; verifier: string; ret: string; popup: boolean };
 
-function problem(message: string, status = 400) {
-  const body = `<!doctype html><meta charset="utf-8"><title>Sign-in did not complete</title>
-<p>Sign-in did not complete: ${message.replace(/[<&>]/g, "")}</p><p><a href="/auth/login">Sign in again</a></p>`;
-  return new NextResponse(body, { status, headers: { "Content-Type": "text/html; charset=utf-8" } });
+// A sign-in that did not complete is said on the sign-in page (app/signin), in words, with the way to try again.
+function problem(message: string) {
+  const config = oidcConfig();
+  const base = config?.webUrl ?? "";
+  return NextResponse.redirect(`${base}/signin?problem=${encodeURIComponent(message.slice(0, 200))}`);
 }
 
 // Keycloak returns here with a code. The code is exchanged over the back channel with the PKCE verifier; the state
@@ -29,7 +30,7 @@ export async function GET(request: NextRequest) {
     grant_type: "authorization_code", code: query.get("code") ?? "", code_verifier: pending.verifier,
     redirect_uri: `${config.webUrl}/auth/callback`,
   });
-  if (!tokens) return problem("Keycloak did not issue tokens for this code", 502);
+  if (!tokens) return problem("Keycloak did not issue tokens for this code");
   const id = claims(tokens.id_token);
   const audience = id?.aud;
   if (!id || id.nonce !== pending.nonce || id.iss !== config.issuer ||

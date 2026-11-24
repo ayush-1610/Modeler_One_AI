@@ -143,6 +143,8 @@ class DataPermissionsView(View):
     is; `history`: each change, newest first."""
 
     in_house_only: bool
+    you_change_it: bool        # the project's owner or an administrator (the owner, 2026-11-24)
+    who_changes_it: str        # in words: "the project's owner, Ana, or an administrator"
     grants: list[DataGrant]
     services: list[DataService]
     history: list[DataChange]

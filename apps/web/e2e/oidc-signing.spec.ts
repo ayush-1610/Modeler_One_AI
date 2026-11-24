@@ -19,6 +19,8 @@ const person = (prefix: string): Person => ({ username: `${prefix}-${randomBytes
                                               password: `Pw-${randomBytes(9).toString("hex")}` });
 const PERSON = person("signer");
 const COLLEAGUE = person("colleague");  // no `projects` in their sign-in: a project opens to them once a member adds them
+const NEWCOMER = person("newcomer");    // signed in through Keycloak, but given no Modeler One role yet
+const OPERATOR = person("operator");    // the platform's administrator (the console, System status)
 let totpKey = "";
 
 /** RFC 6238 with Keycloak's settings (HmacSHA1, 6 digits, 30 s); Keycloak's totpSecret is the raw key. */
@@ -50,17 +52,20 @@ test.beforeAll(async () => {
   if (!web.redirectUris.includes(here)) {
     await admin(`/clients/${web.id}`, { method: "PUT", body: JSON.stringify({ ...web, redirectUris: [...web.redirectUris, here] }) });
   }
-  async function create(who: Person, lastName: string, projects: string[], role: string) {
+  async function create(who: Person, lastName: string, projects: string[], role: string | null) {
     await admin("/users", { method: "POST", body: JSON.stringify({
       username: who.username, enabled: true, firstName: "Oidc", lastName, email: `${who.username}@example.test`,
       emailVerified: true, attributes: { tenant_id: [TENANT], projects },
       credentials: [{ type: "password", value: who.password, temporary: false }] }) });
+    if (!role) return;
     const [user] = await (await admin(`/users?username=${who.username}&exact=true`)).json();
     const granted = await (await admin(`/roles/${role}`)).json();
     await admin(`/users/${user.id}/role-mappings/realm`, { method: "POST", body: JSON.stringify([granted]) });
   }
   await create(PERSON, "Signer", [PROJECT], "modeler-reviewer");
   await create(COLLEAGUE, "Colleague", [], "modeler-viewer");
+  await create(NEWCOMER, "Newcomer", [], null);
+  await create(OPERATOR, "Operator", [], "modeler-admin");
 
   // an escalated campaign of that person's project, waiting for a signed decision
   const root = join(process.env.E2E_DATA_DIR!, "read-root", TENANT);
@@ -86,7 +91,13 @@ test.beforeAll(async () => {
 // page the person is on), so the first sign-in lands where its escalation asks for the signed decision.
 async function signIn(page: Page, who: Person = PERSON) {
   await page.goto(`/campaigns/${ID}`);
+  // the product's sign-in page first (app/signin), then Keycloak's form in the product's look (deploy/keycloak/themes)
+  await expect(page).toHaveURL(new RegExp(`/signin\\?return=${encodeURIComponent(`/campaigns/${ID}`)}$`));
+  if (who === PERSON) await page.screenshot({ path: test.info().outputPath("signin.png"), fullPage: true });
+  await page.getByTestId("signin-go").click();
   await expect(page).toHaveURL(new RegExp(`^${ISSUER.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/protocol/openid-connect/auth`));
+  await expect(page.locator("#kc-page-title")).toHaveText("Sign in to Modeler One");
+  if (who === PERSON) await page.screenshot({ path: test.info().outputPath("keycloak-signin.png"), fullPage: true });
   await page.locator("#username").fill(who.username);
   await page.locator("#password").fill(who.password);
   await page.locator("#kc-login").click();
@@ -155,7 +166,10 @@ test("sign-in through Keycloak, and a signature asks for the password and the au
 test("sign-out ends the session here and at Keycloak", async ({ page }) => {
   await signIn(page);
   await page.getByTestId("sign-out").click();
-  await expect(page).toHaveURL(new RegExp("/protocol/openid-connect/auth"));
+  // back from Keycloak's sign-out to the product's signed-out page (app/signed-out), which offers to sign in again
+  await expect(page).toHaveURL(/\/signed-out$/);
+  await expect(page.getByTestId("signed-out-page")).toContainText("You have signed out");
+  await page.screenshot({ path: test.info().outputPath("signed-out.png"), fullPage: true });
   // no session is left in the browser (the new sign-in's own request cookie is all there is)
   const names = (await page.context().cookies()).map((c) => c.name);
   expect(names.filter((n) => ["modeler_at", "modeler_rt", "modeler_idt"].includes(n))).toHaveLength(0);
@@ -189,4 +203,44 @@ test("a new project opens to its creator, who adds a colleague; the colleague ca
   await colleague.goto(`/projects/${projectId}`);
   await expect(colleague.getByTestId("members-panel")).toContainText("Oidc Colleague");
   await other.close();
+});
+
+test("the account page says who the person is, what their roles let them do, and signs out", async ({ page }) => {
+  await signIn(page);
+  await page.getByTestId("nav-account").click();
+  await expect(page).toHaveURL(/\/account$/);
+  await expect(page.getByTestId("account-name")).toHaveText("Oidc Signer");
+  await expect(page.getByTestId("account-company")).toHaveText(TENANT);
+  await expect(page.getByTestId("account-roles")).toContainText("Reviewer: signs the projects shared with you");
+  await expect(page.getByTestId("account-security")).toHaveAttribute("href", `${ISSUER}/account`);
+  await page.screenshot({ path: test.info().outputPath("account.png"), fullPage: true });
+  await page.getByTestId("account-sign-out").click();
+  await expect(page).toHaveURL(/\/signed-out$/);
+});
+
+test("a person with no Modeler One role is told what to ask for, not refused page by page", async ({ page }) => {
+  await signIn(page, NEWCOMER).catch(() => undefined);      // lands on /no-access, not on the campaign
+  await expect(page).toHaveURL(/\/no-access$/);
+  await expect(page.getByTestId("no-access-page")).toContainText("Oidc Newcomer");
+  await expect(page.getByTestId("no-access-page")).toContainText("Ask your administrator");
+  await page.screenshot({ path: test.info().outputPath("no-access.png"), fullPage: true });
+  await page.goto("/projects");                               // every page says the same
+  await expect(page).toHaveURL(/\/no-access$/);
+});
+
+test("a sign-in that did not complete says why on the sign-in page", async ({ page }) => {
+  await page.goto("/auth/callback?code=x&state=forged");
+  await expect(page).toHaveURL(/\/signin\?problem=/);
+  await expect(page.getByTestId("signin-problem")).toContainText("Sign-in did not complete");
+  await expect(page.getByTestId("signin-go")).toBeVisible();
+});
+
+test("System status says how people sign in, which AI keys are active, and what each agent runs on", async ({ page }) => {
+  await signIn(page, OPERATOR).catch(() => undefined);        // an administrator's first page is wherever they asked for
+  await page.goto("/admin/system");
+  await expect(page.getByTestId("system-page")).toBeVisible();
+  await expect(page.getByTestId("sys-signin")).toContainText("Keycloak (named people, Part 11)");
+  await expect(page.getByTestId("sys-keys-table")).toContainText("NVIDIA API catalog");
+  await expect(page.getByTestId("sys-agents-table")).toBeVisible();
+  await page.screenshot({ path: test.info().outputPath("system.png"), fullPage: true });
 });

@@ -15,6 +15,70 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Added — the way in: sign-in pages, the Keycloak theme, account, Help, Settings, System status (2026-11-24, the owner's request)
+- **What:**
+  - **Only the project's owner or an administrator records where its files may go.** `PUT /data-permissions` passes the
+    owner rule for an administrator (`ownership.OWNER_OR_ADMIN_ROUTES`) and refuses everyone else with
+    `NOT_OWNER_OR_ADMIN`, saying who changes it. A project with no owner on record leaves it to an administrator, not to
+    its members. `GET` says `you_change_it` and `who_changes_it`. The panel shows Change only to them.
+  - **Sign-in pages in the product's look:**
+    - `/signin`: the product's sign-in page. A first visit lands there instead of on Keycloak's form. A session that has
+      just ended goes straight back to Keycloak, so no password is asked while Keycloak still knows the person. A
+      sign-in that did not complete says why there, not on a bare HTML page.
+    - `/signed-out`: where sign-out ends, at Keycloak and here.
+    - `/no-access`: a person signed in with no Modeler One role is told what to ask for, instead of every page refusing.
+    - `/account`: name, company, roles in words, the session, "Change your password or authenticator" (Keycloak's
+      account page), Sign out. Reached from the person's name in the sidebar.
+    - `app/global-error.tsx` for an error in the layout itself.
+    - The sign-in pages draw without the sidebar (`proxy.ts` sets `x-modeler-shell`).
+  - **Keycloak's form in the product's look:** `deploy/keycloak/themes/modeler-one`, Keycloak's `keycloak.v2` login
+    theme with the design system's tokens, the mark and the words. CSS and messages only, no template copied, so a
+    Keycloak upgrade keeps working. The realm names it (`loginTheme`). `keycloak.sh install` copies it in, and
+    `keycloak.sh theme` copies it into an existing install and says how to select it once.
+  - **Fixed: the realm file could not be imported into a fresh Keycloak.** `modeler-admin-api`'s description was 322
+    characters; Keycloak's column holds 255 ("Value too long for column DESCRIPTION"). It was shortened, and
+    `test_keycloak_realm.py` now checks every description and the theme.
+  - **Help (`/help`):** the user guide (`docs/USING_THE_TOOL.md`) drawn from the repository the server runs, with its
+    contents beside it (`lib/markdown.tsx`, no new dependency).
+  - **§6b of the guide, "AI model keys, end to end":**
+    - the server's master key;
+    - the in-house LiteLLM proxy's key (where to find it on the server);
+    - getting a GroqCloud and an NVIDIA key;
+    - storing, testing and activating a key from Admin → Keys;
+    - choosing the models;
+    - allowing a service per project;
+    - checking it all on System status.
+  - **Project Settings (`/projects/{id}/settings`):** where the files may go, and the members. It reuses the same
+    components and rules.
+  - **System status (`/admin/system`, administrators only):**
+    - whether the API answers;
+    - how people sign in;
+    - whether the master key opens the stored keys;
+    - each AI service's active key and its last test;
+    - what each agent runs on now.
+  - **Sidebar:** Help, and the project's Settings.
+- **Proved:**
+  - The Keycloak browser suite (`oidc-signing.spec.ts`, 7 tests: sign-in, the signature step-up, members, sign-out,
+    account, no access, a failed sign-in, System status) passes against Keycloak 26.7.5 with the repository's realm
+    and theme imported.
+  - The same release as the server's script, checksum identical, run locally for the test.
+  - The development-sign-in pages: `auth-pages.spec.ts`.
+- **Why:** the owner: "we need to work in login page, and see what all other pages we need to have and we are missing
+  those add that"; "help me with steps ... to getting the api keys"; "restrict granting permission to the project owner
+  and admin".
+- **Impact:**
+  - People signing in see Modeler One before and at Keycloak.
+  - On the server, run `bash deploy/server/keycloak.sh theme`, restart Keycloak, and select the theme once in its admin
+    console (the realm there was imported before the theme existed).
+  - **Still missing from the approved sitemap** (design-review/PRODUCT_SITEMAP.md), left to the console redesign's
+    slices, which restyle every page:
+    - Your work (`/work`);
+    - the Projects and Campaigns lists as their own pages;
+    - the Data plan;
+    - the Compounds list;
+    - Agent activity (needs a list route, R-N05);
+    - Members as its own page (it is on Settings now).
+
 ### Added — where a project's files may go, and how its report was made (2026-11-23, the governance review's open items)
 - **What:**
   - **A project is in-house only until the client says otherwise.** `modeler_project.data_permissions`:

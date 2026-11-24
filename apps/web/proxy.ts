@@ -1,20 +1,33 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 import { identityToken } from "@/lib/api";
-import { clearTokens, COOKIE, oidcConfig, secondsLeft, storeTokens, type TokenSet } from "@/lib/oidc";
+import {
+  ACCESS_ROLES, clearTokens, COOKIE, oidcConfig, PUBLIC_PAGES, realmRoles, secondsLeft, SHELL_HEADER, storeTokens,
+  type TokenSet,
+} from "@/lib/oidc";
 
-// With Keycloak sign-in on (lib/oidc.ts), every request but the sign-in routes passes here (Next 16's proxy, formerly
-// middleware):
+// Every request but the sign-in route handlers and the build's files passes here (Next 16's proxy, formerly middleware):
+// - the sign-in pages (/signin, /signed-out) and /no-access are drawn without the app's sidebar (SHELL_HEADER);
+// With Keycloak sign-in on (lib/oidc.ts):
 // - an access token about to expire is refreshed over the back channel, and the new cookies go to the browser and, for
 //   this request, to the server components (they read the overridden cookie header);
 // - an API call (/api/*, rewritten to the backend in next.config.mjs) carries the person's own access token, whatever
 //   the browser's code sent;
-// - without a session a page goes to the sign-in, and an API call answers 401.
-// Without Keycloak (the DEV sign-in) it changes nothing.
+// - without a session, a page goes to the product's sign-in page (/signin, the owner 2026-11-24: "we need to work in
+//   login page"), or straight back to Keycloak when a session has just ended (Keycloak may still know the person, so
+//   no password is asked); an API call answers 401;
+// - a person signed in with no Modeler One role sees /no-access, not pages that would each refuse.
+// Without Keycloak (the DEV sign-in) only the sidebar rule applies.
 export async function proxy(request: NextRequest) {
+  const path = request.nextUrl.pathname;
+  const headers = new Headers(request.headers);
+  headers.delete(SHELL_HEADER);                                     // set here only, never by the browser
+  const bare = PUBLIC_PAGES.test(path) || path === "/no-access";
+  if (bare) headers.set(SHELL_HEADER, "none");
   const oidc = oidcConfig();
-  if (!oidc) return NextResponse.next();
-  const isApi = request.nextUrl.pathname.startsWith("/api/");
+  if (!oidc || PUBLIC_PAGES.test(path)) return NextResponse.next({ request: { headers } });
+
+  const isApi = path.startsWith("/api/");
   let access = request.cookies.get(COOKIE.access)?.value;
   const refresh = request.cookies.get(COOKIE.refresh)?.value;
   let refreshed: TokenSet | null = null;
@@ -23,14 +36,17 @@ export async function proxy(request: NextRequest) {
     if (refreshed) access = refreshed.access_token;
   }
   if (!access || secondsLeft(access) <= 0) {
+    const back = encodeURIComponent(path + request.nextUrl.search);
+    const hadSession = Boolean(refresh || request.cookies.get(COOKIE.access)?.value);
     const out = isApi
       ? NextResponse.json({ detail: "Your session has ended: sign in again." }, { status: 401 })
-      : NextResponse.redirect(new URL(
-          `/auth/login?return=${encodeURIComponent(request.nextUrl.pathname + request.nextUrl.search)}`, oidc.webUrl));
+      : NextResponse.redirect(new URL(hadSession ? `/auth/login?return=${back}` : `/signin?return=${back}`, oidc.webUrl));
     clearTokens(out.cookies, oidc);
     return out;
   }
-  const headers = new Headers(request.headers);
+  if (!isApi && path !== "/no-access" && !realmRoles(access).some((r) => (ACCESS_ROLES as readonly string[]).includes(r))) {
+    return NextResponse.redirect(new URL("/no-access", oidc.webUrl));
+  }
   if (isApi) headers.set("authorization", `Bearer ${access}`);
   if (refreshed) {
     const jar = new Map(request.cookies.getAll().map((c) => [c.name, c.value]));
@@ -45,5 +61,6 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!auth/|_next/|favicon\\.ico).*)"],
+  // the route handlers sign in themselves; the build's files and the icon load on the sign-in page too
+  matcher: ["/((?!auth/|_next/|favicon\\.ico|icon\\.svg).*)"],
 };

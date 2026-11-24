@@ -1,0 +1,93 @@
+/* Modeler One on Keycloak's keycloak.v2 login pages: the design system's tokens (design-review/DESIGN_SYSTEM.md §2,
+   accent #001B94), IBM Plex Sans (SIL OFL 1.1, fonts/OFL.txt), the product's mark. Keycloak's PatternFly 5 variables
+   are overridden, never its markup. */
+@font-face {
+  font-family: "IBM Plex Sans";
+  src: url("../fonts/IBMPlexSans-latin-var.woff2") format("woff2");
+  font-weight: 400 600;
+  font-display: swap;
+}
+
+:root {
+  --mo-canvas: #F8FAFC;
+  --mo-surface: #FFFFFF;
+  --mo-border: #E2E8F0;
+  --mo-control-edge: #7C8798;
+  --mo-ink: #0F172A;
+  --mo-ink-3: #475569;
+  --mo-accent: #001B94;
+  --mo-accent-hover: #00136B;
+  --mo-accent-tint: #EEF2FF;
+  --mo-fail: #B3261E;
+  --mo-fail-bg: #FBEAE8;
+  --keycloak-card-top-color: var(--mo-accent);
+  --pf-v5-global--FontFamily--text: "IBM Plex Sans", system-ui, sans-serif;
+  --pf-v5-global--FontFamily--heading: "IBM Plex Sans", system-ui, sans-serif;
+  --pf-v5-global--primary-color--100: var(--mo-accent);
+  --pf-v5-global--primary-color--200: var(--mo-accent-hover);
+  --pf-v5-global--link--Color: var(--mo-accent);
+  --pf-v5-global--link--Color--hover: var(--mo-accent-hover);
+  --pf-v5-global--active-color--100: var(--mo-accent);
+  --pf-v5-c-button--m-primary--BackgroundColor: var(--mo-accent);
+  --pf-v5-c-button--m-primary--hover--BackgroundColor: var(--mo-accent-hover);
+  --pf-v5-c-button--m-primary--focus--BackgroundColor: var(--mo-accent-hover);
+  --pf-v5-c-button--m-primary--active--BackgroundColor: var(--mo-accent-hover);
+  --pf-v5-c-form-control--focus--after--BorderBottomColor: var(--mo-accent);
+  --pf-v5-c-form-control--hover--after--BorderBottomColor: var(--mo-accent);
+}
+
+/* the page: the calm canvas, not Keycloak's photo background */
+.login-pf body, body#keycloak-bg {
+  background: var(--mo-canvas);
+  color: var(--mo-ink);
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
+}
+
+/* the header above the card: the mark and the product's name */
+#kc-header-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 8px 0 4px;
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  text-transform: none;           /* PatternFly's brand is upper case; the product's name is not */
+  color: var(--mo-ink);
+}
+#kc-header-wrapper::before {
+  content: "";
+  width: 40px;
+  height: 40px;
+  background: url("../img/modeler-one-mark.svg") no-repeat center / contain;
+}
+.mo-brand { color: var(--mo-ink); }
+div.kc-logo-text { display: none; }
+
+/* the card: white, a hairline, the accent on top, small radius */
+.pf-v5-c-login__main {
+  background: var(--mo-surface);
+  border: 1px solid var(--mo-border);
+  border-radius: 8px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+}
+.pf-v5-c-login__main-header { border-top: 3px solid var(--mo-accent); border-radius: 8px 8px 0 0; }
+.pf-v5-c-title.pf-m-3xl { font-size: 22px; font-weight: 600; color: var(--mo-ink); }
+
+/* inputs: a visible edge (3:1 against white) and the accent focus ring */
+.pf-v5-c-form-control { --pf-v5-c-form-control--before--BorderColor: var(--mo-control-edge); }
+.pf-v5-c-form-control:focus-within { outline: 2px solid var(--mo-accent); outline-offset: 1px; }
+.pf-v5-c-button:focus-visible { outline: 2px solid var(--mo-accent); outline-offset: 2px; }
+
+/* the primary button: at least 40 px high (target size, WCAG 2.2 2.5.8) */
+.pf-v5-c-button.pf-m-primary { min-height: 40px; font-weight: 600; border-radius: 6px; }
+
+/* errors in the product's fail colours */
+.pf-v5-c-alert.pf-m-danger { --pf-v5-c-alert--BorderTopColor: var(--mo-fail); background: var(--mo-fail-bg); }
+.pf-v5-c-helper-text__item.pf-m-error, .kc-feedback-text { color: var(--mo-ink); }
+
+/* phones: the card fills the width with a 16 px gutter */
+@media (max-width: 600px) {
+  .pf-v5-c-login__container { grid-template-columns: 1fr; padding: 0 16px; }
+}

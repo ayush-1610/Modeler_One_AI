@@ -21,6 +21,8 @@ const ICONS = {
   room: "M3 7.5 12 3l9 4.5-9 4.5z M3 7.5V17l9 4.5 9-4.5V7.5 M12 12v9.5",
   admin: "M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z M9 12l2 2 4-4",
   collapse: "M4 6h10 M4 12h6 M4 18h10 M20 8l-4 4 4 4",
+  help: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6V14 M12 17h.01",
+  settings: "M4 6h9 M17 6h3 M4 12h3 M11 12h9 M4 18h11 M19 18h1 M15 4v4 M9 10v4 M17 16v4",
 } as const;
 
 function Icon({ d }: { d: string }) {
@@ -112,6 +114,7 @@ export function Nav({ user }: { user?: string | null }) {
   const work: Item[] = [
     { href: "/", label: "Projects", icon: ICONS.projects, active: is("/") || Boolean(open) },
     { href: "/projects/start", label: "Start from proposal", icon: ICONS.start, active: is("/projects/start") },
+    { href: "/help", label: "Help", icon: ICONS.help, active: is("/help"), testId: "nav-help" },
   ];
   // the console's link only for the platform's owner (the API's own answer; it refuses everyone else in any case)
   const admin = useResource("/api/v1/me", {}, { select: (d) => d.admin }).data === true;
@@ -166,6 +169,8 @@ export function Nav({ user }: { user?: string | null }) {
                         active: path.endsWith("/library"), testId: "nav-library" }} />
           <NavLink l={{ href: `${projectHref}/history`, label: "History", icon: ICONS.history,
                         active: path.endsWith("/history"), testId: "nav-history" }} />
+          <NavLink l={{ href: `${projectHref}/settings`, label: "Settings", icon: ICONS.settings,
+                        active: path.endsWith("/settings"), testId: "nav-settings" }} />
         </nav>
       )}
       {/* over the whole page, not inside the sidebar (its sticky position would hold the card under the page) */}
@@ -176,12 +181,15 @@ export function Nav({ user }: { user?: string | null }) {
           <span className="nav-avatar" aria-hidden>{user ? initials(user) : "M1"}</span>
           {user ? (
             <span className="nav-text">
-              Signed in as <strong>{user}</strong>
+              Signed in as <Link href="/account" className="nav-account" data-testid="nav-account"><strong>{user}</strong></Link>
               {/* a route handler, not a page: a full navigation; the reasons this tab kept for the person are forgotten first */}
               <a href="/auth/logout" data-testid="sign-out" onClick={forgetReasons}>Sign out</a>
             </span>
           ) : (
-            <span className="nav-text"><strong>Development sign-in</strong><span className="nav-role">no named user</span></span>
+            <span className="nav-text">
+              <Link href="/account" className="nav-account" data-testid="nav-account"><strong>Development sign-in</strong></Link>
+              <span className="nav-role">no named user</span>
+            </span>
           )}
           {/* the API's answer, not a guess: green when its reads answer, grey when they do not; a click asks again */}
           <button type="button" className={`nav-conn${live ? " live" : ""}`} onClick={() => void recheck()} data-testid="nav-conn"

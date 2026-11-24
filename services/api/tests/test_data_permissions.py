@@ -93,3 +93,43 @@ def test_a_permission_that_has_ended_no_longer_lets_files_go(tmp_path):
     assert not perms.allows("nvidia") and perms.allows("litellm")
     DataPermissions(ws).set(in_house_only=True, services={"groq": {"reference": "L-1"}}, by="u1", reason="withdrawn")
     assert not DataPermissions(ws).allows("groq")                       # in-house only overrides every grant
+
+
+ROLES = {"ana": ["modeler-viewer", "modeler-curator"], "ben": ["modeler-viewer", "modeler-curator"],
+         "rita": ["modeler-viewer", "modeler-reviewer"], "boss": ["modeler-viewer", "modeler-admin"]}
+
+
+class _People:
+    def verify(self, token: str) -> dict:
+        return {"sub": token, "name": token.title(), "tenant_id": "acme", "realm_access": {"roles": ROLES[token]},
+                "projects": [], "acr": "loa2", "auth_time": int(time.time())}
+
+
+def test_only_the_projects_owner_or_an_administrator_records_where_its_files_may_go(tmp_path, api_settings):
+    """The owner, 2026-11-24: "restrict granting permission to the project owner and admin". A curator or reviewer the
+    project is shared with reads it and is told who changes it; the owner and an administrator change it."""
+    api_settings(read_root=str(tmp_path))
+    app.dependency_overrides[get_verifier] = _People
+    try:
+        c = TestClient(app)
+        _as = lambda who: {"Authorization": f"Bearer {who}"}
+        pid = c.post("/api/v1/projects", json={"name": "Renal Demo", "compound": "Renaldrug"}, headers=_as("ana")).json()["data"]["id"]
+        for who in ("ben", "rita", "boss"):
+            c.get("/api/v1/projects", headers=_as(who))                          # each signs in once
+            assert c.post(f"/api/v1/projects/{pid}/members", json={"subject": who}, headers=_as("ana")).status_code == 200
+        api = f"/api/v1/projects/{pid}/data-permissions"
+        grant = {"in_house_only": False, "services": {"groq": {"reference": "Letter L-1"}}, "reason": "the client agreed"}
+
+        seen = c.get(api, headers=_as("ben")).json()["data"]
+        assert seen["you_change_it"] is False and seen["who_changes_it"] == "the project's owner, Ana, or an administrator"
+        for who in ("ben", "rita"):
+            refused = c.put(api, json=grant, headers=_as(who))
+            assert refused.status_code == 403 and refused.json()["detail"]["code"] == "NOT_OWNER_OR_ADMIN", refused.text
+        assert c.get(api, headers=_as("ana")).json()["data"]["you_change_it"] is True
+        assert c.put(api, json=grant, headers=_as("ana")).status_code == 200
+        assert c.get(api, headers=_as("boss")).json()["data"]["you_change_it"] is True
+        withdrawn = c.put(api, json={"in_house_only": True, "services": {}, "reason": "withdrawn"}, headers=_as("boss"))
+        assert withdrawn.status_code == 200, withdrawn.text
+        assert [h["by"] for h in withdrawn.json()["data"]["history"]] == ["boss", "ana"]
+    finally:
+        app.dependency_overrides.clear()
