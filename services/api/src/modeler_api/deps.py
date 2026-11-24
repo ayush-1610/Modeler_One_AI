@@ -22,7 +22,7 @@ from modeler_project import blinding as blind
 from modeler_project.blinded_sources import BlindedSources
 from modeler_project.documents import DocumentLibrary, RelatesTo, document_record
 
-READ_ROLES = ("modeler-viewer", "modeler-curator", "modeler-reviewer")
+READ_ROLES = ("modeler-viewer", "modeler-curator", "modeler-reviewer", "modeler-qa")
 WRITE_ROLES = ("modeler-curator", "modeler-reviewer")
 Reader = Annotated[Principal, Depends(require_role(*READ_ROLES))]
 Writer = Annotated[Principal, Depends(require_role(*WRITE_ROLES))]

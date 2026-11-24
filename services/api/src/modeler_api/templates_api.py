@@ -23,7 +23,7 @@ from modeler_api.views.templates import TemplateContent, Templates
 
 router = APIRouter(prefix="/api/v1", tags=["templates"])
 
-_READ_ROLES = ("modeler-viewer", "modeler-curator", "modeler-reviewer")
+_READ_ROLES = ("modeler-viewer", "modeler-curator", "modeler-reviewer", "modeler-qa")
 PrincipalDep = Annotated[Principal, Depends(require_role(*_READ_ROLES))]
 
 _HERE = Path(__file__).resolve().parent

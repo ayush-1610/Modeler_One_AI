@@ -15,6 +15,22 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Changed — the console redesign, slice 8: the QA role reads every project of its company (R-S05) (2026-11-24)
+- **What:** `modeler-qa`, offered by Admin → People until now with no effect, is a read role (`deps.READ_ROLES`,
+  `read_api`, `templates_api`). A person whose roles are QA (no curator or reviewer role) is admitted to **every project
+  of their company** to read it (`memberships.admit`, `memberships.reads_only`), and **changes and signs none**:
+  `ownership.may_change` refuses them every change and signature, a project with no owner on record included (whose
+  members otherwise edit it), so an escalation decision, a generic signature, a member added or an archive are refused.
+  A person who is QA and a curator or reviewer is not granted the company's projects: their memberships stay what they
+  read and change. Another company's projects stay closed. The web lets QA through its sign-in gate
+  (`lib/oidc.ts` `ACCESS_ROLES`).
+- **Why:** R-S05 (design-review/REMEDIATION_PLAN.md, the owner's default: QA reads every project of its company), built
+  in slice 8 as the owner asked, without touching `auth.py` (locked): `require_project` is unchanged, the grant is in
+  the platform's own memberships.
+- **Impact:** no API shape change. Tests: `test_qa_reads.py` (QA lists and reads every project of its company and none
+  of another's; creating, signing, adding a member and archiving refused on an owned project and on one with no owner;
+  a QA-and-curator person keeps only their memberships).
+
 ### Added — the console redesign, slice 7: Records (History in tabs, the signature register, Agent activity, Documents) (2026-11-24)
 - **What:**
   - **History (P-21)** in four tabs whose choice is in the address: **Audit trail** (a console table with a filter and

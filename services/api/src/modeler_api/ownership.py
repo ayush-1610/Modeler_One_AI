@@ -12,7 +12,7 @@ from fastapi import HTTPException, Request
 
 from modeler_api.auth import CurrentPrincipal, Principal
 from modeler_api.config import Settings, SettingsDep
-from modeler_api.memberships import memberships_for
+from modeler_api.memberships import memberships_for, reads_only
 
 # The writes a reviewer the project is shared with still makes: signing (the owner, 2026-11-10, answer 6: an approval
 # by a second person, which ICH M15 and Part 11 review expect, not an edit).
@@ -86,6 +86,8 @@ def may_change(project_id: str, principal: Principal, settings: Settings, *, sig
     review R-S02: the decision pop-up asked people who may not sign)."""
     if not settings.read_root or "*" in principal.projects:
         return True
+    if reads_only(principal):           # QA reads every project of its company and changes or signs none (R-S05)
+        return False
     if signing and REVIEWER in principal.roles:
         return True
     owner = memberships_for(settings, principal.tenant_id).owner(project_id)
