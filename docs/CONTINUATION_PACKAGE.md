@@ -356,17 +356,46 @@ streams; every Data room turn and switch is recorded; each answer names the mode
   - merged XLSX title cells read once;
   - A6 writes from a code-built digest: Quorafen took 3 turns, not 14, and 84 % fewer input tokens;
   - the campaigns list no longer fails on a campaign stored in an earlier shape (the server's HTTP 500).
-- **Next:** the owner's review of **`docs/plans/2026-11-24-data-story-next-phase.md`**. It asks eight decisions (§11):
-  - the Claude API key;
-  - a $5 calibration run;
-  - a hard cap for paid models;
-  - "0.1 N HCl" (gap 2);
-  - requirement drafts from the literature;
-  - the client-permission rule for Anthropic;
-  - two ruleset findings for the SME;
-  - the phase order.
-
-  The literature behind it is in `docs/research/2026-11-24-*.md`. Also still open:
+- **2026-11-24, the owner approved all eight decisions of `docs/plans/2026-11-24-data-story-next-phase.md` (§11) and
+  every phase; built the same day, each on `main` after the full suites:**
+  - **Phase 1:**
+    - a direct Claude API provider with the Console key, the key test free;
+    - one-click presets with an estimated cost per delivery;
+    - Anthropic gated by the client's recorded permission (D6);
+    - runs that pause, with the reason, instead of failing, and resume by themselves (10, 20, 40 min, or on an admin
+      change), skipping every finished file;
+    - a hard cap for paid models: $10 a run, $90 a month, pausing, every agent's paid call metered;
+    - a cost estimate before a paid run;
+    - the exact answer cache per tenant (a re-run makes 0 calls for A7–A9);
+    - a cache-friendly prompt order.
+  - **D4:** standard media by convention (`dataroom_rules.yaml` 0.2, UNVERIFIED), used only once confirmed for the
+    project.
+  - **D7:** `docs/research/2026-11-24-note-for-the-sme-acceptance-ruleset.md`.
+  - **Phase 2:**
+    - 147 requirement items drafted per context of use from the literature (UNVERIFIED, inert for the data plan, for the
+      owner's review: `docs/research/2026-11-24-cou-requirement-drafts-for-review.md`);
+    - the Data room's "Requirements for this question" with a coverage ledger and data requests with alternatives;
+    - the agents' prompts at `dataroom-6`.
+  - **Phase 3 (`dataroom_rules` 0.3, UNVERIFIED; four placeholder thresholds wait for the SME):**
+    - the client's NCA reproduced with its method found;
+    - exclusion flags;
+    - statistic-aware client means;
+    - the permeability guard;
+    - dissolution checks;
+    - dose number and sink index;
+    - excipient classes.
+  - **Phase 4:**
+    - "Send to the model" corrected: meals by arm and time; a re-send replaces; no double load; multiple-dose and
+      modified-release blocked; true source labels; demographics kept; a snapshot of what each send rested on, in its
+      signature;
+    - Start, the plan (food-effect rule R2), the MAP's limitations and the VBE panel read the room;
+    - Start's brief drafted from the room on confirm, applications and send.
+- **Next:**
+  - the end-to-end test from a made-up delivery to a signed MAP (B10 of the Phase 4 trace);
+  - then the calibration run on Claude (D2: about $5, a made-up delivery; its cost and accuracy go to the owner before
+    any other Claude spend);
+  - the owner's review of the requirement drafts and of the SME note;
+  - the SME's values for the placeholder thresholds;
   - an owner decision on the Tmax tolerance at actual times (SME ruleset);
   - the same test on a real delivery on the server's in-house model.
 
