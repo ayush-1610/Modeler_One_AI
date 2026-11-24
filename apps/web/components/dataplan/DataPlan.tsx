@@ -23,10 +23,12 @@ const PROVIDER: Record<string, string> = {
   STRUCTURE: "From the structure", LIBRARY: "PK-Sim library", STUDY: "A clinical study", PROPOSAL: "The proposal",
   NOT_NEEDED: "Not needed", NOT_STATED: "Not stated",
 };
-// the four status words where they fit (Missing, Done); the plan's own two otherwise
+// the plan's own states: OPEN is "not marked covered yet", not "no value exists" (Inputs may already hold the value),
+// so it is not called Missing; Done where the plan records what covers it
 const STATUS: Record<string, [string, string]> = {
-  OPEN: ["Missing", "medium"], SATISFIED: ["Done", "low"], NOT_AVAILABLE: ["Not available", "neutral"], WAIVED: ["Waived", "neutral"],
+  OPEN: ["Open", "medium"], SATISFIED: ["Done", "low"], NOT_AVAILABLE: ["Not available", "neutral"], WAIVED: ["Waived", "neutral"],
 };
+const said = (code: string) => code.replace(/_/g, " ");
 const AREA: Record<string, string> = { parameter: "compound", system: "compound", formulation: "formulations", dataset: "studies" };
 const AREA_WORD: Record<string, string> = { compound: "Compound", formulations: "Products and dissolution", studies: "Clinical studies", todo: "To do" };
 
@@ -40,7 +42,7 @@ export function DataPlan({ projectId, page }: { projectId: string; page: Page })
   return (
     <>
       <p className="muted" data-testid="data-plan-summary">
-        {items.length} item{items.length === 1 ? "" : "s"} apply · {open} missing · {page.counts.undetermined} may apply, depending on the brief.
+        {items.length} item{items.length === 1 ? "" : "s"} apply · {open} open · {page.counts.undetermined} may apply, depending on the brief.
         Edits are made where each item is settled, never here.
       </p>
       <Table caption="Data plan" rows={rows} rowKey={(i) => i.req_id} rowTestId={(i) => `plan-item-${i.req_id}`} testId="data-plan"
@@ -61,7 +63,7 @@ export function DataPlan({ projectId, page }: { projectId: string; page: Page })
                ) },
                { key: "for", label: "Needed for", sort: (i) => (i.needed_for ?? []).join(", "), render: (i) => (i.needed_for ?? []).join(", ") || <span className="muted">—</span> },
                { key: "provider", label: "Who provides it", sort: (i) => PROVIDER[i.provider] ?? i.provider, render: (i) => PROVIDER[i.provider] ?? i.provider },
-               { key: "purpose", label: "Purpose", render: (i) => i.purpose ?? <span className="muted">—</span> },
+               { key: "purpose", label: "Purpose", render: (i) => (i.purpose ? said(i.purpose) : <span className="muted">—</span>) },
                { key: "status", label: "Status", sort: (i) => i.status, render: (i) => {
                  const [w, c] = STATUS[i.status] ?? [i.status, "neutral"];
                  return <><span className={`chip ${c}`}>{w}</span>{(i.satisfied_by ?? []).length > 0 && <div className="muted fs-12">by {i.satisfied_by!.join(", ")}</div>}</>;

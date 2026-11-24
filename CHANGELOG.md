@@ -19,7 +19,8 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
 - **What:**
   - **Data plan** (`/projects/{id}/data-plan`, P-13b, new; the owner's answer Q1: read-mostly): every requirement the
     brief's applications derive (`GET /requirements`), what it is needed for, who provides it, its purpose and status
-    (Missing, Done, Not available, Waived), filtered by status and provider, each opening the area of Inputs where it
+    (Open, Done, Not available, Waived; "Open" is the plan's "not marked covered yet", never "no value": Inputs may
+    already hold it), filtered by status and provider, each opening the area of Inputs where it
     is settled. Nothing is edited on it. In the side navigation under Data.
   - **Data room** sections say where they stand in Inputs' words (decision G1-1): Done, To confirm, Missing; a section
     with nothing delivered keeps "Nothing yet". The mapping (from In order, Needs a look, Missing) is for the owner's
