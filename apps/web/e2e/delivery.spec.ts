@@ -151,6 +151,7 @@ test("a delivery is reviewed by exception, spot-checked, signed and loaded once"
   await expect(drawn.getByTestId("source-cell-value")).toHaveAttribute("data-role", /value/);
   await shot(page, "3-pdf-source");
   await page.getByTestId(`delivery-subject-open-${other.subject}`).click();      // closed again
+  await open(study.subject);                                                     // one card at a time (D-I2): the first again
 
   // --- the one mapping that waits: shown with its table's numbers masked, then approved ---
   // a layout is checked from the head of the table it reads (not listed again apart)

@@ -10,6 +10,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import type { View as ClientView } from "@/components/client/types";
 import { DataTable, EmptyState, InlineIssue } from "@/components/kit";
+import { SidePanel } from "@/components/kit/SidePanel";
 import { SortHeader, TableFilter, TableMore } from "@/components/kit/SortableTable";
 import { SUBJECT } from "@/components/delivery/DeliveryReview";
 import { send, type Schema } from "@/lib/api";
@@ -285,13 +286,15 @@ const SHOW_CARDS = [
 ] as const;
 type ShowCards = (typeof SHOW_CARDS)[number]["id"];
 
-/** The client's studies, one card each, by how they are given; a row opens on its card. The first study to confirm is
- *  open; the others open from their row, or from To do. */
+/** The client's studies, one card each, by how they are given; a row opens its card in the side panel, one at a time
+ *  (the owner's decision D-I2, over the rule of 2026-11-05 that kept up to three open in the list). The first study to
+ *  confirm opens there by itself; the others open from their row, from Previous and Next, or from To do. */
 function StudyList({ subjects, studies, env, unpromised, only, onShow }: {
   subjects: Subject[]; studies: StudyRow[]; env: CardEnv; unpromised: string[]; only: boolean; onShow: (id: string) => void;
 }) {
   const [show, setShow] = useState<ShowCards>("all");
-  const [toggled, setToggled] = useState<Record<string, boolean>>({});
+  // the study open in the side panel: undefined until the person chooses (then the first to confirm), null when closed
+  const [chosen, setChosen] = useState<string | null | undefined>(undefined);
   // the facts of a study signed on the delivery are on its card (read two at a time, under the key its card uses)
   const rows = subjects.filter((s) => s.path === "delivery" && s.row && !s.done && !s.blinded).map((s) => s.row!);
   const read = useResources(SUBJECT, rows.map((r) => ({ project_id: env.projectId, type: r.subject_type, subject: r.subject })),
@@ -305,21 +308,20 @@ function StudyList({ subjects, studies, env, unpromised, only, onShow }: {
   const designs = new Map(subjects.map((s) => [s.key, designOf(facts(s))] as const));
   // the first to confirm, in the order the list shows them
   const current = DESIGNS.flatMap((d) => subjects.filter((s) => designs.get(s.key) === d)).find((s) => !s.done && !s.blinded)?.key ?? null;
-  // the study open as "the first to confirm" stays open once confirmed, while the next one opens
+  // the study open as "the first to confirm" stays open when it no longer is (confirmed: it shows what its signature
+  // loaded; blinded by a fact just entered on it), rather than the panel jumping to another under the person's hand
   const [shown, setShown] = useState<string | null>(current);
   useEffect(() => {
     if (current === shown) return;
-    if (shown && subjects.find((s) => s.key === shown)?.done) setToggled((was) => (shown in was ? was : { ...was, [shown]: true }));
+    if (chosen === undefined && shown && subjects.some((s) => s.key === shown)) setChosen(shown);
     setShown(current);
   }, [current]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     const target = env.focus ? subjects.find((s) => focused(s, env.focus)) : undefined;
-    if (target) setToggled((was) => ({ ...was, [target.key]: true }));
+    if (target) setChosen(target.key);
   }, [env.focus]); // eslint-disable-line react-hooks/exhaustive-deps
-  // up to three studies are all open; past three, the first to confirm (the owner, 2026-11-05: "one by one"); the one
-  // that was the first to confirm stays open until the effect above has seen why it no longer is (just confirmed: it
-  // stays open, with what its signature loaded)
-  const isOpen = (s: Subject) => toggled[s.key] ?? (subjects.length <= 3 || s.key === current || s.key === shown);
+  const openKey = chosen === undefined ? current : chosen;
+  const isOpen = (s: Subject) => s.key === openKey;
   const filter = SHOW_CARDS.find((x) => x.id === show)!.test;
   const design = (s: Subject): Design => designs.get(s.key) ?? "other";
   // one table, by design: a study whose facts move it to another design stays the same row, and its card stays open
@@ -328,6 +330,8 @@ function StudyList({ subjects, studies, env, unpromised, only, onShow }: {
     if (s.path === "delivery" || !s.groups[0]) return `delivery-subject-open-${s.row?.subject ?? s.key}`;
     return `toggle-${s.groups[0].id}`;
   };
+  const open = openKey ? subjects.find((s) => s.key === openKey) ?? null : null;
+  const at = open ? listed.findIndex((s) => s.key === open.key) : -1;
   return (
     <section className="studies-list" data-testid="studies-list" aria-label="The client's studies">
       <div className="studies-list-head">
@@ -346,7 +350,6 @@ function StudyList({ subjects, studies, env, unpromised, only, onShow }: {
             rowTestId={(s) => `study-row-${s.key}`} rowClassName={(s) => (isOpen(s) ? "open" : undefined)}
             group={{ of: design, testId: (d) => `studies-design-${d}`,
                      title: (d, rows) => <span className="studies-design-title">{DESIGN_TITLE[d as Design]} <span className="muted">({rows.length})</span></span> }}
-            after={(s) => (isOpen(s) ? <StudyCard subject={s} env={env} unpromised={unpromised} onShow={() => onShow(inModel(s)?.study_id ?? s.label)} /> : null)}
             columns={[
               { key: "study", label: "Study", render: (s) => (
                 <>
@@ -375,9 +378,17 @@ function StudyList({ subjects, studies, env, unpromised, only, onShow }: {
               { key: "role", label: "Role", render: (s) => { const r = inModel(s)?.role; return r ? <span className="fs-13">{r} · {ROLE[r] ?? r.toLowerCase()}</span> : <span className="muted">—</span>; } },
               { key: "open", label: "", render: (s) => (
                 <button type="button" className="btn small" aria-expanded={isOpen(s)} aria-label={`${isOpen(s) ? "Close" : "Open"} the card of ${s.label}`}
-                        data-testid={toggle(s)} onClick={() => setToggled({ ...toggled, [s.key]: !isOpen(s) })}>{isOpen(s) ? "Close" : "Open"}</button>
+                        data-testid={toggle(s)} onClick={() => setChosen(isOpen(s) ? null : s.key)}>{isOpen(s) ? "Close" : "Open"}</button>
               ) },
             ]} />
+      )}
+      {open && (
+        <SidePanel title={open.label} label={`Study ${open.label}`} testId="study-panel" onClose={() => setChosen(null)}
+                   position={at >= 0 ? `${at + 1} of ${listed.length}` : undefined}
+                   onPrev={at > 0 ? () => setChosen(listed[at - 1]!.key) : null}
+                   onNext={at >= 0 && at < listed.length - 1 ? () => setChosen(listed[at + 1]!.key) : null}>
+          <StudyCard key={open.key} subject={open} env={env} unpromised={unpromised} onShow={() => onShow(inModel(open)?.study_id ?? open.label)} />
+        </SidePanel>
       )}
     </section>
   );

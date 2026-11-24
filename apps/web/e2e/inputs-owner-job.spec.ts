@@ -21,7 +21,7 @@ import { join, resolve } from "node:path";
 
 import { expect, type APIRequestContext, type Page, test } from "@playwright/test";
 
-import { AUTH, finishStart } from "./fixtures/inputs";
+import { AUTH, finishStart, openCard } from "./fixtures/inputs";
 
 const REPO = resolve(__dirname, "../../..");
 const NEW = "__new__";
@@ -908,7 +908,8 @@ for (const shape of [{ name: "two studies", file: "two.xlsx", drug: "Twoamide", 
     // the Reference study uses its own product's: nothing said, its choice its own
     await expect(page.getByTestId(`formulation-elsewhere-${shape.reference}`)).toHaveCount(0);
     await expect(page.getByTestId(`formulation-choice-${shape.reference}`)).toHaveValue("Brand 10 mg");
-    // Test 10 mg's card: a tablet study needs its release
+    // Test 10 mg's card: a tablet study needs its release (one product card open at a time, in the side panel: D-I2)
+    await openCard(page, "Test 10 mg");
     const testCard = page.locator("[data-testid^='product-card-']", { has: page.locator(".card-title", { hasText: /^Test 10 mg$/ }) });
     await expect(testCard.locator("section.card-release")).toContainText("The formulation's release is not set yet: a tablet or capsule study needs it.");
     await page.screenshot({ path: test.info().outputPath(`r7-${shape.file}-products.png`), fullPage: true });
