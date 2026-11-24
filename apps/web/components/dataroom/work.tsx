@@ -322,12 +322,18 @@ function Publish({ projectId }: { projectId: string }) {
               <ul>{p.blocked.map((b) => <li key={b}>{b}</li>)}</ul>
             </div>
           ) : <p className="dr-note">Nothing blocks it. Sending asks you to confirm your identity: it is signed.</p>}
+          {p.notes.length > 0 && (
+            <div className="dr-note" data-testid="publish-notes">
+              <h4>Sent otherwise than the files might suggest</h4>
+              <ul>{p.notes.map((n) => <li key={n}>{n}</li>)}</ul>
+            </div>
+          )}
           <form className="dr-form-row" onSubmit={async (e) => {
             e.preventDefault();
             const got = await run(() => send("post", "/api/v1/projects/{project_id}/dataroom/publish", { project_id: projectId }, { reason: reason.trim() }),
                                   { reads: [PUBLICATION, ROOM] });
             setResult(got.problem ? { text: got.problem, ok: false }
-              : { ok: true, text: `Sent: ${got.data?.evidence} inputs and ${got.data?.datasets} datasets (${got.data?.skipped} already there). Signed ${got.data?.manifestation}.` });
+              : { ok: true, text: `Sent as ${got.data?.publication}: ${got.data?.evidence} inputs and ${got.data?.datasets} datasets (${got.data?.skipped} already there, ${got.data?.superseded} earlier ones replaced). Signed ${got.data?.manifestation}.` });
           }}>
             <label className="dr-field grow"><span>Why now</span>
               <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. inputs confirmed with the client" required

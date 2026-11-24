@@ -13,6 +13,7 @@
     requests.jsonl               data request edits (wording, status), append-only
     run.json                     the background run: stage, counts, per-agent model, errors; a pause (why, where, when
                                  it resumes)
+    publications/<id>.json       what each "Send to the model" rested on, written once (`dataroom.publish`, its shape)
 
 Every decision, entered value and confirmation is also written to the project's audit trail (21 CFR Part 11: who, when,
 what, why). No path is built from input that is not a checked sha256. Every stored answer is written to a temporary file
@@ -42,6 +43,7 @@ from pbpk_domain.atomic_io import atomic_write_bytes, atomic_write_text, file_lo
 
 _SHA = re.compile(r"[0-9a-f]{64}")
 _ID = re.compile(r"[A-Za-z0-9_.:\-\s()/,&+%·]{1,200}")
+_PUBLICATION = re.compile(r"pub-\d{8}T\d{6}Z-[0-9a-f]{6}")
 
 
 def _sha(value: str) -> str:
@@ -192,6 +194,35 @@ class DataRoomStore:
     def question(self) -> tuple[QuestionCard | None, bool]:
         row = self._read_json("question.json")
         return (QuestionCard.model_validate(row["card"]), bool(row["confirmed"])) if row else (None, False)
+
+    def question_record(self) -> dict[str, Any]:
+        """Who set the question card, and when ({} when there is none)."""
+        row = self._read_json("question.json") or {}
+        return {k: row[k] for k in ("confirmed", "by", "at") if k in row}
+
+    # --- what each "Send to the model" rested on --------------------------------------------------------------------------
+
+    def put_publication(self, publication_id: str, record: dict[str, Any]) -> None:
+        """One publication's record (`dataroom.publish.publication_record`), written once: a second write of the same id
+        is refused."""
+        if not _PUBLICATION.fullmatch(publication_id):
+            raise ValueError("not a publication id")
+        path = self._path("publications", f"{publication_id}.json")
+        if path.exists():
+            raise ValueError(f"publication {publication_id} is already recorded")
+        atomic_write_text(path, json.dumps(record, indent=1, ensure_ascii=False, sort_keys=True))
+
+    def publication(self, publication_id: str) -> dict[str, Any] | None:
+        return self._read_json("publications", f"{publication_id}.json") if _PUBLICATION.fullmatch(publication_id) else None
+
+    def publications(self) -> list[dict[str, Any]]:
+        """Every publication's record, oldest first."""
+        folder = self._path("publications")
+        if not folder.is_dir():
+            return []
+        rows = [json.loads(p.read_text(encoding="utf-8")) for p in sorted(folder.glob("pub-*.json"))
+                if _PUBLICATION.fullmatch(p.stem)]
+        return sorted(rows, key=lambda r: (str(r.get("at", "")), str(r.get("id", ""))))
 
     # --- agents' answers ------------------------------------------------------------------------------------------------
 

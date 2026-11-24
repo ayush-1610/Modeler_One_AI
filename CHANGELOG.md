@@ -69,6 +69,88 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
   `services/api/tests/test_brief_from_room_api.py`, `test_plan_api.py` (the room's send); e2e spec (not run here)
   `apps/web/e2e/dataroom-to-start.spec.ts`.
 
+### Fixed — science: the Data room's "Send to the model" sends each study as it was run, with each value's true source, and a second send replaces the first (plan 2026-11-24 §7, phase 4) (2026-11-24)
+- **Why:** a read-only trace of "Send to the model" (`modeler_project.dataroom.publish`) found study records that did
+  not match the studies, sources that misstated where values came from (ICH M15), and resends that changed nothing.
+  These models would have been built on the wrong protocol without any visible sign.
+- **R1, fasted arms simulated fed:** every meal of a study went on every arm, the fed condition's breakfast included,
+  and the round builder adds a meal whenever a record has one. "Fasted" is the condition at dosing; the protocol's
+  later meals belong to every arm's day and change gastric emptying and later absorption. Now:
+  - A meal at or before the dose (time ≤ 0 h) is the fed condition's. It goes only on the fed arms, and the notes say
+    a fasted arm does not get it.
+  - A meal after the dose goes on every arm, fasted ones included (a standard lunch at 4 h, dinner at 10 h). If an
+    arm's own definition names its time, it goes on that arm only.
+  - The send is blocked, with what to decide, when a meal cannot be placed: a meal before the dose when no arm is
+    fed, a fed arm whose meals are all after the dose, meal times that cannot be read, or fed arms that name
+    different meals.
+  - Each arm's food state comes from its own words, else from the study's statement. An arm "after a high-fat
+    breakfast" beside an arm that says nothing, in a study "after an overnight fast", is now one fed arm and one
+    fasted arm (both were sent fasted).
+  - Meal times read the first direction word after a time. "The dose 30 minutes after the start of breakfast" is now
+    −0.5 h, not +0.5 h, so a fed breakfast no longer reads as a later meal. The fed statement's own timed meal is read
+    as well.
+- **R3, a second send changed nothing:** ids came from a chip's box and text, and Inputs kept the earliest dataset of a
+  study id. Now an id follows what is sent (the target or study and its content), so the same content is skipped. A send
+  that carries a new item for a target or study rejects the Data room's earlier item, "superseded by publication <id>",
+  through the evidence and dataset registers' own decide functions (audited). The latest send is what Inputs and the
+  model read. An item superseded earlier is accepted again when a later send carries it.
+- **R4, the same data loaded twice:** a study whose concentrations are already in the project is refused, and the refusal
+  names the dataset. This covers a dataset that Delivery landed or that Inputs holds from the same file (not rejected),
+  and a study a signed Delivery confirmation covers. The second check is the legacy readers' rule, moved into
+  `intake_review.delivery_covers` so both readers share one function; `client_api._not_on_delivery` now calls it with
+  unchanged behaviour.
+- **R5, every study sent as single-dose oral IR tablet:**
+  - A route stated other than oral blocks the send. A route that is not stated is said in the notes.
+  - A multiple-dose study blocks the send ("multiple-dose studies are not sent yet: the model is built from single-dose
+    data"): its profiles are per day, and its regimen is free text, so no dose interval is mapped by guess.
+  - A modified-release product blocks the send: a release or coating fact's own word, or "… release" / ER, XR, MR, SR …
+    in its name. A reformulation is not modified release.
+  - A capsule is sent as `ir_capsule`.
+- **R6, sources (ICH M15):**
+  - A value a person entered goes as ASSUMPTION / MANUAL with their reason in the note; it used to go as PREDICTED with
+    the reason dropped.
+  - A value that only the delivery's literature or label files give goes as PUBLICATION, provider LITERATURE, with the
+    file as its citation.
+  - A pH by convention (D4) is no longer "sponsor": it goes as ASSUMPTION, labelled "pH 1.2 by convention for 0.1 N HCl,
+    not stated (confirmed by …)". Its PK-Sim input row is "calculated" with the same label.
+  - The release fit records its profile, fit function and version, equation and engine check, as the Dissolution
+    register does.
+  - Each dataset carries its concentration file and place as its source (`RoomStudy.sources`, new), and the analyte and
+    matrix where the files state them.
+- **R7, demographics:**
+  - The population and sex chosen in the room go on the record with the age (and its range), weight and height. These
+    come from the demographics table, else from the synopsis's own words (`assemble.mean_and_range`: a mean as written;
+    a range or an inclusion limit gives no mean).
+  - With no age stated, the record still has no individual (D-29: no silent 30-year-old), and the note names the
+    population and sex chosen.
+  - Water that is not given is now a Missing input with its reason. The default is never applied silently.
+- **R9 (SME-gated, behaviour unchanged):** a release that levels off below 100 %, or is very rapid, is still sent as its
+  Weibull fit. The release decision and the evidence sent now say so ("levels off at x %: a Weibull curve rises to
+  100 %; the SME decides (dissolution_similarity / MS-01)").
+- **B9:** every plan row says "proposed; the MS-01 split decides". In a food-effect question, a fed arm is
+  "verification", never "calibration" (MS-01 rule 5).
+- **What a send rested on:** each send's record is kept at `dataroom/publications/<publication id>.json`, for the plan
+  side to read. It holds the confirmed question card, the `applications` decision, every decision with its reason, the
+  open data requests, the NCA values the data do not reproduce, the means' BLQ convention, the notes, the items sent
+  and the items superseded. Its shape is in `dataroom/publish.py`'s docstring. The Part 11 signature now covers the
+  publication id and the basis's sha256 (the record in `dataroom_api`; `signatures.py` unchanged).
+- **API:**
+  - `publication` adds `notes`.
+  - `publish` adds `superseded`, `publication`, `basis_sha256` and `notes`.
+  - The signature's record id names the publication.
+  - `DataRoomView.studies[].sources` is new.
+  - `docs/api/openapi.json` and `apps/web/lib/api-types.ts` are regenerated, and the page lists the notes.
+- **Impact:**
+  - No locked file, ruleset or acceptance criterion changed; the Data room's rules stay UNVERIFIED at 0.1.
+  - The synthetic Exampleamide delivery is fasted at dosing. Both arms keep its meals at 4 h and 10 h after the dose.
+  - Tests: `packages/project-model/tests/test_dataroom.py` (eight new) and `services/api/tests/test_dataroom_api.py`.
+- **Known gaps:**
+  - A study's meals share its one meal decision's template. A fed arm's high-fat breakfast and the standard lunches
+    after it all go with the chosen template. The room's meal row carries times, not a kind per meal, so no per-meal
+    template is chosen.
+  - A multiple-dose study is refused, not mapped.
+  - An individual with no stated mean age is left to Inputs.
+
 ### Changed — the agents ask for what the question needs: A6 without context-only material, A8 told the required items, A10 writes only open requests (prompt `dataroom-6`, 2026-11-24)
 - **Why:** the requirement drafts now decide what the delivery must hold (plan 2026-11-24 §6, D5). The agents' own
   prompts still asked for the manufacturing process on every project, and the report wrote requests that the

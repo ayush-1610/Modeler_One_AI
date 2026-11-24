@@ -60,7 +60,15 @@ from modeler_intake.room_specs import QuestionCard
 from modeler_project import ProjectStore
 from modeler_project.dataroom import DataRoomStore, DataRoomView, room_view
 from modeler_project.dataroom.model import FileView, Value
-from modeler_project.dataroom.publish import Publication, plan_publication, publish
+from modeler_project.dataroom.publish import (
+    Publication,
+    basis_sha256,
+    plan_publication,
+    publication_basis,
+    publication_id,
+    publication_record,
+    publish,
+)
 from modeler_project.dataroom.reading import import_existing
 from modeler_project.inputs import refresh_inputs
 from modeler_project.members import Memberships
@@ -101,7 +109,8 @@ class _Memo[K, V]:
         return value
 
 
-_SKIP = {"run.json", "uploads.json"}       # neither changes the room (the files read do, in files.json)
+_SKIP = {"run.json", "uploads.json"}       # neither changes the room (the files read do, in files.json); nor do the
+# publications' records (publications/<id>.json), which say what each send rested on
 _rooms: _Memo[tuple[str, str, str], DataRoomView] = _Memo(8)        # (tenant, project, stamp) -> the room
 
 
@@ -112,7 +121,8 @@ def _stamp(base: Path | None) -> str:
     if base is not None and base.is_dir():
         for path in sorted(base.rglob("*")):
             name = path.name
-            if name.startswith(".") or name.endswith(".lock") or (path.parent == base and name in _SKIP) or not path.is_file():
+            if (name.startswith(".") or name.endswith(".lock") or (path.parent == base and name in _SKIP)
+                    or path.relative_to(base).parts[0] == "publications" or not path.is_file()):
                 continue
             stat = path.stat()
             digest.update(f"{path.relative_to(base)}|{stat.st_mtime_ns}|{stat.st_size}\n".encode())
@@ -375,15 +385,16 @@ def _publication(plan: Publication) -> dict[str, Any]:
     return {"evidence": [{"target": e.target, "value": _with_unit(e.value, e.unit)} for e in plan.evidence],
             "datasets": [{"target": str(d.study.get("study_id", d.id)),
                           "value": f"{' and '.join(s.name for s in d.series)}, N = {d.study.get('n', '')}"} for d in plan.datasets],
-            "blocked": list(plan.blocked)}
+            "blocked": list(plan.blocked), "notes": list(plan.notes)}
 
 
 @router.get(f"{BASE}/publication", **answers(RoomPublication))
 def get_dataroom_publication(project_id: str, principal: Reader, store: StoreDep) -> dict[str, Any]:
-    """What "Send to the model" would send now (evidence items and observed datasets) and what blocks it; nothing is
+    """What "Send to the model" would send now (evidence items and observed datasets), what blocks it (a study already
+    in the project through Delivery or Inputs too), and what is sent otherwise than the files might suggest; nothing is
     written."""
     room = _room(project_id, principal, store)
-    return envelope(_publication(plan_publication(room_of(room), by=principal.user_id)))
+    return envelope(_publication(plan_publication(room_of(room), by=principal.user_id, ws=room.ws)))
 
 
 class RoomPublish(BaseModel):
@@ -398,30 +409,42 @@ def publish_dataroom(project_id: str, principal: Writer, store: StoreDep, settin
     """Send the room's confirmed inputs to the model: compound and release values as accepted evidence, each arm's mean
     profile as an accepted observed dataset, so Review & sign starts from them. Signed with the token's recent step-up
     (403 `STEP_UP_REQUIRED`); refused (409 with every reason, nothing signed) while anything blocks it. Sending again
-    adds only what changed."""
+    adds only what changed, and what it replaces is rejected, superseded by this publication. What the send rested on
+    (the confirmed question, the applications, every decision with its reason, the open data requests, the NCA values
+    the data do not reproduce, the means' BLQ convention) is kept as the publication's record
+    (`dataroom/publications/<id>.json`), and the signature covers its sha256."""
     room = _room(project_id, principal, store)
     if not body.reason.strip():
         raise HTTPException(status_code=422, detail="say why the inputs are sent now")
-    view, by = room_of(room), principal.user_id
-    plan = plan_publication(view, by=by)
+    view, by, reason = room_of(room), principal.user_id, body.reason.strip()
+    plan = plan_publication(view, by=by, ws=room.ws)
     if plan.blocked:
         raise HTTPException(status_code=409, detail={"code": "NOT_READY", "message": "not sent to the model: "
                                                      + " · ".join(plan.blocked), "blocked": list(plan.blocked)})
     ensure_step_up(principal)       # the signature comes from the token's recent step-up, never a password
-    record = json.dumps({"evidence": [e.id for e in plan.evidence], "datasets": [d.id for d in plan.datasets]}, sort_keys=True)
+    basis = publication_basis(view, plan, question=room.question_record())
+    digest = basis_sha256(basis)
+    pub_id = publication_id()
+    record = json.dumps({"evidence": [e.id for e in plan.evidence], "datasets": [d.id for d in plan.datasets],
+                         "publication": pub_id, "basis_sha256": digest}, sort_keys=True)
     signature = sign_after_step_up(signer=Signer(user_id=by, printed_name=principal.printed_name),
                                    meaning=SignatureMeaning.REVIEWED, record_type="dataroom-publication",
-                                   record_id=f"{project_id}/dataroom/publication",
+                                   record_id=f"{project_id}/dataroom/publication/{pub_id}",
                                    record_sha256=hashlib.sha256(record.encode()).hexdigest(), acr=principal.acr or "")
     record_signature(settings, principal.tenant_id, signature)
     try:
-        written = publish(room.ws, view, by=by, reason=body.reason.strip())
+        written = publish(room.ws, view, by=by, reason=reason, publication=pub_id)
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
-    room.audit(actor=by, action="dataroom.publish", resource_id="publication",
-               after={**written, "signature_id": signature.signature_id}, reason=body.reason.strip())
+    room.put_publication(pub_id, publication_record(pub_id, basis=basis, plan=plan, written=written, by=by, reason=reason,
+                                                    signature_id=signature.signature_id, signed_record=record))
+    counts = {k: written[k] for k in ("evidence", "datasets", "skipped", "superseded")}
+    room.audit(actor=by, action="dataroom.publish", resource_id=f"publication/{pub_id}",
+               after={**counts, "superseded_ids": written["superseded_evidence"] + written["superseded_datasets"],
+                      "basis_sha256": digest, "signature_id": signature.signature_id}, reason=reason)
     refresh_inputs(room.ws, by=by)  # the inputs follow every change (redesign §3.2)
-    return envelope({**written, "signature_id": signature.signature_id, "manifestation": signature.manifestation()})
+    return envelope({**counts, "publication": pub_id, "basis_sha256": digest, "notes": list(plan.notes),
+                     "signature_id": signature.signature_id, "manifestation": signature.manifestation()})
 
 
 # --- where the project's files may go (the governance review, 2026-11-22) -----------------------------------------
