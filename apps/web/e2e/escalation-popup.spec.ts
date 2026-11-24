@@ -1,6 +1,7 @@
-// A campaign waiting for a decision asks for it on whatever page the person is on (the owner's requests of 2026-10-17
-// and 2026-11-11: the review inbox is gone, decisions are asked in place). The campaign state is seeded in the API's
-// read root (software test data, no engine run); the signed decision itself is feedback.spec.ts.
+// A campaign waiting for a decision (the console redesign, slice 2): a flash bar on its project's pages and on the
+// campaign's own page, for the people who may decide it, and the signed decision opens from there; Your work and Home
+// list it as a link. Nothing opens by itself over another page (before: a pop-up on every page). The campaign state is
+// seeded in the API's read root (software test data, no engine run); the signed decision itself is feedback.spec.ts.
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 
@@ -35,13 +36,17 @@ async function seed(request: APIRequestContext) {
   return { projectId, id };
 }
 
-// the seeded decisions are never signed here: close them, or they would ask over the next specs' pages
+// the seeded decisions are never signed here: close them, or they would wait in the next specs' Your work
 test.afterAll(() => dropEscalations((r) => r.campaignId.startsWith("camp-popup-")));
 
-test("an escalation opens as a dialog on any page, and \"Decide later\" leaves a way back", async ({ page, request }) => {
+test("an escalation shows a flash bar on its project's pages, the decision opens from it, and nothing opens by itself", async ({ page, request }) => {
   const { projectId, id } = await seed(request);
   await page.goto(`/projects/${projectId}`);
+  const flash = page.getByTestId("escalation-flash");
   const popup = page.getByTestId("escalation-popup");
+  await expect(flash).toContainText(`Campaign ${id}, stage S2`);
+  await expect(popup).toHaveCount(0);                                       // it waits to be opened
+  await page.getByTestId("escalation-waiting").click();
   await expect(popup).toContainText(`campaign ${id}, stage S2`);
   await expect(popup.getByTestId("decision-select")).toBeVisible();      // the signed decision (feedback.spec.ts)
 
@@ -60,44 +65,45 @@ test("an escalation opens as a dialog on any page, and \"Decide later\" leaves a
   await expect(popup.getByTestId("decision-sign")).toBeFocused();          // and focus went back where it was
   await page.keyboard.press("Escape");                                      // "Decide later"
   await expect(popup).toHaveCount(0);
-  const waiting = page.getByTestId("escalation-waiting");
-  await expect(waiting).toContainText("waiting · Open");                    // a way back, without a reload
-  await expect(waiting).toBeFocused();                                      // and focus is on it, not lost to the page
-  await page.reload();                                                      // it is only closed for this visit
-  await expect(popup).toBeVisible();
+  await expect(page.getByTestId("escalation-waiting")).toBeFocused();      // focus on the way back, not lost to the page
+  await page.reload();
+  await expect(flash).toBeVisible();
+  await expect(popup).toHaveCount(0);                                       // a reload asks nothing by itself either
 
-  await popup.getByTestId("escalation-later").click();
-  await expect(popup).toHaveCount(0);
-  // the control stays on the next page too (the sidebar's link: the layout, and what was put off, stay); inside a
-  // project the side navigation's way out is "All projects" (the console shell, redesign slice 1)
-  await page.getByTestId("sidebar").getByRole("link", { name: "All projects" }).click();
-  await expect(page).toHaveURL(/\/$/);
-  await expect(waiting).toBeVisible();
-  // the dashboard's attention item opens the campaign, no longer the review inbox
-  await expect(page.getByTestId("dash-attention").locator(`a[href="/campaigns/${id}"]`)).toBeVisible();
-  await waiting.click();
-  await expect(popup).toBeVisible();
-  await expect(waiting).toHaveCount(0);
-
-  // a page that has nothing to do with the campaign asks too
+  // a page that has nothing to do with the campaign shows nothing
   await page.goto("/projects/start");
-  await expect(popup).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  await expect(flash).toHaveCount(0);
+  await expect(popup).toHaveCount(0);
 
-  // the campaign's own page asks for its own decision first
-  await page.goto(`/campaigns/${id}`);
+  // Home and Your work list it as a link to the campaign; nothing is decided there
+  await page.goto("/");
+  await expect(page.getByTestId("dash-attention").locator(`a[href="/campaigns/${id}"]`)).toBeVisible();
+  await page.goto("/work");
+  const open = page.getByTestId(`work-open-esc-${id}-S2`);
+  await expect(open).toHaveAttribute("href", `/campaigns/${id}`);
+  await open.click();
+
+  // the campaign's own page asks for its own decision
+  await page.waitForURL(new RegExp(`/campaigns/${id}$`));
+  await expect(flash).toContainText(`Campaign ${id}, stage S2`);
+  await page.getByTestId("escalation-waiting").click();
   await expect(popup).toContainText(`campaign ${id}, stage S2`);
 });
 
 test("a campaign whose record cannot be read can still be decided", async ({ page }) => {
-  // an escalation whose campaign the API does not know: the pop-up reads only the open escalations
+  // an escalation whose campaign the API does not know: Your work links to the campaign's page, which asks for it
   const id = `camp-popup-orphan-${Date.now()}`;
   const root = join(process.env.E2E_DATA_DIR!, "read-root", "dev");
   upsert(join(root, "escalations.json"), "escalations", {
     id: `${id}-S3`, campaignId: id, stage: "S3", reasonCode: "ROUNDS_EXHAUSTED", evidence: "Seeded: no campaign record.",
     options: [{ id: "abort", label: "Stop the campaign", requiresSignature: true }],
   });
+  await page.goto("/work");
+  await expect(page.getByTestId(`work-row-esc-${id}-S3`)).toContainText("Campaign not recorded yet");
   await page.goto(`/campaigns/${id}`);
   await expect(page.getByTestId("campaign-pending")).toBeVisible();        // the page says the campaign is not recorded
+  await page.getByTestId("escalation-waiting").click();
   const popup = page.getByTestId("escalation-popup");
   await expect(popup).toContainText(`campaign ${id}, stage S3`);           // and the decision is asked all the same
   await expect(popup.getByTestId("decision-select")).toBeVisible();
@@ -111,6 +117,7 @@ test("the signing step-up opens over the decision, is named, and Escape cancels 
     body: JSON.stringify({ detail: { code: "STEP_UP_REQUIRED", message: "Confirm your identity to sign." } }),
   }));
   await page.goto(`/projects/${projectId}`);
+  await page.getByTestId("escalation-waiting").first().click();
   const popup = page.getByTestId("escalation-popup");
   await popup.getByTestId("decision-select").selectOption("abort");
   await popup.getByTestId("decision-sign").click();

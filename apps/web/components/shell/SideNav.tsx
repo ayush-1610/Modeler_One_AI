@@ -4,8 +4,8 @@
 // below 1024 px, never opened by hover. Three contexts, from the address: the portfolio, a project (its four steps with
 // where each stands, its records, Add data), and the platform's administration.
 //
-// Slice 1 of the redesign (docs/plans/2026-11-23-console-redesign-implementation.md) links only the pages that exist:
-// Your work, Campaigns, Help, the project Overview, Members, Settings, Compounds and Agent activity join with their slices.
+// Links only the pages that exist (docs/plans/2026-11-23-console-redesign-implementation.md): Home, Your work, Projects,
+// Campaigns and Help since slice 2; the project Overview, Members, Settings, Compounds and Agent activity join with theirs.
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -14,6 +14,7 @@ import { createPortal } from "react-dom";
 
 import { Icon, type IconName } from "@/components/kit/icons";
 import { AddData, stepOf } from "@/components/library/AddData";
+import { useWorkCount } from "@/components/portfolio/useWork";
 import { useResource } from "@/lib/hooks";
 import { STEP_ROUTES, type StepId, type StepRow } from "@/lib/pipeline";
 import { stepReason } from "@/lib/words";
@@ -42,13 +43,24 @@ function Group({ label, testId, children }: { label: string; testId?: string; ch
 }
 
 function PortfolioNav({ path, admin }: { path: string; admin: boolean }) {
+  const work = useWorkCount();
   return (
     <>
       <nav className="sn-group" aria-label="Main">
         <span className="sn-heading">Modeler One</span>
         <ul>
-          <NavItem it={{ href: "/", label: "Projects", icon: "folder", active: path === "/" }} />
+          <NavItem it={{ href: "/", label: "Home", icon: "home", active: path === "/", testId: "nav-home" }} />
+          <li>
+            <Link href="/work" className="sn-item" aria-current={path.startsWith("/work") ? "page" : undefined} data-testid="nav-work" prefetch={false}>
+              <span className="sn-icon" aria-hidden><Icon name="checkc" /></span>
+              <span className="sn-text">Your work</span>
+              {work !== null && work > 0 && <span className="sn-count" aria-label={`${work} waiting`}>{work}</span>}
+            </Link>
+          </li>
+          <NavItem it={{ href: "/projects", label: "Projects", icon: "folder", active: path === "/projects", testId: "nav-projects" }} />
+          <NavItem it={{ href: "/campaigns", label: "Campaigns", icon: "pipeline", active: path.startsWith("/campaigns"), testId: "nav-campaigns" }} />
           <NavItem it={{ href: "/projects/start", label: "Start from proposal", icon: "fileplus", active: path.startsWith("/projects/start") }} />
+          <NavItem it={{ href: "/help", label: "Help", icon: "info", active: path.startsWith("/help"), testId: "nav-help" }} />
         </ul>
       </nav>
       {admin && (
@@ -133,7 +145,7 @@ function ProjectNav({ projectId, path }: { projectId: string; path: string }) {
   const [adding, setAdding] = useState(false);
   return (
     <div data-testid="nav-project">
-      <Link href="/" className="sn-back"><Icon name="chevl" size={14} /> All projects</Link>
+      <Link href="/projects" className="sn-back"><Icon name="chevl" size={14} /> All projects</Link>
       <div className="sn-project"><strong>{name ?? projectId}</strong></div>
       {/* "Add data" opens a card over the page, at any step (the document library plan) */}
       <button type="button" className="sn-action" data-testid="nav-add-data" onClick={() => setAdding(true)}>

@@ -6,6 +6,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import { HELP_TOPICS } from "@/lib/help";
 import { useResource } from "@/lib/hooks";
 
 type Crumb = [label: string, href: string | null];
@@ -26,17 +27,21 @@ const ADMIN_PAGES: Record<string, string> = {
 
 function crumbsFor(path: string, name: string | null): Crumb[] {
   const parts = path.split("/").filter(Boolean).map(decodeURIComponent);
-  if (parts[0] === "projects" && parts[1] === "start") return [["Projects", "/"], ["Start from proposal", null]];
+  const TOP: Record<string, string> = { work: "Your work", campaigns: "Campaigns", help: "Help" };
+  if (parts.length === 1 && parts[0] === "projects") return [["Home", "/"], ["Projects", null]];
+  if (parts.length === 1 && TOP[parts[0]!]) return [["Home", "/"], [TOP[parts[0]!]!, null]];
+  if (parts[0] === "help" && parts[1]) return [["Home", "/"], ["Help", "/help"], [HELP_TOPICS.find((t) => t.id === parts[1])?.title ?? parts[1], null]];
+  if (parts[0] === "projects" && parts[1] === "start") return [["Projects", "/projects"], ["Start from proposal", null]];
   if (parts[0] === "projects" && parts[1]) {
     const base = `/projects/${encodeURIComponent(parts[1])}`;
     const project: Crumb = [name ?? parts[1], base];
     const page = parts[2];
-    if (!page) return [["Projects", "/"], [project[0], null], ["Run", null]];
-    if (page === "dataroom" && parts[3] === "report") return [["Projects", "/"], project, ["Data", null], ["Data room", `${base}/dataroom`], ["Evidence report", null]];
-    if (page === "compounds" && parts[3]) return [["Projects", "/"], project, ["Compounds", null], [parts[3], null]];
-    return [["Projects", "/"], project, ...(PROJECT_PAGES[page] ?? [[page, null]])];
+    if (!page) return [["Projects", "/projects"], [project[0], null], ["Run", null]];
+    if (page === "dataroom" && parts[3] === "report") return [["Projects", "/projects"], project, ["Data", null], ["Data room", `${base}/dataroom`], ["Evidence report", null]];
+    if (page === "compounds" && parts[3]) return [["Projects", "/projects"], project, ["Compounds", null], [parts[3], null]];
+    return [["Projects", "/projects"], project, ...(PROJECT_PAGES[page] ?? [[page, null]])];
   }
-  if (parts[0] === "campaigns" && parts[1]) return [["Projects", "/"], [`Campaign ${parts[1]}`, null]];
+  if (parts[0] === "campaigns" && parts[1]) return [["Campaigns", "/campaigns"], [`Campaign ${parts[1]}`, null]];
   if (parts[0] === "admin") {
     if (!parts[1]) return [["Admin console", null]];
     return [["Admin console", "/admin"], [ADMIN_PAGES[parts[1]] ?? parts[1], null]];

@@ -70,10 +70,10 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         {/* the sidebar is inside the providers too: its "Add data" card changes the project and refreshes the page */}
         <Providers person={person}>
           <Toaster />
-          {/* an open escalation asks for its signed decision on any page (the review inbox is gone, 2026-11-11) */}
-          <EscalationPopup />
           <AppShell user={user}>
             <span id="content" tabIndex={-1} className="skip-target" />
+            {/* an open escalation: a flash bar on its project's and campaign's pages, for who may decide it (slice 2) */}
+            <EscalationPopup />
             {children}
           </AppShell>
         </Providers>

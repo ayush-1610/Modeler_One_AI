@@ -10,8 +10,7 @@ test("a project is archived with a reason, hidden, shown on request and restored
     files: { name: "proposal.md", mimeType: "text/markdown", buffer: Buffer.from("# Proposal\nPBPK model.") } } });
   const projectId = (await started.json()).data.project_id as string;
 
-  await page.goto("/");
-  await page.getByTestId("dash-view-list").click();                                  // the record view of the dashboard
+  await page.goto("/projects");                                                       // Projects: the table is the record
   await page.getByTestId(`project-archive-${projectId}`).click();
   await expect(page.getByTestId("project-archive-confirm")).toBeDisabled();          // no reason, no archive
   await page.getByTestId("project-archive-reason").fill("a test project, not client work");
@@ -23,7 +22,7 @@ test("a project is archived with a reason, hidden, shown on request and restored
   await page.goto(`/projects/${projectId}/start`);                                     // … and kept: it opens by its address
   await expect(page.getByTestId("start-drug-name")).toHaveText("Archivamide");
 
-  await page.goto("/");
+  await page.goto("/projects");
   await page.getByTestId("projects-show-archived").click();
   await page.getByTestId(`project-restore-${projectId}`).click();
   await page.getByTestId("project-archive-reason").fill("archived by mistake");

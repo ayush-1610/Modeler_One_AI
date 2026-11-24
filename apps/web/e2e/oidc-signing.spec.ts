@@ -104,7 +104,8 @@ test("sign-in through Keycloak, and a signature asks for the password and the au
   })).json(), PROJECT);
   expect(unsigned.detail.code).toBe("STEP_UP_REQUIRED");
 
-  // the decision is asked in the pop-up, on this page
+  // the decision opens from the flash bar on this page (the console redesign, slice 2)
+  await page.getByTestId("escalation-waiting").click();
   const card = page.getByTestId("escalation-popup");
   await expect(card).toContainText(`campaign ${ID}, stage S2`);
   await card.getByTestId("decision-select").selectOption("abort");
