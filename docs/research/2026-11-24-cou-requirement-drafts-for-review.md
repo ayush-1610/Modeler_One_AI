@@ -473,7 +473,12 @@ These items are delivery data, but the room's vocabulary (`modeler_intake.room_s
    - keeps context-only material as context;
    - adds the missing room fields (section 6).
 
-   Until the owner approves, no "missing" item, gate or data request is derived from the drafts.
+   **Wired on 2026-11-24** (the owner's "go ahead with all phases"; `modeler_project.dataroom.drafts` and
+   `.checklist`, CHANGELOG): the room reads the applications from the confirmed question card (a decision a person
+   confirms), computes the properties code can, shows the checklist with its coverage ledger (found, missing with the
+   files searched, not needed and why, context only, for a person to check) and asks for each missing required or
+   usually-needed item in its **own** data requests, each marked "(draft requirement, UNVERIFIED)". No data plan, gate
+   or live template reads the drafts; the missing room fields of section 6 are still to add.
 4. **Promotion to templates** is a locked-file change to `pbpk_domain/requirements/*.yaml`, in its own PR, with the
    owner's approval, a CHANGELOG entry and a version bump. The PK-Sim locations are harvested from the engine at that
    point, never written by hand.

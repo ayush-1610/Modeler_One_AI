@@ -187,8 +187,8 @@ def test_the_room_says_what_each_screen_needs_in_a_persons_words(room):
     # decisions and problems in words, and the input a person may enter for a missing compound value
     files, docs, question, extractions = room
     view = assemble(Inputs(files=files, docs=docs, question=question, extractions=extractions))
-    assert [s.id for s in view.sections] == ["files", "substance", "adme", "formulation", "solubility", "dissolution",
-                                             "clinical", "observed", "decisions", "requests", "plan", "inputs"]
+    assert [s.id for s in view.sections] == ["files", "requirements", "substance", "adme", "formulation", "solubility",
+                                             "dissolution", "clinical", "observed", "decisions", "requests", "plan", "inputs"]
     sections = {s.id: s for s in view.sections}
     assert sections["observed"].finding.startswith("2 mean profiles")
     assert sections["plan"].finding == "3 simulations: 1 calibration, 1 verification, 1 prediction"
