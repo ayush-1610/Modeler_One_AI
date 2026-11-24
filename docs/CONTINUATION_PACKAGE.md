@@ -224,8 +224,8 @@ flash bar) merged (#175). **Slice 3** (a project's Overview, Run at /campaigns, 
 from the session branch; slice 3 merged (#176). **Slice 4a** (Data plan, Data room words, model system on Inputs) is a
 PR; slice 4a merged (#177). **Slice 4b** (Inputs' study and product cards in a side panel, one at a time) merged (#178). **Slice 4c** (what
 confirming a changed card again would change, read before signing: `GET …/delivery/subjects/{type}/{subject}/impact`, a
-dry run of the intake landing, shown in the "Confirm again and sign" dialog) is a PR. **Slice 5** (Review & sign in tabs,
-read-only polish, "Back to the MS-01 default" with its dry run) is built on top of 4c and follows it as its own PR. Deviations: the plan's §11. QA (R-S05) needs no `auth.py`: slice 8.
+dry run of the intake landing, shown in the "Confirm again and sign" dialog) merged (#179). **Slice 5** (Review & sign in
+tabs, read-only polish, "Back to the MS-01 default" with its dry run) is a PR; slice 6 waits for the owner's review of it. Deviations: the plan's §11. QA (R-S05) needs no `auth.py`: slice 8.
 
 The owner's charter: an AWS-console-inspired redesign, design first, through four approval gates; no production change
 before Gate 4 and a separate go-ahead. Everything is in `design-review/` (start at its `README.md`). Gate 1 (discovery),
