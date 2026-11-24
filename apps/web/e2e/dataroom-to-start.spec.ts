@@ -1,9 +1,9 @@
 // From the Data room to Start (plan 2026-11-24 §7, phase 4, B4 and B5), on the made-up Exampleamide's delivery (software
 // test data, never client data) with no LLM provider: the delivery is read, the agents' answers are written straight into
-// the store (as A6-A8 submit them), a person confirms the question card and takes the decisions; on Start, "Fill from the
-// Data room" drafts the question, the applications, the products, the scenarios and the populations, each a draft to
-// confirm; a question a person then types otherwise is kept, and Start says where it differs from the room (advice,
-// never a block).
+// the store (as A6-A8 submit them), a person confirms the question card and takes the decisions, which drafts Start's
+// question, applications, products, scenarios and populations on its own, each a draft to confirm ("Fill from the Data
+// room" then finds nothing new); a question a person then types otherwise is kept, and Start says where it differs from
+// the room (advice, never a block).
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -49,14 +49,16 @@ test("Start is filled from the Data room's confirmed card, and a person's own qu
     expect(made.ok(), await made.text()).toBeTruthy();
   }
 
+  // confirming the card and choosing the applications in the room already drafted Start (no click needed); the
+  // button then finds nothing new
   await page.goto(`/projects/${projectId}/start`);
-  await page.getByTestId("start-fill-from-room").click();
-  await expect(page.getByTestId("start-notice")).toContainText("The Data room drafted");
   const question = page.getByTestId("start-field-qoi.text");
   await expect(question).toContainText("reformulated Exampleamide tablet");
   await expect(question).toContainText("draft");
   await expect(page.getByTestId("start-field-qoi.applications")).toContainText("virtual bioequivalence");
   await expect(page.getByTestId("start-room-advice")).toHaveCount(0);
+  await page.getByTestId("start-fill-from-room").click();
+  await expect(page.getByTestId("start-notice")).toContainText("Nothing new from the Data room");
 
   // a person's own question: kept, and Start says where it differs from the room (advice, never a block)
   const edited = await request.put(`/api/v1/projects/${projectId}/brief`, { headers: AUTH,
