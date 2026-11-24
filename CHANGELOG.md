@@ -81,6 +81,70 @@ published OSP models against their real clinical data on real PK-Sim. DDI / paed
   - `services/api/tests/test_admin_platform.py`: the key, the agent on it, `CLOUD_SERVICES`, and the presets with their
     refusals.
 
+### Added — the Data room's exact answer cache, and one cached start for every file of a delivery (plan 2026-11-24 §5 items 2 and 3; 2026-11-24)
+- **Why:**
+  - Every run asked the models again for every file. A demo shown again, a delivery sent again in a new project, or a
+    run again after a fix to one file paid for every file once more.
+  - Each file's request began with its own instructions: the extractor's fields and table roles were built into its
+    system prompt per file. The provider's prompt cache could not carry one file's start to the next (the research
+    review, `docs/research/2026-11-24-ai-extraction-cost-reliability.md` §B1–B2).
+- **The answer cache** (`modeler_project.dataroom.answer_cache`), used by A7 triage, A8 extraction and A9 check:
+  - **Where it lives:** `<root>/<tenant>/dataroom_cache/<stage>/<key sha256>.json`, beside the tenant's projects. It is
+    never read for another tenant (client confidentiality). **To clear it:** delete that folder, or call
+    `AnswerCache(ws).clear()`. No admin page clears it yet.
+  - **The key, exactly:**
+    - the tenant, the stage and the prompt version;
+    - the file's sha256 and its path in the delivery (the prompt names it);
+    - the reader: parser and parser version, the version of the lines the agents read (`modeler_intake.room.LINES_VERSION`,
+      new, now `2`), and the sha256 of those lines (`parts_sha256`);
+    - the model the conversation starts on: provider/model id, its service address (OpenAI-compatible services), its
+      effort;
+    - the stage's other inputs, by name. A7: the question. A8: the card's question, products and checklist as the
+      prompt shows them, the triage's topics and reason, the page budget, the checker's feedback. A9: the extraction's
+      tables, and whether this is the first look or the look after the extractor's second pass;
+    - the sha256 of the first request as sent (instructions, tool definitions, task).
+
+    An entry is used only when its stored key equals the asked key, field by field. Never a "similar" answer.
+  - **Only answers code accepted:** an entry is written only when the last submission had no problem left, and only by
+    the model the key names (a chain that switched models in the middle of a file writes nothing). It is checked again
+    against this project's file before it is used.
+  - **A hit** stores the answer in this project's room as if answered. The author is the model that wrote it, with the
+    note "reused: same file, same question, same model (from project X, run Y)" (Y: when that run started). The agents'
+    record gets an `answer_reused` step, and the stage's note counts them. No model is called.
+  - **Redo:** a run asked to redo a stage asks the model again, and its answer replaces the entry.
+- **Cache-friendly prompt order (prompt version `dataroom-5`):**
+  - The extractor's instructions are now one text for every file. The fields and table roles a file's topics need
+    moved into the file's block (`extract_vocabulary`), so a small model's request is the same size as before.
+  - Every request now starts with the same bytes for every file of a delivery: the instructions, the tools (they
+    already named no file; now tested), then the delivery's block (A8: question, products, checklist; A7: the
+    question), then the file's block last.
+  - `run_tool_loop(shared=…)` marks where the delivery's block ends. Claude's client puts a cache breakpoint there
+    (three of a request's four: the instructions, the delivery's block, the conversation). The other clients send one
+    text; the order alone serves a provider's own prefix caching.
+  - `FallbackChat.start()` says which model a conversation would start on, without starting one.
+- **Measured** (`services/agents/tests/test_dataroom_cache.py`): a recording fake model on the made-up Exampleamide
+  delivery (10 files), answering with the recorded Nemotron answers; no model is called.
+
+  | Agent | First run (project p1) | Second run, same tenant, new project | Another tenant |
+  |---|---|---|---|
+  | A6 question | 3 calls | 3 calls | 3 calls |
+  | A7 triage | 20 calls, 10 files | **0** | 20 calls |
+  | A8 extract | 24 calls, 9 files | **0** | 24 calls |
+  | A9 check | 12 calls, 6 files | **0** | 12 calls |
+  | A10 write | 3 calls | 3 calls | 3 calls |
+
+  A call is one request: a file takes at least two (the submission, then "done"). The saving in dollars on Claude is
+  not measured here.
+- **Known gaps:**
+  - A6's card and A10's text are not cached. With a real model, a card drafted again in other words changes the triage
+    and extraction keys, so those are asked again (as they must be: their prompts differ). A run again in the same
+    project, or the same confirmed card, reuses them.
+  - An answer whose last submission code still refused in part (5 of the 9 recorded extractions, if the model does not
+    leave out what was refused) is never cached and is asked again each run.
+- **Impact:** no API or contract change. The new prompt version means no answer written before it is reused. New tests
+  in `services/agents/tests/test_dataroom_cache.py`, `test_claude_bedrock.py`, `test_llm.py`,
+  `packages/project-model/tests/test_dataroom_answer_cache.py` and `packages/data-intake/tests/test_room.py`.
+
 ### Fixed — the campaigns list (HTTP 500); three open gaps of the data story; Docs — the next phase's plan and four literature reviews (2026-11-24)
 - **The campaigns could not be read (HTTP 500), seen on the server:**
   - **Cause.** One stored campaign written by an earlier build carried a key today's record no longer declares. The

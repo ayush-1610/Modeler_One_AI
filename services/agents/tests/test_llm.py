@@ -57,6 +57,21 @@ def test_client_sends_bearer_and_tools_and_parses_calls():
     assert result.usage == {"input_tokens": 10, "output_tokens": 5}
 
 
+def test_a_shared_start_of_the_task_goes_as_one_text_to_an_openai_compatible_service():
+    # plan 2026-11-24 §5 item 3: the task is the shared start then the conversation's own part; only Claude's client
+    # reads where the shared start ends, a Chat Completions body carries the standard keys only
+    bodies = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        bodies.append(json.loads(request.content))
+        return httpx.Response(200, json=_completion(content="done"))
+
+    chat = OpenAICompatChat(provider="groq", base_url="http://llm/v1", api_key="k", model="m",
+                            transport=httpx.MockTransport(handler))
+    run_tool_loop(chat, system="S", shared="The question: Q\n\n", user="File: a.tsv", tools=[], max_turns=1)
+    assert bodies[0]["messages"][1] == {"role": "user", "content": "The question: Q\n\nFile: a.tsv"}
+
+
 def test_client_retries_overload_then_gives_up_with_the_providers_message():
     calls = []
 

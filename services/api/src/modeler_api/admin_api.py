@@ -346,8 +346,7 @@ def _agents_page(settings: Settings) -> dict[str, Any]:
 
 
 def _presets(current: dict[str, Any], active: set[str]) -> list[dict[str, Any]]:
-    from modeler_agents.usage_report import estimate_delivery_usd
-
+    estimate_delivery_usd = agent_jobs.estimate_delivery_usd
     out = []
     for preset in ps.PRESETS:
         agents = preset["agents"]

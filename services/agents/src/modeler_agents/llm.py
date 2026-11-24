@@ -661,6 +661,13 @@ class FallbackChat:
         checker is not the model that wrote what it checks), unless no other can answer."""
         return ChainConversation(self, avoid=avoid)
 
+    def start(self, avoid: str = "") -> int:
+        """The model a new conversation starts on, without starting one: the first that is not resting and is not
+        `avoid`, else the first not resting, else the first."""
+        usable = [i for i in range(len(self.models)) if self.health.usable(self.key(i))]
+        other = [i for i in usable if f"{self.models[i].provider}/{self.models[i].model}" != avoid]
+        return (other or usable or [0])[0]
+
     def complete(self, messages: list[dict[str, Any]], tools: list[dict[str, Any]]) -> ChatResult:
         return self.conversation().complete(messages, tools)      # one request on its own: a conversation of one
 
@@ -670,9 +677,7 @@ class ChainConversation:
 
     def __init__(self, chain: FallbackChat, avoid: str = ""):
         self.chain = chain
-        usable = [i for i in range(len(chain.models)) if chain.health.usable(chain.key(i))]
-        other = [i for i in usable if f"{chain.models[i].provider}/{chain.models[i].model}" != avoid]
-        self.index = (other or usable or [0])[0]
+        self.index = chain.start(avoid)
         self.switches: list[dict[str, str]] = []
         if self.index:
             why = ("it is resting after a recent failure" if not chain.health.usable(chain.key(0))
@@ -754,6 +759,11 @@ class Tool:
                                                  "parameters": self.parameters}}
 
 
+#: the task message's key for the length of its shared start (`run_tool_loop(shared=…)`); only Claude's client reads it,
+#: the Chat Completions clients send the message's standard keys only (`_plain`)
+CACHE_PREFIX = "cache_prefix_chars"
+
+
 @dataclass
 class LoopOutcome:
     status: Literal["COMPLETED", "INCOMPLETE", "LLM_UNAVAILABLE"]
@@ -766,8 +776,13 @@ class LoopOutcome:
 
 
 def run_tool_loop(model: ChatModel, *, system: str, user: str, tools: list[Tool], max_turns: int = 30,
-                  log_step: Callable[[dict[str, Any]], None] = lambda step: None) -> LoopOutcome:
+                  log_step: Callable[[dict[str, Any]], None] = lambda step: None, shared: str = "") -> LoopOutcome:
     """Let the model work through `tools` until it answers without calling one, or `max_turns` is reached.
+
+    `shared`: the start of the task that many conversations share word for word (the Data room's delivery block, the
+    same for every file of a delivery); the task is `shared` then `user`. The task message carries the shared part's
+    length (`CACHE_PREFIX`), so a client that caches a prefix (Claude) can mark the end of that part, and the next file's
+    request reads it from the cache; the other clients send the task as one text.
 
     Every model turn and every tool call (arguments and the handler's answer) is passed to `log_step`, the agent run's
     append-only step log. A handler that raises answers the model with the error instead of ending the run."""
@@ -780,7 +795,10 @@ def run_tool_loop(model: ChatModel, *, system: str, user: str, tools: list[Tool]
 
     def ident() -> str:
         return f"{model.provider}/{model.model}"
-    messages: list[dict[str, Any]] = [{"role": "system", "content": system}, {"role": "user", "content": user}]
+    task: dict[str, Any] = {"role": "user", "content": shared + user}
+    if shared and user:
+        task[CACHE_PREFIX] = len(shared)
+    messages: list[dict[str, Any]] = [{"role": "system", "content": system}, task]
     usage: dict[str, int] = {"input_tokens": 0, "output_tokens": 0}
     window: int | None = None          # the model's context window, in tokens, once a refusal has said it
     share = FIT_SHARE
@@ -830,7 +848,8 @@ def run_tool_loop(model: ChatModel, *, system: str, user: str, tools: list[Tool]
             # calls recorded so far (accepted fields, saved answers) stays
             log_switches()
             log_step({"type": "conversation_restarted", "turn": turn, "on": getattr(model, "label", ""), "why": str(exc)})
-            again = run_tool_loop(model, system=system, user=user, tools=tools, max_turns=max_turns, log_step=log_step)
+            again = run_tool_loop(model, system=system, user=user, tools=tools, max_turns=max_turns, log_step=log_step,
+                                  shared=shared)
             merged = {k: usage.get(k, 0) + again.usage.get(k, 0) for k in {*usage, *again.usage}}
             return LoopOutcome(again.status, again.final_text, turn - 1 + again.turns, merged, error=again.error,
                                answered_by=again.answered_by, answered_on=again.answered_on)

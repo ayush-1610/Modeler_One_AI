@@ -171,6 +171,14 @@ def test_key(provider: str, fields: dict[str, str]) -> tuple[bool, str]:
     return False, f"{provider} keys cannot be tested yet"
 
 
+def estimate_delivery_usd(models: dict[str, str]) -> float:
+    """The estimated cost of one ten-file Data room delivery with each agent on the given model id
+    (`modeler_agents.usage_report.estimate_delivery_usd`; the seam to the agents for the admin console's presets)."""
+    from modeler_agents.usage_report import estimate_delivery_usd as estimate
+
+    return estimate(models)
+
+
 CLAUDE_MODELS = ("anthropic.claude-opus-5-5", "anthropic.claude-sonnet-5-5", "anthropic.claude-haiku-5-5")
 BEDROCK_TEST_MODEL = "anthropic.claude-haiku-5-5"     # the cheapest Claude: a key test costs a fraction of a cent
 

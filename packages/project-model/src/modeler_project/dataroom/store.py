@@ -15,6 +15,10 @@
 
 Every decision, entered value and confirmation is also written to the project's audit trail (21 CFR Part 11: who, when,
 what, why). No path is built from input that is not a checked sha256.
+
+The agents' answers are also kept for the whole tenant, by every input that can change them, in
+`<root>/<tenant>/dataroom_cache/` (`answer_cache`), so another project's run with the same file, question and model
+reuses them.
 """
 
 from __future__ import annotations
