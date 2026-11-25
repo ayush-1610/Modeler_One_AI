@@ -1,12 +1,11 @@
 // A project's settings (the redesign's P-23; the owner, 2026-11-24: the pages we are missing; the console redesign's
-// slice 3): its owner, archive and restore with a reason, its blinding (shown here, set on Review & sign), where its
-// client files may go for an AI model to read, and who it is shared with (managed on Members). Each part is the
-// component its own page uses, so the rules (only the owner or an administrator changes the files' permission; only the
-// owner archives and changes members) hold here as there.
+// slice 3): its owner, archive and restore with a reason, its blinding (shown here, set on Review & sign), and who it is
+// shared with (managed on Members). Each part is the component its own page uses, so the rules (only the owner archives
+// and changes members) hold here as there. Where the client's files may go for an AI model to read is not here: an
+// administrator sets it for the whole company on Admin → Companies (the owner, 2026-11-24).
 
 import Link from "next/link";
 
-import { FilesGo } from "@/components/dataroom/FilesGo";
 import { ApiProblem, Hero } from "@/components/kit";
 import { ArchiveControl } from "@/components/project/ArchiveControl";
 import { ProjectNotices } from "@/components/project/ProjectNotices";
@@ -22,7 +21,7 @@ export default async function ProjectSettings({ params }: { params: Promise<{ pr
   const blinding = liveBlinding.data;
   return (
     <main data-testid="project-settings">
-      <Hero title="Settings" lede="Its owner, whether it is archived, its blinding, where its client files may go, and who it is shared with." />
+      <Hero title="Settings" lede="Its owner, whether it is archived, its blinding, and who it is shared with." />
       {live.problem && <ApiProblem problem={live.problem} />}
       {live.data && (
         <>
@@ -47,12 +46,6 @@ export default async function ProjectSettings({ params }: { params: Promise<{ pr
                 </p>
               )}
             </div>
-          </section>
-          <section className="card mb-16" aria-labelledby="settings-files">
-            <h2 id="settings-files">Where the client&apos;s files may go</h2>
-            <p className="muted">In-house only unless the client&apos;s written permission for a cloud service is recorded here.
-              The AI agents follow it for every file of this project.</p>
-            <FilesGo projectId={projectId} />
           </section>
           <section className="panel" aria-labelledby="settings-members" data-testid="settings-members">
             <div className="panel-head"><h2 id="settings-members">Shared with</h2><span className="grow" /><Link href={`${base}/members`} data-testid="settings-members-link">Members</Link></div>

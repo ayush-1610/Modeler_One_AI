@@ -196,33 +196,12 @@ test("an extracted delivery shows its study and dissolution, a decision is taken
   await expect(page.getByTestId("report-substance")).toContainText("EX-01 synopsis.pdf · p. 1, line 10");
 });
 
-test("a project's files stay in-house until the client's written permission for a cloud service is recorded", async ({ page, request }) => {
+test("the Data room no longer asks where the client's files may go: an administrator sets it for the company", async ({ page, request }) => {
+  // the owner, 2026-11-24: set once for every person and project of a company on Admin → Companies, not shown to them
   const projectId = await project(request);
   await page.goto(`/projects/${projectId}/dataroom`);
-  const said = page.getByTestId("files-go-said");
-  await expect(said).toContainText("In-house only");
-
-  // a cloud service needs the client's reference and a reason before Save; the DEV sign-in carries the step-up
-  await page.getByTestId("files-go-change").click();
-  await page.getByTestId("files-go-nvidia").check();
-  await page.getByTestId("files-go-reason").fill("the client agreed to the trial service");
-  await expect(page.getByTestId("files-go-save")).toBeDisabled();
-  await page.getByTestId("files-go-ref-nvidia").fill("client email of 2026-11-20");
-  await page.getByTestId("files-go-save").click();
-  await expect(said).toContainText("NVIDIA API catalog (client email of 2026-11-20)");
-
-  // recorded with who and why, and audited by the API
-  const got = await request.get(`/api/v1/projects/${projectId}/data-permissions`, { headers: AUTH });
-  const body = (await got.json()).data;
-  expect(body.in_house_only).toBe(false);
-  expect(body.history[0].reason).toBe("the client agreed to the trial service");
-
-  // back to in-house only
-  await page.getByTestId("files-go-change").click();
-  await page.getByTestId("files-go-nvidia").uncheck();
-  await page.getByTestId("files-go-reason").fill("trial over");
-  await page.getByTestId("files-go-save").click();
-  await expect(said).toContainText("In-house only");
-  await page.getByTestId("files-go-change").click();
-  await expect(page.getByTestId("files-go-history")).toContainText("Changes (2)");
+  await expect(page.getByTestId("dataroom")).toBeVisible();
+  await expect(page.getByTestId("files-go")).toHaveCount(0);
+  const gone = await request.get(`/api/v1/projects/${projectId}/data-permissions`, { headers: AUTH });
+  expect(gone.status()).toBe(404);
 });

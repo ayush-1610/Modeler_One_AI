@@ -31,7 +31,7 @@ from pathlib import Path
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from modeler_api import agent_jobs, dataroom_runs
 from modeler_api import keycloak_admin as kc
@@ -157,7 +157,22 @@ def company(tenant_id: str, principal: Admin, settings: SettingsDep, priced_as: 
     named = ps.CompanyRegistry(settings.read_root).get(tenant_id) or {}
     return envelope({"tenant_id": tenant_id, "name": named.get("name") or "",
                      "disabled_reason": (named.get("disabled") or {}).get("reason"), "people": people,
-                     "projects": projects, "usage": _usage(runs, priced_as), "priced_as": priced_as})
+                     "projects": projects, "usage": _usage(runs, priced_as), "priced_as": priced_as,
+                     "data_permissions": _data_permissions(settings, tenant_id)})
+
+
+def _data_permissions(settings: Settings, tenant_id: str) -> dict[str, Any]:
+    """Where the company's client files may go (`modeler_project.data_permissions`), as its page shows it."""
+    from modeler_project.data_permissions import CLOUD_SERVICES, DataPermissions
+
+    perms, today = DataPermissions(_store(settings), tenant_id), datetime.now(UTC).date()
+    doc = perms.doc()
+    grants = [{"service": p, "label": CLOUD_SERVICES[p], **{k: g.get(k, "") for k in ("basis", "reference", "expires", "by", "at")},
+               "in_force": perms.allows(p, today)} for p, g in doc["services"].items() if p in CLOUD_SERVICES]
+    history = [{"in_house_only": h["in_house_only"], "services": sorted(h["services"]), "by": h["by"], "at": h["at"],
+                "reason": h["reason"]} for h in reversed(doc.get("history", []))]
+    return {"tenant_id": tenant_id, "in_house_only": doc["in_house_only"], "grants": grants, "history": history,
+            "services": [{"service": p, "label": label} for p, label in CLOUD_SERVICES.items()]}
 
 
 class GiveProjects(BaseModel):
@@ -1022,4 +1037,51 @@ def enable_company(tenant_id: str, body: CompanyChange, principal: Admin, settin
     registry.enable(tenant_id)
     _on_chain(settings, principal, tenant_id, "admin.company.enable", "tenant", tenant_id, reason=body.reason,
               after={"people_enabled": len(people_ids)})
+    return company(tenant_id, principal, settings, DEFAULT_PRICE)
+
+
+# --- where a company's client files may go (the governance review, 2026-11-22; the owner, 2026-11-24) ---------------
+
+
+class DataGrantBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    basis: str = "the client's written consent"
+    reference: str = ""             # the client's document: a letter, an email, a contract clause
+    expires: str = ""               # YYYY-MM-DD; empty for none
+
+
+class DataPermissionsBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    in_house_only: bool = True
+    services: dict[str, DataGrantBody] = Field(default_factory=dict)
+    reason: str = ""
+
+
+@router.put("/admin/companies/{tenant_id}/data-permissions", **answers(CompanyPage))
+def put_data_permissions(tenant_id: str, body: DataPermissionsBody, principal: Admin, settings: SettingsDep) -> dict[str, Any]:
+    """Record where the company's client files may go, for all its people and projects at once: in-house only, or the
+    cloud services the client allowed, each with the client's written permission (its reference) and when it ends. The
+    administrator alone sets it; the company's people do not see it (the owner, 2026-11-24). A fresh step-up and a
+    reason; an audit event on the company's chain (`company.data_permissions.set`). The agents follow it from their next
+    request, and the company's Data room runs paused for want of an allowed model resume at once."""
+    from modeler_project.data_permissions import DataPermissions, PermissionError_
+
+    root = _root(settings)
+    if tenant_id not in _companies(root):
+        raise HTTPException(status_code=404, detail=f"no company {tenant_id!r}")
+    if not body.reason.strip():
+        raise HTTPException(status_code=422, detail="say why (the client's permission, or why it is withdrawn)")
+    ensure_step_up(principal)
+    try:
+        DataPermissions(_store(settings), tenant_id).set(
+            in_house_only=body.in_house_only, services={p: g.model_dump() for p, g in body.services.items()},
+            by=principal.user_id, reason=body.reason)
+    except PermissionError_ as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    # the company's runs paused because none of an agent's models was allowed for its files go on now (each pauses again
+    # at once if the change allowed none)
+    store = _store(settings)
+    for company_id, project_id, _doc in dataroom_runs.paused_runs(store):
+        if company_id == tenant_id:
+            dataroom_runs.resume(store, company_id, project_id, by=principal.user_id, how="now", reasons=("no_model",))
     return company(tenant_id, principal, settings, DEFAULT_PRICE)

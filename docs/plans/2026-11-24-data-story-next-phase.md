@@ -147,8 +147,9 @@ The calibration run tells us whether that split holds.
    Free and in-house models keep today's warn-only rule.
 3. **Estimate before running.** Before a paid run, the Data room shows the expected cost from the file count and sizes,
    and asks once.
-4. **Client permission.** Anthropic is a cloud service like NVIDIA and Groq. A client's files go to it only when that
-   project's "Where the files may go" panel records the client's written permission. Made-up demo deliveries need none.
+4. **Client permission.** Anthropic is a cloud service like NVIDIA and Groq. A client's files go to it only when the
+   administrator records the client's written permission for that company (Admin → Companies → "Where its files may
+   go"; a per-project panel until 2026-11-24). Made-up demo deliveries need none.
 
 **Decisions:** D1 (API key), D2 (calibration run), D3 (hard cap for paid models), D6 (client permission rule).
 

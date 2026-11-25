@@ -3,12 +3,14 @@ import { notFound } from "next/navigation";
 
 import { PricingSwitch, USAGE_HEADS, UsageCells, UsageKpis } from "@/components/admin/AdminParts";
 import { CompanyState } from "@/components/admin/CompanyAdmin";
+import { FilesGo } from "@/components/admin/FilesGo";
 import { GiveProjects } from "@/components/admin/GiveProjects";
 import { ApiProblem, Hero } from "@/components/kit";
 import { Panel } from "@/components/kit/Panel";
 import { getCompany, pricedAs, refused } from "@/lib/admin";
 
-/** One company in full: its people and projects, each with what its agents used (the console, build A). */
+/** One company in full: its people and projects, each with what its agents used (the console, build A), and where its
+ *  client files may go, set here for all its projects at once (the owner, 2026-11-24). */
 export default async function CompanyPage({ params, searchParams }: {
   params: Promise<{ tenantId: string }>; searchParams: Promise<{ priced_as?: string }>;
 }) {
@@ -23,7 +25,8 @@ export default async function CompanyPage({ params, searchParams }: {
   return (
     <main>
       <Hero tone="admin" eyebrow={<Link href={`/admin?priced_as=${priced}`}>Admin console</Link>} title={data?.name || tenantId}
-            lede="Its people (everyone who has signed in), its projects (archived ones too) and what their agents used." />
+            lede="Its people (everyone who has signed in), its projects (archived ones too), what their agents used, and where its
+              client files may go." />
       <PricingSwitch priced={priced} base={base} />
       {live.problem && <ApiProblem problem={live.problem} />}
       {data && (
@@ -72,6 +75,7 @@ export default async function CompanyPage({ params, searchParams }: {
               </table>
             </div>
           </Panel>
+          <FilesGo tenantId={tenantId} permissions={data.data_permissions} />
           <GiveProjects tenantId={tenantId} people={data.people.map((p) => ({ subject: p.subject, name: p.name,
                                                                                projects: p.projects }))} />
           <CompanyState tenantId={tenantId} disabledReason={data.disabled_reason} />

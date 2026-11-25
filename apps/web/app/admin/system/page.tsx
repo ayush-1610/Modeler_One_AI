@@ -104,8 +104,8 @@ export default async function SystemPage() {
               ))}
             </tbody>
           </table>
-          <p className="muted">A project's client files go only to the services its owner allowed (Data room → Where the files
-            may go); the in-house model needs no permission.</p>
+          <p className="muted">A company&apos;s client files go only to the services allowed for it (Companies → the company →
+            Where its files may go); the in-house model needs no permission.</p>
         </section>
       </div>
     </main>

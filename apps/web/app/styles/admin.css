@@ -44,3 +44,12 @@
 .chain-add { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 12px; }
 .chain-save { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
 .chain-save label { display: grid; gap: 4px; min-width: 240px; flex: 1; }
+
+/* where a company's client files may go, set for all its projects at once (the owner, 2026-11-24) */
+.files-go { display: grid; gap: 10px; font-size: 14px; line-height: 20px; }
+.files-go-form { display: grid; gap: 10px; }
+.files-go-row { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: flex-end; padding: 6px 0; }
+.files-go-row label, .files-go-why { display: grid; gap: 4px; }
+.files-go-row label:first-child { display: flex; align-items: center; gap: 6px; min-width: 220px; }
+.files-go-acts { display: flex; gap: 8px; flex-wrap: wrap; }
+.files-go-history summary { cursor: pointer; color: var(--ink-quiet); }

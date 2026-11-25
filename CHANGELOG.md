@@ -337,6 +337,46 @@ chain (R-B13) and `pbpk_domain.snapshot.parameter_transfer` (R-B13b) stay until 
 - **Impact:** no page looks or behaves differently: each piece keeps its markup, classes and test ids (the toast's
   class is `toast`, was `mo-toast`); the removed CSS matched no element.
 
+### Changed — where the client's files may go is a company setting, kept by an administrator (2026-11-24, the owner's request)
+- **What:**
+  - **Gone from the projects:** the "Where the files may go" panel is no longer on a project's Data room or Settings
+    page, and `GET` / `PUT /api/v1/projects/{project_id}/data-permissions` are removed (404). The company's people no
+    longer see or change it. `ownership.OWNER_OR_ADMIN_ROUTES`, `owner_or_admin` and `ensure_owner_or_admin` went with
+    it (no route used them any more).
+  - **On the admin console instead:** Admin → Companies → a company → "Where its files may go". The administrator ticks
+    the cloud services the client allowed, each with the client's written permission (its reference) and an optional
+    end date, and a reason, once for every person and project of that company. Same rules as before: in-house only by
+    default, a reference for each service, an end date not in the past, a fresh step-up.
+  - **API:** `PUT /api/v1/admin/companies/{tenant_id}/data-permissions` (`modeler-admin` only; answers the company
+    page); `GET /api/v1/admin/companies/{tenant_id}` carries `data_permissions`. `DataPermissionsView` moved to
+    `views/admin.py` and lost `you_change_it` / `who_changes_it`. `docs/api/openapi.json` and `lib/api-types.ts`
+    regenerated.
+  - **Record:** `modeler_project.data_permissions.DataPermissions(store, tenant_id)` keeps one file per company,
+    `<tenant>/data_permissions.json` (`DataPermissions.of(ws)` for a project's company). Each change is the audit event
+    `company.data_permissions.set` on the company's chain (resource `tenant`); it was `project.data_permissions.set`.
+  - **The agents' gate** (`agent_jobs.project_model`) reads the project's company record. With no allowed model left,
+    an agent now says: "this company's files may not be sent to …: an administrator records the client's permission
+    for it (Admin → Companies → the company → Where its files may go), or sets the agent to the in-house model".
+  - **Paused runs:** saving it resumes at once every Data room run of the company that paused because no allowed model
+    was left (`no_model`); the per-project route did this for its one project. Another company's runs stay paused.
+  - System status's note under the keys now points to the company page.
+- **Why:** the owner, 2026-11-24: the administrator handles this for all of a company's people at once and chooses
+  what applies; it should not be shown to the users. It also closes the open item "consent per client rather than per
+  project" from the governance review (continuation §4).
+- **Impact:**
+  - **Permissions recorded on a project before this change are no longer read.** Every company is in-house only until
+    an administrator records its permission on the company page. This fails closed: no file goes to a cloud service
+    that has not been allowed again. A project whose agents used a cloud model under a per-project permission will stop
+    with the message above until the administrator records it for the company. The old files are left on disk, not
+    deleted.
+  - **Tests:** `services/api/tests/test_data_permissions.py` rewritten (T-47: the company starts in-house only; only the
+    administrator with a step-up changes it; the project routes are gone; one record governs every project of the
+    company and not another company's; old per-project records are ignored; an ended permission stops);
+    `test_dataroom_pause_api.py` resumes the company's `no_model` runs through the admin route. e2e:
+    `dataroom.spec.ts` and `auth-pages.spec.ts` check that the panel is gone. The admin panel has no e2e spec, because
+    the DEV sign-in is not an administrator (as for the rest of the console).
+  - No ruleset, acceptance criterion or locked file changed.
+
 ### Added — science: the Data room asks for what the question needs, from the requirement drafts per context of use (plan 2026-11-24 §6, phase 2; the drafts stay UNVERIFIED) (2026-11-24)
 - **Why:** phase 2 of `docs/plans/2026-11-24-data-story-next-phase.md` (§6, decision D5; the owner's "go ahead with all
   phases"). A6 wrote the room's checklist from one fixed list: every project was asked for the manufacturing process,
@@ -11539,3 +11579,4 @@ record it here so a reader knows which context produced which work.
 | 2026-11-21 → 22 (same cloud session, branch `claude/stoic-bohr-9ymlx9`, continued after context resets) | Claude Opus 5.5 | The owner's second sample delivery explored; plan v2, the Data room (`2026-11-21-intelligent-client-data-intake.md`); GroqCloud gpt-oss-120b as a third model, one click per agent; the new logo and palette; the Data room reader (OCR, turned pages, delimited exports), engine (sets, means, NCA, dissolution, decisions, requests, PK-Sim inputs, Send to the model) and five agents; the API and page on `dataroom-api-web` |
 | 2026-11-22 (cloud session, branch `claude/inspiring-einstein-191gn3`; the owner switched the model mid-session) | per commit trailer | Redesign charter Gate 1: read-only product discovery in `design-review/` (audit, feature inventory, bloatware report, proposed features, unknowns, current-state screenshots) |
 | 2026-11-23 (same cloud session, continued after a context reset) | per commit trailer | Redesign Gates 2–4 and Phase 9 (archive, implementation plan); security fixes R-S01, R-S03, R-S04; slice 0 (`main` fast-forwarded, archive branch pushed) and slice 1 (R-S02 and the console shell) |
+| 2026-11-24 (cloud session, branch `claude/optimistic-feynman-zy100a`) | per commit trailer | Where the client's files may go moved from each project's Data room and Settings to a company setting the administrator keeps on Admin → Companies (the owner's request) |

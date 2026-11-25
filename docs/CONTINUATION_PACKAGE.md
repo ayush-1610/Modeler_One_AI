@@ -323,14 +323,21 @@ streams; every Data room turn and switch is recorded; each answer names the mode
 **2026-11-23: the governance review's open items.**
 - Each project is in-house only until the client's written permission for a cloud service is recorded on its Data
   room page. The gate (`agent_jobs.project_model`) leaves out every model on a service the project does not allow, for
-  A1, A4, the intake pipeline and A6–A10.
+  A1, A4, the intake pipeline and A6–A10. **Superseded 2026-11-24:** it is a company setting now (below).
 - The evidence report has "How this report was made".
 - A9 checks each extraction on another model when the chain has one.
 - Each run is audited at its start and kept in the room's run history.
-- Still open: consent per client rather than per project, and an admin registry of clients' agreements.
+- Still open: consent per client rather than per project (done 2026-11-24, below), and an admin registry of clients'
+  agreements.
 
 **2026-11-24: the way in, and the missing pages.**
-- Only the project's owner or an administrator records where its files may go.
+- ~~Only the project's owner or an administrator records where its files may go.~~ Replaced the same day: **where a
+  company's client files may go is one setting per company, kept by the administrator** on Admin → Companies → the
+  company → "Where its files may go" (`PUT /admin/companies/{tenant_id}/data-permissions`; record
+  `<tenant>/data_permissions.json`; audit `company.data_permissions.set`). The panel is gone from the Data room and
+  Settings, and the project routes are removed: the company's people do not see it. The gate reads the project's
+  company record. Permissions recorded on a project before are no longer read: every company is in-house only until
+  the administrator records its permission (fails closed).
 - `/signin`, `/signed-out`, `/no-access`, `/account`, and the Keycloak login theme `modeler-one` (`keycloak.sh theme`,
   then select it once in Keycloak's admin console on the server).
 - The realm file now imports into a fresh Keycloak (a description over 255 characters had stopped it).

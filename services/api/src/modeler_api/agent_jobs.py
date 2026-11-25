@@ -75,22 +75,24 @@ def chat_model(agent: str | None = None) -> tuple[Any | None, str | None]:
 
 def project_model(agent: str, ws: Any) -> tuple[Any | None, str | None]:
     """The model `agent` runs on for this project's client files (the governance review, 2026-11-22): its own model and
-    the failover list, less every cloud service the project has no recorded permission for
-    (`modeler_project.data_permissions`). With none left the work stops, saying what to record."""
+    the failover list, less every cloud service the project's company has no recorded permission for
+    (`modeler_project.data_permissions`, kept by an administrator for the whole company). With none left the work
+    stops, saying what to record."""
     from modeler_agents.llm import FallbackChat
     from modeler_project.data_permissions import DataPermissions, service_label
 
     model, problem = chat_model(agent)
     if model is None or ws is None:
         return model, problem
-    permissions = DataPermissions(ws)
+    permissions = DataPermissions.of(ws)
     models = list(getattr(model, "models", [model]))
     labels = list(getattr(model, "labels", [f"{getattr(model, 'provider', '')}/{getattr(model, 'model', '')}"]))
     kept = [(label, m) for label, m in zip(labels, models, strict=True) if permissions.allows(getattr(m, "provider", ""))]
     if not kept:
         refused = ", ".join(dict.fromkeys(service_label(getattr(m, "provider", "")) for m in models))
-        return None, (f"this project's files may not be sent to {refused}: record the client's permission for it "
-                      "(Data room → Where the files may go), or set the agent to the in-house model")
+        return None, (f"this company's files may not be sent to {refused}: an administrator records the client's "
+                      "permission for it (Admin → Companies → the company → Where its files may go), or sets the agent "
+                      "to the in-house model")
     if len(kept) == len(models):
         return model, None
     if len(kept) == 1:

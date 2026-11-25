@@ -241,9 +241,15 @@ def test_a_change_of_a_model_a_key_or_a_permission_resumes_the_runs_it_may_unblo
     switched = client.put("/api/v1/admin/agents/A8", headers=_as("owner"), json={"provider": "off", "reason": "free for now"})
     assert switched.status_code == 200, switched.text
     _done(cap)
-    # the client's permission recorded: the project's run that no allowed model could do goes on
+    # the client's permission recorded by the administrator for the company (the owner, 2026-11-24): each of its runs
+    # that no allowed model could do goes on; another company's does not
     _paused(rate, "no_model")
-    page = client.put("/api/v1/projects/p1/data-permissions", headers=_as("t"), json={
+    _paused(cap, "no_model")
+    _paused(nokey, "no_model")
+    client.post("/api/v1/projects", headers=_as("t"), json={"name": "Renal Demo", "compound": "Renaldrug"})
+    page = client.put("/api/v1/admin/companies/t1/data-permissions", headers=_as("owner"), json={
         "in_house_only": False, "reason": "the client's letter", "services": {"groq": {"reference": "L-1"}}})
     assert page.status_code == 200, page.text
     _done(rate)
+    _done(cap)
+    assert nokey.run()["state"] == "paused"

@@ -165,7 +165,7 @@ function ProjectNav({ projectId, path }: { projectId: string; path: string }) {
         <NavItem it={{ href: `${base}/agent-activity`, label: "Agent activity", icon: "cpu", active: path.startsWith(`${base}/agent-activity`),
                        testId: "nav-agent-activity" }} />
       </Group>
-      {/* the sitemap's PROJECT group: who owns it, who it is shared with, where its client files may go (2026-11-24) */}
+      {/* the sitemap's PROJECT group: who owns it and who it is shared with (2026-11-24) */}
       <Group label="Project">
         <NavItem it={{ href: `${base}/members`, label: "Members", icon: "users", active: path.startsWith(`${base}/members`), testId: "nav-members" }} />
         <NavItem it={{ href: `${base}/settings`, label: "Settings", icon: "sliders", active: path.startsWith(`${base}/settings`), testId: "nav-settings" }} />

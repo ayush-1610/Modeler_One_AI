@@ -48,15 +48,15 @@ test("Help is the user guide, with the steps for the AI model keys", async ({ pa
   await page.screenshot({ path: test.info().outputPath("help.png") });
 });
 
-test("a project's settings hold where its files may go and who it is shared with", async ({ page, request }) => {
+test("a project's settings say who it is shared with, and no longer where its files may go", async ({ page, request }) => {
   const made = await request.post("/api/v1/projects", { headers: { Authorization: "Bearer dev" },
                                                         data: { name: "Settings Demo", compound: "Settamide" } });
   const projectId = (await made.json()).data.id as string;
   await page.goto(`/projects/${projectId}`);
   await page.getByTestId("nav-settings").click();
   await expect(page).toHaveURL(new RegExp(`/projects/${projectId}/settings$`));
-  await expect(page.getByTestId("files-go-said")).toContainText("In-house only");
   await expect(page.getByTestId("settings-members")).toBeVisible();          // who it is shared with; managed on Members
+  await expect(page.getByTestId("files-go")).toHaveCount(0);                 // set by an administrator for the company
   await expect(page.getByTestId("settings-members-link")).toHaveAttribute("href", `/projects/${projectId}/members`);
   await page.screenshot({ path: test.info().outputPath("settings.png"), fullPage: true });
 });

@@ -93,9 +93,47 @@ class ProjectRow(View):
     usage: Usage
 
 
+class DataGrant(View):
+    """One cloud service a company's client files may be sent to: the client's written permission it rests on."""
+
+    service: str               # groq, nvidia, bedrock, openai_compat
+    label: str
+    basis: str
+    reference: str
+    expires: str               # YYYY-MM-DD, "" for none
+    by: str
+    at: str
+    in_force: bool
+
+
+class DataService(View):
+    service: str
+    label: str
+
+
+class DataChange(View):
+    in_house_only: bool
+    services: list[str]
+    by: str
+    at: str
+    reason: str
+
+
+class DataPermissionsView(View):
+    """Where a company's client files may be sent for an AI model to read (the governance review, 2026-11-22), for every
+    project of the company (the owner, 2026-11-24): in-house only unless a cloud service has the client's recorded
+    permission. `services`: every cloud service there is; `history`: each change, newest first."""
+
+    tenant_id: str
+    in_house_only: bool
+    grants: list[DataGrant]
+    services: list[DataService]
+    history: list[DataChange]
+
+
 class CompanyPage(View):
-    """One company: its people (each who has signed in) and its projects, archived ones included; its name, and why it is
-    disabled when it is."""
+    """One company: its people (each who has signed in) and its projects, archived ones included; its name, why it is
+    disabled when it is, and where its client files may go."""
 
     tenant_id: str
     name: str
@@ -104,6 +142,7 @@ class CompanyPage(View):
     projects: list[ProjectRow]
     usage: Usage
     priced_as: str
+    data_permissions: DataPermissionsView     # where its client files may go, for all its projects (the owner, 2026-11-24)
 
 
 class UsageRun(View):
