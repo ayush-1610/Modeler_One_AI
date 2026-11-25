@@ -43,3 +43,28 @@ test("another project's literature value for the same drug is reused here with i
   expect(reused.note).toContain("reused from project");
   expect(reused.source.doi).toBe("10.1/reuse");
 });
+
+test("two projects of the same drug offer their values, each button named with the project it takes from", async ({ page, request }) => {
+  // the acceptance pass (console redesign slice 10): two offers read "Use them" twice, with nothing saying which is which
+  const value = JSON.stringify([{ target: "phys.logp", value: 1.2, unit: null, quote: "the logP of twinamide was 1.2",
+                                  doi: "10.1/twin", title: "Pharmacokinetics of twinamide" }]);
+  const offering = [await project(request, "Twinamide"), await project(request, "Twinamide")];
+  for (const id of offering) {
+    execFileSync("uv", ["run", "python", join(__dirname, "fixtures", "literature_value.py"),
+                        join(process.env.E2E_DATA_DIR!, "read-root"), id, value], { cwd: REPO });
+  }
+  const here = await project(request, "twinamide");
+  await finishStart(request, here);
+
+  await page.goto(`/projects/${here}/inputs?tab=compound`);
+  const names = await Promise.all(offering.map(async (id) => {
+    const use = page.getByTestId(`reuse-use-${id}`);
+    await expect(use).toHaveText("Use them");                                    // the visible words are in the name
+    return use.getAttribute("aria-label");
+  }));
+  // both are "Twinamide PBPK": each says its id, in its button's name and on the page
+  for (const [i, id] of offering.entries()) {
+    expect(names[i]).toBe(`Use them: the 1 value from Twinamide PBPK (${id})`);
+    await expect(page.getByTestId(`reuse-${id}`)).toContainText(`Twinamide PBPK (${id})`);
+  }
+});

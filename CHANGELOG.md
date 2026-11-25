@@ -13,6 +13,32 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 
 ## [Unreleased] — make the pipeline do real PBPK, S0 → S7
 
+### Changed — the console redesign, slice 10: the acceptance pass, its fixes, the deploy plan (2026-11-25)
+- **What:**
+  - **Every page checked, at 1440 and 390 px** (`e2e/acceptance.spec.ts`, new): the pages are read from
+    `app/**/page.tsx`, so a page added later is checked or the test fails naming it; each page (tabs that are their own
+    address included: History's four, the campaign's, Inputs') has one top heading, names every visible control,
+    scrolls nothing sideways, and makes every control at least 24 × 24 px to the pointer (WCAG 2.2 SC 2.5.8, with its
+    exceptions: a link inside a sentence, a control the browser sizes, a small target with room around it). The
+    sign-in pages are checked too. Then the keyboard: the skip link is the first stop and takes the focus past the
+    shell; a dialog takes the focus, keeps it on Tab and gives it back on Escape; the phone's menu button opens and
+    closes the navigation. The checks live in `e2e/fixtures/a11y.ts`; the shell's spec keeps only its navigation test
+    (its page check, a subset, moved here). `ACCEPTANCE_SCREENSHOTS=<folder>` keeps a picture of each page.
+  - **The admin console's ten pages**, which the development sign-in cannot open (no `modeler-admin`; `auth.py` is
+    locked), passed the same checks signed in as the platform's owner through an audit harness (not committed).
+  - **Fixed, found by the pass:** on a phone, the Keys page's notice ran past the screen (a command with no spaces): a
+    banner now wraps long text; a page's notice touched the panel under it: a small gap; two "Use them" offers on
+    Inputs (the same drug in two other projects) shared one name: each button now says how many values from which
+    project, with the project's id on the page and in the name when two projects share a name (a new test in
+    `value-reuse.spec.ts`; `inputs-a11y.spec.ts` failed on it when the suite's data lined up, on `main` too).
+  - **The deploy plan** (`docs/plans/2026-11-25-console-redesign-deploy.md`): what goes out, the owner's checks before
+    (the go-ahead, the archive tag, the rollback target, retired operations, the QA role in Keycloak), the deploy from a
+    clean `main`, a 15-minute check after, the rollback, and twelve tasks of real work for the owner's acceptance.
+- **Why:** the plan's slice 10 ("full regression, accessibility and responsive pass, the owner uses it on real work,
+  deploy plan"); its exit is the owner's acceptance.
+- **Impact:** three small visible changes (a wrapped notice, a gap, the reuse buttons' names); no route, API or record
+  changes. Nothing is deployed: the deploy waits for the owner's go-ahead.
+
 ### Fixed — the question card's regulator only as a file names it (A6) (2026-11-25)
 - **Why:** found by the free calibration run. The made-up delivery names no agency, and Nemotron Ultra wrote "EMA" on
   the card; the recorded run wrote "FDA / EMA (not explicitly stated…)". Start drafts the card's regulator as the
