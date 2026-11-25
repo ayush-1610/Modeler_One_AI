@@ -406,6 +406,10 @@ def score_room(got: Any, key: Any) -> list[tuple[str, str, object, object]]:
     for ks in key.solubility:
         add(f"solubility pH {ks.ph:g}", next((x.solubility_mg_ml for x in got.solubility if x.ph == ks.ph), None),
             ks.solubility_mg_ml)
+    def base(name: str) -> str:            # "substance.mw[Exampleamide]" and "substance.mw" name the same value here
+        return name.split("[", 1)[0]
+
     for kv in key.substance:
-        add(f"substance {kv.key}", next((v.value for v in got.substance if v.key == kv.key), None), kv.value)
+        add(f"substance {base(kv.key)}", next((v.value for v in got.substance if base(v.key) == base(kv.key)), None),
+            kv.value)
     return rows

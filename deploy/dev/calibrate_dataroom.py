@@ -156,7 +156,7 @@ def main() -> None:
     report = {"preset": args.preset, "models": {a: label for a, (label, _e) in models.items()}, "estimate_usd": estimate,
               "cap_usd": args.cap, "usd": round(budget.run_spent, 4), "minutes": round((time.time() - began) / 60, 1),
               "score": {"OK": counts["OK"], "WRONG": counts["WRONG"], "MISSING": counts["MISSING"], "of": len(scored)},
-              "baseline": "Nemotron Ultra on the same delivery, 2026-11-24 (free): 56 OK, 1 wrong, 3 missing of 60",
+              "baseline": "Nemotron Ultra on the same delivery, 2026-11-24 (free): 58 OK, 1 wrong, 1 missing of 60",
               "rows": [{"status": s, "what": w, "key": str(k), "got": str(g)} for s, w, k, g in scored],
               "by_agent": {k: dict(v) for k, v in by_agent.items()}, "stages": log, "calls": rows}
     (out / "report.json").write_text(json.dumps(report, indent=1, ensure_ascii=False, default=str))

@@ -62,11 +62,13 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
     roles and regulator; the study's sets, exposures, arms and facts; dissolution, f2 by batch and pH, solubility,
     substance).
   - The free baseline on the same rows, run here on 2026-11-24 with the tool itself (`--preset free`, $0, 25 min, one
-    10-minute wait for NVIDIA's rate limit): Nemotron Ultra 56 OK, 1 wrong, 3 missing. Wrong: the regulator ("EMA";
-    the delivery names none). Missing: the withdrawn subjects' count, the molar mass and the pKa (all three in the
-    synopsis PDF). The recorded run of 2026-11-22 (the repository's fixture) scores 54 OK, 1 wrong, 5 missing.
+    10-minute wait for NVIDIA's rate limit): Nemotron Ultra 58 OK, 1 wrong, 1 missing. Wrong: the regulator ("EMA";
+    the delivery names none; A6 now refuses it, below). Missing: the withdrawn subjects' count, read as
+    `study.disposition` ("4 subjects withdrawn") rather than `study.excluded_subjects`. The recorded run of 2026-11-22
+    (the repository's fixture) scores 56 OK, 1 wrong, 3 missing (the three f2 pairs).
   - A worded fact scores OK when the key's words stand in it in order ("open two-period crossover" holds
-    "two-period crossover"). The regulator scores only as a file states it; this delivery states none.
+    "two-period crossover"). A substance value matches with or without the compound in brackets
+    (`substance.mw[Exampleamide]`). The regulator scores only as a file states it; this delivery states none.
 - **Tests:** `services/api/tests/test_calibrate_dataroom.py` (a scripted model: dry run, cap and ledger, a preset with
   no key); `test_the_answer_key_scores_itself_full_and_the_recorded_run_says_what_it_missed`.
 - **Docs:** `docs/USING_THE_TOOL.md` §6b, step 6.
