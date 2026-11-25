@@ -60,6 +60,7 @@ from modeler_project.plan import (
     unlock,
     validate,
 )
+from modeler_project.room_basis import room_basis
 from pbpk_domain.campaign.map import MapDocument, MapStatus
 from pbpk_domain.cpf.models import CPF
 
@@ -100,7 +101,8 @@ def _ensure(ws: Workspace, by: str) -> tuple[Any, ModelPlan, CPF, list[dict[str,
     version, plan = current(ws)
     if plan is None:
         measured_fed = cpf.get("food.fed_solubility_factor") is not None
-        plan = build_default(cpf, rows, structure_from_brief(_brief(ws), measured_fed_solubility=measured_fed))
+        plan = build_default(cpf, rows, structure_from_brief(_brief(ws), measured_fed_solubility=measured_fed,
+                                                             room=room_basis(ws)))
         version = save(ws, plan, by=by, reason="the MS-01 default plan (split §3.3, stage plan, budgets)", derived_from=refs)
     return version, plan, cpf, rows
 
@@ -249,7 +251,9 @@ def get_review(project_id: str, principal: Reader, store: StoreDep) -> dict[str,
         "bounds_rule": review.bounds_rule_view(),
         "validation": review.validation_plan(doc, studies),
         "acceptance": review.acceptance(plan, doc),
-        "applications": review.applications(plan, cpf, violations),
+        # the Data room's suggestions for the VBE panel (B8), read only when a VBE crossover is pinned
+        "applications": review.applications(plan, cpf, violations, room=room_basis(ws) if any(
+            a.template == "vbe-crossover" for a in structure.applications) else None),
         "application_support": review.application_support(plan, brief),
     })
 
@@ -456,7 +460,8 @@ def rebase_plan(project_id: str, principal: Writer, store: StoreDep) -> dict[str
     ws = workspace_for(project_id, principal, store)
     version, plan, _cpf, _rows = _ensure(ws, principal.user_id)
     cpf, rows, refs = _inputs(ws)
-    from_brief = structure_from_brief(_brief(ws), measured_fed_solubility=cpf.get("food.fed_solubility_factor") is not None)
+    from_brief = structure_from_brief(_brief(ws), measured_fed_solubility=cpf.get("food.fed_solubility_factor") is not None,
+                                      room=room_basis(ws))
     fresh = build_default(cpf, rows, keep_locked(plan.structure, from_brief))
     rebased = _deviation(ws, rebase(plan, fresh), kind="rebase", target="inputs", by=principal.user_id,
                          change="re-placed on the current inputs (a person's choices kept, new studies placed by default)",

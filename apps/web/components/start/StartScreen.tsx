@@ -15,7 +15,7 @@ import { useMutation, useResource, type After } from "@/lib/hooks";
 import { STEP_ROUTES } from "@/lib/pipeline";
 import { intakeStopped, LINEAR_DRAFT, marks as startMarks, recordOf, type BriefChange } from "@/lib/start";
 
-type Focus = { sha256: string; page: number; quote: string | null } | null;
+type Focus = { sha256: string | null; page: number; quote: string | null; title?: string; locator?: string } | null;
 
 // The order the viewer lists documents in, so it opens on the proposal: documents are stored by content hash, and a
 // client file or the PubChem record listed first would open instead. The client's files come last (read in Inputs).
@@ -62,7 +62,10 @@ export function StartScreen({ projectId }: { projectId: string }) {
     );
   }
   const documents = forViewer(docs.data?.documents ?? []);
-  const open = (c: Citation) => setFocus({ sha256: c.doc_sha256, page: c.page, quote: c.quote });
+  // a quote from a file the project's library does not hold (a Data room file): its quote and where, not a stored page
+  const open = (c: Citation) => setFocus(docs.data && !documents.some((d) => d.sha256 === c.doc_sha256)
+    ? { sha256: null, page: c.page, quote: c.quote, title: c.source, locator: c.locator }
+    : { sha256: c.doc_sha256, page: c.page, quote: c.quote });
 
   async function save(changes: BriefChange[]): Promise<string | null> {
     const { problem } = await run(() => send("put", "/api/v1/projects/{project_id}/brief", { project_id: projectId }, { changes }), BRIEF_CHANGED);
@@ -73,6 +76,22 @@ export function StartScreen({ projectId }: { projectId: string }) {
     const { problem } = await run(() => send("post", "/api/v1/projects/{project_id}/brief/questions/{question_id}",
       { project_id: projectId, question_id: questionId }, { answer: text, status }), BRIEF_CHANGED);
     if (problem) setNotice(problem);
+  }
+
+  // the Data room's confirmed question card and studies drafted into the brief (plan 2026-11-24 §7, phase 4): each a
+  // draft to confirm below; a person's own value is never overwritten, and where it differs the room's advice says so
+  async function fillFromRoom() {
+    const { data, problem } = await run(() => send("post", "/api/v1/projects/{project_id}/brief:from-dataroom", { project_id: projectId }, {}),
+      BRIEF_CHANGED);
+    if (problem || !data) {
+      setNotice(problem ?? "The Data room could not be read.");
+      return;
+    }
+    const drafted = data.drafted.length;
+    const kept = data.kept.length;
+    setNotice((drafted ? `The Data room drafted ${drafted} ${drafted === 1 ? "field" : "fields"}; each waits for you below.`
+      : "Nothing new from the Data room: Start already holds what it says.")
+      + (kept ? ` ${kept} ${kept === 1 ? "value" : "values"} you or a document set ${kept === 1 ? "was" : "were"} kept.` : ""));
   }
 
   async function readAgain() {
@@ -101,9 +120,18 @@ export function StartScreen({ projectId }: { projectId: string }) {
     <>
     <Hero tone="start" eyebrow="Step 1 of 4" title={<>Start · {view.brief.drug_name}</>} lede={lede}
           actions={(
-            <button type="button" className="btn" disabled={busy || view.extraction_running} onClick={readAgain} data-testid="start-read">
-              {view.extraction_running ? "Reading the proposal…" : "Read the proposal again"}
-            </button>
+            <>
+              {view.start.room?.confirmed_card && (
+                <button type="button" className="btn" disabled={busy || view.extraction_running} onClick={fillFromRoom}
+                        data-testid="start-fill-from-room"
+                        title="Draft the question, applications, products, scenarios and populations the Data room's confirmed card and studies state">
+                  Fill from the Data room
+                </button>
+              )}
+              <button type="button" className="btn" disabled={busy || view.extraction_running} onClick={readAgain} data-testid="start-read">
+                {view.extraction_running ? "Reading the proposal…" : "Read the proposal again"}
+              </button>
+            </>
           )} />
     <div className="start-screen">
       <div className="start-top">
@@ -114,6 +142,7 @@ export function StartScreen({ projectId }: { projectId: string }) {
         )}
       </div>
       <IntakeStatus view={view} />
+      <RoomAdvice view={view} />
       <DrugAndFiles projectId={projectId} view={view} documents={documents} save={save} open={open} marks={marks} />
       <ShortBrief view={view} save={save} open={open} marks={marks} />
       <RiskPicker key={riskKey} view={view} save={save} open={open} marks={marks} />
@@ -138,11 +167,25 @@ export function StartScreen({ projectId }: { projectId: string }) {
         )}
       </div>
       {focus && (
-        <SourcePeek projectId={projectId} source={{ doc_sha256: focus.sha256, page: focus.page, quote: focus.quote }}
+        <SourcePeek projectId={projectId} source={{ doc_sha256: focus.sha256, page: focus.page, quote: focus.quote, title: focus.title,
+                                                    locator: focus.locator }}
                     onClose={() => setFocus(null)} />
       )}
     </div>
     </>
+  );
+}
+
+/** Where Start's own word differs from the Data room's confirmed question card (plan 2026-11-24 §7, B5): advice, never a
+ *  block. Both are kept; the person decides which stands. */
+function RoomAdvice({ view }: { view: BriefView }) {
+  const advice = view.start.room?.advice ?? [];
+  if (!advice.length) return null;
+  return (
+    <div className="start-notice muted" data-testid="start-room-advice">
+      <p>The Data room says otherwise (advice; Start is done without it):</p>
+      <ul>{advice.map((a) => <li key={a.path} data-testid={`start-room-advice-${a.path}`}>{a.message}</li>)}</ul>
+    </div>
   );
 }
 

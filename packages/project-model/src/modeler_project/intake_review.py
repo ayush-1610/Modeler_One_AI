@@ -1860,6 +1860,25 @@ def covered_by_confirmation(ws: Workspace, dataset: ObservedDataset) -> Confirma
     return None
 
 
+def delivery_covers(ws: Workspace, found: Iterable[ObservedDataset], *, sheets: set[str] | None = None
+                    ) -> tuple[ObservedDataset, Confirmation] | None:
+    """The first of these client datasets (not rejected) a signed Delivery confirmation already covers
+    (`covered_by_confirmation`), with that confirmation; None when none is: nothing is loaded twice (contracts 2026-11-12
+    §2). One rule for every reader that would load a client's data again: the legacy client-review routes
+    (`modeler_api.client_api._not_on_delivery`) and the Data room's "Send to the model". `sheets`: the sheets a reading
+    not saved yet reads them from (a saved dataset's are on its file's record; one not saved yet is asked about with its
+    sheets written as the template writes a sheet)."""
+    for one in found:
+        if one.state is EvidenceState.REJECTED:
+            continue
+        probe = one if sheets is None else one.model_copy(update={"source": one.source.model_copy(
+            update={"locator": "; ".join(f"{sheet}!1" for sheet in sorted(sheets))})})
+        covered = covered_by_confirmation(ws, probe)
+        if covered is not None:
+            return one, covered
+    return None
+
+
 # --- blinding (D-15) ----------------------------------------------------------------------------------------------------
 
 

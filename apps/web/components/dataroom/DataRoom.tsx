@@ -17,6 +17,7 @@ import { FilesGo } from "./FilesGo";
 import { Intake } from "./Intake";
 import { Dot, Nothing, SourceProvider } from "./kit";
 import { Files, Overview } from "./overview";
+import { Requirements } from "./requirements";
 import { Clinical, Dissolution, Formulation, Observed, Solubility, Values } from "./science";
 import { SourceDrawer } from "./SourceDrawer";
 import { Decisions, Inputs, Plan, Requests } from "./work";
@@ -36,6 +37,7 @@ export function SectionBody({ id, room, run, projectId, go, withRequests = true 
     switch (id) {
       case "overview": return <Overview room={room} go={go} />;
       case "files": return <Files room={room} run={run} />;
+      case "requirements": return <Requirements room={room} go={go} />;
       case "substance": return <Values values={room.substance} title="Drug substance" empty={`No drug-substance property was found yet.${why}`} />;
       case "adme": return <Values values={room.adme} title="Absorption, distribution, metabolism, elimination" empty={`No ADME fact was found yet.${why}`} />;
       case "formulation": return <Formulation room={room} />;

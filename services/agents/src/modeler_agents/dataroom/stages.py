@@ -41,7 +41,7 @@ from modeler_project.dataroom.store import DataRoomStore
 # the delivery's block before the file's, and the answer cache (plan 2026-11-24 §5 items 2 and 3). A change of any
 # prompt text, tool or constant that shapes a request (MAX_LINES, PREVIEW_LINES, FOCUS_CHARS' use …) is a new version:
 # the answer cache's key holds it.
-PROMPT_VERSION = "dataroom-5"
+PROMPT_VERSION = "dataroom-6"
 MAX_LINES = 120          # lines one read returns
 PREVIEW_LINES = 80       # lines of each of the first parts the triage agent sees (40 misjudged a LIMS export, 2026-11-24)
 
@@ -287,8 +287,8 @@ Your job (A6): from the proposal, the client's request (an email, a screenshot),
 the modelling must answer, for which regulator, with which approach, the products compared (reference, test, original,
 reformulated, as the files name them), the context of use, and the checklist of inputs the question needs. Tailor this
 standard checklist to the question (drop what it does not need, add what it does):
-A formulation and manufacturing: composition of every product (qualitative and quantitative), manufacturing process
-  and its changes, the changed excipient and its share.
+A formulation: composition of every product (qualitative and quantitative, the functional excipients and their
+  amounts), the changed excipient and its share.
 B in vitro: dissolution of every product and batch in every medium tested (QC and biorelevant pH 1.2, 4.5, 6.8), with
   apparatus, speed, volume and units; particle size; the drug product specification.
 C drug substance and disposition: MW (salt and free base), pKa, logP/logD, solubility vs pH, permeability, fraction
@@ -296,6 +296,8 @@ C drug substance and disposition: MW (salt and free base), pKa, logP/logD, solub
 D clinical: per study the design, dose, products and batches per treatment, fasting and meals, water, sampling times,
   LLOQ, demographics, disposition (who completed, who was excluded and why), individual concentrations, the client's
   NCA and BE results.
+Leave out what is kept as context only (the manufacturing process, tablet hardness, the full excipient list, f2) and
+fed-state data unless the question names fed dosing: the room asks for each application's requirements itself.
 Each checklist item gets topics from: """ + ", ".join(TOPICS) + """.
 Each product is {"name": as the files name it, "role": reference | test | original | reformulated | other}.
 Work from the digest: it names every file, its parts and the lines code found that may state the question, the
@@ -379,6 +381,11 @@ def question(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, 
             got = check_fact(fact, docs[fact.file][1], file=fact.file, sha256=docs[fact.file][0].sha256)
             if not got.ok:
                 problems.append(f"quote for {fact.field}: {got.problem}")
+        # the agency only as a file names it: a guessed regulator would be drafted into Start as the project's agency
+        if answer.regulator.strip() and not any(f.field == "question.regulator"  # type: ignore[attr-defined]
+                                                 for f in answer.quotes):  # type: ignore[attr-defined]
+            problems.append("question.regulator: no quote names the agency. Give the quote that names it, or leave the "
+                            "regulator empty when no file names one (never a guess)")
         return problems
 
     submit = _submit_tool("submit_question", QuestionCard, check, saved,
@@ -403,12 +410,18 @@ def question(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, 
             "Write the question card (each quote with its file)."))
     if not saved:
         return f"no question card ({outcome.status}{': ' + outcome.error if outcome.error else ''})"
+    card = saved[0]
+    unstated = bool(card.regulator.strip()) and not any(  # type: ignore[attr-defined]
+        f.field == "question.regulator" for f in card.quotes)  # type: ignore[attr-defined]
+    if unstated:      # what no file names is left for the person, never kept as the model's guess
+        card = card.model_copy(update={"regulator": ""})
     # the model whose submission was saved: in a chain, the one the conversation ended on
-    store.set_question(saved[0], by=f"agent:A6:{outcome.answered_by}", confirmed=False)  # type: ignore[arg-type]
+    store.set_question(card, by=f"agent:A6:{outcome.answered_by}", confirmed=False)  # type: ignore[arg-type]
     store.record_author(stage="question", file="", model=outcome.answered_by, identity=outcome.answered_on,
                         prompt=PROMPT_VERSION)
-    step(1, 1, "question card drafted: confirm it")
-    return "question card drafted: confirm it"
+    said = "question card drafted: confirm it" + ("; no file names the regulator: give it on the card" if unstated else "")
+    step(1, 1, said)
+    return said
 
 
 # --- A7: triage -----------------------------------------------------------------------------------------------------------
@@ -550,6 +563,27 @@ def _extraction_problems(answer: Extraction, path: str, f: FileView, doc: Source
     return problems
 
 
+def _required_items(store: DataRoomStore, card: QuestionCard | None) -> str:
+    """The requirement drafts' items the question's applications require or usually need (plan 2026-11-24 §6.3.4): the
+    extractor is told to look for them, so a required value is not left out (omission is the extractors' main error,
+    docs/research/2026-11-24-ai-extraction-cost-reliability.md). The same for every file of a delivery."""
+    from modeler_project.dataroom.checklist import applications_decision, chosen_applications
+    from modeler_project.dataroom.drafts import load_drafts
+
+    apps = chosen_applications(applications_decision(card, store.decisions()))
+    if not apps:
+        return ""
+    drafts, lines, seen = load_drafts(), [], set()
+    for app in apps:
+        for item in drafts.items_for(app.file, app.subcontext):
+            if item.id in seen or item.status not in ("REQUIRED", "USUALLY_NEEDED") or item.kind == "activity":
+                continue
+            seen.add(item.id)
+            fields = [f.split(":", 1)[1] for f in item.room_fields if f.startswith("field:")]
+            lines.append(f"- {item.label}" + (f" (fields: {', '.join(fields)})" if fields else ""))
+    return "\n".join(lines)
+
+
 def extract(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, step: Step, only: set[str] | None = None,
             focus_chars: int = FOCUS_CHARS, feedback: dict[str, list[dict[str, Any]]] | None = None,
             reuse: bool | None = None) -> str:
@@ -562,7 +596,9 @@ def extract(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, s
     products = "\n".join(f"- {p.name} ({p.role})" for p in (card.products if card else ()))
     # the delivery's block, the same for every file and before the file's own (one cached start for all of them)
     delivery = (f"The question: {card.question if card else '(not set)'}\nThe products:\n{products or '(not set)'}\n"
-                f"The checklist:\n{checklist or '(not set)'}\n\n")
+                f"The checklist:\n{checklist or '(not set)'}\n"
+                + (f"What this question requires, by its applications (look for each; it may be in any file):\n{wanted}\n"
+                   if (wanted := _required_items(store, card)) else "") + "\n")
     asked = stable_sha256(None if card is None else {          # the card's fields the prompt shows, nothing else
         "question": card.question, "products": [[p.name, p.role] for p in card.products],
         "checklist": [[c.id, c.area, c.label, list(c.topics)] for c in card.checklist]})
@@ -766,7 +802,8 @@ def write(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, ste
                      "exposures": [e.model_dump() for e in s.exposures]} for s in view.studies],
         "dissolution": [{"product": d.product, "batch": d.batch, "medium": d.medium, "very_rapid": d.very_rapid,
                          "plateau": d.plateau} for d in view.dissolution],
-        "requests": [{"title": r.title, "why": r.why} for r in view.requests],
+        # only what is still asked: a request a person (or the requirements) marked not needed is not written to the client
+        "requests": [{"title": r.title, "why": r.why} for r in view.requests if r.status == "open"],
         "decisions": [{"title": d.title, "suggested": d.suggested} for d in view.decisions]}, ensure_ascii=False)
     saved: list[BaseModel] = []
 

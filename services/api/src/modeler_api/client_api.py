@@ -86,10 +86,9 @@ from modeler_project.datasets import DatasetError, ObservedDataset
 from modeler_project.delivery_map import file_line
 from modeler_project.dissolution_register import DissolutionRegisterError, comparisons, profiles, propose_release_model
 from modeler_project.documents import DocumentLibrary
-from modeler_project.evidence import EvidenceState
 from modeler_project.figure_suggestions import open_suggestions
 from modeler_project.inputs import refresh_inputs
-from modeler_project.intake_review import covered_by_confirmation
+from modeler_project.intake_review import delivery_covers
 from modeler_project.reading_queue import ReadingQueue
 from modeler_project.requirements import RequirementMatrix, client_request
 from modeler_project.sheet_intake import PURPOSES as SHEET_PURPOSES
@@ -631,19 +630,15 @@ def _loaded_on_delivery(what: str, confirmation: str) -> HTTPException:
 
 def _not_on_delivery(ws: Workspace, found: list[ObservedDataset], *, sheets: set[str] | None = None) -> None:
     """409 `LOADED_ON_DELIVERY` when a signed Delivery confirmation covers one of these client datasets, by the overlap
-    of §2 (`intake_review.covered_by_confirmation`: the file, the sheet or page, and the study's key or an equal
-    point). In `both` only. `sheets`: the sheets a reading not saved yet reads them from (a saved dataset's are on its
-    file's record; one not saved yet is asked about with its sheets written as the template writes a sheet)."""
+    of §2 (`intake_review.delivery_covers`, the rule the Data room's "Send to the model" applies too: the file, the sheet
+    or page, and the study's key or an equal point). In `both` only. `sheets`: the sheets a reading not saved yet reads
+    them from (a saved dataset's are on its file's record; one not saved yet is asked about with its sheets written as
+    the template writes a sheet)."""
     if not intake_pipeline_jobs.enabled():
         return
-    for one in found:
-        if one.state is EvidenceState.REJECTED:
-            continue
-        probe = one if sheets is None else one.model_copy(update={"source": one.source.model_copy(
-            update={"locator": "; ".join(f"{sheet}!1" for sheet in sorted(sheets))})})
-        covered = covered_by_confirmation(ws, probe)
-        if covered is not None:
-            raise _loaded_on_delivery(f"study {one.study.get('study_id')} of this source", covered.id)
+    if (covered := delivery_covers(ws, found, sheets=sheets)) is not None:
+        one, confirmation = covered
+        raise _loaded_on_delivery(f"study {one.study.get('study_id')} of this source", confirmation.id)
 
 
 def _group_not_on_delivery(ws: Workspace, gid: str) -> None:

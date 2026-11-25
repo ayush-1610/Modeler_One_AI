@@ -1130,6 +1130,54 @@
         "title": "ApplicationRequest",
         "type": "object"
       },
+      "ApplicationSuggestion": {
+        "additionalProperties": false,
+        "description": "What the Data room offers an application's inputs (`review.vbe_suggestion`, plan 2026-11-24 §7 B8): suggestions\nwith their source, never saved until a person saves the design.",
+        "properties": {
+          "note": {
+            "title": "Note",
+            "type": "string"
+          },
+          "observed_be": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SuggestedBe"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reference_formulation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SuggestedFormulation"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "test_formulation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SuggestedFormulation"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "test_formulation",
+          "reference_formulation",
+          "observed_be",
+          "note"
+        ],
+        "title": "ApplicationSuggestion",
+        "type": "object"
+      },
       "ApplicationSupport": {
         "additionalProperties": false,
         "properties": {
@@ -5194,6 +5242,16 @@
             "title": "Requests",
             "type": "array"
           },
+          "requirements": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Requirements"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "rules": {
             "title": "Rules",
             "type": "string"
@@ -5252,6 +5310,7 @@
           "inputs",
           "problems",
           "checks",
+          "requirements",
           "made_by",
           "made_summary"
         ],
@@ -14428,6 +14487,31 @@
         "title": "Envelope[ReviewPage]",
         "type": "object"
       },
+      "Envelope_RoomFilled_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/RoomFilled"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[RoomFilled]",
+        "type": "object"
+      },
       "Envelope_RoomPublication_": {
         "additionalProperties": false,
         "properties": {
@@ -22548,6 +22632,16 @@
             "title": "Status",
             "type": "string"
           },
+          "suggested": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ApplicationSuggestion"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "template": {
             "title": "Template",
             "type": "string"
@@ -22564,7 +22658,8 @@
           "inputs",
           "problems",
           "formulations",
-          "limits"
+          "limits",
+          "suggested"
         ],
         "title": "PinnedApplication",
         "type": "object"
@@ -23931,6 +24026,57 @@
         "title": "Projects",
         "type": "object"
       },
+      "PropertyRead": {
+        "additionalProperties": false,
+        "description": "A compound, product or question property a trigger names (core.yaml's vocabulary), as code read it from the room.",
+        "properties": {
+          "basis": {
+            "default": "",
+            "title": "Basis",
+            "type": "string"
+          },
+          "how": {
+            "title": "How",
+            "type": "string"
+          },
+          "known": {
+            "default": false,
+            "title": "Known",
+            "type": "boolean"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "sources": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/Chip"
+            },
+            "title": "Sources",
+            "type": "array"
+          },
+          "value": {
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "label",
+          "how",
+          "value",
+          "known",
+          "basis",
+          "sources"
+        ],
+        "title": "PropertyRead",
+        "type": "object"
+      },
       "Proposal": {
         "additionalProperties": false,
         "description": "An A5 departure from the plan, shown in the diff until a person accepts or rejects it.",
@@ -24512,6 +24658,35 @@
           "template"
         ],
         "title": "ReadFile",
+        "type": "object"
+      },
+      "ReadPhrase": {
+        "additionalProperties": false,
+        "description": "An application read from the question card, with the words that matched, as written (\"'food effect' (question)\").",
+        "properties": {
+          "application": {
+            "title": "Application",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "words": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Words",
+            "type": "array"
+          }
+        },
+        "required": [
+          "application",
+          "label",
+          "words"
+        ],
+        "title": "ReadPhrase",
         "type": "object"
       },
       "ReadingItem": {
@@ -25167,6 +25342,268 @@
           "to_harvest"
         ],
         "title": "RequirementCounts",
+        "type": "object"
+      },
+      "RequirementItem": {
+        "additionalProperties": false,
+        "description": "One item of the checklist for this question, with its coverage (the ledger of plan §6.4): found where, missing\nwith the files searched, not needed and why, or kept as context.",
+        "properties": {
+          "alternatives": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Alternatives",
+            "type": "array"
+          },
+          "applies": {
+            "default": "",
+            "enum": [
+              "yes",
+              "no",
+              "unknown",
+              ""
+            ],
+            "title": "Applies",
+            "type": "string"
+          },
+          "by": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "By",
+            "type": "array"
+          },
+          "chips": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/Chip"
+            },
+            "title": "Chips",
+            "type": "array"
+          },
+          "coverage": {
+            "enum": [
+              "found",
+              "found_in_part",
+              "missing",
+              "to_ask",
+              "absent",
+              "person_checks",
+              "not_from_delivery",
+              "not_needed",
+              "context"
+            ],
+            "title": "Coverage",
+            "type": "string"
+          },
+          "coverage_text": {
+            "title": "Coverage Text",
+            "type": "string"
+          },
+          "escalates": {
+            "default": "",
+            "title": "Escalates",
+            "type": "string"
+          },
+          "found": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Found",
+            "type": "array"
+          },
+          "group": {
+            "title": "Group",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "level": {
+            "enum": [
+              "required",
+              "usually_needed",
+              "conditional",
+              "to_ask",
+              "optional",
+              "not_needed",
+              "context"
+            ],
+            "title": "Level",
+            "type": "string"
+          },
+          "note": {
+            "default": "",
+            "title": "Note",
+            "type": "string"
+          },
+          "others": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Others",
+            "type": "array"
+          },
+          "record_with": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Record With",
+            "type": "array"
+          },
+          "request": {
+            "default": "",
+            "title": "Request",
+            "type": "string"
+          },
+          "room_gap": {
+            "default": false,
+            "title": "Room Gap",
+            "type": "boolean"
+          },
+          "searched": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Searched",
+            "type": "array"
+          },
+          "sources": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Sources",
+            "type": "array"
+          },
+          "status": {
+            "enum": [
+              "REQUIRED",
+              "USUALLY_NEEDED",
+              "CONDITIONAL",
+              "OPTIONAL",
+              "NOT_NEEDED"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "trigger": {
+            "default": "",
+            "title": "Trigger",
+            "type": "string"
+          },
+          "trigger_state": {
+            "default": "",
+            "title": "Trigger State",
+            "type": "string"
+          },
+          "why": {
+            "title": "Why",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "group",
+          "kind",
+          "status",
+          "level",
+          "applies",
+          "trigger",
+          "trigger_state",
+          "escalates",
+          "why",
+          "alternatives",
+          "record_with",
+          "sources",
+          "by",
+          "others",
+          "coverage",
+          "coverage_text",
+          "found",
+          "chips",
+          "searched",
+          "room_gap",
+          "request",
+          "note"
+        ],
+        "title": "RequirementItem",
+        "type": "object"
+      },
+      "Requirements": {
+        "additionalProperties": false,
+        "description": "The checklist for this question from the requirement drafts per context of use: a draft, UNVERIFIED, awaiting the\nowner's and the SME's review. No data plan, gate or live template reads it.",
+        "properties": {
+          "applications": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Applications",
+            "type": "array"
+          },
+          "chosen": {
+            "title": "Chosen",
+            "type": "boolean"
+          },
+          "items": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/RequirementItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "properties": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/PropertyRead"
+            },
+            "title": "Properties",
+            "type": "array"
+          },
+          "read": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/ReadPhrase"
+            },
+            "title": "Read",
+            "type": "array"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "label",
+          "version",
+          "applications",
+          "chosen",
+          "read",
+          "properties",
+          "items"
+        ],
+        "title": "Requirements",
         "type": "object"
       },
       "RequirementsPage": {
@@ -26719,9 +27156,43 @@
         "title": "RoomEntered",
         "type": "object"
       },
+      "RoomFilled": {
+        "additionalProperties": false,
+        "description": "`brief:from-dataroom`: the brief fields drafted from the Data room (DRAFTED, each to confirm on Start), the fields\nkept because a person or a document set another value, and Start's advice where they differ.",
+        "properties": {
+          "advice": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Advice",
+            "type": "array"
+          },
+          "drafted": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Drafted",
+            "type": "array"
+          },
+          "kept": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Kept",
+            "type": "array"
+          }
+        },
+        "required": [
+          "drafted",
+          "kept",
+          "advice"
+        ],
+        "title": "RoomFilled",
+        "type": "object"
+      },
       "RoomPublication": {
         "additionalProperties": false,
-        "description": "What \"Send to the model\" would send now (`modeler_project.dataroom.publish.plan_publication`, nothing written),\nand what keeps it from being sent, in words.",
+        "description": "What \"Send to the model\" would send now (`modeler_project.dataroom.publish.plan_publication`, nothing written),\nwhat keeps it from being sent, and what is sent otherwise than the files might suggest (a fasted arm's meals left\nout, water not stated, a release a Weibull curve does not describe), in words.",
         "properties": {
           "blocked": {
             "items": {
@@ -26743,12 +27214,20 @@
             },
             "title": "Evidence",
             "type": "array"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
           }
         },
         "required": [
           "evidence",
           "datasets",
-          "blocked"
+          "blocked",
+          "notes"
         ],
         "title": "RoomPublication",
         "type": "object"
@@ -26772,8 +27251,12 @@
       },
       "RoomPublished": {
         "additionalProperties": false,
-        "description": "What was sent, signed: items written, items already in the project (skipped), and the signature.",
+        "description": "What was sent, signed: items written, items already in the project (skipped), the Data room's earlier items it\nreplaced (superseded), the publication whose record keeps what the send rested on, and the signature.",
         "properties": {
+          "basis_sha256": {
+            "title": "Basis Sha256",
+            "type": "string"
+          },
           "datasets": {
             "title": "Datasets",
             "type": "integer"
@@ -26786,6 +27269,17 @@
             "title": "Manifestation",
             "type": "string"
           },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "publication": {
+            "title": "Publication",
+            "type": "string"
+          },
           "signature_id": {
             "title": "Signature Id",
             "type": "string"
@@ -26793,12 +27287,20 @@
           "skipped": {
             "title": "Skipped",
             "type": "integer"
+          },
+          "superseded": {
+            "title": "Superseded",
+            "type": "integer"
           }
         },
         "required": [
           "evidence",
           "datasets",
           "skipped",
+          "superseded",
+          "publication",
+          "basis_sha256",
+          "notes",
           "signature_id",
           "manifestation"
         ],
@@ -27344,6 +27846,14 @@
             "title": "Sets",
             "type": "array"
           },
+          "sources": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/Chip"
+            },
+            "title": "Sources",
+            "type": "array"
+          },
           "study_id": {
             "title": "Study Id",
             "type": "string"
@@ -27373,7 +27883,8 @@
           "client_means",
           "concentration_unit",
           "lloq",
-          "problems"
+          "problems",
+          "sources"
         ],
         "title": "RoomStudy",
         "type": "object"
@@ -29669,6 +30180,16 @@
           },
           "risk": {
             "$ref": "#/components/schemas/RiskView"
+          },
+          "room": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StartRoomView"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -29679,7 +30200,8 @@
           "applications",
           "pathway_suggestions",
           "pathways_not_named",
-          "client_request"
+          "client_request",
+          "room"
         ],
         "title": "StartBlock",
         "type": "object"
@@ -29702,6 +30224,47 @@
           "message"
         ],
         "title": "StartIssueView",
+        "type": "object"
+      },
+      "StartRoomView": {
+        "additionalProperties": false,
+        "description": "The project's Data room as Start sees it (plan 2026-11-24 §7, phase 4): whether a person confirmed its question\ncard (\"Fill from the Data room\" is offered then), the card's question and applications, and where Start's own word\ndiffers from it (advice, never a block: `steps.room_advice`).",
+        "properties": {
+          "advice": {
+            "items": {
+              "$ref": "#/components/schemas/StartIssueView"
+            },
+            "title": "Advice",
+            "type": "array"
+          },
+          "applications": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Applications",
+            "type": "array"
+          },
+          "applications_chosen": {
+            "title": "Applications Chosen",
+            "type": "boolean"
+          },
+          "confirmed_card": {
+            "title": "Confirmed Card",
+            "type": "boolean"
+          },
+          "question": {
+            "title": "Question",
+            "type": "string"
+          }
+        },
+        "required": [
+          "confirmed_card",
+          "question",
+          "applications",
+          "applications_chosen",
+          "advice"
+        ],
+        "title": "StartRoomView",
         "type": "object"
       },
       "StepRow": {
@@ -29794,6 +30357,11 @@
             },
             "title": "Applications",
             "type": "array"
+          },
+          "applications_from_room": {
+            "default": false,
+            "title": "Applications From Room",
+            "type": "boolean"
           },
           "assumptions": {
             "default": [],
@@ -29896,6 +30464,29 @@
                 "type": "null"
               }
             ]
+          },
+          "room_applications": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Room Applications",
+            "type": "array"
+          },
+          "room_limitations": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Room Limitations",
+            "type": "array"
+          },
+          "room_roles": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Room Roles",
+            "type": "object"
           }
         },
         "required": [
@@ -29912,6 +30503,10 @@
           "internal_target_pe",
           "no_internal_target",
           "risk_assessment",
+          "room_applications",
+          "applications_from_room",
+          "room_roles",
+          "room_limitations",
           "locked",
           "reasons"
         ],
@@ -31070,6 +31665,135 @@
           "seed"
         ],
         "title": "SubjectSpec",
+        "type": "object"
+      },
+      "SuggestedBe": {
+        "additionalProperties": false,
+        "properties": {
+          "metrics": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/SuggestedBeMetric"
+            },
+            "title": "Metrics",
+            "type": "object"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "stated": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Stated",
+            "type": "array"
+          }
+        },
+        "required": [
+          "metrics",
+          "source",
+          "stated"
+        ],
+        "title": "SuggestedBe",
+        "type": "object"
+      },
+      "SuggestedBeMetric": {
+        "additionalProperties": false,
+        "properties": {
+          "between_subject_cv_percent": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Between Subject Cv Percent"
+          },
+          "ci_high": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ci High"
+          },
+          "ci_low": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ci Low"
+          },
+          "gmr": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gmr"
+          },
+          "n": {
+            "title": "N",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "gmr",
+          "between_subject_cv_percent",
+          "ci_low",
+          "ci_high",
+          "n"
+        ],
+        "title": "SuggestedBeMetric",
+        "type": "object"
+      },
+      "SuggestedFormulation": {
+        "additionalProperties": false,
+        "description": "A product of the Data room's question card for a VBE arm, as the CPF formulation the send names it.",
+        "properties": {
+          "available": {
+            "title": "Available",
+            "type": "boolean"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "value",
+          "source",
+          "available"
+        ],
+        "title": "SuggestedFormulation",
         "type": "object"
       },
       "SystemAnalyte": {
@@ -36254,6 +36978,65 @@
         ]
       }
     },
+    "/api/v1/projects/{project_id}/brief:from-dataroom": {
+      "post": {
+        "description": "Start from the Data room (plan 2026-11-24 §7, phase 4, B4): the question, context of use, applications, agencies,\nproducts and roles, scenarios, formulation types and populations the room's confirmed question card and studies\nstate, drafted into the brief (DRAFTED, each with the quotes it rests on, to confirm on Start), then the ICH M15\nratings by the rule. A person's value, or a document's, is never overwritten: Start advises where they differ. 409\nwhile the room has no confirmed question card.",
+        "operationId": "fill_brief_from_dataroom_api_v1_projects__project_id__brief_from_dataroom_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_RoomFilled_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Fill Brief From Dataroom",
+        "tags": [
+          "brief"
+        ]
+      }
+    },
     "/api/v1/projects/{project_id}/campaigns": {
       "post": {
         "description": "Start a modeling campaign through the configured execution backend (local single-node, or Temporal). Outside\ndevelopment, only on a MAP a person signed and on the CPF it signed (`modeler_api.run_guard`).",
@@ -38000,7 +38783,7 @@
     },
     "/api/v1/projects/{project_id}/dataroom/publication": {
       "get": {
-        "description": "What \"Send to the model\" would send now (evidence items and observed datasets) and what blocks it; nothing is\nwritten.",
+        "description": "What \"Send to the model\" would send now (evidence items and observed datasets), what blocks it (a study already\nin the project through Delivery or Inputs too), and what is sent otherwise than the files might suggest; nothing is\nwritten.",
         "operationId": "get_dataroom_publication_api_v1_projects__project_id__dataroom_publication_get",
         "parameters": [
           {
@@ -38059,7 +38842,7 @@
     },
     "/api/v1/projects/{project_id}/dataroom/publish": {
       "post": {
-        "description": "Send the room's confirmed inputs to the model: compound and release values as accepted evidence, each arm's mean\nprofile as an accepted observed dataset, so Review & sign starts from them. Signed with the token's recent step-up\n(403 `STEP_UP_REQUIRED`); refused (409 with every reason, nothing signed) while anything blocks it. Sending again\nadds only what changed.",
+        "description": "Send the room's confirmed inputs to the model: compound and release values as accepted evidence, each arm's mean\nprofile as an accepted observed dataset, so Review & sign starts from them. Signed with the token's recent step-up\n(403 `STEP_UP_REQUIRED`); refused (409 with every reason, nothing signed) while anything blocks it. Sending again\nadds only what changed, and what it replaces is rejected, superseded by this publication. What the send rested on\n(the confirmed question, the applications, every decision with its reason, the open data requests, the NCA values\nthe data do not reproduce, the means' BLQ convention) is kept as the publication's record\n(`dataroom/publications/<id>.json`), and the signature covers its sha256.",
         "operationId": "publish_dataroom_api_v1_projects__project_id__dataroom_publish_post",
         "parameters": [
           {

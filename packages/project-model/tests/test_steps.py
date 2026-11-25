@@ -123,6 +123,9 @@ def test_review_is_done_only_with_a_signed_map(tmp_path):
                          signature=MapSignature(signature_id="s1", manifestation="Dev User, Approved"))
     ws.commit(ArtifactKind.MAP, "main", signed.to_content(), actor="u", reason="signed")
     assert _states(ws)["review"] == "done"
+    # with the MAP signed, Run no longer says it waits for the signature: the campaign is the person's to start
+    run = project_steps(ws, [])[3]
+    assert (run.state, run.reasons) == ("not_started", ("The MAP is signed: start the campaign from Review & sign",))
 
 
 @pytest.mark.parametrize(("statuses", "state"), [

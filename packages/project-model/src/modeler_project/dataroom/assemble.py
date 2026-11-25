@@ -5,6 +5,7 @@ simulation plan and the PK-Sim inputs. Nothing is invented: what no file gives i
 
 from __future__ import annotations
 
+import math
 import re
 import statistics
 from collections import defaultdict
@@ -14,6 +15,7 @@ from typing import Any
 from modeler_intake.room import document_text, unmarked
 from modeler_intake.room_specs import Extraction, QuestionCard
 from modeler_intake.source_model import SourceDocument
+from modeler_project.dataroom import checklist
 from modeler_project.dataroom.clinical import _code_key, study_view, subject_id
 from modeler_project.dataroom.extract import check_fact, number_of, parse_number, read_table
 from modeler_project.dataroom.invitro import (
@@ -80,17 +82,9 @@ COMPOUND = (("phys.mw", "Molecular weight", "substance.mw", "g/mol"),
             ("perm.intestinal", "Specific intestinal permeability (transcellular)", "substance.permeability", "cm/min"))
 # a permeability measured in a cell or membrane assay, as files write it
 _CELL_ASSAY = re.compile(r"(?i)caco|mdck|pampa|\bpapp\b|apparent\s+permeab|lls?-?pk1|\bcm\s*/\s*s(?:ec)?\b|\bnm\s*/\s*s\b|10\s*[-−]\s*6")
-# Which checklist topics a fact field or a table kind covers
-_TOPIC_FIELDS = {"clinical_design": ("study.design", "study.id", "study.regimen"), "dosing_and_meals": ("study.dose", "study.fed",
-                 "study.fasting", "study.meal", "study.water"), "clinical_demographics": ("study.age", "study.weight", "study.sex"),
-                 "clinical_disposition": ("study.completed", "study.excluded", "study.n_"), "bioanalysis": ("study.lloq",
-                 "study.analyte", "study.matrix"), "be_statistics": ("study.be_result",), "drug_substance": ("substance.",),
-                 "adme": ("adme.",), "composition": ("product.composition",), "solubility": ("substance.solubility",),
-                 "particle_size": ("substance.particle_size",), "label": ("adme.", "substance.")}
-_TOPIC_TABLES = {"clinical_concentrations": ("concentrations",), "clinical_pk": ("pk_parameters",),
-                 "clinical_demographics": ("demographics",), "clinical_disposition": ("disposition",),
-                 "dissolution": ("dissolution",), "composition": ("composition",), "solubility": ("solubility",),
-                 "particle_size": ("particle_size",), "be_statistics": ("be_statistics",), "drug_substance": ("physchem",)}
+# Which checklist topics a fact field or a table kind covers (the requirement checklist reads the same map)
+_TOPIC_FIELDS = checklist.TOPIC_FIELDS
+_TOPIC_TABLES = checklist.TOPIC_TABLES
 _LITERATURE_TOPICS = {"literature", "label"}
 
 
@@ -272,15 +266,112 @@ def food_of(text: str) -> str | None:
 def meal_times(text: str) -> list[float] | None:
     """Meal times in hours after the dose (negative: before it) from words: "lunch 4 h and dinner 10 h after dosing",
     "30 minutes before dosing", "at 4, 8 and 12 hours post-dose"; None when no time is written with its unit (a clock
-    time such as "07:30" is not a time after the dose)."""
+    time such as "07:30" is not a time after the dose). The first direction word after a time decides it ("dinner 10 h
+    after dosing, breakfast 30 min before" is 10 and −0.5), and a dose given after the meal puts the meal before the dose
+    ("the dose 30 minutes after the start of breakfast" is −0.5): a meal's sign is what places it on the fed arms only."""
     out: list[float] = []
-    for m in re.finditer(r"((?:\d+(?:\.\d+)?\s*(?:,|and|&|or)\s*)*\d+(?:\.\d+)?)\s*" + _TIME_WORDS + r"\b(?=(.{0,40}))",
+    for m in re.finditer(r"((?:\d+(?:\.\d+)?\s*(?:,|and|&|or)\s*)*\d+(?:\.\d+)?)\s*" + _TIME_WORDS + r"\b(?=(.{0,60}))",
                          text, re.IGNORECASE):
         numbers = [float(x) for x in re.findall(r"\d+(?:\.\d+)?", m.group(1))]
         factor = 1 / 60 if m.group(2).lower().startswith("min") else 1.0
-        before = re.search(r"\b(before|prior|pre)", m.group(3), re.IGNORECASE) is not None
+        way = re.search(r"\b(before|prior|pre|after|post)", m.group(3), re.IGNORECASE)
+        before = way is not None and (way.group(1).lower() in ("before", "prior", "pre") or re.match(
+            r"\s*(?:the\s+)?(?:start|beginning|onset|initiation)\s+of\b|\s*(?:a\s+|the\s+)?(?:[\w-]+\s+){0,2}?"
+            r"(?:meal|breakfast)\b", m.group(3)[way.end():], re.IGNORECASE) is not None)
         out.extend(round((-x if before else x) * factor, 4) for x in numbers)
     return sorted(set(out)) or None
+
+
+#: what every simulation plan row says: the room proposes, the frozen MS-01 split in the MAP decides (plan §7, B9)
+PLAN_PROPOSED = "proposed; the MS-01 split decides"
+#: what an oral study record without its water means (StudyRecord.water_ml_per_kg None), said wherever it is not given
+WATER_DEFAULT = "PK-Sim's default (3.5 ml/kg) applies unless it is given"
+
+_NUMBER_TEXT = r"\d+(?:\.\d+)?"
+_RANGE = re.compile(rf"between\s+({_NUMBER_TEXT})\s+and\s+({_NUMBER_TEXT})|({_NUMBER_TEXT})\s*(?:-|–|—|to)\s*({_NUMBER_TEXT})",
+                    re.IGNORECASE)
+_CENTRAL = re.compile(r"\b(mean|average|median)\b", re.IGNORECASE)
+# an inclusion limit, not a summary ("18 years or older", "≥ 18", "up to 55"): no central value is read from it
+_LIMIT = re.compile(r"[≥≤<>]|\b(?:older|over|above|at least|or more|younger|under|up to|minimum|maximum)\b", re.IGNORECASE)
+# a demographic's units in PK-Sim's own (years, kg, cm; none written: those), and the unit words looked for in its text,
+# in this order; another unit is converted by `_UNIT_TO_PKSIM` or, unknown, not used
+_PKSIM_UNIT = {"age": ("", "years", "year", "yrs", "yr", "y"), "weight": ("", "kg"), "height": ("", "cm")}
+_UNIT_WORDS = {"age": ("years", "year", "yrs", "yr", "months"), "weight": ("kg", "lbs", "lb"),
+               "height": ("cm", "inches", "inch", "m")}
+
+
+def mean_and_range(text: str) -> tuple[float | None, tuple[float, float] | None, str]:
+    """A demographic as a synopsis writes it: the stated central value, the range, and the word naming the central value
+    ("mean", "median"; "" for a bare number such as "32 ± 8" or "32 (19–45)"). "mean age 32 years (range 19–45)" is
+    (32, (19, 45), "mean"); "19 to 45 years" and "between 19 and 45" are (None, (19, 45), ""): no central value is made
+    from a range, nor read from an inclusion limit ("18 years or older")."""
+    found = _RANGE.search(text)
+    low, high = (found.group(1) or found.group(3), found.group(2) or found.group(4)) if found else (None, None)
+    span = (float(low), float(high)) if low and high and float(low) < float(high) else None
+    rest = text[:found.start()] + " " + text[found.end():] if found and span else text
+    word = _CENTRAL.search(rest)
+    if word is None and _LIMIT.search(rest):
+        return None, span, ""
+    after = rest[word.end():] if word else rest
+    central = re.search(rf"(?<![\d.]){_NUMBER_TEXT}", after)
+    return (float(central.group(0)) if central else None), span, (word.group(1).lower() if word and central else "")
+
+
+class StatedDemographic:
+    """A study's age, weight or height as its files state it (no demographics table): the central value in PK-Sim's unit,
+    the range, the status and sources of the fact, and a note with the words as written."""
+
+    def __init__(self, mean: float | None = None, span: tuple[float, float] | None = None, status: str = "missing",
+                 sources: tuple[Chip, ...] = (), note: str = ""):
+        self.mean, self.span, self.status, self.sources, self.note = mean, span, status, sources, note
+
+
+def stated_demographic(view: RoomStudy, role: str) -> StatedDemographic:
+    """`study.age` / `study.weight` / `study.height` of the study, read with `mean_and_range` in PK-Sim's unit (years,
+    kg, cm); a unit the words give that is not one of these is converted (lb, m, months) or, unknown, left Missing."""
+    fact = next((v for v in view.facts if v.key.split("[")[0] == f"study.{role}"), None)
+    if fact is None:
+        return StatedDemographic()
+    written = f"{fact.as_written} {fact.unit if fact.unit not in fact.as_written else ''}".strip()
+    central, span, word = mean_and_range(fact.as_written)
+    unit = fact.unit.strip().lower() or next((u for u in _UNIT_WORDS[role]
+                                              if re.search(rf"(?<![a-z]){u}(?![a-z])", fact.as_written.lower())), "")
+    unit = "inch" if unit == "inches" else unit
+    factor = 1.0 if unit in _PKSIM_UNIT[role] else _UNIT_TO_PKSIM.get((role, unit))
+    if factor is None:
+        return StatedDemographic(sources=fact.sources, note=f"as written: {written}; its unit {unit!r} is not converted")
+    scaled = (round(central * factor, 2) if central is not None else None,
+              (round(span[0] * factor, 2), round(span[1] * factor, 2)) if span else None)
+    said = f"as written: {written}" + (f" ({word})" if word and word != "mean" else "")
+    if scaled[0] is None:
+        return StatedDemographic(span=scaled[1], sources=fact.sources, note=(
+            f"{said}: no mean is stated" + (f", only the range {scaled[1][0]:g}–{scaled[1][1]:g}" if scaled[1] else "")))
+    return StatedDemographic(mean=scaled[0], span=scaled[1], status=fact.status, sources=fact.sources, note=said)
+
+
+def convention_words(medium: str, ph: float, decision: RoomDecision | None) -> str:
+    """How a pH by convention (D4) is labelled wherever it is used: never as the sponsor's."""
+    who = decision.by if decision is not None and decision.by else "a person"
+    return f"pH {ph:g} by convention for {medium}, not stated (confirmed by {who})"
+
+
+def _highest(view: DissolutionView) -> float:
+    return max((m for m in view.mean if not math.isnan(m)), default=0.0)     # NaN: a time with no unit's value
+
+
+def release_remark(view: DissolutionView, rules: Rules) -> str:
+    """What a Weibull release leaves out of a profile, said beside the release decision and in the evidence sent (the
+    behaviour is the SME's to change: the Dissolution register refuses a plateau and sends a very rapid release as
+    dissolved); "" when nothing."""
+    where = f"{view.medium or 'medium not stated'} · batch {view.batch}"
+    if view.plateau:
+        return (f"{where} levels off at {_highest(view):.0f} %: a Weibull curve rises to 100 %; the SME decides "
+                "(dissolution_similarity / MS-01)")
+    if view.very_rapid:
+        return (f"{where} releases ≥ {rules.dissolution.very_rapid_percent:g} % within "
+                f"{rules.dissolution.very_rapid_within_min:g} min: it is sent as its Weibull fit, where the Dissolution "
+                "register would send it as dissolved; the SME decides (dissolution_similarity / MS-01)")
+    return ""
 
 
 def _set_apart(text: str, names: Sequence[str]) -> str | None:
@@ -534,6 +625,10 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
                                literature_files, rules)
         view = study_view(sid, concentrations=mine("concentrations"), pk_tables=mine("pk_parameters"), facts=sfacts,
                           arms=arms, study_values=study_values, release=release, rules=rules)
+        # the tables the profiles are read from: each arm's dataset names them as its source (ICH M15)
+        view = view.model_copy(update={"sources": tuple(
+            Chip(file=t.description.file, sha256=t.sha256, part=t.description.part, line=t.description.first_line)
+            for t in mine("concentrations"))})
         tied, asked = _single_arm(view, question)
         if tied != view.arms:
             # a single arm tied to every treatment of the data no longer asks which treatment it is
@@ -643,14 +738,20 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
     for product in sorted({d.product or d.batch for d in diss}):
         views = [d for d in diss if (d.product or d.batch) == product]
         qc = next((d for d in views if "qc" in d.medium.lower()), None)
+        # a profile a Weibull curve does not describe (it levels off below 100 %, or is very rapid) is still offered and
+        # sent as its Weibull fit (SME-gated: the Dissolution register refuses the one and sends the other as dissolved);
+        # the decision says so beside it
+        remarks = [r for d in views if (r := release_remark(d, rules))]
         decisions.append(_decision(inputs.decisions, RoomDecision(
             id=f"release:{product}", title=f"Release of {product}",
             question="Which dissolution profile gives the product's release in the model (a Weibull fit to it)?",
             options=tuple(Option(id=d.id, label=f"{d.medium or 'medium not stated'} · batch {d.batch}",
                                  detail=f"t50 {d.weibull.get('t50_min')} min, shape {d.weibull.get('shape')}"
-                                 + (" · levels off below 100 %" if d.plateau else "")) for d in views),
+                                 + (f" · levels off at {_highest(d):.0f} %" if d.plateau else "")
+                                 + (" · very rapid" if d.very_rapid else "")) for d in views),
             suggested=(qc or views[0]).id,
-            why="the medium the client uses for quality control" if qc else "the first profile; compare the media",
+            why=("the medium the client uses for quality control" if qc else "the first profile; compare the media")
+            + "".join(f". {r}" for r in remarks),
             evidence=tuple(c for d in views for c in d.sources[:1]))))
 
     if solubility:
@@ -675,20 +776,37 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
                                 "towards 100 % after the last time"),
                          Option(id="particles", label="Particle dissolution from the particle size and the solubility",
                                 detail="the plateau is then the solubility limit in the medium; needs d50 and solubility vs pH")),
-                suggested="weibull", why=f"the highest mean is {max(view.mean):.0f} % at {view.times_min[-1]:g} min",
-                evidence=view.sources[:1])))
+                suggested="weibull", why=f"the highest mean is {_highest(view):.0f} % at {view.times_min[-1]:g} min. "
+                f"{release_remark(view, rules)}", evidence=view.sources[:1])))
     chosen = {d.id: _pick(d) for d in decisions}
+
+    # --- what the question needs (plan 2026-11-24 §6): the requirement drafts per context of use, UNVERIFIED -----------
+    # the applications read from the question card (a decision, first), then each item of their lists with its coverage
+    applications = checklist.applications_decision(question, inputs.decisions)
+    if applications is not None:
+        decisions.insert(0, applications)
+    cell_assay = [v for v in own_permeability
+                  if _CELL_ASSAY.search(" ".join([v.as_written, v.unit] + [c.text for c in v.sources]))]
+    evidence = checklist.Evidence(
+        facts=facts, tables=tables, files=inputs.files, solubility=solubility,
+        pkas=checklist.pka_values(facts, pka_type),
+        cell_permeability=cell_assay, entered={field: entered[key] for key, _l, field, _u in COMPOUND if key in entered},
+        arm_food=[(food, a.source) for s in studies for a in s.arms if (food := food_of(a.meaning))])
+    needs = checklist.requirements(question, applications, evidence)
+    # the question card's checklist items that ask only for context-only material (the manufacturing process): kept as
+    # context, their request marked not needed (a person may open it again)
+    context_items = checklist.context_checklist(question)
 
     # --- data requests -------------------------------------------------------------------------------------------------
     requests: list[DataRequest] = []
 
-    def request(area: str, title: str, why: str, checklist: str = "", input: str = "") -> None:
+    def request(area: str, title: str, why: str, checklist: str = "", input: str = "", status: str = "open") -> None:
         n = sum(1 for r in requests if r.area == area) + 1
         rid = f"{area}-{n:02d}"
         edit = inputs.request_edits.get(rid, {})
         wording = edit.get("wording") or inputs.writing.get("requests", {}).get(title, "")
         requests.append(DataRequest(id=rid, area=area, title=title, why=why, wording=wording,  # type: ignore[arg-type]
-                                    status=edit.get("status", "open"), checklist=checklist, input=input))  # type: ignore[arg-type]
+                                    status=edit.get("status", status), checklist=checklist, input=input))  # type: ignore[arg-type]
 
     covered_topics: set[str] = set()
     for topic, prefixes in _TOPIC_FIELDS.items():
@@ -700,6 +818,10 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
     if question and inputs.question_confirmed:
         for item in question.checklist:
             if item.required and item.topics and not set(item.topics) & covered_topics:
+                if (ctx := context_items.get(item.id)) is not None:
+                    request(item.area, item.label, f"Kept as context, not asked for: {ctx.why.rstrip('.')}. "
+                            f"{checklist.DRAFT_WORDS}", item.id, status="not_needed")
+                    continue
                 request(item.area, item.label, item.why or "needed for the question and not found in the delivery", item.id)
     for view in studies:
         for s, why in view.excluded.items():
@@ -735,8 +857,6 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
             where = written.get((ph, medium)) or (f"pH {ph:g}" if ph is not None else "the medium the test product was run in")
             request("B", f"Reference product dissolution in {where}",
                     "the test product was tested in this medium and the reference was not: no comparison is possible")
-    cell_assay = [v for v in own_permeability
-                  if _CELL_ASSAY.search(" ".join([v.as_written, v.unit] + [c.text for c in v.sources]))]
     if cell_assay and not reference_compounds:
         request("C", "The lab's reference compounds for the permeability assay", (
             f"the delivery gives {len(cell_assay)} cell-assay permeabilit{'y' if len(cell_assay) == 1 else 'ies'} "
@@ -752,6 +872,23 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
         if not found and key not in entered and not asked:
             request("C", label, "a compound input of the model, not in the delivery: from the client, or from literature (marked so)",
                     field, input=key)
+    # the checklist's missing items, after the room's own requests (their codes stay as they were): what, why, the
+    # accepted alternatives, "(draft requirement, UNVERIFIED)"; one the room already makes is not made twice. Nothing
+    # not needed, inapplicable, not known, optional or context-only is asked for.
+    if needs is not None:
+        asked_in: dict[str, str] = {}
+        if question and inputs.question_confirmed:
+            for ask in checklist.asks(needs.items):
+                same = checklist.already_asked(ask, requests)
+                if same is None:
+                    request(ask.area, ask.title, ask.why, ask.item)
+                    same = requests[-1]
+                asked_in[ask.item] = same.id
+        for cid, ctx in context_items.items():
+            if got := next((r for r in requests if r.checklist == cid), None):
+                asked_in.setdefault(ctx.id, got.id)
+        needs = needs.model_copy(update={"items": tuple(
+            i.model_copy(update={"request": asked_in[i.id]}) if i.id in asked_in else i for i in needs.items)})
 
     # --- PK-Sim inputs ---------------------------------------------------------------------------------------------------
     inputs_rows: list[InputRow] = []
@@ -772,10 +909,13 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
                 inputs_rows.append(InputRow(block="compound", name=key, label=label_of(key), value=row.solubility_mg_ml,
                                             unit="mg/ml", status="sponsor" if row.solubility_mg_ml is not None else "missing",
                                             sources=row.sources, decision="solubility-ref", note=row.as_written))
+                # a pH by convention (D4) is not the sponsor's: the files do not state it, a person confirmed the convention
+                ph_status = "missing" if row.ph is None else ("calculated" if row.ph_by_convention else "sponsor")
                 inputs_rows.append(InputRow(block="compound", name="phys.solubility.ref_ph", label="Reference pH", value=row.ph,
-                                            status="sponsor" if row.ph is not None else "missing", sources=row.sources,
-                                            decision="solubility-ref",
-                                            note="" if row.ph is not None else "the chosen solubility states no pH"))
+                                            status=ph_status, sources=row.sources,  # type: ignore[arg-type]
+                                            decision=MEDIA_CONVENTION if row.ph_by_convention else "solubility-ref",
+                                            note="the chosen solubility states no pH" if row.ph is None else
+                                            convention_words(row.medium, row.ph, convention) if row.ph_by_convention else ""))
             else:
                 inputs_rows.append(InputRow(block="compound", name=key, label=name, unit=unit, status="missing",
                                             note="not in the delivery: literature or a data request"))
@@ -843,13 +983,24 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
         inputs_rows.append(InputRow(block="individual", owner=sid, name="Population", label="Population database",
                                     value=population, status="calculated", decision=f"population:{sid}"))
         dem = {v.key.rsplit(".", 1)[-1]: v for v in view.facts if ".demographics." in v.key}
+        stated: dict[str, float] = {}
         for k, label, unit in (("age_mean", "Age", "year(s)"), ("weight_mean", "Weight", "kg"), ("height_mean", "Height", "cm")):
             if k in dem:
                 inputs_rows.append(InputRow(block="individual", owner=sid, name=label, label=f"{label} (mean)",
                                             value=dem[k].value, unit=unit, status="calculated", note=dem[k].rule))
+                continue
+            # no demographics table (or no such column): the synopsis's own words ("mean age 32 years (range 19–45)"),
+            # their mean as written; a range alone gives no mean (none is made up)
+            got = stated_demographic(view, k.split("_")[0])
+            if got.mean is not None:
+                stated[k] = got.mean
+                inputs_rows.append(InputRow(block="individual", owner=sid, name=label, label=f"{label} (mean)",
+                                            value=got.mean, unit=unit, status=got.status,  # type: ignore[arg-type]
+                                            sources=got.sources, note=got.note))
             else:
                 inputs_rows.append(InputRow(block="individual", owner=sid, name=label, label=f"{label} (mean)", unit=unit,
-                                            status="missing", note="no demographics table read"))
+                                            status="missing", sources=got.sources,
+                                            note=got.note or "no demographics table read, and no file states it"))
         sex = next((v for v in view.facts if v.key.startswith("study.sex")), None)
         males = next((v.value for v in view.facts if v.key.endswith(".demographics.male")), 0) or 0
         females = next((v.value for v in view.facts if v.key.endswith(".demographics.female")), 0) or 0
@@ -865,15 +1016,28 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
         fasting = next((v for v in view.facts if v.key.startswith("study.fasting")), None)
         food = "fed" if fed else ("fasted" if fasting else None)
         # each arm's own words first ("tablet, fed"; "after a high-fat breakfast"): a food-effect study's fasted arms
-        # showed "fed" from the study's one statement (a new delivery, 2026-11-24)
+        # showed "fed" from the study's one statement (a new delivery, 2026-11-24). An arm that says neither takes the
+        # study's statement: one arm "after a high-fat breakfast" beside an arm that says nothing, in a study "after an
+        # overnight fast", is a fed arm and a fasted one (both were sent fasted before)
         arm_food = {a.treatment: f for a in view.arms if (f := food_of(a.meaning))}
-        if len(set(arm_food.values())) > 1:
+        food_of_arm = {a.treatment: arm_food.get(a.treatment) or food for a in view.arms}
+        if len(set(food_of_arm.values())) > 1:
             for a in view.arms:
+                own = arm_food.get(a.treatment)
                 inputs_rows.append(InputRow(block="protocol", owner=f"{sid} · {a.treatment}", name="Food state",
-                                            label="Fed or fasted", value=arm_food.get(a.treatment),
-                                            status="sponsor" if a.treatment in arm_food else "missing",
-                                            sources=(a.source,) if a.source else (),
-                                            note="" if a.treatment in arm_food else "the arm does not say fed or fasted"))
+                                            label="Fed or fasted", value=own or food,
+                                            status=("sponsor" if own else (fed or fasting).status  # type: ignore[union-attr]
+                                                    if food else "missing"),
+                                            sources=((a.source,) if a.source else ()) if own else
+                                            (fed or fasting).sources if food else (),  # type: ignore[union-attr]
+                                            note="" if own else "the study's own statement: the arm does not say" if food
+                                            else "the arm does not say fed or fasted"))
+        elif arm_food and len(arm_food) == len(view.arms):
+            # every arm says the same: the arms' own words (they name the condition each was dosed in)
+            said = next(a for a in view.arms if a.treatment in arm_food)
+            inputs_rows.append(InputRow(block="protocol", owner=sid, name="Food state", label="Fed or fasted",
+                                        value=arm_food[said.treatment], status="sponsor",
+                                        sources=tuple(a.source for a in view.arms if a.source), note="as each arm says"))
         else:
             inputs_rows.append(InputRow(block="protocol", owner=sid, name="Food state", label="Fed or fasted", value=food,
                                         status=(fed or fasting).status if food else "missing",  # type: ignore[union-attr]
@@ -881,9 +1045,16 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
                                         note="" if food else "the study does not say fed or fasted"))
         dose_v = next((v for v in view.facts if v.key.startswith("study.dose")), None)
         water = next((v for v in view.facts if v.key.startswith("study.water")), None)
-        weight = dem.get("weight_mean")
+        # the mean weight the water is divided by: the demographics table's, else the one the files state
+        weight: tuple[float, str] | None = None
+        if "weight_mean" in dem and isinstance(dem["weight_mean"].value, float):
+            weight = (dem["weight_mean"].value, "the mean weight")
+        elif "weight_mean" in stated:
+            weight = (stated["weight_mean"], "the stated mean weight")
         # a multiple-dose study's occasions are its days, not arms
         occasion = "day" if any(x.code == "MULTIPLE_DOSE" for x in view.problems) else "arm"
+        # in a food-effect question the fed arms are what the model predicts: never fitted (MS-01 §3.3 rule 5)
+        food_effect = any(a.id == "food_effect" for a in checklist.chosen_applications(applications))
         for arm in view.arms or tuple(Arm(treatment=t) for t in sorted({n.treatment for n in view.nca})):
             owner = f"{sid} · {arm.treatment}"
             inputs_rows.append(InputRow(block="protocol", owner=owner, name="ApplicationType", label="Route", value="Oral",
@@ -893,11 +1064,19 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
             inputs_rows.append(InputRow(block="protocol", owner=owner, name="InputDose", label="Dose",
                                         value=dose_v.value if dose_v else None, unit=(dose_v.unit or "mg") if dose_v else "mg",
                                         status=dose_v.status if dose_v else "missing", sources=dose_v.sources if dose_v else ()))
-            if water and isinstance(water.value, float) and weight and isinstance(weight.value, float):
+            if water and isinstance(water.value, float) and weight:
                 inputs_rows.append(InputRow(block="protocol", owner=owner, name="Volume of water/body weight",
-                                            label="Water with the dose", value=round(water.value / weight.value, 3), unit="ml/kg",
+                                            label="Water with the dose", value=round(water.value / weight[0], 3), unit="ml/kg",
                                             status="calculated", sources=water.sources,
-                                            note=f"{water.as_written} ÷ the mean weight {weight.value} kg"))
+                                            note=f"{water.as_written} ÷ {weight[1]} {weight[0]:g} kg"))
+            else:
+                # never a silent default: the record says the water is not given, and why (the MAP can show it)
+                inputs_rows.append(InputRow(
+                    block="protocol", owner=owner, name="Volume of water/body weight", label="Water with the dose",
+                    unit="ml/kg", status="missing", sources=water.sources if water else (),
+                    note=(f"{water.as_written} stated, but no mean weight to divide it by" if water and
+                          isinstance(water.value, float) else f"{water.as_written!r} is not one volume" if water else
+                          "the water drunk with the dose is not stated") + f": {WATER_DEFAULT}"))
             profile = next((p for p in view.profiles if p.treatment == arm.treatment and p.analysis_set == set_name), None)
             n = profile.n_subjects if profile else 0
             # each observed profile says its statistic exactly (plan 2026-11-24 §8 feature 5): ours, and the client's
@@ -911,13 +1090,18 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
                 if (m.group and _code_key(m.group) == _code_key(arm.treatment)) or (not m.group and len(view.arms) <= 1):
                     inputs_rows.append(_client_mean_row(m, owner, view.concentration_unit))
             role = arm.role or ""
+            arm_fed = food_of_arm.get(arm.treatment)
+            if food_effect and arm_fed == "fed":
+                planned, why = "verification", ("a food-effect question: the fed arm is predicted by the model built on "
+                                                "the fasted data and checks it, never fitted (MS-01 §3.3 rule 5)")
+            elif role == "reference":
+                planned, why = "calibration", "the reference product's observed profile sets the model"
+            else:
+                planned, why = "verification", "the test product's profile checks the model built on the reference"
             plan.append(PlanRow(formulation=arm.product or arm.meaning or arm.treatment,
-                                condition=f"{sid}, {arm_food.get(arm.treatment) or ('fed' if fed else 'fasted' if fasting else 'food not stated')}"
-                                + (f", {dose_v.as_written}" if dose_v else ""),
-                                observed=f"{sid} {occasion} {arm.treatment} (N = {n})",
-                                role="calibration" if role == "reference" else "verification",
-                                why="the reference product's observed profile sets the model" if role == "reference"
-                                else "the test product's profile checks the model built on the reference"))
+                                condition=f"{sid}, {arm_fed or 'food not stated'}" + (f", {dose_v.as_written}" if dose_v else ""),
+                                observed=f"{sid} {occasion} {arm.treatment} (N = {n})", role=planned,  # type: ignore[arg-type]
+                                why=f"{PLAN_PROPOSED}: {why}"))
         codes = {_code_key(a.treatment) for a in view.arms}
         for m in view.client_means:
             # a client's mean profile no arm of the study names: shown on the study, with its statistic
@@ -926,14 +1110,18 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
         meal = chosen.get(f"meal:{sid}")
         times = next((v for v in view.facts if v.key.startswith("study.meal_times")), None)
         if meal:
-            parsed = meal_times(times.as_written) if times else None
+            # the meal times, and the fed condition's meal where the fed statement times it ("a high-fat breakfast 30
+            # minutes before dosing"): the sign of each time is what places it (before the dose: the fed arms only)
+            timed = [v for v in (times, fed) if v is not None and meal_times(v.as_written)]
+            parsed = sorted({t for v in timed for t in meal_times(v.as_written) or ()}) or None
             inputs_rows.append(InputRow(
                 block="event", owner=sid, name=MEAL_HIGH_FAT if meal == "high_fat" else MEAL_STANDARD, label="Meal",
                 value="; ".join(f"{t:g}" for t in parsed) if parsed else None, unit="h after the dose (negative: before)",
-                status=times.status if parsed and times else "missing", sources=times.sources if times else (),
+                status=timed[0].status if parsed else "missing",  # type: ignore[arg-type]
+                sources=tuple(c for v in timed for c in v.sources) if parsed else times.sources if times else (),
                 decision=f"meal:{sid}",
-                note=(f"as written: {times.as_written}" if parsed else f"no time with its unit in {times.as_written!r}")
-                if times else "no meal time found"))
+                note=("as written: " + "; ".join(v.as_written for v in timed)) if parsed else
+                (f"no time with its unit in {times.as_written!r}" if times else "no meal time found")))
         for e in view.exposures:
             if e.statistic != "median":
                 inputs_rows.append(InputRow(block="target", owner=f"{sid} · {e.treatment}", name=e.metric,
@@ -944,7 +1132,7 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
     for product in sorted({d.product or d.batch for d in diss}):
         if not any(r.formulation == product for r in plan):
             plan.append(PlanRow(formulation=product, condition="no clinical study", observed="dissolution only",
-                                role="prediction", why="no clinical data: the model predicts its exposure"))
+                                role="prediction", why=f"{PLAN_PROPOSED}: no clinical data: the model predicts its exposure"))
 
     # --- sections --------------------------------------------------------------------------------------------------------
     written = inputs.writing.get("findings", {})
@@ -974,6 +1162,7 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
     sections = [
         section("files", "Files", f"{len(inputs.files)} files read" + (f", {n_ocr} scanned pages read by our OCR" if n_ocr else ""),
                 all(f.state in ("read", "partly_read") for f in inputs.files), not inputs.files),
+        section("requirements", "Requirements for this question", *checklist.finding(needs)),
         section("substance", "Drug substance", f"{len(substance)} {'property' if len(substance) == 1 else 'properties'} found",
                 not any(v.status == "conflict" for v in substance), not substance),
         section("adme", "ADME and disposition", f"{len(adme)} {'fact' if len(adme) == 1 else 'facts'} found", True, not adme),
@@ -1005,7 +1194,7 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
                         adme=tuple(adme), products=tuple(products), composition=tuple(composition), solubility=tuple(solubility),
                         absorption=tuple(absorption), dissolution=tuple(diss), f2=tuple(f2s), studies=tuple(studies),
                         decisions=tuple(decisions), requests=tuple(requests), plan=tuple(plan), inputs=tuple(inputs_rows),
-                        problems=tuple(problems), checks=checks)
+                        problems=tuple(problems), checks=checks, requirements=needs)
 
 
 # a value the files state was fitted to clinical PK, not measured

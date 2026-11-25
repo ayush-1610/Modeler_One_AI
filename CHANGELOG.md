@@ -12,6 +12,267 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 ---
 
 ## [Unreleased] — make the pipeline do real PBPK, S0 → S7
+
+### Fixed — the question card's regulator only as a file names it (A6) (2026-11-25)
+- **Why:** found by the free calibration run. The made-up delivery names no agency, and Nemotron Ultra wrote "EMA" on
+  the card; the recorded run wrote "FDA / EMA (not explicitly stated…)". Start drafts the card's regulator as the
+  project's agency (`proj.agencies`), so the guess could reach the brief and the MAP's scope.
+- **What:** A6's submission check refuses a regulator no quote names ("give the quote that names it, or leave the
+  regulator empty"). If the final card still has one, code clears it before the card is stored. The stage then says
+  "no file names the regulator: give it on the card". The rest of the card is kept. No prompt change, and the
+  question card is not in the answer cache, so `PROMPT_VERSION` stays `dataroom-6`.
+- **Impact:** a person gives the agency on the card, or at Start. A regulator a file names, with its quote, is kept as
+  before.
+- **Test:** `test_a_regulator_no_file_names_is_refused_and_left_for_the_person`.
+
+### Changed — after a send, the brief, the plan, the MAP and the VBE panel read what was sent, not the live room (2026-11-24)
+- **Why:** a traceability gap (Part 11, ICH M15). `room_basis` read the live room. A decision changed in the room after
+  "Send to the model" therefore reached the plan and the signed MAP's limitations, while the CPF still held the values
+  sent. The signed record and the model could disagree.
+- **What:**
+  - Each send keeps its reading of the room (`RoomBasis`) in its signed record (`basis.room_basis`; basis format
+    `dataroom-publication-basis/2`). The signature covers its sha256, as before.
+  - `room_basis(ws)` reads the newest send's snapshot (source "snapshot") once there is one, and the live room before.
+    A send recorded before the snapshot was kept (format 1) falls back to the live room, as before.
+  - `room_basis(ws, full=False)` (Start's advice, the Inputs check) still follows the room as it is now.
+  - The MAP names it: "Data room: what the MAP takes from the Data room is what was sent, as its signed record holds it
+    (basis sha256 …)". An unchanged re-send keeps the same sha256, so the line does not change.
+- **Impact:** a decision changed in the room after a send reaches Start's drafts, the plan and the MAP only with the
+  next send. Start's advice still shows where Start differs from the room's current card.
+- **Tests:** `test_after_a_send_the_brief_plan_and_map_read_what_was_sent_until_the_next_send`,
+  `test_a_send_recorded_before_the_snapshot_was_kept_reads_the_live_room`.
+
+### Added — the Data room's calibration run, one command on the server (decision D2) (2026-11-24)
+- **Why:** D2: one run on Claude, about $5, on a made-up delivery, whose cost and accuracy the owner sees before any other
+  Claude spend. A Claude key cannot be given to this cloud session (Anthropic's hosts take no network secret here), and
+  the owner keeps the key on the server (D1, Admin → Keys). So the run is a server command.
+- **What:**
+  - `bash deploy/server/calibrate_dataroom.sh` (`deploy/dev/calibrate_dataroom.py`): every Data room agent once on
+    the made-up Exampleamide delivery, on a preset's models (default "Claude demo": Opus 5.5 extracts, Sonnet 5.5
+    elsewhere), with the key active in Admin → Keys.
+  - A hard run cap (default $5.50). The month's cap (Admin → Limits) applies too. Each paid call is priced and recorded
+    on the platform's paid ledger, so the month counts it. The cap pauses the run; it never fails it.
+  - `--dry` names the models, the estimate ($3.90) and this month's spend, and calls nothing.
+  - A model that cannot answer (a rate limit, a timeout) is waited for as the app does (10, 20, then 40 min) and the
+    same run goes on. A reached cap is never waited out. (Found on the first free run: NVIDIA's free tier answered
+    "too many requests" during sorting.)
+  - It prints COST by agent and ACCURACY against the hand-written answers, and writes `report.json` under
+    `_platform/calibration/`. No project is touched.
+  - `synthetic.score_room`: any room against the hand-written answers, value by value (60 rows: the card's products,
+    roles and regulator; the study's sets, exposures, arms and facts; dissolution, f2 by batch and pH, solubility,
+    substance).
+  - The free baseline on the same rows, run here on 2026-11-24 with the tool itself (`--preset free`, $0, 25 min, one
+    10-minute wait for NVIDIA's rate limit): Nemotron Ultra 58 OK, 1 wrong, 1 missing. Wrong: the regulator ("EMA";
+    the delivery names none; A6 now refuses it, below). Missing: the withdrawn subjects' count, read as
+    `study.disposition` ("4 subjects withdrawn") rather than `study.excluded_subjects`. The recorded run of 2026-11-22
+    (the repository's fixture) scores 56 OK, 1 wrong, 3 missing (the three f2 pairs).
+  - A worded fact scores OK when the key's words stand in it in order ("open two-period crossover" holds
+    "two-period crossover"). A substance value matches with or without the compound in brackets
+    (`substance.mw[Exampleamide]`). The regulator scores only as a file states it; this delivery states none.
+- **Tests:** `services/api/tests/test_calibrate_dataroom.py` (a scripted model: dry run, cap and ledger, a preset with
+  no key); `test_the_answer_key_scores_itself_full_and_the_recorded_run_says_what_it_missed`.
+- **Docs:** `docs/USING_THE_TOOL.md` §6b, step 6.
+
+### Added — the end-to-end test from a made-up delivery to a signed MAP (plan 2026-11-24 §7, phase 4, B10) (2026-11-24)
+- **Why:** phase 4 ends with the walk from upload to a signed MAP; each part had its own tests, never the whole path.
+- **What:** `apps/web/e2e/dataroom-to-map.spec.ts`, on the made-up Exampleamide (software test data), with no model and
+  no engine:
+  1. the delivery is read; the card is confirmed on the page; the decisions are taken;
+  2. "Send to the model" is pressed on the page and signed;
+  3. Start holds the room's drafts, which the person confirms and rates (ICH M15);
+  4. Inputs asks only for the two values the delivery lacks (lipophilicity, an elimination pathway), entered as a
+     modeller would;
+  5. Review & sign offers the room's VBE design; the person takes it, adds what is never defaulted, saves and signs;
+  6. the MAP carries the room's question, the VBE design and the room's decisions as limitations;
+  7. a second send of the same delivery changes nothing: the MAP stays signed, and a second signature is refused.
+- **Covered elsewhere:** the food-effect variant (R2: a confirmed food-effect question makes the plan's food rule apply)
+  is in `packages/project-model/tests/test_brief_from_room.py`.
+- **Known gap (locked, for the SME):** the split adds "A fed parameter would need fitting but no fed study is
+  available" to a MAP whose question is fasted only (`split.py`, rule 5). It follows MS-01's decision tree §6.7; the
+  wording reads as a gap the question does not have. Not changed: the file is locked.
+
+### Changed — science: the VBE panel suggests the reformulated product as the TEST arm (2026-11-24)
+- **Why:** found by the B10 walk. The Data room's question asks whether the *reformulated* tablet performs like the
+  reference, but the VBE panel suggested the product the clinical study tested (role "test") as TEST. That product is
+  the one the observed BE study validates the model on, not the one the VBE predicts.
+- **What:** `review.vbe_suggestion` picks the TEST arm by `PREDICTED_TEST_ROLES = ("reformulated", "test")`: a
+  reformulated product first, then the test product. A formulation the CPF already holds still comes first. The other
+  candidates stay named in the suggestion's source. The observed BE pairing (`room_basis`) is unchanged.
+- **Impact:** a suggestion only. Nothing is saved until a person saves the design with a reason.
+- **Tests:** `test_the_vbe_panel_is_offered_the_rooms_formulations_and_observed_be_never_saved` (new case: all three
+  products sent), `test_the_review_pins_the_suggestion_on_the_vbe_application_only` and `test_plan_api.py`.
+
+### Fixed — the step bar's Run step no longer says it waits for a signature the MAP already has (2026-11-24)
+- **Why:** found by the B10 walk. With the MAP signed and no campaign yet, Run said "A campaign starts once the MAP is
+  signed".
+- **What:** `steps.run_step(statuses, signed=…)`. With the MAP signed and current, it says "The MAP is signed: start the
+  campaign from Review & sign". Test: `test_review_is_done_only_with_a_signed_map`.
+
+### Changed — Start's brief is drafted from the Data room by itself: on confirming the card, choosing the applications, and sending (2026-11-24)
+- **Why:** plan 2026-11-24 §7 (B4). The two Phase 4 changes merged here: "Send to the model" corrected, and the brief,
+  plan and MAP reading the room. Start was filled from the room only by its button.
+- **What:** the Data room's routes call `brief_from_room.draft_brief_from_room` (`dataroom_api._draft_brief`):
+  - when the question card is confirmed;
+  - when the `applications` decision is chosen;
+  - after "Send to the model", before the inputs are refreshed, so their readiness reads the new brief.
+
+  It only drafts (DRAFTED, with the quotes it rests on). A person's value is never overwritten. A missing card or brief
+  never fails the room's route.
+- **Test:** `test_confirming_the_card_and_choosing_the_applications_in_the_room_fill_start_without_a_click`. A person's
+  own context of use stays theirs.
+
+### Added — science: Start, the model plan, the MAP and the VBE panel read what the Data room's send rests on (plan 2026-11-24 §7, phase 4: R2, B4–B8) (2026-11-24)
+- **Why:** phase 4 of `docs/plans/2026-11-24-data-story-next-phase.md` (§7: a modeller does not type again at Start or
+  on Review & sign what the delivery already said). A read-only trace found the room's confirmed applications ignored
+  (**R2, high**): MS-01's food rule read only the brief's APP-12 (`plan.structure_from_brief`, `inputs.readiness`), so a
+  food-effect question confirmed in the Data room still had a fed study fitted internally by the split; and the
+  question, context of use, applications, agencies, products, scenarios, formulation types, populations, the VBE
+  formulations and the observed BE summary were typed again.
+- **One reader** (`modeler_project.room_basis.room_basis(ws)`): the confirmed question card, the applications decision,
+  every decision with its reason, the open data requests (required, or a draft's "usually needed"), the client's NCA
+  values no setting reproduces, the BLQ convention of the arithmetic mean, the room's plan roles, its products (with the
+  CPF formulation name the send gives each, `publish.slug`), each arm's route, dose, food and population, and a paired BE
+  summary from the room's own NCA. It reads the live room today; once "Send to the model" writes its snapshot, it is
+  switched there, in that one function. `full=False` reads the card and the applications only (Start, Inputs).
+- **The applications table** `room_basis.ROOM_TO_BRIEF` (each code checked against `brief.APPLICATIONS`; **the owner
+  reviews it**): PBBM / bridging / VBE → APP-11 + APP-14; food effect → APP-12; acid-reducing agents → APP-13 (pH-dependent
+  DDI); DDI victim or perpetrator → APP-03 (enzyme DDI); transporter DDI → APP-04; paediatrics → APP-06; renal → APP-08;
+  hepatic → APP-07; first-in-human → APP-02; pregnancy → APP-09; the elderly and an ethnic population → APP-10; none →
+  APP-01.
+- **B4, Start from the room** (`modeler_project.brief_from_room`, `POST /projects/{id}/brief:from-dataroom`, and "Fill
+  from the Data room" on Start when the room's card is confirmed): drafts, through the agents' path (`brief_ops.agent_set`,
+  DRAFTED, `by` `code:data-room`, each with the quotes it rests on), the question, the context of use, the applications,
+  the agencies (by name only: FDA, EMA, PMDA, CDSCO, Health Canada, TGA, NMPA, MHRA), the products and roles (reference
+  and original as REFERENCE, test and reformulated as TEST), one scenario per sent arm (route, dose in mg as stated, fed or
+  fasted, product, population; a scenario Start holds is completed, never duplicated), the formulation types (the
+  dosage forms stated, else the immediate-release tablet the send makes of a product with a release profile) and the
+  populations (healthy or patients as stated, the PK-Sim population the room chose, the sex); then the ICH M15 ratings by
+  the rule, as Start does. A person's value (or "not stated"), and a document's (EXTRACTED, RETRIEVED, COMPUTED), are never
+  overwritten; an earlier draft gives way to the room's (the card is a person's confirmed word). Refused (409) until a
+  person confirms the card. Human-only fields are never set.
+- **B5, Start advises** (`steps.room_advice`, `start.room.advice`): where a question, context of use or applications a
+  person set (or a document states) differ from the room's confirmed card. Advice only: Start is done without it.
+- **R2 / B7, the model plan:** `food_effect_in_question`, the planned applications, the pinned templates and the
+  application codes take the room's applications where the brief has none a person set (`plan.effective_applications`;
+  the Inputs readiness check too). The validator warns (acknowledgment only) where the room's applications and the plan's
+  differ (`room-applications`) and where MS-01's placement of a sent arm (`<study>-<arm>`) differs from the room's plan
+  role, calibration or verification (`room-roles`). `split.py` and `map.py` are not changed.
+- **B6, the MAP's limitations** (`plan.room_limitations`, through `Structure.room_limitations` and `map_limitations`):
+  each room decision with its reason, each open required data request (the usually-needed ones named in one line), the
+  client's NCA values the data do not reproduce, and that the observed arithmetic means count a concentration below the
+  LLOQ as 0 (with the count), the geometric means leaving them out.
+- **B8, the VBE panel** (`review.vbe_suggestion`, `PinnedApplication.suggested`): the TEST and reference formulations
+  from the card's products by role (as the send names them; a CPF formulation first, the others named), and the observed
+  BE summary from the room's NCA paired by subject in the analysis set sent (GMR and its 90 % CI by
+  `bioequivalence.paired_crossover_ci`, the reference arm's between-subject CV by `vbe.between_subject_cv`, as the F-304
+  gate computes it), with the delivery's stated BE results beside it. "Use the Data room's values" fills the form; saving
+  stays the person's act with a reason; never-defaulted inputs stay empty; the template is untouched.
+- **API (for clients):** new `POST /api/v1/projects/{id}/brief:from-dataroom` (`RoomFilled`); `StartBlock.room`
+  (`StartRoomView`); `PinnedApplication.suggested` (`ApplicationSuggestion`); `Structure` gains `room_applications`,
+  `applications_from_room`, `room_roles`, `room_limitations`. `docs/api/openapi.json` and `apps/web/lib/api-types.ts`
+  regenerated.
+- **Not yet wired:** the Data room's own routes (`dataroom_api.py`, another change in flight) do not yet call
+  `draft_brief_from_room` when the card is confirmed, the applications decision is made or the room is sent; the button
+  on Start does. Tests: `packages/project-model/tests/test_brief_from_room.py`,
+  `services/api/tests/test_brief_from_room_api.py`, `test_plan_api.py` (the room's send); e2e spec (not run here)
+  `apps/web/e2e/dataroom-to-start.spec.ts`.
+
+### Fixed — science: the Data room's "Send to the model" sends each study as it was run, with each value's true source, and a second send replaces the first (plan 2026-11-24 §7, phase 4) (2026-11-24)
+- **Why:** a read-only trace of "Send to the model" (`modeler_project.dataroom.publish`) found study records that did
+  not match the studies, sources that misstated where values came from (ICH M15), and resends that changed nothing.
+  These models would have been built on the wrong protocol without any visible sign.
+- **R1, fasted arms simulated fed:** every meal of a study went on every arm, the fed condition's breakfast included,
+  and the round builder adds a meal whenever a record has one. "Fasted" is the condition at dosing; the protocol's
+  later meals belong to every arm's day and change gastric emptying and later absorption. Now:
+  - A meal at or before the dose (time ≤ 0 h) is the fed condition's. It goes only on the fed arms, and the notes say
+    a fasted arm does not get it.
+  - A meal after the dose goes on every arm, fasted ones included (a standard lunch at 4 h, dinner at 10 h). If an
+    arm's own definition names its time, it goes on that arm only.
+  - The send is blocked, with what to decide, when a meal cannot be placed: a meal before the dose when no arm is
+    fed, a fed arm whose meals are all after the dose, meal times that cannot be read, or fed arms that name
+    different meals.
+  - Each arm's food state comes from its own words, else from the study's statement. An arm "after a high-fat
+    breakfast" beside an arm that says nothing, in a study "after an overnight fast", is now one fed arm and one
+    fasted arm (both were sent fasted).
+  - Meal times read the first direction word after a time. "The dose 30 minutes after the start of breakfast" is now
+    −0.5 h, not +0.5 h, so a fed breakfast no longer reads as a later meal. The fed statement's own timed meal is read
+    as well.
+- **R3, a second send changed nothing:** ids came from a chip's box and text, and Inputs kept the earliest dataset of a
+  study id. Now an id follows what is sent (the target or study and its content), so the same content is skipped. A send
+  that carries a new item for a target or study rejects the Data room's earlier item, "superseded by publication <id>",
+  through the evidence and dataset registers' own decide functions (audited). The latest send is what Inputs and the
+  model read. An item superseded earlier is accepted again when a later send carries it.
+- **R4, the same data loaded twice:** a study whose concentrations are already in the project is refused, and the refusal
+  names the dataset. This covers a dataset that Delivery landed or that Inputs holds from the same file (not rejected),
+  and a study a signed Delivery confirmation covers. The second check is the legacy readers' rule, moved into
+  `intake_review.delivery_covers` so both readers share one function; `client_api._not_on_delivery` now calls it with
+  unchanged behaviour.
+- **R5, every study sent as single-dose oral IR tablet:**
+  - A route stated other than oral blocks the send. A route that is not stated is said in the notes.
+  - A multiple-dose study blocks the send ("multiple-dose studies are not sent yet: the model is built from single-dose
+    data"): its profiles are per day, and its regimen is free text, so no dose interval is mapped by guess.
+  - A modified-release product blocks the send: a release or coating fact's own word, or "… release" / ER, XR, MR, SR …
+    in its name. A reformulation is not modified release.
+  - A capsule is sent as `ir_capsule`.
+- **R6, sources (ICH M15):**
+  - A value a person entered goes as ASSUMPTION / MANUAL with their reason in the note; it used to go as PREDICTED with
+    the reason dropped.
+  - A value that only the delivery's literature or label files give goes as PUBLICATION, provider LITERATURE, with the
+    file as its citation.
+  - A pH by convention (D4) is no longer "sponsor": it goes as ASSUMPTION, labelled "pH 1.2 by convention for 0.1 N HCl,
+    not stated (confirmed by …)". Its PK-Sim input row is "calculated" with the same label.
+  - The release fit records its profile, fit function and version, equation and engine check, as the Dissolution
+    register does.
+  - Each dataset carries its concentration file and place as its source (`RoomStudy.sources`, new), and the analyte and
+    matrix where the files state them.
+- **R7, demographics:**
+  - The population and sex chosen in the room go on the record with the age (and its range), weight and height. These
+    come from the demographics table, else from the synopsis's own words (`assemble.mean_and_range`: a mean as written;
+    a range or an inclusion limit gives no mean).
+  - With no age stated, the record still has no individual (D-29: no silent 30-year-old), and the note names the
+    population and sex chosen.
+  - Water that is not given is now a Missing input with its reason. The default is never applied silently.
+- **R9 (SME-gated, behaviour unchanged):** a release that levels off below 100 %, or is very rapid, is still sent as its
+  Weibull fit. The release decision and the evidence sent now say so ("levels off at x %: a Weibull curve rises to
+  100 %; the SME decides (dissolution_similarity / MS-01)").
+- **B9:** every plan row says "proposed; the MS-01 split decides". In a food-effect question, a fed arm is
+  "verification", never "calibration" (MS-01 rule 5).
+- **What a send rested on:** each send's record is kept at `dataroom/publications/<publication id>.json`, for the plan
+  side to read. It holds the confirmed question card, the `applications` decision, every decision with its reason, the
+  open data requests, the NCA values the data do not reproduce, the means' BLQ convention, the notes, the items sent
+  and the items superseded. Its shape is in `dataroom/publish.py`'s docstring. The Part 11 signature now covers the
+  publication id and the basis's sha256 (the record in `dataroom_api`; `signatures.py` unchanged).
+- **API:**
+  - `publication` adds `notes`.
+  - `publish` adds `superseded`, `publication`, `basis_sha256` and `notes`.
+  - The signature's record id names the publication.
+  - `DataRoomView.studies[].sources` is new.
+  - `docs/api/openapi.json` and `apps/web/lib/api-types.ts` are regenerated, and the page lists the notes.
+- **Impact:**
+  - No locked file, ruleset or acceptance criterion changed; the Data room's rules stay UNVERIFIED at 0.1.
+  - The synthetic Exampleamide delivery is fasted at dosing. Both arms keep its meals at 4 h and 10 h after the dose.
+  - Tests: `packages/project-model/tests/test_dataroom.py` (eight new) and `services/api/tests/test_dataroom_api.py`.
+- **Known gaps:**
+  - A study's meals share its one meal decision's template. A fed arm's high-fat breakfast and the standard lunches
+    after it all go with the chosen template. The room's meal row carries times, not a kind per meal, so no per-meal
+    template is chosen.
+  - A multiple-dose study is refused, not mapped.
+  - An individual with no stated mean age is left to Inputs.
+
+### Changed — the agents ask for what the question needs: A6 without context-only material, A8 told the required items, A10 writes only open requests (prompt `dataroom-6`, 2026-11-24)
+- **Why:** the requirement drafts now decide what the delivery must hold (plan 2026-11-24 §6, D5). The agents' own
+  prompts still asked for the manufacturing process on every project, and the report wrote requests that the
+  requirements had marked not needed.
+- **A6 (question):** the standard checklist no longer names the manufacturing process. It asks for the functional
+  excipients and their amounts, and leaves out context-only material (the manufacturing process, tablet hardness, the
+  full excipient list, f2) and fed-state data unless the question names fed dosing.
+- **A8 (extract):** the delivery block every file shares now lists what the question's applications require or usually
+  need, with the room fields each fills (`stages._required_items`, from the confirmed or suggested `applications`
+  decision). The extractor looks for each in every file: omission is the extractors' main error in the literature.
+  The block is the same for every file, so it is read from the cache.
+- **A10 (write):** the material lists only open requests. A request marked not needed (by a person or by the
+  requirements) is no longer written to the client.
+- `PROMPT_VERSION` is `dataroom-6`, so cached answers made under the earlier prompts are not reused.
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
@@ -75,6 +336,88 @@ chain (R-B13) and `pbpk_domain.snapshot.parameter_transfer` (R-B13b) stay until 
   check "no orphan": no module is unimported and no stylesheet rule is unreachable.
 - **Impact:** no page looks or behaves differently: each piece keeps its markup, classes and test ids (the toast's
   class is `toast`, was `mo-toast`); the removed CSS matched no element.
+
+### Added — science: the Data room asks for what the question needs, from the requirement drafts per context of use (plan 2026-11-24 §6, phase 2; the drafts stay UNVERIFIED) (2026-11-24)
+- **Why:** phase 2 of `docs/plans/2026-11-24-data-story-next-phase.md` (§6, decision D5; the owner's "go ahead with all
+  phases"). A6 wrote the room's checklist from one fixed list: every project was asked for the manufacturing process,
+  and nothing told a fasted DDI question from a food-effect one. The drafts
+  (`pbpk_domain/requirement_drafts/context_of_use/`, UNVERIFIED) give each item a status per application, a trigger
+  over the compound's properties, and the room fields that satisfy it. Code reads them; no AI model is asked anything
+  new.
+- **What changed:**
+  - `modeler_project.dataroom.drafts`: the twelve drafts read once (importlib.resources), their shape checked (the item
+    keys core.yaml documents, the five statuses, a trigger in the grammar over the property vocabulary on CONDITIONAL
+    items only, overrides of core items only, the room's vocabulary, declared sub-contexts); `items_for` gives a context
+    of use's list with the core merged and its overrides applied.
+  - `modeler_project.dataroom.checklist`:
+    1. **Which applications:** the confirmed question card's question, approach, context of use and regulator are
+       matched by whole words against a phrase table (`PHRASES`: food effect / fed; DDI, interaction, inhibitor,
+       inducer, CYP… with the side read from "victim" / "perpetrator" / "inhibits" / "induces", else both;
+       transporter, OATP, P-gp; paediatric, children, infant; renal or hepatic impairment; bioequivalence, VBE,
+       bridging, site change, scale-up, safe space, dissolution specification, PBBM, biowaiver; PPI, H2, antacid,
+       pH-dependent; first-in-human, starting dose; pregnan…, elderly, geriatric, ethnic…). A decision
+       `applications` (first among the decisions) offers the combination read (suggested), each application alone,
+       and "none of these (core items only)", each with the words that matched. Until a person chooses, the checklist
+       follows the suggestion, labelled "as read from the question card". Like every decision, it is chosen before
+       "Send to the model".
+    2. **Properties and triggers:** code reads what core.yaml says it can: a weak base and its highest basic pKa (each
+       pKa of a fact typed by its own words, "pKa1 (basic) = 4.1; pKa2 (acidic) = 9.3"), the gastric-to-intestinal
+       solubility ratio (pH 1–2 over the row nearest pH 6.5), a salt, a BCS class the delivery states, metabolism and
+       the enzymes named, the fraction excreted unchanged in urine, the transporters named (a negated clause names
+       none), an in vitro permeability supplied, subject-level concentrations, fed dosing in scope (a meal served after
+       the dose is not fed dosing), a reference product on the card. Everything else is "not known" (a person answers,
+       or it needs the SME's cut-off). A trigger is met, not met or not known; a cut-off written `SME` is never
+       invented: that condition stays not known and decides nothing (the trigger is decided only where the rest
+       decides it); the sourced cut-off (pKa above 5) is applied.
+    3. **The ledger:** each item once, the strictest status across the applications winning (REQUIRED >
+       USUALLY_NEEDED > CONDITIONAL that applies > not known > OPTIONAL > NOT_NEEDED), naming the applications that set
+       it and the others' lower status; its coverage: found (the facts, tables, topics or entered values, with their
+       chips; a solubility or particle-size table satisfies its field), missing (with the files searched: those whose
+       triage topics match the item's, else every used file), "applies if … (not known from the delivery)", not
+       needed (why), context only, found in part / a person checks (the room has no place, or only part of one), or
+       not from the delivery (the modeller's tasks, the platform's library).
+    4. **Data requests:** each missing REQUIRED item (and CONDITIONAL item that applies) and each missing
+       USUALLY_NEEDED item (said so) becomes a request after the room's own requests (their codes unchanged),
+       lettered by its data category: what, why, "If it is not available: …" where the draft gives alternatives,
+       "(draft requirement, UNVERIFIED)". A request the room already makes for the same thing (the same item id or
+       title; the room's own request for the same compound value, `SAME_ASK`) is not made twice; the ledger names the
+       request either way. Nothing NOT_NEEDED, inapplicable, not known, optional or context-only is asked for.
+  - The question card's checklist items that ask only for context-only material (the manufacturing process: a topic no
+    draft item asks data for) keep their request and its code, now "not needed" by default with why ("Kept as context,
+    not asked for … (draft requirement, UNVERIFIED)"); a person may open it again. The context item says so.
+  - `DataRoomView.requirements`; a section "Requirements for this question" (`requirements`, after Files) whose line
+    counts found, missing, to ask, for a person to check and not needed; the page's new section
+    (`components/dataroom/requirements.tsx`, `data-testid="dr-requirements"`): the draft label first, the applications
+    with the words read, the items grouped by status with their coverage line and source chips, "Not needed for this
+    question (n)" and "Context only (n)" folded, and what code read about the compound and the question.
+  - The drafts package's docstring and the review summary (`docs/research/2026-11-24-cou-requirement-drafts-for-review.md`
+    §7) say what now reads the drafts.
+- **API contract:** `DataRoomView` gains `requirements` (`Requirements`, `RequirementItem`, `PropertyRead`,
+  `ReadPhrase`; null without a question card); `sections` gains `requirements` (second); `decisions` may start with
+  `applications`. `docs/api/openapi.json` and `apps/web/lib/api-types.ts` regenerated.
+- **Science status:** the drafts are unchanged and stay **UNVERIFIED** (0.1-draft), labelled so on every item and
+  request; the phrase table, the property readings and `SAME_ASK` are code's reading, for the owner's and the SME's
+  review. No data plan, client request of the data plan, gate or live template reads the drafts
+  (`test_cou_requirement_drafts.py` still checks it); the locked templates are untouched.
+- **Effect on the three made-up deliveries** (their stored runs re-assembled, no model called): novaprazole reads PBBM,
+  bridging and virtual BE + food effect ("PBBM", "biowaiver"; "food effect", "fed"): 35 found, 2 missing, 1 to ask, 8
+  for a person to check, 2 not needed, 4 context; zelitrex reads PBBM, bridging and virtual BE ("bioequivalence", "VBE",
+  "site change"): 26 found, 3 missing, 1 to ask, 5 for a person to check, 3 not needed (fed BE data: the study is
+  fasted); quorafen reads the same ("bioequivalence", "bridging", "formulation change"): 26 found, 3 missing, 1 to
+  ask, 5 for a person to check, 3 not needed (fed BE data: the breakfast 2 h after the dose is not fed dosing). Each
+  gains two requests (the solid form, the functional excipients' amounts); a missing permeability is the room's own
+  request; the manufacturing request is "not needed". The value-by-value scores are unchanged (53/4/30, 69/0/0,
+  48/2/16 OK/WRONG/MISSING, the same with the checklist switched off).
+- **Known gaps:** coverage is any-of over an item's room fields, so an item named by a generic field is "found" by
+  related data (intravenous PK by an oral concentrations table): the coverage line says what was found, and the drafts
+  may mark such items as a room gap. A6's prompt still holds the fixed checklist and A10's material lists every request
+  (also those not needed): the `stages.py` changes are described in the session's report, not made here (another
+  change is being merged there).
+- **Tests:** `packages/project-model/tests/test_dataroom_requirements.py` (T-47): the loader (merge, overrides,
+  sub-contexts, refusals), each phrase family and the combinations, triggers (met, not met, not known, SME cut-offs),
+  the properties, coverage (found, missing with the files searched, not needed, context, room gap, activity),
+  requests (wording, alternatives, letters, no duplicates, nothing not needed, only once the card is confirmed);
+  `test_dataroom.py` and `test_dataroom_api.py` take the new section.
 
 ### Added — science: the Data room's science checks, features 3–9 of the next-phase plan (`dataroom_rules.yaml` 0.3, UNVERIFIED) (2026-11-24)
 - **Why:** phase 3 of `docs/plans/2026-11-24-data-story-next-phase.md` (§8, approved by the owner with "go ahead with

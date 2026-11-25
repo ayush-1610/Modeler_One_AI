@@ -247,6 +247,9 @@ class RoomStudy(_B):
     concentration_unit: str = ""
     lloq: float | None = None
     problems: tuple[Problem, ...] = ()
+    # the concentration tables the profiles are read from, one chip per table (its file, part and first data line): the
+    # source "Send to the model" gives each arm's dataset (ICH M15), and the place a Delivery confirmation is matched by
+    sources: tuple[Chip, ...] = ()
 
 
 # --- in vitro ---------------------------------------------------------------------------------------------------------
@@ -410,6 +413,77 @@ class FileView(_B):
     triage: FileTriage | None = None
 
 
+# --- what the question needs (plan 2026-11-24 §6: the requirement drafts per context of use, UNVERIFIED) ---------------
+
+Coverage = Literal["found", "found_in_part", "missing", "to_ask", "absent", "person_checks", "not_from_delivery",
+                   "not_needed", "context"]
+
+
+class ReadPhrase(_B):
+    """An application read from the question card, with the words that matched, as written ("'food effect' (question)")."""
+
+    application: str                 # the application's id: a draft file, with its sub-context after a dot
+    label: str
+    words: tuple[str, ...] = ()
+
+
+class PropertyRead(_B):
+    """A compound, product or question property a trigger names (core.yaml's vocabulary), as code read it from the room."""
+
+    name: str
+    label: str
+    how: str                         # code, brief or ask (core.yaml)
+    value: str                       # in words; "not known" when code could not determine it
+    known: bool = False
+    basis: str = ""                  # what it was read from, or why it is not known
+    sources: tuple[Chip, ...] = ()
+
+
+class RequirementItem(_B):
+    """One item of the checklist for this question, with its coverage (the ledger of plan §6.4): found where, missing
+    with the files searched, not needed and why, or kept as context."""
+
+    id: str                          # the draft item's id
+    label: str
+    group: str
+    kind: str
+    status: Literal["REQUIRED", "USUALLY_NEEDED", "CONDITIONAL", "OPTIONAL", "NOT_NEEDED"]   # as the draft gives it
+    # where it stands for this question: the draft's status, a CONDITIONAL item by its trigger (applies: conditional;
+    # not known: to_ask; not met: not_needed), or context (context_only.yaml)
+    level: Literal["required", "usually_needed", "conditional", "to_ask", "optional", "not_needed", "context"]
+    applies: Literal["yes", "no", "unknown", ""] = ""
+    trigger: str = ""                # a CONDITIONAL item's condition, in words
+    trigger_state: str = ""          # each condition as code found it
+    escalates: str = ""              # a USUALLY_NEEDED item: when it becomes required
+    why: str
+    alternatives: tuple[str, ...] = ()
+    record_with: tuple[str, ...] = ()
+    sources: tuple[str, ...] = ()    # the literature the draft cites
+    by: tuple[str, ...] = ()         # the applications that set its status here
+    others: tuple[str, ...] = ()     # another application's status for the same input, when lower
+    coverage: Coverage
+    coverage_text: str
+    found: tuple[str, ...] = ()      # what in the room satisfies it, in words
+    chips: tuple[Chip, ...] = ()
+    searched: tuple[str, ...] = ()   # missing: the files searched
+    room_gap: bool = False           # the room's vocabulary has no place (or only part of one) for it
+    request: str = ""                # the data request that asks for it
+    note: str = ""                   # the draft's note (UNVERIFIED: …)
+
+
+class Requirements(_B):
+    """The checklist for this question from the requirement drafts per context of use: a draft, UNVERIFIED, awaiting the
+    owner's and the SME's review. No data plan, gate or live template reads it."""
+
+    label: str                       # "draft, UNVERIFIED (awaiting the owner's and the SME's review)"
+    version: str
+    applications: tuple[str, ...]    # the applications in force (labels); none: the core items only
+    chosen: bool                     # a person chose them; False: as read from the question card
+    read: tuple[ReadPhrase, ...] = ()
+    properties: tuple[PropertyRead, ...] = ()
+    items: tuple[RequirementItem, ...] = ()
+
+
 class Section(_B):
     id: str
     title: str
@@ -458,6 +532,8 @@ class DataRoomView(_B):
     # the science checks across a section's items, by section id (formulation, dissolution): what no one profile or
     # row holds (batches of a product tested by different methods; a functional excipient that differs)
     checks: dict[str, tuple[Problem, ...]] = Field(default_factory=dict)
+    # what the question needs, from the requirement drafts (UNVERIFIED); None: no question card yet
+    requirements: Requirements | None = None
     made_by: tuple[MadeBy, ...] = ()
     made_summary: str = ""
 

@@ -283,6 +283,13 @@ Coder. It is LiteLLM's own master key, set when LiteLLM was started on the serve
      no message is sent and nothing is spent.
   5. It is a paid service: the platform pauses a run at **$10** and stops paid use for the month at **$90** (Admin →
      Limits), and a client's files go to it only with the client's written permission (step 6).
+  6. **The calibration run (D2, about $5, once):** after the key is active (step 4), on the server:
+     `bash deploy/server/calibrate_dataroom.sh --dry` shows the models, the estimate and this month's spend, with no
+     call. Then `bash deploy/server/calibrate_dataroom.sh` runs every Data room agent once on the made-up Exampleamide
+     delivery (the "Claude demo" preset, hard-capped at $5.50; no client file, no project touched). It ends with a
+     **COST** line (by agent) and an **ACCURACY** line (how many of the delivery's 60 values it got right; Nemotron
+     Ultra, free, 2026-11-24: 58). Send those lines to the team before any other Claude spend. Leave the agents on their
+     current models until then.
 
 **Step 4. Store the key on the server, from the console** (no restart, no file):
 1. Admin → Keys → Add a key. Choose the service, paste the key and give a reason. Confirm your identity when asked.

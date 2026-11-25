@@ -381,6 +381,38 @@ class ApplicationLimits(View):
     source: str
 
 
+class SuggestedFormulation(View):
+    """A product of the Data room's question card for a VBE arm, as the CPF formulation the send names it."""
+
+    value: str
+    source: str
+    available: bool                        # the CPF holds it now (else: sent from the Data room, it will)
+
+
+class SuggestedBeMetric(View):
+    gmr: Number | None
+    between_subject_cv_percent: Number | None
+    ci_low: Number | None
+    ci_high: Number | None
+    n: int                                 # the subjects paired
+
+
+class SuggestedBe(View):
+    metrics: dict[str, SuggestedBeMetric]  # AUC_inf, C_max
+    source: str
+    stated: list[str]                      # the delivery's own BE results, as written
+
+
+class ApplicationSuggestion(View):
+    """What the Data room offers an application's inputs (`review.vbe_suggestion`, plan 2026-11-24 §7 B8): suggestions
+    with their source, never saved until a person saves the design."""
+
+    test_formulation: SuggestedFormulation | None
+    reference_formulation: SuggestedFormulation | None
+    observed_be: SuggestedBe | None
+    note: str
+
+
 class PinnedApplication(View):
     template: str
     version: str
@@ -389,6 +421,7 @@ class PinnedApplication(View):
     problems: list[str]                    # what the validator still says of it (signing waits on these)
     formulations: list[str]                # the CPF's formulations, the choices of a formulation input
     limits: list[ApplicationLimits]
+    suggested: ApplicationSuggestion | None  # from the Data room's send; None: no room, or nothing to offer
 
 
 class ApplicationsView(View):

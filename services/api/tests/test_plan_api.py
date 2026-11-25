@@ -588,3 +588,39 @@ def test_estimated_parameters_are_fitted_as_one_with_a_reason_and_the_split_s_so
     assert gone.status_code == 200
     assert c.get("/api/v1/projects/p1/plan/review", headers=H).json()["data"]["fit_groups"] == []
     assert c.post("/api/v1/projects/p1/plan/groups/renal:remove", headers=H, json={"reason": "x"}).status_code == 422
+
+
+def test_the_plan_reads_the_data_rooms_send_and_the_vbe_panel_is_offered_its_suggestions(setup):
+    """Plan 2026-11-24 §7, phase 4 (R2, B6, B7, B8): with a Data room whose card a person confirmed and whose decisions
+    are made (the synthetic delivery; no client data), the plan takes the room's applications where the brief has none a
+    person set, names the room's decisions, open requests and BLQ convention among the MAP's limitations, and the VBE
+    panel is offered the room's formulations and observed BE summary, never saved."""
+    from modeler_project.dataroom import DataRoomStore, room_view
+    from modeler_project.dataroom.reading import read_uploads
+    from modeler_project.dataroom.synthetic import delivery_zip, seed
+
+    c, ws, _root = setup
+    room = DataRoomStore(ws)
+    room.add_upload("delivery.zip", delivery_zip(), by="u1")
+    read_uploads(room, use_ocr=False, workers=1)
+    seed(room, confirmed=True)
+    for d in room_view(room).decisions:
+        room.decide(d.id, d.suggested, by="u1", reason="as suggested")
+    structure = c.get("/api/v1/projects/p1/plan", headers=H).json()["data"]["plan"]["structure"]
+    assert structure["room_applications"] == ["APP-11", "APP-14"] and structure["applications_from_room"]
+    assert structure["application_codes"] == ["APP-11", "APP-14"] and not structure["food_effect_in_question"]
+    assert [a["template"] for a in structure["applications"]] == ["vbe-crossover"]
+    assert any(line.startswith("Data room decision, Applications of the question: PBBM, bridging and virtual BE")
+               for line in structure["room_limitations"])
+    assert any(line.startswith("Observed mean profiles (Data room), EX-01: the observed arithmetic mean profiles sent to "
+                               "the model count a concentration below the LLOQ") for line in structure["room_limitations"])
+    review = c.get("/api/v1/projects/p1/plan/review", headers=H).json()["data"]
+    assert set(structure["room_limitations"]) <= set(review["limitations"])
+    [vbe] = review["applications"]["pinned"]
+    suggested = vbe["suggested"]
+    assert suggested["test_formulation"]["value"] == "Exampleamide_100_mg_reformulated"   # the question asks about it
+    assert suggested["test_formulation"]["available"] is False                   # not sent yet: the CPF has no tablets
+    assert suggested["reference_formulation"]["value"] == "Refamide_100_mg"
+    auc = suggested["observed_be"]["metrics"]["AUC_inf"]
+    assert auc["n"] == 6 and 0.8 < auc["gmr"] < 1.25 and auc["between_subject_cv_percent"] > 0
+    assert {i["id"]: i["value"] for i in vbe["inputs"]}["observed_be"] is None   # a suggestion, never saved

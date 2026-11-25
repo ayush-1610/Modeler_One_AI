@@ -948,6 +948,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project_id}/brief:from-dataroom": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Fill Brief From Dataroom
+         * @description Start from the Data room (plan 2026-11-24 §7, phase 4, B4): the question, context of use, applications, agencies,
+         *     products and roles, scenarios, formulation types and populations the room's confirmed question card and studies
+         *     state, drafted into the brief (DRAFTED, each with the quotes it rests on, to confirm on Start), then the ICH M15
+         *     ratings by the rule. A person's value, or a document's, is never overwritten: Start advises where they differ. 409
+         *     while the room has no confirmed question card.
+         */
+        post: operations["fill_brief_from_dataroom_api_v1_projects__project_id__brief_from_dataroom_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project_id}/campaigns": {
         parameters: {
             query?: never;
@@ -1425,7 +1449,8 @@ export interface paths {
         };
         /**
          * Get Dataroom Publication
-         * @description What "Send to the model" would send now (evidence items and observed datasets) and what blocks it; nothing is
+         * @description What "Send to the model" would send now (evidence items and observed datasets), what blocks it (a study already
+         *     in the project through Delivery or Inputs too), and what is sent otherwise than the files might suggest; nothing is
          *     written.
          */
         get: operations["get_dataroom_publication_api_v1_projects__project_id__dataroom_publication_get"];
@@ -1451,7 +1476,10 @@ export interface paths {
          * @description Send the room's confirmed inputs to the model: compound and release values as accepted evidence, each arm's mean
          *     profile as an accepted observed dataset, so Review & sign starts from them. Signed with the token's recent step-up
          *     (403 `STEP_UP_REQUIRED`); refused (409 with every reason, nothing signed) while anything blocks it. Sending again
-         *     adds only what changed.
+         *     adds only what changed, and what it replaces is rejected, superseded by this publication. What the send rested on
+         *     (the confirmed question, the applications, every decision with its reason, the open data requests, the NCA values
+         *     the data do not reproduce, the means' BLQ convention) is kept as the publication's record
+         *     (`dataroom/publications/<id>.json`), and the signature covers its sha256.
          */
         post: operations["publish_dataroom_api_v1_projects__project_id__dataroom_publish_post"];
         delete?: never;
@@ -3834,6 +3862,18 @@ export interface components {
             /** Template */
             template: string;
         };
+        /**
+         * ApplicationSuggestion
+         * @description What the Data room offers an application's inputs (`review.vbe_suggestion`, plan 2026-11-24 §7 B8): suggestions
+         *     with their source, never saved until a person saves the design.
+         */
+        ApplicationSuggestion: {
+            /** Note */
+            note: string;
+            observed_be: components["schemas"]["SuggestedBe"] | null;
+            reference_formulation: components["schemas"]["SuggestedFormulation"] | null;
+            test_formulation: components["schemas"]["SuggestedFormulation"] | null;
+        };
         /** ApplicationSupport */
         ApplicationSupport: {
             /** Rows */
@@ -5435,6 +5475,7 @@ export interface components {
              * @default []
              */
             requests: components["schemas"]["DataRequest"][];
+            requirements: components["schemas"]["Requirements"] | null;
             /** Rules */
             rules: string;
             /**
@@ -8378,6 +8419,13 @@ export interface components {
         /** Envelope[ReviewPage] */
         Envelope_ReviewPage_: {
             data: components["schemas"]["ReviewPage"];
+            /** Errors */
+            errors: components["schemas"]["ErrorItem"][];
+            meta: components["schemas"]["Meta"];
+        };
+        /** Envelope[RoomFilled] */
+        Envelope_RoomFilled_: {
+            data: components["schemas"]["RoomFilled"];
             /** Errors */
             errors: components["schemas"]["ErrorItem"][];
             meta: components["schemas"]["Meta"];
@@ -11437,6 +11485,7 @@ export interface components {
             problems: string[];
             /** Status */
             status: string;
+            suggested: components["schemas"]["ApplicationSuggestion"] | null;
             /** Template */
             template: string;
             /** Version */
@@ -11950,6 +11999,35 @@ export interface components {
             projects: components["schemas"]["ProjectListItem"][];
         };
         /**
+         * PropertyRead
+         * @description A compound, product or question property a trigger names (core.yaml's vocabulary), as code read it from the room.
+         */
+        PropertyRead: {
+            /**
+             * Basis
+             * @default
+             */
+            basis: string;
+            /** How */
+            how: string;
+            /**
+             * Known
+             * @default false
+             */
+            known: boolean;
+            /** Label */
+            label: string;
+            /** Name */
+            name: string;
+            /**
+             * Sources
+             * @default []
+             */
+            sources: components["schemas"]["Chip"][];
+            /** Value */
+            value: string;
+        };
+        /**
          * Proposal
          * @description An A5 departure from the plan, shown in the diff until a person accepts or rejects it.
          */
@@ -12189,6 +12267,21 @@ export interface components {
             tag_proposal?: components["schemas"]["TagProposalView"] | null;
             /** Template */
             template: boolean;
+        };
+        /**
+         * ReadPhrase
+         * @description An application read from the question card, with the words that matched, as written ("'food effect' (question)").
+         */
+        ReadPhrase: {
+            /** Application */
+            application: string;
+            /** Label */
+            label: string;
+            /**
+             * Words
+             * @default []
+             */
+            words: string[];
         };
         /**
          * ReadingItem
@@ -12442,6 +12535,146 @@ export interface components {
             to_harvest: number;
             /** Undetermined */
             undetermined: number;
+        };
+        /**
+         * RequirementItem
+         * @description One item of the checklist for this question, with its coverage (the ledger of plan §6.4): found where, missing
+         *     with the files searched, not needed and why, or kept as context.
+         */
+        RequirementItem: {
+            /**
+             * Alternatives
+             * @default []
+             */
+            alternatives: string[];
+            /**
+             * Applies
+             * @default
+             * @enum {string}
+             */
+            applies: "yes" | "no" | "unknown" | "";
+            /**
+             * By
+             * @default []
+             */
+            by: string[];
+            /**
+             * Chips
+             * @default []
+             */
+            chips: components["schemas"]["Chip"][];
+            /**
+             * Coverage
+             * @enum {string}
+             */
+            coverage: "found" | "found_in_part" | "missing" | "to_ask" | "absent" | "person_checks" | "not_from_delivery" | "not_needed" | "context";
+            /** Coverage Text */
+            coverage_text: string;
+            /**
+             * Escalates
+             * @default
+             */
+            escalates: string;
+            /**
+             * Found
+             * @default []
+             */
+            found: string[];
+            /** Group */
+            group: string;
+            /** Id */
+            id: string;
+            /** Kind */
+            kind: string;
+            /** Label */
+            label: string;
+            /**
+             * Level
+             * @enum {string}
+             */
+            level: "required" | "usually_needed" | "conditional" | "to_ask" | "optional" | "not_needed" | "context";
+            /**
+             * Note
+             * @default
+             */
+            note: string;
+            /**
+             * Others
+             * @default []
+             */
+            others: string[];
+            /**
+             * Record With
+             * @default []
+             */
+            record_with: string[];
+            /**
+             * Request
+             * @default
+             */
+            request: string;
+            /**
+             * Room Gap
+             * @default false
+             */
+            room_gap: boolean;
+            /**
+             * Searched
+             * @default []
+             */
+            searched: string[];
+            /**
+             * Sources
+             * @default []
+             */
+            sources: string[];
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "REQUIRED" | "USUALLY_NEEDED" | "CONDITIONAL" | "OPTIONAL" | "NOT_NEEDED";
+            /**
+             * Trigger
+             * @default
+             */
+            trigger: string;
+            /**
+             * Trigger State
+             * @default
+             */
+            trigger_state: string;
+            /** Why */
+            why: string;
+        };
+        /**
+         * Requirements
+         * @description The checklist for this question from the requirement drafts per context of use: a draft, UNVERIFIED, awaiting the
+         *     owner's and the SME's review. No data plan, gate or live template reads it.
+         */
+        Requirements: {
+            /** Applications */
+            applications: string[];
+            /** Chosen */
+            chosen: boolean;
+            /**
+             * Items
+             * @default []
+             */
+            items: components["schemas"]["RequirementItem"][];
+            /** Label */
+            label: string;
+            /**
+             * Properties
+             * @default []
+             */
+            properties: components["schemas"]["PropertyRead"][];
+            /**
+             * Read
+             * @default []
+             */
+            read: components["schemas"]["ReadPhrase"][];
+            /** Version */
+            version: string;
         };
         /** RequirementsPage */
         RequirementsPage: {
@@ -12952,9 +13185,23 @@ export interface components {
             value: number | string;
         };
         /**
+         * RoomFilled
+         * @description `brief:from-dataroom`: the brief fields drafted from the Data room (DRAFTED, each to confirm on Start), the fields
+         *     kept because a person or a document set another value, and Start's advice where they differ.
+         */
+        RoomFilled: {
+            /** Advice */
+            advice: string[];
+            /** Drafted */
+            drafted: string[];
+            /** Kept */
+            kept: string[];
+        };
+        /**
          * RoomPublication
          * @description What "Send to the model" would send now (`modeler_project.dataroom.publish.plan_publication`, nothing written),
-         *     and what keeps it from being sent, in words.
+         *     what keeps it from being sent, and what is sent otherwise than the files might suggest (a fasted arm's meals left
+         *     out, water not stated, a release a Weibull curve does not describe), in words.
          */
         RoomPublication: {
             /** Blocked */
@@ -12963,6 +13210,8 @@ export interface components {
             datasets: components["schemas"]["PublicationItem"][];
             /** Evidence */
             evidence: components["schemas"]["PublicationItem"][];
+            /** Notes */
+            notes: string[];
         };
         /** RoomPublish */
         RoomPublish: {
@@ -12974,19 +13223,28 @@ export interface components {
         };
         /**
          * RoomPublished
-         * @description What was sent, signed: items written, items already in the project (skipped), and the signature.
+         * @description What was sent, signed: items written, items already in the project (skipped), the Data room's earlier items it
+         *     replaced (superseded), the publication whose record keeps what the send rested on, and the signature.
          */
         RoomPublished: {
+            /** Basis Sha256 */
+            basis_sha256: string;
             /** Datasets */
             datasets: number;
             /** Evidence */
             evidence: number;
             /** Manifestation */
             manifestation: string;
+            /** Notes */
+            notes: string[];
+            /** Publication */
+            publication: string;
             /** Signature Id */
             signature_id: string;
             /** Skipped */
             skipped: number;
+            /** Superseded */
+            superseded: number;
         };
         /** RoomQuestionBody */
         RoomQuestionBody: {
@@ -13226,6 +13484,11 @@ export interface components {
              * @default []
              */
             sets: components["schemas"]["SubjectSet"][];
+            /**
+             * Sources
+             * @default []
+             */
+            sources: components["schemas"]["Chip"][];
             /** Study Id */
             study_id: string;
             /**
@@ -14077,6 +14340,7 @@ export interface components {
             /** Problems */
             problems: string[];
             risk: components["schemas"]["RiskView"];
+            room: components["schemas"]["StartRoomView"] | null;
         };
         /**
          * StartIssueView
@@ -14087,6 +14351,24 @@ export interface components {
             message: string;
             /** Path */
             path: string;
+        };
+        /**
+         * StartRoomView
+         * @description The project's Data room as Start sees it (plan 2026-11-24 §7, phase 4): whether a person confirmed its question
+         *     card ("Fill from the Data room" is offered then), the card's question and applications, and where Start's own word
+         *     differs from it (advice, never a block: `steps.room_advice`).
+         */
+        StartRoomView: {
+            /** Advice */
+            advice: components["schemas"]["StartIssueView"][];
+            /** Applications */
+            applications: string[];
+            /** Applications Chosen */
+            applications_chosen: boolean;
+            /** Confirmed Card */
+            confirmed_card: boolean;
+            /** Question */
+            question: string;
         };
         /**
          * StepRow
@@ -14127,6 +14409,11 @@ export interface components {
              * @default []
              */
             applications: components["schemas"]["MapApplication"][];
+            /**
+             * Applications From Room
+             * @default false
+             */
+            applications_from_room: boolean;
             /**
              * Assumptions
              * @default []
@@ -14181,6 +14468,20 @@ export interface components {
                 [key: string]: string;
             };
             risk_assessment: components["schemas"]["MapRiskAssessment"] | null;
+            /**
+             * Room Applications
+             * @default []
+             */
+            room_applications: string[];
+            /**
+             * Room Limitations
+             * @default []
+             */
+            room_limitations: string[];
+            /** Room Roles */
+            room_roles: {
+                [key: string]: string;
+            };
         };
         /** StructureRequest */
         StructureRequest: {
@@ -14634,6 +14935,42 @@ export interface components {
             species?: string;
             /** Weight Kg */
             weight_kg?: number | null;
+        };
+        /** SuggestedBe */
+        SuggestedBe: {
+            /** Metrics */
+            metrics: {
+                [key: string]: components["schemas"]["SuggestedBeMetric"];
+            };
+            /** Source */
+            source: string;
+            /** Stated */
+            stated: string[];
+        };
+        /** SuggestedBeMetric */
+        SuggestedBeMetric: {
+            /** Between Subject Cv Percent */
+            between_subject_cv_percent: number | null;
+            /** Ci High */
+            ci_high: number | null;
+            /** Ci Low */
+            ci_low: number | null;
+            /** Gmr */
+            gmr: number | null;
+            /** N */
+            n: number;
+        };
+        /**
+         * SuggestedFormulation
+         * @description A product of the Data room's question card for a VBE arm, as the CPF formulation the send names it.
+         */
+        SuggestedFormulation: {
+            /** Available */
+            available: boolean;
+            /** Source */
+            source: string;
+            /** Value */
+            value: string;
         };
         /**
          * SystemAnalyte
@@ -17165,6 +17502,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Envelope_ExtractionStart_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    fill_brief_from_dataroom_api_v1_projects__project_id__brief_from_dataroom_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_RoomFilled_"];
                 };
             };
             /** @description Validation Error */

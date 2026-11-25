@@ -271,6 +271,24 @@
 .dr-fold > summary::before { content: "▸ "; color: var(--ink-quiet); }
 .dr-fold[open] > summary::before { content: "▾ "; }
 
+/* what the question needs (plan 2026-11-24 §6): the draft checklist, each item with its coverage line */
+.dr-draft { padding: 12px 16px; border-radius: var(--radius-sm); font-size: 13px; line-height: 1.55; color: var(--ink-2);
+  background: color-mix(in srgb, var(--amber-ink) 7%, var(--surface)); border: 1px solid color-mix(in srgb, var(--amber-ink) 22%, var(--line)); }
+.dr-draft strong { color: var(--amber-ink); font-weight: 600; }
+.dr-reqs { list-style: none; margin: 0; padding: 0; display: grid; gap: 16px; }
+.dr-req { display: grid; gap: 4px; padding-bottom: 16px; border-bottom: 1px solid var(--line-soft); min-width: 0; }
+.dr-req:last-child { border-bottom: 0; padding-bottom: 0; }
+.dr-req-head { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.dr-req-head .dr-tag.small { margin-left: 0; }
+.dr-req-head .dr-code { padding: 1px 8px; }
+.dr-req-label { font-size: 15px; font-weight: 500; color: var(--ink); overflow-wrap: anywhere; }
+.dr-req-line { font-size: 13px; color: var(--ink-2); display: flex; gap: 8px; flex-wrap: wrap; align-items: baseline; min-width: 0;
+  overflow-wrap: anywhere; }
+.dr-req[data-coverage="missing"] .dr-req-line > span:first-child { color: var(--bad-ink); }
+.dr-req-sub { font-size: 13px; color: var(--ink-quiet); overflow-wrap: anywhere; }
+.dr-req-more > summary { font-size: 13px; }
+@media print { .dr-req { break-inside: avoid; } }
+
 /* --- phones (no sideways scroll at 390 px) --------------------------------------------------------------------------------- */
 @media (max-width: 900px) {
   .dr { --dr-gap: 24px; --dr-pad: 16px; }
