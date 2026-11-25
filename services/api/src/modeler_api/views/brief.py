@@ -261,6 +261,18 @@ class RequestLineView(View):
     sheet: str
 
 
+class StartRoomView(View):
+    """The project's Data room as Start sees it (plan 2026-11-24 §7, phase 4): whether a person confirmed its question
+    card ("Fill from the Data room" is offered then), the card's question and applications, and where Start's own word
+    differs from it (advice, never a block: `steps.room_advice`)."""
+
+    confirmed_card: bool
+    question: str
+    applications: list[str]          # the brief's labels for the room's applications
+    applications_chosen: bool        # chosen in the room; False: as read from its question card
+    advice: list[StartIssueView]
+
+
 class StartBlock(View):
     """What Start still needs (`steps.start_issues`), and the parts the screen draws from."""
 
@@ -272,6 +284,16 @@ class StartBlock(View):
     pathway_suggestions: list[str]
     pathways_not_named: list[str]   # the published OSP model's enzymes / transporters the proposal does not name
     client_request: list[RequestLineView]   # what only the client can send, from the data plan
+    room: StartRoomView | None      # None: the project has no Data room question card
+
+
+class RoomFilled(View):
+    """`brief:from-dataroom`: the brief fields drafted from the Data room (DRAFTED, each to confirm on Start), the fields
+    kept because a person or a document set another value, and Start's advice where they differ."""
+
+    drafted: list[str]
+    kept: list[str]
+    advice: list[str]
 
 
 class BriefPage(View):

@@ -148,9 +148,12 @@ def _harvested_names() -> set[str]:
 
 
 def test_the_package_holds_exactly_the_three_drafts():
+    # beside them, the sub-package of drafts per context of use (decision D5 of 2026-11-24), checked by
+    # test_cou_requirement_drafts.py
     entries = {entry.name for entry in resources.files(PACKAGE).iterdir()} - {"__pycache__"}
     assert {name for name in entries if name.endswith(".yaml")} == {f"{name}.yaml" for name in DRAFTS}
-    assert entries == {"__init__.py", *(f"{name}.yaml" for name in DRAFTS)}
+    assert entries == {"__init__.py", "context_of_use", *(f"{name}.yaml" for name in DRAFTS)}
+    assert resources.files(PACKAGE).joinpath("context_of_use", "__init__.py").is_file()
 
 
 @pytest.mark.parametrize("name", DRAFTS)

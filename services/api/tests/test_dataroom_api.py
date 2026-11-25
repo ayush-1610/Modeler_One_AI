@@ -6,6 +6,8 @@ source viewer's pages and parts. The agents' answers are written straight into t
 
 from __future__ import annotations
 
+import hashlib
+import json
 import time
 
 import pytest
@@ -66,7 +68,7 @@ def _read(c: TestClient) -> dict:
 def test_a_delivery_is_uploaded_and_read_with_agents_off_every_agent_stage_saying_why_it_waits(setup):
     c, store, _v = setup
     assert c.get(f"{API}/run", headers=H).json()["data"] == {"state": "idle", "stages": [], "agents": {}, "error": "",
-                                                             "started_at": None, "finished_at": None}
+                                                             "started_at": None, "finished_at": None, "pause": None}
     assert c.post(f"{API}/run", headers=H, json={}).status_code == 409          # nothing to read yet
     run = _read(c)
     assert run["state"] == "done" and run["error"] == ""
@@ -78,7 +80,8 @@ def test_a_delivery_is_uploaded_and_read_with_agents_off_every_agent_stage_sayin
     assert len(again.json()["data"]["uploads"]) == 1                             # the same bytes are stored once
     room = c.get(API, headers=H).json()["data"]
     assert len(room["files"]) == 10 and room["studies"] == [] and room["question"] is None
-    assert [s["id"] for s in room["sections"]][:2] == ["files", "substance"]
+    assert [s["id"] for s in room["sections"]][:3] == ["files", "requirements", "substance"]
+    assert room["requirements"] is None                                           # no question card yet
     assert next(s for s in room["sections"] if s["id"] == "files")["finding"] == "10 files read"
     # one run at a time: a run held anywhere refuses a second start
     lease = FileJobRegistry(store.root).claim("t1", "p1", "dataroom")
@@ -156,8 +159,10 @@ def test_the_room_is_assembled_from_the_agents_answers_and_the_modelers_word_is_
         assert action in actions
 
 
-def test_send_to_the_model_waits_on_the_decisions_then_is_signed_once_with_the_step_up(setup):
+def test_send_to_the_model_waits_on_the_decisions_then_is_signed_once_with_the_step_up(setup, monkeypatch):
     c, store, verifier = setup
+    signed = []
+    monkeypatch.setattr(dataroom_api, "record_signature", lambda settings, tenant, signature: signed.append(signature))
     _read(c)
     room_store = DataRoomStore(Workspace(store, "t1", "p1"))
     seed(room_store, confirmed=True)
@@ -177,10 +182,44 @@ def test_send_to_the_model_waits_on_the_decisions_then_is_signed_once_with_the_s
     sent = c.post(f"{API}/publish", headers=H, json={"reason": "inputs confirmed"})
     assert sent.status_code == 200, sent.text
     data = sent.json()["data"]
-    assert (data["evidence"], data["datasets"], data["skipped"]) == (len(plan["evidence"]), 2, 0)
+    assert (data["evidence"], data["datasets"], data["skipped"], data["superseded"]) == (len(plan["evidence"]), 2, 0, 0)
     assert "Reviewed" in data["manifestation"] and data["signature_id"]
+    # what is sent otherwise than the files suggest is said before and after: the releases a Weibull curve does not
+    # describe (the SME decides). The study is fasted at dosing; its meals at 4 h and 10 h after the dose are every arm's
+    assert plan["notes"] == data["notes"] and not any("meal" in n for n in plan["notes"])
+    assert any("LOT-X levels off at 87 %" in n and "the SME decides" in n for n in plan["notes"])
+    # what the send rested on, kept for the plan and the MAP: its sha256 is in what the signature covers
+    record = room_store.publication(data["publication"])
+    assert record is not None and record["id"] == data["publication"] and record["signature_id"] == data["signature_id"]
+    basis = record["basis"]
+    assert record["basis_sha256"] == data["basis_sha256"] == hashlib.sha256(json.dumps(
+        basis, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()).hexdigest()
+    signed_record = json.dumps({"evidence": [e["id"] for e in record["evidence"]], "datasets": [d["id"] for d in record["datasets"]],
+                                "publication": record["id"], "basis_sha256": record["basis_sha256"]}, sort_keys=True)
+    (signature,) = signed
+    assert signature.record_sha256 == record["signed_record_sha256"] == hashlib.sha256(signed_record.encode()).hexdigest()
+    assert signature.record_id == f"p1/dataroom/publication/{record['id']}"
+    assert basis["question"]["confirmed"] and basis["question"]["card"]["question"].startswith("Does the reformulated")
+    apps = basis["applications"]
+    assert apps["by_person"] and apps["by"] == "u1" and apps["chosen"] == ("+".join(apps["ids"]) or "none")
+    assert basis["question"]["confirmed_by"] == "e2e-fixture" and basis["question"]["confirmed_at"]
+    assert {d["id"] for d in basis["decisions"]} >= {"analysis-set:EX-01", "population:EX-01", "meal:EX-01"}
+    assert all(d["reason"] == "as suggested" and d["by"] == "u1" for d in basis["decisions"])
+    room = c.get(API, headers=H).json()["data"]
+    assert [r["id"] for r in basis["open_requests"]] == [r["id"] for r in room["requests"] if r["status"] == "open"]
+    assert basis["blq"] == [{"study_id": "EX-01", "lloq": 0.5, "unit": "ng/mL", "analysis_set": "modeling",
+                             "arithmetic_mean": "below the LLOQ counted as 0",
+                             "geometric_mean": "below the LLOQ left out (quantifiable values only)"}]
+    assert basis["notes"] == plan["notes"] and {d["food_state"] for d in record["datasets"]} == {"fasted"}
+    assert [[(m["time_h"], m["template"]) for m in d["meals"]] for d in record["datasets"]] == [
+        [(4.0, "Meal: Standard (Human)"), (10.0, "Meal: Standard (Human)")]] * 2
+    assert len(basis["nca_reproduction"]) == 1 and isinstance(basis["nca_differ"], list)
     again = c.post(f"{API}/publish", headers=H, json={"reason": "again"}).json()["data"]
-    assert (again["evidence"], again["datasets"], again["skipped"]) == (0, 0, len(plan["evidence"]) + 2)
+    assert (again["evidence"], again["datasets"], again["skipped"], again["superseded"]) == (0, 0, len(plan["evidence"]) + 2, 0)
+    assert again["publication"] != data["publication"] and len(room_store.publications()) == 2
+    publishes = [r.event for r in store.audit("t1").records() if r.event.action == "dataroom.publish"]
+    assert publishes[-1].resource_id == f"p1/publication/{again['publication']}"
+    assert publishes[0].after["basis_sha256"] == data["basis_sha256"]
 
 
 def test_the_source_viewer_draws_a_page_as_it_was_read_and_numbers_a_sheets_lines(setup):

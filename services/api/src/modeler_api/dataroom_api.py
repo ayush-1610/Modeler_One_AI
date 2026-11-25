@@ -4,7 +4,10 @@
   an existing project's recorded client files added as uploads, each once (`reading.import_existing`).
 - `run`: the background run (`agent_jobs.dataroom_run`, the one seam to the agents, rule B4): the files read by code,
   OCR included, then A6-A10 where each has a model; one run at a time per project (409 while one runs). Its record,
-  with each stage's live counts, is `GET run`.
+  with each stage's live counts, is `GET run`. A run that stops for a reason that passes (a provider down or
+  rate-limited, a paid model's cap, a chosen model that cannot be used) is paused, not failed: it resumes by itself,
+  when the administrator changes what stopped it, or now (`run:resume`), where it stopped (`dataroom_runs`). `GET
+  run/estimate`: what the next run is expected to cost on paid models, asked once before a paid run starts.
 - `""`: the whole room (`modeler_project.dataroom.room_view`), as the page and the report show it. It is assembled
   from the store's files, so it is kept per project and assembled again only when one of them changed.
 - the modeler's word: the question card, a decision, a value entered with its reason, a data request's wording or
@@ -22,6 +25,7 @@ Reading is for the project's members; every change is for the roles that edit In
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import threading
@@ -33,8 +37,8 @@ from typing import Annotated, Any, Literal
 from fastapi import APIRouter, File, HTTPException, Query, Response, UploadFile
 from pydantic import BaseModel, ConfigDict, Field
 
-from modeler_api import agent_jobs, jobs
-from modeler_api.auth import ensure_step_up
+from modeler_api import agent_jobs, dataroom_runs, jobs
+from modeler_api.auth import Principal, ensure_step_up
 from modeler_api.compliance.signatures import SignatureMeaning, Signer, sign_after_step_up
 from modeler_api.config import SettingsDep
 from modeler_api.deps import Reader, StoreDep, Writer, workspace_for
@@ -44,6 +48,7 @@ from modeler_api.views.dataroom import (
     RoomPublication,
     RoomPublished,
     RoomRun,
+    RoomRunEstimate,
     RoomUploaded,
     RoomUploads,
     SourceFile,
@@ -53,8 +58,17 @@ from modeler_intake.room import Part, document_parts, page_png, reading_pdf
 from modeler_intake.room_specs import QuestionCard
 from modeler_project import ProjectStore
 from modeler_project.dataroom import DataRoomStore, DataRoomView, room_view
+from modeler_project.dataroom.checklist import DECISION as APPLICATIONS_DECISION
 from modeler_project.dataroom.model import FileView, Value
-from modeler_project.dataroom.publish import Publication, plan_publication, publish
+from modeler_project.dataroom.publish import (
+    Publication,
+    basis_sha256,
+    plan_publication,
+    publication_basis,
+    publication_id,
+    publication_record,
+    publish,
+)
 from modeler_project.dataroom.reading import import_existing
 from modeler_project.inputs import refresh_inputs
 from modeler_project.members import Memberships
@@ -62,7 +76,7 @@ from modeler_project.members import Memberships
 router = APIRouter(prefix="/api/v1", tags=["dataroom"])
 
 BASE = "/projects/{project_id}/dataroom"
-BUSY = "the Data room is already running for this project"
+BUSY = dataroom_runs.BUSY
 STOPPED = "the run stopped before it finished (the server restarted): run it again"
 # the room's answer carries every field, set or not (the engine's models mark each one required in the contract)
 ROOM = {"response_model": Envelope[DataRoomView]}
@@ -95,7 +109,8 @@ class _Memo[K, V]:
         return value
 
 
-_SKIP = {"run.json", "uploads.json"}       # neither changes the room (the files read do, in files.json)
+_SKIP = {"run.json", "uploads.json"}       # neither changes the room (the files read do, in files.json); nor do the
+# publications' records (publications/<id>.json), which say what each send rested on
 _rooms: _Memo[tuple[str, str, str], DataRoomView] = _Memo(8)        # (tenant, project, stamp) -> the room
 
 
@@ -106,7 +121,8 @@ def _stamp(base: Path | None) -> str:
     if base is not None and base.is_dir():
         for path in sorted(base.rglob("*")):
             name = path.name
-            if name.startswith(".") or name.endswith(".lock") or (path.parent == base and name in _SKIP) or not path.is_file():
+            if (name.startswith(".") or name.endswith(".lock") or (path.parent == base and name in _SKIP)
+                    or path.relative_to(base).parts[0] == "publications" or not path.is_file()):
                 continue
             stat = path.stat()
             digest.update(f"{path.relative_to(base)}|{stat.st_mtime_ns}|{stat.st_size}\n".encode())
@@ -193,9 +209,13 @@ class RoomRunStart(BaseModel):
     files: list[str] = Field(default_factory=list, description="the per-file stages for these files only (their paths)")
 
 
-def _run_view(room: DataRoomStore, running: bool) -> dict[str, Any]:
+_PAUSE_KEYS = (("reason", "provider_unavailable"), ("said", ""), ("detail", ""), ("stage", ""), ("where", ""),
+               ("per_file", False), ("done", 0), ("total", 0), ("at", ""), ("resume_at", None))
+
+
+def _run_view(room: DataRoomStore, running: bool, raw: dict[str, Any] | None = None) -> dict[str, Any]:
     """The run's record as the page reads it; a run left "running" by a job that is gone (a restart) is failed."""
-    raw = room.run()
+    raw = room.run() if raw is None else raw
     state = raw.get("state", "idle")
     stages = [{k: s.get(k, d) for k, d in (("id", ""), ("label", ""), ("agent", ""), ("state", "waiting"), ("done", 0),
                                             ("total", 0), ("note", ""))} for s in raw.get("stages", [])]
@@ -203,8 +223,10 @@ def _run_view(room: DataRoomStore, running: bool) -> dict[str, Any]:
     if state == "running" and not running:
         state, error = "failed", STOPPED
         stages = [{**s, "state": "failed" if s["state"] == "running" else s["state"]} for s in stages]
+    pause = raw.get("pause") if state == "paused" else None
     return {"state": state, "stages": stages, "agents": dict(raw.get("agents") or {}), "error": error,
-            "started_at": raw.get("started_at"), "finished_at": raw.get("finished_at")}
+            "started_at": raw.get("started_at"), "finished_at": raw.get("finished_at"),
+            "pause": {k: pause.get(k, d) for k, d in _PAUSE_KEYS} if pause else None}
 
 
 @router.get(f"{BASE}/run", **answers(RoomRun))
@@ -213,10 +235,33 @@ def get_dataroom_run(project_id: str, principal: Reader, store: StoreDep) -> dic
     return envelope(_run_view(room, jobs.running(store, principal.tenant_id, project_id, "dataroom")))
 
 
+@router.get(f"{BASE}/run/estimate", **answers(RoomRunEstimate))
+def estimate_dataroom_run(project_id: str, principal: Reader, store: StoreDep) -> dict[str, Any]:
+    """What the next run is expected to cost on the paid models its agents start on, from the files still to read and
+    their sizes (plan 2026-11-24 §2.4): the page asks once before a paid run starts. `paid` false: it costs nothing."""
+    return envelope(agent_jobs.dataroom_estimate(_room(project_id, principal, store)))
+
+
+@router.post(f"{BASE}/run:resume", status_code=202, **answers(RoomRun))
+def resume_dataroom_run(project_id: str, principal: Writer, store: StoreDep) -> dict[str, Any]:
+    """Resume a paused run now, where it stopped (plan 2026-11-24 §4): the stages and files it finished are not run
+    again. 409 when the run is not paused, or one is running."""
+    room = _room(project_id, principal, store)
+    raw = room.run()
+    if raw.get("state") != "paused":
+        raise HTTPException(status_code=409, detail="the run is not paused: there is nothing to resume")
+    if not dataroom_runs.resume(store, principal.tenant_id, project_id, by=principal.user_id, how="now"):
+        raise HTTPException(status_code=409, detail=BUSY)
+    # the page reads it as running at once; the job itself moves the record on, under the project's lease
+    stages = [{**s, "state": "waiting" if s.get("state") == "paused" else s.get("state")} for s in raw.get("stages", [])]
+    return envelope(_run_view(room, True, {**raw, "state": "running", "pause": None, "error": "", "stages": stages}))
+
+
 @router.post(f"{BASE}/run", status_code=202, **answers(RoomRun))
 def start_dataroom_run(project_id: str, principal: Writer, store: StoreDep, body: RoomRunStart | None = None) -> dict[str, Any]:
     """Run the Data room in the background: the files read (OCR included), then the agents that have a model. Each
-    stage's answers are kept per file, so a second run redoes only what is new, unless `redo` names the stage."""
+    stage's answers are kept per file, so a second run redoes only what is new, unless `redo` names the stage. A run
+    that stops for a reason that passes is paused, not failed, and resumes where it stopped (`run:resume`)."""
     room = _room(project_id, principal, store)
     body = body or RoomRunStart()
     stages = agent_jobs.dataroom_stages()
@@ -237,13 +282,8 @@ def start_dataroom_run(project_id: str, principal: Writer, store: StoreDep, body
                               "done": 0, "total": 0, "note": ""} for sid, label, agent in stages]})
     room.audit(actor=principal.user_id, action="dataroom.run", resource_id="run",
                after={"stages": list(wanted), "redo": list(body.redo), "files": list(body.files)})
-    actor, ws = principal.user_id, room.ws
-
-    def job() -> None:
-        agent_jobs.dataroom_run(DataRoomStore(ws), actor=actor, stages=wanted, redo=body.redo, files=body.files)
-
-    jobs.start(store, principal.tenant_id, project_id, "dataroom", job, busy=BUSY, by=principal.user_id,
-               name=f"dataroom-{project_id}")
+    dataroom_runs.start(store, principal.tenant_id, project_id, by=principal.user_id, stages=wanted, redo=body.redo,
+                        files=body.files)
     return envelope(_run_view(room, True))
 
 
@@ -265,7 +305,19 @@ def put_dataroom_question(project_id: str, principal: Writer, store: StoreDep, b
     if not body.card.question.strip():
         raise HTTPException(status_code=422, detail="say what the modelling must answer")
     room.set_question(body.card, by=principal.user_id, confirmed=body.confirmed, reason=body.reason)
+    if body.confirmed:
+        _draft_brief(room, principal)
     return _answer(room, principal)
+
+
+def _draft_brief(room: DataRoomStore, principal: Principal) -> None:
+    """Start's brief drafted from what the room now holds (plan 2026-11-24 §7, B4): the confirmed card, the applications
+    decision, what was sent. Drafts only: a person's value is never overwritten. A missing card or brief never fails the
+    room's own route."""
+    from modeler_project.brief_from_room import RoomError, draft_brief_from_room
+
+    with contextlib.suppress(RoomError):
+        draft_brief_from_room(room.ws, by=principal.user_id)
 
 
 class RoomChoice(BaseModel):
@@ -287,6 +339,8 @@ def decide_in_dataroom(project_id: str, decision_id: str, principal: Writer, sto
     if body.chosen != decision.suggested and not body.reason.strip():
         raise HTTPException(status_code=422, detail="say why you chose another option than the one suggested")
     room.decide(decision_id, body.chosen, by=principal.user_id, reason=body.reason.strip())
+    if decision_id == APPLICATIONS_DECISION:
+        _draft_brief(room, principal)
     return _answer(room, principal)
 
 
@@ -345,15 +399,16 @@ def _publication(plan: Publication) -> dict[str, Any]:
     return {"evidence": [{"target": e.target, "value": _with_unit(e.value, e.unit)} for e in plan.evidence],
             "datasets": [{"target": str(d.study.get("study_id", d.id)),
                           "value": f"{' and '.join(s.name for s in d.series)}, N = {d.study.get('n', '')}"} for d in plan.datasets],
-            "blocked": list(plan.blocked)}
+            "blocked": list(plan.blocked), "notes": list(plan.notes)}
 
 
 @router.get(f"{BASE}/publication", **answers(RoomPublication))
 def get_dataroom_publication(project_id: str, principal: Reader, store: StoreDep) -> dict[str, Any]:
-    """What "Send to the model" would send now (evidence items and observed datasets) and what blocks it; nothing is
+    """What "Send to the model" would send now (evidence items and observed datasets), what blocks it (a study already
+    in the project through Delivery or Inputs too), and what is sent otherwise than the files might suggest; nothing is
     written."""
     room = _room(project_id, principal, store)
-    return envelope(_publication(plan_publication(room_of(room), by=principal.user_id)))
+    return envelope(_publication(plan_publication(room_of(room), by=principal.user_id, ws=room.ws)))
 
 
 class RoomPublish(BaseModel):
@@ -368,30 +423,43 @@ def publish_dataroom(project_id: str, principal: Writer, store: StoreDep, settin
     """Send the room's confirmed inputs to the model: compound and release values as accepted evidence, each arm's mean
     profile as an accepted observed dataset, so Review & sign starts from them. Signed with the token's recent step-up
     (403 `STEP_UP_REQUIRED`); refused (409 with every reason, nothing signed) while anything blocks it. Sending again
-    adds only what changed."""
+    adds only what changed, and what it replaces is rejected, superseded by this publication. What the send rested on
+    (the confirmed question, the applications, every decision with its reason, the open data requests, the NCA values
+    the data do not reproduce, the means' BLQ convention) is kept as the publication's record
+    (`dataroom/publications/<id>.json`), and the signature covers its sha256."""
     room = _room(project_id, principal, store)
     if not body.reason.strip():
         raise HTTPException(status_code=422, detail="say why the inputs are sent now")
-    view, by = room_of(room), principal.user_id
-    plan = plan_publication(view, by=by)
+    view, by, reason = room_of(room), principal.user_id, body.reason.strip()
+    plan = plan_publication(view, by=by, ws=room.ws)
     if plan.blocked:
         raise HTTPException(status_code=409, detail={"code": "NOT_READY", "message": "not sent to the model: "
                                                      + " · ".join(plan.blocked), "blocked": list(plan.blocked)})
     ensure_step_up(principal)       # the signature comes from the token's recent step-up, never a password
-    record = json.dumps({"evidence": [e.id for e in plan.evidence], "datasets": [d.id for d in plan.datasets]}, sort_keys=True)
+    basis = publication_basis(view, plan, question=room.question_record())
+    digest = basis_sha256(basis)
+    pub_id = publication_id()
+    record = json.dumps({"evidence": [e.id for e in plan.evidence], "datasets": [d.id for d in plan.datasets],
+                         "publication": pub_id, "basis_sha256": digest}, sort_keys=True)
     signature = sign_after_step_up(signer=Signer(user_id=by, printed_name=principal.printed_name),
                                    meaning=SignatureMeaning.REVIEWED, record_type="dataroom-publication",
-                                   record_id=f"{project_id}/dataroom/publication",
+                                   record_id=f"{project_id}/dataroom/publication/{pub_id}",
                                    record_sha256=hashlib.sha256(record.encode()).hexdigest(), acr=principal.acr or "")
     record_signature(settings, principal.tenant_id, signature)
     try:
-        written = publish(room.ws, view, by=by, reason=body.reason.strip())
+        written = publish(room.ws, view, by=by, reason=reason, publication=pub_id)
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
-    room.audit(actor=by, action="dataroom.publish", resource_id="publication",
-               after={**written, "signature_id": signature.signature_id}, reason=body.reason.strip())
+    room.put_publication(pub_id, publication_record(pub_id, basis=basis, plan=plan, written=written, by=by, reason=reason,
+                                                    signature_id=signature.signature_id, signed_record=record))
+    counts = {k: written[k] for k in ("evidence", "datasets", "skipped", "superseded")}
+    room.audit(actor=by, action="dataroom.publish", resource_id=f"publication/{pub_id}",
+               after={**counts, "superseded_ids": written["superseded_evidence"] + written["superseded_datasets"],
+                      "basis_sha256": digest, "signature_id": signature.signature_id}, reason=reason)
+    _draft_brief(room, principal)  # before the inputs are refreshed, so their readiness reads the new brief
     refresh_inputs(room.ws, by=by)  # the inputs follow every change (redesign §3.2)
-    return envelope({**written, "signature_id": signature.signature_id, "manifestation": signature.manifestation()})
+    return envelope({**counts, "publication": pub_id, "basis_sha256": digest, "notes": list(plan.notes),
+                     "signature_id": signature.signature_id, "manifestation": signature.manifestation()})
 
 
 # --- the source viewer ---------------------------------------------------------------------------------------------

@@ -16,7 +16,9 @@ exactly the forms the agents A6-A8 submit; code then reads and checks every valu
 from __future__ import annotations
 
 import io
+import re
 import zipfile
+from typing import Any
 
 from modeler_intake.room import document_parts
 from modeler_intake.room_specs import (
@@ -335,3 +337,79 @@ def seed(store: DataRoomStore, *, by: str = "e2e-fixture", confirmed: bool = Fal
     for e in extractions:
         if e.file in files:
             store.put_extraction(e, files[e.file].sha256, agent={"agent": "A8", "model": "recorded", "prompt": "synthetic"})
+
+
+# --- scoring a room against these answers -----------------------------------------------------------------------------
+
+
+def score_room(got: Any, key: Any) -> list[tuple[str, str, object, object]]:
+    """A room (`room_view`, from a model's run on this delivery) value by value against the room from the hand-written
+    answers above (`seed`, confirmed): rows of (OK | WRONG | MISSING, what, the key's value, the room's). Exposures, means
+    and solubility within 0.5 %, f2 within 1 %; everything else equal. The question card scores its products and roles
+    and its regulator (only as a file states it: none here); each study its sets, exposures, arms and facts; then dissolution, f2, solubility and substance."""
+    rows: list[tuple[str, str, object, object]] = []
+
+    def words(text: str) -> str:
+        return " ".join(re.findall(r"[a-z0-9.]+", text.lower()))
+
+    def add(what: str, value: object, expected: object, tol: float = 0.005) -> None:
+        if isinstance(value, str) and isinstance(expected, str) and words(expected):
+            # a fact as the delivery words it: the key's words, in order, inside what the room read ("open two-period
+            # crossover" holds "two-period crossover"; "healthy adults" holds "healthy")
+            ok = f" {words(expected)} " in f" {words(value)} "
+        elif isinstance(value, float) and isinstance(expected, float):
+            ok = abs(value - expected) <= tol * max(abs(expected), 1e-9)
+        elif isinstance(value, tuple) and isinstance(expected, tuple) and len(value) == len(expected) and all(
+                isinstance(v, float) for v in (*value, *expected)):
+            ok = all(abs(v - e) <= tol * max(abs(e), 1e-9) for v, e in zip(value, expected, strict=True))
+        else:
+            ok = value == expected
+        rows.append(("OK" if ok else "MISSING" if value in (None, "", (), []) else "WRONG", what, expected, value))
+
+    def products(view: Any) -> tuple[tuple[str, str], ...] | None:
+        return tuple(sorted((p.name, p.role) for p in view.question.products)) if view.question else None
+
+    add("question card: products and roles", products(got), products(key))
+    # the agency only as a file states it: this delivery names none, so the right card leaves it empty
+    stated = key.question.regulator if any(f.field == "question.regulator" for f in key.question.quotes) else ""
+    add("question card: regulator, as a file states it", got.question.regulator if got.question else None, stated)
+    for ks in key.studies:
+        s = next((x for x in got.studies if x.study_id.replace(" ", "").lower() == ks.study_id.replace(" ", "").lower()), None)
+        add(f"study {ks.study_id} found", s is not None, True)
+        for kset in ks.sets:
+            add(f"{ks.study_id} set {kset.name} (subjects)",
+                next((len(x.subjects) for x in s.sets if x.name == kset.name), None) if s else None, len(kset.subjects))
+        for ke in ks.exposures:
+            add(f"{ks.study_id} {ke.treatment} {ke.metric} {ke.statistic}",
+                next((e.value for e in s.exposures if (e.treatment, e.metric, e.statistic) == (ke.treatment, ke.metric,
+                                                                                               ke.statistic)), None)
+                if s else None, ke.value)
+        add(f"{ks.study_id} arms (treatment, role, product)",
+            tuple(sorted((a.treatment, a.role, a.product or "") for a in s.arms)) if s else None,
+            tuple(sorted((a.treatment, a.role, a.product or "") for a in ks.arms)))
+        for kv in ks.facts:
+            add(f"{ks.study_id} {kv.key}", next((v.value for v in s.facts if v.key == kv.key), None) if s else None, kv.value)
+    for kd in key.dissolution:
+        d = next((x for x in got.dissolution if x.batch == kd.batch and x.ph == kd.ph), None)
+        add(f"dissolution {kd.batch} pH {kd.ph:g} means", d.mean if d else None, kd.mean)
+    def batch(view: Any, dataset: str) -> str:          # a dissolution's id names its cells: the batch and pH name it here
+        d = next((x for x in view.dissolution if x.id == dataset), None)
+        return f"{d.batch} pH {d.ph:g}" if d is not None and d.ph is not None else dataset
+
+    got_f2 = {(batch(got, f.test), batch(got, f.reference)): f for f in got.f2}
+    for kf in key.f2:      # a pair f2 does not apply to has no value: the pair itself is what is scored then
+        pair = (batch(key, kf.test), batch(key, kf.reference))
+        if (f := got_f2.get(pair)) is None:
+            rows.append(("MISSING", f"f2 {pair[0]} vs {pair[1]}", kf.value, None))
+        else:
+            add(f"f2 {pair[0]} vs {pair[1]}", f.value, kf.value, tol=0.01)
+    for ks in key.solubility:
+        add(f"solubility pH {ks.ph:g}", next((x.solubility_mg_ml for x in got.solubility if x.ph == ks.ph), None),
+            ks.solubility_mg_ml)
+    def base(name: str) -> str:            # "substance.mw[Exampleamide]" and "substance.mw" name the same value here
+        return name.split("[", 1)[0]
+
+    for kv in key.substance:
+        add(f"substance {base(kv.key)}", next((v.value for v in got.substance if base(v.key) == base(kv.key)), None),
+            kv.value)
+    return rows

@@ -31,6 +31,9 @@ CLOUD_SERVICES: dict[str, str] = {
     "groq": "GroqCloud",
     "nvidia": "NVIDIA API catalog",
     "bedrock": "Claude on Amazon Bedrock",
+    # Anthropic's own Claude API (the owner, 2026-11-24, D6): like NVIDIA and Groq, a client's files go to it only with
+    # the client's written permission recorded here; for a company of made-up demo data the record names that instead
+    "anthropic": "Claude API (Anthropic)",
     "openai_compat": "another OpenAI-compatible service",
 }
 IN_HOUSE = ("litellm",)

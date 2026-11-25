@@ -1,0 +1,126 @@
+# DRAFT REQUIREMENT LIST, INERT: first in human (FIH) and dose prediction, bottom-up from in vitro and preclinical data.
+# Owner's decision D5 (docs/plans/2026-11-24-data-story-next-phase.md §6, §11): drafted from the literature as an
+# UNVERIFIED draft for the owner's review; it becomes a template only after that review, through a locked-file change
+# with a version bump. The locked templates (pbpk_domain/requirements/*.yaml, here app_fih.yaml) are not changed.
+#
+# Where it came from: docs/research/2026-11-24-regulatory-data-by-context-of-use.md §3.9 (the FIH table; a
+# low-regulatory-impact use, Shebley 2018) and §5 (evidence scales with risk). Before the first human dose there are
+# no clinical data, so the core's clinical items are overridden as not needed; the core's observed-data metadata items
+# (study metadata, statistic, BLQ, times, exclusions) still apply to the preclinical PK studies. Statuses, the trigger
+# grammar and the property vocabulary are defined once in core.yaml.
+#
+# Inert: applies_to is empty and the live loader never lists this folder. No PK-Sim name, path or unit; no default
+# value; no acceptance threshold.
+id: cou-draft-fih-dose-prediction
+version: "0.1-draft"
+status: DRAFT_UNVERIFIED
+context_of_use: "Predict human PK before the first human dose, from in vitro and preclinical data, to choose the starting dose and the escalation."
+applies_to: []
+derived_from:
+  regulatory review: docs/research/2026-11-24-regulatory-data-by-context-of-use.md
+items:
+  - id: fih.in_vitro_clint
+    label: In vitro intrinsic clearance in human and in each preclinical species
+    group: Elimination
+    kind: parameter
+    overrides: core.in_vitro_clint
+    cou_status: REQUIRED
+    why: Human clearance is predicted bottom-up from in vitro data, and the same scaling is checked in each species first.
+    alternatives: []
+    room_fields: [field:adme.metabolism, field:adme.cl, topic:adme]
+    data_category: in_vitro_adme
+    default_provider: CLIENT
+    record_with: [species, test system, protein or cell concentration, unbound fraction in the incubation]
+    sources: ["Miller 2019, PMID 30729397", "Shebley 2018, PMID 29315504"]
+    note: "UNVERIFIED: regulatory review §3.9 (R, the bottom-up inputs)."
+  - id: fih.fu_species
+    label: Fraction unbound in plasma, in human and in each preclinical species
+    group: Binding
+    kind: parameter
+    overrides: core.fu_plasma
+    cou_status: REQUIRED
+    why: Clearance and distribution are scaled on the unbound drug in each species.
+    alternatives: []
+    room_fields: [field:adme.fu]
+    data_category: binding
+    default_provider: CLIENT
+    sources: ["Miller 2019, PMID 30729397", "Shebley 2018, PMID 29315504"]
+    note: "UNVERIFIED: regulatory review §3.9 (R)."
+  - id: fih.solubility
+    label: Solubility (with its pH and medium)
+    group: Phys-chem
+    kind: parameter
+    cou_status: REQUIRED
+    why: Oral absorption is predicted bottom-up from solubility and permeability.
+    alternatives: []
+    room_fields: [field:substance.solubility, table:solubility]
+    data_category: physchem
+    default_provider: CLIENT
+    sources: ["Miller 2019, PMID 30729397", "Shebley 2018, PMID 29315504"]
+    note: "UNVERIFIED: regulatory review §3.9 (R)."
+  - id: fih.permeability
+    label: Permeability, converted through the laboratory's calibration
+    group: Permeability
+    kind: parameter
+    cou_status: REQUIRED
+    why: Oral absorption is predicted bottom-up from solubility and permeability.
+    alternatives: []
+    room_fields: [field:substance.permeability]
+    data_category: in_vitro_adme
+    default_provider: CLIENT
+    sources: ["Miller 2019, PMID 30729397", "Shebley 2018, PMID 29315504"]
+    note: "UNVERIFIED: regulatory review §3.9 (R); the calibration is core.permeability_calibration."
+  - id: fih.preclinical_iv_pk
+    label: Preclinical intravenous PK in several species
+    group: Observed data
+    kind: dataset
+    cou_status: USUALLY_NEEDED
+    escalates_to_required_when: model influence high (the model sets the starting dose without other support)
+    why: Clearance scaling was the most common failure, and predictions came close only when it had been checked in preclinical species first.
+    alternatives: []
+    room_fields: [table:concentrations, field:study.route]
+    room_gap: true
+    data_category: other
+    default_provider: CLIENT
+    record_with: [species, dose, route]
+    sources: ["Jackson 2026, PMID 42171970", "Chenel 2026, PMID 42400597"]
+    note: "UNVERIFIED: regulatory review §3.9 (U). The room has no species field; a preclinical study can only carry its species in words."
+  - id: fih.uncertainty_sensitivity
+    label: Uncertainty and sensitivity analysis of intrinsic clearance, tissue partitioning and absorption rate
+    group: Model evaluation
+    kind: activity
+    overrides: core.sensitivity_analysis
+    cou_status: REQUIRED
+    why: With no human data yet, the range of plausible human exposure is part of the answer.
+    alternatives: []
+    room_fields: []
+    room_gap: false
+    data_category: other
+    default_provider: PROPOSAL
+    sources: ["Chenel 2026, PMID 42400597"]
+    note: "UNVERIFIED: regulatory review §3.9 (R). An activity of the modeller, stated in the analysis plan."
+  - id: fih.clinical_data
+    label: Clinical data (human PK, mass balance, an external clinical dataset)
+    group: Observed data
+    kind: dataset
+    overrides: [core.fasted_oral_pk, core.iv_pk, core.mass_balance, core.external_verification, core.sponsor_nca]
+    cou_status: NOT_NEEDED
+    why: Before the first human dose no clinical data exist yet.
+    alternatives: []
+    room_fields: [table:concentrations]
+    data_category: clinical_pk_oral
+    default_provider: CLIENT
+    sources: ["Review: docs/research/2026-11-24-regulatory-data-by-context-of-use.md §3.9 (the row cites no primary source)"]
+    note: "UNVERIFIED: regulatory review §3.9 ('N (not yet available)'). The list of core items overridden is mine."
+  - id: fih.food_ontogeny_impairment
+    label: Food, ontogeny and organ-impairment data
+    group: Food effect
+    kind: dataset
+    cou_status: NOT_NEEDED
+    why: Food, age and impairment questions come after the first human studies.
+    alternatives: []
+    room_fields: [field:study.fed]
+    data_category: other
+    default_provider: CLIENT
+    sources: ["Review: docs/research/2026-11-24-regulatory-data-by-context-of-use.md §3.9 (the row cites no primary source)"]
+    note: "UNVERIFIED: regulatory review §3.9 gives 'N/O'; NOT_NEEDED is my choice."

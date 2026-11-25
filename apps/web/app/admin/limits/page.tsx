@@ -5,7 +5,8 @@ import { ApiProblem } from "@/components/ui";
 import { getLimits, hideUnlessAdmin, pricedAs } from "@/lib/admin";
 
 const LEDE = "A monthly spend and token limit per company, project or person. You are warned at 80 % and when a limit is " +
-  "reached; the agents keep running, and the companies' people see nothing of it.";
+  "reached; the agents keep running, and the companies' people see nothing of it. Paid models alone have a hard cap " +
+  "per run and per month, which pauses the run.";
 
 /** The monthly limits (docs/plans/2026-11-10-admin-console.md, E; the owner's answer 2). */
 export default async function LimitsPage({ searchParams }: { searchParams: Promise<{ priced_as?: string }> }) {

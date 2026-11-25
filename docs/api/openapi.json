@@ -295,6 +295,57 @@
         "title": "AgentChange",
         "type": "object"
       },
+      "AgentPreset": {
+        "additionalProperties": false,
+        "description": "A one-click setting for every agent at once (plan 2026-11-24 §3): what it does, its estimated cost for one\ndelivery of about ten files (0 for free and in-house models; an estimate until the calibration run measures it), the\nproviders it needs, those with no active key, and whether the agents are on it now.",
+        "properties": {
+          "current": {
+            "title": "Current",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "missing_keys": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Missing Keys",
+            "type": "array"
+          },
+          "providers": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Providers",
+            "type": "array"
+          },
+          "usd_per_delivery": {
+            "title": "Usd Per Delivery",
+            "type": "number"
+          },
+          "what": {
+            "title": "What",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "what",
+          "usd_per_delivery",
+          "providers",
+          "missing_keys",
+          "current"
+        ],
+        "title": "AgentPreset",
+        "type": "object"
+      },
       "AgentProvider": {
         "additionalProperties": false,
         "properties": {
@@ -625,7 +676,7 @@
       },
       "AgentsPage": {
         "additionalProperties": false,
-        "description": "`efforts` and `claude_models`: the choices for an agent on Claude (Bedrock's model ids); `groq_efforts`: on\nGroqCloud; `choices`: the one-click choices each agent's row offers; `chain`: what every agent goes on with when its\nmodel fails.",
+        "description": "`efforts` and `claude_models`: the choices for an agent on Claude (Bedrock's model ids); `groq_efforts`: on\nGroqCloud; `choices`: the one-click choices each agent's row offers; `chain`: what every agent goes on with when its\nmodel fails; `presets`: one click for every agent at once.",
         "properties": {
           "agents": {
             "items": {
@@ -675,6 +726,13 @@
             "title": "History",
             "type": "array"
           },
+          "presets": {
+            "items": {
+              "$ref": "#/components/schemas/AgentPreset"
+            },
+            "title": "Presets",
+            "type": "array"
+          },
           "providers": {
             "items": {
               "$ref": "#/components/schemas/AgentProvider"
@@ -692,7 +750,8 @@
           "history",
           "efforts",
           "groq_efforts",
-          "claude_models"
+          "claude_models",
+          "presets"
         ],
         "title": "AgentsPage",
         "type": "object"
@@ -1069,6 +1128,54 @@
           "template"
         ],
         "title": "ApplicationRequest",
+        "type": "object"
+      },
+      "ApplicationSuggestion": {
+        "additionalProperties": false,
+        "description": "What the Data room offers an application's inputs (`review.vbe_suggestion`, plan 2026-11-24 §7 B8): suggestions\nwith their source, never saved until a person saves the design.",
+        "properties": {
+          "note": {
+            "title": "Note",
+            "type": "string"
+          },
+          "observed_be": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SuggestedBe"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reference_formulation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SuggestedFormulation"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "test_formulation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SuggestedFormulation"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "test_formulation",
+          "reference_formulation",
+          "observed_be",
+          "note"
+        ],
+        "title": "ApplicationSuggestion",
         "type": "object"
       },
       "ApplicationSupport": {
@@ -3337,6 +3444,165 @@
         "title": "ClientFileStarted",
         "type": "object"
       },
+      "ClientMean": {
+        "additionalProperties": false,
+        "description": "A mean profile as the client's own table states it (plan 2026-11-24 §8 feature 5): which statistic and which\nspread, read from the table's own words, never assumed; SEM is turned into SD only where n is stated.",
+        "properties": {
+          "group": {
+            "default": "",
+            "title": "Group",
+            "type": "string"
+          },
+          "n": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "N"
+          },
+          "note": {
+            "default": "",
+            "title": "Note",
+            "type": "string"
+          },
+          "points": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/ClientMeanPoint"
+            },
+            "title": "Points",
+            "type": "array"
+          },
+          "sources": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/Chip"
+            },
+            "title": "Sources",
+            "type": "array"
+          },
+          "spread": {
+            "default": "",
+            "enum": [
+              "sd",
+              "cv_percent",
+              "sem",
+              "geometric_sd",
+              "geometric_cv_percent",
+              "range",
+              ""
+            ],
+            "title": "Spread",
+            "type": "string"
+          },
+          "spread_as_written": {
+            "default": "",
+            "title": "Spread As Written",
+            "type": "string"
+          },
+          "statistic": {
+            "default": "",
+            "enum": [
+              "arithmetic_mean",
+              "geometric_mean",
+              "median",
+              ""
+            ],
+            "title": "Statistic",
+            "type": "string"
+          },
+          "statistic_as_written": {
+            "default": "",
+            "title": "Statistic As Written",
+            "type": "string"
+          },
+          "unit": {
+            "default": "",
+            "title": "Unit",
+            "type": "string"
+          }
+        },
+        "required": [
+          "group",
+          "statistic",
+          "statistic_as_written",
+          "spread",
+          "spread_as_written",
+          "n",
+          "points",
+          "unit",
+          "note",
+          "sources"
+        ],
+        "title": "ClientMean",
+        "type": "object"
+      },
+      "ClientMeanPoint": {
+        "additionalProperties": false,
+        "properties": {
+          "n": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "N"
+          },
+          "sd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sd"
+          },
+          "spread": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Spread"
+          },
+          "time_h": {
+            "title": "Time H",
+            "type": "number"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "time_h",
+          "value",
+          "spread",
+          "n",
+          "sd"
+        ],
+        "title": "ClientMeanPoint",
+        "type": "object"
+      },
       "ClientReviewPage": {
         "additionalProperties": false,
         "properties": {
@@ -3665,14 +3931,36 @@
             "title": "Changed",
             "type": "boolean"
           },
+          "class_by": {
+            "default": "",
+            "title": "Class By",
+            "type": "string"
+          },
+          "class_label": {
+            "default": "",
+            "title": "Class Label",
+            "type": "string"
+          },
           "component": {
             "title": "Component",
+            "type": "string"
+          },
+          "excipient_class": {
+            "default": "",
+            "title": "Excipient Class",
             "type": "string"
           },
           "function": {
             "default": "",
             "title": "Function",
             "type": "string"
+          },
+          "mg": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Mg",
+            "type": "object"
           },
           "sources": {
             "default": [],
@@ -3688,6 +3976,10 @@
           "function",
           "amounts",
           "changed",
+          "excipient_class",
+          "class_label",
+          "class_by",
+          "mg",
           "sources"
         ],
         "title": "CompositionRow",
@@ -4815,6 +5107,14 @@
         "additionalProperties": false,
         "description": "The Data room of one project, as the page and the report show it.",
         "properties": {
+          "absorption": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/LimitingStep"
+            },
+            "title": "Absorption",
+            "type": "array"
+          },
           "adme": {
             "default": [],
             "items": {
@@ -4822,6 +5122,16 @@
             },
             "title": "Adme",
             "type": "array"
+          },
+          "checks": {
+            "additionalProperties": {
+              "items": {
+                "$ref": "#/components/schemas/Problem"
+              },
+              "type": "array"
+            },
+            "title": "Checks",
+            "type": "object"
           },
           "composition": {
             "default": [],
@@ -4931,6 +5241,16 @@
             "title": "Requests",
             "type": "array"
           },
+          "requirements": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Requirements"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "rules": {
             "title": "Rules",
             "type": "string"
@@ -4979,6 +5299,7 @@
           "products",
           "composition",
           "solubility",
+          "absorption",
           "dissolution",
           "f2",
           "studies",
@@ -4987,6 +5308,8 @@
           "plan",
           "inputs",
           "problems",
+          "checks",
+          "requirements",
           "made_by",
           "made_summary"
         ],
@@ -11882,6 +12205,22 @@
             ],
             "title": "Ph"
           },
+          "ph_by_convention": {
+            "default": false,
+            "title": "Ph By Convention",
+            "type": "boolean"
+          },
+          "ph_convention": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ph Convention"
+          },
           "plateau": {
             "default": false,
             "title": "Plateau",
@@ -11925,6 +12264,22 @@
             },
             "title": "Sd",
             "type": "array"
+          },
+          "sink_basis": {
+            "default": "",
+            "title": "Sink Basis",
+            "type": "string"
+          },
+          "sink_index": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sink Index"
           },
           "sources": {
             "default": [],
@@ -12003,6 +12358,8 @@
           "batch",
           "medium",
           "ph",
+          "ph_convention",
+          "ph_by_convention",
           "apparatus",
           "rpm",
           "volume_ml",
@@ -12015,6 +12372,8 @@
           "weibull_curve",
           "very_rapid",
           "plateau",
+          "sink_index",
+          "sink_basis",
           "sources",
           "problems"
         ],
@@ -12266,6 +12625,42 @@
           "not_read"
         ],
         "title": "DocumentsRead",
+        "type": "object"
+      },
+      "DoseNumber": {
+        "additionalProperties": false,
+        "properties": {
+          "dose_number": {
+            "title": "Dose Number",
+            "type": "number"
+          },
+          "medium": {
+            "title": "Medium",
+            "type": "string"
+          },
+          "ph": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ph"
+          },
+          "solubility_mg_ml": {
+            "title": "Solubility Mg Ml",
+            "type": "number"
+          }
+        },
+        "required": [
+          "medium",
+          "ph",
+          "solubility_mg_ml",
+          "dose_number"
+        ],
+        "title": "DoseNumber",
         "type": "object"
       },
       "DosePhase": {
@@ -14201,6 +14596,31 @@
         "title": "Envelope[ReviewPage]",
         "type": "object"
       },
+      "Envelope_RoomFilled_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/RoomFilled"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[RoomFilled]",
+        "type": "object"
+      },
       "Envelope_RoomPublication_": {
         "additionalProperties": false,
         "properties": {
@@ -14249,6 +14669,31 @@
           "errors"
         ],
         "title": "Envelope[RoomPublished]",
+        "type": "object"
+      },
+      "Envelope_RoomRunEstimate_": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/RoomRunEstimate"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorItem"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta"
+          }
+        },
+        "required": [
+          "data",
+          "meta",
+          "errors"
+        ],
+        "title": "Envelope[RoomRunEstimate]",
         "type": "object"
       },
       "Envelope_RoomRun_": {
@@ -17807,6 +18252,11 @@
             "title": "Note",
             "type": "string"
           },
+          "origin": {
+            "default": "",
+            "title": "Origin",
+            "type": "string"
+          },
           "owner": {
             "default": "",
             "title": "Owner",
@@ -17864,7 +18314,8 @@
           "status",
           "sources",
           "decision",
-          "note"
+          "note",
+          "origin"
         ],
         "title": "InputRow",
         "type": "object"
@@ -19236,9 +19687,68 @@
         "title": "LimitTargetProject",
         "type": "object"
       },
+      "LimitingStep": {
+        "additionalProperties": false,
+        "description": "Which step may limit absorption (plan 2026-11-24 §8 feature 8): a product's dose against each measured solubility\n(the dose number, Amidon 1995) and what it says in words. `product` empty: the drug's one dose.",
+        "properties": {
+          "dose_as_written": {
+            "default": "",
+            "title": "Dose As Written",
+            "type": "string"
+          },
+          "dose_mg": {
+            "title": "Dose Mg",
+            "type": "number"
+          },
+          "dose_numbers": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/DoseNumber"
+            },
+            "title": "Dose Numbers",
+            "type": "array"
+          },
+          "product": {
+            "default": "",
+            "title": "Product",
+            "type": "string"
+          },
+          "sources": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/Chip"
+            },
+            "title": "Sources",
+            "type": "array"
+          },
+          "statements": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Statements",
+            "type": "array"
+          },
+          "volume_ml": {
+            "title": "Volume Ml",
+            "type": "number"
+          }
+        },
+        "required": [
+          "product",
+          "dose_mg",
+          "dose_as_written",
+          "volume_ml",
+          "dose_numbers",
+          "statements",
+          "sources"
+        ],
+        "title": "LimitingStep",
+        "type": "object"
+      },
       "LimitsPage": {
         "additionalProperties": false,
-        "description": "The monthly limits (console, E): each with this month's use; those at 80 % or past; the changes; what a limit can\nbe set on. A limit warns the administrator and never stops an agent; the companies' people never see it.",
+        "description": "The monthly limits (console, E): each with this month's use; those at 80 % or past; the changes; what a limit can\nbe set on. A limit warns the administrator and never stops an agent; the companies' people never see it. `paid`:\nthe hard cap on paid models, which does stop them (it pauses the run).",
         "properties": {
           "history": {
             "items": {
@@ -19257,6 +19767,9 @@
           "month": {
             "title": "Month",
             "type": "string"
+          },
+          "paid": {
+            "$ref": "#/components/schemas/PaidCaps"
           },
           "priced_as": {
             "title": "Priced As",
@@ -19288,7 +19801,8 @@
           "limits",
           "warnings",
           "history",
-          "targets"
+          "targets",
+          "paid"
         ],
         "title": "LimitsPage",
         "type": "object"
@@ -21738,6 +22252,109 @@
         "title": "ModelPlan",
         "type": "object"
       },
+      "NcaReproduction": {
+        "additionalProperties": false,
+        "description": "The client's NCA reproduced, its method found (plan 2026-11-24 §8 feature 3): the settings that reproduce most of\nthe client's values, which of them those values tell apart, and how many values fall in each tier.",
+        "properties": {
+          "compared": {
+            "default": 0,
+            "title": "Compared",
+            "type": "integer"
+          },
+          "differ": {
+            "default": 0,
+            "title": "Differ",
+            "type": "integer"
+          },
+          "explained": {
+            "default": 0,
+            "title": "Explained",
+            "type": "integer"
+          },
+          "investigate": {
+            "default": 0,
+            "title": "Investigate",
+            "type": "integer"
+          },
+          "not_told": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Not Told",
+            "type": "object"
+          },
+          "passed": {
+            "default": 0,
+            "title": "Passed",
+            "type": "integer"
+          },
+          "settings": {
+            "$ref": "#/components/schemas/NcaSettings"
+          },
+          "summary": {
+            "default": "",
+            "title": "Summary",
+            "type": "string"
+          },
+          "tiers": {
+            "default": "",
+            "title": "Tiers",
+            "type": "string"
+          },
+          "told_apart": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Told Apart",
+            "type": "array"
+          }
+        },
+        "required": [
+          "settings",
+          "told_apart",
+          "not_told",
+          "compared",
+          "passed",
+          "explained",
+          "investigate",
+          "differ",
+          "tiers",
+          "summary"
+        ],
+        "title": "NcaReproduction",
+        "type": "object"
+      },
+      "NcaSettings": {
+        "additionalProperties": false,
+        "description": "One combination of the NCA settings a client may have used (dataroom_rules nca.reproduce), in words.",
+        "properties": {
+          "blq": {
+            "title": "Blq",
+            "type": "string"
+          },
+          "integration": {
+            "title": "Integration",
+            "type": "string"
+          },
+          "lambda_z": {
+            "title": "Lambda Z",
+            "type": "string"
+          },
+          "time_basis": {
+            "title": "Time Basis",
+            "type": "string"
+          }
+        },
+        "required": [
+          "integration",
+          "time_basis",
+          "blq",
+          "lambda_z"
+        ],
+        "title": "NcaSettings",
+        "type": "object"
+      },
       "ObservedDataset": {
         "additionalProperties": false,
         "properties": {
@@ -22385,6 +23002,142 @@
         "title": "Overview",
         "type": "object"
       },
+      "PaidCapChange": {
+        "additionalProperties": false,
+        "properties": {
+          "at": {
+            "title": "At",
+            "type": "string"
+          },
+          "by": {
+            "title": "By",
+            "type": "string"
+          },
+          "month_usd": {
+            "title": "Month Usd",
+            "type": "number"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "run_usd": {
+            "title": "Run Usd",
+            "type": "number"
+          }
+        },
+        "required": [
+          "run_usd",
+          "month_usd",
+          "by",
+          "at",
+          "reason"
+        ],
+        "title": "PaidCapChange",
+        "type": "object"
+      },
+      "PaidCapSet": {
+        "description": "The hard cap on paid models (`platform_settings.PAID_PROVIDERS`), platform-wide: a run's and a calendar month's\nspend in USD. Reaching one pauses the Data room's run; free and in-house models keep the warn-only limits.",
+        "properties": {
+          "month_usd": {
+            "exclusiveMinimum": 0.0,
+            "title": "Month Usd",
+            "type": "number"
+          },
+          "reason": {
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          },
+          "run_usd": {
+            "exclusiveMinimum": 0.0,
+            "title": "Run Usd",
+            "type": "number"
+          }
+        },
+        "required": [
+          "run_usd",
+          "month_usd",
+          "reason"
+        ],
+        "title": "PaidCapSet",
+        "type": "object"
+      },
+      "PaidCaps": {
+        "additionalProperties": false,
+        "description": "The hard cap on paid models only (the owner's decision D3, 2026-11-24; `providers`), platform-wide: a run's and a\ncalendar month's spend in USD, at list prices. Reaching one pauses the Data room's run until the cap is raised or\nthe agent switched to a free model. `set_by` null: the defaults ($10 a run, $90 a month).",
+        "properties": {
+          "history": {
+            "items": {
+              "$ref": "#/components/schemas/PaidCapChange"
+            },
+            "title": "History",
+            "type": "array"
+          },
+          "month_spent_usd": {
+            "title": "Month Spent Usd",
+            "type": "number"
+          },
+          "month_usd": {
+            "title": "Month Usd",
+            "type": "number"
+          },
+          "paused_runs": {
+            "title": "Paused Runs",
+            "type": "integer"
+          },
+          "providers": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Providers",
+            "type": "array"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "run_usd": {
+            "title": "Run Usd",
+            "type": "number"
+          },
+          "set_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Set At"
+          },
+          "set_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Set By"
+          }
+        },
+        "required": [
+          "providers",
+          "run_usd",
+          "month_usd",
+          "month_spent_usd",
+          "paused_runs",
+          "set_by",
+          "set_at",
+          "reason",
+          "history"
+        ],
+        "title": "PaidCaps",
+        "type": "object"
+      },
       "ParamNode": {
         "additionalProperties": false,
         "description": "A CPF parameter on D1 / D2, with its fit choice and the stages that may fit it; D2 nodes carry no source.",
@@ -23004,6 +23757,16 @@
             "title": "Status",
             "type": "string"
           },
+          "suggested": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ApplicationSuggestion"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "template": {
             "title": "Template",
             "type": "string"
@@ -23020,7 +23783,8 @@
           "inputs",
           "problems",
           "formulations",
-          "limits"
+          "limits",
+          "suggested"
         ],
         "title": "PinnedApplication",
         "type": "object"
@@ -23862,6 +24626,25 @@
         "title": "PrepareRequest",
         "type": "object"
       },
+      "PresetSet": {
+        "properties": {
+          "preset": {
+            "title": "Preset",
+            "type": "string"
+          },
+          "reason": {
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "preset",
+          "reason"
+        ],
+        "title": "PresetSet",
+        "type": "object"
+      },
       "Problem": {
         "additionalProperties": false,
         "properties": {
@@ -24366,6 +25149,57 @@
           "projects"
         ],
         "title": "Projects",
+        "type": "object"
+      },
+      "PropertyRead": {
+        "additionalProperties": false,
+        "description": "A compound, product or question property a trigger names (core.yaml's vocabulary), as code read it from the room.",
+        "properties": {
+          "basis": {
+            "default": "",
+            "title": "Basis",
+            "type": "string"
+          },
+          "how": {
+            "title": "How",
+            "type": "string"
+          },
+          "known": {
+            "default": false,
+            "title": "Known",
+            "type": "boolean"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "sources": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/Chip"
+            },
+            "title": "Sources",
+            "type": "array"
+          },
+          "value": {
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "label",
+          "how",
+          "value",
+          "known",
+          "basis",
+          "sources"
+        ],
+        "title": "PropertyRead",
         "type": "object"
       },
       "Proposal": {
@@ -25029,6 +25863,35 @@
         "title": "ReadFile",
         "type": "object"
       },
+      "ReadPhrase": {
+        "additionalProperties": false,
+        "description": "An application read from the question card, with the words that matched, as written (\"'food effect' (question)\").",
+        "properties": {
+          "application": {
+            "title": "Application",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "words": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Words",
+            "type": "array"
+          }
+        },
+        "required": [
+          "application",
+          "label",
+          "words"
+        ],
+        "title": "ReadPhrase",
+        "type": "object"
+      },
       "ReadingItem": {
         "additionalProperties": false,
         "description": "One file in the project's reading queue (plan 2026-11-10, R3: the reading tray).",
@@ -25682,6 +26545,268 @@
           "to_harvest"
         ],
         "title": "RequirementCounts",
+        "type": "object"
+      },
+      "RequirementItem": {
+        "additionalProperties": false,
+        "description": "One item of the checklist for this question, with its coverage (the ledger of plan §6.4): found where, missing\nwith the files searched, not needed and why, or kept as context.",
+        "properties": {
+          "alternatives": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Alternatives",
+            "type": "array"
+          },
+          "applies": {
+            "default": "",
+            "enum": [
+              "yes",
+              "no",
+              "unknown",
+              ""
+            ],
+            "title": "Applies",
+            "type": "string"
+          },
+          "by": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "By",
+            "type": "array"
+          },
+          "chips": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/Chip"
+            },
+            "title": "Chips",
+            "type": "array"
+          },
+          "coverage": {
+            "enum": [
+              "found",
+              "found_in_part",
+              "missing",
+              "to_ask",
+              "absent",
+              "person_checks",
+              "not_from_delivery",
+              "not_needed",
+              "context"
+            ],
+            "title": "Coverage",
+            "type": "string"
+          },
+          "coverage_text": {
+            "title": "Coverage Text",
+            "type": "string"
+          },
+          "escalates": {
+            "default": "",
+            "title": "Escalates",
+            "type": "string"
+          },
+          "found": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Found",
+            "type": "array"
+          },
+          "group": {
+            "title": "Group",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "level": {
+            "enum": [
+              "required",
+              "usually_needed",
+              "conditional",
+              "to_ask",
+              "optional",
+              "not_needed",
+              "context"
+            ],
+            "title": "Level",
+            "type": "string"
+          },
+          "note": {
+            "default": "",
+            "title": "Note",
+            "type": "string"
+          },
+          "others": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Others",
+            "type": "array"
+          },
+          "record_with": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Record With",
+            "type": "array"
+          },
+          "request": {
+            "default": "",
+            "title": "Request",
+            "type": "string"
+          },
+          "room_gap": {
+            "default": false,
+            "title": "Room Gap",
+            "type": "boolean"
+          },
+          "searched": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Searched",
+            "type": "array"
+          },
+          "sources": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Sources",
+            "type": "array"
+          },
+          "status": {
+            "enum": [
+              "REQUIRED",
+              "USUALLY_NEEDED",
+              "CONDITIONAL",
+              "OPTIONAL",
+              "NOT_NEEDED"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "trigger": {
+            "default": "",
+            "title": "Trigger",
+            "type": "string"
+          },
+          "trigger_state": {
+            "default": "",
+            "title": "Trigger State",
+            "type": "string"
+          },
+          "why": {
+            "title": "Why",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "group",
+          "kind",
+          "status",
+          "level",
+          "applies",
+          "trigger",
+          "trigger_state",
+          "escalates",
+          "why",
+          "alternatives",
+          "record_with",
+          "sources",
+          "by",
+          "others",
+          "coverage",
+          "coverage_text",
+          "found",
+          "chips",
+          "searched",
+          "room_gap",
+          "request",
+          "note"
+        ],
+        "title": "RequirementItem",
+        "type": "object"
+      },
+      "Requirements": {
+        "additionalProperties": false,
+        "description": "The checklist for this question from the requirement drafts per context of use: a draft, UNVERIFIED, awaiting the\nowner's and the SME's review. No data plan, gate or live template reads it.",
+        "properties": {
+          "applications": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Applications",
+            "type": "array"
+          },
+          "chosen": {
+            "title": "Chosen",
+            "type": "boolean"
+          },
+          "items": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/RequirementItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "properties": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/PropertyRead"
+            },
+            "title": "Properties",
+            "type": "array"
+          },
+          "read": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/ReadPhrase"
+            },
+            "title": "Read",
+            "type": "array"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "label",
+          "version",
+          "applications",
+          "chosen",
+          "read",
+          "properties",
+          "items"
+        ],
+        "title": "Requirements",
         "type": "object"
       },
       "RequirementsPage": {
@@ -27273,9 +28398,43 @@
         "title": "RoomEntered",
         "type": "object"
       },
+      "RoomFilled": {
+        "additionalProperties": false,
+        "description": "`brief:from-dataroom`: the brief fields drafted from the Data room (DRAFTED, each to confirm on Start), the fields\nkept because a person or a document set another value, and Start's advice where they differ.",
+        "properties": {
+          "advice": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Advice",
+            "type": "array"
+          },
+          "drafted": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Drafted",
+            "type": "array"
+          },
+          "kept": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Kept",
+            "type": "array"
+          }
+        },
+        "required": [
+          "drafted",
+          "kept",
+          "advice"
+        ],
+        "title": "RoomFilled",
+        "type": "object"
+      },
       "RoomPublication": {
         "additionalProperties": false,
-        "description": "What \"Send to the model\" would send now (`modeler_project.dataroom.publish.plan_publication`, nothing written),\nand what keeps it from being sent, in words.",
+        "description": "What \"Send to the model\" would send now (`modeler_project.dataroom.publish.plan_publication`, nothing written),\nwhat keeps it from being sent, and what is sent otherwise than the files might suggest (a fasted arm's meals left\nout, water not stated, a release a Weibull curve does not describe), in words.",
         "properties": {
           "blocked": {
             "items": {
@@ -27297,12 +28456,20 @@
             },
             "title": "Evidence",
             "type": "array"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
           }
         },
         "required": [
           "evidence",
           "datasets",
-          "blocked"
+          "blocked",
+          "notes"
         ],
         "title": "RoomPublication",
         "type": "object"
@@ -27326,8 +28493,12 @@
       },
       "RoomPublished": {
         "additionalProperties": false,
-        "description": "What was sent, signed: items written, items already in the project (skipped), and the signature.",
+        "description": "What was sent, signed: items written, items already in the project (skipped), the Data room's earlier items it\nreplaced (superseded), the publication whose record keeps what the send rested on, and the signature.",
         "properties": {
+          "basis_sha256": {
+            "title": "Basis Sha256",
+            "type": "string"
+          },
           "datasets": {
             "title": "Datasets",
             "type": "integer"
@@ -27340,6 +28511,17 @@
             "title": "Manifestation",
             "type": "string"
           },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "publication": {
+            "title": "Publication",
+            "type": "string"
+          },
           "signature_id": {
             "title": "Signature Id",
             "type": "string"
@@ -27347,12 +28529,20 @@
           "skipped": {
             "title": "Skipped",
             "type": "integer"
+          },
+          "superseded": {
+            "title": "Superseded",
+            "type": "integer"
           }
         },
         "required": [
           "evidence",
           "datasets",
           "skipped",
+          "superseded",
+          "publication",
+          "basis_sha256",
+          "notes",
           "signature_id",
           "manifestation"
         ],
@@ -27419,7 +28609,7 @@
       },
       "RoomRun": {
         "additionalProperties": false,
-        "description": "The Data room's background run (`modeler_agents.dataroom.run_room`): each stage with its live counts and note.",
+        "description": "The Data room's background run (`modeler_agents.dataroom.run_room`): each stage with its live counts and note,\nand, for a paused run, why and where it paused (`pause`).",
         "properties": {
           "agents": {
             "additionalProperties": {
@@ -27442,6 +28632,16 @@
               }
             ],
             "title": "Finished At"
+          },
+          "pause": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RoomRunPause"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "stages": {
             "items": {
@@ -27466,7 +28666,8 @@
               "idle",
               "running",
               "done",
-              "failed"
+              "failed",
+              "paused"
             ],
             "title": "State",
             "type": "string"
@@ -27478,9 +28679,209 @@
           "agents",
           "error",
           "started_at",
-          "finished_at"
+          "finished_at",
+          "pause"
         ],
         "title": "RoomRun",
+        "type": "object"
+      },
+      "RoomRunEstimate": {
+        "additionalProperties": false,
+        "description": "What the next run is expected to cost on paid models (`modeler_agents.dataroom.cost`; plan 2026-11-24 §2.4), from\nthe files still to read and their sizes: tokens ≈ characters / 4, per file 8.5 to 10 calls and 9,000 to 13,000\noutput tokens (measured, §2.2), each agent's measured share at its model's list price. `paid` false: no agent starts on a\npaid model, and the run costs nothing in dollars. The caps a paid run stops at, and this month's paid spend.",
+        "properties": {
+          "agents": {
+            "items": {
+              "$ref": "#/components/schemas/RoomRunEstimateAgent"
+            },
+            "title": "Agents",
+            "type": "array"
+          },
+          "basis": {
+            "title": "Basis",
+            "type": "string"
+          },
+          "calls_high": {
+            "title": "Calls High",
+            "type": "integer"
+          },
+          "calls_low": {
+            "title": "Calls Low",
+            "type": "integer"
+          },
+          "characters": {
+            "title": "Characters",
+            "type": "integer"
+          },
+          "files": {
+            "title": "Files",
+            "type": "integer"
+          },
+          "input_tokens_high": {
+            "title": "Input Tokens High",
+            "type": "integer"
+          },
+          "input_tokens_low": {
+            "title": "Input Tokens Low",
+            "type": "integer"
+          },
+          "month_cap_usd": {
+            "title": "Month Cap Usd",
+            "type": "number"
+          },
+          "month_spent_usd": {
+            "title": "Month Spent Usd",
+            "type": "number"
+          },
+          "output_tokens_high": {
+            "title": "Output Tokens High",
+            "type": "integer"
+          },
+          "output_tokens_low": {
+            "title": "Output Tokens Low",
+            "type": "integer"
+          },
+          "paid": {
+            "title": "Paid",
+            "type": "boolean"
+          },
+          "run_cap_usd": {
+            "title": "Run Cap Usd",
+            "type": "number"
+          },
+          "usd": {
+            "title": "Usd",
+            "type": "number"
+          },
+          "usd_high": {
+            "title": "Usd High",
+            "type": "number"
+          },
+          "usd_low": {
+            "title": "Usd Low",
+            "type": "number"
+          }
+        },
+        "required": [
+          "paid",
+          "files",
+          "characters",
+          "calls_low",
+          "calls_high",
+          "input_tokens_low",
+          "input_tokens_high",
+          "output_tokens_low",
+          "output_tokens_high",
+          "usd",
+          "usd_low",
+          "usd_high",
+          "agents",
+          "basis",
+          "run_cap_usd",
+          "month_cap_usd",
+          "month_spent_usd"
+        ],
+        "title": "RoomRunEstimate",
+        "type": "object"
+      },
+      "RoomRunEstimateAgent": {
+        "additionalProperties": false,
+        "properties": {
+          "agent": {
+            "title": "Agent",
+            "type": "string"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "paid": {
+            "title": "Paid",
+            "type": "boolean"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          }
+        },
+        "required": [
+          "agent",
+          "provider",
+          "model",
+          "paid"
+        ],
+        "title": "RoomRunEstimateAgent",
+        "type": "object"
+      },
+      "RoomRunPause": {
+        "additionalProperties": false,
+        "description": "Why and where a run paused (plan 2026-11-24 §4), and when it resumes by itself. `provider_unavailable`: no model of\nan agent's chain could answer (it resumes after 10, then 20, then 40 minutes; then `resume_at` is null and a person\nresumes it); `budget_cap`: a paid model's cap is reached (it resumes when the cap is raised or the agent switched\nto a free model); `no_model`: the agent's chosen model cannot be used (it resumes when it is set up). An\nadministrator's change of a model, a key or the cap resumes it at once; nothing finished is read again.",
+        "properties": {
+          "at": {
+            "title": "At",
+            "type": "string"
+          },
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "done": {
+            "title": "Done",
+            "type": "integer"
+          },
+          "per_file": {
+            "title": "Per File",
+            "type": "boolean"
+          },
+          "reason": {
+            "enum": [
+              "provider_unavailable",
+              "budget_cap",
+              "no_model"
+            ],
+            "title": "Reason",
+            "type": "string"
+          },
+          "resume_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resume At"
+          },
+          "said": {
+            "title": "Said",
+            "type": "string"
+          },
+          "stage": {
+            "title": "Stage",
+            "type": "string"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          },
+          "where": {
+            "title": "Where",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason",
+          "said",
+          "detail",
+          "stage",
+          "where",
+          "per_file",
+          "done",
+          "total",
+          "at",
+          "resume_at"
+        ],
+        "title": "RoomRunPause",
         "type": "object"
       },
       "RoomRunStage": {
@@ -27512,7 +28913,8 @@
               "running",
               "done",
               "skipped",
-              "failed"
+              "failed",
+              "paused"
             ],
             "title": "State",
             "type": "string"
@@ -27584,6 +28986,14 @@
             "title": "Arms",
             "type": "array"
           },
+          "client_means": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/ClientMean"
+            },
+            "title": "Client Means",
+            "type": "array"
+          },
           "concentration_unit": {
             "default": "",
             "title": "Concentration Unit",
@@ -27636,6 +29046,16 @@
             "title": "Nca Method Client",
             "type": "string"
           },
+          "nca_reproduction": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NcaReproduction"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "periods": {
             "default": [],
             "items": {
@@ -27668,6 +29088,14 @@
             "title": "Sets",
             "type": "array"
           },
+          "sources": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/Chip"
+            },
+            "title": "Sources",
+            "type": "array"
+          },
           "study_id": {
             "title": "Study Id",
             "type": "string"
@@ -27693,9 +29121,12 @@
           "nca",
           "exposures",
           "nca_method_client",
+          "nca_reproduction",
+          "client_means",
           "concentration_unit",
           "lloq",
-          "problems"
+          "problems",
+          "sources"
         ],
         "title": "RoomStudy",
         "type": "object"
@@ -29415,6 +30846,17 @@
             "title": "As Written",
             "type": "string"
           },
+          "dose_number": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dose Number"
+          },
           "fraction_in_glass": {
             "anyOf": [
               {
@@ -29452,6 +30894,22 @@
             ],
             "title": "Ph"
           },
+          "ph_by_convention": {
+            "default": false,
+            "title": "Ph By Convention",
+            "type": "boolean"
+          },
+          "ph_convention": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ph Convention"
+          },
           "solubility_mg_ml": {
             "anyOf": [
               {
@@ -29486,11 +30944,14 @@
         "required": [
           "medium",
           "ph",
+          "ph_convention",
+          "ph_by_convention",
           "solubility_mg_ml",
           "as_written",
           "volume_for_dose_ml",
           "fraction_in_glass",
           "fraction_in_medium",
+          "dose_number",
           "sources"
         ],
         "title": "SolubilityRow",
@@ -29990,6 +31451,16 @@
           },
           "risk": {
             "$ref": "#/components/schemas/RiskView"
+          },
+          "room": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StartRoomView"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -30000,7 +31471,8 @@
           "applications",
           "pathway_suggestions",
           "pathways_not_named",
-          "client_request"
+          "client_request",
+          "room"
         ],
         "title": "StartBlock",
         "type": "object"
@@ -30023,6 +31495,47 @@
           "message"
         ],
         "title": "StartIssueView",
+        "type": "object"
+      },
+      "StartRoomView": {
+        "additionalProperties": false,
+        "description": "The project's Data room as Start sees it (plan 2026-11-24 §7, phase 4): whether a person confirmed its question\ncard (\"Fill from the Data room\" is offered then), the card's question and applications, and where Start's own word\ndiffers from it (advice, never a block: `steps.room_advice`).",
+        "properties": {
+          "advice": {
+            "items": {
+              "$ref": "#/components/schemas/StartIssueView"
+            },
+            "title": "Advice",
+            "type": "array"
+          },
+          "applications": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Applications",
+            "type": "array"
+          },
+          "applications_chosen": {
+            "title": "Applications Chosen",
+            "type": "boolean"
+          },
+          "confirmed_card": {
+            "title": "Confirmed Card",
+            "type": "boolean"
+          },
+          "question": {
+            "title": "Question",
+            "type": "string"
+          }
+        },
+        "required": [
+          "confirmed_card",
+          "question",
+          "applications",
+          "applications_chosen",
+          "advice"
+        ],
+        "title": "StartRoomView",
         "type": "object"
       },
       "Statistic": {
@@ -30125,6 +31638,11 @@
             "title": "Applications",
             "type": "array"
           },
+          "applications_from_room": {
+            "default": false,
+            "title": "Applications From Room",
+            "type": "boolean"
+          },
           "assumptions": {
             "default": [],
             "items": {
@@ -30226,6 +31744,29 @@
                 "type": "null"
               }
             ]
+          },
+          "room_applications": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Room Applications",
+            "type": "array"
+          },
+          "room_limitations": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Room Limitations",
+            "type": "array"
+          },
+          "room_roles": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Room Roles",
+            "type": "object"
           }
         },
         "required": [
@@ -30242,6 +31783,10 @@
           "internal_target_pe",
           "no_internal_target",
           "risk_assessment",
+          "room_applications",
+          "applications_from_room",
+          "room_roles",
+          "room_limitations",
           "locked",
           "reasons"
         ],
@@ -31465,6 +33010,11 @@
             "title": "Period",
             "type": "string"
           },
+          "settings_note": {
+            "default": "",
+            "title": "Settings Note",
+            "type": "string"
+          },
           "subject": {
             "title": "Subject",
             "type": "string"
@@ -31479,6 +33029,13 @@
               }
             ],
             "title": "T Half"
+          },
+          "tiers": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Tiers",
+            "type": "object"
           },
           "tmax": {
             "anyOf": [
@@ -31520,7 +33077,9 @@
           "t_half",
           "lambda_z",
           "client",
-          "differences"
+          "differences",
+          "tiers",
+          "settings_note"
         ],
         "title": "SubjectNca",
         "type": "object"
@@ -31695,6 +33254,135 @@
           "seed"
         ],
         "title": "SubjectSpec",
+        "type": "object"
+      },
+      "SuggestedBe": {
+        "additionalProperties": false,
+        "properties": {
+          "metrics": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/SuggestedBeMetric"
+            },
+            "title": "Metrics",
+            "type": "object"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "stated": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Stated",
+            "type": "array"
+          }
+        },
+        "required": [
+          "metrics",
+          "source",
+          "stated"
+        ],
+        "title": "SuggestedBe",
+        "type": "object"
+      },
+      "SuggestedBeMetric": {
+        "additionalProperties": false,
+        "properties": {
+          "between_subject_cv_percent": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Between Subject Cv Percent"
+          },
+          "ci_high": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ci High"
+          },
+          "ci_low": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ci Low"
+          },
+          "gmr": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gmr"
+          },
+          "n": {
+            "title": "N",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "gmr",
+          "between_subject_cv_percent",
+          "ci_low",
+          "ci_high",
+          "n"
+        ],
+        "title": "SuggestedBeMetric",
+        "type": "object"
+      },
+      "SuggestedFormulation": {
+        "additionalProperties": false,
+        "description": "A product of the Data room's question card for a VBE arm, as the CPF formulation the send names it.",
+        "properties": {
+          "available": {
+            "title": "Available",
+            "type": "boolean"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "value",
+          "source",
+          "available"
+        ],
+        "title": "SuggestedFormulation",
         "type": "object"
       },
       "SystemAnalyte": {
@@ -33490,6 +35178,66 @@
         ]
       }
     },
+    "/api/v1/admin/agents:preset": {
+      "post": {
+        "description": "Put every agent on one preset in one step (plan 2026-11-24 §3): Free, In-house only, Claude demo, Claude all Opus.\nEach agent's change is its own audit event with the same reason. Refused, with nothing changed, when a provider the\npreset needs has no active key.",
+        "operationId": "set_preset_api_v1_admin_agents_preset_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PresetSet"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_AgentsPage_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set Preset",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/api/v1/admin/companies": {
       "post": {
         "description": "A new company (a tenant): its folder in the store, its name, and its own audit chain from its first event.",
@@ -33625,7 +35373,7 @@
     },
     "/api/v1/admin/companies/{tenant_id}/data-permissions": {
       "put": {
-        "description": "Record where the company's client files may go, for all its people and projects at once: in-house only, or the\ncloud services the client allowed, each with the client's written permission (its reference) and when it ends. The\nadministrator alone sets it; the company's people do not see it (the owner, 2026-11-24). A fresh step-up and a\nreason; an audit event on the company's chain (`company.data_permissions.set`). The agents follow it from their next\nrequest.",
+        "description": "Record where the company's client files may go, for all its people and projects at once: in-house only, or the\ncloud services the client allowed, each with the client's written permission (its reference) and when it ends. The\nadministrator alone sets it; the company's people do not see it (the owner, 2026-11-24). A fresh step-up and a\nreason; an audit event on the company's chain (`company.data_permissions.set`). The agents follow it from their next\nrequest, and the company's Data room runs paused for want of an allowed model resume at once.",
         "operationId": "put_data_permissions_api_v1_admin_companies__tenant_id__data_permissions_put",
         "parameters": [
           {
@@ -34330,6 +36078,81 @@
           }
         },
         "summary": "Set Limit",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/limits/paid": {
+      "put": {
+        "description": "Change the hard cap on paid models (a fresh step-up and a reason; an audit event on the owner's chain). The runs\nthe cap paused resume at once: one still over the new cap pauses again before its next paid call.",
+        "operationId": "set_paid_cap_api_v1_admin_limits_paid_put",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "priced_as",
+            "required": false,
+            "schema": {
+              "default": "claude-opus-5-5",
+              "enum": [
+                "claude-opus-5-5",
+                "claude-sonnet-5-5",
+                "claude-haiku-5-5"
+              ],
+              "title": "Priced As",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PaidCapSet"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_LimitsPage_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set Paid Cap",
         "tags": [
           "admin"
         ]
@@ -36882,6 +38705,65 @@
         ]
       }
     },
+    "/api/v1/projects/{project_id}/brief:from-dataroom": {
+      "post": {
+        "description": "Start from the Data room (plan 2026-11-24 §7, phase 4, B4): the question, context of use, applications, agencies,\nproducts and roles, scenarios, formulation types and populations the room's confirmed question card and studies\nstate, drafted into the brief (DRAFTED, each with the quotes it rests on, to confirm on Start), then the ICH M15\nratings by the rule. A person's value, or a document's, is never overwritten: Start advises where they differ. 409\nwhile the room has no confirmed question card.",
+        "operationId": "fill_brief_from_dataroom_api_v1_projects__project_id__brief_from_dataroom_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_RoomFilled_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Fill Brief From Dataroom",
+        "tags": [
+          "brief"
+        ]
+      }
+    },
     "/api/v1/projects/{project_id}/campaigns": {
       "post": {
         "description": "Start a modeling campaign through the configured execution backend (local single-node, or Temporal). Outside\ndevelopment, only on a MAP a person signed and on the CPF it signed (`modeler_api.run_guard`).",
@@ -38571,7 +40453,7 @@
     },
     "/api/v1/projects/{project_id}/dataroom/publication": {
       "get": {
-        "description": "What \"Send to the model\" would send now (evidence items and observed datasets) and what blocks it; nothing is\nwritten.",
+        "description": "What \"Send to the model\" would send now (evidence items and observed datasets), what blocks it (a study already\nin the project through Delivery or Inputs too), and what is sent otherwise than the files might suggest; nothing is\nwritten.",
         "operationId": "get_dataroom_publication_api_v1_projects__project_id__dataroom_publication_get",
         "parameters": [
           {
@@ -38630,7 +40512,7 @@
     },
     "/api/v1/projects/{project_id}/dataroom/publish": {
       "post": {
-        "description": "Send the room's confirmed inputs to the model: compound and release values as accepted evidence, each arm's mean\nprofile as an accepted observed dataset, so Review & sign starts from them. Signed with the token's recent step-up\n(403 `STEP_UP_REQUIRED`); refused (409 with every reason, nothing signed) while anything blocks it. Sending again\nadds only what changed.",
+        "description": "Send the room's confirmed inputs to the model: compound and release values as accepted evidence, each arm's mean\nprofile as an accepted observed dataset, so Review & sign starts from them. Signed with the token's recent step-up\n(403 `STEP_UP_REQUIRED`); refused (409 with every reason, nothing signed) while anything blocks it. Sending again\nadds only what changed, and what it replaces is rejected, superseded by this publication. What the send rested on\n(the confirmed question, the applications, every decision with its reason, the open data requests, the NCA values\nthe data do not reproduce, the means' BLQ convention) is kept as the publication's record\n(`dataroom/publications/<id>.json`), and the signature covers its sha256.",
         "operationId": "publish_dataroom_api_v1_projects__project_id__dataroom_publish_post",
         "parameters": [
           {
@@ -38902,7 +40784,7 @@
         ]
       },
       "post": {
-        "description": "Run the Data room in the background: the files read (OCR included), then the agents that have a model. Each\nstage's answers are kept per file, so a second run redoes only what is new, unless `redo` names the stage.",
+        "description": "Run the Data room in the background: the files read (OCR included), then the agents that have a model. Each\nstage's answers are kept per file, so a second run redoes only what is new, unless `redo` names the stage. A run\nthat stops for a reason that passes is paused, not failed, and resumes where it stopped (`run:resume`).",
         "operationId": "start_dataroom_run_api_v1_projects__project_id__dataroom_run_post",
         "parameters": [
           {
@@ -38971,6 +40853,124 @@
           }
         },
         "summary": "Start Dataroom Run",
+        "tags": [
+          "dataroom"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/dataroom/run/estimate": {
+      "get": {
+        "description": "What the next run is expected to cost on the paid models its agents start on, from the files still to read and\ntheir sizes (plan 2026-11-24 §2.4): the page asks once before a paid run starts. `paid` false: it costs nothing.",
+        "operationId": "estimate_dataroom_run_api_v1_projects__project_id__dataroom_run_estimate_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_RoomRunEstimate_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Estimate Dataroom Run",
+        "tags": [
+          "dataroom"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/dataroom/run:resume": {
+      "post": {
+        "description": "Resume a paused run now, where it stopped (plan 2026-11-24 §4): the stages and files it finished are not run\nagain. 409 when the run is not paused, or one is running.",
+        "operationId": "resume_dataroom_run_api_v1_projects__project_id__dataroom_run_resume_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_RoomRun_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Resume Dataroom Run",
         "tags": [
           "dataroom"
         ]

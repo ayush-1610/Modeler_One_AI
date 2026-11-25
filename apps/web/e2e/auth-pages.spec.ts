@@ -42,7 +42,7 @@ test("Help is the user guide, with the steps for the AI model keys", async ({ pa
   await expect(page).toHaveURL(/\/help$/);
   await expect(page.getByTestId("help-toc")).toContainText("AI model keys, end to end");
   await page.getByTestId("help-toc").getByRole("link", { name: /AI model keys/ }).click();
-  const keys = page.locator(`[id="6b-ai-model-keys-end-to-end-the-server-groqcloud-nvidia"]`);
+  const keys = page.locator(`[id="6b-ai-model-keys-end-to-end-the-server-groqcloud-nvidia-the-claude-api"]`);
   await expect(keys).toBeInViewport();
   await expect(page.getByTestId("help-body")).toContainText("Admin → Keys → Add a key");
   await page.screenshot({ path: test.info().outputPath("help.png") });

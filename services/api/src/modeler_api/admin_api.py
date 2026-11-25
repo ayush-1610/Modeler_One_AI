@@ -13,6 +13,9 @@ its last 4 characters, never its secret.
 
 A monthly limit (E) on a company's, a project's or a person's agent use warns the administrator at 80 % and when it is
 reached (the overview and the Limits page); it never stops an agent, and the companies' people never see it (answer 2).
+Paid models alone (`platform_settings.PAID_PROVIDERS`) also have a hard cap, per run and per month, platform-wide (the
+owner's decision D3, 2026-11-24): reaching it pauses the Data room's run, and raising it resumes the run. Changing a
+model, the chain, a key or that cap resumes at once the Data room runs it may unblock (`dataroom_runs`).
 
 Costs are estimates: each run's tokens priced at a Claude model's list prices with its conversations cached
 (`agent_jobs.recorded_usage`). The tokens are those of the model that ran the agents, so they are a guide to choose a
@@ -30,7 +33,7 @@ from typing import Annotated, Any, Literal
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 
-from modeler_api import agent_jobs
+from modeler_api import agent_jobs, dataroom_runs
 from modeler_api import keycloak_admin as kc
 from modeler_api import platform_settings as ps
 from modeler_api.auth import CurrentPrincipal, Principal, ensure_step_up, require_role
@@ -158,15 +161,11 @@ def company(tenant_id: str, principal: Admin, settings: SettingsDep, priced_as: 
                      "data_permissions": _data_permissions(settings, tenant_id)})
 
 
-def _data_store(settings: Settings) -> FileProjectStore:
-    return FileProjectStore(settings.read_root, audit_mirror=audit_mirror(settings))
-
-
 def _data_permissions(settings: Settings, tenant_id: str) -> dict[str, Any]:
     """Where the company's client files may go (`modeler_project.data_permissions`), as its page shows it."""
     from modeler_project.data_permissions import CLOUD_SERVICES, DataPermissions
 
-    perms, today = DataPermissions(_data_store(settings), tenant_id), datetime.now(UTC).date()
+    perms, today = DataPermissions(_store(settings), tenant_id), datetime.now(UTC).date()
     doc = perms.doc()
     grants = [{"service": p, "label": CLOUD_SERVICES[p], **{k: g.get(k, "") for k in ("basis", "reference", "expires", "by", "at")},
                "in_force": perms.allows(p, today)} for p, g in doc["services"].items() if p in CLOUD_SERVICES]
@@ -344,6 +343,21 @@ def _refused(exc: ps.SettingsError) -> HTTPException:
     return HTTPException(status_code=409, detail=str(exc))
 
 
+def _store(settings: Settings) -> FileProjectStore:
+    return FileProjectStore(settings.read_root, audit_mirror=audit_mirror(settings))
+
+
+def _resume_paused(settings: Settings, principal: Principal, reasons: tuple[str, ...]) -> None:
+    """The Data room runs paused for what this change may have unblocked resume at once (plan 2026-11-24 §4): a model or
+    the chain switched (every reason), a key added or made active (a provider that did not answer, a model without a
+    key), the paid cap changed. A run the change did not unblock pauses again before its next model call."""
+    dataroom_runs.resume_paused(_store(settings), by=principal.user_id, reasons=reasons)
+
+
+AGENT_CHANGE = dataroom_runs.REASONS                       # a model switched: a paid one for a free one too
+KEY_CHANGE = ("provider_unavailable", "no_model")
+
+
 def _agents_page(settings: Settings) -> dict[str, Any]:
     store, keys = ps.AgentSettings(settings.read_root), ps.KeyStore(settings.read_root, settings.master_key)
     doc = store.doc()
@@ -370,9 +384,63 @@ def _agents_page(settings: Settings) -> dict[str, Any]:
         "choices": [c | {"has_active_key": c["provider"] in active} for c in ps.MODEL_CHOICES],
         "environment": agent_jobs.agents_status(admin=True),
         "efforts": list(ps.EFFORTS), "groq_efforts": list(ps.GROQ_EFFORTS), "claude_models": list(agent_jobs.CLAUDE_MODELS),
+        "presets": _presets(doc["current"], active),
         "history": [{k: h[k] for k in ("agent", "provider", "model", "by", "at", "reason")}
                     for h in reversed(doc["history"][-50:])],
     })
+
+
+def _presets(current: dict[str, Any], active: set[str]) -> list[dict[str, Any]]:
+    estimate_delivery_usd = agent_jobs.estimate_delivery_usd
+    out = []
+    for preset in ps.PRESETS:
+        agents = preset["agents"]
+        providers = sorted({provider for provider, *_ in agents.values()})
+        out.append({"id": preset["id"], "label": preset["label"], "what": preset["what"],
+                    "usd_per_delivery": estimate_delivery_usd({a: model for a, (_p, model, _e, _f) in agents.items()}),
+                    "providers": providers,
+                    "missing_keys": [p for p in providers if p in ps.KEY_PROVIDERS and p not in active],
+                    "current": all((current.get(a) or {}).get("provider") == provider
+                                   and (current.get(a) or {}).get("model", "") == model
+                                   for a, (provider, model, _e, _f) in agents.items())})
+    return out
+
+
+class PresetSet(BaseModel):
+    preset: str
+    reason: str = Field(min_length=1)
+
+
+@router.post("/admin/agents:preset", **answers(AgentsPage))
+def set_preset(body: PresetSet, principal: Admin, settings: SettingsDep) -> dict[str, Any]:
+    """Put every agent on one preset in one step (plan 2026-11-24 §3): Free, In-house only, Claude demo, Claude all Opus.
+    Each agent's change is its own audit event with the same reason. Refused, with nothing changed, when a provider the
+    preset needs has no active key."""
+    _root(settings)
+    ensure_step_up(principal)
+    preset = next((p for p in ps.PRESETS if p["id"] == body.preset), None)
+    if preset is None:
+        raise HTTPException(status_code=404, detail=f"no preset {body.preset!r}; one of: {', '.join(p['id'] for p in ps.PRESETS)}")
+    active = {r["provider"] for r in ps.KeyStore(settings.read_root, settings.master_key).records() if r["state"] == "active"}
+    if missing := sorted({p for p, *_ in preset["agents"].values() if p in ps.KEY_PROVIDERS and p not in active}):
+        raise HTTPException(status_code=409, detail=f"{preset['label']} needs an active key for "
+                                                    f"{', '.join(ps.AGENT_PROVIDERS[p] for p in missing)}: add it under Keys "
+                                                    "first; no agent was changed")
+    store = ps.AgentSettings(settings.read_root)
+    fields = ("provider", "model", "effort", "fallback")
+    reason = f"preset {preset['label']}: {body.reason.strip()}"
+    try:
+        for agent, (provider, model, effort, fallback) in preset["agents"].items():
+            before = store.current(agent)
+            setting = store.set(agent, provider, model, by=principal.user_id, reason=reason, effort=effort,
+                                fallback=fallback)
+            _changed(settings, principal, "admin.agent.set", agent, reason=reason,
+                     before={k: before.get(k, "") for k in fields} if before else None,
+                     after={k: setting[k] for k in fields} | {"preset": preset["id"]})
+    except ps.SettingsError as exc:
+        raise _refused(exc) from exc
+    _resume_paused(settings, principal, AGENT_CHANGE)
+    return _agents_page(settings)
 
 
 @router.get("/admin/agents", **answers(AgentsPage))
@@ -394,6 +462,7 @@ def set_agent_chain(body: ChainSet, principal: Admin, settings: SettingsDep) -> 
         raise _refused(exc) from exc
     _changed(settings, principal, "admin.agent.chain", "chain", reason=body.reason, before={"choices": before},
              after={"choices": entry["choices"]})
+    _resume_paused(settings, principal, AGENT_CHANGE)
     return _agents_page(settings)
 
 
@@ -411,6 +480,7 @@ def set_agent(agent: str, body: AgentSet, principal: Admin, settings: SettingsDe
     _changed(settings, principal, "admin.agent.set", agent, reason=body.reason,
              before={k: before.get(k, "") for k in ("provider", "model", "effort", "fallback")} if before else None,
              after={k: setting[k] for k in ("provider", "model", "effort", "fallback")})
+    _resume_paused(settings, principal, AGENT_CHANGE)
     return _agents_page(settings)
 
 
@@ -439,6 +509,7 @@ def set_every_agent(body: AgentSet, principal: Admin, settings: SettingsDep) -> 
                      after={k: setting[k] for k in fields} | {"every_agent": True})
     except ps.SettingsError as exc:
         raise _refused(exc) from exc
+    _resume_paused(settings, principal, AGENT_CHANGE)
     return _agents_page(settings)
 
 
@@ -486,6 +557,7 @@ def add_key(body: KeyAdd, principal: Admin, settings: SettingsDep) -> dict[str, 
     except ps.SettingsError as exc:
         raise _refused(exc) from exc
     _changed(settings, principal, "admin.key.add", record["id"], after=_key_named(record), reason=body.reason)
+    _resume_paused(settings, principal, KEY_CHANGE)
     return _keys_page(settings)
 
 
@@ -522,6 +594,7 @@ def activate_key(key_id: str, body: KeyChange, principal: Admin, settings: Setti
         raise _refused(exc) from exc
     _changed(settings, principal, "admin.key.activate", key_id, after=_key_named(record) | {"retired": replaced},
              reason=body.reason)
+    _resume_paused(settings, principal, KEY_CHANGE)
     return _keys_page(settings)
 
 
@@ -596,6 +669,20 @@ def _limit_rows(settings: Settings, priced_as: str, now: datetime | None = None)
     return start.strftime("%Y-%m"), [{k: v for k, v in row.items() if k != "_top"} for row in rows]
 
 
+def _paid_caps(settings: Settings) -> dict[str, Any]:
+    """The hard cap on paid models (the owner's decision D3): the caps, this month's paid spend, the runs it paused."""
+    caps = ps.PaidCaps(settings.read_root)
+    current = caps.current()
+    paused = [doc for _t, _p, doc in dataroom_runs.paused_runs(_store(settings))
+              if (doc.get("pause") or {}).get("reason") == "budget_cap"]
+    return {"providers": list(ps.PAID_PROVIDERS), "run_usd": float(current["run_usd"]),
+            "month_usd": float(current["month_usd"]),
+            "month_spent_usd": round(float(ps.PaidSpend(settings.read_root).month_usd()), 4), "paused_runs": len(paused),
+            "set_by": current["by"], "set_at": current["at"], "reason": current["reason"],
+            "history": [{k: h[k] for k in ("run_usd", "month_usd", "by", "at", "reason")}
+                        for h in reversed(caps.doc()["history"][-50:])]}
+
+
 def _limits_page(settings: Settings, priced_as: str) -> dict[str, Any]:
     month, rows = _limit_rows(settings, priced_as)
     targets = []
@@ -608,7 +695,7 @@ def _limits_page(settings: Settings, priced_as: str) -> dict[str, Any]:
     return envelope({"month": month, "priced_as": priced_as, "warn_at": ps.WARN_AT, "limits": rows,
                      "warnings": [row for row in rows if row["level"] != "ok"],
                      "history": [{k: h[k] for k in ("id", "usd", "tokens", "by", "at", "reason")} for h in reversed(history[-50:])],
-                     "targets": targets})
+                     "targets": targets, "paid": _paid_caps(settings)})
 
 
 @router.get("/admin/limits", **answers(LimitsPage))
@@ -639,6 +726,33 @@ def set_limit(body: LimitSet, principal: Admin, settings: SettingsDep, priced_as
     _changed(settings, principal, "admin.limit.set" if after else "admin.limit.remove", key, reason=body.reason,
              before={k: before[k] for k in measures} if before else None,
              after={k: after[k] for k in measures} if after else None)
+    return _limits_page(settings, priced_as)
+
+
+class PaidCapSet(BaseModel):
+    """The hard cap on paid models (`platform_settings.PAID_PROVIDERS`), platform-wide: a run's and a calendar month's
+    spend in USD. Reaching one pauses the Data room's run; free and in-house models keep the warn-only limits."""
+
+    run_usd: float = Field(gt=0)
+    month_usd: float = Field(gt=0)
+    reason: str = Field(min_length=1)
+
+
+@router.put("/admin/limits/paid", **answers(LimitsPage))
+def set_paid_cap(body: PaidCapSet, principal: Admin, settings: SettingsDep, priced_as: PricedAs = DEFAULT_PRICE) -> dict[str, Any]:
+    """Change the hard cap on paid models (a fresh step-up and a reason; an audit event on the owner's chain). The runs
+    the cap paused resume at once: one still over the new cap pauses again before its next paid call."""
+    _root(settings)
+    ensure_step_up(principal)
+    try:
+        before, after = ps.PaidCaps(settings.read_root).set(run_usd=body.run_usd, month_usd=body.month_usd,
+                                                            by=principal.user_id, reason=body.reason)
+    except ps.SettingsError as exc:
+        raise _refused(exc) from exc
+    measures = ("run_usd", "month_usd")
+    _changed(settings, principal, "admin.paid_cap.set", "paid_cap", reason=body.reason,
+             before={k: before[k] for k in measures}, after={k: after[k] for k in measures})
+    _resume_paused(settings, principal, ("budget_cap",))
     return _limits_page(settings, priced_as)
 
 
@@ -949,7 +1063,7 @@ def put_data_permissions(tenant_id: str, body: DataPermissionsBody, principal: A
     cloud services the client allowed, each with the client's written permission (its reference) and when it ends. The
     administrator alone sets it; the company's people do not see it (the owner, 2026-11-24). A fresh step-up and a
     reason; an audit event on the company's chain (`company.data_permissions.set`). The agents follow it from their next
-    request."""
+    request, and the company's Data room runs paused for want of an allowed model resume at once."""
     from modeler_project.data_permissions import DataPermissions, PermissionError_
 
     root = _root(settings)
@@ -959,9 +1073,15 @@ def put_data_permissions(tenant_id: str, body: DataPermissionsBody, principal: A
         raise HTTPException(status_code=422, detail="say why (the client's permission, or why it is withdrawn)")
     ensure_step_up(principal)
     try:
-        DataPermissions(_data_store(settings), tenant_id).set(
+        DataPermissions(_store(settings), tenant_id).set(
             in_house_only=body.in_house_only, services={p: g.model_dump() for p, g in body.services.items()},
             by=principal.user_id, reason=body.reason)
     except PermissionError_ as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+    # the company's runs paused because none of an agent's models was allowed for its files go on now (each pauses again
+    # at once if the change allowed none)
+    store = _store(settings)
+    for company_id, project_id, _doc in dataroom_runs.paused_runs(store):
+        if company_id == tenant_id:
+            dataroom_runs.resume(store, company_id, project_id, by=principal.user_id, how="now", reasons=("no_model",))
     return company(tenant_id, principal, settings, DEFAULT_PRICE)

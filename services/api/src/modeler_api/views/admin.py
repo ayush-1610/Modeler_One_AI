@@ -246,10 +246,24 @@ class AgentChain(View):
     notice: str
 
 
+class AgentPreset(View):
+    """A one-click setting for every agent at once (plan 2026-11-24 §3): what it does, its estimated cost for one
+    delivery of about ten files (0 for free and in-house models; an estimate until the calibration run measures it), the
+    providers it needs, those with no active key, and whether the agents are on it now."""
+
+    id: str
+    label: str
+    what: str
+    usd_per_delivery: float
+    providers: list[str]
+    missing_keys: list[str]
+    current: bool
+
+
 class AgentsPage(View):
     """`efforts` and `claude_models`: the choices for an agent on Claude (Bedrock's model ids); `groq_efforts`: on
     GroqCloud; `choices`: the one-click choices each agent's row offers; `chain`: what every agent goes on with when its
-    model fails."""
+    model fails; `presets`: one click for every agent at once."""
 
     agents: list[AgentRow]
     chain: AgentChain
@@ -260,6 +274,7 @@ class AgentsPage(View):
     efforts: list[str]
     groq_efforts: list[str]
     claude_models: list[str]
+    presets: list[AgentPreset]
 
 
 class KeyField(View):
@@ -331,9 +346,34 @@ class LimitTarget(View):
     people: list[LimitTargetPerson]
 
 
+class PaidCapChange(View):
+    run_usd: float
+    month_usd: float
+    by: str
+    at: str
+    reason: str
+
+
+class PaidCaps(View):
+    """The hard cap on paid models only (the owner's decision D3, 2026-11-24; `providers`), platform-wide: a run's and a
+    calendar month's spend in USD, at list prices. Reaching one pauses the Data room's run until the cap is raised or
+    the agent switched to a free model. `set_by` null: the defaults ($10 a run, $90 a month)."""
+
+    providers: list[str]
+    run_usd: float
+    month_usd: float
+    month_spent_usd: float
+    paused_runs: int                 # Data room runs the cap paused now
+    set_by: str | None
+    set_at: str | None
+    reason: str
+    history: list[PaidCapChange]
+
+
 class LimitsPage(View):
     """The monthly limits (console, E): each with this month's use; those at 80 % or past; the changes; what a limit can
-    be set on. A limit warns the administrator and never stops an agent; the companies' people never see it."""
+    be set on. A limit warns the administrator and never stops an agent; the companies' people never see it. `paid`:
+    the hard cap on paid models, which does stop them (it pauses the run)."""
 
     month: str
     priced_as: str
@@ -342,6 +382,7 @@ class LimitsPage(View):
     warnings: list[LimitRow]
     history: list[LimitChange]
     targets: list[LimitTarget]
+    paid: PaidCaps
 
 
 class PersonView(View):

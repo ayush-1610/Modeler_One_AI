@@ -270,15 +270,18 @@ def test_gpt_oss_on_groqcloud_takes_one_key_its_effort_and_runs_an_agent_from_th
     assert page["groq_efforts"] == ["low", "medium", "high"] and "xhigh" in page["efforts"]
 
 
-def test_each_agent_row_offers_four_one_click_models_the_active_one_marked_and_a_keyless_one_said(client, tmp_path):
+def test_each_agent_row_offers_its_one_click_models_the_active_one_marked_and_a_keyless_one_said(client, tmp_path):
     page = client.get("/api/v1/admin/agents", headers=_as("owner")).json()["data"]
     choices = {c["id"]: c for c in page["choices"]}
-    assert [c["label"] for c in page["choices"]] == ["Qwen Coder", "Claude", "gpt-oss-120b", "Nemotron Ultra"]
+    assert [c["label"] for c in page["choices"]] == ["Qwen Coder", "Claude", "Claude Opus 5.5 (Claude API)",
+                                                     "Claude Sonnet 5.5 (Claude API)", "gpt-oss-120b", "Nemotron Ultra"]
     assert {i: (c["provider"], c["model"], c["effort"]) for i, c in choices.items()} == {
         "qwen-coder": ("litellm", "qwen-coder", ""), "claude": ("bedrock", "anthropic.claude-opus-5-5", ""),
+        "claude-api-opus": ("anthropic", "claude-opus-5-5", ""), "claude-api-sonnet": ("anthropic", "claude-sonnet-5-5", ""),
         "gpt-oss-120b": ("groq", "openai/gpt-oss-120b", "medium"),
         "nemotron-ultra": ("nvidia", "nvidia/nemotron-3-ultra-550b-a55b", "")}
-    assert all(c["tools"] for c in page["choices"]) and [i for i, c in choices.items() if c["reads_scans"]] == ["claude"]
+    assert all(c["tools"] for c in page["choices"]) and [i for i, c in choices.items() if c["reads_scans"]] == [
+        "claude", "claude-api-opus", "claude-api-sonnet"]
     assert not any(c["has_active_key"] for c in page["choices"])          # no key yet: each button says "Add a key"
     assert {a["choice"] for a in page["agents"]} == {None}
 
@@ -286,8 +289,9 @@ def test_each_agent_row_offers_four_one_click_models_the_active_one_marked_and_a
                          headers=_as("owner")).json()["data"]["keys"][0]["id"]
     client.post(f"/api/v1/admin/keys/{key_id}:activate", json={"reason": "in use"}, headers=_as("owner"))
     page = client.put("/api/v1/admin/agents/A7", json=GPT_OSS, headers=_as("owner")).json()["data"]
-    assert {c["id"]: c["has_active_key"] for c in page["choices"]} == {"qwen-coder": False, "claude": False, "gpt-oss-120b": True,
-                                                                   "nemotron-ultra": False}
+    assert {c["id"]: c["has_active_key"] for c in page["choices"]} == {"qwen-coder": False, "claude": False,
+                                                                   "claude-api-opus": False, "claude-api-sonnet": False,
+                                                                   "gpt-oss-120b": True, "nemotron-ultra": False}
     rows = {a["agent"]: a for a in page["agents"]}
     assert (rows["A7"]["choice"], rows["A7"]["set_by"], rows["A7"]["reason"]) == ("gpt-oss-120b", "owner", "one-click switch")
     assert {a: r["choice"] for a, r in rows.items() if a != "A7"} == dict.fromkeys(set(ps.AGENTS) - {"A7"})
@@ -388,3 +392,46 @@ def test_the_models_every_agent_goes_on_with_are_set_in_order_and_an_agent_then_
     assert model.labels == ["groq/openai/gpt-oss-120b", "Nemotron Ultra"]     # its own model is not listed twice
     row = next(a for a in page["agents"] if a["agent"] == "A6")
     assert row["runs_on"]["then"] == ["Nemotron Ultra"]
+
+
+def test_an_agent_on_the_claude_api_takes_the_console_key_and_its_files_need_the_clients_permission(client):
+    """Decisions D1 and D6 (2026-11-24): Anthropic's own Claude API with a Console key, and a cloud service like NVIDIA
+    and Groq: a project's client files go to it only with a recorded permission."""
+    from modeler_agents.claude import ClaudeAPIChat
+    from modeler_project.data_permissions import CLOUD_SERVICES
+
+    assert "anthropic" in CLOUD_SERVICES
+    page = client.post("/api/v1/admin/keys", json={"provider": "anthropic", "label": "Console", "reason": "Claude API",
+                                                   "fields": {"api_key": FAKE_BEDROCK}}, headers=_as("owner")).json()["data"]
+    key_id = page["keys"][0]["id"]
+    client.post(f"/api/v1/admin/keys/{key_id}:activate", json={"reason": "in use"}, headers=_as("owner"))
+    body = {"provider": "anthropic", "model": "claude-opus-5-5", "effort": "medium", "fallback": "claude-sonnet-5-5",
+            "reason": "A8 on the Claude API"}
+    row = next(r for r in client.put("/api/v1/admin/agents/A8", json=body, headers=_as("owner")).json()["data"]["agents"]
+               if r["agent"] == "A8")
+    assert (row["provider"], row["model"], row["effort"], row["fallback"]) == ("anthropic", "claude-opus-5-5", "medium",
+                                                                               "claude-sonnet-5-5")
+    model, problem = agent_jobs.chat_model("A8")
+    # a paid model: behind the paid models' meter (`modeler_agents.spend.PaidGuard`), the Claude API client inside it
+    assert problem is None and isinstance(model.inner, ClaudeAPIChat) and model.fallback == "claude-sonnet-5-5"
+
+
+def test_a_preset_puts_every_agent_on_it_with_its_estimated_cost_and_needs_its_keys(client, tmp_path):
+    """Plan 2026-11-24 §3: one click for Free, In-house only, Claude demo and Claude all Opus."""
+    page = client.get("/api/v1/admin/agents", headers=_as("owner")).json()["data"]
+    presets = {p["id"]: p for p in page["presets"]}
+    assert set(presets) == {"free", "in-house", "claude-demo", "claude-opus"}
+    assert presets["free"]["usd_per_delivery"] == 0 and presets["claude-demo"]["usd_per_delivery"] > 0
+    assert presets["claude-opus"]["usd_per_delivery"] > presets["claude-demo"]["usd_per_delivery"]
+    assert presets["claude-demo"]["missing_keys"] == ["anthropic"]
+    refused = client.post("/api/v1/admin/agents:preset", json={"preset": "claude-demo", "reason": "demo"}, headers=_as("owner"))
+    assert refused.status_code == 409 and "no agent was changed" in refused.json()["detail"]
+    key_id = _litellm(client)
+    client.post(f"/api/v1/admin/keys/{key_id}:activate", json={"reason": "in use"}, headers=_as("owner"))
+    data = client.post("/api/v1/admin/agents:preset", json={"preset": "in-house", "reason": "client files stay here"},
+                       headers=_as("owner")).json()["data"]
+    assert {(a["provider"], a["model"]) for a in data["agents"]} == {("litellm", "qwen-coder")}
+    assert next(p for p in data["presets"] if p["id"] == "in-house")["current"]
+    assert all(h["reason"].startswith("preset In-house only") for h in data["history"][:len(data["agents"])])
+    assert client.post("/api/v1/admin/agents:preset", json={"preset": "nope", "reason": "x"},
+                       headers=_as("owner")).status_code == 404

@@ -66,6 +66,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/agents:preset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Set Preset
+         * @description Put every agent on one preset in one step (plan 2026-11-24 §3): Free, In-house only, Claude demo, Claude all Opus.
+         *     Each agent's change is its own audit event with the same reason. Refused, with nothing changed, when a provider the
+         *     preset needs has no active key.
+         */
+        post: operations["set_preset_api_v1_admin_agents_preset_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/companies": {
         parameters: {
             query?: never;
@@ -117,7 +139,7 @@ export interface paths {
          *     cloud services the client allowed, each with the client's written permission (its reference) and when it ends. The
          *     administrator alone sets it; the company's people do not see it (the owner, 2026-11-24). A fresh step-up and a
          *     reason; an audit event on the company's chain (`company.data_permissions.set`). The agents follow it from their next
-         *     request.
+         *     request, and the company's Data room runs paused for want of an allowed model resume at once.
          */
         put: operations["put_data_permissions_api_v1_admin_companies__tenant_id__data_permissions_put"];
         post?: never;
@@ -270,6 +292,27 @@ export interface paths {
          * @description Set, change or remove a monthly limit (a fresh step-up and a reason; an audit event on the owner's chain).
          */
         put: operations["set_limit_api_v1_admin_limits_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/limits/paid": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set Paid Cap
+         * @description Change the hard cap on paid models (a fresh step-up and a reason; an audit event on the owner's chain). The runs
+         *     the cap paused resume at once: one still over the new cap pauses again before its next paid call.
+         */
+        put: operations["set_paid_cap_api_v1_admin_limits_paid_put"];
         post?: never;
         delete?: never;
         options?: never;
@@ -950,6 +993,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project_id}/brief:from-dataroom": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Fill Brief From Dataroom
+         * @description Start from the Data room (plan 2026-11-24 §7, phase 4, B4): the question, context of use, applications, agencies,
+         *     products and roles, scenarios, formulation types and populations the room's confirmed question card and studies
+         *     state, drafted into the brief (DRAFTED, each with the quotes it rests on, to confirm on Start), then the ICH M15
+         *     ratings by the rule. A person's value, or a document's, is never overwritten: Start advises where they differ. 409
+         *     while the room has no confirmed question card.
+         */
+        post: operations["fill_brief_from_dataroom_api_v1_projects__project_id__brief_from_dataroom_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project_id}/campaigns": {
         parameters: {
             query?: never;
@@ -1419,7 +1486,8 @@ export interface paths {
         };
         /**
          * Get Dataroom Publication
-         * @description What "Send to the model" would send now (evidence items and observed datasets) and what blocks it; nothing is
+         * @description What "Send to the model" would send now (evidence items and observed datasets), what blocks it (a study already
+         *     in the project through Delivery or Inputs too), and what is sent otherwise than the files might suggest; nothing is
          *     written.
          */
         get: operations["get_dataroom_publication_api_v1_projects__project_id__dataroom_publication_get"];
@@ -1445,7 +1513,10 @@ export interface paths {
          * @description Send the room's confirmed inputs to the model: compound and release values as accepted evidence, each arm's mean
          *     profile as an accepted observed dataset, so Review & sign starts from them. Signed with the token's recent step-up
          *     (403 `STEP_UP_REQUIRED`); refused (409 with every reason, nothing signed) while anything blocks it. Sending again
-         *     adds only what changed.
+         *     adds only what changed, and what it replaces is rejected, superseded by this publication. What the send rested on
+         *     (the confirmed question, the applications, every decision with its reason, the open data requests, the NCA values
+         *     the data do not reproduce, the means' BLQ convention) is kept as the publication's record
+         *     (`dataroom/publications/<id>.json`), and the signature covers its sha256.
          */
         post: operations["publish_dataroom_api_v1_projects__project_id__dataroom_publish_post"];
         delete?: never;
@@ -1507,9 +1578,52 @@ export interface paths {
         /**
          * Start Dataroom Run
          * @description Run the Data room in the background: the files read (OCR included), then the agents that have a model. Each
-         *     stage's answers are kept per file, so a second run redoes only what is new, unless `redo` names the stage.
+         *     stage's answers are kept per file, so a second run redoes only what is new, unless `redo` names the stage. A run
+         *     that stops for a reason that passes is paused, not failed, and resumes where it stopped (`run:resume`).
          */
         post: operations["start_dataroom_run_api_v1_projects__project_id__dataroom_run_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/dataroom/run/estimate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Estimate Dataroom Run
+         * @description What the next run is expected to cost on the paid models its agents start on, from the files still to read and
+         *     their sizes (plan 2026-11-24 §2.4): the page asks once before a paid run starts. `paid` false: it costs nothing.
+         */
+        get: operations["estimate_dataroom_run_api_v1_projects__project_id__dataroom_run_estimate_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/dataroom/run:resume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resume Dataroom Run
+         * @description Resume a paused run now, where it stopped (plan 2026-11-24 §4): the stages and files it finished are not run
+         *     again. 409 when the run is not paused, or one is running.
+         */
+        post: operations["resume_dataroom_run_api_v1_projects__project_id__dataroom_run_resume_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3515,6 +3629,28 @@ export interface components {
             /** Reason */
             reason: string;
         };
+        /**
+         * AgentPreset
+         * @description A one-click setting for every agent at once (plan 2026-11-24 §3): what it does, its estimated cost for one
+         *     delivery of about ten files (0 for free and in-house models; an estimate until the calibration run measures it), the
+         *     providers it needs, those with no active key, and whether the agents are on it now.
+         */
+        AgentPreset: {
+            /** Current */
+            current: boolean;
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /** Missing Keys */
+            missing_keys: string[];
+            /** Providers */
+            providers: string[];
+            /** Usd Per Delivery */
+            usd_per_delivery: number;
+            /** What */
+            what: string;
+        };
         /** AgentProvider */
         AgentProvider: {
             /** Has Active Key */
@@ -3637,7 +3773,7 @@ export interface components {
          * AgentsPage
          * @description `efforts` and `claude_models`: the choices for an agent on Claude (Bedrock's model ids); `groq_efforts`: on
          *     GroqCloud; `choices`: the one-click choices each agent's row offers; `chain`: what every agent goes on with when its
-         *     model fails.
+         *     model fails; `presets`: one click for every agent at once.
          */
         AgentsPage: {
             /** Agents */
@@ -3654,6 +3790,8 @@ export interface components {
             groq_efforts: string[];
             /** History */
             history: components["schemas"]["AgentChange"][];
+            /** Presets */
+            presets: components["schemas"]["AgentPreset"][];
             /** Providers */
             providers: components["schemas"]["AgentProvider"][];
         };
@@ -3777,6 +3915,18 @@ export interface components {
             };
             /** Template */
             template: string;
+        };
+        /**
+         * ApplicationSuggestion
+         * @description What the Data room offers an application's inputs (`review.vbe_suggestion`, plan 2026-11-24 §7 B8): suggestions
+         *     with their source, never saved until a person saves the design.
+         */
+        ApplicationSuggestion: {
+            /** Note */
+            note: string;
+            observed_be: components["schemas"]["SuggestedBe"] | null;
+            reference_formulation: components["schemas"]["SuggestedFormulation"] | null;
+            test_formulation: components["schemas"]["SuggestedFormulation"] | null;
         };
         /** ApplicationSupport */
         ApplicationSupport: {
@@ -4673,6 +4823,75 @@ export interface components {
             /** Template */
             template: boolean;
         };
+        /**
+         * ClientMean
+         * @description A mean profile as the client's own table states it (plan 2026-11-24 §8 feature 5): which statistic and which
+         *     spread, read from the table's own words, never assumed; SEM is turned into SD only where n is stated.
+         */
+        ClientMean: {
+            /**
+             * Group
+             * @default
+             */
+            group: string;
+            /** N */
+            n: number | null;
+            /**
+             * Note
+             * @default
+             */
+            note: string;
+            /**
+             * Points
+             * @default []
+             */
+            points: components["schemas"]["ClientMeanPoint"][];
+            /**
+             * Sources
+             * @default []
+             */
+            sources: components["schemas"]["Chip"][];
+            /**
+             * Spread
+             * @default
+             * @enum {string}
+             */
+            spread: "sd" | "cv_percent" | "sem" | "geometric_sd" | "geometric_cv_percent" | "range" | "";
+            /**
+             * Spread As Written
+             * @default
+             */
+            spread_as_written: string;
+            /**
+             * Statistic
+             * @default
+             * @enum {string}
+             */
+            statistic: "arithmetic_mean" | "geometric_mean" | "median" | "";
+            /**
+             * Statistic As Written
+             * @default
+             */
+            statistic_as_written: string;
+            /**
+             * Unit
+             * @default
+             */
+            unit: string;
+        };
+        /** ClientMeanPoint */
+        ClientMeanPoint: {
+            /** N */
+            n: number | null;
+            /** Sd */
+            sd: number | null;
+            /** Spread */
+            spread: number | null;
+            /** Time H */
+            time_h: number;
+            /** Value */
+            value: number | null;
+        };
         /** ClientReviewPage */
         ClientReviewPage: {
             /** Groups */
@@ -4799,13 +5018,32 @@ export interface components {
              * @default false
              */
             changed: boolean;
+            /**
+             * Class By
+             * @default
+             */
+            class_by: string;
+            /**
+             * Class Label
+             * @default
+             */
+            class_label: string;
             /** Component */
             component: string;
+            /**
+             * Excipient Class
+             * @default
+             */
+            excipient_class: string;
             /**
              * Function
              * @default
              */
             function: string;
+            /** Mg */
+            mg: {
+                [key: string]: number;
+            };
             /**
              * Sources
              * @default []
@@ -5211,10 +5449,19 @@ export interface components {
          */
         DataRoomView: {
             /**
+             * Absorption
+             * @default []
+             */
+            absorption: components["schemas"]["LimitingStep"][];
+            /**
              * Adme
              * @default []
              */
             adme: components["schemas"]["Value"][];
+            /** Checks */
+            checks: {
+                [key: string]: components["schemas"]["Problem"][];
+            };
             /**
              * Composition
              * @default []
@@ -5281,6 +5528,7 @@ export interface components {
              * @default []
              */
             requests: components["schemas"]["DataRequest"][];
+            requirements: components["schemas"]["Requirements"] | null;
             /** Rules */
             rules: string;
             /**
@@ -7538,6 +7786,13 @@ export interface components {
             /** Ph */
             ph: number | null;
             /**
+             * Ph By Convention
+             * @default false
+             */
+            ph_by_convention: boolean;
+            /** Ph Convention */
+            ph_convention: number | null;
+            /**
              * Plateau
              * @default false
              */
@@ -7559,6 +7814,13 @@ export interface components {
              * @default []
              */
             sd: (number | null)[];
+            /**
+             * Sink Basis
+             * @default
+             */
+            sink_basis: string;
+            /** Sink Index */
+            sink_index: number | null;
             /**
              * Sources
              * @default []
@@ -7678,6 +7940,17 @@ export interface components {
             not_read: string[];
             /** Reading */
             reading: string[];
+        };
+        /** DoseNumber */
+        DoseNumber: {
+            /** Dose Number */
+            dose_number: number;
+            /** Medium */
+            medium: string;
+            /** Ph */
+            ph: number | null;
+            /** Solubility Mg Ml */
+            solubility_mg_ml: number;
         };
         /**
          * DosePhase
@@ -8250,6 +8523,13 @@ export interface components {
             errors: components["schemas"]["ErrorItem"][];
             meta: components["schemas"]["Meta"];
         };
+        /** Envelope[RoomFilled] */
+        Envelope_RoomFilled_: {
+            data: components["schemas"]["RoomFilled"];
+            /** Errors */
+            errors: components["schemas"]["ErrorItem"][];
+            meta: components["schemas"]["Meta"];
+        };
         /** Envelope[RoomPublication] */
         Envelope_RoomPublication_: {
             data: components["schemas"]["RoomPublication"];
@@ -8260,6 +8540,13 @@ export interface components {
         /** Envelope[RoomPublished] */
         Envelope_RoomPublished_: {
             data: components["schemas"]["RoomPublished"];
+            /** Errors */
+            errors: components["schemas"]["ErrorItem"][];
+            meta: components["schemas"]["Meta"];
+        };
+        /** Envelope[RoomRunEstimate] */
+        Envelope_RoomRunEstimate_: {
+            data: components["schemas"]["RoomRunEstimate"];
             /** Errors */
             errors: components["schemas"]["ErrorItem"][];
             meta: components["schemas"]["Meta"];
@@ -9617,6 +9904,11 @@ export interface components {
              */
             note: string;
             /**
+             * Origin
+             * @default
+             */
+            origin: string;
+            /**
              * Owner
              * @default
              */
@@ -10101,9 +10393,46 @@ export interface components {
             name: string;
         };
         /**
+         * LimitingStep
+         * @description Which step may limit absorption (plan 2026-11-24 §8 feature 8): a product's dose against each measured solubility
+         *     (the dose number, Amidon 1995) and what it says in words. `product` empty: the drug's one dose.
+         */
+        LimitingStep: {
+            /**
+             * Dose As Written
+             * @default
+             */
+            dose_as_written: string;
+            /** Dose Mg */
+            dose_mg: number;
+            /**
+             * Dose Numbers
+             * @default []
+             */
+            dose_numbers: components["schemas"]["DoseNumber"][];
+            /**
+             * Product
+             * @default
+             */
+            product: string;
+            /**
+             * Sources
+             * @default []
+             */
+            sources: components["schemas"]["Chip"][];
+            /**
+             * Statements
+             * @default []
+             */
+            statements: string[];
+            /** Volume Ml */
+            volume_ml: number;
+        };
+        /**
          * LimitsPage
          * @description The monthly limits (console, E): each with this month's use; those at 80 % or past; the changes; what a limit can
-         *     be set on. A limit warns the administrator and never stops an agent; the companies' people never see it.
+         *     be set on. A limit warns the administrator and never stops an agent; the companies' people never see it. `paid`:
+         *     the hard cap on paid models, which does stop them (it pauses the run).
          */
         LimitsPage: {
             /** History */
@@ -10112,6 +10441,7 @@ export interface components {
             limits: components["schemas"]["LimitRow"][];
             /** Month */
             month: string;
+            paid: components["schemas"]["PaidCaps"];
             /** Priced As */
             priced_as: string;
             /** Targets */
@@ -11058,6 +11388,72 @@ export interface components {
             /** Studies */
             studies: components["schemas"]["StudyView"][];
         };
+        /**
+         * NcaReproduction
+         * @description The client's NCA reproduced, its method found (plan 2026-11-24 §8 feature 3): the settings that reproduce most of
+         *     the client's values, which of them those values tell apart, and how many values fall in each tier.
+         */
+        NcaReproduction: {
+            /**
+             * Compared
+             * @default 0
+             */
+            compared: number;
+            /**
+             * Differ
+             * @default 0
+             */
+            differ: number;
+            /**
+             * Explained
+             * @default 0
+             */
+            explained: number;
+            /**
+             * Investigate
+             * @default 0
+             */
+            investigate: number;
+            /** Not Told */
+            not_told: {
+                [key: string]: string;
+            };
+            /**
+             * Passed
+             * @default 0
+             */
+            passed: number;
+            settings: components["schemas"]["NcaSettings"];
+            /**
+             * Summary
+             * @default
+             */
+            summary: string;
+            /**
+             * Tiers
+             * @default
+             */
+            tiers: string;
+            /**
+             * Told Apart
+             * @default []
+             */
+            told_apart: string[];
+        };
+        /**
+         * NcaSettings
+         * @description One combination of the NCA settings a client may have used (dataroom_rules nca.reproduce), in words.
+         */
+        NcaSettings: {
+            /** Blq */
+            blq: string;
+            /** Integration */
+            integration: string;
+            /** Lambda Z */
+            lambda_z: string;
+            /** Time Basis */
+            time_basis: string;
+        };
         /** ObservedDataset */
         ObservedDataset: {
             /**
@@ -11331,6 +11727,58 @@ export interface components {
             /** Warnings */
             warnings: components["schemas"]["LimitRow"][];
         };
+        /** PaidCapChange */
+        PaidCapChange: {
+            /** At */
+            at: string;
+            /** By */
+            by: string;
+            /** Month Usd */
+            month_usd: number;
+            /** Reason */
+            reason: string;
+            /** Run Usd */
+            run_usd: number;
+        };
+        /**
+         * PaidCapSet
+         * @description The hard cap on paid models (`platform_settings.PAID_PROVIDERS`), platform-wide: a run's and a calendar month's
+         *     spend in USD. Reaching one pauses the Data room's run; free and in-house models keep the warn-only limits.
+         */
+        PaidCapSet: {
+            /** Month Usd */
+            month_usd: number;
+            /** Reason */
+            reason: string;
+            /** Run Usd */
+            run_usd: number;
+        };
+        /**
+         * PaidCaps
+         * @description The hard cap on paid models only (the owner's decision D3, 2026-11-24; `providers`), platform-wide: a run's and a
+         *     calendar month's spend in USD, at list prices. Reaching one pauses the Data room's run until the cap is raised or
+         *     the agent switched to a free model. `set_by` null: the defaults ($10 a run, $90 a month).
+         */
+        PaidCaps: {
+            /** History */
+            history: components["schemas"]["PaidCapChange"][];
+            /** Month Spent Usd */
+            month_spent_usd: number;
+            /** Month Usd */
+            month_usd: number;
+            /** Paused Runs */
+            paused_runs: number;
+            /** Providers */
+            providers: string[];
+            /** Reason */
+            reason: string;
+            /** Run Usd */
+            run_usd: number;
+            /** Set At */
+            set_at: string | null;
+            /** Set By */
+            set_by: string | null;
+        };
         /**
          * ParamNode
          * @description A CPF parameter on D1 / D2, with its fit choice and the stages that may fit it; D2 nodes carry no source.
@@ -11525,6 +11973,7 @@ export interface components {
             problems: string[];
             /** Status */
             status: string;
+            suggested: components["schemas"]["ApplicationSuggestion"] | null;
             /** Template */
             template: string;
             /** Version */
@@ -11849,6 +12298,13 @@ export interface components {
             /** Stages */
             stages?: string[] | null;
         };
+        /** PresetSet */
+        PresetSet: {
+            /** Preset */
+            preset: string;
+            /** Reason */
+            reason: string;
+        };
         /** Problem */
         Problem: {
             /** Code */
@@ -12029,6 +12485,35 @@ export interface components {
         Projects: {
             /** Projects */
             projects: components["schemas"]["ProjectListItem"][];
+        };
+        /**
+         * PropertyRead
+         * @description A compound, product or question property a trigger names (core.yaml's vocabulary), as code read it from the room.
+         */
+        PropertyRead: {
+            /**
+             * Basis
+             * @default
+             */
+            basis: string;
+            /** How */
+            how: string;
+            /**
+             * Known
+             * @default false
+             */
+            known: boolean;
+            /** Label */
+            label: string;
+            /** Name */
+            name: string;
+            /**
+             * Sources
+             * @default []
+             */
+            sources: components["schemas"]["Chip"][];
+            /** Value */
+            value: string;
         };
         /**
          * Proposal
@@ -12322,6 +12807,21 @@ export interface components {
             template: boolean;
         };
         /**
+         * ReadPhrase
+         * @description An application read from the question card, with the words that matched, as written ("'food effect' (question)").
+         */
+        ReadPhrase: {
+            /** Application */
+            application: string;
+            /** Label */
+            label: string;
+            /**
+             * Words
+             * @default []
+             */
+            words: string[];
+        };
+        /**
          * ReadingItem
          * @description One file in the project's reading queue (plan 2026-11-10, R3: the reading tray).
          */
@@ -12573,6 +13073,146 @@ export interface components {
             to_harvest: number;
             /** Undetermined */
             undetermined: number;
+        };
+        /**
+         * RequirementItem
+         * @description One item of the checklist for this question, with its coverage (the ledger of plan §6.4): found where, missing
+         *     with the files searched, not needed and why, or kept as context.
+         */
+        RequirementItem: {
+            /**
+             * Alternatives
+             * @default []
+             */
+            alternatives: string[];
+            /**
+             * Applies
+             * @default
+             * @enum {string}
+             */
+            applies: "yes" | "no" | "unknown" | "";
+            /**
+             * By
+             * @default []
+             */
+            by: string[];
+            /**
+             * Chips
+             * @default []
+             */
+            chips: components["schemas"]["Chip"][];
+            /**
+             * Coverage
+             * @enum {string}
+             */
+            coverage: "found" | "found_in_part" | "missing" | "to_ask" | "absent" | "person_checks" | "not_from_delivery" | "not_needed" | "context";
+            /** Coverage Text */
+            coverage_text: string;
+            /**
+             * Escalates
+             * @default
+             */
+            escalates: string;
+            /**
+             * Found
+             * @default []
+             */
+            found: string[];
+            /** Group */
+            group: string;
+            /** Id */
+            id: string;
+            /** Kind */
+            kind: string;
+            /** Label */
+            label: string;
+            /**
+             * Level
+             * @enum {string}
+             */
+            level: "required" | "usually_needed" | "conditional" | "to_ask" | "optional" | "not_needed" | "context";
+            /**
+             * Note
+             * @default
+             */
+            note: string;
+            /**
+             * Others
+             * @default []
+             */
+            others: string[];
+            /**
+             * Record With
+             * @default []
+             */
+            record_with: string[];
+            /**
+             * Request
+             * @default
+             */
+            request: string;
+            /**
+             * Room Gap
+             * @default false
+             */
+            room_gap: boolean;
+            /**
+             * Searched
+             * @default []
+             */
+            searched: string[];
+            /**
+             * Sources
+             * @default []
+             */
+            sources: string[];
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "REQUIRED" | "USUALLY_NEEDED" | "CONDITIONAL" | "OPTIONAL" | "NOT_NEEDED";
+            /**
+             * Trigger
+             * @default
+             */
+            trigger: string;
+            /**
+             * Trigger State
+             * @default
+             */
+            trigger_state: string;
+            /** Why */
+            why: string;
+        };
+        /**
+         * Requirements
+         * @description The checklist for this question from the requirement drafts per context of use: a draft, UNVERIFIED, awaiting the
+         *     owner's and the SME's review. No data plan, gate or live template reads it.
+         */
+        Requirements: {
+            /** Applications */
+            applications: string[];
+            /** Chosen */
+            chosen: boolean;
+            /**
+             * Items
+             * @default []
+             */
+            items: components["schemas"]["RequirementItem"][];
+            /** Label */
+            label: string;
+            /**
+             * Properties
+             * @default []
+             */
+            properties: components["schemas"]["PropertyRead"][];
+            /**
+             * Read
+             * @default []
+             */
+            read: components["schemas"]["ReadPhrase"][];
+            /** Version */
+            version: string;
         };
         /** RequirementsPage */
         RequirementsPage: {
@@ -13095,9 +13735,23 @@ export interface components {
             value: number | string;
         };
         /**
+         * RoomFilled
+         * @description `brief:from-dataroom`: the brief fields drafted from the Data room (DRAFTED, each to confirm on Start), the fields
+         *     kept because a person or a document set another value, and Start's advice where they differ.
+         */
+        RoomFilled: {
+            /** Advice */
+            advice: string[];
+            /** Drafted */
+            drafted: string[];
+            /** Kept */
+            kept: string[];
+        };
+        /**
          * RoomPublication
          * @description What "Send to the model" would send now (`modeler_project.dataroom.publish.plan_publication`, nothing written),
-         *     and what keeps it from being sent, in words.
+         *     what keeps it from being sent, and what is sent otherwise than the files might suggest (a fasted arm's meals left
+         *     out, water not stated, a release a Weibull curve does not describe), in words.
          */
         RoomPublication: {
             /** Blocked */
@@ -13106,6 +13760,8 @@ export interface components {
             datasets: components["schemas"]["PublicationItem"][];
             /** Evidence */
             evidence: components["schemas"]["PublicationItem"][];
+            /** Notes */
+            notes: string[];
         };
         /** RoomPublish */
         RoomPublish: {
@@ -13117,19 +13773,28 @@ export interface components {
         };
         /**
          * RoomPublished
-         * @description What was sent, signed: items written, items already in the project (skipped), and the signature.
+         * @description What was sent, signed: items written, items already in the project (skipped), the Data room's earlier items it
+         *     replaced (superseded), the publication whose record keeps what the send rested on, and the signature.
          */
         RoomPublished: {
+            /** Basis Sha256 */
+            basis_sha256: string;
             /** Datasets */
             datasets: number;
             /** Evidence */
             evidence: number;
             /** Manifestation */
             manifestation: string;
+            /** Notes */
+            notes: string[];
+            /** Publication */
+            publication: string;
             /** Signature Id */
             signature_id: string;
             /** Skipped */
             skipped: number;
+            /** Superseded */
+            superseded: number;
         };
         /** RoomQuestionBody */
         RoomQuestionBody: {
@@ -13154,7 +13819,8 @@ export interface components {
         };
         /**
          * RoomRun
-         * @description The Data room's background run (`modeler_agents.dataroom.run_room`): each stage with its live counts and note.
+         * @description The Data room's background run (`modeler_agents.dataroom.run_room`): each stage with its live counts and note,
+         *     and, for a paused run, why and where it paused (`pause`).
          */
         RoomRun: {
             /** Agents */
@@ -13165,6 +13831,7 @@ export interface components {
             error: string;
             /** Finished At */
             finished_at: string | null;
+            pause: components["schemas"]["RoomRunPause"] | null;
             /** Stages */
             stages: components["schemas"]["RoomRunStage"][];
             /** Started At */
@@ -13173,7 +13840,94 @@ export interface components {
              * State
              * @enum {string}
              */
-            state: "idle" | "running" | "done" | "failed";
+            state: "idle" | "running" | "done" | "failed" | "paused";
+        };
+        /**
+         * RoomRunEstimate
+         * @description What the next run is expected to cost on paid models (`modeler_agents.dataroom.cost`; plan 2026-11-24 §2.4), from
+         *     the files still to read and their sizes: tokens ≈ characters / 4, per file 8.5 to 10 calls and 9,000 to 13,000
+         *     output tokens (measured, §2.2), each agent's measured share at its model's list price. `paid` false: no agent starts on a
+         *     paid model, and the run costs nothing in dollars. The caps a paid run stops at, and this month's paid spend.
+         */
+        RoomRunEstimate: {
+            /** Agents */
+            agents: components["schemas"]["RoomRunEstimateAgent"][];
+            /** Basis */
+            basis: string;
+            /** Calls High */
+            calls_high: number;
+            /** Calls Low */
+            calls_low: number;
+            /** Characters */
+            characters: number;
+            /** Files */
+            files: number;
+            /** Input Tokens High */
+            input_tokens_high: number;
+            /** Input Tokens Low */
+            input_tokens_low: number;
+            /** Month Cap Usd */
+            month_cap_usd: number;
+            /** Month Spent Usd */
+            month_spent_usd: number;
+            /** Output Tokens High */
+            output_tokens_high: number;
+            /** Output Tokens Low */
+            output_tokens_low: number;
+            /** Paid */
+            paid: boolean;
+            /** Run Cap Usd */
+            run_cap_usd: number;
+            /** Usd */
+            usd: number;
+            /** Usd High */
+            usd_high: number;
+            /** Usd Low */
+            usd_low: number;
+        };
+        /** RoomRunEstimateAgent */
+        RoomRunEstimateAgent: {
+            /** Agent */
+            agent: string;
+            /** Model */
+            model: string;
+            /** Paid */
+            paid: boolean;
+            /** Provider */
+            provider: string;
+        };
+        /**
+         * RoomRunPause
+         * @description Why and where a run paused (plan 2026-11-24 §4), and when it resumes by itself. `provider_unavailable`: no model of
+         *     an agent's chain could answer (it resumes after 10, then 20, then 40 minutes; then `resume_at` is null and a person
+         *     resumes it); `budget_cap`: a paid model's cap is reached (it resumes when the cap is raised or the agent switched
+         *     to a free model); `no_model`: the agent's chosen model cannot be used (it resumes when it is set up). An
+         *     administrator's change of a model, a key or the cap resumes it at once; nothing finished is read again.
+         */
+        RoomRunPause: {
+            /** At */
+            at: string;
+            /** Detail */
+            detail: string;
+            /** Done */
+            done: number;
+            /** Per File */
+            per_file: boolean;
+            /**
+             * Reason
+             * @enum {string}
+             */
+            reason: "provider_unavailable" | "budget_cap" | "no_model";
+            /** Resume At */
+            resume_at: string | null;
+            /** Said */
+            said: string;
+            /** Stage */
+            stage: string;
+            /** Total */
+            total: number;
+            /** Where */
+            where: string;
         };
         /** RoomRunStage */
         RoomRunStage: {
@@ -13191,7 +13945,7 @@ export interface components {
              * State
              * @enum {string}
              */
-            state: "waiting" | "running" | "done" | "skipped" | "failed";
+            state: "waiting" | "running" | "done" | "skipped" | "failed" | "paused";
             /** Total */
             total: number;
         };
@@ -13224,6 +13978,11 @@ export interface components {
              */
             arms: components["schemas"]["Arm"][];
             /**
+             * Client Means
+             * @default []
+             */
+            client_means: components["schemas"]["ClientMean"][];
+            /**
              * Concentration Unit
              * @default
              */
@@ -13254,6 +14013,7 @@ export interface components {
              * @default
              */
             nca_method_client: string;
+            nca_reproduction: components["schemas"]["NcaReproduction"] | null;
             /**
              * Periods
              * @default []
@@ -13274,6 +14034,11 @@ export interface components {
              * @default []
              */
             sets: components["schemas"]["SubjectSet"][];
+            /**
+             * Sources
+             * @default []
+             */
+            sources: components["schemas"]["Chip"][];
             /** Study Id */
             study_id: string;
             /**
@@ -13933,6 +14698,8 @@ export interface components {
              * @default
              */
             as_written: string;
+            /** Dose Number */
+            dose_number: number | null;
             /** Fraction In Glass */
             fraction_in_glass: number | null;
             /** Fraction In Medium */
@@ -13941,6 +14708,13 @@ export interface components {
             medium: string;
             /** Ph */
             ph: number | null;
+            /**
+             * Ph By Convention
+             * @default false
+             */
+            ph_by_convention: boolean;
+            /** Ph Convention */
+            ph_convention: number | null;
             /** Solubility Mg Ml */
             solubility_mg_ml: number | null;
             /**
@@ -14131,6 +14905,7 @@ export interface components {
             /** Problems */
             problems: string[];
             risk: components["schemas"]["RiskView"];
+            room: components["schemas"]["StartRoomView"] | null;
         };
         /**
          * StartIssueView
@@ -14141,6 +14916,24 @@ export interface components {
             message: string;
             /** Path */
             path: string;
+        };
+        /**
+         * StartRoomView
+         * @description The project's Data room as Start sees it (plan 2026-11-24 §7, phase 4): whether a person confirmed its question
+         *     card ("Fill from the Data room" is offered then), the card's question and applications, and where Start's own word
+         *     differs from it (advice, never a block: `steps.room_advice`).
+         */
+        StartRoomView: {
+            /** Advice */
+            advice: components["schemas"]["StartIssueView"][];
+            /** Applications */
+            applications: string[];
+            /** Applications Chosen */
+            applications_chosen: boolean;
+            /** Confirmed Card */
+            confirmed_card: boolean;
+            /** Question */
+            question: string;
         };
         /**
          * Statistic
@@ -14186,6 +14979,11 @@ export interface components {
              * @default []
              */
             applications: components["schemas"]["MapApplication"][];
+            /**
+             * Applications From Room
+             * @default false
+             */
+            applications_from_room: boolean;
             /**
              * Assumptions
              * @default []
@@ -14240,6 +15038,20 @@ export interface components {
                 [key: string]: string;
             };
             risk_assessment: components["schemas"]["MapRiskAssessment"] | null;
+            /**
+             * Room Applications
+             * @default []
+             */
+            room_applications: string[];
+            /**
+             * Room Limitations
+             * @default []
+             */
+            room_limitations: string[];
+            /** Room Roles */
+            room_roles: {
+                [key: string]: string;
+            };
         };
         /** StructureRequest */
         StructureRequest: {
@@ -14712,10 +15524,19 @@ export interface components {
             lambda_z: number | null;
             /** Period */
             period: string;
+            /**
+             * Settings Note
+             * @default
+             */
+            settings_note: string;
             /** Subject */
             subject: string;
             /** T Half */
             t_half: number | null;
+            /** Tiers */
+            tiers: {
+                [key: string]: string;
+            };
             /** Tmax */
             tmax: number | null;
             /** Tmax Actual */
@@ -14801,6 +15622,42 @@ export interface components {
             species?: string;
             /** Weight Kg */
             weight_kg?: number | null;
+        };
+        /** SuggestedBe */
+        SuggestedBe: {
+            /** Metrics */
+            metrics: {
+                [key: string]: components["schemas"]["SuggestedBeMetric"];
+            };
+            /** Source */
+            source: string;
+            /** Stated */
+            stated: string[];
+        };
+        /** SuggestedBeMetric */
+        SuggestedBeMetric: {
+            /** Between Subject Cv Percent */
+            between_subject_cv_percent: number | null;
+            /** Ci High */
+            ci_high: number | null;
+            /** Ci Low */
+            ci_low: number | null;
+            /** Gmr */
+            gmr: number | null;
+            /** N */
+            n: number;
+        };
+        /**
+         * SuggestedFormulation
+         * @description A product of the Data room's question card for a VBE arm, as the CPF formulation the send names it.
+         */
+        SuggestedFormulation: {
+            /** Available */
+            available: boolean;
+            /** Source */
+            source: string;
+            /** Value */
+            value: string;
         };
         /**
          * SystemAnalyte
@@ -15541,6 +16398,41 @@ export interface operations {
             };
         };
     };
+    set_preset_api_v1_admin_agents_preset_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PresetSet"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_AgentsPage_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     add_company_api_v1_admin_companies_post: {
         parameters: {
             query?: never;
@@ -15979,6 +16871,43 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["LimitSet"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_LimitsPage_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_paid_cap_api_v1_admin_limits_paid_put: {
+        parameters: {
+            query?: {
+                priced_as?: "claude-opus-5-5" | "claude-sonnet-5-5" | "claude-haiku-5-5";
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PaidCapSet"];
             };
         };
         responses: {
@@ -17347,6 +18276,39 @@ export interface operations {
             };
         };
     };
+    fill_brief_from_dataroom_api_v1_projects__project_id__brief_from_dataroom_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_RoomFilled_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     start_campaign_api_v1_projects__project_id__campaigns_post: {
         parameters: {
             query?: never;
@@ -18402,6 +19364,72 @@ export interface operations {
                 "application/json": components["schemas"]["RoomRunStart"] | null;
             };
         };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_RoomRun_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    estimate_dataroom_run_api_v1_projects__project_id__dataroom_run_estimate_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_RoomRunEstimate_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resume_dataroom_run_api_v1_projects__project_id__dataroom_run_resume_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             202: {

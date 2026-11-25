@@ -150,7 +150,61 @@ class SubjectNca(_B):
     t_half: float | None = None
     lambda_z: float | None = None
     client: dict[str, float] = Field(default_factory=dict)       # the client's values for this profile, by role
-    differences: dict[str, float] = Field(default_factory=dict)  # percent (tmax: hours), ours − the client's
+    # percent (tmax: hours), ours − the client's, under the NCA settings that reproduce the client (`NcaReproduction`)
+    differences: dict[str, float] = Field(default_factory=dict)
+    # each compared value's tier (dataroom_rules nca.reproduce, UNVERIFIED): pass (our own settings reproduce it),
+    # explained (the settings found do), investigate (a setting differs), differ (no setting tried explains it: ask)
+    tiers: dict[str, str] = Field(default_factory=dict)
+    settings_note: str = ""           # a setting of this profile alone (its own λz window), when one reproduces it
+
+
+class NcaSettings(_B):
+    """One combination of the NCA settings a client may have used (dataroom_rules nca.reproduce), in words."""
+
+    integration: str                 # linear-up/log-down, linear trapezoidal
+    time_basis: str                  # nominal, actual
+    blq: str                         # the below-the-LLOQ rule
+    lambda_z: str                    # the best adjusted R², the last n points
+
+
+class NcaReproduction(_B):
+    """The client's NCA reproduced, its method found (plan 2026-11-24 §8 feature 3): the settings that reproduce most of
+    the client's values, which of them those values tell apart, and how many values fall in each tier."""
+
+    settings: NcaSettings
+    told_apart: tuple[str, ...] = ()       # integration, time_basis, blq, lambda_z: the client's values decide these
+    not_told: dict[str, str] = Field(default_factory=dict)   # a setting they do not decide -> why
+    compared: int = 0                      # the client's values compared (Cmax, Tmax, AUCs, t½, λz)
+    passed: int = 0                        # reproduced with our own settings
+    explained: int = 0                     # reproduced only with the settings found
+    investigate: int = 0                   # within the investigate tier: a setting differs
+    differ: int = 0                        # beyond it under every setting tried: the data differ, ask
+    tiers: str = ""                        # the tiers in words, with the rules' version
+    summary: str = ""
+
+
+class ClientMeanPoint(_B):
+    time_h: float
+    value: float | None = None
+    spread: float | None = None            # as the table states it (SD, CV %, SEM, geometric SD …)
+    n: int | None = None
+    sd: float | None = None                # the SD: as stated, or SEM × √n where the table states n
+
+
+class ClientMean(_B):
+    """A mean profile as the client's own table states it (plan 2026-11-24 §8 feature 5): which statistic and which
+    spread, read from the table's own words, never assumed; SEM is turned into SD only where n is stated."""
+
+    group: str = ""                         # the treatment, period or day as written
+    statistic: Literal["arithmetic_mean", "geometric_mean", "median", ""] = ""
+    statistic_as_written: str = ""
+    spread: Literal["sd", "cv_percent", "sem", "geometric_sd", "geometric_cv_percent", "range", ""] = ""
+    spread_as_written: str = ""
+    n: int | None = None                    # one n for every time, when the table states it so
+    points: tuple[ClientMeanPoint, ...] = ()
+    unit: str = ""
+    note: str = ""
+    sources: tuple[Chip, ...] = ()
 
 
 class SubjectSet(_B):
@@ -188,9 +242,14 @@ class RoomStudy(_B):
     nca: tuple[SubjectNca, ...] = ()
     exposures: tuple[Exposure, ...] = ()
     nca_method_client: str = ""      # the trapezoid rule the client's values follow, as found
+    nca_reproduction: NcaReproduction | None = None
+    client_means: tuple[ClientMean, ...] = ()
     concentration_unit: str = ""
     lloq: float | None = None
     problems: tuple[Problem, ...] = ()
+    # the concentration tables the profiles are read from, one chip per table (its file, part and first data line): the
+    # source "Send to the model" gives each arm's dataset (ICH M15), and the place a Delivery confirmation is matched by
+    sources: tuple[Chip, ...] = ()
 
 
 # --- in vitro ---------------------------------------------------------------------------------------------------------
@@ -202,6 +261,8 @@ class DissolutionView(_B):
     batch: str = ""
     medium: str = ""
     ph: float | None = None
+    ph_convention: float | None = None   # the medium is named without a pH: its pH by convention (D4), not yet used
+    ph_by_convention: bool = False       # `ph` is that conventional pH, confirmed for the project (not stated)
     apparatus: str = ""
     rpm: float | None = None
     volume_ml: float | None = None
@@ -214,6 +275,8 @@ class DissolutionView(_B):
     weibull_curve: tuple[tuple[float, float], ...] = ()   # the fitted curve: (min, % dissolved), drawn beside the means
     very_rapid: bool = False         # ≥ 85 % within 15 min
     plateau: bool = False
+    sink_index: float | None = None  # Cs × V / dose: the medium's capacity for the dose (plan 2026-11-24 §8 feature 8)
+    sink_basis: str = ""             # the solubility, volume and dose it is from
     sources: tuple[Chip, ...] = ()
     problems: tuple[Problem, ...] = ()
 
@@ -232,17 +295,46 @@ class CompositionRow(_B):
     function: str = ""
     amounts: dict[str, str] = Field(default_factory=dict)   # product -> amount as written (mg/unit or %)
     changed: bool = False
+    # its functional class (dataroom_rules excipient_classes, UNVERIFIED; plan 2026-11-24 §8 feature 9): the class id
+    # ("other" when none), its label, and whether its name or the function written beside it named it
+    excipient_class: str = ""
+    class_label: str = ""
+    class_by: str = ""
+    mg: dict[str, float] = Field(default_factory=dict)       # product -> mg per unit, where the files state mg
     sources: tuple[Chip, ...] = ()
 
 
 class SolubilityRow(_B):
     medium: str
     ph: float | None = None
+    ph_convention: float | None = None   # as on a dissolution profile (D4)
+    ph_by_convention: bool = False
     solubility_mg_ml: float | None = None
     as_written: str = ""
     volume_for_dose_ml: float | None = None
     fraction_in_glass: float | None = None
     fraction_in_medium: float | None = None
+    dose_number: float | None = None     # Do = dose / (250 mL × Cs) (Amidon 1995), for the room's dose
+    sources: tuple[Chip, ...] = ()
+
+
+class DoseNumber(_B):
+    medium: str
+    ph: float | None = None
+    solubility_mg_ml: float
+    dose_number: float
+
+
+class LimitingStep(_B):
+    """Which step may limit absorption (plan 2026-11-24 §8 feature 8): a product's dose against each measured solubility
+    (the dose number, Amidon 1995) and what it says in words. `product` empty: the drug's one dose."""
+
+    product: str = ""
+    dose_mg: float
+    dose_as_written: str = ""
+    volume_ml: float
+    dose_numbers: tuple[DoseNumber, ...] = ()
+    statements: tuple[str, ...] = ()
     sources: tuple[Chip, ...] = ()
 
 
@@ -303,6 +395,7 @@ class InputRow(_B):
     sources: tuple[Chip, ...] = ()
     decision: str = ""               # the decision it follows, when it depends on one
     note: str = ""
+    origin: str = ""                 # "fitted": the files state the value was fitted to clinical PK (never "measured")
 
 
 class FileView(_B):
@@ -318,6 +411,77 @@ class FileView(_B):
     duplicate_of: str | None = None
     same_content_as: str | None = None
     triage: FileTriage | None = None
+
+
+# --- what the question needs (plan 2026-11-24 §6: the requirement drafts per context of use, UNVERIFIED) ---------------
+
+Coverage = Literal["found", "found_in_part", "missing", "to_ask", "absent", "person_checks", "not_from_delivery",
+                   "not_needed", "context"]
+
+
+class ReadPhrase(_B):
+    """An application read from the question card, with the words that matched, as written ("'food effect' (question)")."""
+
+    application: str                 # the application's id: a draft file, with its sub-context after a dot
+    label: str
+    words: tuple[str, ...] = ()
+
+
+class PropertyRead(_B):
+    """A compound, product or question property a trigger names (core.yaml's vocabulary), as code read it from the room."""
+
+    name: str
+    label: str
+    how: str                         # code, brief or ask (core.yaml)
+    value: str                       # in words; "not known" when code could not determine it
+    known: bool = False
+    basis: str = ""                  # what it was read from, or why it is not known
+    sources: tuple[Chip, ...] = ()
+
+
+class RequirementItem(_B):
+    """One item of the checklist for this question, with its coverage (the ledger of plan §6.4): found where, missing
+    with the files searched, not needed and why, or kept as context."""
+
+    id: str                          # the draft item's id
+    label: str
+    group: str
+    kind: str
+    status: Literal["REQUIRED", "USUALLY_NEEDED", "CONDITIONAL", "OPTIONAL", "NOT_NEEDED"]   # as the draft gives it
+    # where it stands for this question: the draft's status, a CONDITIONAL item by its trigger (applies: conditional;
+    # not known: to_ask; not met: not_needed), or context (context_only.yaml)
+    level: Literal["required", "usually_needed", "conditional", "to_ask", "optional", "not_needed", "context"]
+    applies: Literal["yes", "no", "unknown", ""] = ""
+    trigger: str = ""                # a CONDITIONAL item's condition, in words
+    trigger_state: str = ""          # each condition as code found it
+    escalates: str = ""              # a USUALLY_NEEDED item: when it becomes required
+    why: str
+    alternatives: tuple[str, ...] = ()
+    record_with: tuple[str, ...] = ()
+    sources: tuple[str, ...] = ()    # the literature the draft cites
+    by: tuple[str, ...] = ()         # the applications that set its status here
+    others: tuple[str, ...] = ()     # another application's status for the same input, when lower
+    coverage: Coverage
+    coverage_text: str
+    found: tuple[str, ...] = ()      # what in the room satisfies it, in words
+    chips: tuple[Chip, ...] = ()
+    searched: tuple[str, ...] = ()   # missing: the files searched
+    room_gap: bool = False           # the room's vocabulary has no place (or only part of one) for it
+    request: str = ""                # the data request that asks for it
+    note: str = ""                   # the draft's note (UNVERIFIED: …)
+
+
+class Requirements(_B):
+    """The checklist for this question from the requirement drafts per context of use: a draft, UNVERIFIED, awaiting the
+    owner's and the SME's review. No data plan, gate or live template reads it."""
+
+    label: str                       # "draft, UNVERIFIED (awaiting the owner's and the SME's review)"
+    version: str
+    applications: tuple[str, ...]    # the applications in force (labels); none: the core items only
+    chosen: bool                     # a person chose them; False: as read from the question card
+    read: tuple[ReadPhrase, ...] = ()
+    properties: tuple[PropertyRead, ...] = ()
+    items: tuple[RequirementItem, ...] = ()
 
 
 class Section(_B):
@@ -356,6 +520,7 @@ class DataRoomView(_B):
     products: tuple[Value, ...] = ()
     composition: tuple[CompositionRow, ...] = ()
     solubility: tuple[SolubilityRow, ...] = ()
+    absorption: tuple[LimitingStep, ...] = ()
     dissolution: tuple[DissolutionView, ...] = ()
     f2: tuple[F2View, ...] = ()
     studies: tuple[RoomStudy, ...] = ()
@@ -364,6 +529,11 @@ class DataRoomView(_B):
     plan: tuple[PlanRow, ...] = ()
     inputs: tuple[InputRow, ...] = ()
     problems: tuple[Problem, ...] = ()
+    # the science checks across a section's items, by section id (formulation, dissolution): what no one profile or
+    # row holds (batches of a product tested by different methods; a functional excipient that differs)
+    checks: dict[str, tuple[Problem, ...]] = Field(default_factory=dict)
+    # what the question needs, from the requirement drafts (UNVERIFIED); None: no question card yet
+    requirements: Requirements | None = None
     made_by: tuple[MadeBy, ...] = ()
     made_summary: str = ""
 

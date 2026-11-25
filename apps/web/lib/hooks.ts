@@ -93,9 +93,10 @@ type ResourceOptions<D, T> = {
   query?: Record<string, string | undefined>;
   /** The page's view of the answer, e.g. `(d) => narrow<BriefView>(d)` where stored content is typed by the page. */
   select?: (data: D) => T;
-  /** Read again every `interval` ms while this holds (an agent or extraction still running). */
+  /** Read again every `interval` ms while this holds (an agent or extraction still running); `interval` may depend on the
+   *  answer (a paused run is read again slowly, a running one often). */
   poll?: (data: D) => boolean;
-  interval?: number;
+  interval?: number | ((data: D) => number);
   /** Read only when this holds (e.g. once a document is chosen). */
   enabled?: boolean;
   /** Keep showing the previous answer while the next one loads (paging through a document). */
@@ -119,7 +120,11 @@ export function useResource<R extends RouteFor<"get">, T = Data<R, "get">>(
     select,
     enabled,
     staleTime,
-    refetchInterval: poll ? (q) => (q.state.data !== undefined && poll(q.state.data) ? interval : false) : false,
+    refetchInterval: poll ? (q) => {
+      const data = q.state.data;
+      if (data === undefined || !poll(data)) return false;
+      return typeof interval === "function" ? interval(data) : interval;
+    } : false,
     placeholderData: keepPrevious ? keepPreviousData : undefined,
   });
   return { data: result.data ?? null, problem: result.error?.message ?? null };

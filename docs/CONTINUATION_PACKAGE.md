@@ -273,7 +273,11 @@ Code reads every value, checks it and computes from it. The modeler decides. No 
   - `assemble` gives statuses, decisions, data requests A–D, the simulation plan and the PK-Sim input sheet;
   - `publish` sends the confirmed inputs to evidence and datasets;
   - `store` keeps it all, audited;
-  - the rules are in `dataroom_rules.yaml` 0.1, UNVERIFIED.
+  - the science checks of plan 2026-11-24 §8 features 3–9 (2026-11-24): `reproduce` finds the client's NCA settings
+    and tiers each value, `flags` flags exclusions (never deletes), `observed` reads the client's mean tables with
+    their statistic; dose number, sink index, dissolution checks and excipient classes in `invitro`;
+  - the rules are in `dataroom_rules.yaml` 0.3, UNVERIFIED (0.2: media by convention; 0.3: the checks' thresholds,
+    the literature's proposals and three placeholders, for the SME).
 - **Agents (L4, `modeler_agents.dataroom`):** A6 question, A7 triage, A8 extract, A9 check, A10 write. Each answers
   through a submit tool that runs code's checks and sends refusals back to the model. Each agent's model is switched
   in the admin console with one click: Qwen Coder, Claude or gpt-oss-120b on GroqCloud.
@@ -359,19 +363,61 @@ streams; every Data room turn and switch is recorded; each answer names the mode
   - merged XLSX title cells read once;
   - A6 writes from a code-built digest: Quorafen took 3 turns, not 14, and 84 % fewer input tokens;
   - the campaigns list no longer fails on a campaign stored in an earlier shape (the server's HTTP 500).
-- **Next:** the owner's review of **`docs/plans/2026-11-24-data-story-next-phase.md`**. It asks eight decisions (§11):
-  - the Claude API key;
-  - a $5 calibration run;
-  - a hard cap for paid models;
-  - "0.1 N HCl" (gap 2);
-  - requirement drafts from the literature;
-  - the client-permission rule for Anthropic;
-  - two ruleset findings for the SME;
-  - the phase order.
-
-  The literature behind it is in `docs/research/2026-11-24-*.md`. Also still open:
+- **2026-11-24, the owner approved all eight decisions of `docs/plans/2026-11-24-data-story-next-phase.md` (§11) and
+  every phase; built the same day, each on `main` after the full suites:**
+  - **Phase 1:**
+    - a direct Claude API provider with the Console key, the key test free;
+    - one-click presets with an estimated cost per delivery;
+    - Anthropic gated by the client's recorded permission (D6);
+    - runs that pause, with the reason, instead of failing, and resume by themselves (10, 20, 40 min, or on an admin
+      change), skipping every finished file;
+    - a hard cap for paid models: $10 a run, $90 a month, pausing, every agent's paid call metered;
+    - a cost estimate before a paid run;
+    - the exact answer cache per tenant (a re-run makes 0 calls for A7–A9);
+    - a cache-friendly prompt order.
+  - **D4:** standard media by convention (`dataroom_rules.yaml` 0.2, UNVERIFIED), used only once confirmed for the
+    project.
+  - **D7:** `docs/research/2026-11-24-note-for-the-sme-acceptance-ruleset.md`.
+  - **Phase 2:**
+    - 147 requirement items drafted per context of use from the literature (UNVERIFIED, inert for the data plan, for the
+      owner's review: `docs/research/2026-11-24-cou-requirement-drafts-for-review.md`);
+    - the Data room's "Requirements for this question" with a coverage ledger and data requests with alternatives;
+    - the agents' prompts at `dataroom-6`.
+  - **Phase 3 (`dataroom_rules` 0.3, UNVERIFIED; four placeholder thresholds wait for the SME):**
+    - the client's NCA reproduced with its method found;
+    - exclusion flags;
+    - statistic-aware client means;
+    - the permeability guard;
+    - dissolution checks;
+    - dose number and sink index;
+    - excipient classes.
+  - **Phase 4:**
+    - "Send to the model" corrected: meals by arm and time; a re-send replaces; no double load; multiple-dose and
+      modified-release blocked; true source labels; demographics kept; a snapshot of what each send rested on, in its
+      signature;
+    - Start, the plan (food-effect rule R2), the MAP's limitations and the VBE panel read the room;
+    - Start's brief drafted from the room on confirm, applications and send.
+    - B10 done: `e2e/dataroom-to-map.spec.ts` walks a made-up delivery to a signed MAP, and a second send changes
+      nothing. The walk found and fixed two defects: the VBE TEST suggestion (the reformulated product first) and the Run
+      step's wording once the MAP is signed. It also found one locked-file wording for the SME (the split's fed-study
+      limitation on a fasted-only question; CHANGELOG).
+    - After a send, the brief, the plan, the MAP and the VBE panel read the send's signed snapshot of the room
+      (`room_basis` source "snapshot", basis format 2), not the live room.
+    - The calibration run is one server command (`deploy/server/calibrate_dataroom.sh`). Its free run here found A6
+      guessing a regulator no file names: code now clears it and the card asks the person.
+- **Next:**
+  - the calibration run on Claude (D2: about $5, a made-up delivery; its cost and accuracy go to the owner before
+    any other Claude spend). Ready: the owner runs `bash deploy/server/calibrate_dataroom.sh` on the server once the
+    key is active in Admin → Keys (USING_THE_TOOL §6b, step 6). A Claude key cannot be given to a cloud session (no
+    network secret for Anthropic's hosts). Free baseline on the same 60 values: Nemotron Ultra, 58 OK (run here 2026-11-24, $0, 25 min);
+  - the owner's review of the requirement drafts and of the SME note;
+  - the SME's values for the placeholder thresholds;
   - an owner decision on the Tmax tolerance at actual times (SME ruleset);
-  - the same test on a real delivery on the server's in-house model.
+  - the same test on a real delivery on the server's in-house model;
+  - after the owner has seen the calibration's cost and accuracy (D2): 3–4 demo deliveries, each run once on Claude
+    and stored, replayed at $0;
+  - later: each meal its own template (the room has no meal kind yet); multiple-dose studies mapped rather than
+    refused; A8 to put a withdrawn-subject count in `study.excluded_subjects`, not only in `study.disposition`.
 
 **Open, in order:**
 1. Score A6–A10 on the sample delivery per model. Nemotron Ultra, 2026-11-22: 31 of 34 values on the key files

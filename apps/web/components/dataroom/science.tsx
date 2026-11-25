@@ -3,16 +3,44 @@
 // The Data room's evidence sections (plan 2026-11-21 v2 §5, §8): drug substance and ADME as Property · Value · Source ·
 // Status, the composition side by side, solubility per pH, dissolution per medium with the fitted release, each
 // clinical study's design and subject flow, and the observed mean profiles with the exposure recomputed beside the
-// client's. Every number is the engine's; the page only lays it out.
+// client's. The science checks of plan 2026-11-24 §8 (features 3–9) are listed where they belong: the client's NCA
+// settings found, exclusion flags on the study, the client's own mean profiles with their statistic, dissolution
+// checks, which step may limit absorption, excipients by function. Every number is the engine's; the page only lays
+// it out.
 
 import { useMemo, useState } from "react";
 
+import type { Schema } from "@/lib/api";
 import {
   METRIC, STATISTIC, num, numbersIn, propertyOf, roleHex, roleOf, valueText,
-  type Dissolution as DissolutionView, type Room, type Study, type Value,
+  type Dissolution as DissolutionView, type Problem, type Room, type Study, type Value,
 } from "@/lib/dataroom";
 
 import { Card, Nothing, Plot, Row, Segmented, Sources, StatusTag, Table, rule, series, usePaper } from "./kit";
+
+/** A message of the engine as a sentence: a capital first, a full stop last. */
+const sentence = (text: string) => `${text[0]?.toUpperCase() ?? ""}${text.slice(1)}${/[.!?]$/.test(text) ? "" : "."}`;
+
+const SEVERITY: Record<Problem["severity"], [string, string]> = {
+  error: ["bad", "Error"], warning: ["warn", "Check"], info: ["info", "Note"],
+};
+
+/** The science checks of one section or study, each with its reason (plan 2026-11-24 §8): a flag, never a deletion. */
+function Checks({ problems, title, testId, aside }: { problems: readonly Problem[]; title: string; testId: string; aside?: string }) {
+  if (!problems.length) return null;
+  return (
+    <Card title={title} testId={testId} aside={aside ? <span className="muted dr-small">{aside}</span> : undefined}>
+      <ul className="dr-list">
+        {problems.map((p, i) => (
+          <li key={i} className="dr-flag" data-testid={`check-${p.code}`}>
+            <span className={`dr-tag ${SEVERITY[p.severity][0]} small`}>{SEVERITY[p.severity][1]}</span>
+            <span className="dr-flag-body"><span>{sentence(p.message)}</span>{p.where && <Sources chips={[p.where]} />}</span>
+          </li>
+        ))}
+      </ul>
+    </Card>
+  );
+}
 
 // --- values ------------------------------------------------------------------------------------------------------------
 
@@ -74,14 +102,20 @@ export function Formulation({ room }: { room: Room }) {
           <Table head={["Component", ...products]} label="The composition of each product">
             {room.composition.map((c) => (
               <Row key={c.component} highlight={c.changed} testId={`component-${c.component}`} cells={[
-                <span key="c" className="dr-file"><span className="dr-file-name">{c.component}{c.changed && <span className="dr-tag warn small">Changed</span>}</span>
+                <span key="c" className="dr-file"><span className="dr-file-name">{c.component}{c.changed && <span className="dr-tag warn small">Changed</span>}
+                  {c.excipient_class && c.excipient_class !== "other" && (
+                    <span className="dr-tag info small" data-testid="excipient-class"
+                          title={c.class_by === "function" ? "by the function the files write beside it" : "by its name"}>{c.class_label}</span>)}</span>
                   {c.function && <span className="dr-file-kind">{c.function}</span>}</span>,
-                ...products.map((p) => <span key={p} className="tnum">{c.amounts[p] ?? "—"}</span>),
+                ...products.map((p) => <span key={p} className="tnum">{c.amounts[p] ?? "—"}{c.mg[p] !== undefined && !/mg/i.test(c.amounts[p] ?? "")
+                  ? <span className="muted"> mg</span> : null}</span>),
               ]} details={<dl className="dr-facts"><div className="wide"><dt>Sources</dt><dd><Sources chips={c.sources} max={4} /></dd></div></dl>} />
             ))}
           </Table>
         </Card>
       ) : <Nothing>No composition table was read.</Nothing>}
+      <Checks problems={room.checks.formulation ?? []} title="Functional excipients that differ" testId="formulation-checks"
+              aside="Classes by name (rules UNVERIFIED) · no threshold is set: for the SME to judge" />
       {room.products.length > 0 && <Card title="Products and batches"><ValueTable values={room.products} label="Products and batches" /></Card>}
     </>
   );
@@ -107,22 +141,47 @@ export function Solubility({ room }: { room: Room }) {
               layout={{ showlegend: false, yaxis: { type: "log", title: { text: "Solubility (mg/mL)" } }, xaxis: { title: { text: "" } } }} />
       </Card>
       <Card title="What it means for the dose">
-        <Table head={["Medium", "Solubility", "Volume for the dose", "Dose dissolved in 250 mL"]} label="Solubility and the dose">
+        <Table head={["Medium", "Solubility", "Volume for the dose", "Dose dissolved in 250 mL", "Dose number"]} label="Solubility and the dose">
           {rows.map((r) => (
             <Row key={`${r.medium}-${r.ph}`} cells={[
-              <span key="m">{r.medium}{r.ph !== null && <span className="muted"> · pH {num(r.ph)}</span>}</span>,
+              <span key="m">{r.medium}{r.ph !== null && <span className="muted"> · pH {num(r.ph)}</span>}
+                {r.ph_by_convention && <span className="muted" data-testid="ph-by-convention"> (by convention, not stated)</span>}
+                {r.ph === null && r.ph_convention != null && (
+                  <span className="muted" data-testid="ph-convention-pending"> · pH {num(r.ph_convention)} by convention, not stated: confirm it under Decisions</span>
+                )}</span>,
               <span key="s" className="dr-value">{r.as_written} <Sources chips={r.sources} /></span>,
               <span key="v" className="tnum">{r.volume_for_dose_ml !== null ? `${num(r.volume_for_dose_ml, 3)} mL` : "—"}</span>,
               <span key="g" className="tnum">{r.fraction_in_glass !== null ? `${num(r.fraction_in_glass * 100, 3)} %` : "—"}</span>,
+              <span key="d" className={`tnum${r.dose_number !== null && r.dose_number > 1 ? " dr-bad" : ""}`} data-testid="dose-number">
+                {r.dose_number !== null ? num(r.dose_number, 3) : "—"}</span>,
             ]} />
           ))}
         </Table>
       </Card>
+      {room.absorption.length > 0 && (
+        <Card title="Which step may limit absorption" testId="absorption"
+              aside={<span className="muted dr-small">Dose number Do = dose / (250 mL × solubility) (Amidon 1995)</span>}>
+          <ul className="dr-list">
+            {room.absorption.map((a, i) => (
+              <li key={i} data-testid="absorption-statement">
+                <span><strong>{a.product || "The drug"}</strong>, {num(a.dose_mg)} mg: {a.statements.join("; ")}</span>
+                <Sources chips={a.sources} />
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
     </>
   );
 }
 
 // --- dissolution -------------------------------------------------------------------------------------------------------
+
+// a profile's own checks (plan 2026-11-24 §8 features 7-8), each a tag whose hover gives the reason
+const PROFILE_CHECK: Record<string, string> = {
+  FEWER_UNITS: "Too few units for f2", BELL_SHAPE: "Bell shape", DISINTEGRATION_LAG: "Likely disintegration lag",
+  NOT_SINK: "Not sink conditions",
+};
 
 function mediumKey(d: DissolutionView) {
   return `${d.ph ?? ""}|${d.medium.toLowerCase()}`;
@@ -150,6 +209,12 @@ function DissolutionCard({ room, views }: { room: Room; views: DissolutionView[]
   return (
     <Card title={first.medium || (first.ph !== null ? `pH ${num(first.ph)}` : "Medium not stated")} testId={`dissolution-${first.ph ?? "medium"}`}
           aside={<span className="muted dr-small">{method}</span>}>
+      {first.ph_by_convention && first.ph !== null && (
+        <p className="muted dr-small" data-testid="ph-by-convention">pH {num(first.ph)} by convention, not stated (confirmed for this project).</p>
+      )}
+      {first.ph === null && first.ph_convention != null && (
+        <p className="muted dr-small" data-testid="ph-convention-pending">pH {num(first.ph_convention)} by convention, not stated: confirm it under Decisions.</p>
+      )}
       <Plot label={`Dissolution in ${first.medium}`} traces={traces} testId="dissolution-chart"
             layout={{ xaxis: { title: { text: "Time (min)" }, rangemode: "tozero" }, yaxis: { title: { text: "Dissolved (%)" }, range: [0, 105] } }} />
       <ul className="dr-profiles">
@@ -166,6 +231,12 @@ function DissolutionCard({ room, views }: { room: Room; views: DissolutionView[]
                   <span>Weibull t50 {num(Number(d.weibull.t50_min), 3)} min, shape {num(Number(d.weibull.shape), 3)}</span>)}
                 {d.very_rapid && <span className="dr-tag ok small">≥ 85 % in 15 min</span>}
                 {d.plateau && <span className="dr-tag warn small" data-testid="plateau">Levels off at {num(Math.max(...d.mean), 3)} %</span>}
+                {d.problems.filter((p) => PROFILE_CHECK[p.code]).map((p) => (
+                  <span key={p.code} className={`dr-tag ${p.severity === "info" ? "info" : "warn"} small`} title={sentence(p.message)}
+                        data-testid={`profile-check-${p.code}`}>{PROFILE_CHECK[p.code]}</span>
+                ))}
+                {d.sink_index !== null && (
+                  <span className="muted dr-small" title={d.sink_basis} data-testid="sink-index">sink index {num(d.sink_index, 3)}</span>)}
                 {checked && (differs.length
                   ? differs.map((p, i) => <span key={i} className="dr-tag bad small" title={p.message}>Client&apos;s mean row: {p.message}</span>)
                   : <span className="dr-tag quiet small">Client&apos;s mean row matches</span>)}
@@ -198,7 +269,12 @@ export function Dissolution({ room }: { room: Room }) {
     return [...out.values()];
   }, [room]);
   if (!media.length) return <Nothing>No dissolution table was read.</Nothing>;
-  return <>{media.map((views) => <DissolutionCard key={mediumKey(views[0])} room={room} views={views} />)}</>;
+  return (
+    <>
+      {media.map((views) => <DissolutionCard key={mediumKey(views[0])} room={room} views={views} />)}
+      <Checks problems={room.checks.dissolution ?? []} title="Across batches" testId="dissolution-checks" />
+    </>
+  );
 }
 
 // --- clinical ----------------------------------------------------------------------------------------------------------
@@ -271,6 +347,8 @@ function StudyCard({ room, study }: { room: Room; study: Study }) {
       <Card title="Subject flow" aside={<span className="muted dr-small">Bars against the subjects dosed · hover a bar for its rule</span>}>
         <Flow study={study} />
       </Card>
+      <Checks problems={study.problems.filter((p) => p.code.startsWith("FLAG_"))} title="Exclusion flags" testId={`flags-${study.study_id}`}
+              aside="Flagged, never deleted: each profile stays in its sets; a person decides" />
     </>
   );
 }
@@ -279,9 +357,6 @@ export function Clinical({ room }: { room: Room }) {
   if (!room.studies.length) return <Nothing>No concentration table was read, so no study is assembled yet.</Nothing>;
   return <>{room.studies.map((s) => <StudyCard key={s.study_id} room={room} study={s} />)}</>;
 }
-
-/** A message of the engine as a sentence: a capital first, a full stop last. */
-const sentence = (text: string) => `${text[0]?.toUpperCase() ?? ""}${text.slice(1)}${/[.!?]$/.test(text) ? "" : "."}`;
 
 // --- observed PK -------------------------------------------------------------------------------------------------------
 
@@ -355,6 +430,7 @@ function Exposures({ study }: { study: Study }) {
         {method ? sentence(method.message) : "Ours: linear-up/log-down NCA per subject (below the LLOQ: 0 before the first quantifiable sample, left out after it)."}
         {" "}Cmax and Tmax are over the modeling set, AUC over the AUC set.
       </p>
+      {study.nca_reproduction && <p className="dr-note" data-testid="nca-tiers">Tiers: {study.nca_reproduction.tiers}.</p>}
       {differs.length > 0 && (
         <ul className="dr-list">{differs.map((p, i) => <li key={i} className="dr-flag"><StatusTag status="conflict" /><span className="dr-flag-body">{p.message}</span></li>)}</ul>
       )}
@@ -362,8 +438,53 @@ function Exposures({ study }: { study: Study }) {
   );
 }
 
+const MEAN_WORDS: Record<string, string> = {
+  arithmetic_mean: "arithmetic mean", geometric_mean: "geometric mean", median: "median", "": "statistic not stated",
+  sd: "SD", cv_percent: "CV %", sem: "SEM", geometric_sd: "geometric SD", geometric_cv_percent: "geometric CV %", range: "range",
+};
+
+/** The client's own mean profiles, each with the statistic and spread its table states (plan 2026-11-24 §8 feature 5). */
+function ClientMeans({ study }: { study: Study }) {
+  const means: Schema<"ClientMean">[] = study.client_means;
+  const unstated = study.problems.filter((p) => p.code === "STATISTIC_NOT_STATED");
+  if (!means.length) return null;
+  return (
+    <Card title="The client's own mean profiles" testId={`client-means-${study.study_id}`}
+          aside={<span className="muted dr-small">The statistic as the table states it; SEM → SD only where n is stated</span>}>
+      <ul className="dr-list">
+        {means.map((m, i) => {
+          const ns = [...new Set(m.points.map((p) => p.n).filter((n): n is number => n !== null))].sort((a, b) => a - b);
+          return (
+            <li key={i} data-testid="client-mean">
+              <span><strong>{m.group || "All subjects"}</strong>: {MEAN_WORDS[m.statistic] ?? m.statistic}
+                {m.spread && <> ± {MEAN_WORDS[m.spread] ?? m.spread}</>}, {ns.length ? `N = ${ns.length > 1 ? `${ns[0]}–${ns[ns.length - 1]}` : ns[0]}` : "N not stated"}
+                {" "}· {m.points.length} times
+                {(m.statistic_as_written || m.spread_as_written) && (
+                  <span className="muted"> (as written: {[m.statistic_as_written, m.spread_as_written].filter(Boolean).join(" · ")})</span>)}
+                {m.note && <span className="muted dr-small"> · {m.note}</span>}</span>
+              {!m.statistic && <span className="dr-tag warn small" data-testid="statistic-not-stated">Statistic not stated</span>}
+              <Sources chips={m.sources} />
+            </li>
+          );
+        })}
+      </ul>
+      {unstated.length > 0 && <p className="dr-note">{unstated.map((p) => sentence(p.message)).join(" ")}</p>}
+    </Card>
+  );
+}
+
 export function Observed({ room }: { room: Room }) {
-  const studies = room.studies.filter((s) => s.profiles.length);
+  const studies = room.studies.filter((s) => s.profiles.length || s.client_means.length);
   if (!studies.length) return <Nothing>No mean profile yet: it comes from a concentration table read for a study.</Nothing>;
-  return <>{studies.map((s) => <div key={s.study_id} className="dr-stack"><ProfileChart room={room} study={s} /><Exposures study={s} /></div>)}</>;
+  return (
+    <>
+      {studies.map((s) => (
+        <div key={s.study_id} className="dr-stack">
+          {s.profiles.length > 0 && <ProfileChart room={room} study={s} />}
+          <ClientMeans study={s} />
+          {s.profiles.length > 0 && <Exposures study={s} />}
+        </div>
+      ))}
+    </>
+  );
 }

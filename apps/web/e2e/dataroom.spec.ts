@@ -2,6 +2,9 @@
 // never client data) with no LLM provider:
 // 1. the delivery is dropped as one zip, Run reads every file by code, and each agent stage says it waits for a model;
 //    the Files section lists what was read;
+// 1b. a paused run (plan 2026-11-24 §4, its record written as a run on a model leaves it): the page says where and why it
+//    stopped and when it goes on, for the paid models' cap and for a provider that did not answer, and Resume now
+//    finishes it where it stopped;
 // 2. the agents' answers written straight into the store (as A6-A8 submit them): the clinical study's subject flow, the
 //    dissolution per medium with f2 and the fitted release, the observed profiles beside the client's exposure, a
 //    decision taken, the question confirmed, and a value's source opened in the drawer, on its page and in its sheet.
@@ -70,6 +73,44 @@ test("a delivery dropped in the Data room is read with agents off, each stage sa
   await shot(page, "dataroom-files");
 });
 
+test("a paused run says where and why it stopped and when it goes on, and resumes now on a click", async ({ page, request }) => {
+  // plan 2026-11-24 §4: a provider that does not answer or a paid model's cap pauses the run, never fails it
+  const projectId = await project(request);
+  const api = `/api/v1/projects/${projectId}/dataroom`;
+  const zip = fixture("zip", mkdtempSync(join(tmpdir(), "dataroom-"))).zip as string;
+  const up = await request.post(`${api}/uploads`, { headers: AUTH, multipart: {
+    files: { name: "Exampleamide delivery.zip", mimeType: "application/zip", buffer: readFileSync(zip) } } });
+  expect(up.ok(), await up.text()).toBeTruthy();
+  expect((await request.post(`${api}/run`, { headers: AUTH, data: {} })).ok()).toBeTruthy();
+  await expect.poll(async () => (await (await request.get(`${api}/run`, { headers: AUTH })).json()).data.state,
+                    { timeout: 120_000 }).toBe("done");
+  const root = join(process.env.E2E_DATA_DIR!, "read-root");
+
+  // the paid models' cap: it waits for the cap to be raised or a free model
+  fixture("pause", root, projectId, "budget_cap");
+  await page.goto(`/projects/${projectId}/dataroom`);
+  await expect(page.getByTestId("run-progress")).toHaveAttribute("data-state", "paused");
+  await expect(page.getByTestId("dr-run-paused")).toContainText(
+    "Paused: the run reached its $10 limit for paid models (Admin → Limits). Stopped at extraction: 3 of 8 files done.");
+
+  // a provider that did not answer: it goes on by itself, or now
+  fixture("pause", root, projectId, "provider_unavailable");
+  await page.reload();
+  const paused = page.getByTestId("dr-run-paused");
+  await expect(paused).toContainText("Paused at extraction: 3 of 8 files done.");
+  await expect(paused).toContainText("Nemotron Ultra could not answer (too many requests: its rate limit was reached).");
+  await expect(paused).toContainText("Continues by itself at");
+  await expect(paused).toContainText("Nothing finished is read again.");
+  await expect(page.getByTestId("stage-extract")).toHaveAttribute("data-state", "paused");
+  await shot(page, "dataroom-paused");
+  await page.getByTestId("dr-run-resume").click();
+  // no model in these flows: the resumed run skips its agent stages, each waiting for a model, and finishes
+  await expect(page.getByTestId("run-progress")).toHaveAttribute("data-state", "done", { timeout: 60_000 });
+  await expect(page.getByTestId("dr-run-paused")).toHaveCount(0);
+  await expect(page.getByTestId("stage-extract")).toHaveAttribute("data-state", "skipped");
+  await expect(page.getByTestId("stage-question")).toHaveAttribute("data-state", "done");      // finished before the pause
+});
+
 test("an extracted delivery shows its study and dissolution, a decision is taken and a source opens on its page", async ({ page, request }) => {
   const projectId = await project(request);
   const api = `/api/v1/projects/${projectId}/dataroom`;
@@ -86,7 +127,7 @@ test("an extracted delivery shows its study and dissolution, a decision is taken
   await page.goto(`/projects/${projectId}/dataroom`);
   await expect(page.getByTestId("question-text-shown")).toContainText("reformulated Exampleamide tablet");
   await expect(page.getByTestId("headline-files")).toContainText("10");
-  await expect(page.getByTestId("headline-decisions")).toContainText("9");
+  await expect(page.getByTestId("headline-decisions")).toContainText("10");   // nine of the room, and which applications the question has (the requirement drafts, D5)
   await expect(page.getByTestId("overview-conflicts").getByTestId("conflict")).toHaveCount(2);
   await page.getByTestId("question-confirm").click();
   await expect(page.getByTestId("question-confirmed")).toBeVisible();

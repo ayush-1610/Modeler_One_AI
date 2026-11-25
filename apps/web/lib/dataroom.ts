@@ -17,6 +17,8 @@ export type InputRow = Schema<"InputRow">;
 export type FileView = Schema<"FileView">;
 export type Problem = Schema<"Problem">;
 export type Run = Schema<"RoomRun">;
+export type Requirements = Schema<"Requirements">;
+export type RequirementItem = Schema<"RequirementItem">;
 export type Publication = Schema<"RoomPublication">;
 /** The question card with every field filled (the contract leaves a field with a default optional). */
 export type QuestionCard = Required<Schema<"QuestionCard">>;

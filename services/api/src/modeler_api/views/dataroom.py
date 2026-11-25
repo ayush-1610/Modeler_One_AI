@@ -34,21 +34,74 @@ class RoomRunStage(View):
     id: str
     label: str
     agent: str                       # the console's agent that does it (A6 … A10), "" for code
-    state: Literal["waiting", "running", "done", "skipped", "failed"]
+    state: Literal["waiting", "running", "done", "skipped", "failed", "paused"]
     done: int
     total: int
     note: str
 
 
-class RoomRun(View):
-    """The Data room's background run (`modeler_agents.dataroom.run_room`): each stage with its live counts and note."""
+class RoomRunPause(View):
+    """Why and where a run paused (plan 2026-11-24 §4), and when it resumes by itself. `provider_unavailable`: no model of
+    an agent's chain could answer (it resumes after 10, then 20, then 40 minutes; then `resume_at` is null and a person
+    resumes it); `budget_cap`: a paid model's cap is reached (it resumes when the cap is raised or the agent switched
+    to a free model); `no_model`: the agent's chosen model cannot be used (it resumes when it is set up). An
+    administrator's change of a model, a key or the cap resumes it at once; nothing finished is read again."""
 
-    state: Literal["idle", "running", "done", "failed"]
+    reason: Literal["provider_unavailable", "budget_cap", "no_model"]
+    said: str                        # the reason in a plain sentence
+    detail: str                      # the provider's own words, when there are any
+    stage: str                       # the stage it stopped in
+    where: str                       # that stage as the page says it ("extraction")
+    per_file: bool                   # a stage that goes file by file: `done` of `total` files
+    done: int
+    total: int
+    at: str
+    resume_at: str | None            # when it resumes by itself; null: it waits for a change or a person
+
+
+class RoomRun(View):
+    """The Data room's background run (`modeler_agents.dataroom.run_room`): each stage with its live counts and note,
+    and, for a paused run, why and where it paused (`pause`)."""
+
+    state: Literal["idle", "running", "done", "failed", "paused"]
     stages: list[RoomRunStage]
     agents: dict[str, str]           # agent -> provider/model it ran on
     error: str
     started_at: str | None
     finished_at: str | None
+    pause: RoomRunPause | None
+
+
+class RoomRunEstimateAgent(View):
+    agent: str
+    provider: str                    # "" when the agent has no model
+    model: str
+    paid: bool
+
+
+class RoomRunEstimate(View):
+    """What the next run is expected to cost on paid models (`modeler_agents.dataroom.cost`; plan 2026-11-24 §2.4), from
+    the files still to read and their sizes: tokens ≈ characters / 4, per file 8.5 to 10 calls and 9,000 to 13,000
+    output tokens (measured, §2.2), each agent's measured share at its model's list price. `paid` false: no agent starts on a
+    paid model, and the run costs nothing in dollars. The caps a paid run stops at, and this month's paid spend."""
+
+    paid: bool
+    files: int
+    characters: int
+    calls_low: int
+    calls_high: int
+    input_tokens_low: int
+    input_tokens_high: int
+    output_tokens_low: int
+    output_tokens_high: int
+    usd: float
+    usd_low: float
+    usd_high: float
+    agents: list[RoomRunEstimateAgent]
+    basis: str
+    run_cap_usd: float
+    month_cap_usd: float
+    month_spent_usd: float
 
 
 class SourcePage(View):
@@ -94,18 +147,25 @@ class PublicationItem(View):
 
 class RoomPublication(View):
     """What "Send to the model" would send now (`modeler_project.dataroom.publish.plan_publication`, nothing written),
-    and what keeps it from being sent, in words."""
+    what keeps it from being sent, and what is sent otherwise than the files might suggest (a fasted arm's meals left
+    out, water not stated, a release a Weibull curve does not describe), in words."""
 
     evidence: list[PublicationItem]
     datasets: list[PublicationItem]
     blocked: list[str]
+    notes: list[str]
 
 
 class RoomPublished(View):
-    """What was sent, signed: items written, items already in the project (skipped), and the signature."""
+    """What was sent, signed: items written, items already in the project (skipped), the Data room's earlier items it
+    replaced (superseded), the publication whose record keeps what the send rested on, and the signature."""
 
     evidence: int
     datasets: int
     skipped: int
+    superseded: int
+    publication: str                 # its record: dataroom/publications/<publication>.json
+    basis_sha256: str                # of the record's basis, which the signature covers
+    notes: list[str]
     signature_id: str
     manifestation: str

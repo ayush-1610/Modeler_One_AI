@@ -16,6 +16,7 @@ import { ActsContext, PUBLICATION, ROOM, RUN, UPLOADS, useActs } from "./acts";
 import { Intake } from "./Intake";
 import { Dot, Nothing, SourceProvider } from "./kit";
 import { Files, Overview } from "./overview";
+import { Requirements } from "./requirements";
 import { Clinical, Dissolution, Formulation, Observed, Solubility, Values } from "./science";
 import { SourceDrawer } from "./SourceDrawer";
 import { Decisions, Inputs, Plan, Requests } from "./work";
@@ -35,6 +36,7 @@ export function SectionBody({ id, room, run, projectId, go, withRequests = true 
     switch (id) {
       case "overview": return <Overview room={room} go={go} />;
       case "files": return <Files room={room} run={run} />;
+      case "requirements": return <Requirements room={room} go={go} />;
       case "substance": return <Values values={room.substance} title="Drug substance" empty={`No drug-substance property was found yet.${why}`} />;
       case "adme": return <Values values={room.adme} title="Absorption, distribution, metabolism, elimination" empty={`No ADME fact was found yet.${why}`} />;
       case "formulation": return <Formulation room={room} />;
@@ -85,7 +87,9 @@ export function DataRoom({ projectId }: { projectId: string }) {
   const here = usePathname();
   const search = useSearchParams();
   const room = useResource(ROOM, params);
-  const run = useResource(RUN, params, { poll: (d) => d.state === "running", interval: 1500 });
+  // a running run is read often; a paused one slowly, so the page sees it go on by itself (plan 2026-11-24 §4)
+  const run = useResource(RUN, params, { poll: (d) => d.state === "running" || d.state === "paused",
+                                         interval: (d) => (d.state === "paused" ? 30_000 : 1500) });
   const uploads = useResource(UPLOADS, params);
   const acts = useActs(projectId);
   const [chip, setChip] = useState<Chip | null>(null);

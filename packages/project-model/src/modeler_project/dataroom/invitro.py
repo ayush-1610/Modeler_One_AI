@@ -1,11 +1,21 @@
 """In vitro data from the cells code read (plan 2026-11-21 v2 §8 "Dissolution", "Solubility"): dissolution profiles
 per product, batch and medium (mean and spread from the units, checked against the client's own mean row), f2 where it
 applies, a Weibull fit on every profile; composition side by side; solubility with the volume the dose needs.
+
+The science checks of plan 2026-11-24 §8 (thresholds in `dataroom_rules.yaml`, UNVERIFIED; f2's unit count read from
+the locked dissolution ruleset, never copied):
+- dissolution (feature 7): fewer units than f2 needs, a bell shape, a likely disintegration lag, the batches of one
+  product tested by different methods;
+- which step limits absorption (feature 8): the dose number per medium (Amidon 1995: Do = dose / (250 mL × Cs)) and
+  the sink index of each dissolution medium (Cs × V / dose);
+- excipients by function (feature 9): each component's functional class, its mg per unit, and a test-versus-reference
+  difference within a class, for the SME to judge.
 """
 
 from __future__ import annotations
 
 import hashlib
+import math
 import re
 import statistics
 from collections import defaultdict
@@ -17,13 +27,16 @@ from modeler_project.dataroom.model import (
     Chip,
     CompositionRow,
     DissolutionView,
+    DoseNumber,
     F2View,
+    LimitingStep,
     Problem,
     ReadTable,
     SolubilityRow,
 )
 from modeler_project.dataroom.rules import Rules, load_rules
 from pbpk_domain.dissolution import Profile, ProfileKey, WeibullFit, f2, fit_weibull, weibull_fraction
+from pbpk_domain.dissolution import load_rules as dissolution_ruleset
 
 CURVE_POINTS = 61       # points of a fitted curve drawn beside the means (0 to the last time)
 
@@ -228,14 +241,84 @@ def dissolution_views(table: ReadTable, *, products: dict[str, str] | None = Non
             own.append(Problem(code="PLATEAU", severity="info", message=(
                 f"the profile levels off at {max(means):.0f} %: a Weibull curve rises to 100 %; a table of the profile "
                 "may describe it better (a decision)")))
+        own += profile_checks(times, means, n_units, rules)
         views.append(DissolutionView(
             id=_view_id(table.id, group), product=product, batch=batch, medium=medium, ph=ph,
+            ph_convention=rules.convention_ph(medium) if ph is None else None,
             apparatus=const.get("apparatus", ""), rpm=rpm, volume_ml=volume, n_units=n_units, times_min=tuple(times),
             mean=tuple(means), sd=tuple(sds), client_mean=tuple(client_mean), weibull=fit.to_content(),
             weibull_curve=weibull_curve(fit, times[-1] if times else 0.0),
             very_rapid=very_rapid, plateau=plateau, sources=tuple(chips[:1] + [c for c in (mean_row.get(times[0], ("", None))[1],) if c]),
             problems=tuple(own)))
     return views, problems
+
+
+def profile_checks(times: Sequence[float], means: Sequence[float], n_units: int, rules: Rules) -> list[Problem]:
+    """A profile's own checks (plan 2026-11-24 §8 feature 7; the PBBM review's pitfalls, docs/research/2026-11-24-pbbm-
+    absorption-inputs.md §3): fewer units than f2 needs (the locked dissolution ruleset's `f2.min_units`, read here),
+    a mean falling below an earlier one (a bell shape), and near-zero dissolution at the first time point(s) (a likely
+    disintegration lag). Thresholds: `dataroom_rules.yaml` dissolution, UNVERIFIED."""
+    out: list[Problem] = []
+    ruleset = dissolution_ruleset()
+    need = ruleset["f2"]["min_units"]
+    if n_units < need:
+        out.append(Problem(code="FEWER_UNITS", message=(
+            f"{n_units} units; f2 needs at least {need} per profile ({ruleset['id']} {ruleset['version']}, "
+            f"{ruleset['status']}): no f2 with this profile until {need} units are tested")))
+    cfg = rules.dissolution
+    best_t, best = None, float("-inf")
+    for t, m in zip(times, means, strict=True):
+        if math.isnan(m):               # a time with no value
+            continue
+        if best_t is not None and m < best - cfg.bell_drop_points:
+            out.append(Problem(code="BELL_SHAPE", message=(
+                f"the mean falls from {best:.1f} % at {best_t:g} min to {m:.1f} % at {t:g} min, more than "
+                f"{cfg.bell_drop_points:g} points: a bell shape, possibly degradation or a form change in the vessel; "
+                "a stability check in the medium would tell")))
+            break
+        if m > best:
+            best_t, best = t, m
+    early = [(t, m) for t, m in zip(times, means, strict=True) if t > 0 and not math.isnan(m)]
+    low = []
+    for t, m in early:
+        if m >= cfg.lag_below_percent:
+            break
+        low.append((t, m))
+    if low and len(low) < len(early):
+        said = ", ".join(f"{m:.1f} % at {t:g} min" for t, m in low)
+        out.append(Problem(code="DISINTEGRATION_LAG", severity="info", message=(
+            f"{said}, below {cfg.lag_below_percent:g} %: a likely disintegration lag; remove it before fitting a "
+            "particle model (the Weibull fit's lag time may hold it)")))
+    return out
+
+
+def _method(view: DissolutionView) -> str:
+    parts = [view.medium or "medium not stated", f"pH {view.ph:g}" if view.ph is not None and str(view.ph) not in view.medium
+             else "", view.apparatus, f"{view.rpm:g} rpm" if view.rpm is not None else "",
+             f"{view.volume_ml:g} mL" if view.volume_ml is not None else ""]
+    return ", ".join(x for x in parts if x)
+
+
+def method_checks(views: Sequence[DissolutionView]) -> list[Problem]:
+    """The batches of one product tested by different methods (apparatus, speed, volume or medium differ): said once
+    per product (plan 2026-11-24 §8 feature 7; the PBBM review: a fluconazole case judged of limited value for it)."""
+    out: list[Problem] = []
+    by_product: dict[str, dict[str, set[tuple]]] = defaultdict(lambda: defaultdict(set))
+    words: dict[tuple, str] = {}
+    for v in views:
+        if not v.batch:
+            continue
+        key = _condition(v)
+        by_product[v.product or v.batch][v.batch].add(key)
+        words.setdefault(key, _method(v))
+    for product, batches in by_product.items():
+        if len(batches) < 2 or len({frozenset(x) for x in batches.values()}) == 1:
+            continue
+        said = "; ".join(f"batch {b}: " + " / ".join(sorted(words[k] for k in keys)) for b, keys in sorted(batches.items()))
+        out.append(Problem(code="DISSOLUTION_METHODS_DIFFER", message=(
+            f"the batches of {product} were not tested by the same methods ({said}): a profile compares with another "
+            "only under the same apparatus, speed, volume and medium; ask for the missing runs")))
+    return out
 
 
 def _profile(view: DissolutionView) -> Profile:
@@ -263,8 +346,30 @@ def f2_pairs(views: Sequence[DissolutionView], roles: dict[str, str]) -> list[F2
     return out
 
 
-def composition_rows(tables: Sequence[ReadTable]) -> list[CompositionRow]:
-    """Each component once, its amount per product side by side; a row whose amounts differ is marked changed."""
+_MASS_UNIT = re.compile(r"(?i)(?<![a-zµμ])(mg|g|µg|μg|ug|mcg)(?![a-z])(?!\s*/\s*(?:ml|l)\b)")
+_MG = {"mg": 1.0, "g": 1000.0, "µg": 1e-3, "μg": 1e-3, "ug": 1e-3, "mcg": 1e-3}
+_ACTIVE = re.compile(r"(?i)\bactive\b|\bapi\b|drug\s+substance|active\s+ingredient")
+
+
+def mg_of(text: str, *units: str) -> float | None:
+    """An amount in mg when the files state a mass unit: in the cell ("12.5 mg"), the column's unit or its header
+    ("mg/tablet"); a percentage or an amount with no unit stays as written (None)."""
+    if "%" in text:
+        return None
+    number = parse_number(re.sub(r"(?i)\s*(mg|g|µg|μg|ug|mcg)\b.*$", "", text.strip()))
+    if number is None:
+        return None
+    for where in (text, *units):
+        if where and "%" not in where and (m := _MASS_UNIT.search(where)):
+            return round(number * _MG[m.group(1).lower()], 6)
+    return None
+
+
+def composition_rows(tables: Sequence[ReadTable], rules: Rules | None = None) -> list[CompositionRow]:
+    """Each component once, its amount per product side by side; a row whose amounts differ is marked changed. Each
+    component has its functional class (`dataroom_rules.yaml` excipient_classes, by its name, else by the function
+    written beside it; "active" for the drug substance) and its mg per unit where the files state mg."""
+    rules = rules or load_rules()
     rows: dict[str, dict] = {}
     for table in tables:
         about = table.description.about
@@ -273,7 +378,7 @@ def composition_rows(tables: Sequence[ReadTable]) -> list[CompositionRow]:
             if "component" not in one or not one["component"].text.strip():
                 continue
             name = one["component"].text.strip()
-            entry = rows.setdefault(_norm(name), {"component": name, "function": "", "amounts": {}, "sources": []})
+            entry = rows.setdefault(_norm(name), {"component": name, "function": "", "amounts": {}, "mg": {}, "sources": []})
             if "function" in one and one["function"].text.strip():
                 entry["function"] = entry["function"] or one["function"].text.strip()
             for c in row.cells:
@@ -281,13 +386,71 @@ def composition_rows(tables: Sequence[ReadTable]) -> list[CompositionRow]:
                     product = c.group or about or "product"
                     entry["amounts"][product + (" (%)" if c.role == "percent" else "")] = c.text.strip()
                     entry["sources"].append(c.chip)
+                    if c.role == "amount" and (mg := mg_of(c.text, c.unit, c.label, table.description.value_unit)) is not None:
+                        entry["mg"][product] = mg
     out = []
     for entry in rows.values():
         mg = {k: v for k, v in entry["amounts"].items() if not k.endswith("(%)")}
         values = {parse_number(v) for v in mg.values()}
         changed = len(mg) > 1 and len(values) > 1
+        found = rules.excipient_class(entry["component"], entry["function"])
+        if found is not None:
+            cls, by, label = found[0].id, found[1], found[0].label
+        elif _ACTIVE.search(entry["function"]):
+            cls, by, label = "active", "function", "active substance"
+        else:
+            cls, by, label = "other", "", "other"
         out.append(CompositionRow(component=entry["component"], function=entry["function"], amounts=entry["amounts"],
-                                  changed=changed, sources=tuple(entry["sources"][:4])))
+                                  changed=changed, excipient_class=cls, class_label=label, class_by=by, mg=entry["mg"],
+                                  sources=tuple(entry["sources"][:4])))
+    return out
+
+
+_ROLE_WORDS = (("reference", "reference"), ("rld", "reference"), ("innovator", "reference"), ("test", "test"),
+               ("reformulat", "reformulated"), ("original", "original"))
+
+
+def _role_of(product: str, roles: dict[str, str]) -> str:
+    card = named_in(product, roles)
+    if card:
+        return roles[card]
+    low = product.lower()
+    return next((role for word, role in _ROLE_WORDS if word in low), "")
+
+
+def excipient_checks(rows: Sequence[CompositionRow], roles: dict[str, str]) -> list[Problem]:
+    """A test-versus-reference (and reformulated-versus-original) difference within a functional class (plan 2026-11-24
+    §8 feature 9): any difference is said, with the mg per unit; no threshold is set (the rules give none), so each is
+    for the SME to judge."""
+    products = list(dict.fromkeys(k for r in rows for k in r.amounts if not k.endswith("(%)")))
+    of_role: dict[str, str] = {}
+    for p in products:
+        of_role.setdefault(_role_of(p, roles), p)
+    out: list[Problem] = []
+    for test_role, ref_role in (("test", "reference"), ("reformulated", "original"), ("reformulated", "reference")):
+        test, ref = of_role.get(test_role), of_role.get(ref_role)
+        if not test or not ref or test == ref:
+            continue
+        classes = dict.fromkeys(r.excipient_class for r in rows if r.excipient_class not in ("other", "active", ""))
+        for cls in classes:
+            members = [r for r in rows if r.excipient_class == cls]
+
+            def said(product: str, members: list[CompositionRow] = members) -> str:
+                got = [f"{r.component} {r.amounts[product]}" for r in members if r.amounts.get(product, "").strip()]
+                return ", ".join(got) or "none"
+
+            def amount(r: CompositionRow, product: str) -> tuple:
+                return (r.mg.get(product), parse_number(r.amounts.get(product, "")), bool(r.amounts.get(product, "").strip()))
+
+            if all(amount(r, test) == amount(r, ref) for r in members):
+                continue
+            totals = ""
+            if all((not r.amounts.get(x, "").strip()) or x in r.mg for r in members for x in (test, ref)):
+                t_mg, r_mg = (sum(r.mg.get(x, 0.0) for r in members) for x in (test, ref))
+                totals = f" (in all {t_mg:g} mg against {r_mg:g} mg per unit)"
+            out.append(Problem(code="EXCIPIENT_CLASS_DIFFERS", message=(
+                f"{members[0].class_label}: {test} has {said(test)}; {ref} has {said(ref)}{totals}. A functional "
+                "excipient differs between the products; no threshold is set, so it is for the SME to judge")))
     return out
 
 
@@ -323,11 +486,12 @@ def solubility_rows(tables: Sequence[ReadTable], *, dose_mg: float | None, mediu
             ph = parse_number(one["ph"].text, decimal_comma=table.decimal_comma) if "ph" in one else _ph_of(medium)
             need = round(dose_mg / mg_ml, 2) if dose_mg and mg_ml else None
             out.append(SolubilityRow(
-                medium=medium, ph=ph, solubility_mg_ml=mg_ml, as_written=f"{text} {col_unit}".strip(),
+                medium=medium, ph=ph, ph_convention=rules.convention_ph(medium) if ph is None else None,
+                solubility_mg_ml=mg_ml, as_written=f"{text} {col_unit}".strip(),
                 volume_for_dose_ml=need, fraction_in_glass=round(min(1.0, mg_ml * glass / dose_mg), 4) if need else None,
                 fraction_in_medium=(round(min(1.0, mg_ml * medium_volume_ml / dose_mg), 4)
                                     if need and medium_volume_ml else None),
-                sources=(one["solubility"].chip,)))
+                dose_number=dose_number(dose_mg, mg_ml, glass), sources=(one["solubility"].chip,)))
     return out, problems
 
 
@@ -347,10 +511,78 @@ def solubility_from_facts(facts: Sequence[CheckedFact], *, dose_mg: float | None
         text = f"{f.fact.subject} {f.fact.value} {f.fact.quote}"      # the medium's pH: not from the agent's note
         need = round(dose_mg / mg_ml, 2) if dose_mg and mg_ml else None
         medium = _medium_of(f.fact.subject, f.fact.quote)
+        ph = _ph_of(text)
         out.append(SolubilityRow(
-            medium=medium.strip(), ph=_ph_of(text), solubility_mg_ml=mg_ml,
+            medium=medium.strip(), ph=ph, ph_convention=rules.convention_ph(medium) if ph is None else None,
+            solubility_mg_ml=mg_ml,
             as_written=f"{f.fact.value} {f.fact.unit}".strip(), volume_for_dose_ml=need,
             fraction_in_glass=round(min(1.0, mg_ml * glass / dose_mg), 4) if need else None,
             fraction_in_medium=round(min(1.0, mg_ml * medium_volume_ml / dose_mg), 4) if need and medium_volume_ml else None,
-            sources=(f.chip,) if f.chip else ()))
+            dose_number=dose_number(dose_mg, mg_ml, glass), sources=(f.chip,) if f.chip else ()))
     return out
+
+
+def dose_number(dose_mg: float | None, solubility_mg_ml: float | None, volume_ml: float) -> float | None:
+    """Amidon's dose number, Do = M0 / (V0 · Cs), with V0 the 250 mL glass of water of the BCS (Amidon et al., Pharm Res
+    1995;12:413-420): above 1 the dose does not dissolve in it, so solubility may limit absorption."""
+    if not dose_mg or not solubility_mg_ml or solubility_mg_ml <= 0:
+        return None
+    return round(dose_mg / (volume_ml * solubility_mg_ml), 4)
+
+
+def _limits(x: DoseNumber) -> str:
+    where = f"at pH {x.ph:g}" + (f" ({x.medium})" if x.medium else "") if x.ph is not None else f"in {x.medium}"
+    return f"solubility may limit absorption {where} (dose number {x.dose_number:.3g})"
+
+
+def limiting_steps(solubility: Sequence[SolubilityRow], doses: Sequence[tuple[str, float, str, tuple[Chip, ...]]],
+                   rules: Rules | None = None) -> list[LimitingStep]:
+    """Which step may limit absorption, per product (plan 2026-11-24 §8 feature 8): its dose against each measured
+    solubility, as the dose number (`dose_number`), and a plain statement for each medium where it is above 1. `doses`:
+    (product, mg, as written, sources); product "" for the drug's one dose. No threshold but the definition's 1."""
+    rules = rules or load_rules()
+    volume = rules.solubility.glass_volume_ml
+    out: list[LimitingStep] = []
+    measured = [r for r in solubility if r.solubility_mg_ml]
+    if not measured:
+        return out
+    for product, mg, written, chips in doses:
+        numbers = [DoseNumber(medium=r.medium, ph=r.ph, solubility_mg_ml=r.solubility_mg_ml,  # type: ignore[arg-type]
+                              dose_number=dose_number(mg, r.solubility_mg_ml, volume))  # type: ignore[arg-type]
+                   for r in measured]
+        above = [x for x in numbers if x.dose_number > 1]
+        statements = [_limits(x) for x in sorted(above, key=lambda x: (x.ph or 0))]
+        if not above:
+            highest = max(x.dose_number for x in numbers)
+            statements = [(f"the dose dissolves in {volume:g} mL in every medium measured (dose numbers up to "
+                           f"{highest:.3g}): solubility is unlikely to limit absorption")]
+        out.append(LimitingStep(product=product, dose_mg=mg, dose_as_written=written, volume_ml=volume,
+                                dose_numbers=tuple(numbers), statements=tuple(statements), sources=chips))
+    return out
+
+
+def sink_index(view: DissolutionView, solubility: Sequence[SolubilityRow], dose_mg: float | None,
+               rules: Rules | None = None) -> tuple[float | None, str, Problem | None]:
+    """The sink index of a dissolution medium, Cs × V / dose (plan 2026-11-24 §8 feature 8): the solubility measured in
+    the same medium (its pH within `solubility.ph_match`, else its name), the vessel's volume and the dose. Below the
+    rules' minimum (`dissolution.sink_index_min`, USP <1092>, UNVERIFIED) the profile may show the solubility limit
+    rather than the product's release."""
+    rules = rules or load_rules()
+    if not dose_mg or not view.volume_ml:
+        return None, "", None
+    by_ph = [r for r in solubility if r.solubility_mg_ml and r.ph is not None and view.ph is not None
+             and abs(r.ph - view.ph) <= rules.solubility.ph_match + 1e-9]
+    by_name = [r for r in solubility if r.solubility_mg_ml and _norm(r.medium) and view.medium
+               and (_norm(r.medium) in _norm(view.medium) or _norm(view.medium) in _norm(r.medium))]
+    row = (by_ph or by_name or [None])[0]
+    if row is None:
+        return None, "", None
+    value = round(row.solubility_mg_ml * view.volume_ml / dose_mg, 3)  # type: ignore[operator]
+    basis = (f"Cs {row.solubility_mg_ml:g} mg/mL ({row.medium}" + (f", pH {row.ph:g}" if row.ph is not None else "")
+             + f") × {view.volume_ml:g} mL / {dose_mg:g} mg")
+    problem = None
+    if value < rules.dissolution.sink_index_min:
+        problem = Problem(code="NOT_SINK", severity="info", message=(
+            f"sink index {value:.3g} ({basis}), below {rules.dissolution.sink_index_min:g}: not sink conditions; the "
+            "profile may show the solubility limit in the vessel rather than the product's release"))
+    return value, basis, problem

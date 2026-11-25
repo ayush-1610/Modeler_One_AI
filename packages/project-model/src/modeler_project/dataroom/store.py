@@ -6,15 +6,23 @@
     question.json                the question card, and who confirmed it when
     triage/<sha256>.json         the triage agent's answer for one file
     extractions/<sha256>.json    the extractor's answer for one file (tables described, facts quoted), with its model
-    reviews/<sha256>.json        the checker's issues with one file's tables
+    reviews/<sha256>.json        the checker's issues with one file's tables, and the extraction they were found in
     writing.json                 the writer's finding lines and request wording (numbers checked against the room)
     decisions.jsonl              the modeler's decisions, append-only: the last line per decision id stands
     entered.jsonl                values entered by a person, append-only, with the reason
     requests.jsonl               data request edits (wording, status), append-only
-    run.json                     the background run: stage, counts, per-agent model, errors
+    run.json                     the background run: stage, counts, per-agent model, errors; a pause (why, where, when
+                                 it resumes)
+    publications/<id>.json       what each "Send to the model" rested on, written once (`dataroom.publish`, its shape)
 
 Every decision, entered value and confirmation is also written to the project's audit trail (21 CFR Part 11: who, when,
-what, why). No path is built from input that is not a checked sha256.
+what, why). No path is built from input that is not a checked sha256. Every stored answer is written to a temporary file
+and renamed into place (`atomic_write_text`), so a crash while writing leaves the previous answer whole, never half of
+the next; the append-only logs skip a line a crash cut short.
+
+The agents' answers are also kept for the whole tenant, by every input that can change them, in
+`<root>/<tenant>/dataroom_cache/` (`answer_cache`), so another project's run with the same file, question and model
+reuses them.
 """
 
 from __future__ import annotations
@@ -35,6 +43,7 @@ from pbpk_domain.atomic_io import atomic_write_bytes, atomic_write_text, file_lo
 
 _SHA = re.compile(r"[0-9a-f]{64}")
 _ID = re.compile(r"[A-Za-z0-9_.:\-\s()/,&+%·]{1,200}")
+_PUBLICATION = re.compile(r"pub-\d{8}T\d{6}Z-[0-9a-f]{6}")
 
 
 def _sha(value: str) -> str:
@@ -186,6 +195,35 @@ class DataRoomStore:
         row = self._read_json("question.json")
         return (QuestionCard.model_validate(row["card"]), bool(row["confirmed"])) if row else (None, False)
 
+    def question_record(self) -> dict[str, Any]:
+        """Who set the question card, and when ({} when there is none)."""
+        row = self._read_json("question.json") or {}
+        return {k: row[k] for k in ("confirmed", "by", "at") if k in row}
+
+    # --- what each "Send to the model" rested on --------------------------------------------------------------------------
+
+    def put_publication(self, publication_id: str, record: dict[str, Any]) -> None:
+        """One publication's record (`dataroom.publish.publication_record`), written once: a second write of the same id
+        is refused."""
+        if not _PUBLICATION.fullmatch(publication_id):
+            raise ValueError("not a publication id")
+        path = self._path("publications", f"{publication_id}.json")
+        if path.exists():
+            raise ValueError(f"publication {publication_id} is already recorded")
+        atomic_write_text(path, json.dumps(record, indent=1, ensure_ascii=False, sort_keys=True))
+
+    def publication(self, publication_id: str) -> dict[str, Any] | None:
+        return self._read_json("publications", f"{publication_id}.json") if _PUBLICATION.fullmatch(publication_id) else None
+
+    def publications(self) -> list[dict[str, Any]]:
+        """Every publication's record, oldest first."""
+        folder = self._path("publications")
+        if not folder.is_dir():
+            return []
+        rows = [json.loads(p.read_text(encoding="utf-8")) for p in sorted(folder.glob("pub-*.json"))
+                if _PUBLICATION.fullmatch(p.stem)]
+        return sorted(rows, key=lambda r: (str(r.get("at", "")), str(r.get("id", ""))))
+
     # --- agents' answers ------------------------------------------------------------------------------------------------
 
     def put_triage(self, triage: FileTriage, sha256: str) -> None:
@@ -206,9 +244,25 @@ class DataRoomStore:
     def extractions(self) -> list[Extraction]:
         return [e for f in self.files() if not f.duplicate_of and (got := self.extraction(f.sha256)) for e in (got[0],)]
 
-    def put_review(self, sha256: str, issues: list[dict[str, Any]], *, agent: str) -> None:
+    def extraction_stamp(self, sha256: str) -> str:
+        """The stored extraction of a file as it now stands (the sha256 of its record; "" when there is none): a review
+        names the extraction it checked, so it stands until the extraction is made again."""
+        path = self._path("extractions", f"{_sha(sha256)}.json")
+        return hashlib.sha256(path.read_bytes()).hexdigest() if path.exists() else ""
+
+    def put_review(self, sha256: str, issues: list[dict[str, Any]], *, agent: str, extraction: str = "") -> None:
+        """The checker's issues with one file's tables, and the extraction they were found in (`extraction_stamp`)."""
         atomic_write_text(self._path("reviews", f"{_sha(sha256)}.json"), json.dumps(
-            {"issues": issues, "agent": agent, "at": _now()}, indent=1, ensure_ascii=False))
+            {"issues": issues, "agent": agent, "at": _now(), "extraction": extraction}, indent=1, ensure_ascii=False))
+
+    def review(self, sha256: str) -> dict[str, Any] | None:
+        return self._read_json("reviews", f"{_sha(sha256)}.json")
+
+    def review_current(self, sha256: str) -> bool:
+        """Whether the file's review checked its extraction as it now stands: a run (or a paused run resumed) does not
+        check it again. A review kept before reviews named their extraction is checked once more."""
+        row = self.review(sha256)
+        return bool(row and row.get("extraction") and row["extraction"] == self.extraction_stamp(sha256))
 
     def reviews(self) -> dict[str, list[dict[str, Any]]]:
         """The checker's issues per file path."""

@@ -187,8 +187,8 @@ def test_the_room_says_what_each_screen_needs_in_a_persons_words(room):
     # decisions and problems in words, and the input a person may enter for a missing compound value
     files, docs, question, extractions = room
     view = assemble(Inputs(files=files, docs=docs, question=question, extractions=extractions))
-    assert [s.id for s in view.sections] == ["files", "substance", "adme", "formulation", "solubility", "dissolution",
-                                             "clinical", "observed", "decisions", "requests", "plan", "inputs"]
+    assert [s.id for s in view.sections] == ["files", "requirements", "substance", "adme", "formulation", "solubility",
+                                             "dissolution", "clinical", "observed", "decisions", "requests", "plan", "inputs"]
     sections = {s.id: s for s in view.sections}
     assert sections["observed"].finding.startswith("2 mean profiles")
     assert sections["plan"].finding == "3 simulations: 1 calibration, 1 verification, 1 prediction"
@@ -264,7 +264,8 @@ def test_send_to_the_model_lands_the_arms_profiles_and_the_release_once(room, tm
     ws = Workspace(FileProjectStore(tmp_path), "t1", "p1")
     first = publish(ws, view, by="user:m", reason="inputs confirmed")
     assert first["datasets"] == 2 and first["evidence"] >= 8 and first["skipped"] == 0
-    assert publish(ws, view, by="user:m", reason="again") == {"evidence": 0, "datasets": 0, "skipped": first["evidence"] + 2}
+    again = publish(ws, view, by="user:m", reason="again")                 # the same content: nothing new, nothing replaced
+    assert (again["evidence"], again["datasets"], again["skipped"], again["superseded"]) == (0, 0, first["evidence"] + 2, 0)
     landed = {d.study["study_id"]: d for d in dataset_register.datasets(ws)}
     arm_a = landed["EX-01-A"]
     assert arm_a.state == "ACCEPTED" and arm_a.study["n"] == 4 and arm_a.study["dose_mg"] == 100.0
@@ -643,3 +644,333 @@ def test_a_data_row_is_no_statement_a_dose_is_a_mass_and_a_counted_list_gives_it
     assert check("study.dose", "90", "1 tablet of cinacalcet 90 mg", unit="mg").ok
     assert subjects_in("14 (01, 02, 06, 10, 15, 27, 29, 33, 36, 37, 39, 41, 45 and 46)") == [
         "1", "2", "6", "10", "15", "27", "29", "33", "36", "37", "39", "41", "45", "46"]
+
+
+# --- "Send to the model", right for the study it sends (plan 2026-11-24 §7, phase 4) ----------------------------------
+
+
+def _send_room(room, *, drop=(), files=(), decisions=None, entered=(), question=None):
+    """The room "Send to the model" reads (`_published_room`: both products' releases read, the study fasted), with the
+    synopsis's facts of the `drop` fields left out, more files ((name, text, triage topics, facts)), decisions other than
+    the suggestions, values a person entered, another question card. Every other decision is made as suggested."""
+    from modeler_intake.room_specs import FileTriage
+
+    _published_room(room)
+    base, docs, extractions = _published_room.last  # type: ignore[attr-defined]
+    base, docs = list(base), dict(docs)
+    extractions = [e.model_copy(update={"facts": [f for f in e.facts if f.field not in drop]}) if e.file == "D/synopsis.md"
+                   else e for e in extractions]
+    for name, text, topics, facts in files:
+        view, doc = _file(name, text.encode())
+        if topics:
+            view = view.model_copy(update={"triage": FileTriage(path=view.path, purpose="used", topics=list(topics),
+                                                                reason="a test file")})
+        base.append(view)
+        docs[view.sha256] = doc
+        extractions.append(Extraction(file=view.path, facts=list(facts)))
+    card = question or room[2]
+    made = dict(decisions or {})
+
+    def assembled():
+        return assemble(Inputs(files=base, docs=docs, question=card, question_confirmed=True, extractions=extractions,
+                               decisions=made, entered=list(entered)))
+
+    for _ in range(3):        # a decision that appears once another is made (release model, the convention) too
+        view = assembled()
+        waiting = {d.id: {"chosen": d.suggested, "reason": "as suggested", "by": "user:m"} for d in view.decisions
+                   if d.id not in made}
+        if not waiting:
+            return view
+        made |= waiting
+    return assembled()
+
+
+FE_CODES = "Treatments: A = Refamide 100 mg tablet, fasted; B = Refamide 100 mg tablet after a high-fat breakfast."
+FE_MEAL = "A high-fat breakfast was served 30 minutes before dosing; lunch 4 h and dinner 10 h after dosing."
+FE_TIMES = "30 minutes before dosing; lunch 4 h and dinner 10 h after dosing"
+FE_CARD = QuestionCard(question="What is the food effect on Refamide exposure?", products=[
+    ProductRef(name="Refamide 100 mg", role="reference"), ProductRef(name="Exampleamide 100 mg", role="test")])
+
+
+def _food_effect(codes: str = FE_CODES, a: str = "Refamide 100 mg tablet, fasted",
+                 b: str = "Refamide 100 mg tablet after a high-fat breakfast", meal: str = FE_MEAL,
+                 times: str = FE_TIMES) -> tuple:
+    composition = [Fact(field="study.meal_composition", subject="EX-01", value="high-fat breakfast", quote=meal)]
+    return ("fe.txt", f"{codes}\n{meal}\n", (), [
+        Fact(field="study.treatment_code", subject="A", value=a, product="Refamide 100 mg", quote=codes),
+        Fact(field="study.treatment_code", subject="B", value=b, product="Refamide 100 mg", quote=codes),
+        *(composition if "high-fat breakfast" in meal else []),
+        Fact(field="study.meal_times", subject="EX-01", value=times, quote=meal)])
+
+
+def _meal(t: float) -> dict:
+    # every meal of a study takes its one meal decision's template (here high-fat, from the composition): a known gap
+    return {"time_h": t, "template": "Meal: High-fat breakfast (Human)", "name": "High-fat breakfast (Human)"}
+
+
+def test_a_food_effect_study_gives_the_fed_meal_to_its_fed_arm_only_and_the_later_meals_to_every_arm(room):
+    # R1: every study meal went on every arm: the fasted arm of a food-effect study had the fed breakfast. "Fasted" is the
+    # condition at dosing: the protocol's lunch and dinner are every arm's day. B9: the fed arm was "calibration"; the
+    # room only proposes the plan
+    from modeler_project.dataroom.publish import plan_publication
+
+    view = _send_room(room, drop=("study.treatment_code",), question=FE_CARD, files=[_food_effect()])
+    food = {r.owner: r.value for r in view.inputs if r.name == "Food state"}
+    assert food == {"EX-01 · A": "fasted", "EX-01 · B": "fed"}
+    plan = plan_publication(view, by="u")
+    assert plan.blocked == ()
+    sent = {d.study["study_id"]: d.study for d in plan.datasets}
+    assert (sent["EX-01-A"]["food_state"], sent["EX-01-A"]["meals"]) == ("fasted", [_meal(4.0), _meal(10.0)])
+    assert (sent["EX-01-B"]["food_state"], sent["EX-01-B"]["meals"]) == ("fed", [_meal(-0.5), _meal(4.0), _meal(10.0)])
+    assert any(n.startswith("EX-01 arm A: fasted at dosing, so the fed condition's meal at -0.5 h is not given to it")
+               and "the meals after the dose (4, 10 h) are" in n for n in plan.notes)
+    rows = {r.observed.split(" (")[0]: r for r in view.plan}
+    assert (rows["EX-01 arm A"].role, rows["EX-01 arm B"].role) == ("calibration", "verification")
+    assert "food-effect question" in rows["EX-01 arm B"].why and "never fitted" in rows["EX-01 arm B"].why
+    assert all(r.why.startswith("proposed; the MS-01 split decides: ") for r in view.plan)
+
+
+def test_fed_arms_naming_different_meals_block_sending_with_what_to_decide(room):
+    from modeler_project.dataroom.publish import plan_publication
+
+    codes = ("Treatments: A = Refamide 100 mg tablet after a standard breakfast; "
+             "B = Refamide 100 mg tablet after a high-fat breakfast.")
+    view = _send_room(room, drop=("study.treatment_code",), question=FE_CARD, files=[_food_effect(
+        codes, a="Refamide 100 mg tablet after a standard breakfast")])
+    (why,) = [b for b in plan_publication(view, by="u").blocked if b.startswith("EX-01:")]
+    assert "A: a standard meal; B: a high-fat meal" in why and "decide which meal each fed arm had" in why
+
+
+def test_a_later_meal_one_arm_names_is_that_arms_and_a_meal_no_rule_places_blocks(room):
+    from modeler_project.dataroom.assemble import meal_times
+    from modeler_project.dataroom.publish import plan_publication
+
+    # the sign of a meal's time places it: a dose given after the meal puts the meal before the dose
+    assert meal_times("the dose was given 30 minutes after the start of a high-fat breakfast") == [-0.5]
+    assert meal_times("dinner 10 h after dosing, breakfast 30 min before dosing") == [-0.5, 10.0]
+    # a snack after the dose that only the fed arm's definition names is that arm's; the lunch is every arm's
+    codes = ("Treatments: A = Refamide 100 mg tablet, fasted; "
+             "B = Refamide 100 mg tablet after a high-fat breakfast with a snack 2 h after dosing.")
+    meal = "A high-fat breakfast was served 30 minutes before dosing; a snack 2 h and lunch 4 h after dosing."
+    view = _send_room(room, drop=("study.treatment_code",), question=FE_CARD, files=[_food_effect(
+        codes, b="Refamide 100 mg tablet after a high-fat breakfast with a snack 2 h after dosing", meal=meal,
+        times="30 minutes before dosing; a snack 2 h and lunch 4 h after dosing")])
+    plan = plan_publication(view, by="u")
+    assert plan.blocked == ()
+    sent = {d.study["study_id"]: [m["time_h"] for m in d.study["meals"]] for d in plan.datasets}
+    assert sent == {"EX-01-A": [4.0], "EX-01-B": [-0.5, 2.0, 4.0]}
+    assert any(n.startswith("EX-01 arm A: the meal at 2 h is another arm's") for n in plan.notes)
+    # a meal before the dose in a study no arm of which is fed: which arm was fed, or when the meal was served?
+    breakfast = "A high-fat breakfast was served 30 minutes before dosing."
+    fasted = plan_publication(_send_room(room, files=[("meal.txt", f"{breakfast}\n", (), [
+        Fact(field="study.meal_times", subject="EX-01", value="30 minutes before dosing", quote=breakfast)])]), by="u")
+    assert any(b.startswith("EX-01: a meal at -0.5 h, at or before the dose, is a fed condition's, and no arm is fed")
+               for b in fasted.blocked)
+    # a fed arm whose meals are all after the dose: its fed meal is not given
+    later = "Lunch 4 h and dinner 10 h after dosing."
+    fed_late = plan_publication(_send_room(room, drop=("study.treatment_code",), question=FE_CARD, files=[_food_effect(
+        meal=later, times="Lunch 4 h and dinner 10 h after dosing")]), by="u")
+    assert any(b.startswith("EX-01 arm B: fed, but the meals given are all after the dose (4, 10 h)") for b in fed_late.blocked)
+
+
+def test_sending_again_replaces_the_rooms_earlier_items_and_inputs_reads_the_latest(room, tmp_path):
+    # R3: new content got new ids, and Inputs kept the earliest dataset of a study id: a second send changed nothing
+    from modeler_project import dataset_register, evidence_register
+    from modeler_project.dataroom.model import Value
+    from modeler_project.dataroom.publish import SUPERSEDED, plan_publication, publish
+    from modeler_project.inputs import InputChoices, study_catalog
+    from modeler_project.store import FileProjectStore
+    from modeler_project.workspace import Workspace
+
+    ws = Workspace(FileProjectStore(tmp_path), "t1", "p1")
+
+    def mw(value: float) -> Value:
+        return Value(key="phys.mw", label="Molecular weight", value=value, unit="g/mol", as_written=str(value),
+                     status="entered", note="the client's e-mail of 2026-11-20")
+
+    modeling = _send_room(room, entered=[mw(412.5)])
+    first = publish(ws, modeling, by="u", reason="first", publication="pub-20261124T100000Z-aaaaaa")
+    assert first["datasets"] == 2 and first["superseded"] == 0
+    completed = _send_room(room, entered=[mw(412.6)], decisions={
+        "analysis-set:EX-01": {"chosen": "completed", "by": "u", "reason": "all completers"}})
+    second = publish(ws, completed, by="u", reason="the completers", publication="pub-20261124T110000Z-bbbbbb")
+    assert (second["datasets"], second["evidence"], second["superseded"]) == (2, 1, 3)
+    # the latest send is what Inputs reads: one dataset per study id, the completers' N, no second dataset named
+    rows, notes, _versions = study_catalog(ws, InputChoices())
+    latest = {d.study["study_id"]: d.id for d in plan_publication(completed, by="u").datasets}
+    assert {r["study_id"]: r["dataset_id"] for r in rows} == latest
+    assert next(r for r in rows if r["study_id"] == "EX-01-B")["n"] == 5 and not notes
+    old = [d for d in dataset_register.datasets(ws) if d.state == "REJECTED"]
+    assert len(old) == 2 and {d.decision_reason for d in old} == {f"{SUPERSEDED} pub-20261124T110000Z-bbbbbb"}
+    weights = {e.value: e for e in evidence_register.items(ws) if e.target == "phys.mw"}
+    assert weights[412.5].state == "REJECTED" and weights[412.5].decision_reason.startswith(SUPERSEDED)
+    assert weights[412.6].state == "ACCEPTED"
+    # going back accepts the first send's items again and replaces the second's; the same content again changes nothing
+    back = publish(ws, modeling, by="u", reason="back", publication="pub-20261124T120000Z-cccccc")
+    assert (back["datasets"], back["evidence"], back["superseded"]) == (2, 1, 3)
+    rows, _notes, _versions = study_catalog(ws, InputChoices())
+    assert {r["dataset_id"] for r in rows} == {d.id for d in plan_publication(modeling, by="u").datasets}
+    same = publish(ws, modeling, by="u", reason="same", publication="pub-20261124T130000Z-dddddd")
+    assert (same["datasets"], same["evidence"], same["superseded"]) == (0, 0, 0)
+
+
+def test_a_study_already_in_the_project_through_inputs_or_delivery_is_not_sent_twice(room, tmp_path, monkeypatch):
+    # R4: the Data room loaded a study again that Delivery or Inputs had already brought in
+    from modeler_project import dataset_register, intake_review
+    from modeler_project.dataroom.publish import plan_publication, publish
+    from modeler_project.datasets import ObservedDataset, Origin, Series
+    from modeler_project.evidence import EvidenceState, SourceRef
+    from modeler_project.store import FileProjectStore
+    from modeler_project.workspace import Workspace
+
+    ws = Workspace(FileProjectStore(tmp_path), "t1", "p1")
+    view = _send_room(room)
+    assert plan_publication(view, by="u", ws=ws).blocked == ()
+    conc = next(f for f in view.files if f.name == "conc.tsv")
+    assert {d.source.doc_sha256 for d in plan_publication(view, by="u").datasets} == {conc.sha256}
+    read_on_inputs = ObservedDataset(
+        id="ds-inputs0001", kind="profile", study={"study_id": "EX-01", "n": 6, "dose_mg": 100.0, "n_timepoints": 3},
+        series=(Series(times=(0.5, 1, 2), values=(5.1, 12.0, 20.4)),), origin=Origin.CLIENT, extraction="TABLE",
+        source=SourceRef(doc_sha256=conc.sha256, locator="conc!2", title="conc.tsv"), provider="CLIENT")
+    dataset_register.propose_dataset(ws, read_on_inputs, actor="u")
+    (why,) = plan_publication(view, by="u", ws=ws).blocked
+    assert why.startswith("EX-01: its concentrations (D/conc.tsv) are already in the project as dataset ds-inputs0001")
+    assert "read on Inputs" in why and "nothing is loaded twice" in why
+    with pytest.raises(ValueError, match="nothing is loaded twice"):
+        publish(ws, view, by="u", reason="again")
+    dataset_register.decide_dataset(ws, "ds-inputs0001", state=EvidenceState.REJECTED, reason="sent from the Data room",
+                                    by="u")
+    assert plan_publication(view, by="u", ws=ws).blocked == ()
+
+    # a signed Delivery confirmation that covers it: the legacy readers' rule (`intake_review.delivery_covers`)
+    class Confirmation:
+        id = "cf-7"
+
+    monkeypatch.setattr(intake_review, "delivery_covers", lambda ws, found, sheets=None: (found[0], Confirmation()))
+    (why,) = plan_publication(view, by="u", ws=ws).blocked
+    assert "the signed Delivery confirmation cf-7 already covers its concentrations" in why
+
+
+def test_a_multiple_dose_or_not_oral_study_or_a_modified_release_product_is_not_sent(room):
+    # R5: the record said single-dose oral immediate-release tablet whatever the study was
+    from modeler_project.dataroom.publish import plan_publication
+
+    def blocked(name, text, fact):
+        return plan_publication(_send_room(room, files=[(name, f"{text}\n", (), [fact])]), by="u").blocked
+
+    md = blocked("regimen.txt", "Dosing: 100 mg once daily for 7 days.", Fact(
+        field="study.regimen", subject="EX-01", value="100 mg once daily for 7 days", quote="100 mg once daily for 7 days"))
+    assert any(b.startswith("EX-01: multiple-dose studies are not sent yet: the model is built from single-dose data")
+               for b in md)
+    iv = blocked("route.txt", "Route: intravenous infusion over 30 min.", Fact(
+        field="study.route", subject="EX-01", value="intravenous infusion", quote="Route: intravenous infusion"))
+    assert any("the route is 'intravenous infusion': only oral studies are sent" in b for b in iv)
+    er = blocked("er.txt", "Refamide 100 mg is an extended-release tablet.", Fact(
+        field="product.release", subject="Refamide 100 mg", value="extended-release", product="Refamide 100 mg",
+        quote="Refamide 100 mg is an extended-release tablet."))
+    assert any(b.startswith("EX-01 arm A: Refamide 100 mg is a modified-release product ('extended-release')") for b in er)
+    assert not any("arm B" in b for b in er)
+    # a reformulation is not a modified release; an oral single-dose study is sent as one, a route not stated is said
+    reformulated = blocked("t.txt", "Exampleamide 100 mg is a modified formulation of Refamide.", Fact(
+        field="product.composition_change", subject="Exampleamide 100 mg", value="a modified formulation",
+        quote="Exampleamide 100 mg is a modified formulation of Refamide."))
+    assert reformulated == ()
+    unstated = plan_publication(_send_room(room), by="u")
+    assert unstated.blocked == () and any("the route is not stated in the files: sent as oral" in n for n in unstated.notes)
+    oral = plan_publication(_send_room(room, files=[("route.txt", "Route: oral.\n", (), [Fact(
+        field="study.route", subject="EX-01", value="oral", quote="Route: oral.")])]), by="u")
+    assert oral.blocked == () and not any("route" in n for n in oral.notes)
+    assert {(d.study["route"], d.study["design"], d.study["formulation"]) for d in oral.datasets} == {("oral", "SD", "ir_tablet")}
+
+
+def test_each_value_is_sent_with_its_own_source_entered_literature_by_convention_and_fitted(room):
+    # R6 (ICH M15): an entered value went as PREDICTED with the reason dropped, a label's as the client's report, a pH by
+    # convention as the sponsor's, the datasets with no source and the release fit without its function
+    from modeler_project.dataroom.model import Value
+    from modeler_project.dataroom.publish import plan_publication
+    from pbpk_domain.dissolution import EQUATION, FUNCTION_VERSION
+
+    label = ("label.md", "# Refamide label\n\nPlasma protein binding: 97 %\n", ("label",), [
+        Fact(field="adme.fu", value="97", unit="%", quote="Plasma protein binding: 97 %")])
+    hcl = ("sol_hcl.txt", "Solubility in 0.1 N HCl: 4.0 mg/mL\n", (), [
+        Fact(field="substance.solubility", subject="0.1 N HCl", value="4.0", unit="mg/mL",
+             quote="Solubility in 0.1 N HCl: 4.0 mg/mL")])
+    entered = Value(key="phys.mw", label="Molecular weight", value=412.5, unit="g/mol", as_written="412.5",
+                    status="entered", note="the client's e-mail of 2026-11-20")
+    view = _send_room(room, files=[label, hcl], entered=[entered], decisions={
+        "solubility-ref": {"chosen": "sol-2", "by": "user:m", "reason": "the acid medium"},
+        "media-ph-convention": {"chosen": "use", "by": "user:sme", "reason": "0.1 N HCl is the pH 1.2 medium"}})
+    ph_row = next(r for r in view.inputs if r.name == "phys.solubility.ref_ph")
+    assert (ph_row.value, ph_row.status) == (1.2, "calculated") and "not stated (confirmed by user:sme)" in ph_row.note
+    plan = plan_publication(view, by="u")
+    assert plan.blocked == ()
+    ev = {e.target: e for e in plan.evidence}
+    mw = ev["phys.mw"]
+    assert (mw.source_type, mw.extraction, mw.provider) == ("ASSUMPTION", "MANUAL", "CLIENT")
+    assert mw.note.endswith("entered by a person: the client's e-mail of 2026-11-20")
+    fu = ev["bind.fu"]
+    assert (fu.source_type, fu.provider, fu.value) == ("PUBLICATION", "LITERATURE", 0.03)
+    assert fu.source.title.startswith("D/label.md") and fu.source.doc_sha256 and fu.quote == "Plasma protein binding: 97 %"
+    ph = ev["phys.solubility.ref_ph"]
+    assert ph.source_type == "ASSUMPTION" and "pH 1.2 by convention for 0.1 N HCl, not stated (confirmed by user:sme)" in ph.note
+    assert (ev["phys.solubility.ref"].source_type, ev["phys.solubility.ref"].provider) == ("CLIENT_REPORT", "CLIENT")
+    weibull = ev["form.Refamide_100_mg.weibull.t50"]
+    assert (weibull.source_type, weibull.extraction) == ("CLIENT_FILE", "COMPUTED")
+    assert weibull.conditions["function"] == FUNCTION_VERSION and weibull.conditions["equation"] == EQUATION
+    assert "engine check" in weibull.conditions and ev["form.Refamide_100_mg.type"].conditions == weibull.conditions
+    conc = next(f for f in view.files if f.name == "conc.tsv")
+    for d in plan.datasets:
+        assert d.source.doc_sha256 == conc.sha256 and d.source.title == "D/conc.tsv"
+        assert (d.analyte, d.matrix) == ("parent", "plasma") and "the matrix is not stated: plasma" in d.note
+
+
+def test_the_individual_chosen_goes_on_the_record_from_the_synopsis_and_water_is_never_filled_in_silently(room):
+    # R7: with no demographics table the population and sex chosen were dropped, the synopsis's age ignored, and the
+    # water left to PK-Sim's default without a word
+    from modeler_project.dataroom.assemble import mean_and_range
+    from modeler_project.dataroom.publish import plan_publication
+
+    assert mean_and_range("mean (SD) age 30.5 (7.2) years; range 21 to 44") == (30.5, (21.0, 44.0), "mean")
+    assert mean_and_range("32 ± 8 years") == (32.0, None, "")
+    assert mean_and_range("between 19 and 45 years") == (None, (19.0, 45.0), "")      # a range gives no mean
+    assert mean_and_range("18 years or older") == (None, None, "")                     # nor does an inclusion limit
+
+    said = "All subjects were healthy male volunteers, mean age 31 years (range 19-45), mean weight 72.0 kg."
+    synopsis = ("dem.txt", f"{said}\n", (), [
+        Fact(field="study.sex", subject="EX-01", value="male", quote=said),
+        Fact(field="study.age", subject="EX-01", value="mean age 31 years (range 19-45)", quote=said),
+        Fact(field="study.weight", subject="EX-01", value="mean weight 72.0 kg", quote=said)])
+    european = {"population:EX-01": {"chosen": "European_ICRP_2002", "by": "u", "reason": "the subjects' origin"}}
+    plan = plan_publication(_send_room(room, files=[synopsis], decisions=european), by="u")
+    assert plan.blocked == ()
+    for d in plan.datasets:
+        assert d.study["demographics"] == {"population": "European_ICRP_2002", "sex": "MALE", "age_years": 31.0,
+                                           "age_min": 19.0, "age_max": 45.0, "weight_kg": 72.0}
+        assert d.demographics_choice == "entered" and d.study["water_ml_per_kg"] == round(240 / 72.0, 3)
+    # a range alone gives no age: the individual is left to Inputs (D-29), and the note names what was chosen
+    ranged = "Healthy male volunteers aged 18 to 45 years."
+    plan = plan_publication(_send_room(room, drop=("study.water",), decisions=european, files=[("dem.txt", f"{ranged}\n", (), [
+        Fact(field="study.sex", subject="EX-01", value="male", quote=ranged),
+        Fact(field="study.age", subject="EX-01", value="18 to 45 years", quote=ranged)])]), by="u")
+    assert plan.blocked == () and all(d.study["demographics"] is None for d in plan.datasets)
+    assert any("no mean age is stated (only the range 18–45 years)" in n and "European (ICRP 2002), male" in n
+               for n in plan.notes)
+    water = [n for n in plan.notes if "the water drunk with the dose is not stated" in n]
+    assert len(water) == 2 and all("PK-Sim's default (3.5 ml/kg) applies" in n for n in water)
+    assert all(d.study["water_ml_per_kg"] is None and "not stated" in d.note for d in plan.datasets)
+
+
+def test_a_release_a_weibull_curve_does_not_describe_is_said_beside_its_decision_and_in_what_is_sent(room):
+    # R9 (SME-gated: the behaviour is unchanged): a plateau and a very rapid release are sent as Weibull fits, said so
+    from modeler_project.dataroom.assemble import release_remark
+    from modeler_project.dataroom.model import DissolutionView
+    from modeler_project.dataroom.rules import load_rules
+
+    flat = DissolutionView(id="d1", product="P", batch="B1", medium="pH 6.8", times_min=(15, 30, 60), mean=(60, 80, 87),
+                           plateau=True)
+    fast = DissolutionView(id="d2", product="P", batch="B2", medium="0.1 N HCl", times_min=(5, 15), mean=(80, 96),
+                           very_rapid=True)
+    assert release_remark(flat, load_rules()) == ("pH 6.8 · batch B1 levels off at 87 %: a Weibull curve rises to 100 %; "
+                                                  "the SME decides (dissolution_similarity / MS-01)")
+    fast_said = release_remark(fast, load_rules())
+    assert "releases ≥ 85 % within 15 min" in fast_said and fast_said.endswith("the SME decides (dissolution_similarity / MS-01)")
