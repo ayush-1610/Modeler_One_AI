@@ -7,7 +7,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-import { Card } from "@/components/ui";
+import { Panel } from "@/components/kit/Panel";
 import { send } from "@/lib/api";
 
 export function AddCompany() {
@@ -28,7 +28,7 @@ export function AddCompany() {
   }
 
   return (
-    <Card title="Add a company">
+    <Panel title="Add a company">
       <form className="admin-filter" onSubmit={(e) => { e.preventDefault(); void add(); }} data-testid="company-add">
         <label>Id (its people carry it; it cannot change)
           <input value={tenant} onChange={(e) => setTenant(e.target.value.toLowerCase())} placeholder="e.g. acme"
@@ -41,7 +41,7 @@ export function AddCompany() {
                 data-testid="company-add-submit">Add the company</button>
       </form>
       {problem && <div className="banner err" style={{ marginTop: 10 }} data-testid="company-problem">{problem}</div>}
-    </Card>
+    </Panel>
   );
 }
 
@@ -64,7 +64,7 @@ export function CompanyState({ tenantId, disabledReason }: { tenantId: string; d
   }
 
   return (
-    <Card title={disabled ? "This company is disabled" : "Disable this company"}>
+    <Panel title={disabled ? "This company is disabled" : "Disable this company"}>
       <p className="muted" style={{ marginTop: 0 }}>
         {disabled
           ? `Why: ${disabledReason}. Enabling it lets the same people sign in again (not those disabled on their own).`
@@ -79,6 +79,6 @@ export function CompanyState({ tenantId, disabledReason }: { tenantId: string; d
         </button>
       </div>
       {problem && <div className="banner err" style={{ marginTop: 10 }}>{problem}</div>}
-    </Card>
+    </Panel>
   );
 }

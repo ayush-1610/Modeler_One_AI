@@ -37,7 +37,6 @@ export type DocumentRead = { run_id: string | null; by: string; datasets: string
                              links: number; compositions?: number; refused: string[]; digitization: string[]; summary: string };
 /** The file kinds the reading agent reads for data (modeler_project.client_data.READABLE_DOCUMENTS). */
 export const READABLE_DOCUMENTS = new Set(["pdf", "docx"]);
-export type Reconciled = Schema<"ReconciledRow">;
 export type Fit = { t50_min: number | null; shape: number | null; lag_min: number; se_t50: number | null; se_shape: number | null;
                     rmse_percent: number | null; n_points: number; converged: boolean; note: string; engine_confirmed: boolean };
 export type Profile = { id: string; label: string; key: Record<string, unknown>; times_min: number[]; mean: number[];

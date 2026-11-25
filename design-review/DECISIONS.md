@@ -115,6 +115,16 @@ as drawn** (the owner declined a mix with option 1, "Console Refresh").
 - Data room section words, chosen in 4a for the owner's review: in order → **Done**, needs a look → **To confirm**,
   missing → **Missing**; a section with nothing delivered keeps **Nothing yet** (no task yet).
 
+## D-I3 (2026-11-24): slice 9, which API operations retire now
+- **The verified retirements now, each its own commit:** `POST /campaigns/{id}/feedback:decide`,
+  `POST …/questions/{q}/map:generate` and `POST /projects/{id}/client-review:edit` (REMEDIATION §2, #19–21), and
+  `/templates` once its two consumers (the campaign-monitor e2e, `seed_examples.py`) no longer use it.
+- **Not now:** `GET /proposals` and its chain (R-B13) and `pbpk_domain.snapshot.parameter_transfer` (R-B13b) stay until
+  their owners say so.
+- Found while doing it: `/templates` is named in `tests/architecture/boundaries.toml`, a locked file, so the routes
+  themselves are removed in a separate PR with the owner's approval; their consumers already read
+  `reference_models.starting_point`.
+
 ## Earlier owner decisions that still bind the redesign
 | Date | Decision | Source |
 |---|---|---|

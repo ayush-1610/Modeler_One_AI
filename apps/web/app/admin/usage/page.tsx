@@ -1,6 +1,6 @@
 import { PricingSwitch, UsageKpis, UsageTable } from "@/components/admin/AdminParts";
-import { Hero } from "@/components/kit";
-import { ApiProblem, Card } from "@/components/ui";
+import { ApiProblem, Hero } from "@/components/kit";
+import { Panel } from "@/components/kit/Panel";
 import { getUsage, hideUnlessAdmin, pricedAs, tokens, usd, when } from "@/lib/admin";
 
 const LEDE = "What the agents used, per agent, project, person, company and day, and each run with who started it. " +
@@ -23,17 +23,17 @@ export default async function UsagePage({ searchParams }: {
       <Hero tone="admin" eyebrow="Admin console" title="Usage and cost" lede={LEDE} />
       <PricingSwitch priced={priced} base="/admin/usage" query={{ since, tenant_id: tenant }} />
       {live.problem && <ApiProblem problem={live.problem} />}
-      <Card>
+      <Panel>
         <form className="admin-filter" method="get" action="/admin/usage" data-testid="usage-filter">
           <label>Since<input type="date" name="since" defaultValue={since ?? ""} /></label>
           <label>Company<input type="text" name="tenant_id" defaultValue={tenant ?? ""} placeholder="every company" /></label>
           <input type="hidden" name="priced_as" value={priced} />
           <button type="submit" className="btn">Show</button>
         </form>
-      </Card>
+      </Panel>
       {data && (
         <>
-          <Card title={tenant ? `Company ${tenant}` : "Every company"}><UsageKpis usage={data.total} /></Card>
+          <Panel title={tenant ? `Company ${tenant}` : "Every company"}><UsageKpis usage={data.total} /></Panel>
           <div className="admin-grid">
             <UsageTable title="By agent" column="Agent" rows={data.by_agent} testId="usage-by-agent" />
             <UsageTable title="By person" column="Person (company)" rows={data.by_person} testId="usage-by-person" />
@@ -41,7 +41,7 @@ export default async function UsagePage({ searchParams }: {
             <UsageTable title="By company" column="Company" rows={data.by_company} testId="usage-by-company" />
           </div>
           <UsageTable title="By day" column="Day" rows={data.by_day} testId="usage-by-day" />
-          <Card title={`Runs (newest first${data.runs.length >= data.limit ? `, the first ${data.limit}` : ""})`}>
+          <Panel title={`Runs (newest first${data.runs.length >= data.limit ? `, the first ${data.limit}` : ""})`}>
             {data.runs.length === 0 ? <p className="muted">No runs.</p> : (
               <div className="table-scroll">
                 <table data-testid="usage-runs">
@@ -68,7 +68,7 @@ export default async function UsagePage({ searchParams }: {
                 </table>
               </div>
             )}
-          </Card>
+          </Panel>
           <p className="muted">
             Prices of {priced} per million tokens: input ${data.prices.input}, cache write ${data.prices.cache_write_5m},
             cache read ${data.prices.cache_read}, output ${data.prices.output}.

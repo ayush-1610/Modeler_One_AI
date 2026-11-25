@@ -1,4 +1,4 @@
-import { Stepper } from "@/components/kit/Stepper";
+import { StepWaiting } from "@/components/kit/StepWaiting";
 import { PlanCanvas } from "@/components/plan/PlanCanvas";
 
 /** Step 3 · Review & sign (redesign §3.3): the studies and roles on the MS-01 canvas, the review table, credibility,
@@ -7,7 +7,7 @@ export default async function PlanPage({ params }: { params: Promise<{ projectId
   const { projectId } = await params;
   return (
     <main className="wide">
-      <PlanCanvas projectId={projectId} steps={<Stepper projectId={projectId} current="review" />} />
+      <PlanCanvas projectId={projectId} steps={<StepWaiting projectId={projectId} current="review" />} />
     </main>
   );
 }

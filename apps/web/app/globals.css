@@ -119,9 +119,8 @@ body {
 }
 
 /* Identifiers you may need to read character by character: parameter ids, engine paths, campaign ids. */
-code, .mono { font-family: var(--font-mono, ui-monospace, SFMono-Regular, monospace); font-size: 0.92em; }
-code { color: var(--brand-ink); background: color-mix(in srgb, var(--sim) 10%, transparent);
-       padding: 1px 5px; border-radius: var(--radius-sm); }
+code { font-family: var(--font-mono, ui-monospace, SFMono-Regular, monospace); font-size: 0.92em; color: var(--brand-ink);
+       background: color-mix(in srgb, var(--sim) 10%, transparent); padding: 1px 5px; border-radius: var(--radius-sm); }
 
 a { color: var(--brand-ink); text-decoration-color: color-mix(in srgb, var(--sim) 45%, transparent);
     text-underline-offset: 3px; }
@@ -139,51 +138,7 @@ h2 { font-size: 17px; line-height: 1.3; letter-spacing: -0.01em; font-weight: 60
 h3 { font-size: 12px; font-weight: 600; letter-spacing: 0.02em; color: var(--ink-quiet); margin: 0 0 8px; }
 p { max-width: var(--measure); }
 
-.app { display: flex; min-height: 100vh; }
-
-.sidebar {
-  width: 236px; flex-shrink: 0; background: var(--surface); border-right: 1px solid var(--line);
-  padding: 18px 12px; position: sticky; top: 0; height: 100vh; overflow-y: auto; overflow-x: hidden;
-  display: flex; flex-direction: column; transition: width 200ms var(--ease);
-}
-/* the sidebar's logo; scoped, so the `.chip.brand` tone stays a chip (plan 2026-11-14 slice 1) */
-.sidebar .brand { display: flex; gap: 9px; align-items: center; font-weight: 600; font-size: 15px; min-height: 32px;
-         letter-spacing: -0.01em; margin: 0 2px 18px 4px; }
-/* the mark is a decaying curve — the shape the whole product is about */
-.brand-mark {
-  width: 26px; height: 26px; border-radius: 8px; flex-shrink: 0;
-  background:
-    radial-gradient(circle at 18% 22%, var(--sim) 0 2.2px, transparent 2.4px),
-    radial-gradient(circle at 44% 46%, var(--sim) 0 2.2px, transparent 2.4px),
-    radial-gradient(circle at 72% 66%, var(--obs) 0 2.2px, transparent 2.4px),
-    var(--raised);
-  border: 1px solid var(--line);
-}
-.sidebar .brand .nav-text { flex: 1; min-width: 0; white-space: nowrap; }
-.nav { display: grid; gap: 2px; }
-.nav a, .nav-action { position: relative; display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 10px;
-  border-radius: var(--radius-sm); color: var(--ink-dim); font: inherit; font-weight: 500; text-decoration: none; text-align: left;
-  border: 0; background: none; cursor: pointer; white-space: nowrap;
-  transition: background 120ms var(--ease), color 120ms var(--ease); }
-.nav a:hover, .nav-action:hover { background: var(--raised); color: var(--ink); }
-.nav a.active { background: color-mix(in srgb, var(--sim) 12%, transparent); color: var(--brand-ink); font-weight: 600; }
-/* the current page's bar, at the sidebar's inner edge */
-.nav a.active::before { content: ""; position: absolute; left: -12px; top: 8px; bottom: 8px; width: 3px; border-radius: 0 3px 3px 0;
-  background: var(--sim); }
-.nav-icon { flex-shrink: 0; }
-.nav .nav-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.nav-action { color: var(--brand-ink); font-weight: 600; }
-.nav-project { margin-top: 16px; }
-.nav-heading { display: block; padding: 0 10px 4px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em;
-  color: var(--ink-quiet); white-space: nowrap; }
-.nav-foot { margin-top: auto; padding-top: 18px; display: grid; gap: 10px; }
-.nav-user { display: flex; gap: 10px; align-items: flex-start; padding: 10px 4px 0; border-top: 1px solid var(--line);
-  font-size: 13px; color: var(--ink-dim); }
-.nav-user strong { display: block; color: var(--ink); font-weight: 600; margin: 2px 0 6px; }
-.nav-user a { color: var(--brand-ink); }
-.nav-avatar { display: grid; place-items: center; width: 30px; height: 30px; flex-shrink: 0; border-radius: 50%;
-  font-size: 12px; font-weight: 600; color: var(--brand-ink); background: color-mix(in srgb, var(--sim) 14%, var(--surface)); }
-/* The skip link: off screen until a keyboard reaches it, then over the sidebar's top corner. Its target is a zero-size
+/* The skip link: off screen until a keyboard reaches it, then over the top bar's corner. Its target is a zero-size
  * point at the start of the page, so focus lands there and the next Tab goes to the page's first control. */
 .skip-link { position: absolute; left: 12px; top: -60px; z-index: 70; padding: 8px 14px; border-radius: var(--radius-sm);
   background: var(--primary); color: var(--on-primary); font-weight: 600; text-decoration: none; }
@@ -191,9 +146,6 @@ p { max-width: var(--measure); }
 .skip-target { display: block; width: 0; height: 0; overflow: hidden; }
 .skip-target:focus { outline: none; }
 /* app/loading.tsx, error.tsx and not-found.tsx: what the page area shows while it loads, when it fails, and when nothing is there */
-.page-state { display: grid; gap: 10px; justify-items: start; max-width: var(--measure); padding-top: 8px; }
-.page-state p { margin: 0; color: var(--ink-dim); }
-.page-state .row { margin-top: 6px; }
 .page-loading { color: var(--ink-dim); }
 /* the signing step-up opens over any other dialog (an escalation decision asks for a signature from inside one) */
 .dialog-backdrop.step-up { z-index: 60; }
@@ -206,7 +158,6 @@ p { max-width: var(--measure); }
 .cols-2 { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); margin-top: 16px; }
 .cols-2 > .card { margin-top: 0; min-width: 0; }
 .cols-2 table { display: block; overflow-x: auto; }
-.cols-intake { grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); }
 
 .muted { color: var(--ink-dim); }
 .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
@@ -284,10 +235,8 @@ tbody tr:last-child td { border-bottom: none; }
 .fold-value { font-variant-numeric: tabular-nums; font-weight: 600; }
 .fold-value.out { color: var(--fail-ink); }
 @media (max-width: 900px) {
-  .cols-2, .cols-intake { grid-template-columns: 1fr; }
-  .app { flex-direction: column; }
+  .cols-2 { grid-template-columns: 1fr; }
   .content { padding: 20px 16px 48px; }
-  .sidebar { width: 100%; height: auto; position: static; border-right: none; border-bottom: 1px solid var(--line); }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
@@ -300,7 +249,6 @@ tbody tr:last-child td { border-bottom: none; }
 .cite { font: inherit; font-size: 11px; padding: 1px 6px; border-radius: var(--radius-sm); cursor: pointer;
   border: 1px solid var(--line); background: var(--raised); color: var(--brand-ink); }
 .cite.dot { margin-left: 4px; }
-.editor { padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--raised); margin: 6px 0; }
 .issues { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: 13px; }
 .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin: 6px 0 16px; }
 .tabs a, .tabs button { padding: 8px 14px; color: var(--ink-dim); text-decoration: none; border: 0; border-bottom: 2px solid transparent;

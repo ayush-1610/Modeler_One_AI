@@ -211,9 +211,9 @@ T-25 (parallel from week 2) · T-29 (P3) · T-30 (human, parallel) · T-19 (P3) 
 Critical path to the first unattended S0→S2 campaign (P1 milestone): T-01 → T-02 → T-03 → T-04/T-10 → T-13, with
 T-05 → T-07 → T-08 → T-18 and T-09 in parallel.
 
-## 4. Where things stand (2026-11-22)
+## 4. Where things stand (2026-11-24)
 
-### 4.0e 2026-11-22 → 23: redesign charter, implementation started (slice 1 in review)
+### 4.0e 2026-11-22 → 24: redesign charter, implementation (slice 9 in review)
 **Now (2026-11-23):** the owner authorised slices 0 and 1, one PR per slice into `main`, a review after each. Slice 0:
 `main` fast-forwarded to `000a59d`; branch `archive/stylish-frontend-20261123-1601` pushed; the tag push was refused
 (403), the owner pushes it. Slice 1 (the console shell on every page, R-S02) is a PR from `claude/inspiring-einstein-191gn3`;
@@ -229,7 +229,12 @@ tabs, read-only polish, "Back to the MS-01 default" with its dry run) merged (#1
 tabs, the kit chart, the Package tab from `GET /package`, the decision form) merged (#181). **Slice 7** (Records: History
 in four tabs, the signature register R-N09, Agent activity R-N05, Documents with the side panel) merged (#182). **Slice
 8** (the admin console restyled, a Companies page, System status with the engine check R-N08, QA reads its company's
-projects R-S05 without `auth.py`) is a PR; slice 9 (cleanup) waits for the owner's review. R-N09's open question is answered: escalation decisions were missing from a project's History. Deviations: the plan's §11. QA (R-S05) is built in slice 8, without `auth.py`.
+projects R-S05 without `auth.py`) merged (#183). **Slice 9** (cleanup) is a PR: the verified API retirements
+(`feedback:decide`, `map:generate`, `client-review:edit`; the owner's choice, DECISIONS D-I3), `/templates`' two
+consumers moved to `reference_models.starting_point` (**its routes stay** until a separate PR the owner approves, as
+`tests/architecture/boundaries.toml` is locked), one component kit (`ui.tsx` and `kit/Motion` gone), about 270 lines of dead
+CSS and 14 unused exports removed, README and the user guide brought up to date; slice 10 (acceptance) waits for the
+owner's review. R-N09's open question is answered: escalation decisions were missing from a project's History. Deviations: the plan's §11. QA (R-S05) is built in slice 8, without `auth.py`.
 
 The owner's charter: an AWS-console-inspired redesign, design first, through four approval gates; no production change
 before Gate 4 and a separate go-ahead. Everything is in `design-review/` (start at its `README.md`). Gate 1 (discovery),

@@ -763,21 +763,6 @@ def reopen(ws: Workspace, gid: str, issue_id: str, *, by: str) -> dict[str, Any]
     return next((g for g in groups(ws) if g["id"] == gid), None) or group
 
 
-def edit_fact(ws: Workspace, gid: str, field: str, value: Any, *, by: str) -> dict[str, Any]:
-    """An item-level edit before the group is confirmed: one fact of every dataset of the study (the audit keeps the
-    facts before and after; no reason is asked)."""
-    from modeler_project.dataset_register import set_study_facts
-
-    group = _find(ws, gid)
-    if group["kind"] != "study" or field not in FACT_LABEL:
-        raise ReviewError(f"only a study's facts are edited here ({', '.join(FACT_LABEL)})")
-    if group["state"] == "confirmed":
-        raise ReviewError(f"{group['title']} is confirmed already")
-    for item in group["items"]:
-        set_study_facts(ws, item["id"], changes={field: value}, by=by)
-    return _find(ws, gid)
-
-
 def confirm(ws: Workspace, gid: str, *, by: str) -> dict[str, Any]:
     """Confirm a group: its selections are applied, then its datasets and values are accepted and load into the
     inputs, in one audited record. Refused while any conflict or question of the group is open."""

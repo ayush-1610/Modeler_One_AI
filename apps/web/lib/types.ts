@@ -24,7 +24,6 @@ export type Compound = {
 // The campaign monitor as the runner writes it and the API answers (modeler_storage.records, phase 9d). Its science
 // blocks (the goodness-of-fit series, the S6 prediction, the S7 package, the ledger, the influence map, the S5
 // diagnosis and the decisions) are their own modules' documents, open in the contract and typed below as the pages read them.
-export type RealData = Schema<"RealDataSummary">;
 export type Round = Schema<"RoundRecord">;
 export type Stage = Schema<"StageRecord">;
 export type Campaign = Schema<"CampaignRecord">;

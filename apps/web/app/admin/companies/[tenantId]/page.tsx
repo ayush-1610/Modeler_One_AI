@@ -5,8 +5,8 @@ import { PricingSwitch, USAGE_HEADS, UsageCells, UsageKpis } from "@/components/
 import { CompanyState } from "@/components/admin/CompanyAdmin";
 import { FilesGo } from "@/components/admin/FilesGo";
 import { GiveProjects } from "@/components/admin/GiveProjects";
-import { Hero } from "@/components/kit";
-import { ApiProblem, Card } from "@/components/ui";
+import { ApiProblem, Hero } from "@/components/kit";
+import { Panel } from "@/components/kit/Panel";
 import { getCompany, pricedAs, refused } from "@/lib/admin";
 
 /** One company in full: its people and projects, each with what its agents used (the console, build A), and where its
@@ -36,8 +36,8 @@ export default async function CompanyPage({ params, searchParams }: {
               Disabled: none of its people can sign in ({data.disabled_reason}).
             </div>
           )}
-          <Card title="This company"><UsageKpis usage={data.usage} /></Card>
-          <Card title="People">
+          <Panel title="This company"><UsageKpis usage={data.usage} /></Panel>
+          <Panel title="People">
             <div className="table-scroll">
               <table data-testid="admin-people">
                 <thead><tr><th>Name</th><th>Sign-in id</th><th>Projects</th>{USAGE_HEADS}</tr></thead>
@@ -56,8 +56,8 @@ export default async function CompanyPage({ params, searchParams }: {
             <p className="muted mt-10">
               A person&apos;s runs are those their actions started, recorded from 10 November 2026.
             </p>
-          </Card>
-          <Card title="Projects">
+          </Panel>
+          <Panel title="Projects">
             <div className="table-scroll">
               <table data-testid="admin-projects">
                 <thead><tr><th>Project</th><th>Compounds</th><th>Members</th><th>State</th>{USAGE_HEADS}</tr></thead>
@@ -74,7 +74,7 @@ export default async function CompanyPage({ params, searchParams }: {
                 </tbody>
               </table>
             </div>
-          </Card>
+          </Panel>
           <FilesGo tenantId={tenantId} permissions={data.data_permissions} />
           <GiveProjects tenantId={tenantId} people={data.people.map((p) => ({ subject: p.subject, name: p.name,
                                                                                projects: p.projects }))} />

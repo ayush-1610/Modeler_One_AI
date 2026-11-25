@@ -1,5 +1,5 @@
-"""Answers about campaigns (phase 9d): the monitor and its review inbox (the orchestrator's records,
-`modeler_storage.records`), the S7 package, a generated MAP, a campaign start and a signature.
+"""Answers about campaigns (phase 9d): the campaign page and its escalations (the orchestrator's records,
+`modeler_storage.records`), the S7 package, a campaign start and a signature.
 
 A campaign start and a signature answer without the envelope, as they always have (the owner's choice of 2026-10-08,
 shapes kept).
@@ -13,7 +13,6 @@ from pydantic import Field
 
 from modeler_api.views.common import View
 from modeler_storage.records import CampaignRecord, EscalationRecord
-from pbpk_domain.campaign.map import MapDocument
 
 
 class UnreadableRecord(View):
@@ -60,11 +59,6 @@ class CampaignPackage(View):
     artifacts: list[str]
     pksim_projects: list[str]
     project_notes: list[str]
-
-
-class MapGenerated(View):
-    question_id: str
-    map: MapDocument
 
 
 class CampaignStarted(View):

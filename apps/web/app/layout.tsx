@@ -36,7 +36,7 @@ import "./styles/console.css";
 // the pages before and after the app (sign in, signed out, no access) and the account page (2026-11-24)
 import "./styles/auth.css";
 import { EscalationPopup } from "@/components/campaign/EscalationPopup";
-import { Toaster } from "@/components/kit/Motion";
+import { Toaster } from "@/components/kit/Toast";
 import { AppShell } from "@/components/shell/AppShell";
 import { Providers } from "@/components/Providers";
 import { SHELL_HEADER } from "@/lib/oidc";

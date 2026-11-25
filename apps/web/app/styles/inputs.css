@@ -36,7 +36,7 @@
 .tabs .tab-count { margin-left: 6px; padding: 0 7px; border-radius: 999px; font-size: 11.5px; font-weight: 600;
   background: color-mix(in srgb, var(--ink) 8%, transparent); color: var(--ink); }
 .area-bar .tabs .chip { margin-left: 6px; }
-.missing-list, .checks { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 13px; }
+.checks { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 13px; }
 .individual { border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 10px 12px; background: var(--surface); }
 .individual + .individual { margin-top: 8px; }
 .studies-table td { vertical-align: top; }
@@ -190,7 +190,6 @@ html:has(.area-bar) { scroll-padding-top: 76px; }
   .files-table > tbody > tr.files-detail > td { padding: 0 0 12px; }
   .files-table .files-detail table:not(.files-detail .table-scroll table, .sheet-grid table) { display: block; max-width: 100%; overflow-x: auto; }
 }
-.client-files h3 { margin: 4px 0 6px; font-size: 15px; color: var(--ink); }
 .file-card { scroll-margin-top: 80px; }
 /* on a phone a file's sheet table scrolls inside its card, never the page */
 @media (max-width: 900px) { .file-card > table { display: block; overflow-x: auto; } }
@@ -208,10 +207,6 @@ html:has(.area-bar) { scroll-padding-top: 76px; }
   .sheet-table > tbody > tr > td[data-label]::before { content: attr(data-label); display: block; font-size: 12px; font-weight: 600; color: var(--ink-dim); }
   .sheet-table .chip { white-space: normal; }
 }
-/* To do (plan 2026-11-14 slice 1): what is still missing to run, by area, full width; then the checks, folded */
-.todo-area + .todo-area { margin-top: 12px; }
-.todo-area h3 { margin: 0 0 6px; font-size: 14px; color: var(--ink); }
-.todo-missing .client-request-download { margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--hairline); }
 /* what the structured sources gave the compound at the project's start (plan 2026-11-05 §3.3) */
 .sources-read { border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 10px 12px; margin: 0 0 12px; }
 .sources-read h3 { margin: 0 0 6px; font-size: 14px; }
@@ -272,7 +267,6 @@ html:has(.area-bar) { scroll-padding-top: 76px; }
 .todo-caret::before { content: "▸"; display: inline-block; width: 1em; color: var(--ink-dim); }
 .todo-fold[open] > summary .todo-caret::before { content: "▾"; }
 /* an area's cards that are signed on the delivery and open in Client files until slice 3 */
-.area-elsewhere { margin: -2px 0 10px; font-size: 13px; }
 .todo-ready { padding: 12px 14px; border-radius: var(--radius-sm); background: color-mix(in srgb, var(--pass) 8%, var(--surface)); }
 .checks-passed summary { cursor: pointer; color: var(--ink-dim); }
 .todo-group .client-request-download { margin-top: 6px; }

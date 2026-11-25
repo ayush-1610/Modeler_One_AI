@@ -4,8 +4,7 @@
 
 import { cookies } from "next/headers";
 
-import { Hero } from "@/components/kit";
-import { ApiProblem } from "@/components/ui";
+import { ApiProblem, Hero } from "@/components/kit";
 import { serverGet } from "@/lib/api";
 import { claims, COOKIE, oidcConfig } from "@/lib/oidc";
 

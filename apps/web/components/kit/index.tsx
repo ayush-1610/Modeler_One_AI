@@ -1,7 +1,7 @@
 // The redesign's small component kit (docs/plans/2026-10-19-p0-p5-redesign.md §7): plain CSS on the theme tokens
 // (app/styles/kit.css), no component library. New screens are built from these; old pages keep their own until rebuilt.
 
-// Stepper (a server component) is imported from its own file.
+// StepWaiting (a server component), Panel, Badge, StatusIndicator and Toast are imported from their own files.
 
 import { Fragment, type ReactNode } from "react";
 
@@ -33,7 +33,7 @@ export function Hero({ title, lede, actions, testId }: {
   );
 }
 
-/** A step's page: its head, the project's steps under it (the Stepper, passed in), and its content beside an optional
+/** A step's page: its head, what the step waits on under it (kit/StepWaiting, passed in), and its content beside an optional
  *  side panel. `noReveal` is accepted and ignored: nothing fades in
  *  any more (the motion system is gone, decision G1-2). `slim` (opt-in): a shorter head and less
  *  space under it, so a page's own bar sits high (Inputs, plan 2026-11-14 slice 2); other pages keep theirs. `before`:
@@ -52,18 +52,6 @@ export function PageShell({ eyebrow, title, lede, actions, side, steps, tone, sl
         {side && <aside className="shell-side">{side}</aside>}
       </div>
     </div>
-  );
-}
-
-/** A box of the side panel: a short heading and what it says. */
-export function SidePanel({ title, tone, children, testId }: {
-  title: string; tone?: "warn" | "ok"; children: ReactNode; testId?: string;
-}) {
-  return (
-    <section className={`side-panel${tone ? ` ${tone}` : ""}`} data-testid={testId}>
-      <h3>{title}</h3>
-      {children}
-    </section>
   );
 }
 
@@ -88,6 +76,12 @@ export function InlineIssue({ severity = "warn", children, testId }: {
 /** A result or a refusal the person should hear about: a note for what went fine or a caution, an alert for a refusal. */
 export function Banner({ tone, children, testId }: { tone: "ok" | "warn" | "err"; children: ReactNode; testId?: string }) {
   return <div className={`banner ${tone}`} role={tone === "err" ? "alert" : "status"} data-testid={testId}>{children}</div>;
+}
+
+/** What stopped a page from showing live data (DESIGN_SYSTEM §5.5: not dismissible). Never paired with sample data. It
+ *  moved here from `components/ui.tsx` in the console redesign's slice 9. */
+export function ApiProblem({ problem }: { problem: string }) {
+  return <div className="banner err mb-14" data-testid="api-problem">{problem}</div>;
 }
 
 export type Column<T> = { key: string; label: string; numeric?: boolean; render: (row: T) => ReactNode };

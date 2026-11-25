@@ -11,7 +11,6 @@
   font: 600 12.5px/1 var(--font-mono, ui-monospace, monospace); color: var(--brand-ink);
   background: color-mix(in srgb, var(--sim) 12%, var(--surface)); border: 1px solid color-mix(in srgb, var(--sim) 35%, var(--line)); }
 .start-sub { margin: 6px 0 0; font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-quiet); }
-.start-hint { font-size: 12.5px; margin: 0; }
 
 /* a field: label, value with its source, and the change button */
 .sb-rows { display: grid; }
@@ -80,7 +79,6 @@
 .route-dose { font-size: 12.5px; }
 
 /* questions and notes */
-.start-questions { display: grid; gap: 8px; }
 .start-question { border-left: 3px solid var(--warn); padding: 4px 0 4px 10px; display: grid; gap: 6px; }
 .start-question p { margin: 0; font-size: 14px; }
 .start-question input { flex: 1; min-width: 180px; }
@@ -115,7 +113,6 @@
 .pathway-edit select, .pathway-edit input, .route-dose input { font: inherit; font-size: 14px; padding: 6px 8px;
   border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
 .pathway-edit input { flex: 1; min-width: 160px; }
-.client-request { margin: 0 0 10px; padding-left: 18px; display: grid; gap: 4px; font-size: 14px; }
 /* the intake agent's suggested rating, once the person has rated (components/start/RiskPicker.tsx, 2026-11-02) */
 .risk-suggestion { display: block; margin-top: 4px; font-size: 12.5px; }
 .risk-differs { display: grid; gap: 6px; margin-top: 6px; padding: 8px 10px; border-radius: var(--radius-sm);

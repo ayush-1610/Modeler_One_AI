@@ -11,7 +11,7 @@ import { useState } from "react";
 import { InlineIssue } from "@/components/kit";
 import { Dialog } from "@/components/kit/Dialog";
 import { StepsMini, Table, type Column } from "@/components/kit/Table";
-import { RiskChip } from "@/components/ui";
+import { RiskBadge } from "@/components/kit/Badge";
 import { send } from "@/lib/api";
 import { useMutation, type After } from "@/lib/hooks";
 import { nextHref, standing } from "@/lib/portfolio";
@@ -70,7 +70,7 @@ export function ProjectsTable({ projects, me, title = "Projects", limit, actions
     { key: "steps", label: "Steps", render: (p) => <StepsMini steps={p.steps} /> },
     { key: "next", label: "Next action", render: (p) => (p.archived ? <span className="muted">Archived</span>
       : <Link href={nextHref(p)}>{standing(p.steps).next}</Link>) },
-    { key: "risk", label: "Risk", sort: (p) => RISK[p.risk ?? ""] ?? 0, render: (p) => <RiskChip rating={p.risk} /> },
+    { key: "risk", label: "Risk", sort: (p) => RISK[p.risk ?? ""] ?? 0, render: (p) => <RiskBadge rating={p.risk} /> },
     { key: "questions", label: "Open questions", num: true, sort: (p) => p.openQuestions, render: (p) => p.openQuestions },
     ...(limit ? [] : [
       { key: "owner", label: "Owner", sort: (p: Project) => p.owner_name ?? "", render: (p: Project) => p.owner_name ?? <span className="muted">—</span> },

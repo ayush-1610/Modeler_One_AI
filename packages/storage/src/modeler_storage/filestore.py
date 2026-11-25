@@ -181,7 +181,7 @@ class FileWriteStore(_FileStoreBase):
         self._upsert(tenant_id, "proposals.json", "proposals", proposal)
 
     def remove_escalation(self, tenant_id: str, escalation_id: str) -> bool:
-        """Drop a resolved escalation so the review inbox no longer shows it as awaiting a decision. False when it was
+        """Drop a resolved escalation so Your work and the flash bar no longer show it as awaiting a decision. False when it was
         not there: under the document's lock this is the one place a decision is claimed, so of two workers resolving
         the same escalation at once exactly one removes it (phase 8)."""
         path = self.root / tenant_id / "escalations.json"

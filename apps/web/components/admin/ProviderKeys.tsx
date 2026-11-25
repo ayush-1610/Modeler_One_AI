@@ -6,7 +6,7 @@
 
 import { useState } from "react";
 
-import { Card } from "@/components/ui";
+import { Panel } from "@/components/kit/Panel";
 import { send, type Schema } from "@/lib/api";
 import { when } from "@/lib/admin";
 
@@ -37,7 +37,7 @@ function AddKey({ page, onDone }: { page: Page; onDone: (p: Page) => void }) {
   }
 
   return (
-    <Card title="Add a key">
+    <Panel title="Add a key">
       <form className="admin-filter" autoComplete="off" onSubmit={(e) => { e.preventDefault(); void add(); }} data-testid="key-add">
         <label>Provider
           <select value={provider} onChange={(e) => { setProvider(e.target.value); setFields({}); }} data-testid="key-provider">
@@ -60,7 +60,7 @@ function AddKey({ page, onDone }: { page: Page; onDone: (p: Page) => void }) {
       </form>
       {problem && <div className="banner err mt-10" data-testid="key-problem">{problem}</div>}
       <p className="muted mb-0">A new key is not used until it is made active. Test it first.</p>
-    </Card>
+    </Panel>
   );
 }
 
@@ -107,7 +107,7 @@ export function ProviderKeys({ initial }: { initial: Page }) {
   return (
     <>
       {!page.master_key && <div className="banner err" data-testid="master-key-missing">{page.master_problem}</div>}
-      <Card title="Keys">
+      <Panel title="Keys">
         {page.keys.length === 0 ? <p className="muted">No key stored yet: the agents use the server&apos;s environment.</p> : (
           <div className="table-scroll">
             <table data-testid="admin-keys">
@@ -137,7 +137,7 @@ export function ProviderKeys({ initial }: { initial: Page }) {
             </table>
           </div>
         )}
-      </Card>
+      </Panel>
       <AddKey page={page} onDone={setPage} />
     </>
   );

@@ -1,7 +1,6 @@
 import { PricingSwitch, LimitWarnings } from "@/components/admin/AdminParts";
 import { Limits } from "@/components/admin/Limits";
-import { Hero } from "@/components/kit";
-import { ApiProblem } from "@/components/ui";
+import { ApiProblem, Hero } from "@/components/kit";
 import { getLimits, hideUnlessAdmin, pricedAs } from "@/lib/admin";
 
 const LEDE = "A monthly spend and token limit per company, project or person. You are warned at 80 % and when a limit is " +

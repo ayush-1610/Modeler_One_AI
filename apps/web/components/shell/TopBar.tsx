@@ -11,7 +11,7 @@ import { useQueryClient } from "@tanstack/react-query";
 
 import { Logo } from "@/components/Nav";
 import { Icon } from "@/components/kit/icons";
-import { toast } from "@/components/kit/Motion";
+import { toast } from "@/components/kit/Toast";
 import { forgetReasons } from "@/components/kit/Reason";
 import { useWorkCount } from "@/components/portfolio/useWork";
 import { useResource } from "@/lib/hooks";

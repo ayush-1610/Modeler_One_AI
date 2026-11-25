@@ -10,7 +10,8 @@ import type { ReactNode } from "react";
 import { Hero } from "@/components/kit";
 import { Table } from "@/components/kit/Table";
 import { ProjectsTable } from "@/components/projects/ProjectsTable";
-import { RiskChip, StatusChip } from "@/components/ui";
+import { RiskBadge } from "@/components/kit/Badge";
+import { StatusIndicator } from "@/components/kit/StatusIndicator";
 import { standing, type WorkItem } from "@/lib/portfolio";
 import type { Campaign, Project } from "@/lib/types";
 import { WorkKindChip } from "@/components/portfolio/Work";
@@ -74,8 +75,8 @@ export function Home({ projects, campaigns, work, me, notice }: {
             <div className="panel-body">
               {active.length === 0 ? <p className="muted m-0">No programs yet.</p> : (
                 <ul className="list-plain">
-                  {risks.map((x) => <li key={x.r}><RiskChip rating={x.r} /> {x.n}</li>)}
-                  {unrated > 0 && <li><RiskChip rating={null} /> {unrated}</li>}
+                  {risks.map((x) => <li key={x.r}><RiskBadge rating={x.r} /> {x.n}</li>)}
+                  {unrated > 0 && <li><RiskBadge rating={null} /> {unrated}</li>}
                 </ul>
               )}
             </div>
@@ -88,7 +89,7 @@ export function Home({ projects, campaigns, work, me, notice }: {
                   <ul className="list-plain">
                     {campaigns.slice(-5).reverse().map((c) => (
                       <li key={c.id}>
-                        <Link href={`/campaigns/${encodeURIComponent(c.id)}`}><code>{c.id}</code></Link> <StatusChip status={c.status} />
+                        <Link href={`/campaigns/${encodeURIComponent(c.id)}`}><code>{c.id}</code></Link> <StatusIndicator status={c.status} />
                         <span className="muted fs-12">{names.get(c.project) ?? c.project} · {c.currentStage}</span>
                       </li>
                     ))}

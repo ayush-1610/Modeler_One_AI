@@ -1,8 +1,8 @@
 import Link from "next/link";
 
 import { LimitWarnings, PricingSwitch, UsageKpis } from "@/components/admin/AdminParts";
-import { Hero } from "@/components/kit";
-import { ApiProblem, Card } from "@/components/ui";
+import { ApiProblem, Hero } from "@/components/kit";
+import { Panel } from "@/components/kit/Panel";
 import { getOverview, hideUnlessAdmin, pricedAs } from "@/lib/admin";
 
 const LEDE = "The platform at a glance: the limits reached, what every company's agents used, and what the platform runs on. " +
@@ -47,22 +47,22 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
               <span className="counter-sub">{agents?.enabled ? `${agents.provider} · ${agents.model}` : (agents?.problem ?? "agents are off")}</span>
             </Link>
           </nav>
-          <Card title="What every company's agents used">
+          <Panel title="What every company's agents used">
             <UsageKpis usage={data.total} />
             <p className="muted mt-10 mb-0">
               Costs are estimates: each run&apos;s recorded tokens priced at the chosen Claude model&apos;s list prices
               with its conversations cached. The tokens are those of the model that ran the agents.{" "}
               <Link href={`/admin/companies?priced_as=${priced}`}>Each company</Link> · <Link href={`/admin/usage?priced_as=${priced}`}>by agent, person, project or day</Link>
             </p>
-          </Card>
-          <Card title="The platform">
+          </Panel>
+          <Panel title="The platform">
             <dl className="facts" data-testid="admin-system">
               <dt>Deployment</dt><dd>{data.system.deployment}</dd>
               <dt>Agents</dt>
               <dd>{agents?.enabled ? `${agents.provider} · ${agents.model}` : (agents?.problem ?? "agents are off")}</dd>
               <dt>Engine and keys</dt><dd><Link href="/admin/system">System status</Link></dd>
             </dl>
-          </Card>
+          </Panel>
         </>
       )}
     </main>

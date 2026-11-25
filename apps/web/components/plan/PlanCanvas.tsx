@@ -19,7 +19,7 @@ import { useMutation, useResource } from "@/lib/hooks";
 import { PLAN_CHANGED, ROLE_LABEL, planApi, type DiffRow, type PlanView, type Role, type Violation } from "@/lib/plan";
 import { readinessText } from "@/lib/words";
 import { startCampaign } from "@/lib/writes";
-import { celebrate, toast } from "@/components/kit/Motion";
+import { toast } from "@/components/kit/Toast";
 import { StepBlocked } from "@/components/kit/StepBlocked";
 
 type Pending = { studyId: string; from: Role; to: Role; where: string; preview: Violation[] | null; problem: string | null;
@@ -366,7 +366,7 @@ export function PlanCanvas({ projectId, steps }: { projectId: string; steps?: Re
                         ? `Deviations signed: MAP v${(view.map?.map_version ?? 1) + 1} supersedes v${view.map?.map_version ?? 1}.`
                         : "MAP generated from the plan and signed.";
                       const { data, problem } = await mutation.run(() => planApi.sign(projectId, note), PLAN_CHANGED);
-                      if (data) { setSignature(data.signature); celebrate(); toast(done); }
+                      if (data) { setSignature(data.signature); toast(done); }
                       setMessage(problem ? readinessText(problem) : done);
                     }}>
               {signed && pendingDeviations.length ? `Sign the deviation${pendingDeviations.length === 1 ? "" : "s"} (${pendingDeviations.length})` : "Approve and Sign"}</button>

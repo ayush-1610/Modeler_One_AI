@@ -6,10 +6,9 @@
 
 import Link from "next/link";
 
-import { Hero } from "@/components/kit";
+import { ApiProblem, Hero } from "@/components/kit";
 import { ArchiveControl } from "@/components/project/ArchiveControl";
 import { ProjectNotices } from "@/components/project/ProjectNotices";
-import { ApiProblem } from "@/components/ui";
 import { getArchived, getBlinding, getMembers, getProject } from "@/lib/reads";
 
 export const metadata = { title: "Project settings · Modeler One" };

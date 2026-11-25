@@ -54,7 +54,6 @@ export const GATE_STATE: Record<Gate["state"], { label: string; tone: string }> 
 };
 
 export type Answer = (questionId: string, text: string, status: "answered" | "accepted_as_limitation") => void;
-export type StartIssue = Schema<"StartIssueView">;
 export type Application = Schema<"ApplicationView">;
 
 /** What Start still needs, marked on the field it belongs to (page review 1: no side panel; each box that waits on the

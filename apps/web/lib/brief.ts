@@ -50,8 +50,6 @@ export type Brief = {
   questions: Question[];
 };
 
-export type BriefIssue = { code: string; path: string; message: string };
-
 // `GET /projects/{id}/brief` (BriefPage); the brief and its catalog's field kinds are narrowed to the stored schema
 export type BriefView = Narrow<Schema<"BriefPage">, {
   brief: Brief;
@@ -75,7 +73,3 @@ export function display(record: FieldRecord, def?: FieldDef): string {
   return `${name(v)}${record.unit ? ` ${record.unit}` : ""}`;
 }
 
-export const STATUS_CHIP: Record<FieldStatus, string> = {
-  ENTERED: "brand", EXTRACTED: "brand", RETRIEVED: "brand", COMPUTED: "brand", EDITED: "medium", CONFIRMED: "low",
-  MISSING: "high", NOT_APPLICABLE: "neutral", DRAFTED: "medium",
-};

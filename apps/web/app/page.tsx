@@ -1,5 +1,5 @@
 import { Home } from "@/components/portfolio/Home";
-import { ApiProblem } from "@/components/ui";
+import { ApiProblem } from "@/components/kit";
 import { workItems } from "@/lib/portfolio";
 import { getCampaignList, getEscalations, getMe, getPortfolio } from "@/lib/reads";
 

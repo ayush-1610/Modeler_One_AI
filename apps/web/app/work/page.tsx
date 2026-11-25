@@ -1,6 +1,5 @@
-import { PageShell } from "@/components/kit";
+import { ApiProblem, PageShell } from "@/components/kit";
 import { Work } from "@/components/portfolio/Work";
-import { ApiProblem } from "@/components/ui";
 import { workItems } from "@/lib/portfolio";
 import { getCampaigns, getEscalations, getMe, getPortfolio } from "@/lib/reads";
 

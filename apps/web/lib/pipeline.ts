@@ -6,13 +6,11 @@
 // page still reads the API afresh (serverGet stays `no-store`), so a status shown is never an earlier one (audit item 9).
 import { cache } from "react";
 
-import { narrow, serverGet, type Live, type Narrow, type Schema } from "@/lib/api";
+import { serverGet, type Live, type Narrow, type Schema } from "@/lib/api";
 import { plain } from "@/lib/plain";
 
 // The answers are the API's generated response models (lib/api-types.ts); an artifact's stored content is the caller's.
 export type ArtifactStatus = Schema<"ArtifactStatus">;
-export type ArtifactRef = Schema<"Ref">;
-export type Approval = Schema<"ApprovalView">;
 export type ArtifactView<C = Record<string, unknown>> = Narrow<Schema<"VersionView">, { content?: C | null }>;
 export type Change = Schema<"ChangeView">;
 export type HistoryRow = Schema<"HistoryRow">;
@@ -21,7 +19,6 @@ export type AuditEventView = Schema<"AuditEventView">;
 
 // The redesigned flow (docs/plans/2026-10-19-p0-p5-redesign.md §3): four steps, each read from content, not approvals.
 export type StepId = Schema<"StepRow">["step"];
-export type StepState = Schema<"StepRow">["state"];
 export type StepRow = Schema<"StepRow">;
 
 /** Where each step is worked on. */
@@ -48,11 +45,6 @@ export const getArtifacts = cache(async (projectId: string, kind?: string): Prom
   const live = await serverGet("/api/v1/projects/{project_id}/artifacts", { project_id: projectId }, { kind });
   return { ...live, data: live.data ? live.data.artifacts : null };
 });
-
-export async function getArtifact<C>(projectId: string, kind: string, id: string): Promise<Live<ArtifactView<C>>> {
-  const live = await serverGet("/api/v1/projects/{project_id}/artifacts/{kind}/{artifact_id}", { project_id: projectId, kind, artifact_id: id });
-  return { ...live, data: live.data ? narrow<ArtifactView<C>>(live.data) : null };
-}
 
 export async function getHistory(projectId: string, kind: string, id: string): Promise<Live<HistoryRow[]>> {
   const live = await serverGet("/api/v1/projects/{project_id}/artifacts/{kind}/{artifact_id}/history",

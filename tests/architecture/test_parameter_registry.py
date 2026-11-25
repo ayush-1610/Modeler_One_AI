@@ -87,6 +87,6 @@ def test_switched_tables_are_read_from_the_registry(path):
 
 
 def test_blank_template_meets_every_s0_requirement():
-    from modeler_api.templates_api import _BLANK_PARAMETERS
+    from modeler_api.reference_models import _BLANK_PARAMETERS
 
     assert parameters.unmet_s0({pid for pid, _, _ in _BLANK_PARAMETERS}) == ()

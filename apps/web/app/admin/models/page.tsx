@@ -1,6 +1,5 @@
 import { AgentModels } from "@/components/admin/AgentModels";
-import { Hero } from "@/components/kit";
-import { ApiProblem } from "@/components/ui";
+import { ApiProblem, Hero } from "@/components/kit";
 import { getAgents, hideUnlessAdmin } from "@/lib/admin";
 
 /** Each agent's model, chosen in the console (docs/plans/2026-11-10-admin-console.md, C). */

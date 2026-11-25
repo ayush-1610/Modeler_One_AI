@@ -6,7 +6,7 @@ import { useState } from "react";
 
 import { needsALook, TagProposals } from "@/components/library/TagProposals";
 import { FilePicker, type Picked } from "@/components/start/FilePicker";
-import { Card } from "@/components/ui";
+import { Panel } from "@/components/kit/Panel";
 import { upload, type Schema } from "@/lib/api";
 import { tagsField } from "@/lib/fileTags";
 import { Hero } from "@/components/kit";
@@ -58,7 +58,7 @@ export default function StartProjectPage() {
               state is left for you, never guessed.</>} />
 
       <div className="cols-2">
-        <Card title="The drug and the project">
+        <Panel title="The drug and the project">
           <div className="field">
             <label htmlFor="drug">Drug (INN or code) *</label>
             <input id="drug" data-testid="drug-name" value={drug} onChange={(e) => setDrug(e.target.value)} placeholder="e.g. Dapagliflozin" />
@@ -76,11 +76,11 @@ export default function StartProjectPage() {
           <p className="muted fs-13 m-0">
             The context you type here is stored as a document too, so the agent can cite it like the proposal.
           </p>
-        </Card>
+        </Panel>
 
-        <Card title="The proposal, its annexes and the client's files, tagged">
+        <Panel title="The proposal, its annexes and the client's files, tagged">
           <FilePicker picked={files} onChange={setFiles} testId="proposal-files" />
-        </Card>
+        </Panel>
       </div>
 
       {error && <div className="banner err mt-16" data-testid="start-error">{error}</div>}

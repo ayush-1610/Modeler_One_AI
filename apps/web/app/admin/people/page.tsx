@@ -1,6 +1,5 @@
 import { People } from "@/components/admin/People";
-import { Hero } from "@/components/kit";
-import { ApiProblem } from "@/components/ui";
+import { ApiProblem, Hero } from "@/components/kit";
 import { getPeople, hideUnlessAdmin } from "@/lib/admin";
 
 const LEDE = "Every person of every company, as Keycloak keeps them: add them, give or take roles, move, disable, reset a " +

@@ -9,7 +9,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-import { Card } from "@/components/ui";
+import { Panel } from "@/components/kit/Panel";
 import { send, type Schema } from "@/lib/api";
 
 type Permissions = Schema<"DataPermissionsView">;
@@ -53,7 +53,7 @@ export function FilesGo({ tenantId, permissions: p }: { tenantId: string; permis
 
   const missingReference = Object.values(grants).some((g) => g.on && !g.reference.trim());
   return (
-    <Card title="Where its files may go">
+    <Panel title="Where its files may go">
       <section className="files-go" data-testid="files-go" aria-label="Where this company's files may go">
         <p className="muted m-0">
           For every person and project of this company: the AI agents that read its client files use only the services
@@ -113,6 +113,6 @@ export function FilesGo({ tenantId, permissions: p }: { tenantId: string; permis
           </details>
         )}
       </section>
-    </Card>
+    </Panel>
   );
 }

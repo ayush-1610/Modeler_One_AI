@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     object_store_uri: str = LOCAL_OBJECT_STORE
     results_root: str = ""  # where ingested result Parquet lives; a file:// root serves reads directly
     read_root: str = ""  # projects/CPF read models live here (a file:// or plain path root, per tenant)
-    # Published OSP model snapshots the wizard's real-data templates import; empty = the repo's golden fixtures.
+    # Published OSP model snapshots the real-data starting points import (reference_models); empty = the golden fixtures.
     reference_models_dir: str = ""
     # Keycloak OIDC (T-06 / D10); auth is enabled when the JWKS URL is set.
     oidc_jwks_url: str | None = None

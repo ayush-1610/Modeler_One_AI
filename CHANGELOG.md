@@ -276,6 +276,67 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 Plan: `docs/plans/2026-09-24-s0-s7-real-pbpk.md`. Scope agreed 2026-09-24: complete every MS-01 stage, prove it on
 published OSP models against their real clinical data on real PK-Sim. DDI / paediatric application templates follow.
 
+### Removed — the console redesign, slice 9: API operations no screen used (2026-11-24)
+The owner's choice (2026-11-24, D-I3): the verified retirements now, each its own commit; `GET /proposals` and its dead
+chain (R-B13) and `pbpk_domain.snapshot.parameter_transfer` (R-B13b) stay until their owners say so.
+- **`POST /campaigns/{id}/feedback:decide`**: a thin alias of `escalation:resolve` at stage S5 (REMEDIATION §2, #19).
+  The web decides a failed external validation through `escalation:resolve`; no script used the alias. Its tests now
+  call `escalation:resolve` at S5 and check the alias answers nothing.
+- **`POST /projects/{id}/questions/{q}/map:generate`**: a stateless MAP built from a CPF the client sent, saved nowhere
+  (REMEDIATION §2, #20). The plan canvas generates, persists and signs the MAP (`plan_api`); nothing called the route.
+  Its request and answer models (`MapGenerateRequest`, `MapGenerated`) go with it; the MS-01 generator
+  (`pbpk_domain.campaign.map.generate_map`) stays, used by the plan and the readiness check.
+- **`POST /projects/{id}/client-review:edit`** and `client_review.edit_fact`: one fact of a sheet-form study set before
+  its group is confirmed (REMEDIATION §2, #21, "verify, then retire"). Verified: the web never called it; a sheet read
+  by code takes its facts through `client-review:finish`, and any study fact of a dataset is set through
+  `datasets/{id}:study` (the same `set_study_facts`, used by Studies, To do and Individuals), so no fact could be
+  corrected only through `:edit`.
+- **`/templates`, its prerequisite first** (REMEDIATION §2, #10–11): a starting point's content (its CPF and studies)
+  is built by `reference_models.starting_point` (services, not a router; moved from `templates_api`, behaviour
+  unchanged), which the two consumers now read directly: `e2e/campaign-monitor.spec.ts` through a new fixture
+  (`e2e/fixtures/starting_point.py`) and `deploy/showcase/seed_examples.py` (it checks the API answers on `/health`
+  and no longer seeds the blank "your own compound", which has nothing to run). **The two routes themselves stay for
+  now:** `tests/architecture/boundaries.toml`, a locked file, names `modeler_api.templates_api` among the routers whose
+  answers are typed, so removing them is its own PR with the owner's approval (CLAUDE.md, locked files).
+
+### Changed — the console redesign, slice 9: README, the user guide, stale descriptions (2026-11-24)
+- **What:** `docs/USING_THE_TOOL.md` (the Help page) names the console's navigation: a "Finding your way" paragraph (the
+  top bar, the side navigation, breadcrumbs, tabs in the address); escalations wait in Your work and as the "A decision
+  is waiting" bar, not in the Review inbox; Start from proposal, Documents and Add data are in the side navigation, not
+  the sidebar; History's four tabs and Agent activity; the deploy pulls `main`. The README links the user guide and
+  `design-review/`, describes `apps/web` as the console (was "front end starters") and starts the web app. The
+  descriptions of `GET /proposals` and `GET /templates` say no screen reads them and why they still exist
+  (`docs/api/openapi.json` and `lib/api-types.ts` regenerated: descriptions only); four docstrings and a comment that
+  named the review inbox, the wizard or the campaign monitor (R-B17).
+- **Why:** the plan's slice 9 ("README and `docs/USING_THE_TOOL.md` updated"); R-B17 (stale docs).
+- **Impact:** words only; no route, shape or behaviour changes.
+
+### Changed — the console redesign, slice 9: one component kit (2026-11-24)
+- **What:** `components/ui.tsx` and `components/kit/Motion.tsx` are gone; their pieces live in the kit under the names
+  of the plan's component map (§2.1): `Card` → `kit/Panel` `Panel`; `RiskChip` and `ProvenanceChip` → `kit/Badge`
+  `RiskBadge` and `ProvenanceBadge`; `StatusChip` → `kit/StatusIndicator`; `ApiProblem` → `kit` (beside `Banner`);
+  the one `Completeness` meter is drawn where it is used (a compound's page); `toast` and `Toaster` → `kit/Toast`
+  (`celebrate` and `Counter`, which did nothing since slice 1, are gone with their two calls). The page's
+  "Waiting on you" line, still named `Stepper` from when it was the step bar, is `kit/StepWaiting`; its ignored
+  `sticky` prop is gone, and Start no longer mounts it (Start passed `waiting={false}`, so it drew nothing). The
+  kit's unused `SidePanel` box (`kit/index`, no importer; the side panel is `kit/SidePanel`) is gone.
+- **Dead CSS removed (about 270 lines, 14 stylesheets):** every selector that names a class no source file can
+  produce (no string in `app/`, `components/` or `lib/` holds it), and the blocks of pieces gone since earlier
+  slices: the old sidebar and its navigation (`.sidebar`, `.nav*`, `.app`), the step bar (`.stepper`), the campaign's
+  stage rail (`.timeline`, `.stage`), the dashboard's KPI row, side panels and risk bar (`.dash-*`, `.kpis`,
+  `.attention`, `.riskbar`), the brief page (`.brief-*`), the old step header (`.shell-head`, `.eyebrow`), the reading
+  tray's list, the Inputs "more" fold, eleven unused utilities, and the comments they left behind. A class built from
+  data (a status, a severity, a step's state) is kept when its value can arrive; two `:not(.x)` guards in console.css
+  and targets.css stay as they are (they change nothing, and removing them would change specificity).
+- **Unused code removed:** 14 exports nothing imports (the template types of the retired wizard in `lib/writes.ts`,
+  `getArtifact`, `STATUS_CHIP`, `DELIVERY_WORDS`, `StepperSkeleton` and nine type aliases); the loading pages' ignored
+  `stepper` prop and its `.stepper-wrap` style; two unused imports; and a document read on the products and populations
+  lists whose answer nothing used (one request fewer when those lists open).
+- **Why:** B-05 (two kits side by side) and B-09 (the motion system), retired in the plan's slice 9, and its exit
+  check "no orphan": no module is unimported and no stylesheet rule is unreachable.
+- **Impact:** no page looks or behaves differently: each piece keeps its markup, classes and test ids (the toast's
+  class is `toast`, was `mo-toast`); the removed CSS matched no element.
+
 ### Changed — where the client's files may go is a company setting, kept by an administrator (2026-11-24, the owner's request)
 - **What:**
   - **Gone from the projects:** the "Where the files may go" panel is no longer on a project's Data room or Settings

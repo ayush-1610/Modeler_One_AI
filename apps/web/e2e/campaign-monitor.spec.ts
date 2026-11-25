@@ -1,6 +1,10 @@
 // The Run step's monitor for a project whose CPF and studies were loaded through the API from a starting point (the
-// template API stays for scripts and the reference runs; R5 removed only the Quick start wizard that drove it). Plus the
-// two failure modes that used to be hidden behind sample data: a campaign that is not recorded, and an illustrative run.
+// platform's registry, read by e2e/fixtures/starting_point.py: the `/templates` routes are retired, the console
+// redesign's slice 9). Plus the two failure modes that used to be hidden behind sample data: a campaign that is not
+// recorded, and an illustrative run.
+import { execFileSync } from "node:child_process";
+import { join, resolve } from "node:path";
+
 import { expect, test, type APIRequestContext } from "@playwright/test";
 
 import { dropEscalations } from "./fixtures/escalations";
@@ -8,9 +12,12 @@ import { dropEscalations } from "./fixtures/escalations";
 const AUTH = { Authorization: "Bearer dev" };
 const TERMINAL = /completed|escalated|awaiting_signature|aborted|failed/;
 
-/** A project loaded from a starting point: its CPF and its studies, as the template answers them. */
+const REPO = resolve(__dirname, "../../..");
+
+/** A project loaded from a starting point: its CPF and its studies, as the platform's registry gives them. */
 async function fromTemplate(request: APIRequestContext, templateId: string) {
-  const template = (await (await request.get(`/api/v1/templates/${templateId}`, { headers: AUTH })).json()).data;
+  const printed = execFileSync("uv", ["run", "python", join(__dirname, "fixtures", "starting_point.py"), templateId], { cwd: REPO }).toString();
+  const template = JSON.parse(printed.trim().split("\n").pop()!);
   // an illustrative starting point is a demo: its project is exploratory and may sign TEST ONLY verdicts (plan §9.4)
   const exploratory = !template.real_data && !template.blank;
   const created = await request.post("/api/v1/projects", { headers: AUTH, data: {

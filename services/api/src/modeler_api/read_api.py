@@ -302,5 +302,6 @@ def list_escalations(principal: PrincipalDep, store: StoreDep, settings: Setting
 
 @router.get("/proposals", **answers(Proposals))
 def list_proposals(principal: PrincipalDep, store: StoreDep):
-    """Pending agent parameter proposals awaiting curator acceptance (review inbox)."""
+    """Pending agent parameter proposals awaiting curator acceptance. No screen reads them since the review inbox went
+    (2026-11-11); the route and its chain stay until their owner retires them (REMEDIATION R-B13)."""
     return envelope({"proposals": store.list_proposals(principal.tenant_id)})

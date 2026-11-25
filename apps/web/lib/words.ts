@@ -811,15 +811,6 @@ export const engineWords = (text: string) => text
   .replace(/silent loss/g, "numbers not read").replace(/outside numbers/g, "loose numbers")
   .replace(/unassigned values/g, "values not linked to a study").replace(/\bregions\b/g, "tables and texts").replace(/\bregion\b/g, "table or text");
 
-/** The engine's words on the delivery, in a person's (design "One name per concept"). */
-export const DELIVERY_WORDS = {
-  notRead: "numbers not read",          // silent loss: in tables, but no column picked them up
-  loose: "loose numbers",               // outside numbers: in notes or text, outside any table
-  unlinked: "values not linked to a study",
-  layout: "table layout",
-  notData: "not data",
-} as const;
-
 // --- a study's and a product's facts, as a person fills them in (plan 2026-11-14 slice 3, FactsForm) ------------------
 
 /** A fact's label in a form or a list, by the intake field it is entered under (`modeler_intake.fields`, the names

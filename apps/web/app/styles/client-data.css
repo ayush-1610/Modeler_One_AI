@@ -1,20 +1,8 @@
-/* P3 client data (L2b): progress, plan items, release profiles and the sheet reader. */
-.mapper { margin-top: 8px; padding: 8px; border: 1px dashed var(--line); border-radius: 6px; display: grid; gap: 6px; }
+/* P3 client data (L2b): release profiles and the sheet reader. */
 .release-plot { background: var(--surface-2, transparent); border-radius: 4px; }
 .release-plot .ref { stroke: var(--line); stroke-dasharray: 3 3; }
 .release-plot .fit { fill: none; stroke: var(--accent); stroke-width: 1.5; }
 .release-plot .pt { fill: var(--ink); }
-.steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
-.steps li { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; padding: 8px 10px; border-radius: var(--radius-sm);
-  background: var(--raised); border-top: 2px solid var(--warn); }
-.steps li.done { border-top-color: var(--pass); }
-.step-n { flex: 0 0 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; font-size: 11px; font-weight: 700;
-  background: color-mix(in srgb, var(--warn) 20%, transparent); color: var(--warn-ink); }
-.steps li.done .step-n { background: color-mix(in srgb, var(--pass) 20%, transparent); color: var(--pass-ink); }
-.plan-item { border: 1px solid var(--line); border-left: 3px solid var(--line); border-radius: var(--radius-sm); padding: 10px 12px;
-  display: grid; gap: 4px; }
-.plan-item + .plan-item { margin-top: 8px; }
-.plan-item.blocking { border-left-color: var(--fail); }
 .file-card { border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 10px 12px; margin-top: 10px; }
 .linkish { all: unset; cursor: pointer; font-size: 12px; color: var(--brand-ink); text-decoration: underline;
   text-decoration-color: color-mix(in srgb, var(--sim) 45%, transparent); }
@@ -115,11 +103,6 @@
 .dataset-stats table, .dataset-points table { font-size: 12px; }
 .dataset-stats caption { caption-side: top; text-align: left; font-size: 12px; color: var(--ink-dim); padding-bottom: 2px; }
 .dataset-points summary { cursor: pointer; font-size: 13px; color: var(--ink-dim); }
-/* one study or product at a time (the owner's answer of 2026-11-05): an index, and the cards past the open one folded */
-.group-index { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; }
-.group-index button { font-size: 12px; }
-.confirm-group.folded .confirm-head { margin-bottom: 0; }
-.group-index .btn.primary .muted { color: inherit; opacity: 0.85; }
 
 /* build F: what a reading left out and changed, cell by cell */
 .cleaning-record { font-size: 12.5px; margin-top: 4px; }

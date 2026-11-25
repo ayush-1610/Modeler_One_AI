@@ -1,5 +1,5 @@
 """Answers of `read_api` and `write_api` on the API-owned records: projects, a compound's CPF view, observed studies,
-the review inbox's parameter proposals (phase 9c).
+the agents' parameter proposals (phase 9c; no screen reads them since the review inbox went, R-B13).
 
 A project and a proposal are the read model's own records (`modeler_storage.records`), which their writers build
 through; a study row is the upload's shape (`modeler_api.studies.StudyUpload`) as stored for the project.

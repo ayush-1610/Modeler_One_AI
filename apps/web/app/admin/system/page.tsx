@@ -6,8 +6,7 @@
 
 import Link from "next/link";
 
-import { Hero } from "@/components/kit";
-import { ApiProblem } from "@/components/ui";
+import { ApiProblem, Hero } from "@/components/kit";
 import { getAgents, getKeys, getOverview, getSystem, hideUnlessAdmin } from "@/lib/admin";
 import { oidcConfig } from "@/lib/oidc";
 

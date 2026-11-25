@@ -514,27 +514,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/campaigns/{campaign_id}/feedback:decide": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Decide Feedback
-         * @description The signed decision on a failed external validation (plan §12.4 FEEDBACK_PENDING): limitation (accept_best),
-         *     learn, new evidence, or stop (abort).
-         */
-        post: operations["decide_feedback_api_v1_campaigns__campaign_id__feedback_decide_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/campaigns/{campaign_id}/package": {
         parameters: {
             query?: never;
@@ -1221,26 +1200,6 @@ export interface paths {
          *     record. Refused while a conflict or question of the group is open.
          */
         post: operations["confirm_review_group_api_v1_projects__project_id__client_review_confirm_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/projects/{project_id}/client-review:edit": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Edit Study Fact
-         * @description An item-level edit before the group is confirmed: one fact of a study (the audit keeps before and after).
-         */
-        post: operations["edit_study_fact_api_v1_projects__project_id__client_review_edit_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3108,26 +3067,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/projects/{project_id}/questions/{question_id}/map:generate": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Generate Map Endpoint
-         * @description Generate the MAP (version 1, DRAFT) for a question from its CPF, studies and context.
-         */
-        post: operations["generate_map_endpoint_api_v1_projects__project_id__questions__question_id__map_generate_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/projects/{project_id}/reading-queue": {
         parameters: {
             query?: never;
@@ -3436,7 +3375,8 @@ export interface paths {
         };
         /**
          * List Proposals
-         * @description Pending agent parameter proposals awaiting curator acceptance (review inbox).
+         * @description Pending agent parameter proposals awaiting curator acceptance. No screen reads them since the review inbox went
+         *     (2026-11-11); the route and its chain stay until their owner retires them (REMEDIATION R-B13).
          */
         get: operations["list_proposals_api_v1_proposals_get"];
         put?: never;
@@ -3490,7 +3430,9 @@ export interface paths {
         };
         /**
          * List Templates
-         * @description The wizard's starting points, the published real-data model first.
+         * @description The starting points, the published real-data model first. No screen reads them since the wizard went (R5); the
+         *     e2e suite and the showcase seeder build them through `reference_models`, and the route retires with its locked
+         *     boundary entry (REMEDIATION §2, #10).
          */
         get: operations["list_templates_api_v1_templates_get"];
         put?: never;
@@ -7503,37 +7445,6 @@ export interface components {
             verbatim: string | null;
         };
         /**
-         * Demographics
-         * @description The representative individual a study is simulated with (MS-01 §2.3).
-         *
-         *     Age, sex and population (ethnicity) define a typical PK-Sim individual; PK-Sim derives weight, height
-         *     and organ sizes from the population physiology for that age and sex. A study mean ``weight_kg`` /
-         *     ``height_cm`` is written into the individual's ``OriginData`` (``Weight`` in kg, ``Height`` in cm, keys harvested
-         *     from the OSP Midazolam model's Korean individual) and PK-Sim scales the physiology to it.
-         */
-        Demographics: {
-            /** Age Max */
-            age_max?: number | null;
-            /** Age Min */
-            age_min?: number | null;
-            /**
-             * Age Years
-             * @default 30
-             */
-            age_years?: number;
-            /** Height Cm */
-            height_cm?: number | null;
-            /**
-             * Population
-             * @default European_ICRP_2002
-             */
-            population?: string;
-            /** @default MALE */
-            sex?: components["schemas"]["Sex"];
-            /** Weight Kg */
-            weight_kg?: number | null;
-        };
-        /**
          * Deviation
          * @description A change to the plan after its MAP was signed (D-14, ICH M15 §4.2): it applies to campaigns only once the MIDD
          *     lead signs it, which makes a new MAP version superseding the signed one.
@@ -7951,29 +7862,6 @@ export interface components {
             ph: number | null;
             /** Solubility Mg Ml */
             solubility_mg_ml: number;
-        };
-        /**
-         * DosePhase
-         * @description One phase of a regimen whose doses differ: ``n_doses`` doses of ``dose_mg`` (mg, or mg/kg for a per-kg study),
-         *     ``interval_h`` apart, the first ``start_h`` after the regimen starts. A loading dose then maintenance is two
-         *     phases (OSP Voriconazole, Saari 2006: 400 mg twice 12 h apart, then 200 mg every 12 h from 24 h).
-         */
-        DosePhase: {
-            /** Dose Mg */
-            dose_mg: number;
-            /** Infusion Time Min */
-            infusion_time_min?: number | null;
-            /** Interval H */
-            interval_h?: number | null;
-            /**
-             * N Doses
-             * @default 1
-             */
-            n_doses?: number;
-            /** Start H */
-            start_h: number;
-            /** Water Ml Per Kg */
-            water_ml_per_kg?: number | null;
         };
         /**
          * DosePhaseSpec
@@ -9273,27 +9161,6 @@ export interface components {
             /** Value */
             value: number;
         };
-        /** FeedbackRequest */
-        FeedbackRequest: {
-            /**
-             * Action
-             * @enum {string}
-             */
-            action: "accept_best" | "learn" | "new_evidence" | "abort";
-            /**
-             * Beyond Cap
-             * @default
-             */
-            beyond_cap?: string;
-            evidence?: components["schemas"]["FeedbackEvidence"] | null;
-            /**
-             * Note
-             * @default
-             */
-            note?: string;
-            /** Studies */
-            studies?: string[];
-        };
         /** FieldChange */
         FieldChange: {
             /**
@@ -9603,16 +9470,6 @@ export interface components {
             /** Upper */
             upper: number;
         };
-        /**
-         * FoodState
-         * @enum {string}
-         */
-        FoodState: "fasted" | "fed";
-        /**
-         * FormulationKind
-         * @enum {string}
-         */
-        FormulationKind: "solution" | "suspension" | "ir_tablet" | "ir_capsule" | "mr" | "other";
         /**
          * FormulationWayView
          * @description What gives a tablet study its formulation as the project stands (`modeler_project.formulation_way`): use a
@@ -10584,19 +10441,6 @@ export interface components {
             /** Year */
             year?: number | null;
         };
-        /** MapAcceptance */
-        MapAcceptance: {
-            /** Criteria */
-            criteria: {
-                [key: string]: unknown;
-            };
-            /** Internal Target Pe */
-            internal_target_pe?: number | null;
-            /** Ruleset */
-            ruleset: string;
-            /** Tier */
-            tier: string;
-        };
         /**
          * MapApplication
          * @description An application the question of interest pins (T-31): its analysis template, pinned by version, and the
@@ -10613,157 +10457,6 @@ export interface components {
             /** Template Version */
             template_version: string;
         };
-        /**
-         * MapBounds
-         * @description A fitted parameter's bounds as the plan set them (the CPF's fit policy).
-         */
-        MapBounds: {
-            /** Lower */
-            lower: number;
-            /**
-             * Scale
-             * @default linear
-             */
-            scale?: string;
-            /** Upper */
-            upper: number;
-        };
-        /** MapDocument */
-        MapDocument: {
-            acceptance: components["schemas"]["MapAcceptance"];
-            /**
-             * Applications
-             * @default []
-             */
-            applications?: components["schemas"]["MapApplication"][];
-            /** Compound */
-            compound: string;
-            /** Context Of Use */
-            context_of_use: string;
-            /** Cpf Parameters */
-            cpf_parameters: components["schemas"]["MapParameter"][];
-            /** Diagnostics Ruleset Version */
-            diagnostics_ruleset_version: string;
-            /** Engine Image Digest */
-            engine_image_digest: string;
-            /**
-             * Escalation Triggers
-             * @default [
-             *       "maximum rounds reached without passing the gate",
-             *       "stage time budget exhausted",
-             *       "a fitted parameter sits at its bound",
-             *       "two fitted parameters correlate > 0.95 after fixing one",
-             *       "CV > 50% on a parameter the question of interest depends on",
-             *       "no permitted diagnostic action left to try",
-             *       "multiple-dose accumulation mismatch (possible time-dependent clearance)",
-             *       "external validation fails (decision tree §6.6)"
-             *     ]
-             */
-            escalation_triggers?: string[];
-            /**
-             * Fit Groups
-             * @default []
-             */
-            fit_groups?: components["schemas"]["MapFitGroup"][];
-            /** Food Effect In Question */
-            food_effect_in_question: boolean;
-            model_risk: components["schemas"]["Rating"];
-            /** Model System Sha256 */
-            model_system_sha256?: string | null;
-            /** Objective */
-            objective: string;
-            risk_assessment?: components["schemas"]["MapRiskAssessment"] | null;
-            /** Scenarios */
-            scenarios: components["schemas"]["MapScenario"][];
-            /** Seeds */
-            seeds: {
-                [key: string]: number;
-            };
-            signature?: components["schemas"]["MapSignature"] | null;
-            /** Software Versions */
-            software_versions: {
-                [key: string]: string;
-            };
-            /** Split Limitations */
-            split_limitations: string[];
-            /** Split Rationale */
-            split_rationale: string[];
-            /** Stage Plan */
-            stage_plan: components["schemas"]["MapStagePlan"][];
-            /** @default DRAFT */
-            status?: components["schemas"]["MapStatus"];
-            /** Studies */
-            studies: components["schemas"]["MapStudy"][];
-            /** Supersedes Sha256 */
-            supersedes_sha256?: string | null;
-            /**
-             * Version
-             * @default 1
-             */
-            version?: number;
-        };
-        /**
-         * MapFitGroup
-         * @description Parameters fitted as one through a factor (the CPF's fit group, PI-4 B2), as signed: each member at f x its
-         *     current value, f within [lower, upper] on ``scale``; why, and where the members' split comes from.
-         */
-        MapFitGroup: {
-            /** Lower */
-            lower: number;
-            /** Members */
-            members: string[];
-            /** Name */
-            name: string;
-            /** Reason */
-            reason: string;
-            /**
-             * Scale
-             * @default log
-             */
-            scale?: string;
-            /** Split Source */
-            split_source: string;
-            /** Upper */
-            upper: number;
-        };
-        /** MapGenerateRequest */
-        MapGenerateRequest: {
-            /** Compound */
-            compound: string;
-            /** Context Of Use */
-            context_of_use: string;
-            cpf: components["schemas"]["CPF"];
-            /** Engine Image Digest */
-            engine_image_digest: string;
-            /**
-             * Food Effect In Question
-             * @default false
-             */
-            food_effect_in_question?: boolean;
-            model_risk: components["schemas"]["Rating"];
-            /** Objective */
-            objective: string;
-            /**
-             * @default {
-             *       "food_effect": false,
-             *       "measured_fed_solubility": false,
-             *       "planned_applications": []
-             *     }
-             */
-            question?: components["schemas"]["QuestionOfInterest"];
-            /** Software Versions */
-            software_versions: {
-                [key: string]: string;
-            };
-            /** Studies */
-            studies: components["schemas"]["StudyRecord"][];
-        };
-        /** MapGenerated */
-        MapGenerated: {
-            map: components["schemas"]["MapDocument"];
-            /** Question Id */
-            question_id: string;
-        };
         /** MapIssue */
         MapIssue: {
             /** Code */
@@ -10772,32 +10465,6 @@ export interface components {
             location: string;
             /** Message */
             message: string;
-        };
-        /** MapParameter */
-        MapParameter: {
-            bounds?: components["schemas"]["MapBounds"] | null;
-            /**
-             * Fittable Stages
-             * @default []
-             */
-            fittable_stages?: string[];
-            /** Grade */
-            grade?: string | null;
-            /** Id */
-            id: string;
-            /** Plausibility */
-            plausibility?: [
-                number,
-                number
-            ] | null;
-            /** Source */
-            source: string | null;
-            /** Status */
-            status: string;
-            /** Unit */
-            unit: string | null;
-            /** Value */
-            value: number | string | null;
         };
         /** MapPreview */
         MapPreview: {
@@ -10893,150 +10560,6 @@ export interface components {
             tier_justification?: string;
         };
         /**
-         * MapScenario
-         * @description One internal study's simulation plan — what `build_round_snapshot` turns into a simulation.
-         *
-         *     Carries the studied individual's demographics (population, sex, age) so the round build can construct the
-         *     PK-Sim individual; ``infusion_time_min`` is the IV infusion duration (required for an IV scenario).
-         */
-        MapScenario: {
-            /** Age Years */
-            age_years: number;
-            /** Analyte */
-            analyte?: string | null;
-            /** Analyte Output */
-            analyte_output?: string | null;
-            /**
-             * Default Simulation Values
-             * @default []
-             */
-            default_simulation_values?: string[];
-            /** Dose Mg */
-            dose_mg: number;
-            /**
-             * Dose Per Kg
-             * @default false
-             */
-            dose_per_kg?: boolean;
-            /**
-             * Dose Phases
-             * @default []
-             */
-            dose_phases?: components["schemas"]["DosePhase"][];
-            /** Dosing Interval H */
-            dosing_interval_h?: number | null;
-            /** Food State */
-            food_state: string;
-            /** Formulation */
-            formulation: string;
-            /** Formulation Name */
-            formulation_name?: string | null;
-            /**
-             * Gated
-             * @default true
-             */
-            gated?: boolean;
-            /** Height Cm */
-            height_cm?: number | null;
-            /** Inactive Processes */
-            inactive_processes?: {
-                [key: string]: string[];
-            };
-            /** Infusion Time Min */
-            infusion_time_min: number | null;
-            /** Meal Template */
-            meal_template: string | null;
-            /**
-             * Meals
-             * @default []
-             */
-            meals?: components["schemas"]["Meal"][];
-            /** N Doses */
-            n_doses?: number | null;
-            /** N Subjects */
-            n_subjects: number;
-            /** Population */
-            population: string;
-            /** Product */
-            product?: string | null;
-            published_individual?: components["schemas"]["PublishedIndividual"] | null;
-            /** Route */
-            route: string;
-            /** Sex */
-            sex: string;
-            /** Sim End Time H */
-            sim_end_time_h?: number | null;
-            /** Solver */
-            solver?: {
-                [key: string]: number;
-            };
-            /** Stage */
-            stage: string;
-            /**
-             * Study Class
-             * @default
-             */
-            study_class?: string;
-            /** Study Id */
-            study_id: string;
-            /** Vpc Age Max */
-            vpc_age_max?: number | null;
-            /** Vpc Age Min */
-            vpc_age_min?: number | null;
-            /** Water Ml Per Kg */
-            water_ml_per_kg?: number | null;
-            /** Weight Kg */
-            weight_kg?: number | null;
-        };
-        /** MapSignature */
-        MapSignature: {
-            /**
-             * Content Sha256
-             * @default
-             */
-            content_sha256?: string;
-            /** Meaning */
-            meaning: string;
-            /** Printed Name */
-            printed_name: string;
-            /** Signature Id */
-            signature_id?: string | null;
-            /**
-             * Signed At
-             * Format: date-time
-             */
-            signed_at: string;
-        };
-        /** MapStagePlan */
-        MapStagePlan: {
-            /** Branches */
-            branches: string[];
-            /** Budget Seconds */
-            budget_seconds: number;
-            /** Fit Candidates */
-            fit_candidates: string[];
-            /** Max Rounds */
-            max_rounds: number;
-            /** Stage */
-            stage: string;
-        };
-        /**
-         * MapStatus
-         * @enum {string}
-         */
-        MapStatus: "DRAFT" | "SIGNED";
-        /** MapStudy */
-        MapStudy: {
-            /** Assignment */
-            assignment: string;
-            /** Score */
-            score: number;
-            /** Study Class */
-            study_class: string;
-            /** Study Id */
-            study_id: string;
-        };
-        /**
          * MapVersion
          * @description The latest MAP version, its hash and the campaign inputs its signature staged.
          */
@@ -11118,22 +10641,6 @@ export interface components {
             tenant_id: string;
             /** User Id */
             user_id: string;
-        };
-        /**
-         * Meal
-         * @description One meal of a study (StudyRecord.meals).
-         */
-        Meal: {
-            /** Name */
-            name: string;
-            /** Parameters */
-            parameters?: {
-                [key: string]: components["schemas"]["PathValue"];
-            };
-            /** Template */
-            template: string;
-            /** Time H */
-            time_h: number;
         };
         /** MeanPoint */
         MeanPoint: {
@@ -11853,13 +11360,6 @@ export interface components {
             name: string;
             radius: components["schemas"]["Measured"];
             thickness: components["schemas"]["Measured"];
-        };
-        /** PathValue */
-        PathValue: {
-            /** Unit */
-            unit?: string | null;
-            /** Value */
-            value: number;
         };
         /** Pathway */
         Pathway: {
@@ -12596,35 +12096,6 @@ export interface components {
             value: string;
         };
         /**
-         * PublishedIndividual
-         * @description The individual a published model simulates one study in, when it differs from the model's main individual
-         *     (the OSP Rifampicin model's "EHC off" individual for its 7-day study; the Midazolam model's Korean individual,
-         *     CYP3A5 *3/*3, for Yu 2004). ``parameters`` is that individual's complete set of physiology overrides (it replaces
-         *     the CPF's indiv.* records for this study: a value the main individual sets and this one does not is left at the
-         *     PK-Sim default, never invented); ``expression`` holds its profile values that differ from the harvested library.
-         *     Paths and units are copied from the snapshot.
-         */
-        PublishedIndividual: {
-            /** Expression */
-            expression?: {
-                [key: string]: components["schemas"]["PathValue"];
-            };
-            /** Name */
-            name: string;
-            /** Parameters */
-            parameters?: {
-                [key: string]: components["schemas"]["PathValue"];
-            };
-            /** Profiles */
-            profiles?: {
-                [key: string]: {
-                    [key: string]: unknown;
-                };
-            };
-            /** Seed */
-            seed?: number | null;
-        };
-        /**
          * PublishedModel
          * @description A published OSP model of the project's drug, which the Inputs step can take as a source.
          */
@@ -12700,27 +12171,6 @@ export interface components {
              * @default
              */
             regulator?: string;
-        };
-        /**
-         * QuestionOfInterest
-         * @description The parts of the question the split depends on (MS-01 §3.3 rules 4 and 5).
-         */
-        QuestionOfInterest: {
-            /**
-             * Food Effect
-             * @default false
-             */
-            food_effect?: boolean;
-            /**
-             * Measured Fed Solubility
-             * @default false
-             */
-            measured_fed_solubility?: boolean;
-            /**
-             * Planned Applications
-             * @default []
-             */
-            planned_applications?: components["schemas"]["StudyClass"][];
         };
         /**
          * QuestionRecord
@@ -13304,18 +12754,6 @@ export interface components {
             from_agent: number;
             /** Open */
             open: number;
-        };
-        /** ReviewEdit */
-        ReviewEdit: {
-            /**
-             * Field
-             * @enum {string}
-             */
-            field: "dose_mg" | "route" | "food_state" | "formulation" | "n" | "lloq";
-            /** Group */
-            group: string;
-            /** Value */
-            value: number | string;
         };
         /** ReviewFact */
         ReviewFact: {
@@ -14115,11 +13553,6 @@ export interface components {
                 [key: string]: unknown;
             };
         };
-        /**
-         * Route
-         * @enum {string}
-         */
-        Route: "iv_bolus" | "iv_infusion" | "oral" | "other";
         /** RuleVersion */
         RuleVersion: {
             /** Source */
@@ -14350,11 +13783,6 @@ export interface components {
             /** Values */
             values: (number | null)[];
         };
-        /**
-         * Sex
-         * @enum {string}
-         */
-        Sex: "MALE" | "FEMALE";
         /**
          * SheetCategory
          * @enum {string}
@@ -14821,11 +14249,6 @@ export interface components {
          */
         SourceType: "CLIENT_REPORT" | "CLIENT_FILE" | "REGULATORY_REVIEW" | "PUBLICATION" | "DATABASE" | "OSP_LIBRARY" | "PROPOSAL" | "PREDICTED" | "ASSUMPTION";
         /**
-         * SpecialPopulation
-         * @enum {string}
-         */
-        SpecialPopulation: "pediatric" | "hepatic_impairment" | "renal_impairment" | "pregnancy" | "elderly";
-        /**
          * SpecificBinding
          * @description Specific binding to a target (PK-Sim ``SpecificBinding``); names/units from the OSP Midazolam model.
          */
@@ -14935,11 +14358,6 @@ export interface components {
             /** Question */
             question: string;
         };
-        /**
-         * Statistic
-         * @enum {string}
-         */
-        Statistic: "individual" | "mean_sd" | "mean";
         /**
          * StepRow
          * @description One step of the redesigned flow (Start, Inputs, Review & sign, Run) and what it waits on; Inputs, while a tablet
@@ -15089,11 +14507,6 @@ export interface components {
             /** Study Id */
             study_id: string;
         };
-        /**
-         * StudyClass
-         * @enum {string}
-         */
-        StudyClass: "IV-SD" | "PO-SOL-FASTED" | "PO-IR-FASTED" | "PO-FED" | "PO-MD" | "PO-MR" | "PO-OTHER" | "DDI" | "PGX" | "SPECIAL" | "PRECLINICAL";
         /** StudyFacts */
         StudyFacts: {
             /** Changes */
@@ -15102,118 +14515,6 @@ export interface components {
             };
             /** Demographics Choice */
             demographics_choice?: ("entered" | "healthy_adult_default") | null;
-        };
-        /**
-         * StudyRecord
-         * @description A clinical study as it arrives from intake (MS-01 §3.1), reduced to the fields the split needs.
-         */
-        StudyRecord: {
-            /** Analyte */
-            analyte?: string | null;
-            /** Co Medication */
-            co_medication?: string | null;
-            /**
-             * Crossover
-             * @default false
-             */
-            crossover?: boolean;
-            /**
-             * Default Simulation Values
-             * @default []
-             */
-            default_simulation_values?: string[];
-            demographics?: components["schemas"]["Demographics"] | null;
-            /**
-             * Design
-             * @default SD
-             */
-            design?: string;
-            /** Dose Mg */
-            dose_mg: number;
-            /**
-             * Dose Per Kg
-             * @default false
-             */
-            dose_per_kg?: boolean;
-            /**
-             * Dose Phases
-             * @default []
-             */
-            dose_phases?: components["schemas"]["DosePhase"][];
-            /** Dosing Interval H */
-            dosing_interval_h?: number | null;
-            /** @default fasted */
-            food_state?: components["schemas"]["FoodState"];
-            /** @default solution */
-            formulation?: components["schemas"]["FormulationKind"];
-            /** Formulation Name */
-            formulation_name?: string | null;
-            /** Genotype */
-            genotype?: string | null;
-            /** Inactive Processes */
-            inactive_processes?: {
-                [key: string]: string[];
-            };
-            /** Infusion Time Min */
-            infusion_time_min?: number | null;
-            /** Lloq */
-            lloq?: number | null;
-            /**
-             * Matrices
-             * @default [
-             *       "plasma"
-             *     ]
-             */
-            matrices?: string[];
-            /** Meal Type */
-            meal_type?: string | null;
-            /**
-             * Meals
-             * @default []
-             */
-            meals?: components["schemas"]["Meal"][];
-            /**
-             * Multiple Dose Levels
-             * @default false
-             */
-            multiple_dose_levels?: boolean;
-            /** N */
-            n: number;
-            /** N Doses */
-            n_doses?: number | null;
-            /** N Timepoints */
-            n_timepoints: number;
-            /**
-             * Population Type
-             * @default healthy
-             */
-            population_type?: string;
-            /** Product */
-            product?: string | null;
-            published_individual?: components["schemas"]["PublishedIndividual"] | null;
-            /**
-             * Reference
-             * @default
-             */
-            reference?: string;
-            /** @default oral */
-            route?: components["schemas"]["Route"];
-            /** Solver */
-            solver?: {
-                [key: string]: number;
-            };
-            special_population?: components["schemas"]["SpecialPopulation"] | null;
-            /**
-             * Species
-             * @default Human
-             */
-            species?: string;
-            /** @default mean_sd */
-            statistic?: components["schemas"]["Statistic"];
-            /** Study Id */
-            study_id: string;
-            /** Water Ml Per Kg */
-            water_ml_per_kg?: number | null;
         };
         /**
          * StudyRow
@@ -17309,43 +16610,6 @@ export interface operations {
             };
         };
     };
-    decide_feedback_api_v1_campaigns__campaign_id__feedback_decide_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                authorization?: string | null;
-            };
-            path: {
-                campaign_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["FeedbackRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["EscalationResolved"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     get_campaign_package_api_v1_campaigns__campaign_id__package_get: {
         parameters: {
             query?: never;
@@ -18680,43 +17944,6 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["ReviewGroupRef"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Envelope_ClientReviewPage_"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    edit_study_fact_api_v1_projects__project_id__client_review_edit_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                authorization?: string | null;
-            };
-            path: {
-                project_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ReviewEdit"];
             };
         };
         responses: {
@@ -22232,44 +21459,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Envelope_CampaignInputs_"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    generate_map_endpoint_api_v1_projects__project_id__questions__question_id__map_generate_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                authorization?: string | null;
-            };
-            path: {
-                project_id: string;
-                question_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["MapGenerateRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["MapGenerated"];
                 };
             };
             /** @description Validation Error */
