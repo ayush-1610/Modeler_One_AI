@@ -396,7 +396,8 @@ streams; every Data room turn and switch is recorded; each answer names the mode
       limitation on a fasted-only question; CHANGELOG).
     - After a send, the brief, the plan, the MAP and the VBE panel read the send's signed snapshot of the room
       (`room_basis` source "snapshot", basis format 2), not the live room.
-    - The calibration run is one server command (`deploy/server/calibrate_dataroom.sh`).
+    - The calibration run is one server command (`deploy/server/calibrate_dataroom.sh`). Its free run here found A6
+      guessing a regulator no file names: code now clears it and the card asks the person.
 - **Next:**
   - the calibration run on Claude (D2: about $5, a made-up delivery; its cost and accuracy go to the owner before
     any other Claude spend). Ready: the owner runs `bash deploy/server/calibrate_dataroom.sh` on the server once the
@@ -405,7 +406,11 @@ streams; every Data room turn and switch is recorded; each answer names the mode
   - the owner's review of the requirement drafts and of the SME note;
   - the SME's values for the placeholder thresholds;
   - an owner decision on the Tmax tolerance at actual times (SME ruleset);
-  - the same test on a real delivery on the server's in-house model.
+  - the same test on a real delivery on the server's in-house model;
+  - after the owner has seen the calibration's cost and accuracy (D2): 3–4 demo deliveries, each run once on Claude
+    and stored, replayed at $0;
+  - later: each meal its own template (the room has no meal kind yet); multiple-dose studies mapped rather than
+    refused; A8 to put a withdrawn-subject count in `study.excluded_subjects`, not only in `study.disposition`.
 
 **Open, in order:**
 1. Score A6–A10 on the sample delivery per model. Nemotron Ultra, 2026-11-22: 31 of 34 values on the key files
