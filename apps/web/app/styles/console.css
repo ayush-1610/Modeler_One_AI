@@ -274,7 +274,9 @@ a.counter:hover { border-color: var(--c-accent); color: var(--c-ink); }
 .panel-row.open { border-color: var(--c-accent); background: var(--c-accent-tint); }
 
 /* ---------- alerts: a bordered, tinted box with the word; the colour is the second cue ---------- */
-.banner { border: 1px solid; border-radius: var(--rad-md); padding: 12px 16px; font-weight: 400; color: var(--c-ink); }
+.banner { border: 1px solid; border-radius: var(--rad-md); padding: 12px 16px; font-weight: 400; color: var(--c-ink);
+  overflow-wrap: anywhere; }   /* a long path or command wraps inside its banner (the acceptance pass, slice 10) */
+.banner + .card, .banner + .panel { margin-top: var(--sp-3); }   /* a page's notice never touches the panel under it */
 .banner strong { font-weight: 600; }
 .banner.ok { background: #F0FAF3; border-color: var(--c-pass-line); color: var(--c-ink); }
 .banner.warn { background: #FFFBEB; border-color: var(--c-warn-line); color: var(--c-ink); }
