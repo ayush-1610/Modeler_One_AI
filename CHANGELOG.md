@@ -13,6 +13,21 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 
 ## [Unreleased] — make the pipeline do real PBPK, S0 → S7
 
+### Removed — `GET /templates` and `GET /templates/{id}`, a locked-file change approved by the owner (2026-11-25)
+- **What:** the two routes that served the retired create-project wizard its starting points, with their router
+  (`modeler_api.templates_api`), their answers (`views/templates.py`: `Templates`, `TemplateSummary`,
+  `TemplateContent`) and their line in `tests/architecture/boundaries.toml` (locked: the routers whose answers are
+  typed; its hash refreshed in `docs/architecture/locked-files.json`). The starting points stay where their two users
+  read them since slice 9 (`reference_models.starting_points` / `starting_point`: the e2e specs and the showcase
+  seeder). `test_templates_api.py` is now `test_starting_points.py`: the same checks on the registry (the published
+  model first, every starting point runnable through the write API, the published model's 40 studies, the
+  illustrative one's clearance binding, the blank one's S0 parameters) and that the retired routes answer 404.
+  `docs/api/openapi.json` and `lib/api-types.ts` regenerated (the two paths and three answers gone).
+- **Why:** REMEDIATION §2 #10–11 ("retire after moving its two consumers"); the owner's choice D-I3 and the owner's
+  approval of this locked-file PR (2026-11-25: "Slice 10 approved, merge it and open the /templates PR").
+- **Impact:** no screen or script called these routes; a client that still did gets 404. The importer
+  (`pbpk_domain.reference`) and Inputs' published-model source are unchanged.
+
 ### Changed — the console redesign, slice 10: the acceptance pass, its fixes, the deploy plan (2026-11-25)
 - **What:**
   - **Every page checked, at 1440 and 390 px** (`e2e/acceptance.spec.ts`, new): the pages are read from

@@ -233,11 +233,11 @@ projects R-S05 without `auth.py`) merged (#183). **Slice 9** (cleanup) merged (#
 (`feedback:decide`, `map:generate`, `client-review:edit`; the owner's choice, DECISIONS D-I3), `/templates`' two
 consumers moved to `reference_models.starting_point` (**its routes stay** until a separate PR the owner approves, as
 `tests/architecture/boundaries.toml` is locked), one component kit (`ui.tsx` and `kit/Motion` gone), about 270 lines of dead
-CSS and 14 unused exports removed, README and the user guide brought up to date. **Slice 10** (acceptance) is a PR:
+CSS and 14 unused exports removed, README and the user guide brought up to date. **Slice 10** (acceptance) merged (#185, 2026-11-25):
 every page checked at 1440 and 390 px (`e2e/acceptance.spec.ts`; the admin pages through an owner-signed-in audit), three
 findings fixed, the deploy plan with the owner's acceptance-by-use checklist (`docs/plans/2026-11-25-console-redesign-deploy.md`).
-**Next:** the owner's acceptance by use, then the deploy on the owner's go-ahead; the `/templates` locked-file PR waits
-for the owner's approval. R-N09's open question is answered: escalation decisions were missing from a project's History. Deviations: the plan's §11. QA (R-S05) is built in slice 8, without `auth.py`.
+The `/templates` routes are removed in their own locked-file PR (the owner's approval, 2026-11-25).
+**Next:** the owner's acceptance by use, then the deploy on the owner's go-ahead. R-N09's open question is answered: escalation decisions were missing from a project's History. Deviations: the plan's §11. QA (R-S05) is built in slice 8, without `auth.py`.
 
 The owner's charter: an AWS-console-inspired redesign, design first, through four approval gates; no production change
 before Gate 4 and a separate go-ahead. Everything is in `design-review/` (start at its `README.md`). Gate 1 (discovery),

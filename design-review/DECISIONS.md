@@ -124,6 +124,8 @@ as drawn** (the owner declined a mix with option 1, "Console Refresh").
 - Found while doing it: `/templates` is named in `tests/architecture/boundaries.toml`, a locked file, so the routes
   themselves are removed in a separate PR with the owner's approval; their consumers already read
   `reference_models.starting_point`.
+- 2026-11-25: the owner approved that PR ("Slice 10 approved, merge it and open the /templates PR"): the routes, their
+  answers and the boundary entry are removed, the locked hash refreshed.
 
 ## Earlier owner decisions that still bind the redesign
 | Date | Decision | Source |
