@@ -1,0 +1,45 @@
+%% Post-MAP data flow: from the signed MAP and CPF to the released package.
+%% Paths: {rr} = MODELER_READ_ROOT/{tenant}, {os} = MODELER_OBJECT_STORE_URI/tenants/{tenant}.
+flowchart LR
+  subgraph Inputs["Staged at signing / campaign:prepare ({rr}/prep/...)"]
+    CPF0[("cpf.json (CPF vN)")]
+    MAP[("map.json (signed MAP)")]
+    OBS[("observed.json (observed PK per study: profile, auc, cmax, tmax, thalf, origin)")]
+    SYS[("system.json (model system, optional)")]
+  end
+
+  REQ["CampaignRequest (campaign_id, uris, sha256s, stages, seed)"]
+  CPF0 --> REQ
+  MAP --> REQ
+  OBS --> REQ
+  SYS --> REQ
+
+  REQ --> BUILD["round_build + cpf.build + snapshot.builder"]
+  BUILD --> SNAP[("{prep}/snapshots/{cid}-{stage}-r{n}.json (PK-Sim snapshot)")]
+  BUILD --> SPEC[("{prep}/snapshots/{stem}-pi_spec.json (PI spec)")]
+  SNAP --> JOB["EngineJob (inputs with sha256, options, timeout)"]
+  SPEC --> JOB
+  JOB --> ENG["run_job.R / run_pi.R"]
+  ENG --> OUT[("{os}/campaigns/{cid}/{stage}/r{n}/ profiles.json, *-Results.csv, *.pkml, vpc/, pi results under {os}/fits/{round}/start-NNN/")]
+  OUT --> EVAL["evaluate_round (NCA, acceptance by signed criteria), VPC, diagnose"]
+  OBS --> EVAL
+  MAP --> EVAL
+  EVAL --> FITCPF[("{prep}/cpf/{cid}-{stage}-r{n}[-c{k}].json (CPF vN+1, FITTED + CI)")]
+  FITCPF --> BUILD
+  EVAL --> MON[("{rr}/campaigns.json (CampaignRecord: stages, rounds, gof, ledger, influence, prediction, package, resume)")]
+  EVAL --> ESC[("{rr}/escalations.json (EscalationRecord: reason, evidence, options, feedback)")]
+  EVAL --> EVD[("{os}/campaigns/{cid}/evidence/{stage}.json")]
+
+  ESC --> DEC["escalation:resolve (signed)"]
+  DEC --> AUD[("{rr}/audit.jsonl (hash chain) + Postgres audit_events/signatures in production")]
+  DEC --> REQ
+
+  EVD --> S6["S6: sensitivity, batch uncertainty, VBE"]
+  S6 --> S6F[("{os}/campaigns/{cid}/s6/s6.json")]
+  EVD --> S7["S7: collect_bundle, re-run, compare 1e-6, .pksim5, MAR, render"]
+  S6F --> S7
+  FITCPF --> S7
+  S7 --> PKG[("{os}/campaigns/{cid}/package/: report/mar.md|docx|pdf, project/*.pksim5, package.json, package.zip")]
+  PKG --> MON
+  PKG --> DL["GET /campaigns/{cid}/package/{artifact}"]
+  MON --> UI["web monitor (polling)"]

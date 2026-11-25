@@ -1,0 +1,79 @@
+%% Modeler One, post-MAP scope: components as deployed (solid) and built-but-not-deployed (dashed).
+%% Source: services/api, services/orchestrator, services/engine-worker, packages/*, deploy/server (commit 1dbda7f).
+flowchart TB
+  subgraph Browser["Browser"]
+    UI["Next.js web (apps/web)<br/>campaign monitor · escalation pop-up · Package tab<br/>polls every 2.5 s / 5 s"]
+  end
+
+  subgraph Server["adt-server (Linux, single node)"]
+    WEB["Next.js server :3000<br/>proxy.ts adds bearer to /api/*"]
+    subgraph API["uvicorn modeler_api :8000 (one process)"]
+      ROUTES["routers: campaign_api · escalations · read_api · signatures_api · plan_api · admin_api"]
+      GUARD["run_guard: signed MAP · signed limits · CPF = MAP"]
+      AUTH["auth: JWKS verifier or DevVerifier · step-up loa2 ≤ 300 s"]
+      P11["part11.record_signature → audit chain (+ Postgres in production)"]
+      SEAM["execution.RunnerDep → LocalCampaignRunner"]
+    end
+    subgraph ORCH["modeler_orchestrator (L5) in daemon threads"]
+      LE["LocalExecutor.run<br/>S0 → S1 S2 S3 [SM] → SJ → S4 → S5 → (S6 gate) → S6 → S7"]
+      ACT["campaign_activities: plan_stage · build_round_snapshot · run_round · evaluate_round · diagnose_round · choose_action · VPC"]
+      FIT["fitting_activities: plan_jobs (multistart) · assess_round"]
+      FB["feedback (S5 cycles) · joint (SJ) · history (ledger, influence) · vbe_activities"]
+      PKG["package_activities: S6 jobs · S7 bundle · re-run · .pksim5 · MAR · zip"]
+      MEMO["MemoEngine (content-keyed reuse; S7 re-runs exempt)"]
+    end
+    subgraph DOMAIN["pbpk_domain (L0, pure)"]
+      CPF["cpf: models · build · completeness"]
+      SNAP["snapshot.builder (PK-Sim JSON v80/81)"]
+      CAMP["campaign: map · split · round_build · evaluate · vpc · prediction"]
+      SCI["acceptance · metrics · nca · diagnostics · fit_spec · fitting · identifiability · vbe · system"]
+      REP["report: mar · campaign_mar · render · validation_pack · reproducibility · m15"]
+      RULES[("rulesets/*.yaml · parameters/registry.yaml · analysis_templates/*.yaml (UNVERIFIED)")]
+    end
+    subgraph ENG["Engine plane"]
+      RUN["modeler_engine.runner.EngineRunner<br/>subprocess per job · sha256 inputs · timeout · manifest"]
+      R["Rscript run_job.R (8 tasks) · run_pi.R (PI)<br/>ospsuite 12.4.4 · PK-Sim 12.3 · .NET 8 (conda R in ~/modeler-engine)"]
+    end
+    FS[("~/modeler-data<br/>read-root: campaigns.json · escalations.json · audit.jsonl · CPF/MAP/prep<br/>objstore file://: snapshots · results · fits · evidence · package")]
+    KC["Keycloak 26.7.5 (production only)"]
+    PG[("PostgreSQL 16 (production): Part 11 audit + signatures copy; Keycloak DB")]
+    TOOLS["pandoc (pypandoc-binary) · typst (PDF/A-2b)"]
+  end
+
+  subgraph NotDeployed["Built in code, not deployed"]
+    TMP["Temporal: ModelingCampaignWorkflow · StageLoopWorkflow · FitRoundWorkflow<br/>(SJ/S6/S7 SKIPPED)"]
+    EW["engine worker (Temporal activity run_engine_job, queues engine-s/m/l)"]
+    MINIO["S3ObjectStore / presigned HttpObjectStore"]
+    DB2[("Postgres campaign tables (CampaignStore, RLS)")]
+  end
+
+  subgraph CI["GitHub Actions"]
+    CIY["ci.yml: lint · pytest + trace matrix · web · e2e (stub engine) · gitleaks · trivy (report-only)"]
+    EIY["engine-image.yml: build image · golden scripts on PK-Sim · GHCR push · SBOM · cosign"]
+    REFY["reference-models.yml: PK-Sim campaigns (manual dispatch)"]
+  end
+
+  UI --> WEB --> ROUTES
+  ROUTES --> AUTH
+  ROUTES --> GUARD
+  ROUTES --> P11 --> FS
+  P11 -. production .-> PG
+  AUTH -. production .-> KC
+  ROUTES --> SEAM --> LE
+  ROUTES -->|read monitor, package| FS
+  LE --> ACT --> CAMP
+  ACT --> SCI
+  ACT --> CPF --> SNAP
+  LE --> FIT --> SCI
+  LE --> FB
+  LE --> PKG --> REP
+  PKG --> TOOLS
+  SCI --> RULES
+  LE --> MEMO --> RUN --> R
+  LE -->|flush CampaignRecord| FS
+  RUN -->|outputs + sha256| FS
+  ROUTES -. execution_backend=temporal .-> TMP
+  TMP -.-> EW -.-> RUN
+  TMP -.-> DB2
+  EW -.-> MINIO
+  EIY -.->|image not consumed by server| R

@@ -1,0 +1,50 @@
+%% Campaign stage machine as executed by LocalExecutor (services/orchestrator/src/modeler_orchestrator/local_runner.py).
+%% One diagram per file (Mermaid CLI). Sequence diagrams for each workflow are in 06_WORKFLOW_ANALYSIS.md.
+stateDiagram-v2
+  [*] --> QUEUED: POST /projects/{id}/campaigns (run_guard passed)
+  QUEUED --> S0: daemon thread starts
+  S0 --> ESCALATED: S0_not_ready (completeness, unplaceable, no expression)
+  S0 --> Training: ready
+
+  state Training {
+    [*] --> Plan
+    Plan --> SKIPPED: MAP plans nothing to simulate
+    Plan --> Round: kind = fit
+    Round --> Gate: build → simulate → [fit → re-simulate fitted CPF] → evaluate
+    Gate --> VPC: PK gate passed (S1/S2)
+    VPC --> Passed: coverage ≥ 80 %
+    VPC --> Escalate: vpc_coverage_below_80
+    Gate --> Passed: PK gate passed (S3/SM)
+    Gate --> Diagnose: gate failed
+    Diagnose --> Round: next permitted action (first untried)
+    Diagnose --> Escalate: no permitted action / forced rule / undecidable pair
+    Round --> Escalate: budget_exhausted / rounds_exhausted / stage_failed
+    Passed --> NoRegression: CPF changed
+    NoRegression --> JointRemedy: an earlier stage regressed
+    JointRemedy --> Passed: joint fit keeps every study passing
+    JointRemedy --> Escalate: regression
+  }
+
+  Training --> SJ: S1, S2, S3, [SM] done
+  SJ --> S4: joint estimate kept or sequential set kept
+  S4 --> ESCALATED: internal_validation_failed
+  S4 --> S5
+  S5 --> FEEDBACK_PENDING: external_validation_failed
+  S5 --> AWAITING_SIGNATURE: passed (or skipped: not achievable)
+  FEEDBACK_PENDING --> AWAITING_SIGNATURE: accept_best (limitation, signed)
+  FEEDBACK_PENDING --> Training: learn (MAP deviation, cycle c+1, from the stage the study trains)
+  FEEDBACK_PENDING --> Training: new_evidence (measured value, cycle c+1, from S1)
+  FEEDBACK_PENDING --> ABORTED: abort
+  AWAITING_SIGNATURE --> S6: approve (signed, D-19 real-data check)
+  AWAITING_SIGNATURE --> S7: accept_best (not offered, but accepted by the API; skips S6 and the check)
+  AWAITING_SIGNATURE --> ABORTED: abort
+  S6 --> S7: sensitivity · uncertainty · VBE
+  S7 --> COMPLETED: reproduction passed and MAR lint clean → package.zip
+  S7 --> ESCALATED: package_not_reproducible
+  Training --> ESCALATED: stage escalated
+  ESCALATED --> Training: retry (signed)
+  ESCALATED --> NextStage: accept_best (signed; stage evidence not persisted)
+  ESCALATED --> ABORTED: abort (signed)
+  NextStage --> [*]
+  COMPLETED --> [*]
+  ABORTED --> [*]

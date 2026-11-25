@@ -1,0 +1,98 @@
+module,path,layer,responsibility,called_by,calls,lines,locked,status
+local_runner,services/orchestrator/src/modeler_orchestrator/local_runner.py,L5,"LocalExecutor: stage machine, round loop, gates, escalations, S6 gate, SJ, no-regression, feedback cycles, S6, S7; monitor writer; escalation resolution; CLI",campaign_runner (API seam),"campaign_activities, fitting_activities, package_activities, feedback, joint, memo, history, vbe_activities, engine port",1411,no,deployed path
+campaign_activities,services/orchestrator/src/modeler_orchestrator/campaign_activities.py,L5,"Shared activities: S0 readiness, plan_stage, build snapshot, engine job, apply fit, evaluate, VPC, diagnose, choose","local_runner, Temporal workflows","pbpk_domain (map, round_build, evaluate, diagnostics, fit_spec, identifiability, cpf), strategist",1106,no,deployed path
+fitting_activities,services/orchestrator/src/modeler_orchestrator/fitting_activities.py,L5,Multistart PI jobs; read pi_result.json; assess starts,"local_runner, FitRoundWorkflow",pbpk_domain.fitting,170,no,deployed path
+package_activities,services/orchestrator/src/modeler_orchestrator/package_activities.py,L5,"S6 jobs and reduction; S7 evidence, bundle, re-run, .pksim5, MAR, zip",local_runner,"reproducibility, report.*, campaign.prediction",428,no,deployed path
+feedback,services/orchestrator/src/modeler_orchestrator/feedback.py,L5,S5 failure diagnosis; learn/new-evidence guardrails; MAP deviation; decision digest,"local_runner, campaign_runner","pbpk_domain.campaign.map, cpf",284,no,deployed path
+joint,services/orchestrator/src/modeler_orchestrator/joint.py,L5,"SJ parameters, S1-CI guard, derived MAP, agreement score",local_runner,pbpk_domain.fit_spec,93,no,deployed path
+memo,services/orchestrator/src/modeler_orchestrator/memo.py,L5,Memoised engine runs; model-set identity,local_runner,engine callable,119,no,deployed path
+history,services/orchestrator/src/modeler_orchestrator/history.py,L5,Change ledger; influence map; study verdict,"local_runner, feedback",-,143,no,deployed path
+vbe_activities,services/orchestrator/src/modeler_orchestrator/vbe_activities.py,L5,S6 virtual bioequivalence on the engine,local_runner,"pbpk_domain.vbe, analysis_templates, round_build",156,no,deployed path
+round_system,services/orchestrator/src/modeler_orchestrator/round_system.py,L5,Model system beside each CPF version,"campaign_activities, local_runner, feedback",pbpk_domain.system,80,no,deployed path
+campaign_store,services/orchestrator/src/modeler_orchestrator/campaign_store.py,L5,Postgres campaign state for Temporal resume/record,campaign_activities,modeler_storage.db,80,no,Temporal only
+campaign_runner,services/orchestrator/src/modeler_orchestrator/campaign_runner.py,L5,CampaignRunner port adapter for the API,modeler_api.execution,"local_runner, feedback",33,no,deployed path
+campaign (Temporal),services/orchestrator/src/modeler_orchestrator/campaign.py,L5,"ModelingCampaignWorkflow, StageLoopWorkflow",Temporal worker,activities,431,no,not deployed
+fitting (Temporal),services/orchestrator/src/modeler_orchestrator/fitting.py,L5,FitRoundWorkflow with deadline cancellation,StageLoopWorkflow,activities,72,no,not deployed
+workflows,services/orchestrator/src/modeler_orchestrator/workflows.py,L5,"SimulationRun, PopulationRun, ReviewGate workflows",Temporal worker,activities,100,no,not deployed (PopulationRun broken)
+activities,services/orchestrator/src/modeler_orchestrator/activities.py,L5,"prepare_engine_job, ingest_results (placeholder), notify_reviewers",workflows,-,35,no,placeholder
+worker,services/orchestrator/src/modeler_orchestrator/worker.py,L5,Temporal orchestrator worker,operator,"workflows, activities",41,no,not deployed
+runner,services/engine-worker/src/modeler_engine/runner.py,L5,"Subprocess engine runner: integrity, timeout, cancellation, manifest","engine port (subprocess_engine), engine worker","ObjectStore, subprocess",235,no,deployed path
+engine worker,services/engine-worker/src/modeler_engine/worker.py,L5,Temporal run_engine_job activity,Temporal,runner,69,no,not deployed
+objectstore (engine),services/engine-worker/src/modeler_engine/objectstore.py,L5,Presigned HTTP object store,tests,urllib,63,no,unwired
+registration,services/engine-worker/src/modeler_engine/registration.py,L5,engine_images record + golden gate,engine-image.yml,hashlib,82,no,CI only
+run_job.R,services/engine-worker/r/run_job.R,engine,Engine entrypoint: 8 tasks,runner,"ospsuite, run_pi.R",341,yes,deployed path
+run_pi.R,services/engine-worker/r/run_pi.R,engine,"One PI start (BOBYQA, log scale, groups, Hessian CI)",run_job.R,ospsuite.parameteridentification 2.2.0,432,yes,deployed path
+harvest_catalog.R,services/engine-worker/r/harvest_catalog.R,engine,Harvest PK-Sim names and units,scripts/harvest_catalog.sh (manual),ospsuite,257,yes,manual
+benchmark.R,services/engine-worker/r/benchmark.R,engine,Engine timings,"CI, engine check script",ospsuite,135,yes,CI
+Dockerfile,services/engine-worker/Dockerfile,engine,Qualified engine image,"CI, docker shim","rocker, r-universe, .NET",93,yes,"built, not used by server"
+runs,packages/run-contracts/src/modeler_contracts/runs.py,L1,Run and campaign contracts,all layers above,-,387,no,deployed path
+runtime,packages/run-contracts/src/modeler_contracts/runtime.py,L1,MODELER_* runtime config; engine kind/id/digest; production checks,"orchestrator, engine, API",os.environ,182,no,deployed path
+ports,packages/run-contracts/src/modeler_contracts/ports.py,L1,Engine factory port (entry points),local_runner,importlib.metadata,54,no,deployed path
+campaign.map,packages/pbpk-domain/src/pbpk_domain/campaign/map.py,L0,"MAP model, stage plan, scenarios, hashing, signing, CPF diff","orchestrator, API, project model","split, acceptance, system",696,yes,deployed path
+campaign.split,packages/pbpk-domain/src/pbpk_domain/campaign/split.py,L0,"Study classes, information score, split","API, project model",-,540,yes,deployed path
+campaign.round_build,packages/pbpk-domain/src/pbpk_domain/campaign/round_build.py,L0,MAP scenarios to stage snapshot,"campaign_activities, package_activities, vbe_activities","cpf.build, snapshot.builder",410,no,deployed path
+campaign.evaluate,packages/pbpk-domain/src/pbpk_domain/campaign/evaluate.py,L0,"Round assessment: sampling-matched NCA, comparisons, gate, metrics",campaign_activities,"nca, acceptance, metrics",282,no,deployed path
+campaign.vpc,packages/pbpk-domain/src/pbpk_domain/campaign/vpc.py,L0,VPC constants and coverage,campaign_activities,-,73,no,deployed path
+campaign.prediction,packages/pbpk-domain/src/pbpk_domain/campaign/prediction.py,L0,"S6 sensitivity candidates, uncertainty sampling, intervals",package_activities,nca,138,no,deployed path (partial)
+acceptance,packages/pbpk-domain/src/pbpk_domain/acceptance.py,L0,"Tiered fold/Guest verdicts, groups, internal target",campaign.evaluate,metrics,156,yes,deployed path
+metrics,packages/pbpk-domain/src/pbpk_domain/metrics.py,L0,"GMFE, fold fraction, Guest limits","acceptance, evaluate",numpy,76,no,deployed path
+nca,packages/pbpk-domain/src/pbpk_domain/nca.py,L0,Non-compartmental analysis,"evaluate, prediction, API studies",-,156,no,deployed path
+diagnostics,packages/pbpk-domain/src/pbpk_domain/diagnostics.py,L0,Evidence to rules to permitted actions,campaign_activities,diag_rules.yaml,286,yes,deployed path (partial evidences)
+fit_spec,packages/pbpk-domain/src/pbpk_domain/fit_spec.py,L0,PI spec from CPF; weights; groups; estimates back into CPF,"campaign_activities, joint","pksim_paths, formulations",306,no,deployed path
+fitting,packages/pbpk-domain/src/pbpk_domain/fitting.py,L0,"LHS starts, multistart plan, fit assessment",fitting_activities,numpy,242,no,deployed path
+identifiability,packages/pbpk-domain/src/pbpk_domain/identifiability.py,L0,fix_and_refit choice and fix,campaign_activities,"campaign.map, cpf",92,no,deployed path
+system,packages/pbpk-domain/src/pbpk_domain/system.py,L0,"Model systems: roles, formation, analytes, gating","orchestrator, API",cpf.models,264,no,deployed path
+vbe,packages/pbpk-domain/src/pbpk_domain/vbe.py,L0,"VBE trials, PoS, F-304 gate",vbe_activities,bioequivalence,144,no,deployed path
+bioequivalence,packages/pbpk-domain/src/pbpk_domain/bioequivalence.py,L0,Paired log-difference CI,vbe,scipy,69,no,deployed path
+data_origin,packages/pbpk-domain/src/pbpk_domain/data_origin.py,L0,Real-data rule (D-19),"local_runner, API",-,88,no,deployed path
+cpf.models,packages/pbpk-domain/src/pbpk_domain/cpf/models.py,L0,CPF and parameter records,everywhere,-,261,yes,deployed path
+cpf.build,packages/pbpk-domain/src/pbpk_domain/cpf/build.py,L0,CPF to compound/processes/expression to snapshot,"round_build, campaign_activities","snapshot.builder, parameters, expression",750,yes,deployed path
+cpf.completeness,packages/pbpk-domain/src/pbpk_domain/cpf/completeness.py,L0,S0 completeness gate,campaign_activities,parameters,40,no,deployed path
+cpf.binding,packages/pbpk-domain/src/pbpk_domain/cpf/binding.py,L0,Catalog binding check,tests only,catalog,107,no,unwired
+snapshot.builder,packages/pbpk-domain/src/pbpk_domain/snapshot/builder.py,L0,Typed specs to PK-Sim snapshot JSON,"cpf.build, API","snapshot.models, validation",1302,yes,deployed path
+pksim_paths,packages/pbpk-domain/src/pbpk_domain/pksim_paths.py,L0,CPF record to PK-Sim parameter path,"fit_spec, campaign_activities, package_activities",parameters,92,yes,deployed path
+catalog,packages/pbpk-domain/src/pbpk_domain/catalog.py,L0,Harvested catalog model,cpf.binding (tests),pydantic,230,no,unwired at run time
+reproducibility,packages/pbpk-domain/src/pbpk_domain/reproducibility.py,L0,"Bundle manifest, integrity, 1e-6 compare, rerun_all.R, zip",package_activities,stdlib,209,yes,deployed path
+report.mar,packages/pbpk-domain/src/pbpk_domain/report/mar.py,L0,"MAR model, tokens, lint, Markdown, evidence index","campaign_mar, package_activities",m15,439,no,deployed path
+report.campaign_mar,packages/pbpk-domain/src/pbpk_domain/report/campaign_mar.py,L0,Campaign MAR sections and M15 tables,package_activities,"mar, m15, map, cpf, system",420,no,deployed path
+report.render,packages/pbpk-domain/src/pbpk_domain/report/render.py,L0,DOCX (pandoc) and PDF/A-2b (typst),package_activities,"pandoc, typst",135,no,deployed path
+report.validation_pack,packages/pbpk-domain/src/pbpk_domain/report/validation_pack.py,L0,"URS/FS, RTM, IQ/OQ/PQ","CI, T-56 kit, CLI",yaml,298,no,CI and operator
+m15,packages/pbpk-domain/src/pbpk_domain/m15.py,L0,"M15 ratings, table, allowed risk","campaign_mar, API",-,109,yes,deployed path
+ddi_static,packages/pbpk-domain/src/pbpk_domain/ddi_static.py,L0,Static DDI screens,none,ruleset,120,no,unwired
+rulesets,packages/pbpk-domain/src/pbpk_domain/rulesets/pbpk_acceptance_criteria.yaml,L0 data,"Acceptance tiers (2026.2-draft, UNVERIFIED)","acceptance, MAP",-,86,yes,UNVERIFIED
+diag_rules,packages/pbpk-domain/src/pbpk_domain/rulesets/diag_rules.yaml,L0 data,"Diagnostics rules (0.6, UNVERIFIED)",diagnostics,-,257,yes,UNVERIFIED
+campaign_api,services/api/src/modeler_api/campaign_api.py,L6,Start campaign,web,"run_guard, execution",81,no,deployed path
+run_guard,services/api/src/modeler_api/run_guard.py,L6,"Signed MAP, signed limits, CPF = MAP",campaign_api,"audit chain, map",105,no,deployed path (gaps)
+escalations,services/api/src/modeler_api/escalations.py,L6,"Decision options; resolve (local); decide and deviations (Temporal, 503)",web,"runner, part11, signatures",284,no,deployed path (resolve)
+read_api,services/api/src/modeler_api/read_api.py,L6,"Campaigns, escalations, package, downloads, system",web,"FileReadStore, ownership",307,no,deployed path
+write_api,services/api/src/modeler_api/write_api.py,L6,"Projects, CPF, studies, campaign:prepare",web,"FileWriteStore, generate_map",293,no,deployed path
+plan_api,services/api/src/modeler_api/plan_api.py,L6,"Plan, MAP signing and campaign staging",web,"plan, signatures, part11",601,no,deployed path
+signatures_api,services/api/src/modeler_api/signatures_api.py,L6,Generic signature and register,web,part11,85,no,deployed path
+part11 (API),services/api/src/modeler_api/part11.py,L6,record_signature; verify CLI,signing routes,"modeler_storage.part11, audit",82,no,deployed path
+compliance.signatures,services/api/src/modeler_api/compliance/signatures.py,L6,"Signature model, step-up signing",signing routes,-,119,yes,deployed path
+auth,services/api/src/modeler_api/auth.py,L6,"Principal, JWKS verifier, DevVerifier, step-up",every route,"PyJWT, memberships",169,yes,deployed path
+ownership,services/api/src/modeler_api/ownership.py,L6,"Owner-only writes, signing rule","main (router dependency), escalations, read_api",memberships,65,no,deployed path
+execution,services/api/src/modeler_api/execution.py,L6,Runner seam,"campaign_api, escalations",campaign_runner,30,no,deployed path
+results_api,services/api/src/modeler_api/results_api.py,L6,Run results (Parquet),no caller,results.query,58,no,unwired
+system_api,services/api/src/modeler_api/system_api.py,L6,"Health, M15 validate, runs (Temporal)",web/admin,temporalio,142,no,partial
+engine_check,services/api/src/modeler_api/engine_check.py,L6,Engine reachability probe,admin_api,subprocess,109,no,deployed path
+main,services/api/src/modeler_api/main.py,L6,"App, lifespan checks, routers",uvicorn,routers,107,no,deployed path
+filestore,packages/storage/src/modeler_storage/filestore.py,L3,"File read/write stores (campaigns, escalations)","orchestrator, API",atomic_io,203,no,deployed path
+records,packages/storage/src/modeler_storage/records.py,L3,"CampaignRecord, EscalationRecord read models","local_runner, API",pydantic,176,no,deployed path
+jobs,packages/storage/src/modeler_storage/jobs.py,L3,Background job leases (no campaign kind),API jobs,file_lock,154,no,deployed path
+part11 (storage),packages/storage/src/modeler_storage/part11.py,L3,Postgres mirror of audit chain and signatures; verify,API part11,asyncpg,217,no,production
+audit (storage),packages/storage/src/modeler_storage/audit.py,L3,Postgres hash chain append,db repositories (Temporal),SQLAlchemy,128,yes,Temporal only
+objects,packages/storage/src/modeler_storage/objects.py,L3,S3/MinIO store and presign,engine plane design,boto3,96,no,unwired for S7
+audit (project),packages/project-model/src/modeler_project/audit.py,L3,File hash chain audit.jsonl,API audited actions,-,117,yes,deployed path
+strategist,services/agents/src/modeler_agents/strategist.py,L4,Permitted-action chooser (deterministic; LLM decider unwired),choose_action,LLM SDK lazily,189,no,deployed path (deterministic)
+campaign page,apps/web/app/campaigns/[campaignId]/page.tsx,L7,Campaign monitor tabs and banners,browser,"reads, AutoRefresh, PackageDownloads",347,no,deployed path
+EscalationPopup,apps/web/components/campaign/EscalationPopup.tsx,L7,Flash bar and decision dialog,app layout,"GET escalations, campaigns",89,no,deployed path
+EscalationDecision,apps/web/components/EscalationDecision.tsx,L7,Decision form and confirm,EscalationPopup,resolveEscalation,171,no,deployed path
+RunCampaignButton,apps/web/components/RunCampaignButton.tsx,L7,"One-click prepare, sign, start",Run page,writes,77,no,deployed path
+PlanCanvas,apps/web/components/plan/PlanCanvas.tsx,L7,Approve and Sign; Run the campaign (P6),plan page,"planApi, startCampaign",553,no,deployed path
+PackageDownloads,apps/web/components/PackageDownloads.tsx,L7,Authenticated downloads,campaign page,apiFile,53,no,deployed path
+StepUpDialog,apps/web/components/StepUpDialog.tsx,L7,loa2 step-up pop-up,lib/api withSession,auth routes,56,no,deployed path
+stub_engine,deploy/dev/stub_engine.py,fixture,Canned simulate-only engine (never PBPK evidence),"development default, e2e, tests",-,52,no,test fixture
+analytical_engine,deploy/dev/analytical_engine.py,fixture,One-compartment engine and toy PI (never PBPK evidence),"manual, case studies",-,301,no,test fixture
+run_t56,deploy/proof/run_t56.py,tool,"End-to-end proof kit (trace.md, pq.json)",operator,API,461,no,operator tool
+qualify,deploy/server/qualify.py,tool,Server IQ checks,qualify.sh,Rscript,222,no,operator tool
