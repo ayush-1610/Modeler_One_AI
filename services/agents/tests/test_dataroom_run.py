@@ -250,3 +250,20 @@ def test_the_question_stage_reads_a_digest_of_every_file_first():
     assert "parts: sheet:conc (3 lines)" in digest                              # a part named, never guessed
     assert "301 | 1 | 0.5" not in digest                                         # a table's row is not a quote
     assert len(question_digest(docs, budget=60)) < 200                          # past the budget, a file is named only
+
+
+def test_a_regulator_no_file_names_is_refused_and_left_for_the_person(tmp_path):
+    # the free calibration run, 2026-11-24: the made-up delivery names no agency and the model wrote "EMA"; Start would
+    # have drafted it as the project's agency. Code asks for the quote, then leaves the regulator empty if none comes
+    guess = {"question": "Is EX-02's test product bioequivalent?", "regulator": "EMA",
+             "products": [{"name": "test product", "role": "test"}], "checklist": [], "quotes": []}
+    store = _store(tmp_path)
+    run_room(store, chat_for=lambda agent: None, actor="user:m", stages=["read"], use_ocr=False, workers=1)
+    model = Scripted({"submit_question": [guess, guess, guess]})
+    doc = run_room(store, chat_for=lambda agent: model, actor="user:m", stages=["question"], use_ocr=False)
+    assert any("question.regulator: no quote names the agency" in said for said in model.seen)
+    card, confirmed = store.question()
+    assert card is not None and card.regulator == "" and not confirmed
+    assert card.question == guess["question"]                        # the rest of the card is kept
+    note = {s["id"]: s["note"] for s in doc["stages"]}["question"]
+    assert note.endswith("no file names the regulator: give it on the card")

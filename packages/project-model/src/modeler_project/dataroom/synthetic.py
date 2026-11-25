@@ -16,6 +16,7 @@ exactly the forms the agents A6-A8 submit; code then reads and checks every valu
 from __future__ import annotations
 
 import io
+import re
 import zipfile
 from typing import Any
 
@@ -345,11 +346,18 @@ def score_room(got: Any, key: Any) -> list[tuple[str, str, object, object]]:
     """A room (`room_view`, from a model's run on this delivery) value by value against the room from the hand-written
     answers above (`seed`, confirmed): rows of (OK | WRONG | MISSING, what, the key's value, the room's). Exposures, means
     and solubility within 0.5 %, f2 within 1 %; everything else equal. The question card scores its products and roles
-    and its regulator; each study its sets, exposures, arms and facts; then dissolution, f2, solubility and substance."""
+    and its regulator (only as a file states it: none here); each study its sets, exposures, arms and facts; then dissolution, f2, solubility and substance."""
     rows: list[tuple[str, str, object, object]] = []
 
+    def words(text: str) -> str:
+        return " ".join(re.findall(r"[a-z0-9.]+", text.lower()))
+
     def add(what: str, value: object, expected: object, tol: float = 0.005) -> None:
-        if isinstance(value, float) and isinstance(expected, float):
+        if isinstance(value, str) and isinstance(expected, str) and words(expected):
+            # a fact as the delivery words it: the key's words, in order, inside what the room read ("open two-period
+            # crossover" holds "two-period crossover"; "healthy adults" holds "healthy")
+            ok = f" {words(expected)} " in f" {words(value)} "
+        elif isinstance(value, float) and isinstance(expected, float):
             ok = abs(value - expected) <= tol * max(abs(expected), 1e-9)
         elif isinstance(value, tuple) and isinstance(expected, tuple) and len(value) == len(expected) and all(
                 isinstance(v, float) for v in (*value, *expected)):
@@ -362,7 +370,9 @@ def score_room(got: Any, key: Any) -> list[tuple[str, str, object, object]]:
         return tuple(sorted((p.name, p.role) for p in view.question.products)) if view.question else None
 
     add("question card: products and roles", products(got), products(key))
-    add("question card: regulator", got.question.regulator if got.question else None, key.question.regulator)
+    # the agency only as a file states it: this delivery names none, so the right card leaves it empty
+    stated = key.question.regulator if any(f.field == "question.regulator" for f in key.question.quotes) else ""
+    add("question card: regulator, as a file states it", got.question.regulator if got.question else None, stated)
     for ks in key.studies:
         s = next((x for x in got.studies if x.study_id.replace(" ", "").lower() == ks.study_id.replace(" ", "").lower()), None)
         add(f"study {ks.study_id} found", s is not None, True)

@@ -97,14 +97,16 @@ def test_what_the_model_missed_or_got_wrong_is_said_not_hidden(rooms):
 
 def test_the_answer_key_scores_itself_full_and_the_recorded_run_says_what_it_missed(rooms):
     """`synthetic.score_room`, the calibration's answer key (deploy/dev/calibrate_dataroom.py): the key's own room scores
-    every row OK; Nemotron's recorded run is the free model's baseline on the same 60 rows: 51 OK, 4 wrong (the
-    regulator, the design, the meal times, the population), 5 missing (the three f2 pairs, molar mass and pKa)."""
+    every row OK; Nemotron's recorded run scores 54 OK, 1 wrong (a regulator the delivery does not name: "FDA / EMA"),
+    5 missing (the three f2 pairs, molar mass and pKa)."""
     from modeler_project.dataroom.synthetic import score_room
 
     key, got = rooms
     own = score_room(key, key)
-    assert own and all(status == "OK" for status, *_ in own)
+    # the seed's card is written for the flows (Start drafts its agency): its "Health Canada" is no file's words, so it is
+    # the one row the key's own room does not pass
+    assert [what for status, what, *_ in own if status != "OK"] == ["question card: regulator, as a file states it"]
     rows = score_room(got, key)
     assert len(rows) == len(own)
     counts = {s: sum(r[0] == s for r in rows) for s in ("OK", "WRONG", "MISSING")}
-    assert len(rows) == 60 and counts["OK"] >= 51           # a change that loses a value the recorded run had shows here
+    assert len(rows) == 60 and counts["OK"] >= 54           # a change that loses a value the recorded run had shows here

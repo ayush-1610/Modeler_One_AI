@@ -381,6 +381,11 @@ def question(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, 
             got = check_fact(fact, docs[fact.file][1], file=fact.file, sha256=docs[fact.file][0].sha256)
             if not got.ok:
                 problems.append(f"quote for {fact.field}: {got.problem}")
+        # the agency only as a file names it: a guessed regulator would be drafted into Start as the project's agency
+        if answer.regulator.strip() and not any(f.field == "question.regulator"  # type: ignore[attr-defined]
+                                                 for f in answer.quotes):  # type: ignore[attr-defined]
+            problems.append("question.regulator: no quote names the agency. Give the quote that names it, or leave the "
+                            "regulator empty when no file names one (never a guess)")
         return problems
 
     submit = _submit_tool("submit_question", QuestionCard, check, saved,
@@ -405,12 +410,18 @@ def question(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, 
             "Write the question card (each quote with its file)."))
     if not saved:
         return f"no question card ({outcome.status}{': ' + outcome.error if outcome.error else ''})"
+    card = saved[0]
+    unstated = bool(card.regulator.strip()) and not any(  # type: ignore[attr-defined]
+        f.field == "question.regulator" for f in card.quotes)  # type: ignore[attr-defined]
+    if unstated:      # what no file names is left for the person, never kept as the model's guess
+        card = card.model_copy(update={"regulator": ""})
     # the model whose submission was saved: in a chain, the one the conversation ended on
-    store.set_question(saved[0], by=f"agent:A6:{outcome.answered_by}", confirmed=False)  # type: ignore[arg-type]
+    store.set_question(card, by=f"agent:A6:{outcome.answered_by}", confirmed=False)  # type: ignore[arg-type]
     store.record_author(stage="question", file="", model=outcome.answered_by, identity=outcome.answered_on,
                         prompt=PROMPT_VERSION)
-    step(1, 1, "question card drafted: confirm it")
-    return "question card drafted: confirm it"
+    said = "question card drafted: confirm it" + ("; no file names the regulator: give it on the card" if unstated else "")
+    step(1, 1, said)
+    return said
 
 
 # --- A7: triage -----------------------------------------------------------------------------------------------------------

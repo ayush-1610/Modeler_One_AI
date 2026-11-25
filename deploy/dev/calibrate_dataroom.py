@@ -9,7 +9,7 @@ On the server, after the Claude key is added and made active in Admin → Keys:
     bash deploy/server/calibrate_dataroom.sh --dry               # what it would run, and the estimate; no call
 
 Options: --preset claude-demo | claude-opus | free (the admin console's presets), --cap USD (the run's hard cap; default
-5.5), --out DIR (where the report goes; default the platform folder's calibration/), --dry.
+5.5), --out DIR (the folder each run's own folder goes in; default the platform folder's calibration/), --dry.
 
 The key comes from the platform's key store (what Admin → Keys writes; MODELER_READ_ROOT and MODELER_MASTER_KEY, as the
 server's scripts set them). Each paid call is priced at list prices and recorded on the platform's paid ledger, so the
@@ -92,7 +92,9 @@ def main() -> None:
         return
 
     stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
-    out = Path(args.out) if args.out else resolve_root(read_root) / platform_settings.FOLDER / "calibration" / f"{stamp}-{args.preset}"
+    # a fresh folder for every run: a run never starts from another's answers
+    parent = Path(args.out) if args.out else resolve_root(read_root) / platform_settings.FOLDER / "calibration"
+    out = parent / f"{stamp}-{args.preset}"
     out.mkdir(parents=True, exist_ok=True)
     rows: list[dict] = []
     run_id = f"calibration-{stamp}"
@@ -154,7 +156,7 @@ def main() -> None:
     report = {"preset": args.preset, "models": {a: label for a, (label, _e) in models.items()}, "estimate_usd": estimate,
               "cap_usd": args.cap, "usd": round(budget.run_spent, 4), "minutes": round((time.time() - began) / 60, 1),
               "score": {"OK": counts["OK"], "WRONG": counts["WRONG"], "MISSING": counts["MISSING"], "of": len(scored)},
-              "baseline": "Nemotron Ultra's recorded run on the same delivery: 51 OK, 4 wrong, 5 missing of 60",
+              "baseline": "Nemotron Ultra on the same delivery, 2026-11-24 (free): 56 OK, 1 wrong, 3 missing of 60",
               "rows": [{"status": s, "what": w, "key": str(k), "got": str(g)} for s, w, k, g in scored],
               "by_agent": {k: dict(v) for k, v in by_agent.items()}, "stages": log, "calls": rows}
     (out / "report.json").write_text(json.dumps(report, indent=1, ensure_ascii=False, default=str))

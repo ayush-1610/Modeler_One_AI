@@ -278,7 +278,7 @@ Coder. It is LiteLLM's own master key, set when LiteLLM was started on the serve
      call. Then `bash deploy/server/calibrate_dataroom.sh` runs every Data room agent once on the made-up Exampleamide
      delivery (the "Claude demo" preset, hard-capped at $5.50; no client file, no project touched). It ends with a
      **COST** line (by agent) and an **ACCURACY** line (how many of the delivery's 60 values it got right; Nemotron
-     Ultra's recorded run: 51). Send those lines to the team before any other Claude spend. Leave the agents on their
+     Ultra, free, 2026-11-24: 56). Send those lines to the team before any other Claude spend. Leave the agents on their
      current models until then.
 
 **Step 4. Store the key on the server, from the console** (no restart, no file):

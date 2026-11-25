@@ -401,7 +401,7 @@ streams; every Data room turn and switch is recorded; each answer names the mode
   - the calibration run on Claude (D2: about $5, a made-up delivery; its cost and accuracy go to the owner before
     any other Claude spend). Ready: the owner runs `bash deploy/server/calibrate_dataroom.sh` on the server once the
     key is active in Admin → Keys (USING_THE_TOOL §6b, step 6). A Claude key cannot be given to a cloud session (no
-    network secret for Anthropic's hosts). Free baseline on the same 60 values: Nemotron Ultra, 51 OK;
+    network secret for Anthropic's hosts). Free baseline on the same 60 values: Nemotron Ultra, 56 OK (run here 2026-11-24, $0, 25 min);
   - the owner's review of the requirement drafts and of the SME note;
   - the SME's values for the placeholder thresholds;
   - an owner decision on the Tmax tolerance at actual times (SME ruleset);

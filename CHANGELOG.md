@@ -13,6 +13,18 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 
 ## [Unreleased] — make the pipeline do real PBPK, S0 → S7
 
+### Fixed — the question card's regulator only as a file names it (A6) (2026-11-25)
+- **Why:** found by the free calibration run. The made-up delivery names no agency, and Nemotron Ultra wrote "EMA" on
+  the card; the recorded run wrote "FDA / EMA (not explicitly stated…)". Start drafts the card's regulator as the
+  project's agency (`proj.agencies`), so the guess could reach the brief and the MAP's scope.
+- **What:** A6's submission check refuses a regulator no quote names ("give the quote that names it, or leave the
+  regulator empty"). If the final card still has one, code clears it before the card is stored. The stage then says
+  "no file names the regulator: give it on the card". The rest of the card is kept. No prompt change, and the
+  question card is not in the answer cache, so `PROMPT_VERSION` stays `dataroom-6`.
+- **Impact:** a person gives the agency on the card, or at Start. A regulator a file names, with its quote, is kept as
+  before.
+- **Test:** `test_a_regulator_no_file_names_is_refused_and_left_for_the_person`.
+
 ### Changed — after a send, the brief, the plan, the MAP and the VBE panel read what was sent, not the live room (2026-11-24)
 - **Why:** a traceability gap (Part 11, ICH M15). `room_basis` read the live room. A decision changed in the room after
   "Send to the model" therefore reached the plan and the signed MAP's limitations, while the CPF still held the values
@@ -49,8 +61,12 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
   - `synthetic.score_room`: any room against the hand-written answers, value by value (60 rows: the card's products,
     roles and regulator; the study's sets, exposures, arms and facts; dissolution, f2 by batch and pH, solubility,
     substance).
-  - Nemotron Ultra's recorded run (the repository's fixture) is the free baseline on the same rows: 51 OK, 4 wrong,
-    5 missing.
+  - The free baseline on the same rows, run here on 2026-11-24 with the tool itself (`--preset free`, $0, 25 min, one
+    10-minute wait for NVIDIA's rate limit): Nemotron Ultra 56 OK, 1 wrong, 3 missing. Wrong: the regulator ("EMA";
+    the delivery names none). Missing: the withdrawn subjects' count, the molar mass and the pKa (all three in the
+    synopsis PDF). The recorded run of 2026-11-22 (the repository's fixture) scores 54 OK, 1 wrong, 5 missing.
+  - A worded fact scores OK when the key's words stand in it in order ("open two-period crossover" holds
+    "two-period crossover"). The regulator scores only as a file states it; this delivery states none.
 - **Tests:** `services/api/tests/test_calibrate_dataroom.py` (a scripted model: dry run, cap and ledger, a preset with
   no key); `test_the_answer_key_scores_itself_full_and_the_recorded_run_says_what_it_missed`.
 - **Docs:** `docs/USING_THE_TOOL.md` §6b, step 6.

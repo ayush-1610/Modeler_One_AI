@@ -60,7 +60,8 @@ def test_the_run_is_capped_priced_on_the_ledger_and_scored(server, monkeypatch, 
     _run(monkeypatch, "--cap", "0.05", "--out", str(server / "out"))
     out = capsys.readouterr().out
     assert "PAUSED" in out and "COST $0.05" in out and "ACCURACY 0 of 60 right" in out
-    report = json.loads((server / "out" / "report.json").read_text())
+    (path,) = (server / "out").glob("*-claude-demo/report.json")      # each run in a folder of its own
+    report = json.loads(path.read_text())
     assert report["score"]["of"] == 60 and report["usd"] == pytest.approx(0.05, abs=0.02)
     ledger = platform_settings.PaidSpend(str(server))
     assert ledger.month_usd() == pytest.approx(report["usd"]) and all(
