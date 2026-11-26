@@ -3421,48 +3421,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/templates": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List Templates
-         * @description The starting points, the published real-data model first. No screen reads them since the wizard went (R5); the
-         *     e2e suite and the showcase seeder build them through `reference_models`, and the route retires with its locked
-         *     boundary entry (REMEDIATION §2, #10).
-         */
-        get: operations["list_templates_api_v1_templates_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/templates/{template_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Template
-         * @description One starting point in full: the CPF, the studies in the upload shape, and what was left out and why.
-         */
-        get: operations["get_template_api_v1_templates__template_id__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/health": {
         parameters: {
             query?: never;
@@ -8540,20 +8498,6 @@ export interface components {
         /** Envelope[SystemView] */
         Envelope_SystemView_: {
             data: components["schemas"]["SystemView"];
-            /** Errors */
-            errors: components["schemas"]["ErrorItem"][];
-            meta: components["schemas"]["Meta"];
-        };
-        /** Envelope[TemplateContent] */
-        Envelope_TemplateContent_: {
-            data: components["schemas"]["TemplateContent"];
-            /** Errors */
-            errors: components["schemas"]["ErrorItem"][];
-            meta: components["schemas"]["Meta"];
-        };
-        /** Envelope[Templates] */
-        Envelope_Templates_: {
-            data: components["schemas"]["Templates"];
             /** Errors */
             errors: components["schemas"]["ErrorItem"][];
             meta: components["schemas"]["Meta"];
@@ -15097,67 +15041,6 @@ export interface components {
             kind: "formulation" | "clinical" | "bioanalytical" | "in_vitro" | "other";
             /** Why */
             why: string;
-        };
-        /**
-         * TemplateContent
-         * @description A starting point in full. The CPF and the studies are the template's own documents, in the upload shapes they
-         *     are sent back in (a reference model's CPF, the blank one's empty parameters; studies with their origin).
-         */
-        TemplateContent: {
-            /** Blank */
-            blank: boolean;
-            /** Compound */
-            compound: string;
-            /** Cpf */
-            cpf: {
-                [key: string]: unknown;
-            };
-            /** Description */
-            description: string;
-            /** Id */
-            id: string;
-            /** Model Risk */
-            model_risk: string;
-            /** Name */
-            name: string;
-            /** Notes */
-            notes: string[];
-            /** Question */
-            question: string;
-            /** Real Data */
-            real_data: boolean;
-            /** Skipped */
-            skipped: string[];
-            /** Source */
-            source: string;
-            /** Studies */
-            studies: {
-                [key: string]: unknown;
-            }[];
-        };
-        /** TemplateSummary */
-        TemplateSummary: {
-            /** Blank */
-            blank: boolean;
-            /** Compound */
-            compound: string;
-            /** Description */
-            description: string;
-            /** Id */
-            id: string;
-            /** Model Risk */
-            model_risk: string;
-            /** Name */
-            name: string;
-            /** Question */
-            question: string;
-            /** Real Data */
-            real_data: boolean;
-        };
-        /** Templates */
-        Templates: {
-            /** Templates */
-            templates: components["schemas"]["TemplateSummary"][];
         };
         /**
          * TransporterMichaelisMenten
@@ -22191,70 +22074,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RunOutputs"] | components["schemas"]["RunSeries"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    list_templates_api_v1_templates_get: {
-        parameters: {
-            query?: never;
-            header?: {
-                authorization?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Envelope_Templates_"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_template_api_v1_templates__template_id__get: {
-        parameters: {
-            query?: never;
-            header?: {
-                authorization?: string | null;
-            };
-            path: {
-                template_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Envelope_TemplateContent_"];
                 };
             };
             /** @description Validation Error */

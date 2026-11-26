@@ -1,4 +1,6 @@
-"""The wizard's starting points: the published real-data model first, each one runnable through the write API."""
+"""The project starting points (`reference_models.starting_point`): the published real-data model first, each one
+runnable through the write API. The scripts that build a project from one (the showcase seeder, the e2e specs) read
+them here; the `/templates` routes that served them to the retired wizard are gone (the console redesign, slice 9)."""
 
 from __future__ import annotations
 
@@ -9,7 +11,9 @@ from fastapi.testclient import TestClient
 
 from modeler_api import write_api
 from modeler_api.auth import get_verifier
+from modeler_api.config import get_settings
 from modeler_api.main import app
+from modeler_api.reference_models import TEMPLATES, starting_point, starting_points
 from modeler_storage.filestore import FileReadStore, FileWriteStore
 
 pytestmark = pytest.mark.req("T-26")
@@ -33,27 +37,27 @@ def client(tmp_path):
 AUTH = {"Authorization": "Bearer tok"}
 
 
-def test_templates_list_the_published_real_data_model_first(client):
-    templates = client.get("/api/v1/templates", headers=AUTH).json()["data"]["templates"]
-    assert templates[0]["id"] == "dapagliflozin-osp" and templates[0]["real_data"] is True
-    illustrative = next(t for t in templates if t["id"] == "aciclovir-illustrative")
+def test_the_published_real_data_model_comes_first():
+    points = starting_points()
+    assert points[0]["id"] == "dapagliflozin-osp" and points[0]["real_data"] is True
+    illustrative = next(t for t in points if t["id"] == "aciclovir-illustrative")
     assert illustrative["real_data"] is False and "not clinical data" in illustrative["name"]
 
 
-def test_templates_need_an_authenticated_reader(tmp_path):
-    app.dependency_overrides.clear()
-    # refused either way: 401/403 with a verifier, 503 when auth is not configured at all
-    assert TestClient(app).get("/api/v1/templates").status_code in (401, 403, 503)
+def test_an_unknown_starting_point_is_a_key_error():
+    with pytest.raises(KeyError):
+        starting_point("nope", get_settings())
 
 
-def test_unknown_template_is_404(client):
-    assert client.get("/api/v1/templates/nope", headers=AUTH).status_code == 404
+def test_the_retired_routes_answer_nothing(client):
+    for path in ("/api/v1/templates", "/api/v1/templates/dapagliflozin-osp"):
+        assert client.get(path, headers=AUTH).status_code == 404, path
 
 
 @pytest.mark.parametrize("template_id", ["dapagliflozin-osp", "aciclovir-illustrative"])
-def test_every_template_runs_through_the_wizards_write_path(client, template_id):
-    """What the wizard does with a template: create → CPF → studies → MAP. Each must reach a ready MAP."""
-    t = client.get(f"/api/v1/templates/{template_id}", headers=AUTH).json()["data"]
+def test_every_starting_point_runs_through_the_write_path(client, template_id):
+    """What a script does with a starting point: create → CPF → studies → MAP inputs. Each must reach a ready MAP."""
+    t = starting_point(template_id, get_settings())
     r = client.post("/api/v1/projects", json={"name": f"T {template_id}", "compound": t["compound"],
                                               "question": t["question"], "model_risk": t["model_risk"]}, headers=AUTH)
     project = r.json()["data"]
@@ -69,8 +73,8 @@ def test_every_template_runs_through_the_wizards_write_path(client, template_id)
     assert prep["stages"][0] == "S0" and prep["studies"]
 
 
-def test_the_published_template_carries_real_studies_and_names_what_it_left_out(client):
-    t = client.get("/api/v1/templates/dapagliflozin-osp", headers=AUTH).json()["data"]
+def test_the_published_starting_point_carries_real_studies_and_names_what_it_left_out():
+    t = starting_point("dapagliflozin-osp", get_settings())
     assert len(t["studies"]) == 40 and len(t["skipped"]) == 15
     assert any("Komoroski 2009" in s["reference"] for s in t["studies"])
     assert {s["origin"] for s in t["studies"]} == {"OSP_LIBRARY"}  # plan §9.4: the published clinical data
@@ -79,19 +83,16 @@ def test_the_published_template_carries_real_studies_and_names_what_it_left_out(
     assert all(p.get("engine_binding") for p in t["cpf"]["parameters"] if p["id"].startswith("elim."))
 
 
-def test_the_illustrative_template_binds_its_clearance(client):
+def test_the_illustrative_starting_point_binds_its_clearance():
     """It used to ship without the GFR binding, so S0 refused it and the wizard's campaign could never start."""
-    t = client.get("/api/v1/templates/aciclovir-illustrative", headers=AUTH).json()["data"]
+    t = starting_point("aciclovir-illustrative", get_settings())
     gfr = next(p for p in t["cpf"]["parameters"] if p["id"] == "elim.renal.gfr_fraction")
     assert gfr["engine_binding"]["process"] == "GlomerularFiltration"
     assert {s["origin"] for s in t["studies"]} == {"ILLUSTRATIVE"}  # plan §9.4 item 4: never evidence
 
 
-def test_every_published_single_compound_template_loads():
-    """Each OSP library template the wizard lists imports: its CPF and at least one study."""
-    from modeler_api.config import get_settings
-    from modeler_api.reference_models import TEMPLATES, starting_point
-
+def test_every_published_single_compound_starting_point_loads():
+    """Each OSP library starting point imports: its CPF and at least one study."""
     published = [tid for tid, spec in TEMPLATES.items() if spec.get("real_data")]
     assert len(published) >= 12
     for tid in published:
@@ -99,12 +100,12 @@ def test_every_published_single_compound_template_loads():
         assert content["cpf"]["compound"] == TEMPLATES[tid]["compound"] and content["studies"], tid
 
 
-def test_your_own_compound_starts_from_the_s0_parameters_each_missing(client):
+def test_your_own_compound_starts_from_the_s0_parameters_each_missing():
     """The blank starting point lists what S0 requires; the gate is not satisfied until each has a value and source."""
     from pbpk_domain.cpf.completeness import check_completeness
     from pbpk_domain.cpf.models import CPF
 
-    body = client.get("/api/v1/templates/own-compound", headers=AUTH).json()["data"]
+    body = starting_point("own-compound", get_settings())
     assert body["blank"] is True and body["studies"] == [] and body["real_data"] is False
     cpf = CPF.model_validate(body["cpf"])
     assert all(p.status.value == "MISSING" and p.value is None for p in cpf.parameters)
