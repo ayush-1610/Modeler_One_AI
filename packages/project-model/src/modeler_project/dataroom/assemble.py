@@ -16,6 +16,7 @@ from modeler_intake.room import document_text, unmarked
 from modeler_intake.room_specs import Extraction, QuestionCard
 from modeler_intake.source_model import SourceDocument
 from modeler_project.dataroom import checklist
+from modeler_project.dataroom.bestats import be_results, csr_values
 from modeler_project.dataroom.clinical import (
     _code_key,
     analyte_of,
@@ -790,6 +791,10 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
                 suggested="modeling", why="; ".join(f"subject {s}: {r}" for s, r in sorted(
                     view.excluded.items(), key=lambda kv: int(kv[0]) if kv[0].isdigit() else 0) if "LLOQ" in r) or
                 "the completers with evaluable profiles in every period")))
+        # the study's bioequivalence computed by code on the chosen set, beside the CSR's (plan 2026-11-26 phase 3)
+        chosen_set = _pick(decisions[-1]) if options else "modeling"
+        be, found = be_results(view, set_name=chosen_set, csr=csr_values(mine("be_statistics")), rules=rules)
+        view = view.model_copy(update={"be": be, "problems": view.problems + tuple(found)})
         dem = _demographics(mine("demographics"), sets["modeling"].subjects if "modeling" in sets else ())
         ethnicity = _first(sfacts, "study.ethnicity")
         guess = (population_of(ethnicity.fact.value) if ethnicity else None) or "European_ICRP_2002"

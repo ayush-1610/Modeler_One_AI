@@ -46,7 +46,7 @@ from modeler_project.dataroom.store import DataRoomStore
 # instructions start with, is a new version of every agent. All five started at "dataroom-6", the one version they
 # shared before the split, so no answer cached before it was lost. A8 dataroom-7 (plan 2026-11-26 §7 phases 2b-2c): a
 # PK parameter table's columns may name the analyte and may be long (a line per parameter: "parameter", "value",
-# "unit"); a new table kind, dosing (what each subject was given on each occasion).
+# "unit"); a new table kind, dosing (what each subject was given on each occasion); a BE table's stated CV (role cv).
 PROMPT_VERSIONS: dict[str, str] = {"A6": "dataroom-6", "A7": "dataroom-6", "A8": "dataroom-7", "A9": "dataroom-6",
                                    "A10": "dataroom-6"}
 STAGE_AGENTS: dict[str, str] = {"question": "A6", "triage": "A7", "extract": "A8", "check": "A9", "write": "A10"}

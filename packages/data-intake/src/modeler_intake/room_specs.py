@@ -92,7 +92,7 @@ ROLES: dict[str, tuple[str, ...]] = {
     "solubility": ("medium", "ph", "solubility", "dose_volume", "temperature"),
     "particle_size": ("batch", "d10", "d50", "d90", "api_batch", "remark"),
     "physchem": ("property", "value"),
-    "be_statistics": ("parameter", "ratio", "ci_low", "ci_high", "statistic"),
+    "be_statistics": ("parameter", "ratio", "ci_low", "ci_high", "cv", "statistic"),    # cv: the stated within-subject CV
     "process": ("step", "parameter", "value"),
 }
 

@@ -13,6 +13,56 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 
 ## [Unreleased] — make the pipeline do real PBPK, S0 → S7
 
+### Added — a study's bioequivalence computed by code beside the CSR's: GMR, 90 % CI, CVw, BE zone (2026-11-26)
+- **Why:** phase 3 of `docs/plans/2026-11-26-data-room-groups-and-corpus-benchmark.md`, and the owner's decision D3
+  (the within-subject CV computed by code). The corpus audit's R01 asks to rebuild the BE result from subject-level
+  data on the CSR's analysis set and to reproduce the CSR's GMRs and 90 % CIs within 0.5 percentage points. Its P05 and
+  P28 violated that. R50 asks for the full 90 % CI within 80.00–125.00 %, with the conclusion written from the numbers
+  (P29 concluded favourably at 126.8 %). R55 asks for the BE zone, exp(±t·√(2σw²/n)) inside the limits. Before this
+  change the room read the CSR's BE table only for the scorer and computed none of these itself.
+- **What, statistics (`pbpk_domain.bioequivalence`):**
+  - `crossover_be`: the standard 2×2 analysis. The treatment difference is the mean of the two sequences' mean log
+    differences. MSE is their pooled within-sequence variance over 2, on n − 2 degrees of freedom. CVw is
+    √(exp(MSE) − 1). It equals the ANOVA with sequence, subject within sequence, period and treatment, checked in the
+    tests against an independent least-squares fit, balanced and unbalanced. When the periods do not give the
+    sequences, it falls back to the paired form.
+  - `parallel_be`: the pooled two-sample analysis.
+  - `be_zone`: the GMRs a balanced 2×2 crossover of n subjects with that σw² concludes bioequivalent; None when no GMR
+    does.
+- **What, the room (`dataroom/bestats.py`, `assemble.py`):**
+  - For each study, Cmax, AUC0–t and AUC0–inf are analysed, test against reference as the question card's products
+    name them, on the analysis set the modeler chose (decision `analysis-set:<study>`). Cmax uses the whole set; the
+    AUCs use its subjects whose profiles run to the last scheduled sample (the AUC set). The room's exposures already
+    did this, and P03's CSR did the same.
+  - Each is computed from our NCA and, where present, from the client's NCA values of the same subjects. The second
+    isolates the statistics and the set from the NCA. AUC0–t is linear when the client's NCA was found linear.
+  - Each result carries the GMR, CI, CVw, n per sequence, df, the conclusion (R50) and the BE zone (R55).
+  - The CSR's BE table is compared metric by metric. A table line's metric is read from "ln(Cmax)", "AUC0-t",
+    "Log AUCinf"; a ratio written as 0.935 or 93.5 % is the same. The difference is in percentage points, "reproduced"
+    within 0.5, else BE_CSR_DIFFERS, said once per metric. The CRO's stated CV is shown beside ours, to confirm (D3).
+  - A replicate design, or test and reference roles not known one each, is said (BE_NOT_COMPUTED, info).
+  - `RoomStudy.be` (`BeResult`) is new. The `be_statistics` table kind gains the role `cv`, the CSR's stated
+    within-subject CV. A8's prompt stays `dataroom-7` (unreleased).
+- **Rules 0.4 (`dataroom_rules.yaml`, UNVERIFIED, awaiting the SME):** a `be` block holding confidence 0.90, limits
+  80.0–125.0 % and the CSR tolerance of 0.5 percentage points. The values are those of the owner's approved plan and
+  the audit's R01 and R50. Two tests that pinned 0.3 now read 0.4.
+- **API:** `RoomStudy.be` (optional, default empty). The OpenAPI snapshot and `apps/web/lib/api-types.ts` are
+  regenerated. The page does not show it yet (phase 5).
+- **Measured on P03, a real BE delivery (code only, session files):**
+  - Its concentration table was described as a modeler would, test and reference were taken from its SAS output, and
+    the result was compared with the CSR's GMRs and 90 % CIs.
+  - Cmax was reproduced within 0.05 percentage points (34 subjects).
+  - AUC0–t and AUC0–inf were reproduced within 0.13 percentage points (31 subjects, the AUC set).
+  - On the modeling set the AUCs were up to 1.1 pp off, which is why the AUCs use the AUC set.
+  - CVw by code: 34.5 % for Cmax, 25.7 % for AUC0–t.
+- **Elsewhere:** P30 has no test and reference product (a PBPK, not a BE, delivery), so it has nothing to compute.
+  On the made-up delivery, every metric was computed.
+- **Tests:**
+  - `pbpk-domain/tests/test_study_bioequivalence.py` (5): the 2×2 analysis equals the least-squares ANOVA, balanced
+    and unbalanced; the paired and parallel forms; the BE zone's edges sit on the limits.
+  - `test_dataroom_bestats.py` (11): our results, the CSR reproduced or not by 1 pp, BE_NOT_COMPUTED, and the metric
+    and percent readers.
+
 ### Added — each profile's treatment from the dosing data; long PK tables; CDISC EX and PP described by code (2026-11-26)
 - **Why:** phase 2c of `docs/plans/2026-11-26-data-room-groups-and-corpus-benchmark.md`. An SDTM PC dataset names no
   treatment. After phase 2b, every P30 study showed per-profile NCA but no mean profile or exposure per arm

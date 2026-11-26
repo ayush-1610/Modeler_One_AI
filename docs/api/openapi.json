@@ -1668,6 +1668,168 @@
         "title": "AuditTrail",
         "type": "object"
       },
+      "BeResult": {
+        "additionalProperties": false,
+        "description": "One metric's average bioequivalence of a study, computed by code from its subjects' values (plan 2026-11-26 §7\nphase 3; the corpus audit's R01, R50, R55; decision D3: the CVw shown to confirm), beside the CSR's.",
+        "properties": {
+          "analysis_set": {
+            "title": "Analysis Set",
+            "type": "string"
+          },
+          "ci_high_percent": {
+            "title": "Ci High Percent",
+            "type": "number"
+          },
+          "ci_low_percent": {
+            "title": "Ci Low Percent",
+            "type": "number"
+          },
+          "conclusion": {
+            "title": "Conclusion",
+            "type": "string"
+          },
+          "csr": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Csr",
+            "type": "object"
+          },
+          "csr_difference_pp": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Csr Difference Pp",
+            "type": "object"
+          },
+          "csr_status": {
+            "default": "none",
+            "enum": [
+              "reproduced",
+              "differs",
+              "none"
+            ],
+            "title": "Csr Status",
+            "type": "string"
+          },
+          "cv_percent": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cv Percent"
+          },
+          "design": {
+            "title": "Design",
+            "type": "string"
+          },
+          "df": {
+            "title": "Df",
+            "type": "integer"
+          },
+          "gmr_percent": {
+            "title": "Gmr Percent",
+            "type": "number"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "metric": {
+            "title": "Metric",
+            "type": "string"
+          },
+          "n": {
+            "title": "N",
+            "type": "integer"
+          },
+          "n_by_group": {
+            "default": [],
+            "items": {
+              "type": "integer"
+            },
+            "title": "N By Group",
+            "type": "array"
+          },
+          "reference": {
+            "title": "Reference",
+            "type": "string"
+          },
+          "rule": {
+            "default": "",
+            "title": "Rule",
+            "type": "string"
+          },
+          "source": {
+            "enum": [
+              "ours",
+              "client"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "test": {
+            "title": "Test",
+            "type": "string"
+          },
+          "within_limits": {
+            "title": "Within Limits",
+            "type": "boolean"
+          },
+          "zone_high_percent": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Zone High Percent"
+          },
+          "zone_low_percent": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Zone Low Percent"
+          }
+        },
+        "required": [
+          "metric",
+          "label",
+          "test",
+          "reference",
+          "source",
+          "analysis_set",
+          "design",
+          "n",
+          "n_by_group",
+          "df",
+          "gmr_percent",
+          "ci_low_percent",
+          "ci_high_percent",
+          "cv_percent",
+          "within_limits",
+          "conclusion",
+          "zone_low_percent",
+          "zone_high_percent",
+          "csr",
+          "csr_difference_pp",
+          "csr_status",
+          "rule"
+        ],
+        "title": "BeResult",
+        "type": "object"
+      },
       "Blinded": {
         "additionalProperties": false,
         "properties": {
@@ -27732,6 +27894,14 @@
             "title": "Arms",
             "type": "array"
           },
+          "be": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/BeResult"
+            },
+            "title": "Be",
+            "type": "array"
+          },
           "client_means": {
             "default": [],
             "items": {
@@ -27867,6 +28037,7 @@
           "profiles",
           "nca",
           "exposures",
+          "be",
           "nca_method_client",
           "nca_reproduction",
           "client_means",

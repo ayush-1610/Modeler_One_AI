@@ -4074,6 +4074,74 @@ export interface components {
             /** First Broken Index */
             first_broken_index: number | null;
         };
+        /**
+         * BeResult
+         * @description One metric's average bioequivalence of a study, computed by code from its subjects' values (plan 2026-11-26 §7
+         *     phase 3; the corpus audit's R01, R50, R55; decision D3: the CVw shown to confirm), beside the CSR's.
+         */
+        BeResult: {
+            /** Analysis Set */
+            analysis_set: string;
+            /** Ci High Percent */
+            ci_high_percent: number;
+            /** Ci Low Percent */
+            ci_low_percent: number;
+            /** Conclusion */
+            conclusion: string;
+            /** Csr */
+            csr: {
+                [key: string]: number;
+            };
+            /** Csr Difference Pp */
+            csr_difference_pp: {
+                [key: string]: number;
+            };
+            /**
+             * Csr Status
+             * @default none
+             * @enum {string}
+             */
+            csr_status: "reproduced" | "differs" | "none";
+            /** Cv Percent */
+            cv_percent: number | null;
+            /** Design */
+            design: string;
+            /** Df */
+            df: number;
+            /** Gmr Percent */
+            gmr_percent: number;
+            /** Label */
+            label: string;
+            /** Metric */
+            metric: string;
+            /** N */
+            n: number;
+            /**
+             * N By Group
+             * @default []
+             */
+            n_by_group: number[];
+            /** Reference */
+            reference: string;
+            /**
+             * Rule
+             * @default
+             */
+            rule: string;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "ours" | "client";
+            /** Test */
+            test: string;
+            /** Within Limits */
+            within_limits: boolean;
+            /** Zone High Percent */
+            zone_high_percent: number | null;
+            /** Zone Low Percent */
+            zone_low_percent: number | null;
+        };
         /** Blinded */
         Blinded: {
             /** Blinded */
@@ -13425,6 +13493,11 @@ export interface components {
              * @default []
              */
             arms: components["schemas"]["Arm"][];
+            /**
+             * Be
+             * @default []
+             */
+            be: components["schemas"]["BeResult"][];
             /**
              * Client Means
              * @default []

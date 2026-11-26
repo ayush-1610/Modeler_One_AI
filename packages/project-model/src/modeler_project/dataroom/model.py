@@ -230,6 +230,34 @@ class Exposure(_B):
     difference_percent: float | None = None
 
 
+class BeResult(_B):
+    """One metric's average bioequivalence of a study, computed by code from its subjects' values (plan 2026-11-26 §7
+    phase 3; the corpus audit's R01, R50, R55; decision D3: the CVw shown to confirm), beside the CSR's."""
+
+    metric: str                      # cmax, auc_t, auc_inf
+    label: str                       # Cmax, AUC0–t, AUC0–inf
+    test: str                        # the treatments as the data write them
+    reference: str
+    source: Literal["ours", "client"]  # our NCA, or the client's NCA values of the same subjects
+    analysis_set: str
+    design: str                      # 2x2 crossover, paired (sequences not known), parallel
+    n: int
+    n_by_group: tuple[int, ...] = ()
+    df: int
+    gmr_percent: float
+    ci_low_percent: float
+    ci_high_percent: float
+    cv_percent: float | None = None  # within-subject (CVw) for a crossover, between-subject for a parallel study
+    within_limits: bool
+    conclusion: str                  # written from the numbers (R50)
+    zone_low_percent: float | None = None   # R55: the GMRs this CVw and n conclude bioequivalent (crossover only)
+    zone_high_percent: float | None = None
+    csr: dict[str, float] = Field(default_factory=dict)              # the CSR's ratio, ci_low, ci_high, cv (percent)
+    csr_difference_pp: dict[str, float] = Field(default_factory=dict)
+    csr_status: Literal["reproduced", "differs", "none"] = "none"
+    rule: str = ""                   # the method, written out
+
+
 class RoomStudy(_B):
     """One clinical study as the room shows it (named apart from the API's other study views)."""
 
@@ -247,6 +275,8 @@ class RoomStudy(_B):
     profiles: tuple[ArmProfile, ...] = ()
     nca: tuple[SubjectNca, ...] = ()
     exposures: tuple[Exposure, ...] = ()
+    # the study's bioequivalence computed by code on the chosen analysis set, from our NCA and the client's
+    be: tuple[BeResult, ...] = ()
     nca_method_client: str = ""      # the trapezoid rule the client's values follow, as found
     nca_reproduction: NcaReproduction | None = None
     client_means: tuple[ClientMean, ...] = ()
