@@ -27,10 +27,13 @@ env:
   UV_VERSION: "0.5.11"
   PYTHON_VERSION: "3.12"
 
+# Every job runs on Ubuntu 24.04, pinned: `ubuntu-latest` moved to 26.04 in November 2026, which ships PostgreSQL 18
+# (deploy/server/postgres.sh and the Part 11 database tests need 16) and which Playwright 1.56 cannot install Chromium
+# on. Move the pin deliberately, with both checked, never by the runner's default.
 jobs:
   lint:
     name: Lint (ruff)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - name: Install uv
@@ -45,7 +48,7 @@ jobs:
 
   test:
     name: Tests + trace matrix
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - name: Install uv
@@ -85,7 +88,7 @@ jobs:
 
   web:
     name: Web (typecheck + build)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     defaults:
       run:
         working-directory: apps/web
@@ -109,7 +112,7 @@ jobs:
     # against the real API on the stub engine (deploy/dev/stub_engine.py), so a pass proves the software path, never
     # the pharmacology. The config starts both servers on their own ports with a fresh data directory.
     name: Browser flows (Playwright, stub engine)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -145,7 +148,7 @@ jobs:
 
   api-image:
     name: API image (build + smoke start)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - name: Build the API image
@@ -168,7 +171,7 @@ jobs:
 
   secret-scan:
     name: Secret scan (gitleaks)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
         with:
@@ -184,7 +187,7 @@ jobs:
 
   trivy:
     name: Trivy filesystem scan
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       security-events: write  # upload SARIF to the Security tab
@@ -211,7 +214,7 @@ jobs:
     name: Publish validation evidence pack
     if: startsWith(github.ref, 'refs/tags/v')
     needs: [lint, test, web, e2e, api-image, secret-scan, trivy]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: write  # attach assets to the GitHub Release
     steps:
