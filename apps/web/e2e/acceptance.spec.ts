@@ -85,8 +85,10 @@ function addresses(projectId: string): Record<string, string[]> {
 /** Where to keep a picture of each page for the owner's visual review, when asked (ACCEPTANCE_SCREENSHOTS=<folder>). */
 const SHOTS = process.env.ACCEPTANCE_SCREENSHOTS;
 
-/** Old addresses that land on another page (the review inbox's, since 2026-11-11): checked once they have landed. */
-const LANDS: Record<string, RegExp> = { "/review": /\/work$/ };
+/** Addresses that land on another page, checked once they have landed: the review inbox's old one (since
+ * 2026-11-11), and /no-access, which sends a person home when there is no Keycloak (the DEV sign-in has every role).
+ * Checked before it landed, the page could hold two top headings: the loading state's and home's (CI, 2026-11-26). */
+const LANDS: Record<string, RegExp> = { "/review": /\/work$/, "/no-access": /^https?:\/\/[^/]+\/$/ };
 
 async function check(page: Page, path: string) {
   await open(page, path);
@@ -101,7 +103,7 @@ async function check(page: Page, path: string) {
     const name = path.replace(/\/projects\/(?!start\b)[^/?]+/, "/project").replace(/[/?=&]+/g, "_").replace(/^_|_$/g, "") || "home";
     await page.screenshot({ path: join(SHOTS, `${width}-${name}.jpg`), type: "jpeg", quality: 70 });
   }
-  expect(await page.locator("h1").count(), `${path}: one top heading`).toBe(1);
+  await expect(page.locator("h1"), `${path}: one top heading`).toHaveCount(1);   // retried: a page still arriving
   expect(await unnamed(page), `${path}: every control named`).toEqual([]);
   const [wide, who] = await sideways(page);
   expect(wide, `${path}: no sideways scroll (${who})`).toBeLessThanOrEqual(1);

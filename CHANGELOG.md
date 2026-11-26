@@ -13,6 +13,15 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 
 ## [Unreleased] — make the pipeline do real PBPK, S0 → S7
 
+### Fixed — the acceptance check of /no-access no longer races its redirect (2026-11-26)
+- **What:** `e2e/acceptance.spec.ts` checks `/no-access` once it has landed, as it already did for `/review`. Without
+  Keycloak, as in CI, the page sends a person home. It now counts the top heading with a retrying assertion
+  (`toHaveCount`) rather than one snapshot.
+- **Why:** on PR ayush-1610/Modeler_One_AI#187 the check once counted two top headings on `/no-access`, the loading
+  state's and home's, mid-redirect. The commit changed no web code, and the same check passed on the commits before
+  and after.
+- **Impact:** test only; no page changes.
+
 ### Changed — a spreadsheet formula error in a client's table is said as one (2026-11-26)
 - **Why:** phase 4 of `docs/plans/2026-11-26-data-room-groups-and-corpus-benchmark.md`. Corpus workbooks held "#REF!"
   and "#DIV/0!" where a value was expected. The room said "'#REF!' is not a concentration", which hides that the
