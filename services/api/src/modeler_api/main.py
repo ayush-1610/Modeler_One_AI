@@ -34,7 +34,6 @@ from modeler_api.requirements_api import router as requirements_router
 from modeler_api.results_api import router as results_router
 from modeler_api.signatures_api import router as signatures_router
 from modeler_api.system_api import router as system_router
-from modeler_api.templates_api import router as templates_router
 from modeler_api.write_api import router as write_router
 from modeler_contracts.runtime import runtime_env
 
@@ -92,7 +91,6 @@ app.include_router(campaign_router, dependencies=OWNER_ONLY_WRITES)
 app.include_router(results_router)
 app.include_router(read_router)
 app.include_router(write_router, dependencies=OWNER_ONLY_WRITES)
-app.include_router(templates_router)
 app.include_router(project_router, dependencies=OWNER_ONLY_WRITES)
 app.include_router(brief_router, dependencies=OWNER_ONLY_WRITES)
 app.include_router(requirements_router, dependencies=OWNER_ONLY_WRITES)

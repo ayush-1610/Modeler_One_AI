@@ -25,7 +25,8 @@ What people will notice:
   says first what it would change.
 - **Review & sign** and **the campaign page** are in tabs; the campaign page has the Package tab.
 - **QA** (`modeler-qa`) reads every project of its company and changes or signs none (R-S05).
-- **Retired API operations** (no screen used them): `feedback:decide`, `map:generate`, `client-review:edit`.
+- **Retired API operations** (no screen used them): `feedback:decide`, `map:generate`, `client-review:edit`, and
+  `GET /templates` / `GET /templates/{id}` (their own locked-file PR, approved 2026-11-25).
 
 What does not change: the science (MS-01, rulesets, acceptance criteria, the CPF, the builder, the engine scripts), the
 stored records (no migration), the sign-in (Keycloak realm unchanged), Part 11 signing (the token's step-up).
@@ -41,7 +42,7 @@ stored records (no migration), the sign-in (Keycloak realm unchanged), Part 11 s
    ```
 5. **No script on the server calls a retired operation.** The deploy keeps the server's own `server_e2e*.py` files:
    ```bash
-   ssh adt-server 'grep -ln "feedback:decide\|map:generate\|client-review:edit" ~/Modeler_One_AI/server_e2e*.py || echo none'
+   ssh adt-server 'grep -ln "feedback:decide\|map:generate\|client-review:edit\|/templates" ~/Modeler_One_AI/server_e2e*.py || echo none'
    ```
 6. **Keycloak:** the `modeler-qa` realm role is in `deploy/keycloak/realm-modeler.json` (since 2026-11-11). Check it is
    in the server's realm (*Realm roles*) before giving it to anyone; give it as `deploy/keycloak/README.md` §Users says.
@@ -81,7 +82,7 @@ ssh adt-server 'bash ~/Modeler_One_AI/deploy/server/qualify.sh iq'
 - **One slice:** each slice is one merge commit on `main`; `git revert -m 1 <merge>` undoes it, then deploy `main`.
   Backend changes are additive and separate commits, revertible alone.
 - **The web app only:** restore `apps/web` from the tag `pre-aws-redesign-20261123-1601`. The API is compatible with
-  the old web app except the three retired operations, which the old app did not call either.
+  the old web app except the retired operations, which the old app did not call either.
 - **Data:** nothing to roll back (no migration; the retired operations stored nothing).
 
 ## 6. Acceptance by use (the owner's real work)
@@ -104,8 +105,6 @@ was slower, unclear or missing (a GitHub issue, or a message to the session), an
 | A12 | On a phone | Your work, a decision, a campaign | the menu opens from the top bar; nothing scrolls sideways |
 
 ## 7. Known limits at acceptance
-- `/templates` keeps its two routes until the owner approves the locked-file PR that removes them
-  (`tests/architecture/boundaries.toml`); no screen or script uses them.
 - `DataTable` and `SortableTable` stay beside `kit/Table` (paging, grouped rows); the stylesheets stay global (B-11).
 - Not built yet, by plan: live status without polling (R-N06), the platform audit log page (R-N07), the campaign's Runs
   tab (multi-server only), "waiting since" and "updated" times (no timestamp in the API yet).

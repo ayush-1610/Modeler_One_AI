@@ -85,10 +85,9 @@ function addresses(projectId: string): Record<string, string[]> {
 /** Where to keep a picture of each page for the owner's visual review, when asked (ACCEPTANCE_SCREENSHOTS=<folder>). */
 const SHOTS = process.env.ACCEPTANCE_SCREENSHOTS;
 
-/** Addresses that land on another page, checked once they have landed: the review inbox's old one (since
- * 2026-11-11), and /no-access, which sends a person home when there is no Keycloak (the DEV sign-in has every role).
- * Checked before it landed, the page could hold two top headings: the loading state's and home's (CI, 2026-11-26). */
-const LANDS: Record<string, RegExp> = { "/review": /\/work$/, "/no-access": /^https?:\/\/[^/]+\/$/ };
+/** Addresses that land on another page, checked once they have landed: the review inbox's (since 2026-11-11), and
+ *  /no-access, which sends the development sign-in (every role) home; both headings stand on the page mid-redirect. */
+const LANDS: Record<string, RegExp> = { "/review": /\/work$/, "/no-access": /:\d+\/$/ };
 
 async function check(page: Page, path: string) {
   await open(page, path);

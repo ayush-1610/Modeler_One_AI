@@ -3570,12 +3570,16 @@ def test_a_sheet_form_group_joined_to_a_blinded_study_under_another_name_has_its
     assert row["blinded"] is True and "profile" not in row
     run = p.client.get("/api/v1/projects/p1/studies", headers=_auth("t"))
     assert next(s for s in run.json()["data"]["studies"] if s["study_id"] == "abc-REF")["blinded"] is True
-    # no answer that carries it holds one of its values
+    # no answer that carries it holds one of its values: as a number, never inside another one or a time's seconds
+    # ("…T17:39:10.312" holds no 10.3: a bare substring check failed whenever a record was stamped at …:10.3)
+    def held(text: str) -> list[str]:
+        return [s for s in secrets if re.search(rf"(?<![\d.])(?<!\d\d:\d\d:){re.escape(s)}(?!\d)", text)]
+
     for route in ("evidence", "client-review", "inputs", "client-data", "delivery", f"artifacts/dataset/{read.id}",
                   f"artifacts/dataset/{read.id}/history"):
         answer = p.get(route)
-        assert answer.status_code == 200 and [s for s in secrets if s in answer.text] == [], route
-    assert [s for s in secrets if s in run.text] == []
+        assert answer.status_code == 200 and held(answer.text) == [], route
+    assert held(run.text) == []
     # its reveal is audited, as for any blinded dataset
     assert p.post(f"datasets/{read.id}:reveal", {"reason": "check the transcription"}).status_code == 200
     assert [e.reason for e in p.events("dataset.reveal")] == ["check the transcription"]

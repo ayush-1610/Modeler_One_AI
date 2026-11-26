@@ -2,7 +2,7 @@
 
 The Inputs step takes a published model's values and datasets as a source (`evidence:published-model`). A starting
 point's content (`starting_point`: its CPF and studies) is what scripts build a project from: the showcase seeder, the
-reference runs and the e2e specs (the `/templates` routes that served it are retired, the console redesign's slice 9).
+reference runs and the e2e specs (the `/templates` routes that served the retired wizard are gone, 2026-11-25).
 The snapshots are the OSP reference files harvested for the engine catalog (T-02). The published one is imported on
 request (`pbpk_domain.reference`): its CPF and its real clinical studies, straight from the peer-reviewed snapshot. The
 illustrative one is a small hand-made set kept for a fast software check of the pipeline; it says so in its label and

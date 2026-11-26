@@ -13,13 +13,12 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 
 ## [Unreleased] — make the pipeline do real PBPK, S0 → S7
 
-### Fixed — the acceptance check of /no-access no longer races its redirect (2026-11-26)
-- **What:** `e2e/acceptance.spec.ts` checks `/no-access` once it has landed, as it already did for `/review`. Without
-  Keycloak, as in CI, the page sends a person home. It now counts the top heading with a retrying assertion
-  (`toHaveCount`) rather than one snapshot.
+### Fixed — the acceptance pass counts each page's top heading with a retrying assertion (2026-11-26)
+- **What:** `e2e/acceptance.spec.ts` counts the one top heading with `toHaveCount(1)`, which retries while a page is
+  still arriving, rather than one snapshot. That `/no-access` is checked once it has landed is `main`'s fix (#186,
+  below); the two met in the merge, and `main`'s landing pattern was kept.
 - **Why:** on PR ayush-1610/Modeler_One_AI#187 the check once counted two top headings on `/no-access`, the loading
-  state's and home's, mid-redirect. The commit changed no web code, and the same check passed on the commits before
-  and after.
+  state's and home's, mid-redirect, on a commit that changed no web code.
 - **Impact:** test only; no page changes.
 
 ### Changed — a spreadsheet formula error in a client's table is said as one (2026-11-26)
@@ -308,6 +307,32 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
   (3), two in `test_dataroom_cache.py`; the project-model and agents suites pass (1,469).
 - **Known gap:** the adapter gives no anchor (the report names a value's file, not its sheet or page) and not yet the
   demographics, solubility, composition or quoted facts (their key rows score missing, and the report says so).
+
+### Fixed — two tests that failed now and then in CI, not the code they check (2026-11-26)
+- **The blinded-study test** (`test_delivery_api.py`, a sheet-form group joined to a blinded study) looked for each
+  withheld value as a bare substring of every answer, and the answers carry timestamps with fractional seconds: a run
+  that stamped a record at `…:10.3…` "found" the withheld 10.3 there (about one run in twenty, by the wall clock; `main`'s
+  CI failed on it on 2026-11-26). It now looks for each value as a number only (not inside another number or a time's
+  seconds); a value in a quote or a JSON number is still caught. No leak: the failing runs' matches were timestamps.
+- **The acceptance pass** (`e2e/acceptance.spec.ts`, slice 10) checked `/no-access` before it had landed: the development
+  sign-in has every role, so the page sends it home, and in CI's slower run both headings stood on the page for a
+  moment. It is now checked once it has landed, as `/review` is.
+- **Impact:** tests only.
+
+### Removed — `GET /templates` and `GET /templates/{id}`, a locked-file change approved by the owner (2026-11-25)
+- **What:** the two routes that served the retired create-project wizard its starting points, with their router
+  (`modeler_api.templates_api`), their answers (`views/templates.py`: `Templates`, `TemplateSummary`,
+  `TemplateContent`) and their line in `tests/architecture/boundaries.toml` (locked: the routers whose answers are
+  typed; its hash refreshed in `docs/architecture/locked-files.json`). The starting points stay where their two users
+  read them since slice 9 (`reference_models.starting_points` / `starting_point`: the e2e specs and the showcase
+  seeder). `test_templates_api.py` is now `test_starting_points.py`: the same checks on the registry (the published
+  model first, every starting point runnable through the write API, the published model's 40 studies, the
+  illustrative one's clearance binding, the blank one's S0 parameters) and that the retired routes answer 404.
+  `docs/api/openapi.json` and `lib/api-types.ts` regenerated (the two paths and three answers gone).
+- **Why:** REMEDIATION §2 #10–11 ("retire after moving its two consumers"); the owner's choice D-I3 and the owner's
+  approval of this locked-file PR (2026-11-25: "Slice 10 approved, merge it and open the /templates PR").
+- **Impact:** no screen or script called these routes; a client that still did gets 404. The importer
+  (`pbpk_domain.reference`) and Inputs' published-model source are unchanged.
 
 ### Infra — CI runs on Ubuntu 24.04, pinned; gitleaks ignores seven reviewed fixture hashes (2026-11-26)
 - **What:**

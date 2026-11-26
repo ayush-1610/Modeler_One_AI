@@ -93,8 +93,8 @@ def examples(base: str) -> list[Example]:
     if status != 200:
         raise SystemExit(f"the API does not answer at {base}: {status} {body}")
     out: list[Example] = []
-    # the platform's starting points, read from its registry (the `/templates` routes are retired, the console
-    # redesign's slice 9); the blank "your own compound" has nothing to run
+    # the platform's starting points, read from its registry (the `/templates` routes that served them are gone,
+    # 2026-11-25); the blank "your own compound" has nothing to run
     for summary in starting_points():
         if summary["blank"]:
             continue
