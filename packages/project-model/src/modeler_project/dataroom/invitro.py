@@ -21,7 +21,7 @@ import statistics
 from collections import defaultdict
 from collections.abc import Iterable, Sequence
 
-from modeler_project.dataroom.extract import is_bound, parse_number
+from modeler_project.dataroom.extract import is_bound, parse_number, unreadable
 from modeler_project.dataroom.model import (
     CheckedFact,
     Chip,
@@ -172,8 +172,8 @@ def dissolution_views(table: ReadTable, *, products: dict[str, str] | None = Non
                 continue
             number = parse_number(c.text, decimal_comma=table.decimal_comma)
             if number is None and c.text.strip():
-                problems.append(Problem(code="UNREADABLE_VALUE", where=c.chip,
-                                        message=f"line {row.line}: {c.text!r} is not a percentage dissolved"))
+                code, message = unreadable(row.line, c.text, "percentage dissolved")
+                problems.append(Problem(code=code, where=c.chip, message=message))
             # the unit a value belongs to: its line (times across), its own unit cell (one line per unit and time), or
             # its column (times down, units across)
             unit = (("line", row.line) if c.time is not None else ("unit", one["unit"].text.strip()) if "unit" in one

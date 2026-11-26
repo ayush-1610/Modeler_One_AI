@@ -13,6 +13,19 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 
 ## [Unreleased] — make the pipeline do real PBPK, S0 → S7
 
+### Changed — a spreadsheet formula error in a client's table is said as one (2026-11-26)
+- **Why:** phase 4 of `docs/plans/2026-11-26-data-room-groups-and-corpus-benchmark.md`. Corpus workbooks held "#REF!"
+  and "#DIV/0!" where a value was expected. The room said "'#REF!' is not a concentration", which hides that the
+  client's own file has a broken formula.
+- **What:** `extract.unreadable` names the formula errors (#REF!, #DIV/0!, #N/A, #VALUE!, #NAME?, #NUM!, #NULL!,
+  #SPILL!, #CALC!) as SPREADSHEET_ERROR: "the client's file has a broken formula there; ask for the value". This
+  applies to concentration and dissolution tables. Any other unreadable cell stays UNREADABLE_VALUE. Either way the
+  cell is still left out of the values, as before.
+- **Not in this change:** phase 4's agent work (the extractor's CVw and dissolution-stage columns, the checker taking
+  Model Input Data first, the writer's new sections). It is to be scored on the server's in-house model (D6) before
+  and after, and so waits for that run.
+- **Tests:** `test_dataroom_checks.py` (+1).
+
 ### Added — the dose in both bases, PK-Sim given the free base's; delivery-wide checks for simulated data, lots, another drug and personal data (2026-11-26)
 - **Why:** phase 3 of `docs/plans/2026-11-26-data-room-groups-and-corpus-benchmark.md`, and the corpus audit's rules:
   - **R14:** "when the MW basis changes, recompute the molar dose and record both bases". P01's model was given a salt

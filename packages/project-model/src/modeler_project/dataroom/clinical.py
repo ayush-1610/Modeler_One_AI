@@ -12,7 +12,7 @@ from collections import Counter, defaultdict
 from collections.abc import Iterable, Mapping, Sequence
 
 from modeler_intake.room_specs import TableDescription
-from modeler_project.dataroom.extract import parse_number, token_sets
+from modeler_project.dataroom.extract import parse_number, token_sets, unreadable
 from modeler_project.dataroom.flags import exclusion_flags
 from modeler_project.dataroom.model import (
     Arm,
@@ -155,8 +155,8 @@ def samples_from(table: ReadTable) -> tuple[list[Sample], list[Problem], str]:
             is_missing = not marked_blq and (not text or low in missing)
             is_blq = not is_missing and (marked_blq or low in blq or (desc.zero_means_blq and number == 0))
             if not is_missing and not is_blq and number is None:
-                problems.append(Problem(code="UNREADABLE_VALUE", message=f"line {row.line}: {text!r} is not a concentration",
-                                        where=cell.chip))
+                code, message = unreadable(row.line, text, "concentration")
+                problems.append(Problem(code=code, message=message, where=cell.chip))
                 is_missing = True
             out.append(Sample(subject=subject, period=one["period"].text.strip() if "period" in one else "",
                               treatment=one["treatment"].text.strip() if "treatment" in one else "",

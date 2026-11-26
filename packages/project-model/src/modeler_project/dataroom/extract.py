@@ -32,6 +32,19 @@ _SURELY_DECIMAL_COMMA = re.compile(r"^[-+]?0,\d+$|^[-+]?\d+,(?:\d{1,2}|\d{4,})$|
 _SURELY_DECIMAL_POINT = re.compile(r"^[-+]?\d*\.\d+(?:[eE][-+]?\d+)?$|^[-+]?[1-9]\d{0,2}(?:,\d{3})+\.\d+$")
 
 
+# a spreadsheet's formula error as a cell writes it: a broken formula in the client's file, not a value or a marker
+SPREADSHEET_ERROR = re.compile(r"^\s*#(?:REF!|DIV/0!|N/A|VALUE!|NAME\?|NUM!|NULL!|SPILL!|CALC!)\s*$", re.IGNORECASE)
+
+
+def unreadable(line: int, text: str, what: str) -> tuple[str, str]:
+    """The problem's code and message for a cell code cannot read as `what`: a spreadsheet's formula error is said as
+    one (the client's file has a broken formula: ask for the value), anything else as not a `what`."""
+    if SPREADSHEET_ERROR.match(text):
+        return "SPREADSHEET_ERROR", (f"line {line}: {text.strip()!r} is a spreadsheet formula error, not a {what}: the "
+                                     "client's file has a broken formula there; ask for the value")
+    return "UNREADABLE_VALUE", f"line {line}: {text!r} is not a {what}"
+
+
 def parse_number(text: str, *, decimal_comma: bool = False) -> float | None:
     """A cell's number: "12.5", "1,234.5", "−3", "1.2e-3"; None for anything else ("<0.5", "BLQ", ".", "12 (3)").
     With `decimal_comma` (the table writes "0,058" and "1.234,5", `uses_decimal_comma`), the comma is the decimal mark.

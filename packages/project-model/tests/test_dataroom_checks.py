@@ -113,3 +113,14 @@ def test_a_subject_listing_with_identifying_columns_is_personal_data():
     assert personal_data([plain], docs) == []
     composition, docs = _file("CMC/composition.csv", b"Name,Function,mg per tablet\nLactose,filler,120\n")
     assert personal_data([composition], docs) == []                                    # an excipient's name is not a person's
+
+
+def test_a_spreadsheet_formula_error_is_said_as_one_not_as_an_unreadable_value():
+    """Plan 2026-11-26 phase 4: corpus workbooks held #REF! and #DIV/0! where a value was expected."""
+    from modeler_project.dataroom.clinical import samples_from
+
+    table, _docs = _table("Subject,Time,Conc\n1,1,9.8\n1,2,#REF!\n1,4,n.q.\n")
+    _samples, problems, _unit = samples_from(table)
+    codes = {p.code: p.message for p in problems}
+    assert codes.keys() == {"SPREADSHEET_ERROR", "UNREADABLE_VALUE"}
+    assert "a broken formula" in codes["SPREADSHEET_ERROR"] and "'#REF!'" in codes["SPREADSHEET_ERROR"]
