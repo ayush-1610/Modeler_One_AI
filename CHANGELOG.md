@@ -13,6 +13,44 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 
 ## [Unreleased] — make the pipeline do real PBPK, S0 → S7
 
+### Added — the Data room regrouped by purpose (foundations) and scored value by value; one prompt version per agent (2026-11-26)
+- **Why:** the owner's corpus audit of 30 of their PBPK/PBBM project folders (client confidential, outside the
+  repository) showed that the Data room shows a delivery by type of file although most of what clients send never
+  reaches a model, and that the room had never been measured on a real delivery. The owner approved the plan
+  `docs/plans/2026-11-26-data-room-groups-and-corpus-benchmark.md` (decisions D1–D7 in its §1) and asked for phases 0
+  and 1. Nothing a person sees changes yet; no locked file is touched.
+- **What:**
+  - **One prompt version per Data room agent (D4).** `stages.PROMPT_VERSIONS` (A6 … A10) and `prompt_version(stage)`
+    replace the one `PROMPT_VERSION`; the answer cache's key and each answer's author record hold the stage's agent
+    version. A new version of one agent's instructions now makes only that agent read again: before, it discarded every
+    agent's cached answers and the next delivery was read in full at full cost. All five start at `dataroom-6`, the
+    version they shared, so no cached answer is lost.
+  - **The groups and sections (D2), as data.** `dataroom/dataroom_layers.yaml` 0.1 and `dataroom/layers.py` place every
+    fact field and table kind of the room's vocabulary in **Question and Context of Use · Model Input Data · Supporting
+    Evidence · Source Records · Data Requests** and their sections (e.g. Observed PK and BE Outcome, Formulation
+    Differences (Q1/Q2)). Code places a value, never an agent. A field the open vocabulary does not know goes to Other
+    Delivered Facts; a value the question's applications require moves to Model Input Data where the map allows it (the
+    meal's composition for a food-effect question); a dissolution profile not selected as the release input is shown as
+    evidence. The population, sex, meal template and release model are chosen on Inputs (D1): their facts are
+    Supporting Evidence. A test fails naming any vocabulary entry left unplaced. The page reads it in phase 5.
+  - **The Data room in the value scorer (D0).** `dataroom/scoring.py` `from_dataroom(ws)` gives the room's reading in
+    the scorer's long form (`value_score.Extracted`): every individual concentration (BLQ censored, the subject as the
+    file writes it), every per-subject PK parameter, every test/reference ratio, every dissolution mean.
+    `python -m modeler_project.value_score ... --source dataroom` scores it against an analysts' key (value-key/2) with
+    the same verdicts as the intake pipeline (found, wrong value, missing, unexpected). No new observation record was
+    made: the ledger's and the scorer's already exist; the room lacked an adapter (plan §5 records the deviation).
+  - To serve it without a second reading: `assemble.read_extractions(inputs)` (the room's table reading and fact
+    checking, now shared) and `dataroom.room_inputs(store)` (what `room_view` assembles from); `Sample.subject_text`
+    keeps the subject as written beside its id.
+- **Measured (code only, no model):** the owner's P03 cinacalcet delivery (packaged copy, outside git), its
+  concentration table described as a modeler would, scored against a draft key generated from the file: **1,678 of
+  1,678 measured concentrations right, none unexpected**; 146 values the file writes as 0.000 for BLQ are censored by
+  the room and written "0.000" in the draft key (the modeler settles the key's convention); 3 BE ratios of the SAS
+  output missing (that file is not described yet). Tests: `test_dataroom_layers.py` (7), `test_dataroom_scoring.py`
+  (3), two in `test_dataroom_cache.py`; the project-model and agents suites pass (1,469).
+- **Known gap:** the adapter gives no anchor (the report names a value's file, not its sheet or page) and not yet the
+  demographics, solubility, composition or quoted facts (their key rows score missing, and the report says so).
+
 ### Changed — the console redesign, slice 10: the acceptance pass, its fixes, the deploy plan (2026-11-25)
 - **What:**
   - **Every page checked, at 1440 and 390 px** (`e2e/acceptance.spec.ts`, new): the pages are read from
@@ -11606,3 +11644,4 @@ record it here so a reader knows which context produced which work.
 | 2026-11-22 (cloud session, branch `claude/inspiring-einstein-191gn3`; the owner switched the model mid-session) | per commit trailer | Redesign charter Gate 1: read-only product discovery in `design-review/` (audit, feature inventory, bloatware report, proposed features, unknowns, current-state screenshots) |
 | 2026-11-23 (same cloud session, continued after a context reset) | per commit trailer | Redesign Gates 2–4 and Phase 9 (archive, implementation plan); security fixes R-S01, R-S03, R-S04; slice 0 (`main` fast-forwarded, archive branch pushed) and slice 1 (R-S02 and the console shell) |
 | 2026-11-24 (cloud session, branch `claude/optimistic-feynman-zy100a`) | per commit trailer | Where the client's files may go moved from each project's Data room and Settings to a company setting the administrator keeps on Admin → Companies (the owner's request) |
+| 2026-11-25 → 26 (cloud session, branch `claude/exciting-galileo-x1ziov`) | per commit trailer | Read-only assessment of the owner's PBPK corpus audit (30 project folders) against the codebase, with a rule-by-rule map and a Data room mockup (session files, not committed); the plan `2026-11-26-data-room-groups-and-corpus-benchmark.md` with the owner's decisions; phases 0 and 1: one prompt version per agent, the Data room's group map, the room in the value scorer, P03 scored code-only |

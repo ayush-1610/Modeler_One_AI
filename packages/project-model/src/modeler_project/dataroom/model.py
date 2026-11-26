@@ -97,7 +97,7 @@ class CheckedFact(_B):
 
 
 class Sample(_B):
-    subject: str
+    subject: str                     # one id however written (`clinical.subject_id`: "007" is 7)
     period: str = ""
     treatment: str = ""
     sequence: str = ""
@@ -108,6 +108,7 @@ class Sample(_B):
     blq: bool = False
     missing: bool = False
     chip: Chip | None = None
+    subject_text: str = ""           # the subject as the file writes it ("007"), for a value-by-value key
 
 
 class Arm(_B):

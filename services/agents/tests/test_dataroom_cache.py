@@ -240,3 +240,29 @@ def test_what_the_checker_flags_is_extracted_again_and_both_looks_are_reused_on_
     _run(b, second)
     assert (second.calls["A8 extract"], second.calls["A9 check"]) == (0, 0)       # the second pass and the second look too
     assert b.reviews() == a.reviews() and len(b.reviews()) == 6
+
+
+def test_a_new_version_of_one_agent_asks_only_that_agent_again(tmp_path, monkeypatch):
+    """One prompt version per agent (plan 2026-11-26 §4, decision 4): a new version of the extractor's instructions makes
+    the extractor read every file again, while the triage and the check of the same, unchanged extraction stay reused."""
+    from modeler_agents.dataroom import stages
+
+    _run(_project(tmp_path, "t1", "p1"), Recording())
+    monkeypatch.setitem(stages.PROMPT_VERSIONS, "A8", "dataroom-6-test")
+    again = Recording()
+    b = _project(tmp_path, "t1", "p2")
+    _run(b, again)
+    assert [again.calls[s] for s in PER_FILE] == [0, again.calls["A8 extract"], 0] and again.asked("A8 extract") == 9
+    assert {x["prompt"] for x in b.authors() if x["stage"] == "extract"} == {"dataroom-6-test"}
+    assert {x["prompt"] for x in b.authors() if x["stage"] == "triage"} == {"dataroom-6"}
+
+
+def test_every_run_stage_has_its_agent_and_every_agent_started_at_the_shared_version():
+    """The split kept the one version all five agents shared, so no answer cached before it is lost."""
+    from modeler_agents.dataroom import RUN_STAGES, stages
+
+    agents = {agent for _sid, _label, agent in RUN_STAGES if agent}
+    assert agents == set(stages.PROMPT_VERSIONS) == set(stages.STAGE_AGENTS.values())
+    assert {stage: stages.STAGE_AGENTS[stage] for stage, _label, agent in RUN_STAGES if agent} == \
+        {stage: agent for stage, _label, agent in RUN_STAGES if agent}
+    assert set(stages.PROMPT_VERSIONS.values()) == {"dataroom-6"}

@@ -161,7 +161,7 @@ def samples_from(table: ReadTable) -> tuple[list[Sample], list[Problem], str]:
                               time_h=round(time * factor, 6), text=text,
                               actual_h=None if actual is None else round(actual * factor, 6),
                               value=None if (is_missing or is_blq) else number, blq=is_blq, missing=is_missing,
-                              chip=cell.chip))
+                              chip=cell.chip, subject_text=one["subject"].text.strip()))
     return out, problems, desc.value_unit
 
 

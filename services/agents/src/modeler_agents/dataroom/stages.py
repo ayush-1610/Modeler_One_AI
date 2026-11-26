@@ -37,11 +37,23 @@ from modeler_project.dataroom.extract import check_fact, read_table
 from modeler_project.dataroom.model import FileView
 from modeler_project.dataroom.store import DataRoomStore
 
-# dataroom-5: one instruction text for every file (the extractor's fields and table roles moved to the file's block),
-# the delivery's block before the file's, and the answer cache (plan 2026-11-24 §5 items 2 and 3). A change of any
-# prompt text, tool or constant that shapes a request (MAX_LINES, PREVIEW_LINES, FOCUS_CHARS' use …) is a new version:
-# the answer cache's key holds it.
-PROMPT_VERSION = "dataroom-6"
+# One version per agent (plan 2026-11-26 §4, decision 4). dataroom-5: one instruction text for every file (the
+# extractor's fields and table roles moved to the file's block), the delivery's block before the file's, and the answer
+# cache (plan 2026-11-24 §5 items 2 and 3). A change of an agent's prompt text, tools or a constant that shapes its
+# requests (MAX_LINES, PREVIEW_LINES, FOCUS_CHARS' use …) is a new version of THAT agent only: the answer cache's key
+# holds the stage's version, so the other agents' cached answers stay valid. A change to `_COMMON`, which every agent's
+# instructions start with, is a new version of every agent. All five started at "dataroom-6", the one version they
+# shared before the split, so no answer cached before it was lost.
+PROMPT_VERSIONS: dict[str, str] = {"A6": "dataroom-6", "A7": "dataroom-6", "A8": "dataroom-6", "A9": "dataroom-6",
+                                   "A10": "dataroom-6"}
+STAGE_AGENTS: dict[str, str] = {"question": "A6", "triage": "A7", "extract": "A8", "check": "A9", "write": "A10"}
+
+
+def prompt_version(stage: str) -> str:
+    """The prompt version of the agent that runs `stage` (question, triage, extract, check, write)."""
+    return PROMPT_VERSIONS[STAGE_AGENTS[stage]]
+
+
 MAX_LINES = 120          # lines one read returns
 PREVIEW_LINES = 80       # lines of each of the first parts the triage agent sees (40 misjudged a LIMS export, 2026-11-24)
 
@@ -226,7 +238,7 @@ def _answer_key(store: DataRoomStore, stage: str, model: ChatModel, path: str, f
     """Every input that can change this stage's answer for this file (`answer_cache` lists them)."""
     m = _answering(model, avoid)
     effort = getattr(m, "effort", None) or getattr(m, "reasoning_effort", None) or ""
-    return AnswerKey(tenant=store.ws.tenant_id, stage=stage, prompt_version=PROMPT_VERSION, file_sha256=f.sha256,  # type: ignore[arg-type]
+    return AnswerKey(tenant=store.ws.tenant_id, stage=stage, prompt_version=prompt_version(stage), file_sha256=f.sha256,  # type: ignore[arg-type]
                      path=path, reader=f"{doc.parser}/{doc.parser_version}; lines {LINES_VERSION}",
                      text_sha256=parts_sha256(_parts(doc)), model=f"{m.provider}/{m.model}",
                      endpoint=str(getattr(m, "base_url", "") or ""), effort=str(effort), inputs=inputs,
@@ -418,7 +430,7 @@ def question(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, 
     # the model whose submission was saved: in a chain, the one the conversation ended on
     store.set_question(card, by=f"agent:A6:{outcome.answered_by}", confirmed=False)  # type: ignore[arg-type]
     store.record_author(stage="question", file="", model=outcome.answered_by, identity=outcome.answered_on,
-                        prompt=PROMPT_VERSION)
+                        prompt=prompt_version("question"))
     said = "question card drafted: confirm it" + ("; no file names the regulator: give it on the card" if unstated else "")
     step(1, 1, said)
     return said
@@ -488,7 +500,7 @@ def triage(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, st
         if saved:
             store.put_triage(saved[0], f.sha256)  # type: ignore[arg-type]
             store.record_author(stage="triage", file=path, model=sorted_by.answered_by, identity=sorted_by.answered_on,
-                                prompt=PROMPT_VERSION)
+                                prompt=prompt_version("triage"))
             if not checked(saved[0]):
                 _remember(store, cache, key, saved[0], sorted_by)
         step(done, len(todo), path)
@@ -649,7 +661,7 @@ def extract(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, s
         if hit is not None:
             _record_reuse(store, "extract", path, hit, key)
             store.put_extraction(Extraction.model_validate(hit.answer), f.sha256, agent={
-                "agent": "A8", "model": hit.author, "identity": hit.identity, "prompt": PROMPT_VERSION, "reused": hit.note,
+                "agent": "A8", "model": hit.author, "identity": hit.identity, "prompt": prompt_version("extract"), "reused": hit.note,
                 **sent_back})
             reused += 1
             step(done, len(todo), path)
@@ -665,10 +677,10 @@ def extract(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, s
         if saved:
             answer = saved[0].model_copy(update={"file": path})
             store.record_author(stage="extract", file=path, model=outcome.answered_by, identity=outcome.answered_on,
-                                prompt=PROMPT_VERSION)
+                                prompt=prompt_version("extract"))
             store.put_extraction(answer, f.sha256, agent={"agent": "A8", "model": outcome.answered_by,
                                                           "identity": outcome.answered_on,  # type: ignore[arg-type]
-                                                          "prompt": PROMPT_VERSION, **sent_back})
+                                                          "prompt": prompt_version("extract"), **sent_back})
             if not problems(answer):
                 _remember(store, cache, key, answer, outcome)
         step(done, len(todo), path)
@@ -764,7 +776,7 @@ def check(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, ste
         done_check = _loop(store, "check", path, checker, saved, system=CHECK_SYSTEM, tools=[tool], max_turns=4, user=task)
         same = bool(author) and done_check.answered_on == author
         store.record_author(stage="check", file=path, model=done_check.answered_by, identity=done_check.answered_on,
-                            prompt=PROMPT_VERSION,
+                            prompt=prompt_version("check"),
                             note="not a second opinion: the same model wrote the extraction" if same else "")
         if saved:
             review = [t for t in saved[0].tables if not t.get("ok", True)]  # type: ignore[attr-defined]
@@ -822,7 +834,7 @@ def write(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, ste
                       {k: v for k, v in a.requests.items() if _numbers_ok(v, material)},  # type: ignore[attr-defined]
                       agent=written.answered_by, basis={s.id: s.computed for s in view.sections})
     store.record_author(stage="write", file="", model=written.answered_by, identity=written.answered_on,
-                        prompt=PROMPT_VERSION)
+                        prompt=prompt_version("write"))
     step(1, 1, "written")
     return "findings and request wording written"
 

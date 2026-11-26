@@ -2,7 +2,7 @@
 
 **Purpose:** the entry point for anyone — engineer or AI model — resuming work on Modeler One. Read in this order:
 `CLAUDE.md` (working rules) → this file (where things stand) → `CHANGELOG.md` (what changed, why, when) → the active
-plan in `docs/plans/`. **Last brought up to date: 2026-11-19 (§4.0c: the Inputs task-first redesign and its final review, merged to `main` for the owner's trial).** If HEAD is far ahead of
+plan in `docs/plans/`. **Last brought up to date: 2026-11-26 (§4.0f: the Data room regrouped by purpose and scored value by value, phases 0–1 of `docs/plans/2026-11-26-data-room-groups-and-corpus-benchmark.md`; §4.0e and earlier were current on 2026-11-25).** If HEAD is far ahead of
 that commit and §4 was not updated with it, §4 is stale — fix it before trusting it.
 
 ## 30-second system state
@@ -212,6 +212,28 @@ Critical path to the first unattended S0→S2 campaign (P1 milestone): T-01 → 
 T-05 → T-07 → T-08 → T-18 and T-09 in parallel.
 
 ## 4. Where things stand (2026-11-24)
+
+### 4.0f 2026-11-25 → 26: the corpus audit, the Data room regrouped by purpose, the room scored value by value
+**The owner's input:** a client-confidential audit of 30 of the owner's PBPK/PBBM project folders (kept outside the
+repository). A read-only assessment against this codebase (session files, not committed) found the platform's
+architecture sound, the generic-product work (VBE, biowaivers, safe space) its thinnest area, and the Data room showing
+a delivery by file type although most of what clients send never reaches a model. **The plan:**
+`docs/plans/2026-11-26-data-room-groups-and-corpus-benchmark.md` (the owner's decisions D1–D7 in its §1; phases 0–7).
+
+**Built on the session branch `claude/exciting-galileo-x1ziov` (phases 0 and 1; no page change, no locked file):**
+- One prompt version per Data room agent (`stages.PROMPT_VERSIONS`): a change to one agent's instructions no longer
+  discards every agent's cached answers.
+- The group map `dataroom/dataroom_layers.yaml` 0.1 (`layers.py`): Question and Context of Use · Model Input Data ·
+  Supporting Evidence · Source Records · Data Requests, every vocabulary entry placed by code, question-driven
+  promotion, the D1 choices (population, sex, meal, release model) on Inputs. The page reads it in phase 5.
+- The Data room in the value scorer: `value_score --source dataroom` (`dataroom/scoring.py`), the same key format and
+  verdicts as the intake pipeline. The room's table reading is shared (`assemble.read_extractions`, `room_inputs`).
+- **First real measure (code only):** P03's concentration table, described as a modeler would: 1,678 of 1,678 measured
+  values right, none unexpected; 146 BLQ-coded zeros are a key convention for the modeler.
+
+**Next:** the Level-1 reading of the client files packaged with the audit (all formats), the agents' baseline on the
+server's in-house model (D6), then phase 2 (SAS, PowerPoint, Numbers; dependencies approved, D5). The corpus data and
+answer keys stay outside git.
 
 ### 4.0e 2026-11-22 → 25: redesign charter, implementation (slice 10, acceptance, in review)
 **Now (2026-11-23):** the owner authorised slices 0 and 1, one PR per slice into `main`, a review after each. Slice 0:

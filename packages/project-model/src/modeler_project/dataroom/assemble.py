@@ -550,11 +550,11 @@ def _first(facts: Sequence[CheckedFact], field: str, subject: str = "") -> Check
     return got[0] if got else None
 
 
-def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
-    rules = rules or load_rules()
+def read_extractions(inputs: Inputs) -> tuple[list[ReadTable], list[CheckedFact], list[Problem]]:
+    """Every described table read and every quoted fact checked against the read documents, each table's method
+    conditions kept as the delivery says them: the room's first step (`assemble`), and what the value scorer reads
+    (`modeler_project.value_score.from_dataroom`), so both see the same values."""
     by_path = {f.path: f for f in inputs.files}
-    triage = {f.path: f.triage for f in inputs.files if f.triage}
-    literature_files = {p for p, t in triage.items() if t and set(t.topics) & _LITERATURE_TOPICS}
     problems: list[Problem] = []
     tables: list[ReadTable] = []
     facts: list[CheckedFact] = []
@@ -578,7 +578,14 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
                 continue
             facts.append(check_fact(fact.model_copy(update={"file": path}), doc, file=path, sha256=file.sha256))
     tables, found = _said_constants(tables, inputs.docs.values(), [f.fact.quote for f in facts if f.ok])
-    problems += found
+    return tables, facts, problems + found
+
+
+def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
+    rules = rules or load_rules()
+    triage = {f.path: f.triage for f in inputs.files if f.triage}
+    literature_files = {p for p, t in triage.items() if t and set(t.topics) & _LITERATURE_TOPICS}
+    tables, facts, problems = read_extractions(inputs)
     for f in facts:
         if not f.ok:
             problems.append(Problem(code="FACT_REFUSED", message=f"{_field_label(f.fact.field)} “{f.fact.value}” ({f.fact.file}): "
