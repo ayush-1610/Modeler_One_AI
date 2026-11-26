@@ -46,7 +46,9 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
   concentration table described as a modeler would, scored against a draft key generated from the file: **1,678 of
   1,678 measured concentrations right, none unexpected**; 146 values the file writes as 0.000 for BLQ are censored by
   the room and written "0.000" in the draft key (the modeler settles the key's convention); 3 BE ratios of the SAS
-  output missing (that file is not described yet). Tests: `test_dataroom_layers.py` (7), `test_dataroom_scoring.py`
+  output missing (that file is not described yet). Every format, code only with OCR: of the 102 client files packaged
+  with the audit (17 projects, 2,087 pages, 199 by OCR), 94 read, 1 partly read, 7 not opened (4 SAS datasets, 3
+  PowerPoint files: phase 2). Tests: `test_dataroom_layers.py` (7), `test_dataroom_scoring.py`
   (3), two in `test_dataroom_cache.py`; the project-model and agents suites pass (1,469).
 - **Known gap:** the adapter gives no anchor (the report names a value's file, not its sheet or page) and not yet the
   demographics, solubility, composition or quoted facts (their key rows score missing, and the report says so).

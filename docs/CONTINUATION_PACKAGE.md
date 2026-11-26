@@ -230,9 +230,10 @@ a delivery by file type although most of what clients send never reaches a model
   verdicts as the intake pipeline. The room's table reading is shared (`assemble.read_extractions`, `room_inputs`).
 - **First real measure (code only):** P03's concentration table, described as a modeler would: 1,678 of 1,678 measured
   values right, none unexpected; 146 BLQ-coded zeros are a key convention for the modeler.
+- **Every format (code only, OCR on):** the 102 client files packaged with the audit (17 projects): 94 read, 1 partly
+  read, 7 not opened (4 SAS datasets, 3 PowerPoint files), no crash.
 
-**Next:** the Level-1 reading of the client files packaged with the audit (all formats), the agents' baseline on the
-server's in-house model (D6), then phase 2 (SAS, PowerPoint, Numbers; dependencies approved, D5). The corpus data and
+**Next:** the agents' baseline on the server's in-house model (D6), then phase 2 (SAS, PowerPoint, Numbers; dependencies approved, D5). The corpus data and
 answer keys stay outside git.
 
 ### 4.0e 2026-11-22 → 25: redesign charter, implementation (slice 10, acceptance, in review)
