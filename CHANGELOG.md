@@ -147,6 +147,28 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 - **Known gap:** the adapter gives no anchor (the report names a value's file, not its sheet or page) and not yet the
   demographics, solubility, composition or quoted facts (their key rows score missing, and the report says so).
 
+### Infra — CI runs on Ubuntu 24.04, pinned; gitleaks ignores seven reviewed fixture hashes (2026-11-26)
+- **What:**
+  - **Every CI job runs on `ubuntu-24.04`**, not `ubuntu-latest` (`.github/workflows/ci.yml`, a locked file: changed
+    with the owner's approval, 2026-11-26, and its hash refreshed). A comment above `jobs:` says why, and that the pin
+    moves only deliberately.
+  - **`.gitleaksignore` (new)** lists seven gitleaks findings by exact fingerprint (commit, file, rule, line). Each one
+    is the `inputs_key` of an Inputs-work e2e fixture (`apps/web/e2e/fixtures/inputs-work/*.json`, and its archived
+    copy under `design-review/`). That value is a SHA-256 digest of the project's inputs (`inputs.py`, `inputs_key`),
+    which the generic-api-key rule reads as a credential. No rule, path or pattern is allowlisted, so any other
+    finding, including a new digest in a new commit, still fails the scan. `.gitleaks.toml` is unchanged.
+- **Why:** three CI checks have been red on `main` since `ubuntu-latest` became Ubuntu 26.04 (seen on 1dbda7f,
+  2026-11-25), and the cause is the runner, not the code:
+  - *Tests + trace matrix*: 10 errors, all of them "postgres.sh: /usr/lib/postgresql/18/bin is not PostgreSQL 16".
+    The 26.04 image ships PostgreSQL 18, the two database test files take `pg_config`'s directory first, and
+    `deploy/server/postgres.sh` correctly refuses anything but 16. These are the Part 11 audit and signature tests
+    (`packages/storage/tests/test_postgres_deploy.py`, `services/api/tests/test_part11_postgres.py`).
+  - *Browser flows (Playwright)*: "Playwright does not support chromium on ubuntu26.04-x64".
+  - *Secret scan (gitleaks)*: the seven fixture digests above, in commits b415b22, 2c9a40e, 92e1622 and 000a59d.
+- **Impact:** no product behaviour changes. The database tests run again against PostgreSQL 16, the version the
+  server runs, instead of failing; they were not changed to skip on 18, since that would quietly stop CI from running
+  the Part 11 tests. A full-history gitleaks 8.21.2 scan (CI's version) of this branch finds no leaks.
+
 ### Changed — the console redesign, slice 10: the acceptance pass, its fixes, the deploy plan (2026-11-25)
 - **What:**
   - **Every page checked, at 1440 and 390 px** (`e2e/acceptance.spec.ts`, new): the pages are read from
