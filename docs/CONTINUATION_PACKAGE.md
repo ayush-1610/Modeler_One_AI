@@ -2,7 +2,7 @@
 
 **Purpose:** the entry point for anyone — engineer or AI model — resuming work on Modeler One. Read in this order:
 `CLAUDE.md` (working rules) → this file (where things stand) → `CHANGELOG.md` (what changed, why, when) → the active
-plan in `docs/plans/`. **Last brought up to date: 2026-11-26 (§4.0f: the Data room regrouped by purpose and scored value by value, phases 0–1 of `docs/plans/2026-11-26-data-room-groups-and-corpus-benchmark.md`; §4.0e and earlier were current on 2026-11-25).** If HEAD is far ahead of
+plan in `docs/plans/`. **Last brought up to date: 2026-11-26 (§4.0f: the Data room regrouped by purpose and scored value by value, phases 0–2b of `docs/plans/2026-11-26-data-room-groups-and-corpus-benchmark.md`; §4.0e and earlier were current on 2026-11-25).** If HEAD is far ahead of
 that commit and §4 was not updated with it, §4 is stale — fix it before trusting it.
 
 ## 30-second system state
@@ -236,8 +236,18 @@ a delivery by file type although most of what clients send never reaches a model
 - **Phase 2a (formats):** SAS datasets (`.sas7bdat`, `.xpt`), PowerPoint (`.pptx`, charts' data as tables) and Apple
   Numbers are read; a known unread format says what to ask for. Corpus: 6 of the 7 unopened files now open.
 
-**Next:** phase 2b (CDISC domains described by code), the agents' baseline on the server's in-house model (D6). The corpus data and
-answer keys stay outside git.
+- **Phase 2b (analytes; CDISC by code; the owner's option A):** a study that measured the drug and its metabolites is
+  viewed once per analyte; the modeler chooses the modeled one (decision `analyte:<study>`, the drug suggested); the
+  others are Supporting Evidence (`DataRoomView.other_analytes`, layers 0.2). SDTM PC and DM / ADSL are described by code
+  (`dataroom/cdisc.py`, `cdisc-1`), and A8 / A9 skip them. P30, code only: PC and ADSL of 4 pooled studies described,
+  each study's 3–4 analytes apart. PP, EX and the period-to-treatment tie are left to the agents (phase 2c; the plan's
+  §8 says why); a study whose data names no treatment says so (NO_TREATMENT). A8 is at `dataroom-7`.
+- **CI (2026-11-26):** `ubuntu-latest` became Ubuntu 26.04 and turned Tests, Playwright and gitleaks red on `main`; the
+  fix (runners pinned to `ubuntu-24.04`, seven reviewed fixture hashes in `.gitleaksignore`) is its own PR,
+  ayush-1610/Modeler_One_AI#188, owner-approved.
+
+**Next:** phase 2c (each SDTM profile's treatment from ADSL TRTxxP or EX; PP as a long PK table), the agents' baseline on
+the server's in-house model (D6). The corpus data and answer keys stay outside git.
 
 ### 4.0e 2026-11-22 → 25: redesign charter, implementation (slice 10, acceptance, in review)
 **Now (2026-11-23):** the owner authorised slices 0 and 1, one PR per slice into `main`, a review after each. Slice 0:

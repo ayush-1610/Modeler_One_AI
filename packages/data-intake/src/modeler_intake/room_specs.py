@@ -79,7 +79,7 @@ ROLES: dict[str, tuple[str, ...]] = {
     "concentrations": ("subject", "sequence", "period", "treatment", "time", "actual_time", "value", "statistic", "analyte",
                        "matrix", "dose", "group"),
     "pk_parameters": ("subject", "sequence", "period", "treatment", "cmax", "tmax", "auc_t", "auc_inf", "t_half",
-                      "lambda_z", "statistic", "group"),
+                      "lambda_z", "statistic", "analyte", "group"),
     "demographics": ("subject", "sex", "age", "weight", "height", "bmi", "race", "smoking", "group"),
     "disposition": ("subject", "status", "reason", "period"),
     "dissolution": ("unit", "time", "value", "statistic", "batch", "medium"),

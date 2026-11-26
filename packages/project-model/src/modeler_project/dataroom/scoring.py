@@ -16,8 +16,10 @@ the page shows, never a second reading. It gives, each as `value_score.Extracted
   the room shows it).
 
 No anchor is given (the scorer joins on labels, never on the anchor; the intake's anchor form is the ledger's), so the
-report names a value's file but not its sheet or page. Labels come from the table as the agent described it: the study from its "study" constant or what it is about, the
-analyte and matrix from its constants, the arm from each row's treatment, as written; the scorer's name matching and
+report names a value's file but not its sheet or page. Labels come from the table as the agent (or code, for a CDISC
+dataset) described it: the study from its "study" constant or what it is about, the analyte from each line's analyte
+cell (a PC dataset holds the drug and its metabolites) else the table's constant, the matrix from its constants, the
+arm from each row's treatment, as written; the scorer's name matching and
 the key's Studies sheet do the rest. Not yet given (phase 3 and later): demographics, solubility, composition and the
 quoted facts; their key rows are then `missing`, which the report says.
 """
@@ -57,7 +59,7 @@ def _concentrations(table: ReadTable) -> list[Extracted]:
     out = []
     for n, s in enumerate(samples):
         out.append(Extracted(
-            file=table.description.file, study=labels["study"], arm=s.treatment, analyte=labels["analyte"],
+            file=table.description.file, study=labels["study"], arm=s.treatment, analyte=s.analyte or labels["analyte"],
             matrix=labels["matrix"], subject=s.subject_text or s.subject, period=s.period, sequence=s.sequence, field="concentration",
             time_min=round(s.time_h * 60.0, 6), value=None if s.value is None else number_text(s.value), verbatim=s.text,
             censored=s.blq, lloq=None, unit=unit or None, method=METHOD, anchor=None, id=f"{table.id}:c{n}"))
@@ -89,7 +91,8 @@ def _pk_parameters(table: ReadTable) -> list[Extracted]:
             number = parse_number(text, decimal_comma=table.decimal_comma)
             out.append(Extracted(
                 file=table.description.file, study=labels["study"], arm=row.get("treatment", "").strip(),
-                analyte=labels["analyte"], matrix=labels["matrix"], subject=row.get("subject", "").strip(),
+                analyte=row.get("analyte", "").strip() or labels["analyte"], matrix=labels["matrix"],
+                subject=row.get("subject", "").strip(),
                 period=row.get("period", "").strip(), sequence=row.get("sequence", "").strip(), field=field, time_min=None,
                 value=None if number is None else number_text(number), verbatim=text, censored=False, lloq=None,
                 unit=units.get(role) or None, method=METHOD, anchor=None, id=f"{table.id}:p{n}:{role}"))

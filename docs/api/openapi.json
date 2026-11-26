@@ -5194,6 +5194,14 @@
             "title": "Made Summary",
             "type": "string"
           },
+          "other_analytes": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/RoomStudy"
+            },
+            "title": "Other Analytes",
+            "type": "array"
+          },
           "plan": {
             "default": [],
             "items": {
@@ -5303,6 +5311,7 @@
           "dissolution",
           "f2",
           "studies",
+          "other_analytes",
           "decisions",
           "requests",
           "plan",
@@ -27710,6 +27719,11 @@
         "additionalProperties": false,
         "description": "One clinical study as the room shows it (named apart from the API's other study views).",
         "properties": {
+          "analyte": {
+            "default": "",
+            "title": "Analyte",
+            "type": "string"
+          },
           "arms": {
             "default": [],
             "items": {
@@ -27843,6 +27857,7 @@
         },
         "required": [
           "study_id",
+          "analyte",
           "facts",
           "arms",
           "periods",

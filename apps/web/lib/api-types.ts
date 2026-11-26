@@ -5445,6 +5445,11 @@ export interface components {
              */
             made_summary: string;
             /**
+             * Other Analytes
+             * @default []
+             */
+            other_analytes: components["schemas"]["RoomStudy"][];
+            /**
              * Plan
              * @default []
              */
@@ -13410,6 +13415,11 @@ export interface components {
          * @description One clinical study as the room shows it (named apart from the API's other study views).
          */
         RoomStudy: {
+            /**
+             * Analyte
+             * @default
+             */
+            analyte: string;
             /**
              * Arms
              * @default []

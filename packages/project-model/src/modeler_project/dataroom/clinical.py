@@ -11,6 +11,7 @@ import statistics
 from collections import Counter, defaultdict
 from collections.abc import Iterable, Sequence
 
+from modeler_intake.room_specs import TableDescription
 from modeler_project.dataroom.extract import parse_number, token_sets
 from modeler_project.dataroom.flags import exclusion_flags
 from modeler_project.dataroom.model import (
@@ -21,6 +22,7 @@ from modeler_project.dataroom.model import (
     Exposure,
     MeanPoint,
     Problem,
+    ReadRow,
     ReadTable,
     RoomStudy,
     Sample,
@@ -128,7 +130,8 @@ def samples_from(table: ReadTable) -> tuple[list[Sample], list[Problem], str]:
         if row.summary or any(c.role == "statistic" and c.text.strip() for c in row.cells):
             continue
         # "time" is the nominal (scheduled) time; an "actual_time" column is kept by the file, not used for the means
-        one = {c.role: c for c in row.cells if c.role in ("subject", "period", "treatment", "sequence", "time", "actual_time")}
+        one = {c.role: c for c in row.cells if c.role in ("subject", "period", "treatment", "sequence", "time", "actual_time",
+                                                           "analyte")}
         if "subject" in one and is_statistic(one["subject"].text):
             continue                     # the client's own "Mean", "SD" or "N" line, not a subject: `observed`
         actual = parse_number(one["actual_time"].text, decimal_comma=table.decimal_comma) if "actual_time" in one else None
@@ -161,20 +164,54 @@ def samples_from(table: ReadTable) -> tuple[list[Sample], list[Problem], str]:
                               time_h=round(time * factor, 6), text=text,
                               actual_h=None if actual is None else round(actual * factor, 6),
                               value=None if (is_missing or is_blq) else number, blq=is_blq, missing=is_missing,
-                              chip=cell.chip, subject_text=one["subject"].text.strip()))
+                              chip=cell.chip, subject_text=one["subject"].text.strip(), analyte=analyte_of(row, desc)))
     return out, problems, desc.value_unit
 
 
+def analyte_of(row: ReadRow, desc: TableDescription) -> str:
+    """What a line measured, as written: its analyte cell, else the table's analyte constant ("" when neither names
+    one)."""
+    cell = next((c for c in row.cells if c.role == "analyte" and c.text.strip()), None)
+    return re.sub(r"\s+", " ", (cell.text if cell else desc.constants.get("analyte", "")).strip())
+
+
+def _analyte_key(text: str) -> str:
+    return re.sub(r"\s+", " ", text.strip()).lower()
+
+
+def analytes_in(tables: Sequence[ReadTable]) -> list[str]:
+    """The analytes the tables name, each once (as first written, in the order the tables give them)."""
+    seen: dict[str, str] = {}
+    for table in tables:
+        for row in table.rows:
+            name = analyte_of(row, table.description)
+            if name:
+                seen.setdefault(_analyte_key(name), name)
+    return list(seen.values())
+
+
+def for_analyte(table: ReadTable, analyte: str) -> ReadTable:
+    """The table's lines of one analyte (each line's analyte cell, else the table's constant), the rest left out."""
+    want = _analyte_key(analyte)
+    return table.model_copy(update={"rows": tuple(r for r in table.rows if _analyte_key(analyte_of(r, table.description)) == want)})
+
+
+def unnamed_lines(table: ReadTable) -> int:
+    """The data lines that name no analyte (no analyte cell and no analyte constant)."""
+    return sum(1 for r in table.rows if not r.summary and not analyte_of(r, table.description))
+
+
 def colliding_samples(table: ReadTable) -> str:
-    """Why a concentration table's description cannot be right when two of its samples share a subject, an occasion and
-    a time with different values: a column that separates them (a study day, a period, a treatment) was not given that
-    role (a new delivery, 2026-11-24: a "Day" column described as a group made Day 1 and Day 7 collide, about 230
-    samples, and no exposure). "" when none collide."""
+    """Why a concentration table's description cannot be right when two of its samples share an analyte, a subject, an
+    occasion and a time with different values: a column that separates them (a study day, a period, a treatment) was
+    not given that role (a new delivery, 2026-11-24: a "Day" column described as a group made Day 1 and Day 7 collide,
+    about 230 samples, and no exposure). Samples of different analytes never collide (a CRO's PC dataset holds the drug
+    and its metabolites, line by line). "" when none collide."""
     samples, _problems, _unit = samples_from(table)
-    seen: dict[tuple[str, str, str, float], Sample] = {}
+    seen: dict[tuple[str, str, str, str, float], Sample] = {}
     clashes = 0
     for x in samples:
-        key = (x.subject, x.period, x.treatment, x.time_h)
+        key = (_analyte_key(x.analyte), x.subject, x.period, x.treatment, x.time_h)
         first = seen.setdefault(key, x)
         if first is not x and (first.value, first.blq, first.missing) != (x.value, x.blq, x.missing):
             clashes += 1
@@ -184,7 +221,7 @@ def colliding_samples(table: ReadTable) -> str:
     # each column's header as the file writes it (the read cells keep it), else the agent's label
     written = {spec.index: cell.label for spec, cell in zip(table.description.columns, table.rows[0].cells, strict=False)}
     candidates = [f"column {c.index}{f' ({written.get(c.index) or c.label})' if written.get(c.index) or c.label else ''}"
-                  for c in table.description.columns if c.role in ("group", "dose", "analyte", "matrix")]
+                  for c in table.description.columns if c.role in ("group", "dose", "matrix")]
     hint = (f"; {', '.join(candidates)} may be what separates them" if candidates else
             "; a column that separates them may be left undescribed")
     missing = [r for r in ("period", "treatment") if r not in roles]
@@ -505,6 +542,12 @@ def study_view(study_id: str, *, concentrations: Sequence[ReadTable], pk_tables:
 
     # mean profiles per arm for every set a person may choose
     treatments = sorted({t for t in treatment_of.values() if t})
+    if not treatments:
+        # said, not guessed: an arm is never made up from the occasions (a crossover's periods mix treatments)
+        problems.append(Problem(code="NO_TREATMENT", message=(
+            f"the concentration data names no treatment for its {label}s: each profile's NCA and the subject sets are "
+            "shown, but no mean profile or exposure per arm until each profile is tied to its treatment (an SDTM PC "
+            "dataset names none: it is in EX, or in ADSL's TRTxxP)")))
     profiles: list[ArmProfile] = []
     for s_ in sets:
         if s_.name in ("modeling", "completed", "client_statistical", "auc", "dosed"):

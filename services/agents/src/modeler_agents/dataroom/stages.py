@@ -32,6 +32,7 @@ from modeler_intake.room_specs import FIELDS, ROLES, TOPICS, Extraction, FileTri
 from modeler_intake.source_model import SourceDocument
 from modeler_project.dataroom import room_view
 from modeler_project.dataroom.answer_cache import AnswerCache, AnswerKey, CachedAnswer, stable_sha256
+from modeler_project.dataroom.cdisc import describe_room
 from modeler_project.dataroom.clinical import colliding_samples
 from modeler_project.dataroom.extract import check_fact, read_table
 from modeler_project.dataroom.model import FileView
@@ -43,8 +44,9 @@ from modeler_project.dataroom.store import DataRoomStore
 # requests (MAX_LINES, PREVIEW_LINES, FOCUS_CHARS' use …) is a new version of THAT agent only: the answer cache's key
 # holds the stage's version, so the other agents' cached answers stay valid. A change to `_COMMON`, which every agent's
 # instructions start with, is a new version of every agent. All five started at "dataroom-6", the one version they
-# shared before the split, so no answer cached before it was lost.
-PROMPT_VERSIONS: dict[str, str] = {"A6": "dataroom-6", "A7": "dataroom-6", "A8": "dataroom-6", "A9": "dataroom-6",
+# shared before the split, so no answer cached before it was lost. A8 dataroom-7 (plan 2026-11-26 §7 phase 2b): a PK
+# parameter table's columns may name the analyte (a CRO's PP dataset gives the drug's and its metabolites' values).
+PROMPT_VERSIONS: dict[str, str] = {"A6": "dataroom-6", "A7": "dataroom-6", "A8": "dataroom-7", "A9": "dataroom-6",
                                    "A10": "dataroom-6"}
 STAGE_AGENTS: dict[str, str] = {"question": "A6", "triage": "A7", "extract": "A8", "check": "A9", "write": "A10"}
 
@@ -616,14 +618,19 @@ def extract(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, s
         "checklist": [[c.id, c.area, c.label, list(c.topics)] for c in card.checklist]})
     cache, reused = AnswerCache(store.ws), 0
     reuse = not redo if reuse is None else reuse
+    # a CDISC dataset whose standard variables say everything is described by code first; no agent reads it (plan
+    # 2026-11-26 §7 phase 2b). A table code is not sure of is left to the extractor, and the note says why
+    coded, code_notes = describe_room(store, redo=redo, only=set(docs))
     todo = []
     for path, (f, doc) in docs.items():
         t = store.triage(f.sha256)
-        if t is not None and t.purpose != "used":
+        if t is not None and t.purpose != "used" or path in coded:
             continue
-        if redo or store.extraction(f.sha256) is None:
+        known = store.extraction(f.sha256)
+        # a description by code that code no longer writes is the extractor's to make
+        if redo or known is None or known[1].get("agent") == "code":
             todo.append((path, f, doc, t))
-    failed: list[str] = []
+    failed: list[str] = list(code_notes)
     step(0, len(todo))
     for done, (path, f, doc, t) in enumerate(todo, start=1):
         saved: list[BaseModel] = []
@@ -685,8 +692,10 @@ def extract(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, s
                 _remember(store, cache, key, answer, outcome)
         step(done, len(todo), path)
     store.set_stage_notes("extract", failed)
-    return (f"{len(todo) - len(failed)} of {len(todo)} files extracted" + (f"; {len(failed)} gave no answer" if failed else "")
-            + _reuse_note(reused))
+    unanswered = len(failed) - len(code_notes)
+    return (f"{len(todo) - unanswered} of {len(todo)} files extracted"
+            + (f"; {unanswered} gave no answer" if unanswered else "")
+            + (f"; {len(coded)} described by code" if coded else "") + _reuse_note(reused))
 
 
 def _feedback_text(issues: list[dict[str, Any]]) -> str:
@@ -736,8 +745,9 @@ def check(store: DataRoomStore, model: ChatModel, *, actor: str, redo: bool, ste
     (`run._check_again`), a step of its own in the cache: the same extraction checked again is asked again, not answered
     with the first look."""
     docs = {p: v for p, v in _used_files(store).items() if only is None or p in only}
+    # a description code wrote is not reviewed by an agent: code read it back itself (`dataroom.cdisc`)
     todo = [(p, f, d, got[0]) for p, (f, d) in docs.items() if (got := store.extraction(f.sha256)) and got[0].tables
-            and (redo or not store.review_current(f.sha256))]
+            and got[1].get("agent") != "code" and (redo or not store.review_current(f.sha256))]
     issues = 0
     cache, reused = AnswerCache(store.ws), 0
     reuse = not redo if reuse is None else reuse

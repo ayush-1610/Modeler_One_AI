@@ -11,8 +11,9 @@ The room is organised by what a value is for, not by the file it came from:
 
 Code places a value; an agent never does (it says what the value is, `modeler_intake.room_specs`). A placement depends
 only on the vocabulary entry (`field:<fact field>` or `table:<kind>`), on the question (an entry the question's
-applications require moves to its Model Input Data section when the map allows it, `promote_to`) and, for a
-dissolution entry, on whether its profile is the selected release input (`unselected`).
+applications require moves to its Model Input Data section when the map allows it, `promote_to`), for a
+dissolution entry, on whether its profile is the selected release input (`unselected`) and, for a clinical entry, on
+whether its analyte is the one the model simulates (`not_modeled`: a metabolite's profiles are Supporting Evidence).
 
     layers = load_layers()
     layers.place("field:study.meal_composition")                        # supporting / conduct
@@ -59,6 +60,7 @@ class Entry(_B):
     at: str
     promote_to: str | None = None
     unselected: str | None = None
+    not_modeled: str | None = None
 
 
 class Placement(_B):
@@ -68,6 +70,7 @@ class Placement(_B):
     section: str
     promoted: bool = False           # moved to Model Input Data because the question requires it
     unselected: bool = False         # a dissolution value whose profile is not the selected release input
+    not_modeled: bool = False        # a value of an analyte the model does not simulate (a metabolite, a tracer)
     default: bool = False            # an entry the map does not name: the vocabulary is open
 
     @property
@@ -91,7 +94,8 @@ class Layers(_B):
         sections = [s.id for g in self.groups for s in g.sections]
         if len(sections) != len(set(sections)):
             raise ValueError("a section id is used twice")
-        for ref in (self.default, *(r for e in self.placements.values() for r in (e.at, e.promote_to, e.unselected) if r)):
+        for ref in (self.default, *(r for e in self.placements.values()
+                                    for r in (e.at, e.promote_to, e.unselected, e.not_modeled) if r)):
             if ref not in known:
                 raise ValueError(f"{ref!r} is not a declared group/section")
         for key, entry in self.placements.items():
@@ -101,6 +105,8 @@ class Layers(_B):
                 raise ValueError(f"{key}: promote_to must name a Model Input Data section")
             if entry.unselected and not entry.at.startswith("model_input/release"):
                 raise ValueError(f"{key}: only a release input entry has an 'unselected' section")
+            if entry.not_modeled and not entry.not_modeled.startswith("supporting/"):
+                raise ValueError(f"{key}: not_modeled must name a Supporting Evidence section")
         return self
 
     def group(self, group_id: str) -> GroupDef:
@@ -111,20 +117,23 @@ class Layers(_B):
         group_id, section_id = ref.split("/", 1)
         return next(s.title for s in self.group(group_id).sections if s.id == section_id)
 
-    def place(self, key: str, *, required: Iterable[str] = (), selected: bool = True) -> Placement:
+    def place(self, key: str, *, required: Iterable[str] = (), selected: bool = True, modeled: bool = True) -> Placement:
         """Where the value of vocabulary entry `key` is shown. `required`: the entries the question's applications
-        require (`required_keys`); `selected`: for a dissolution entry, whether its profile is the release input."""
+        require (`required_keys`); `selected`: for a dissolution entry, whether its profile is the release input;
+        `modeled`: for a clinical entry, whether its analyte is the one the model simulates (decision analyte:<study>)."""
         entry = self.placements.get(key)
         if entry is None:
             group, section = self.default.split("/", 1)
             return Placement(group=group, section=section, default=True)
-        ref, promoted, unselected = entry.at, False, False
-        if entry.unselected and not selected:
+        ref, promoted, unselected, not_modeled = entry.at, False, False, False
+        if entry.not_modeled and not modeled:
+            ref, not_modeled = entry.not_modeled, True
+        elif entry.unselected and not selected:
             ref, unselected = entry.unselected, True
         elif entry.promote_to and key in set(required):
             ref, promoted = entry.promote_to, True
         group, section = ref.split("/", 1)
-        return Placement(group=group, section=section, promoted=promoted, unselected=unselected)
+        return Placement(group=group, section=section, promoted=promoted, unselected=unselected, not_modeled=not_modeled)
 
 
 @lru_cache(maxsize=1)

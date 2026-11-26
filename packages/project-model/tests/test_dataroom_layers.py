@@ -63,6 +63,18 @@ def test_a_dissolution_profile_not_selected_as_the_release_input_is_shown_as_evi
     assert layers.place("field:dissolution.f2").ref == "supporting/other_dissolution"
 
 
+def test_the_profiles_of_an_analyte_the_model_does_not_simulate_are_supporting_evidence():
+    """Phase 2b: a study that measured the drug and its metabolites shows the modeled analyte's profiles and PK as
+    observed data, every other analyte's under Metabolites and Other Analytes."""
+    layers = load_layers()
+    for key in ("table:concentrations", "table:pk_parameters"):
+        assert layers.place(key).ref == "model_input/observed"
+        other = layers.place(key, modeled=False)
+        assert (other.ref, other.not_modeled) == ("supporting/other_analytes", True)
+    assert layers.title("supporting/other_analytes") == "Metabolites and Other Analytes"
+    assert layers.place("table:demographics", modeled=False).ref == "model_input/design"   # not an analyte's value
+
+
 def test_a_field_the_vocabulary_does_not_know_is_kept_as_other_delivered_facts():
     placed = load_layers().place("field:study.hematocrit_at_screening")
     assert (placed.ref, placed.default) == ("supporting/other_context", True)
@@ -73,6 +85,9 @@ def test_a_map_that_names_an_undeclared_section_or_promotes_out_of_model_input_d
     raw = load_layers().model_dump(exclude={"sha256"})
     with pytest.raises(ValueError, match="not a declared group/section"):
         Layers(**{**raw, "placements": {"field:study.id": {"at": "model_input/nowhere"}}})
+    with pytest.raises(ValueError, match="not_modeled must name a Supporting Evidence section"):
+        Layers(**{**raw, "placements": {"table:concentrations": {"at": "model_input/observed",
+                                                                 "not_modeled": "model_input/design"}}})
     with pytest.raises(ValueError, match="promote_to must name a Model Input Data section"):
         Layers(**{**raw, "placements": {"field:study.id": {"at": "model_input/design",
                                                           "promote_to": "supporting/conduct"}}})

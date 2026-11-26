@@ -109,6 +109,7 @@ class Sample(_B):
     missing: bool = False
     chip: Chip | None = None
     subject_text: str = ""           # the subject as the file writes it ("007"), for a value-by-value key
+    analyte: str = ""                # what was measured, as written: the line's analyte cell, else the table's constant
 
 
 class Arm(_B):
@@ -233,6 +234,10 @@ class RoomStudy(_B):
     """One clinical study as the room shows it (named apart from the API's other study views)."""
 
     study_id: str
+    # the analyte these profiles are of, as the data writes it ("" when the data names none). A study that measured
+    # several is viewed once per analyte: `DataRoomView.studies` holds the one the model is compared with (decision
+    # analyte:<study>), `DataRoomView.other_analytes` the others (metabolites, a labelled tracer)
+    analyte: str = ""
     facts: tuple[Value, ...] = ()
     arms: tuple[Arm, ...] = ()
     periods: tuple[str, ...] = ()
@@ -525,6 +530,9 @@ class DataRoomView(_B):
     dissolution: tuple[DissolutionView, ...] = ()
     f2: tuple[F2View, ...] = ()
     studies: tuple[RoomStudy, ...] = ()
+    # each study's analytes the model is not compared with (a metabolite, a labelled tracer), each viewed as a study is:
+    # Supporting Evidence, never sent to the model
+    other_analytes: tuple[RoomStudy, ...] = ()
     decisions: tuple[RoomDecision, ...] = ()
     requests: tuple[DataRequest, ...] = ()
     plan: tuple[PlanRow, ...] = ()

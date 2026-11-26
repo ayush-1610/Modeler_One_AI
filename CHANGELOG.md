@@ -13,6 +13,69 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 
 ## [Unreleased] — make the pipeline do real PBPK, S0 → S7
 
+### Added — a study's analytes told apart; CDISC PC and DM / ADSL described by code, no agent asked (2026-11-26)
+- **Why:** phase 2b of `docs/plans/2026-11-26-data-room-groups-and-corpus-benchmark.md`, the owner's option A. A CRO's
+  SDTM PC dataset (P30 in the owner's corpus) holds the drug, two metabolites and a labelled tracer line by line, four
+  pooled studies in one file. Before this change, the room had no analyte per line. Its four analytes' samples would
+  have collided (refused) or been averaged together into one profile. And an agent was asked to describe a table whose
+  standard variable names already say what each column is.
+- **What, the analyte dimension (`dataroom/clinical.py`, `assemble.py`, `model.py`):**
+  - A sample's analyte is its line's analyte cell, else the table's analyte constant (`Sample.analyte`).
+  - A study whose data name two or more analytes is viewed once per analyte, each by the same rules
+    (`study_view`).
+  - New decision `analyte:<study>`: "which analyte does the model simulate?", with each analyte's sample count. The
+    suggestion is the drug the delivery names (a `study.analyte` fact, the substance's subject, a product of the
+    question card; a code such as "EXAM" matches "Exampleamide"), else the first analyte not marked a metabolite or a labelled
+    compound.
+  - `DataRoomView.studies` holds the modeled analyte (study ids and every other decision unchanged). The new
+    `DataRoomView.other_analytes` holds the rest, as Supporting Evidence that is never sent to the model.
+  - Lines that name no analyte in a study of several are left out of every analyte and said (ANALYTE_NOT_NAMED).
+  - `colliding_samples` keys on the analyte, so a drug and its metabolite at one time are two samples.
+  - A study whose data name no treatment now says so (NO_TREATMENT). Its NCA and sets are shown, no mean profile
+    per arm. An arm is never made up from the periods.
+  - `RoomStudy.analyte` is new. The scorer emits each line's analyte. The `pk_parameters` table kind gets an
+    `analyte` column role, so A8's prompt is now `dataroom-7` (only A8: the per-agent versions of phase 1a).
+- **What, CDISC by code (`dataroom/cdisc.py`, describer `cdisc-1`):**
+  - **SDTM PC:** subject USUBJID; analyte PCTEST, else PCTESTCD; time PCTPTNUM; result PCSTRESC with PCSTRESU, else
+    PCORRES; specimen PCSPEC; category PCCAT. Described only when all of these hold:
+    - PCTPTNUM agrees with every line's PCELTM or PCTPT, in one unit.
+    - One unit holds every result.
+    - Read back, no two lines of one analyte share a subject, an occasion and a time.
+  - The PC occasion is PCTPTREF, else PCGRPID or EPOCH when every value names a period. It is **never VISIT**: in
+    P30, a profile's 24 h sample is on "Day 1" and its 48 h sample on "Day 2".
+  - "MS" on lines PCSTAT marks NOT DONE is a missing sample. "<", "<0.500" are below the LLOQ. "N.R." stays unread
+    and is said.
+  - **DM / ADSL:** one line per subject: sex, age, weight, height, BMI, race, each with its unit variable.
+  - A pooled dataset gives one table per STUDYID run.
+  - Run first in the extract stage (`describe_room`, also callable with no AI service). A8 and A9 skip what code
+    described. The author is recorded as `code` / `cdisc-1`. A table code is not sure of is left to the agents, with
+    the reason in the stage notes. An agent's description stands unless re-extracting.
+- **Layers 0.2 (`dataroom_layers.yaml`):** a new Supporting Evidence section, *Metabolites and Other Analytes*.
+  Concentration and PK-parameter values of an analyte the model does not simulate go there (`not_modeled`,
+  `place(..., modeled=False)`).
+- **API:** `RoomStudy.analyte` and `DataRoomView.other_analytes`, both optional with defaults. The OpenAPI snapshot and
+  `apps/web/lib/api-types.ts` are regenerated. The page does not show them yet (phase 5).
+- **Measured on P30 (code only, no AI service, session files):**
+  - PC and ADSL are described by code, 4 studies each.
+  - Each study's 3–4 analytes (the drug, two metabolites, a labelled tracer) are viewed apart, the drug suggested in each.
+  - Two studies' periods come from PCGRPID.
+  - The 2 "N.R." results are said. No room-level problem.
+- **Deviation from the plan, recorded there (§8):** PP and EX are left to the agents (phase 2c).
+  - P30's PP holds model-based and NCA values side by side, with 716 repeated (subject, analyte, group, parameter)
+    keys, and names its analytes differently from PC.
+  - Tying a period to its treatment needs EX or ADSL TRTxxP, a join a table description does not express.
+- **Impact:** a delivery of one analyte reads exactly as before (no analyte decision, no other analytes; tested).
+- **Tests:**
+  - `test_dataroom_cdisc.py` (10): a made-up two-study, two-analyte SDTM PC dataset (`synthetic.pc_dataset_rows`) and
+    its SAS transport twin `fixtures/dataroom/pc_two_analytes.xpt`, made with pyreadstat 1.3.7 outside the project.
+    Five refusals, each with its reason: a time in other units, a free-text time point, two units, a study's lines
+    apart, no period variable. DM with units.
+  - `test_dataroom_analytes.py` (7): the modeled-analyte suggestion, samples of two analytes not colliding,
+    ANALYTE_NOT_NAMED, one analyte as before.
+  - Layers: 1 new test, plus a refused map.
+  - `test_dataroom_cache.py`: a dataset code describes asks no extractor and no checker. The version test is updated
+    for A8's `dataroom-7`.
+
 ### Added — SAS datasets, PowerPoint decks and Apple Numbers read; a known unread format says what to ask for (2026-11-26)
 - **Why:** phase 2 of `docs/plans/2026-11-26-data-room-groups-and-corpus-benchmark.md`. Of the 102 client files
   packaged with the owner's corpus audit, 7 could not be opened: 4 CDISC SAS datasets (a CRO's standard delivery, which

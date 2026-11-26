@@ -13,10 +13,12 @@
 #                requirement drafts' REQUIRED or USUALLY_NEEDED items naming it), e.g. the meal's composition for a
 #                food-effect question, where it defines the simulated meal
 #   unselected:  where a dissolution entry goes when its profile is not the release input a person selected
+#   not_modeled: where a clinical entry goes when its analyte is not the one the model simulates (a metabolite, an
+#                isotope-labelled tracer: decision analyte:<study>, plan §7 phase 2b)
 #
 # What this map is not: it decides where the page shows a value, never whether the value is read, checked or kept.
 # Every file is read and every value is kept whatever its section (Source Records holds them all).
-version: "0.1"
+version: "0.2"
 groups:
   - id: question
     title: Question and Context of Use
@@ -45,6 +47,7 @@ groups:
       - {id: solid_state, title: Solid-State and Particle Characterization}
       - {id: other_dissolution, title: Dissolution in Other Media and Batches}
       - {id: conduct, title: Study Conduct and Deviations}
+      - {id: other_analytes, title: Metabolites and Other Analytes}
       - {id: literature, title: Label and Literature PK}
       - {id: other_context, title: Other Delivered Facts}
   - id: source
@@ -154,8 +157,8 @@ placements:
   field:dissolution.units: {at: model_input/release, unselected: supporting/other_dissolution}
   field:dissolution.f2: {at: supporting/other_dissolution}
   # described tables
-  table:concentrations: {at: model_input/observed}
-  table:pk_parameters: {at: model_input/observed}
+  table:concentrations: {at: model_input/observed, not_modeled: supporting/other_analytes}
+  table:pk_parameters: {at: model_input/observed, not_modeled: supporting/other_analytes}
   table:disposition: {at: model_input/observed}
   table:be_statistics: {at: model_input/observed}
   table:demographics: {at: model_input/design}
