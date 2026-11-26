@@ -260,19 +260,22 @@ function DissolutionCard({ room, views }: { room: Room; views: DissolutionView[]
   );
 }
 
-export function Dissolution({ room }: { room: Room }) {
+/** The dissolution profiles by medium; `only`: these profiles (a section of the page in its groups shows the release
+ *  inputs, or the others), with the checks across batches where every profile or the others are shown. */
+export function Dissolution({ room, only, checks = true }: { room: Room; only?: readonly string[]; checks?: boolean }) {
   const media = useMemo(() => {
     const out = new Map<string, DissolutionView[]>();
-    for (const d of [...room.dissolution].sort((a, b) => (b.ph ?? 0) - (a.ph ?? 0))) {
+    const shown = only ? room.dissolution.filter((d) => only.includes(d.id)) : room.dissolution;
+    for (const d of [...shown].sort((a, b) => (b.ph ?? 0) - (a.ph ?? 0))) {
       out.set(mediumKey(d), [...(out.get(mediumKey(d)) ?? []), d]);
     }
     return [...out.values()];
-  }, [room]);
-  if (!media.length) return <Nothing>No dissolution table was read.</Nothing>;
+  }, [room, only]);
+  if (!media.length) return <Nothing>{only ? "No dissolution profile here." : "No dissolution table was read."}</Nothing>;
   return (
     <>
       {media.map((views) => <DissolutionCard key={mediumKey(views[0])} room={room} views={views} />)}
-      <Checks problems={room.checks.dissolution ?? []} title="Across batches" testId="dissolution-checks" />
+      {checks && <Checks problems={room.checks.dissolution ?? []} title="Across batches" testId="dissolution-checks" />}
     </>
   );
 }

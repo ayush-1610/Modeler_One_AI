@@ -13,6 +13,45 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 
 ## [Unreleased] — make the pipeline do real PBPK, S0 → S7
 
+### Changed — the Data room page in its groups: Question, Model Input Data, Supporting Evidence, Source Records, Data Requests (2026-11-26)
+- **Why:** phase 5 of `docs/plans/2026-11-26-data-room-groups-and-corpus-benchmark.md` (slice 5a, §9), the owner's go
+  of 2026-11-26. The page showed a delivery as 13 sections by kind of file. It now follows the layers map and the
+  mockup the owner saw: what feeds the model first, then what justifies a decision, then the files and the requests.
+- **What, the API (`dataroom/layout.py`, `DataRoomView.layout`):**
+  - Each group of the layers map has its sections. Each section lists the parts it draws (product values, the
+    composition, substance values, solubility, the dose card, dissolution profiles, studies, observed profiles, the
+    BE results, other analytes, files, requests, the plan).
+  - Each section also lists the keys of the values placed there. A value goes where its field is placed by the map,
+    and into Model Input Data when the question's applications require it.
+  - The selected release inputs (each product's `release:` decision) show under In Vitro Release Input; the other
+    profiles under Dissolution in Other Media and Batches.
+  - Each decision sits in the section it decides. Each section has its count and the room's status for what it shows
+    (`empty` when it holds nothing), and the old addresses it answers.
+- **What, the page (`components/dataroom/layout.tsx`, `DataRoom.tsx`):**
+  - The rail lists the Overview, then each group's title with its sections. On a phone this is a select with one
+    option group per group.
+  - Each section draws today's cards filtered to what is placed in it: Dissolution by profile, Decisions by id.
+  - New cards: the BE results under Observed PK (GMR, 90 % CI, CVw, BE zone, conclusion, against the CSR), the dose in
+    both bases under Drug Substance Properties, and the other analytes under Metabolites and Other Analytes.
+  - The Overview's Sections card is grouped.
+  - An old address (`?section=clinical`, `?section=inputs`) opens the section that now holds it.
+  - A room without a layout keeps the old rail.
+- **Not yet (later slices of §9):**
+  - 5b: the D1 choices (population, sex, meal, release model) move to Inputs. Until then they stay as decisions under
+    Clinical Study Design.
+  - 5c: the empty and reading states.
+  - 5d: each check on the item it concerns.
+  - The printable evidence report keeps its sections as they were.
+- **API:** `DataRoomView.layout` (`LayoutGroup`, `LayoutSection`), optional. The OpenAPI snapshot and
+  `apps/web/lib/api-types.ts` are regenerated.
+- **Tests:**
+  - `test_dataroom_layout.py` (5): groups and sections in page order; every value, decision and profile placed once;
+    the release inputs split from the other profiles; a value the question requires promoted; every old address opens
+    a section.
+  - E2E: `dataroom.spec.ts` follows the groups. It checks the release inputs and the other medium separately, the BE
+    results under Observed PK, the decisions on Clinical Study Design, and solubility in Drug Substance Properties.
+    `dataroom-to-map.spec.ts` sends from Simulation Scenarios.
+
 ### Fixed — the acceptance pass counts each page's top heading with a retrying assertion (2026-11-26)
 - **What:** `e2e/acceptance.spec.ts` counts the one top heading with `toHaveCount(1)`, which retries while a page is
   still arriving, rather than one snapshot. That `/no-access` is checked once it has landed is `main`'s fix (#186,

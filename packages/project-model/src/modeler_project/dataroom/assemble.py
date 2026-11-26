@@ -45,6 +45,7 @@ from modeler_project.dataroom.invitro import (
     solubility_from_facts,
     solubility_rows,
 )
+from modeler_project.dataroom.layout import build_layout, required_from_drafts
 from modeler_project.dataroom.model import (
     Arm,
     CheckedFact,
@@ -1360,12 +1361,16 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
         section("inputs", "PK-Sim inputs", f"{sum(1 for r in inputs_rows if r.status != 'missing')} of {len(inputs_rows)} filled",
                 not any(r.status == "missing" for r in inputs_rows), not inputs_rows),
     ]
-    return DataRoomView(rules=rules.label(), files=tuple(inputs.files), question=question,
+    view = DataRoomView(rules=rules.label(), files=tuple(inputs.files), question=question,
                         question_confirmed=inputs.question_confirmed, sections=tuple(sections), substance=tuple(substance),
                         adme=tuple(adme), products=tuple(products), composition=tuple(composition), solubility=tuple(solubility),
                         absorption=tuple(absorption), dissolution=tuple(diss), f2=tuple(f2s), studies=tuple(studies),
-                        other_analytes=tuple(other_analytes), dose_card=dose_info, decisions=tuple(decisions), requests=tuple(requests), plan=tuple(plan), inputs=tuple(inputs_rows),
+                        other_analytes=tuple(other_analytes), dose_card=dose_info, decisions=tuple(decisions),
+                        requests=tuple(requests), plan=tuple(plan), inputs=tuple(inputs_rows),
                         problems=tuple(problems), checks=checks, requirements=needs)
+    # the page in its groups (plan 2026-11-26 §9, slice 5a): code places every part, the page draws it
+    return view.model_copy(update={"layout": build_layout(
+        view, required=required_from_drafts(needs.items if needs else ()))})
 
 
 # a value the files state was fitted to clinical PK, not measured

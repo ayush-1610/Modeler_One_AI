@@ -5462,6 +5462,11 @@ export interface components {
              */
             inputs: components["schemas"]["InputRow"][];
             /**
+             * Layout
+             * @default []
+             */
+            layout: components["schemas"]["LayoutGroup"][];
+            /**
              * Made By
              * @default []
              */
@@ -10130,6 +10135,23 @@ export interface components {
             /** Study Id */
             study_id: string;
         };
+        /** LayoutGroup */
+        LayoutGroup: {
+            /** Id */
+            id: string;
+            /** Meaning */
+            meaning: string;
+            /** Sections */
+            sections: components["schemas"]["LayoutSection"][];
+            /**
+             * Status
+             * @default empty
+             * @enum {string}
+             */
+            status: "ok" | "attention" | "missing" | "empty";
+            /** Title */
+            title: string;
+        };
         /** LayoutRequest */
         LayoutRequest: {
             /** Layout */
@@ -10138,6 +10160,61 @@ export interface components {
                     [key: string]: number;
                 };
             };
+        };
+        /**
+         * LayoutSection
+         * @description One section of the page in its groups (plan 2026-11-26 §9, slice 5a): what it shows, as code placed it.
+         */
+        LayoutSection: {
+            /**
+             * Answers
+             * @default []
+             */
+            answers: string[];
+            /**
+             * Count
+             * @default 0
+             */
+            count: number;
+            /**
+             * Decisions
+             * @default []
+             */
+            decisions: string[];
+            /**
+             * Dissolution
+             * @default []
+             */
+            dissolution: string[];
+            /**
+             * Finding
+             * @default
+             */
+            finding: string;
+            /** Id */
+            id: string;
+            /**
+             * Legacy
+             * @default
+             */
+            legacy: string;
+            /** Parts */
+            parts: string[];
+            /** Ref */
+            ref: string;
+            /**
+             * Status
+             * @default empty
+             * @enum {string}
+             */
+            status: "ok" | "attention" | "missing" | "empty";
+            /** Title */
+            title: string;
+            /**
+             * Values
+             * @default []
+             */
+            values: string[];
         };
         /**
          * LibraryEntryView

@@ -5353,6 +5353,14 @@
             "title": "Inputs",
             "type": "array"
           },
+          "layout": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/LayoutGroup"
+            },
+            "title": "Layout",
+            "type": "array"
+          },
           "made_by": {
             "default": [],
             "items": {
@@ -5485,6 +5493,7 @@
           "studies",
           "other_analytes",
           "dose_card",
+          "layout",
           "decisions",
           "requests",
           "plan",
@@ -19181,6 +19190,50 @@
         "title": "LaneStudy",
         "type": "object"
       },
+      "LayoutGroup": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "meaning": {
+            "title": "Meaning",
+            "type": "string"
+          },
+          "sections": {
+            "items": {
+              "$ref": "#/components/schemas/LayoutSection"
+            },
+            "title": "Sections",
+            "type": "array"
+          },
+          "status": {
+            "default": "empty",
+            "enum": [
+              "ok",
+              "attention",
+              "missing",
+              "empty"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "meaning",
+          "sections",
+          "status"
+        ],
+        "title": "LayoutGroup",
+        "type": "object"
+      },
       "LayoutRequest": {
         "properties": {
           "layout": {
@@ -19198,6 +19251,105 @@
           "layout"
         ],
         "title": "LayoutRequest",
+        "type": "object"
+      },
+      "LayoutSection": {
+        "additionalProperties": false,
+        "description": "One section of the page in its groups (plan 2026-11-26 §9, slice 5a): what it shows, as code placed it.",
+        "properties": {
+          "answers": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Answers",
+            "type": "array"
+          },
+          "count": {
+            "default": 0,
+            "title": "Count",
+            "type": "integer"
+          },
+          "decisions": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Decisions",
+            "type": "array"
+          },
+          "dissolution": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Dissolution",
+            "type": "array"
+          },
+          "finding": {
+            "default": "",
+            "title": "Finding",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "legacy": {
+            "default": "",
+            "title": "Legacy",
+            "type": "string"
+          },
+          "parts": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Parts",
+            "type": "array"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "status": {
+            "default": "empty",
+            "enum": [
+              "ok",
+              "attention",
+              "missing",
+              "empty"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "values": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Values",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "ref",
+          "title",
+          "parts",
+          "values",
+          "dissolution",
+          "decisions",
+          "count",
+          "status",
+          "finding",
+          "legacy",
+          "answers"
+        ],
+        "title": "LayoutSection",
         "type": "object"
       },
       "LibraryEntryView": {

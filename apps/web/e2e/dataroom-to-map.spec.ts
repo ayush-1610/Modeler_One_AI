@@ -59,7 +59,7 @@ test("a made-up delivery goes from the Data room through Start and Inputs to a s
 
   // --- "Send to the model", on the page: nothing blocks it, and it is signed
   await page.reload();
-  await page.getByTestId("rail-inputs").click();
+  await page.getByTestId("rail-scenarios").click();
   await expect(page.getByTestId("publish-blocked")).toHaveCount(0);
   await expect(page.getByTestId("publish-counts")).toContainText("2 observed datasets");
   await page.getByTestId("publish-reason").fill("inputs confirmed with the client");

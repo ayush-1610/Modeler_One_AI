@@ -559,6 +559,31 @@ class MadeBy(_B):
     switches: tuple[str, ...] = ()
 
 
+class LayoutSection(_B):
+    """One section of the page in its groups (plan 2026-11-26 §9, slice 5a): what it shows, as code placed it."""
+
+    id: str                          # the map's section id (products, substance, release, design …)
+    ref: str                         # group/section
+    title: str
+    parts: tuple[str, ...]           # what it draws: question, products, substance, dissolution, studies, be …
+    values: tuple[str, ...] = ()     # the keys of the values placed here
+    dissolution: tuple[str, ...] = ()  # the dissolution profiles shown here (the release inputs, or the others)
+    decisions: tuple[str, ...] = ()  # the decisions it holds
+    count: int = 0
+    status: Literal["ok", "attention", "missing", "empty"] = "empty"
+    finding: str = ""
+    legacy: str = ""                 # the room's section whose status and finding it shows (an old address's)
+    answers: tuple[str, ...] = ()    # the old addresses (?section=clinical) that open this section
+
+
+class LayoutGroup(_B):
+    id: str
+    title: str
+    meaning: str
+    sections: tuple[LayoutSection, ...]
+    status: Literal["ok", "attention", "missing", "empty"] = "empty"
+
+
 class DataRoomView(_B):
     """The Data room of one project, as the page and the report show it."""
 
@@ -581,6 +606,8 @@ class DataRoomView(_B):
     other_analytes: tuple[RoomStudy, ...] = ()
     # the dose in both bases, salt and free base (R14); None when the delivery states no dose
     dose_card: DoseCard | None = None
+    # the page in its groups: each section and what it shows, placed by code (`dataroom.layout`)
+    layout: tuple[LayoutGroup, ...] = ()
     decisions: tuple[RoomDecision, ...] = ()
     requests: tuple[DataRequest, ...] = ()
     plan: tuple[PlanRow, ...] = ()
