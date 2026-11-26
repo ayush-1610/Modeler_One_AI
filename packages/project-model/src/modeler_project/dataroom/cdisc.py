@@ -1,4 +1,4 @@
-"""CDISC datasets described by code (plan 2026-11-26 §7 phase 2b): no agent is asked for a table code can describe.
+"""CDISC datasets described by code (plan 2026-11-26 §7 phases 2b-2c): no agent is asked for a table code can describe.
 
 A CRO delivers its clinical data as CDISC datasets (SAS `.xpt` / `.sas7bdat`, sometimes a CSV or a workbook sheet),
 whose variables are standard names. Where those names say everything a description needs, code writes the
@@ -19,14 +19,24 @@ whose variables are standard names. Where those names say everything a descripti
     (`clinical.colliding_samples`).
   A result that is not a number is below the LLOQ when it says so ("<0.500", "<", "BLQ"); one the dataset marks NOT
   DONE (PCSTAT) on every line it is written is a missing sample ("MS"); any other ("N.R.") stays unread and is said.
+- **SDTM EX** (exposure: what each subject was given): the product (EXTRT), its dose (EXDOSE, unit EXDOSU, one unit
+  per study), route (EXROUTE), dosage form (EXDOSFRM) and frequency (EXDOSFRQ), on the occasion EXGRPID, EPOCH or
+  EXTPT names when every value names a period ("PERIOD 2"). The room ties each concentration profile to it
+  (`clinical.assignments`): an SDTM PC dataset names no treatment.
+- **SDTM PP** (PK parameters, a line per parameter): the parameter (PPTESTCD), its result (PPSTRESC, else PPSTRESN,
+  else PPORRES) and its unit (PPSTRESU, else PPORRESU), the analyte (PPCAT) and the occasion as for PC (PPTPTREF,
+  else PPGRPID or EPOCH naming periods). Only the non-compartmental lines (PPSCAT "Non-Compartmental", "NCA"; every
+  line when PPSCAT is empty): a model's parameters are not the client's NCA. Described only when each parameter is
+  given once per subject, analyte and occasion (a multiple-dose study's Day 1 and Day 14 values within one period
+  repeat it: left to the agents).
 - **DM / ADSL** (one line per subject): subject, sex, age, weight, height, BMI and race, each unit from its unit
-  variable (AGEU, WEIGHTU, HEIGHTU).
+  variable (AGEU, WEIGHTU, HEIGHTU). ADSL's TRTxxP is not read as each period's treatment: in the delivery above,
+  TRT02P and TRT03P were empty for a three-period study, whose periods EX tells apart by dose.
 
 A dataset that pools several studies (STUDYID) is one table per study, each study's lines a contiguous run.
 
-Not described by code here (described by the agents, as any other file): PP (PK parameters: one line per parameter,
-with model-based and NCA values side by side), EX (dosing) and every ADaM dataset but ADSL. Tying a period to its
-treatment (EX, ADSL TRTxxP) is not done: an SDTM PC dataset names no treatment.
+Not described by code here (described by the agents, as any other file): every ADaM dataset but ADSL (no delivery of
+the owner's corpus has one yet).
 """
 
 from __future__ import annotations
@@ -142,11 +152,13 @@ def _time_unit(sheet: _Sheet, lines: Sequence[Line]) -> tuple[str, str]:
     return "", f"PCTPTNUM {v:g} does not agree with {t!r} ({h:g} h) in hours, minutes or days"
 
 
-def _occasion(sheet: _Sheet, lines: Sequence[Line]) -> str:
-    """The variable that names each profile's occasion (the dose its times count from), "" when none does."""
-    if sheet.has("PCTPTREF") and any(sheet.get(ln, "PCTPTREF") for ln in lines):
-        return "PCTPTREF"
-    for name in ("PCGRPID", "EPOCH"):
+def _occasion(sheet: _Sheet, lines: Sequence[Line], domain: str = "PC") -> str:
+    """The variable that names each profile's occasion (the dose its times count from), "" when none does: the
+    domain's TPTREF, else its GRPID or EPOCH (and EX's EXTPT) when every value names a period."""
+    ref = f"{domain}TPTREF"
+    if domain != "EX" and sheet.has(ref) and any(sheet.get(ln, ref) for ln in lines):
+        return ref
+    for name in (f"{domain}GRPID", "EPOCH", *(("EXTPT",) if domain == "EX" else ())):
         values = {sheet.get(ln, name) for ln in lines} - {""} if sheet.has(name) else set()
         if len(values) > 1 and all(_PERIOD.search(v) for v in values):
             return name
@@ -217,6 +229,85 @@ def _pc(sheet: _Sheet, path: str, sha256: str, doc: SourceDocument) -> tuple[lis
     return out, notes
 
 
+def _ex(sheet: _Sheet, path: str, sha256: str, doc: SourceDocument) -> tuple[list[TableDescription], list[str]]:
+    runs, why = sheet.runs()
+    if why:
+        return [], [f"{sheet.part.name}: SDTM EX not described by code: {why}"]
+    out: list[TableDescription] = []
+    notes: list[str] = []
+    for study, lines in runs:
+        where = f"{sheet.part.name}{f', study {study}' if study else ''}"
+        unit, why = _one_unit(sheet, lines, "EXDOSU") if sheet.has("EXDOSU") else ("", "")
+        if why:
+            notes.append(f"{where}: SDTM EX not described by code: {why}")
+            continue
+        occasion = _occasion(sheet, lines, "EX")
+        columns = [sheet.column("USUBJID", "subject"), sheet.column("EXTRT", "treatment")]
+        columns += [sheet.column(n, r, unit if r == "dose" else "") for n, r in (
+            ("EXDOSE", "dose"), ("EXROUTE", "route"), ("EXDOSFRM", "form"), ("EXDOSFRQ", "frequency")) if sheet.has(n)]
+        if occasion:
+            columns.append(sheet.column(occasion, "period"))
+        desc = TableDescription(
+            file=path, kind="dosing", about=study, part=sheet.part.name, header_lines=sheet.header_lines,
+            first_line=lines[0].number, last_line=lines[-1].number,
+            skip_lines=[k for k in range(lines[0].number, lines[-1].number + 1) if k not in {ln.number for ln in lines}],
+            columns=sorted(columns, key=lambda c: c.index),
+            note=f"described by code ({DESCRIBER}): SDTM EX; " + (f"occasion {occasion}" if occasion else
+                                                                  "one occasion per subject (no variable names a period)"))
+        errors = [p.message for p in read_table(desc, doc, file=path, sha256=sha256).problems if p.severity == "error"]
+        if errors:
+            notes.append(f"{where}: SDTM EX not described by code: {errors[0]}")
+            continue
+        out.append(desc)
+    return out, notes
+
+
+_NCA = re.compile(r"(?i)non[\s-]?compartment|\bnca\b")
+
+
+def _pp(sheet: _Sheet, path: str, sha256: str, doc: SourceDocument) -> tuple[list[TableDescription], list[str]]:
+    runs, why = sheet.runs()
+    if why:
+        return [], [f"{sheet.part.name}: SDTM PP not described by code: {why}"]
+    value = next(n for n in ("PPSTRESC", "PPSTRESN", "PPORRES") if sheet.has(n))
+    unit_var = "PPSTRESU" if value != "PPORRES" and sheet.has("PPSTRESU") else "PPORRESU"
+    out: list[TableDescription] = []
+    notes: list[str] = []
+    for study, lines in runs:
+        where = f"{sheet.part.name}{f', study {study}' if study else ''}"
+        methods = {sheet.get(ln, "PPSCAT") for ln in lines} - {""} if sheet.has("PPSCAT") else set()
+        nca = [ln for ln in lines if not methods or _NCA.search(sheet.get(ln, "PPSCAT"))]
+        if not nca:
+            notes.append(f"{where}: SDTM PP not described by code: no non-compartmental line (PPSCAT: "
+                         f"{', '.join(sorted(methods))})")
+            continue
+        occasion = _occasion(sheet, nca, "PP")
+        analyte = "PPCAT" if sheet.has("PPCAT") and any(sheet.get(ln, "PPCAT") for ln in nca) else ""
+        keys = Counter((sheet.get(ln, "USUBJID"), sheet.get(ln, analyte) if analyte else "",
+                        sheet.get(ln, occasion) if occasion else "", sheet.get(ln, "PPTESTCD")) for ln in nca)
+        if repeated := sum(1 for n in keys.values() if n > 1):
+            notes.append(f"{where}: SDTM PP not described by code: {repeated} parameters are given more than once for "
+                         "one subject, analyte and occasion (a multiple-dose study's values per day within a period?)")
+            continue
+        columns = [sheet.column("USUBJID", "subject"), sheet.column("PPTESTCD", "parameter"), sheet.column(value, "value")]
+        columns += [sheet.column(n, r) for n, r in ((unit_var, "unit"), (analyte, "analyte"), (occasion, "period"),
+                                                    ("PPSCAT", "group")) if n and sheet.has(n)]
+        kept = {ln.number for ln in nca}
+        desc = TableDescription(
+            file=path, kind="pk_parameters", about=study, part=sheet.part.name, header_lines=sheet.header_lines,
+            first_line=nca[0].number, last_line=nca[-1].number,
+            skip_lines=[k for k in range(nca[0].number, nca[-1].number + 1) if k not in kept],
+            columns=sorted(columns, key=lambda c: c.index),
+            note=f"described by code ({DESCRIBER}): SDTM PP, the non-compartmental lines; result {value}, unit {unit_var}"
+                 + (f"; occasion {occasion}" if occasion else ""))
+        errors = [p.message for p in read_table(desc, doc, file=path, sha256=sha256).problems if p.severity == "error"]
+        if errors:
+            notes.append(f"{where}: SDTM PP not described by code: {errors[0]}")
+            continue
+        out.append(desc)
+    return out, notes
+
+
 _SUBJECT_VARIABLES = (("SEX", "sex", ""), ("AGE", "age", "AGEU"), ("WEIGHT", "weight", "WEIGHTU"),
                       ("HEIGHT", "height", "HEIGHTU"), ("BMI", "bmi", "BMIU"), ("RACE", "race", ""))
 
@@ -251,9 +342,13 @@ def _subjects(sheet: _Sheet, path: str, name: str) -> tuple[list[TableDescriptio
 
 
 def _domain(sheet: _Sheet) -> str:
-    """The CDISC domain code describes, from the sheet's variables: PC, DM or ADSL ("" for any other)."""
+    """The CDISC domain code describes, from the sheet's variables: PC, PP, EX, DM or ADSL ("" for any other)."""
     if sheet.has("USUBJID", "PCTESTCD") and (sheet.has("PCSTRESC") or sheet.has("PCORRES")):
         return "PC"
+    if sheet.has("USUBJID", "PPTESTCD") and any(sheet.has(n) for n in ("PPSTRESC", "PPSTRESN", "PPORRES")):
+        return "PP"
+    if sheet.has("USUBJID", "EXTRT"):
+        return "EX"
     if sheet.has("USUBJID", "SEX") and not any(n.endswith("TESTCD") or n == "PARAMCD" for n in sheet.columns):
         return "ADSL" if any(n in sheet.columns for n in ("SAFFL", "TRT01P", "TRT01A", "TRTSEQP")) else "DM"
     return ""
@@ -272,8 +367,8 @@ def describe(path: str, sha256: str, doc: SourceDocument) -> tuple[Extraction | 
             continue
         sheet = _Sheet(part, labels=labels)
         domain = _domain(sheet)
-        if domain == "PC":
-            got, said = _pc(sheet, path, sha256, doc)
+        if domain in ("PC", "PP", "EX"):
+            got, said = {"PC": _pc, "PP": _pp, "EX": _ex}[domain](sheet, path, sha256, doc)
         elif domain in ("DM", "ADSL"):
             got, said = _subjects(sheet, path, domain)
         else:

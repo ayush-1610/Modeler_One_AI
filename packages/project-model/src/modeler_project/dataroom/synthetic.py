@@ -470,3 +470,56 @@ def dataset_csv(rows: list[dict[str, str]], variables: tuple[str, ...] = PC_VARI
     writer.writeheader()
     writer.writerows(rows)
     return out.getvalue().encode()
+
+
+# the same studies' SDTM EX: EX-02 gives each subject 100 mg in period 1 and 50 mg in period 2 (the design's doses);
+# EX-03 gives each subject its own dose, the same in both periods (individualised, as by weight). The period is in
+# EXTPT ("PERIOD 1"), as the CRO's delivery of 2026-11-26 wrote it.
+EX_VARIABLES = ("STUDYID", "DOMAIN", "USUBJID", "EXSEQ", "EXTRT", "EXDOSE", "EXDOSU", "EXDOSFRM", "EXDOSFRQ", "EXROUTE",
+                "EPOCH", "EXTPT")
+EX_DOSES = {"EX-02": {1: ("100", "50"), 2: ("100", "50"), 3: ("100", "50")},
+            "EX-03": {1: ("98.5", "98.5"), 2: ("104", "104"), 3: ("111.5", "111.5")}}
+
+
+def ex_dataset_rows() -> list[dict[str, str]]:
+    rows = []
+    for study in PC_STUDIES:
+        seq = 0
+        for s in (1, 2, 3):
+            for k, period in enumerate(("PERIOD 1", "PERIOD 2")):
+                seq += 1
+                rows.append({"STUDYID": study, "DOMAIN": "EX", "USUBJID": f"{study}-00{s}", "EXSEQ": str(seq),
+                             "EXTRT": "EXAMPLEAMIDE", "EXDOSE": EX_DOSES[study][s][k], "EXDOSU": "mg",
+                             "EXDOSFRM": "TABLET", "EXDOSFRQ": "ONCE", "EXROUTE": "ORAL", "EPOCH": "TREATMENT",
+                             "EXTPT": period})
+    return rows
+
+
+# the same studies' SDTM PP: the client's NCA (CMAX, TMAX, AUCLST) of the drug and of M1 (named "EXAMPLEAMIDE-M1", not
+# as PC names it), plus a model-based CMAX line (PPSCAT "1 Compartment") that is not the client's NCA. EX-03 gives each
+# parameter twice per period (VISIT Day 1 and Day 2): not one value per profile.
+PP_VARIABLES = ("STUDYID", "DOMAIN", "USUBJID", "PPSEQ", "PPGRPID", "PPTESTCD", "PPTEST", "PPCAT", "PPSCAT", "PPSTRESC",
+                "PPSTRESN", "PPSTRESU", "VISIT")
+
+
+def pp_dataset_rows() -> list[dict[str, str]]:
+    rows = []
+    for study in PC_STUDIES:
+        seq = 0
+        for s in (1, 2, 3):
+            for period in ("Period 1", "Period 2"):
+                for cat, code in (("EXAMPLEAMIDE", "EXA"), ("EXAMPLEAMIDE-M1", "EXAM1")):
+                    peak = max(_pc_conc(s, period, code, t) for _tpt, t, _v in PC_TIMES)
+                    values = [("CMAX", "Max Conc", f"{peak:g}", "ng/mL", "Non-Compartmental"),
+                              ("TMAX", "Time of CMAX", "2", "h", "Non-Compartmental"),
+                              ("AUCLST", "AUC to Last Nonzero Conc", f"{round(peak * 9.1, 2):g}", "h*ng/mL",
+                               "Non-Compartmental"),
+                              ("CMAX", "Max Conc", f"{round(peak * 1.07, 3):g}", "ng/mL", "1 Compartment")]
+                    for visit in (("Day 1", "Day 2") if study == "EX-03" else ("",)):
+                        for testcd, test, value, unit, method in values:
+                            seq += 1
+                            rows.append({"STUDYID": study, "DOMAIN": "PP", "USUBJID": f"{study}-00{s}", "PPSEQ": str(seq),
+                                         "PPGRPID": period, "PPTESTCD": testcd, "PPTEST": test, "PPCAT": cat,
+                                         "PPSCAT": method, "PPSTRESC": value, "PPSTRESN": value, "PPSTRESU": unit,
+                                         "VISIT": f"{period} {visit}".strip() if visit else ""})
+    return rows

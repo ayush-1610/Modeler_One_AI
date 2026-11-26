@@ -9,7 +9,7 @@ import math
 import re
 import statistics
 from collections import Counter, defaultdict
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 
 from modeler_intake.room_specs import TableDescription
 from modeler_project.dataroom.extract import parse_number, token_sets
@@ -284,30 +284,154 @@ def _facts(facts: Sequence[CheckedFact], field: str) -> list[CheckedFact]:
     return [f for f in facts if f.ok and f.fact.field == field]
 
 
-def _client_pk(tables: Sequence[ReadTable]) -> dict[tuple[str, str], dict[str, float]]:
+# a PK parameter's name or CDISC code (PPTESTCD) as files write it, by its letters and digits only: the role it fills
+_PK_NAMES = {"cmax": "cmax", "tmax": "tmax", "auclst": "auc_t", "auclast": "auc_t", "auct": "auc_t", "auc0t": "auc_t",
+             "auc0tlast": "auc_t", "auc0last": "auc_t", "aucifo": "auc_inf", "aucinf": "auc_inf", "auc0inf": "auc_inf",
+             "aucinfobs": "auc_inf", "lamzhl": "t_half", "thalf": "t_half", "t12": "t_half", "halflife": "t_half",
+             "lamz": "lambda_z", "lambdaz": "lambda_z"}
+
+
+def pk_role(name: str) -> str:
+    """The PK role a parameter's name or CDISC code stands for ("CMAX", "AUC0-t", "AUCIFO", "t1/2" → cmax, auc_t,
+    auc_inf, t_half); "" for any other (a partial AUC, a clearance, a model's parameter: kept, not compared)."""
+    return _PK_NAMES.get(re.sub(r"[^a-z0-9]", "", name.lower().replace("½", "12").replace("∞", "inf")), "")
+
+
+def _client_pk(tables: Sequence[ReadTable]) -> tuple[dict[tuple[str, str], dict[str, float]], list[Problem]]:
     """The client's NCA values, keyed by (subject, period) and, when the file names it, also by (subject, treatment);
     a subject with one row only is also keyed (subject, "only"): in a parallel study the PK table names the arm in its
-    own words ("Novaprazole 20 mg") where the data writes a code ("A"), or names none (a new delivery, 2026-11-24)."""
+    own words ("Novaprazole 20 mg") where the data writes a code ("A"), or names none (a new delivery, 2026-11-24).
+    A long table (a line per parameter: "parameter" and "value") gives one row per subject and occasion; a parameter
+    given twice there with two values is not compared, and said."""
     out: dict[tuple[str, str], dict[str, float]] = {}
-    rows_of: dict[str, list[dict[str, float]]] = defaultdict(list)
+    problems: list[Problem] = []
+    rows: list[tuple[str, tuple[tuple[str, str], ...], dict[str, float]]] = []
     for table in tables:
+        long: dict[tuple[str, tuple[tuple[str, str], ...]], dict[str, float]] = {}
+        twice: set[tuple[str, tuple[tuple[str, str], ...], str]] = set()
         for row in table.rows:
             if row.summary:
                 continue
             one = {c.role: c for c in row.cells}
             if "subject" not in one:
                 continue
-            values = {role: x for role in _PK_ROLES
-                      if role in one and (x := parse_number(one[role].text, decimal_comma=table.decimal_comma)) is not None}
             subject = subject_id(one["subject"].text)
-            rows_of[subject].append(values)
-            for role in ("period", "treatment"):
-                if role in one and one[role].text.strip():
-                    out[(subject, f"{role}:{one[role].text.strip()}")] = values
-    for subject, rows in rows_of.items():
-        if len(rows) == 1:
-            out[(subject, "only")] = rows[0]
+            occasion = tuple((role, one[role].text.strip()) for role in ("period", "treatment")
+                             if role in one and one[role].text.strip())
+            if "parameter" in one and "value" in one:
+                role = pk_role(one["parameter"].text)
+                x = parse_number(one["value"].text, decimal_comma=table.decimal_comma)
+                got = long.setdefault((subject, occasion), {})
+                if role and x is not None:
+                    if role in got and got[role] != x:
+                        twice.add((subject, occasion, role))
+                    got.setdefault(role, x)
+                continue
+            rows.append((subject, occasion, {role: x for role in _PK_ROLES if role in one and (
+                x := parse_number(one[role].text, decimal_comma=table.decimal_comma)) is not None}))
+        for subject, occasion, role in sorted(twice):
+            long[(subject, occasion)].pop(role, None)
+            problems.append(Problem(code="PK_PARAMETER_TWICE", message=(
+                f"subject {subject}{''.join(f', {t}' for _r, t in occasion)}: {_LABEL[role]} is given twice with "
+                f"two values in the PK table on {table.description.part} of {table.description.file}: not compared")))
+        rows += [(subject, occasion, values) for (subject, occasion), values in long.items()]
+    rows_of: dict[str, list[dict[str, float]]] = defaultdict(list)
+    for subject, occasion, values in rows:
+        rows_of[subject].append(values)
+        for role, text in occasion:
+            out[(subject, f"{role}:{text}")] = values
+    for subject, got in rows_of.items():
+        if len(got) == 1:
+            out[(subject, "only")] = got[0]
+    return out, problems
+
+
+_ROMAN_NUMBER = {"I": 1, "II": 2, "III": 3, "IV": 4, "V": 5, "VI": 6, "VII": 7, "VIII": 8}
+
+
+def occasion_key(text: str) -> str:
+    """An occasion as one key however it is written: the period's number when it names one ("Period 2", "PERIOD II",
+    "P2", "2" → "2"), else the text in lower case ("" for none)."""
+    raw = text.strip()
+    m = re.search(r"(?i)\bperiod[\s_-]*([IVX]+|\d+)\b|^\s*p?\s*(\d+)\s*$", raw)
+    if m:
+        got = m.group(1) or m.group(2)
+        return str(_ROMAN_NUMBER.get(got.upper(), got if got.isdigit() else 0)).lstrip("0") or got
+    return re.sub(r"\s+", " ", raw).lower()
+
+
+def _given(table: ReadTable) -> list[dict[str, str]]:
+    """A dosing table's lines by role, with the dose's unit."""
+    unit = next((c.unit for c in table.description.columns if c.role == "dose"), "")
+    out = []
+    for row in table.rows:
+        one = {c.role: c.text.strip() for c in row.cells}
+        if one.get("subject") and one.get("treatment"):
+            out.append({**one, "dose_unit": unit})
     return out
+
+
+def _product(line: dict[str, str]) -> tuple[str, str, str]:
+    return (line["treatment"], line.get("route", ""), line.get("form", ""))
+
+
+def _dose(line: dict[str, str]) -> str:
+    return f"{line['dose']} {line['dose_unit']}".strip() if line.get("dose") else ""
+
+
+def dose_arms(tables: Sequence[ReadTable]) -> tuple[bool, str, str]:
+    """Whether a product of the dosing data was given at more than one dose (a decision for the modeler: do the doses
+    make arms?), the suggestion ("per_dose" or "one_arm") and why: one arm per dose when a subject was given two doses
+    of it on two occasions (the design's dose levels, a dose-ranging crossover), or when at most four doses each went to
+    two subjects or more (parallel dose groups); else one arm per product, each subject's own dose (individualised,
+    e.g. by weight)."""
+    lines = [ln for t in tables for ln in _given(t)]
+    by_product: dict[tuple[str, str, str], dict[str, set[str]]] = defaultdict(lambda: defaultdict(set))
+    occasions: dict[tuple[tuple[str, str, str], str], dict[str, str]] = defaultdict(dict)
+    for ln in lines:
+        if dose := _dose(ln):
+            by_product[_product(ln)][dose].add(subject_id(ln["subject"]))
+            occasions[(_product(ln), subject_id(ln["subject"]))][occasion_key(ln.get("period", ""))] = dose
+    several = {p: d for p, d in by_product.items() if len(d) > 1}
+    if not several:
+        return False, "per_dose", ""
+    for (product, subject), doses in occasions.items():
+        if product in several and len(set(doses.values())) > 1:
+            return True, "per_dose", (f"subject {subject} was given {product[0]} at {' and '.join(sorted(set(doses.values())))} "
+                                      "on different occasions: the doses are the design's")
+    if all(len(d) <= 4 and all(len(s) >= 2 for s in d.values()) for d in several.values()):
+        product, doses = next(iter(several.items()))
+        return True, "per_dose", (f"{product[0]}: {len(doses)} doses, each given to two subjects or more "
+                                  f"({', '.join(f'{k} to {len(v)}' for k, v in sorted(doses.items()))}): dose groups")
+    product, doses = next(iter(several.items()))
+    return True, "one_arm", (f"{product[0]}: {len(doses)} different doses, several given to one subject only: each "
+                             "subject's own dose (individualised, e.g. by weight)")
+
+
+def assignments(tables: Sequence[ReadTable], *, per_dose: bool) -> dict[tuple[str, str], str]:
+    """Each subject's treatment on each occasion, as the dosing data writes it: the product, its dose (when the doses
+    make arms, `dose_arms`), route and dosage form ("EXAMPLEAMIDE 100 mg ORAL TABLET"); two products given on one
+    occasion are one treatment ("A + B"). Keyed (subject, `occasion_key`)."""
+    given: dict[tuple[str, str], dict[tuple[str, str, str], list[str]]] = defaultdict(lambda: defaultdict(list))
+    for t in tables:
+        for ln in _given(t):
+            doses = given[(subject_id(ln["subject"]), occasion_key(ln.get("period", "")))][_product(ln)]
+            if (dose := _dose(ln)) and dose not in doses:
+                doses.append(dose)
+    out = {}
+    for key, products in given.items():
+        out[key] = " + ".join(" ".join(x for x in (name, "/".join(doses) if per_dose else "", route, form) if x)
+                              for (name, route, form), doses in sorted(products.items()))
+    return out
+
+
+def _assigned(treatments: Mapping[tuple[str, str], str], x: Sample) -> str:
+    """A sample's treatment from the dosing data: its subject's on its occasion, else the subject's only one."""
+    got = treatments.get((x.subject, occasion_key(x.period)))
+    if got is None:
+        own = [v for (s, _o), v in treatments.items() if s == x.subject]
+        got = own[0] if len(own) == 1 else ""
+    return got
 
 
 def _sort(ids: Iterable[str]) -> list[str]:
@@ -346,7 +470,8 @@ def _mean_profile(members: Sequence[str], trt: str, keys_of: dict[str, list[tupl
 
 def study_view(study_id: str, *, concentrations: Sequence[ReadTable], pk_tables: Sequence[ReadTable] = (),
                facts: Sequence[CheckedFact] = (), arms: Sequence[Arm] = (), study_values: Sequence[Value] = (),
-               release: str = "", rules: Rules | None = None) -> RoomStudy:
+               release: str = "", rules: Rules | None = None,
+               treatments: Mapping[tuple[str, str], str] | None = None) -> RoomStudy:
     """The study: samples → sets → mean profiles → NCA → exposure, every step's rule written on the view.
 
     A profile is one subject on one occasion: a period when the data names periods, else a treatment (a crossover
@@ -361,6 +486,13 @@ def study_view(study_id: str, *, concentrations: Sequence[ReadTable], pk_tables:
         raw += got
         problems += found
         unit = unit or table_unit
+    # concentration data that name no treatment (an SDTM PC dataset) take each profile's from the dosing data (EX)
+    if treatments and raw and not any(x.treatment for x in raw):
+        raw = [x.model_copy(update={"treatment": got}) if (got := _assigned(treatments, x)) else x for x in raw]
+        if any(x.treatment for x in raw):
+            problems.append(Problem(code="TREATMENT_FROM_DOSING", severity="info", message=(
+                "the concentration data name no treatment: each profile's is what the dosing data say the subject was "
+                "given on that occasion (product, route, form, and the dose when the doses make arms)")))
     # the client's own mean profiles, each with the statistic its table states (plan 2026-11-24 §8 feature 5)
     client_means, found = means_of(concentrations)
     problems += found
@@ -508,7 +640,8 @@ def study_view(study_id: str, *, concentrations: Sequence[ReadTable], pk_tables:
     sets.append(SubjectSet(name="auc", label=f"AUC set (complete to {last:g} h)", subjects=tuple(auc),
                            rule="the modeling set with its last scheduled sample present" + (f" in every {label}" if crossover else "")))
     statistical = _facts(facts, "study.statistical_set")
-    client_pk = _client_pk(pk_tables)
+    client_pk, found = _client_pk(pk_tables)
+    problems += found
     if statistical:
         sets.append(SubjectSet(name="client_statistical", label="Client's statistical set", source="sponsor",
                                subjects=tuple(s for s in subjects if s in set(subjects_in(statistical[0].fact.value, subjects))),
@@ -547,7 +680,7 @@ def study_view(study_id: str, *, concentrations: Sequence[ReadTable], pk_tables:
         problems.append(Problem(code="NO_TREATMENT", message=(
             f"the concentration data names no treatment for its {label}s: each profile's NCA and the subject sets are "
             "shown, but no mean profile or exposure per arm until each profile is tied to its treatment (an SDTM PC "
-            "dataset names none: it is in EX, or in ADSL's TRTxxP)")))
+            "dataset names none: the study's EX dataset gives it, and code reads it)")))
     profiles: list[ArmProfile] = []
     for s_ in sets:
         if s_.name in ("modeling", "completed", "client_statistical", "auc", "dosed"):

@@ -144,3 +144,59 @@ def test_a_file_an_agent_described_stays_as_it_is_unless_described_again(tmp_pat
     assert store.extraction(f.sha256)[1]["agent"] == "A8"
     assert describe_room(store, redo=True)[0] == ["Clinical/pc.csv"]
     assert store.extraction(f.sha256)[1]["agent"] == "code"
+
+
+def _three(tmp_path: Path) -> DataRoomStore:
+    from modeler_project.dataroom.synthetic import EX_VARIABLES, PP_VARIABLES, ex_dataset_rows, pp_dataset_rows
+
+    return _room(tmp_path, {"Clinical/pc.csv": _csv(pc_rows()), "Clinical/ex.csv": _csv(ex_dataset_rows(), EX_VARIABLES),
+                            "Clinical/pp.csv": _csv(pp_dataset_rows(), PP_VARIABLES)})
+
+
+def test_an_ex_dataset_is_described_as_dosing_and_gives_each_profile_its_treatment(tmp_path):
+    """Phase 2c: an SDTM PC dataset names no treatment; the study's EX dataset says what each subject was given on
+    each occasion. Whether two doses of one product are two arms is the modeler's choice, suggested from the data."""
+    store = _three(tmp_path)
+    describe_room(store)
+    ex = next(f for f in store.files() if f.path == "Clinical/ex.csv")
+    (first, _second) = store.extraction(ex.sha256)[0].tables
+    assert first.kind == "dosing" and [(c.label, c.role, c.unit) for c in first.columns] == [
+        ("USUBJID", "subject", ""), ("EXTRT", "treatment", ""), ("EXDOSE", "dose", "mg"), ("EXDOSFRM", "form", ""),
+        ("EXDOSFRQ", "frequency", ""), ("EXROUTE", "route", ""), ("EXTPT", "period", "")]
+    view = assemble(room_inputs(store))
+    arms = {d.id: d for d in view.decisions if d.id.startswith("dose-arms:")}
+    assert arms["dose-arms:EX-02"].suggested == "per_dose" and "100 mg and 50 mg" in arms["dose-arms:EX-02"].why
+    assert arms["dose-arms:EX-03"].suggested == "one_arm" and "individualised" in arms["dose-arms:EX-03"].why
+    ex02, ex03 = view.studies
+    assert sorted({p.treatment for p in ex02.profiles}) == ["EXAMPLEAMIDE 100 mg ORAL TABLET", "EXAMPLEAMIDE 50 mg ORAL TABLET"]
+    assert {p.treatment for p in ex03.profiles} == {"EXAMPLEAMIDE ORAL TABLET"}
+    for study in (ex02, ex03):
+        codes = {p.code for p in study.problems}
+        assert "TREATMENT_FROM_DOSING" in codes and "NO_TREATMENT" not in codes
+    store.decide("dose-arms:EX-03", "per_dose", by="user:m", reason="three dose groups")
+    again = assemble(room_inputs(store))
+    assert len({p.treatment for p in again.studies[1].profiles}) == 3              # one arm per subject's dose
+
+
+def test_a_pp_dataset_gives_the_clients_nca_beside_ours_from_its_non_compartmental_lines(tmp_path):
+    store = _three(tmp_path)
+    described, notes = describe_room(store)
+    assert "Clinical/pp.csv" in described
+    assert notes == [("Clinical/pp.csv, sheet:pp, study EX-03: SDTM PP not described by code: 36 parameters are given "
+                      "more than once for one subject, analyte and occasion (a multiple-dose study's values per day "
+                      "within a period?)")]
+    pp = next(f for f in store.files() if f.path == "Clinical/pp.csv")
+    (table,) = store.extraction(pp.sha256)[0].tables
+    roles = {c.label: c.role for c in table.columns}
+    assert roles == {"USUBJID": "subject", "PPGRPID": "period", "PPTESTCD": "parameter", "PPCAT": "analyte",
+                     "PPSCAT": "group", "PPSTRESC": "value", "PPSTRESU": "unit"}
+    assert len(table.skip_lines) == 11                                 # the model-based lines (1 Compartment) skipped
+    view = assemble(room_inputs(store))
+    ex02 = view.studies[0]
+    with_client = [r for r in ex02.nca if r.client]
+    assert len(with_client) == 6 and all(set(r.client) == {"cmax", "tmax", "auc_t"} for r in with_client)
+    row = next(r for r in with_client if r.subject == "EX-02-001" and r.period == "Period 1")
+    assert row.client["cmax"] == row.cmax                              # the NCA line's Cmax, not the model's 7 % higher one
+    assert not any(p.code == "PK_PARAMETER_TWICE" for p in ex02.problems)
+    said = [p.message for p in view.problems if p.code == "PK_ANALYTE_NOT_IN_DATA"]
+    assert said and "EXAMPLEAMIDE-M1" in said[0]                       # named otherwise than in PC: said, not guessed

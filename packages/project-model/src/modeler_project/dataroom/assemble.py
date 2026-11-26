@@ -20,6 +20,8 @@ from modeler_project.dataroom.clinical import (
     _code_key,
     analyte_of,
     analytes_in,
+    assignments,
+    dose_arms,
     for_analyte,
     samples_from,
     study_view,
@@ -632,12 +634,13 @@ def _of_analyte(tables: Sequence[ReadTable], analyte: str, named: Sequence[str],
 def _analyte_view(sid: str, analyte: str, *, named: Sequence[str], concentrations: Sequence[ReadTable],
                   pk_tables: Sequence[ReadTable], facts: Sequence[CheckedFact], arms: Sequence[Arm], release: str,
                   rules: Rules, question: QuestionCard | None, study_values: Sequence[Value] = (),
-                  unnamed_pk: bool = False) -> RoomStudy:
+                  unnamed_pk: bool = False, treatments: Mapping[tuple[str, str], str] | None = None) -> RoomStudy:
     """One analyte of a study, viewed as a study (`study_view`). `unnamed_pk`: a PK table that names no analyte is
     this analyte's (the modeled one's, as before analytes were told apart)."""
     tables = _of_analyte(concentrations, analyte, named, unnamed_too=False)
     view = study_view(sid, concentrations=tables, pk_tables=_of_analyte(pk_tables, analyte, named, unnamed_too=unnamed_pk),
-                      facts=facts, arms=arms, study_values=study_values, release=release, rules=rules)
+                      facts=facts, arms=arms, study_values=study_values, release=release, rules=rules,
+                      treatments=treatments)
     # the tables the profiles are read from: each arm's dataset names them as its source (ICH M15)
     view = view.model_copy(update={"analyte": analyte, "sources": tuple(
         Chip(file=t.description.file, sha256=t.sha256, part=t.description.part, line=t.description.first_line)
@@ -746,11 +749,36 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
                     f"measured {len(named)} ({', '.join(named)}): left out of every analyte's profiles; say which "
                     "analyte they are (an analyte column, or the table's analyte)")))
 
+        known = {a.lower() for a in named}
+        if named and (strays := [a for a in analytes_in(pk) if a.lower() not in known]):
+            problems.append(Problem(code="PK_ANALYTE_NOT_IN_DATA", message=(
+                f"{sid}: the client's PK values of {', '.join(strays)} name no analyte of the concentration data "
+                f"({', '.join(named)}): they are not compared with ours")))
+        # what each subject was given on each occasion (an EX dataset): the profiles' treatments when the concentration
+        # data name none; whether two doses of one product make two arms is the modeler's choice
+        dosing = mine("dosing")
+        treatments: dict[tuple[str, str], str] = {}
+        if dosing:
+            several, suggested, why = dose_arms(dosing)
+            per_dose = True
+            if several:
+                choice = _decision(inputs.decisions, RoomDecision(
+                    id=f"dose-arms:{sid}", title=f"Dose groups of {sid}",
+                    question=("A product was given at more than one dose. Is each dose its own arm (the design's dose "
+                              "levels), or one arm per product with each subject's own dose (individualised dosing)?"),
+                    options=(Option(id="per_dose", label="One arm per dose"),
+                             Option(id="one_arm", label="One arm per product, each subject's own dose")),
+                    suggested=suggested, why=why, evidence=tuple(
+                        Chip(file=t.description.file, sha256=t.sha256, part=t.description.part,
+                             line=t.description.first_line) for t in dosing[:1])))
+                decisions.append(choice)
+                per_dose = _pick(choice) == "per_dose"
+            treatments = assignments(dosing, per_dose=per_dose)
         view = _analyte_view(sid, modeled, named=named, concentrations=conc, pk_tables=pk, facts=sfacts, arms=arms,
                              study_values=study_values, release=release, rules=rules, question=question,
-                             unnamed_pk=True)
+                             unnamed_pk=True, treatments=treatments)
         other_analytes += [_analyte_view(sid, a, named=named, concentrations=conc, pk_tables=pk, facts=sfacts, arms=arms,
-                                         release=release, rules=rules, question=question)
+                                         release=release, rules=rules, question=question, treatments=treatments)
                            for a in named if a != modeled]
         sets = {s.name: s for s in view.sets}
         options = [Option(id=name, label=f"{sets[name].label}: {len(sets[name].subjects)} subjects", detail=sets[name].rule)

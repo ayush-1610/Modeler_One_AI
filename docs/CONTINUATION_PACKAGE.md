@@ -2,7 +2,7 @@
 
 **Purpose:** the entry point for anyone — engineer or AI model — resuming work on Modeler One. Read in this order:
 `CLAUDE.md` (working rules) → this file (where things stand) → `CHANGELOG.md` (what changed, why, when) → the active
-plan in `docs/plans/`. **Last brought up to date: 2026-11-26 (§4.0f: the Data room regrouped by purpose and scored value by value, phases 0–2b of `docs/plans/2026-11-26-data-room-groups-and-corpus-benchmark.md`; §4.0e and earlier were current on 2026-11-25).** If HEAD is far ahead of
+plan in `docs/plans/`. **Last brought up to date: 2026-11-26 (§4.0f: the Data room regrouped by purpose and scored value by value, phases 0–2c of `docs/plans/2026-11-26-data-room-groups-and-corpus-benchmark.md`; §4.0e and earlier were current on 2026-11-25).** If HEAD is far ahead of
 that commit and §4 was not updated with it, §4 is stale — fix it before trusting it.
 
 ## 30-second system state
@@ -246,8 +246,14 @@ a delivery by file type although most of what clients send never reaches a model
   fix (runners pinned to `ubuntu-24.04`, seven reviewed fixture hashes in `.gitleaksignore`) is its own PR,
   ayush-1610/Modeler_One_AI#188, owner-approved.
 
-**Next:** phase 2c (each SDTM profile's treatment from ADSL TRTxxP or EX; PP as a long PK table), the agents' baseline on
-the server's in-house model (D6). The corpus data and answer keys stay outside git.
+- **Phase 2c (treatments and PK parameters):** a `dosing` table kind; SDTM EX and PP described by code; a profile
+  whose data name no treatment takes it from the dosing data, with decision `dose-arms:<study>` when a product was
+  given at several doses; long PK tables (a line per parameter). P30, code only: every study now has arms, mean
+  profiles and exposures; the client's NCA beside ours in the two single-dose studies (Cmax, Tmax equal; AUC within
+  1.3 %, flagged). The CI fix (ayush-1610/Modeler_One_AI#188) is merged into `main` and `main` into this branch.
+
+**Next:** phase 3 (code-computed findings: CVw, the CSR GMR/CI comparison, the BE zone, the salt/base dose card,
+detectors), the agents' baseline on the server's in-house model (D6). The corpus data and answer keys stay outside git.
 
 ### 4.0e 2026-11-22 → 25: redesign charter, implementation (slice 10, acceptance, in review)
 **Now (2026-11-23):** the owner authorised slices 0 and 1, one PR per slice into `main`, a review after each. Slice 0:

@@ -13,6 +13,54 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 
 ## [Unreleased] — make the pipeline do real PBPK, S0 → S7
 
+### Added — each profile's treatment from the dosing data; long PK tables; CDISC EX and PP described by code (2026-11-26)
+- **Why:** phase 2c of `docs/plans/2026-11-26-data-room-groups-and-corpus-benchmark.md`. An SDTM PC dataset names no
+  treatment. After phase 2b, every P30 study showed per-profile NCA but no mean profile or exposure per arm
+  (NO_TREATMENT). The client's NCA came in a long PP dataset (a line per parameter), which the room could not read.
+- **What, dosing (`room_specs`, `clinical.py`, `assemble.py`):**
+  - A new table kind, `dosing` (subject, period, treatment, dose with its unit, route, form, frequency), placed under
+    Clinical Study Design. A8's vocabulary gains it for files about dosing.
+  - When the concentration data name no treatment, each profile takes what the dosing data say its subject was given
+    on that occasion (`assignments`, TREATMENT_FROM_DOSING). Occasions are matched by period number however written
+    (`occasion_key`: "Period 2", "PERIOD II", "P2"), else the subject's only one. Two products on one occasion are one
+    treatment ("A + B").
+  - Decision `dose-arms:<study>`: whether two doses of one product are two arms (`dose_arms`). Suggested one arm per
+    dose when a subject had two doses on two occasions, or when at most four doses were each given to two subjects
+    or more. Otherwise one arm per product, with each subject's own dose (individualised, e.g. by weight).
+- **What, long PK tables:**
+  - `pk_parameters` gains the role `parameter`; `value` and `unit` are on the line.
+  - `pk_role` knows CDISC codes and written names (CMAX, AUCLST, AUCIFO, LAMZHL, "AUC0-t", "t½").
+  - The client-NCA reader merges a long table into one row per subject and occasion. A parameter given twice with two
+    values is not compared, and is said (PK_PARAMETER_TWICE).
+  - The scorer reads long rows.
+- **What, CDISC by code (`cdisc.py`):**
+  - **SDTM EX** becomes a dosing table: the period from EXGRPID, EPOCH or EXTPT when every value names one, and one
+    dose unit per study.
+  - **SDTM PP** becomes a long PK table from its non-compartmental lines only (PPSCAT): a model's parameters are not
+    the client's NCA. It is described only when each parameter is given once per subject, analyte and occasion.
+  - PK values whose analyte the concentration data do not name are said (PK_ANALYTE_NOT_IN_DATA).
+  - ADSL TRTxxP is not used. In P30, TRT02P and TRT03P were empty for a 3-period study whose periods EX tells apart
+    by dose.
+- **Measured on P30 (code only, no AI service, session files):**
+  - All four datasets are described: EX, PC and ADSL for the 4 studies, PP for 2 of them.
+  - Every study now has arms, mean profiles and exposures. In the 3-period study, the 0.5 mg and 1 mg periods are
+    two arms (suggested from a subject given both). In an IV study, the individual doses are one arm.
+  - In the two single-dose studies, the client's NCA is shown beside ours. Cmax and Tmax are equal on every profile
+    checked. In one study AUC is within 1.3 %, flagged "investigate" (likely actual sampling times); in the other the
+    client's NCA is reproduced 100 of 100.
+  - The two multiple-dose studies' PP repeats each parameter per day within a period, so it is left to the agents,
+    with the reason.
+- **Known gap:** actual sampling times (PCDTC against the dose's EXSTDTC) are not derived. ADaM ADPC / ADPP wait for a
+  delivery that has them.
+- **Impact:** a delivery whose concentration data name their treatments is unchanged (the dosing data are not used
+  then). A8's prompt stays `dataroom-7`, which is unreleased and now also carries the dosing kind and long PK roles.
+  No API change.
+- **Tests:**
+  - `test_dataroom_cdisc.py` (+2): EX ties treatments and the dose-arms decision both ways; PP gives the client's NCA
+    from the NCA lines and says the metabolite PC names otherwise. Both use made-up datasets
+    (`synthetic.ex_dataset_rows`, `pp_dataset_rows`).
+  - `test_dataroom_analytes.py` (+19): `pk_role`, `occasion_key`, PK_PARAMETER_TWICE.
+
 ### Added — a study's analytes told apart; CDISC PC and DM / ADSL described by code, no agent asked (2026-11-26)
 - **Why:** phase 2b of `docs/plans/2026-11-26-data-room-groups-and-corpus-benchmark.md`, the owner's option A. A CRO's
   SDTM PC dataset (P30 in the owner's corpus) holds the drug, two metabolites and a labelled tracer line by line, four

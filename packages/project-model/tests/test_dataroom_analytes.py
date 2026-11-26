@@ -92,3 +92,39 @@ def test_a_study_of_one_analyte_reads_as_before(tmp_path):
     assert view.studies and view.other_analytes == ()
     assert not any(d.id.startswith("analyte:") for d in view.decisions)
     assert not any(p.code in ("ANALYTE_NOT_NAMED", "NO_TREATMENT") for s in view.studies for p in s.problems)
+
+
+@pytest.mark.parametrize(("name", "role"), [("CMAX", "cmax"), ("Cmax", "cmax"), ("AUCLST", "auc_t"), ("AUC0-t", "auc_t"),
+                                            ("AUCIFO", "auc_inf"), ("AUC(0-∞)", "auc_inf"), ("t½", "t_half"),
+                                            ("LAMZHL", "t_half"), ("TMAX", "tmax"), ("AUC0-24", ""), ("CLO", "")])
+def test_a_pk_parameter_is_known_by_its_name_or_cdisc_code(name, role):
+    from modeler_project.dataroom.clinical import pk_role
+
+    assert pk_role(name) == role
+
+
+@pytest.mark.parametrize(("text", "key"), [("Period 2", "2"), ("PERIOD 2", "2"), ("Period II", "2"), ("P2", "2"),
+                                           ("2", "2"), ("", ""), ("Day 7", "day 7")])
+def test_an_occasion_is_one_key_however_it_is_written(text, key):
+    from modeler_project.dataroom.clinical import occasion_key
+
+    assert occasion_key(text) == key
+
+
+def test_a_parameter_a_long_pk_table_gives_twice_with_two_values_is_not_compared_and_said():
+    from modeler_project.dataroom.clinical import _client_pk
+    from modeler_project.dataroom.model import Chip, ReadCell, ReadRow, ReadTable
+
+    def row(line, subject, parameter, value):
+        return ReadRow(line=line, cells=tuple(ReadCell(role=r, text=t, chip=Chip(file="pk.csv", sha256="x", part="sheet:pk",
+                                                                                     line=line, cell=i, text=t))
+                                              for i, (r, t) in enumerate((("subject", subject), ("parameter", parameter),
+                                                                          ("value", value)), start=1)))
+
+    desc = TableDescription(file="pk.csv", kind="pk_parameters", part="sheet:pk", first_line=2, last_line=4,
+                            columns=[ColumnSpec(index=i, role=r) for i, r in enumerate(("subject", "parameter", "value"), 1)])
+    table = ReadTable(id="t", description=desc, sha256="x", rows=(row(2, "1", "Cmax", "9.5"), row(3, "1", "Cmax", "9.9"),
+                                                                     row(4, "1", "AUC0-t", "80")))
+    got, problems = _client_pk([table])
+    assert got[("1", "only")] == {"auc_t": 80.0}
+    assert [p.code for p in problems] == ["PK_PARAMETER_TWICE"]

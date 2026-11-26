@@ -10,7 +10,7 @@ the page shows, never a second reading. It gives, each as `value_score.Extracted
 - every individual concentration of a concentrations table (`concentration`, one per subject, period and time; a value
   below the LLOQ censored, a missing sample with no value; the subject as the file writes it, as the key does);
 - every per-subject PK parameter of a PK-parameters table (`pk.Cmax`, `pk.tmax`, `pk.AUC_last`, `pk.AUC_inf`,
-  `pk.t_half`);
+  `pk.t_half`), wide (a column per parameter) or long (a line per parameter, its unit on the line);
 - every test/reference ratio of a BE-statistics table (`relation.test_vs_reference.<parameter>`);
 - every dissolution profile's mean per time (`percent_dissolved`, statistic `mean`: computed from the units read, as
   the room shows it).
@@ -31,7 +31,7 @@ import re
 from modeler_intake.source_model import number_text
 from modeler_project.dataroom import DataRoomStore, room_inputs
 from modeler_project.dataroom.assemble import read_extractions
-from modeler_project.dataroom.clinical import samples_from
+from modeler_project.dataroom.clinical import pk_role, samples_from
 from modeler_project.dataroom.extract import parse_number
 from modeler_project.dataroom.invitro import dissolution_views
 from modeler_project.dataroom.model import ReadTable
@@ -84,6 +84,12 @@ def _pk_parameters(table: ReadTable) -> list[Extracted]:
     units = {c.role: c.unit for c in table.description.columns if c.unit}
     out = []
     for n, row in enumerate(_cells(table)):
+        if "parameter" in row and "value" in row:          # a long table: one line per parameter (a PP dataset)
+            role = pk_role(row["parameter"])
+            if role not in _PK_FIELDS:
+                continue
+            row = {**row, role: row["value"]}
+            units = {**units, role: row.get("unit", "").strip() or units.get("value", "")}
         for role, field in _PK_FIELDS.items():
             text = row.get(role, "").strip()
             if not text:

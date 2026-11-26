@@ -162,6 +162,7 @@ placements:
   table:disposition: {at: model_input/observed}
   table:be_statistics: {at: model_input/observed}
   table:demographics: {at: model_input/design}
+  table:dosing: {at: model_input/design}
   table:dissolution: {at: model_input/release, unselected: supporting/other_dissolution}
   table:solubility: {at: model_input/substance}
   table:physchem: {at: model_input/substance}
