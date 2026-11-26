@@ -7,7 +7,8 @@
 # literature review's proposal or, where it says so, the platform's placeholder: awaiting the SME.
 # 0.4 (2026-11-26): `be`, a study's bioequivalence computed by code (plan 2026-11-26 §7 phase 3, the owner's plan):
 # the corpus audit's R01 (the CSR's GMR and 90 % CI reproduced within 0.5 percentage points), R50 (the full 90 % CI
-# within 80.00-125.00 %) and R55 (the BE zone from the observed σw and n). Awaiting the SME.
+# within 80.00-125.00 %) and R55 (the BE zone from the observed σw and n). The owner confirmed these values
+# (2026-11-26); awaiting the SME.
 version: "0.4"
 status: UNVERIFIED
 be:

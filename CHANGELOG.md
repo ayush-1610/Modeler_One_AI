@@ -108,7 +108,7 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
     within-subject CV. A8's prompt stays `dataroom-7` (unreleased).
 - **Rules 0.4 (`dataroom_rules.yaml`, UNVERIFIED, awaiting the SME):** a `be` block holding confidence 0.90, limits
   80.0–125.0 % and the CSR tolerance of 0.5 percentage points. The values are those of the owner's approved plan and
-  the audit's R01 and R50. Two tests that pinned 0.3 now read 0.4.
+  the audit's R01 and R50, and the owner confirmed them on 2026-11-26. Two tests that pinned 0.3 now read 0.4.
 - **API:** `RoomStudy.be` (optional, default empty). The OpenAPI snapshot and `apps/web/lib/api-types.ts` are
   regenerated. The page does not show it yet (phase 5).
 - **Measured on P03, a real BE delivery (code only, session files):**
