@@ -162,6 +162,7 @@ test("an extracted delivery shows its study and dissolution, a decision is taken
   // the study's bioequivalence computed by code (phase 3a), beside the observed profiles
   await expect(page.getByTestId("be-results")).toBeVisible();
   await expect(page.getByTestId("be-auc_t-ours")).toContainText("within the limits");
+  await shot(page, "dataroom-observed");
 
   // a decision, on the section it decides (the study's design): the suggestion taken, who took it shown
   await page.getByTestId("rail-design").click();
