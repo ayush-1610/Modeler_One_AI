@@ -85,8 +85,9 @@ function addresses(projectId: string): Record<string, string[]> {
 /** Where to keep a picture of each page for the owner's visual review, when asked (ACCEPTANCE_SCREENSHOTS=<folder>). */
 const SHOTS = process.env.ACCEPTANCE_SCREENSHOTS;
 
-/** Old addresses that land on another page (the review inbox's, since 2026-11-11): checked once they have landed. */
-const LANDS: Record<string, RegExp> = { "/review": /\/work$/ };
+/** Addresses that land on another page, checked once they have landed: the review inbox's (since 2026-11-11), and
+ *  /no-access, which sends the development sign-in (every role) home; both headings stand on the page mid-redirect. */
+const LANDS: Record<string, RegExp> = { "/review": /\/work$/, "/no-access": /:\d+\/$/ };
 
 async function check(page: Page, path: string) {
   await open(page, path);

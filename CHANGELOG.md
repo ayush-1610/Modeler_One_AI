@@ -13,6 +13,17 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 
 ## [Unreleased] — make the pipeline do real PBPK, S0 → S7
 
+### Fixed — two tests that failed now and then in CI, not the code they check (2026-11-26)
+- **The blinded-study test** (`test_delivery_api.py`, a sheet-form group joined to a blinded study) looked for each
+  withheld value as a bare substring of every answer, and the answers carry timestamps with fractional seconds: a run
+  that stamped a record at `…:10.3…` "found" the withheld 10.3 there (about one run in twenty, by the wall clock; `main`'s
+  CI failed on it on 2026-11-26). It now looks for each value as a number only (not inside another number or a time's
+  seconds); a value in a quote or a JSON number is still caught. No leak: the failing runs' matches were timestamps.
+- **The acceptance pass** (`e2e/acceptance.spec.ts`, slice 10) checked `/no-access` before it had landed: the development
+  sign-in has every role, so the page sends it home, and in CI's slower run both headings stood on the page for a
+  moment. It is now checked once it has landed, as `/review` is.
+- **Impact:** tests only.
+
 ### Removed — `GET /templates` and `GET /templates/{id}`, a locked-file change approved by the owner (2026-11-25)
 - **What:** the two routes that served the retired create-project wizard its starting points, with their router
   (`modeler_api.templates_api`), their answers (`views/templates.py`: `Templates`, `TemplateSummary`,
