@@ -1,0 +1,12 @@
+# gitleaks findings reviewed and accepted, one fingerprint each (commit:file:rule:line). Nothing else is ignored.
+#
+# The `inputs_key` of an Inputs-work e2e fixture: a SHA-256 hex digest of the project's inputs
+# (packages/project-model/src/modeler_project/inputs.py, inputs_key), which the generic-api-key rule reads as a
+# credential. It is a content hash of made-up test data, not a secret. Reviewed 2026-11-26.
+000a59d5e5e9c42c2d40f1284ad2d7fbe88007dc:design-review/archive/stylish-frontend/apps/web/e2e/fixtures/inputs-work/clientamide.json:generic-api-key:1
+000a59d5e5e9c42c2d40f1284ad2d7fbe88007dc:design-review/archive/stylish-frontend/apps/web/e2e/fixtures/inputs-work/exampleamide.json:generic-api-key:1
+92e1622b19d95f1c44ff1889a766a77af78ef876:apps/web/e2e/fixtures/inputs-work/clientamide.json:generic-api-key:1
+92e1622b19d95f1c44ff1889a766a77af78ef876:apps/web/e2e/fixtures/inputs-work/exampleamide.json:generic-api-key:1
+b415b22deb039b572716cd2f632d82549db80490:apps/web/e2e/fixtures/inputs-work/clientamide.json:generic-api-key:1
+b415b22deb039b572716cd2f632d82549db80490:apps/web/e2e/fixtures/inputs-work/exampleamide.json:generic-api-key:1
+2c9a40e8ba0b67197d78c177dce1ddb21a39e2a5:apps/web/e2e/fixtures/inputs-work/exampleamide.json:generic-api-key:1
