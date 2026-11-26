@@ -29,6 +29,8 @@ from modeler_project.dataroom.clinical import (
     subject_id,
     unnamed_lines,
 )
+from modeler_project.dataroom.detectors import detect
+from modeler_project.dataroom.dosecard import dose_card
 from modeler_project.dataroom.extract import check_fact, number_of, parse_number, read_table
 from modeler_project.dataroom.invitro import (
     batch_products,
@@ -714,6 +716,15 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
     products = _values(facts, "product.", FIELDS, literature_files, rules) + _values(facts, "batch.", FIELDS, literature_files, rules)
     entered = {v.key: v for v in inputs.entered}
 
+    # the dose in both bases (R14): PK-Sim's compound is the free base, so a salt dose is given as the base's
+    dose_info, found = dose_card(facts)
+    problems += found
+    # checks across the delivery (R03 simulated data, R07 lots, a file about another drug, personal data)
+    drug_names = [f.fact.subject for f in facts if f.ok and f.fact.subject and f.fact.field.startswith(("substance.", "adme."))]
+    drug_names += [f.fact.value for f in facts if f.ok and f.fact.field == "study.analyte"]
+    drug_names += [p.name for p in (question.products if question else ())]
+    problems += detect(files=inputs.files, docs=inputs.docs, tables=tables, facts=facts, drug_names=drug_names)
+
     # --- clinical ---------------------------------------------------------------------------------------------------
     study_ids: list[str] = []
     for t in by_kind["concentrations"]:
@@ -1212,9 +1223,18 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
                                         status="sponsor" if (r := next((v for v in view.facts if v.key.startswith("study.route")),
                                                                        None)) else "missing",
                                         sources=r.sources if r else ()))
-            inputs_rows.append(InputRow(block="protocol", owner=owner, name="InputDose", label="Dose",
-                                        value=dose_v.value if dose_v else None, unit=(dose_v.unit or "mg") if dose_v else "mg",
-                                        status=dose_v.status if dose_v else "missing", sources=dose_v.sources if dose_v else ()))
+            if (dose_v and dose_info and dose_info.basis == "salt" and dose_info.dose_as_base_mg is not None
+                    and isinstance(dose_v.value, float) and abs(dose_v.value - (dose_info.dose_as_salt_mg or 0)) < 1e-9):
+                # the study's dose is the salt's: PK-Sim is given the free base's (R14), both bases on the card
+                inputs_rows.append(InputRow(block="protocol", owner=owner, name="InputDose", label="Dose",
+                                            value=dose_info.dose_as_base_mg, unit="mg", status="calculated",
+                                            sources=dose_v.sources + dose_info.sources, note=dose_info.rule))
+            else:
+                inputs_rows.append(InputRow(block="protocol", owner=owner, name="InputDose", label="Dose",
+                                            value=dose_v.value if dose_v else None,
+                                            unit=(dose_v.unit or "mg") if dose_v else "mg",
+                                            status=dose_v.status if dose_v else "missing",
+                                            sources=dose_v.sources if dose_v else ()))
             if water and isinstance(water.value, float) and weight:
                 inputs_rows.append(InputRow(block="protocol", owner=owner, name="Volume of water/body weight",
                                             label="Water with the dose", value=round(water.value / weight[0], 3), unit="ml/kg",
@@ -1344,7 +1364,7 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
                         question_confirmed=inputs.question_confirmed, sections=tuple(sections), substance=tuple(substance),
                         adme=tuple(adme), products=tuple(products), composition=tuple(composition), solubility=tuple(solubility),
                         absorption=tuple(absorption), dissolution=tuple(diss), f2=tuple(f2s), studies=tuple(studies),
-                        other_analytes=tuple(other_analytes), decisions=tuple(decisions), requests=tuple(requests), plan=tuple(plan), inputs=tuple(inputs_rows),
+                        other_analytes=tuple(other_analytes), dose_card=dose_info, decisions=tuple(decisions), requests=tuple(requests), plan=tuple(plan), inputs=tuple(inputs_rows),
                         problems=tuple(problems), checks=checks, requirements=needs)
 
 

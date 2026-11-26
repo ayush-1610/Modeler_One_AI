@@ -13,6 +13,48 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 
 ## [Unreleased] — make the pipeline do real PBPK, S0 → S7
 
+### Added — the dose in both bases, PK-Sim given the free base's; delivery-wide checks for simulated data, lots, another drug and personal data (2026-11-26)
+- **Why:** phase 3 of `docs/plans/2026-11-26-data-room-groups-and-corpus-benchmark.md`, and the corpus audit's rules:
+  - **R14:** "when the MW basis changes, recompute the molar dose and record both bases". P01's model was given a salt
+    dose against the base's molecular weight, +46 % molar dose.
+  - **R03:** "reject an observed dataset whose time grid equals a simulator output grid". P25 used simulated curves as
+    observed.
+  - **R07:** "lot and batch must match the protocol/CSR". P04 had lot …001 against …002.
+  - **Two further cases** the projects met: a document about another drug, and personal data in a delivery.
+- **What, the dose card (`dataroom/dosecard.py`, `DataRoomView.dose_card`):**
+  - The dose as written (`study.dose`, else the first `product.strength`), and its basis: the `substance.dose_basis`
+    fact, else the dose's own words. "Equivalent to 90 mg <base>" is the base's; "100 mg hydrochloride" is the salt's.
+  - Each molecular weight's form, read from what its fact is about (value, subject, note; not the quote, which often
+    names both).
+  - The dose as the free base and as the salt (× MW base / MW salt), and the molar dose.
+  - PK-Sim's `InputDose` is now the free base's when the study's dose is the salt's and both molecular weights are
+    known (status calculated, the rule in its note). PK-Sim's compound is the molecule.
+  - Said, never assumed: a salt form with no stated basis (DOSE_BASIS_UNKNOWN), a salt dose without both molecular
+    weights (DOSE_BASIS_NEEDS_MW), a "salt" lighter than its base (SALT_MW_NOT_HEAVIER). With no salt form stated, the
+    dose is taken as the molecule's own.
+- **What, the checks (`dataroom/detectors.py`, room problems):**
+  - LOOKS_SIMULATED (R03), on a concentration table with any of: 40 or more equally spaced times, 90 % of its values
+    with 6 or more significant figures, or a file naming a simulator (Simcyp, GastroPlus, PK-Sim, "simulated plasma
+    concentrations", "virtual subjects").
+  - LOT_TWO_PRODUCTS: one lot given for two products. LOT_CONFLICT: one product's lots in two files within two
+    characters of each other (R07).
+  - FILE_NAMES_NOT_THE_DRUG (info): a used PDF, Word, text or slide document that never names the delivery's drug.
+  - PERSONAL_DATA: identifying columns (name, initials, date of birth, address, phone, e-mail, national or medical
+    record number) in a subject listing, or a date of birth in a document's text. An excipient's "Name" column in a
+    composition table is not a subject listing.
+  - Each flags with its evidence and decides nothing. Their thresholds are the detectors' constants, not ruleset
+    values.
+- **API:** `DataRoomView.dose_card` (optional). The OpenAPI snapshot and `apps/web/lib/api-types.ts` are regenerated.
+  The page does not show it yet (phase 5).
+- **Measured on the corpus's 102 client files (17 projects, code only):** nothing fired, so there were no false
+  alarms. The audit package was redacted. Its R03 and R07 cases (P25, P04) need files not packaged, or the agents'
+  facts.
+- **Impact:** a delivery that states no salt keeps its dose. One whose dose is the salt's and gives both molecular
+  weights now sends PK-Sim the free base's dose.
+- **Tests:** `test_dataroom_checks.py` (7): a salt dose to the base, an "equivalent to" dose, what the card cannot
+  know, a simulator's grid and unrounded values against an observed table, the two lot conflicts, a document about
+  another drug, and personal data against plain demographics and a composition table.
+
 ### Added — a study's bioequivalence computed by code beside the CSR's: GMR, 90 % CI, CVw, BE zone (2026-11-26)
 - **Why:** phase 3 of `docs/plans/2026-11-26-data-room-groups-and-corpus-benchmark.md`, and the owner's decision D3
   (the within-subject CV computed by code). The corpus audit's R01 asks to rebuild the BE result from subject-level

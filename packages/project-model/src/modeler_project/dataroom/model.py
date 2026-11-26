@@ -258,6 +258,22 @@ class BeResult(_B):
     rule: str = ""                   # the method, written out
 
 
+class DoseCard(_B):
+    """The dose in both bases (the corpus audit's R14): as written, its basis, the two molecular weights, the dose as
+    the free base (what PK-Sim is given) and as the salt, and the molar dose."""
+
+    dose_written: str
+    basis: Literal["salt", "base", "unknown"]
+    salt: str = ""                   # the salt form, as written
+    mw_base: float | None = None
+    mw_salt: float | None = None
+    dose_as_base_mg: float | None = None
+    dose_as_salt_mg: float | None = None
+    molar_dose_umol: float | None = None
+    rule: str = ""
+    sources: tuple[Chip, ...] = ()
+
+
 class RoomStudy(_B):
     """One clinical study as the room shows it (named apart from the API's other study views)."""
 
@@ -563,6 +579,8 @@ class DataRoomView(_B):
     # each study's analytes the model is not compared with (a metabolite, a labelled tracer), each viewed as a study is:
     # Supporting Evidence, never sent to the model
     other_analytes: tuple[RoomStudy, ...] = ()
+    # the dose in both bases, salt and free base (R14); None when the delivery states no dose
+    dose_card: DoseCard | None = None
     decisions: tuple[RoomDecision, ...] = ()
     requests: tuple[DataRequest, ...] = ()
     plan: tuple[PlanRow, ...] = ()

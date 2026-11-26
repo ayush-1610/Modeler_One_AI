@@ -5319,6 +5319,16 @@
             "title": "Dissolution",
             "type": "array"
           },
+          "dose_card": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DoseCard"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "f2": {
             "default": [],
             "items": {
@@ -5474,6 +5484,7 @@
           "f2",
           "studies",
           "other_analytes",
+          "dose_card",
           "decisions",
           "requests",
           "plan",
@@ -12725,6 +12736,112 @@
           "not_read"
         ],
         "title": "DocumentsRead",
+        "type": "object"
+      },
+      "DoseCard": {
+        "additionalProperties": false,
+        "description": "The dose in both bases (the corpus audit's R14): as written, its basis, the two molecular weights, the dose as\nthe free base (what PK-Sim is given) and as the salt, and the molar dose.",
+        "properties": {
+          "basis": {
+            "enum": [
+              "salt",
+              "base",
+              "unknown"
+            ],
+            "title": "Basis",
+            "type": "string"
+          },
+          "dose_as_base_mg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dose As Base Mg"
+          },
+          "dose_as_salt_mg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dose As Salt Mg"
+          },
+          "dose_written": {
+            "title": "Dose Written",
+            "type": "string"
+          },
+          "molar_dose_umol": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Molar Dose Umol"
+          },
+          "mw_base": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mw Base"
+          },
+          "mw_salt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mw Salt"
+          },
+          "rule": {
+            "default": "",
+            "title": "Rule",
+            "type": "string"
+          },
+          "salt": {
+            "default": "",
+            "title": "Salt",
+            "type": "string"
+          },
+          "sources": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/Chip"
+            },
+            "title": "Sources",
+            "type": "array"
+          }
+        },
+        "required": [
+          "dose_written",
+          "basis",
+          "salt",
+          "mw_base",
+          "mw_salt",
+          "dose_as_base_mg",
+          "dose_as_salt_mg",
+          "molar_dose_umol",
+          "rule",
+          "sources"
+        ],
+        "title": "DoseCard",
         "type": "object"
       },
       "DoseNumber": {

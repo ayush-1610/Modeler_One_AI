@@ -5487,6 +5487,7 @@ export interface components {
              * @default []
              */
             dissolution: components["schemas"]["DissolutionView"][];
+            dose_card: components["schemas"]["DoseCard"] | null;
             /**
              * F2
              * @default []
@@ -7924,6 +7925,45 @@ export interface components {
             not_read: string[];
             /** Reading */
             reading: string[];
+        };
+        /**
+         * DoseCard
+         * @description The dose in both bases (the corpus audit's R14): as written, its basis, the two molecular weights, the dose as
+         *     the free base (what PK-Sim is given) and as the salt, and the molar dose.
+         */
+        DoseCard: {
+            /**
+             * Basis
+             * @enum {string}
+             */
+            basis: "salt" | "base" | "unknown";
+            /** Dose As Base Mg */
+            dose_as_base_mg: number | null;
+            /** Dose As Salt Mg */
+            dose_as_salt_mg: number | null;
+            /** Dose Written */
+            dose_written: string;
+            /** Molar Dose Umol */
+            molar_dose_umol: number | null;
+            /** Mw Base */
+            mw_base: number | null;
+            /** Mw Salt */
+            mw_salt: number | null;
+            /**
+             * Rule
+             * @default
+             */
+            rule: string;
+            /**
+             * Salt
+             * @default
+             */
+            salt: string;
+            /**
+             * Sources
+             * @default []
+             */
+            sources: components["schemas"]["Chip"][];
         };
         /** DoseNumber */
         DoseNumber: {

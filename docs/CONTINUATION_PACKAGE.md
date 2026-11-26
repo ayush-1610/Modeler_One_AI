@@ -2,7 +2,7 @@
 
 **Purpose:** the entry point for anyone — engineer or AI model — resuming work on Modeler One. Read in this order:
 `CLAUDE.md` (working rules) → this file (where things stand) → `CHANGELOG.md` (what changed, why, when) → the active
-plan in `docs/plans/`. **Last brought up to date: 2026-11-26 (§4.0f: the Data room regrouped by purpose and scored value by value, phases 0–3a of `docs/plans/2026-11-26-data-room-groups-and-corpus-benchmark.md`; §4.0e and earlier were current on 2026-11-25).** If HEAD is far ahead of
+plan in `docs/plans/`. **Last brought up to date: 2026-11-26 (§4.0f: the Data room regrouped by purpose and scored value by value, phases 0–3 of `docs/plans/2026-11-26-data-room-groups-and-corpus-benchmark.md`; §4.0e and earlier were current on 2026-11-25).** If HEAD is far ahead of
 that commit and §4 was not updated with it, §4 is stale — fix it before trusting it.
 
 ## 30-second system state
@@ -256,9 +256,13 @@ a delivery by file type although most of what clients send never reaches a model
   analysis set, from our NCA and the client's, the CSR's numbers reproduced within 0.5 pp or said (`dataroom/bestats.py`,
   `pbpk_domain.bioequivalence.crossover_be`, rules 0.4 `be`, UNVERIFIED). `RoomStudy.be` in the API; not on the page yet.
 
-**Next:** phase 3b (the salt/base dose card; detectors: simulator exports, lot conflicts, a file about another drug,
-personal data), the agents' baseline on the server's in-house model (D6). The corpus data and answer keys stay outside
-git.
+- **Phase 3b (dose card, detectors):** the dose in both bases with PK-Sim's dose as the free base (R14,
+  `dataroom/dosecard.py`, `DataRoomView.dose_card`); delivery-wide checks for simulated-looking concentrations (R03),
+  lot conflicts (R07), a document that never names the drug, and personal data (`dataroom/detectors.py`).
+
+**Next:** phase 4 (the agents: the CVw column, a dissolution stage column, NR / #REF! tokens; the checker on Model Input
+Data first; the writer's new sections) and the agents' baseline on the server's in-house model (D6); phase 5 (the page
+in its groups). The corpus data and answer keys stay outside git.
 
 ### 4.0e 2026-11-22 → 25: redesign charter, implementation (slice 10, acceptance, in review)
 **Now (2026-11-23):** the owner authorised slices 0 and 1, one PR per slice into `main`, a review after each. Slice 0:
