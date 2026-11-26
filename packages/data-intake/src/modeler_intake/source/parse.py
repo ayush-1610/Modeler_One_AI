@@ -12,11 +12,14 @@ or locating rules (a new SOURCE_VERSION) or a library upgrade is a new version, 
 | .xls | workbook | xlrd |
 | .csv .tsv | delimited | the standard library (`csv`) |
 | .docx | docx | python-docx |
+| .pptx | pptx (a body, as a Word file: slides' text, tables and charts' data) | python-pptx |
+| .numbers | numbers (one sheet per table) | numbers-parser |
+| .sas7bdat .xpt | sas (one sheet: names, labels, observations) | pyreadstat |
 | .pdf | pdfplumber | pdfplumber (with any engine passed in, named in the version) |
 | .txt .md .json | text | the standard library |
 | .zip | zip | the standard library (`zipfile`) |
 | .png .jpg .jpeg | image | none: unsupported, one figure |
-| anything else | none | none: unsupported, "no parser for <ext>" |
+| anything else | none | none: unsupported, "no parser for <ext>", with what to ask for when it is a known format |
 """
 
 from __future__ import annotations
@@ -34,9 +37,13 @@ from modeler_intake.anchors import AnchorError, FigureRef, SheetCell, format_loc
 from modeler_intake.source import archive
 from modeler_intake.source.delimited import NotText, read_delimited
 from modeler_intake.source.docx import locate_docx, read_docx, unread_reason
+from modeler_intake.source.numbers import read_numbers
 from modeler_intake.source.pdf import read_pdf
+from modeler_intake.source.pptx import read_pptx
+from modeler_intake.source.pptx import unread_reason as pptx_unread_reason
 from modeler_intake.source.regions import locate_sheets, region_id
 from modeler_intake.source.roles import classify
+from modeler_intake.source.sas import read_sas
 from modeler_intake.source.text import read_text
 from modeler_intake.source.workbook import read_xls, read_xlsx
 from modeler_intake.source.workbook import unread_reason as workbook_unread_reason
@@ -61,10 +68,28 @@ _FORMATS = (
     (".xlsx", "xlsx"), (".xlsm", "xlsm"), (".xls", "xls"), (".csv", "csv"), (".tsv", "tsv"), (".docx", "docx"),
     (".pdf", "pdf"), (".txt", "text"), (".text", "text"), (".md", "markdown"), (".markdown", "markdown"),
     (".json", "json"), (".zip", "zip"), (".png", "image"), (".jpg", "image"), (".jpeg", "image"),
+    (".pptx", "pptx"), (".numbers", "numbers"), (".sas7bdat", "sas"), (".xpt", "sas"),
 )
 _PARSERS = (("xlsx", "workbook"), ("xlsm", "workbook"), ("xls", "workbook"), ("csv", "delimited"), ("tsv", "delimited"),
             ("docx", "docx"), ("pdf", "pdfplumber"), ("text", "text"), ("markdown", "text"), ("json", "text"),
-            ("zip", "zip"), ("image", "image"))
+            ("zip", "zip"), ("image", "image"), ("pptx", "pptx"), ("numbers", "numbers"), ("sas", "sas"))
+# A known format no parser reads: what to ask the client for instead (plan 2026-11-26 §7 phase 2)
+SEND_AS = {
+    ".doc": "a legacy Word file: please send it as .docx or PDF",
+    ".ppt": "a legacy PowerPoint file: please send it as .pptx or PDF",
+    ".pages": "an Apple Pages file: please export it as .docx or PDF",
+    ".key": "an Apple Keynote file: please export it as .pptx or PDF",
+    ".rtf": "a rich-text file: please send it as .docx or PDF",
+    ".odt": "an OpenDocument text: please send it as .docx or PDF",
+    ".ods": "an OpenDocument spreadsheet: please send it as .xlsx",
+    ".odp": "an OpenDocument presentation: please send it as .pptx or PDF",
+    ".rar": "a RAR archive: please send its files in a .zip",
+    ".7z": "a 7-Zip archive: please send its files in a .zip",
+    ".msg": "an Outlook message: please send its attachments themselves",
+    ".eml": "an e-mail: please send its attachments themselves",
+    ".sav": "an SPSS dataset: please send it as SAS (.sas7bdat or .xpt), .csv or .xlsx",
+    ".dta": "a Stata dataset: please send it as SAS (.sas7bdat or .xpt), .csv or .xlsx",
+}
 _OLE2 = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
 _ZIP = b"PK\x03\x04"
 _ENCRYPTED_PACKAGE = "EncryptedPackage".encode("utf-16-le")      # the stream a password-protected Office file holds
@@ -110,7 +135,9 @@ def parser_for(data: bytes, filename: str, *, pdf_table_engines: Sequence[PdfTab
     python = f"python{sys.version_info.major}.{sys.version_info.minor}"
     library = {"xlsx": f"openpyxl{_library('openpyxl')}", "xlsm": f"openpyxl{_library('openpyxl')}",
                "xls": f"xlrd{_library('xlrd')}", "docx": f"python-docx{_library('python-docx')}",
-               "pdf": f"pdfplumber{_library('pdfplumber')}"}.get(fmt, python if parser not in ("image", "none") else "")
+               "pdf": f"pdfplumber{_library('pdfplumber')}", "pptx": f"python-pptx{_library('python-pptx')}",
+               "numbers": f"numbers-parser{_library('numbers-parser')}", "sas": f"pyreadstat{_library('pyreadstat')}"}.get(
+        fmt, python if parser not in ("image", "none") else "")
     version = SOURCE_VERSION + (f"+{library}" if library else "")
     if fmt == "pdf":
         version += "".join(f"+{_tag(e.name)}{_tag(e.version)}" for e in pdf_table_engines)
@@ -138,7 +165,9 @@ def parse_document(data: bytes, filename: str, *, container: ContainerRef | None
         return SourceDocument(**base, state="unreadable",
                               reason=f"the file holds {len(data)} bytes, over the limit of {MAX_MEMBER_BYTES}")
     if parser == "none":
-        return SourceDocument(**base, state="unsupported", reason=f"no parser for {_suffix(filename) or 'a file with no extension'}")
+        suffix = _suffix(filename)
+        advice = f": {SEND_AS[suffix]}" if suffix in SEND_AS else ""
+        return SourceDocument(**base, state="unsupported", reason=f"no parser for {suffix or 'a file with no extension'}{advice}")
     if not data:
         return SourceDocument(**base, state="unreadable", reason="the file is empty (0 bytes)")
     if parser == "image":
@@ -157,7 +186,7 @@ def _read(fmt: str, data: bytes, filename: str, sha: str, *, pdf_table_engines: 
     if fmt == "pdf":
         return read_pdf(data, sha, table_engines=pdf_table_engines, ocr=ocr, needs_ocr_max_chars=NEEDS_OCR_MAX_CHARS,
                         table_like_share=TABLE_LIKE_NUMERIC_SHARE)
-    if fmt in ("xlsx", "xlsm", "xls", "docx") and data.startswith(_OLE2) and _ENCRYPTED_PACKAGE in data:
+    if fmt in ("xlsx", "xlsm", "xls", "docx", "pptx") and data.startswith(_OLE2) and _ENCRYPTED_PACKAGE in data:
         return {"state": "unreadable", "reason": "the file is encrypted (a password-protected Office file): a password is needed"}
     if fmt == "zip":
         try:
@@ -180,16 +209,26 @@ def _read(fmt: str, data: bytes, filename: str, sha: str, *, pdf_table_engines: 
         elif fmt == "docx":
             body, figures, warnings, unread = read_docx(data)
             sheets, fields = (), {"body": body, "figures": figures, "warnings": warnings}
+        elif fmt == "pptx":
+            body, figures, warnings, unread = read_pptx(data)
+            sheets, fields = (), {"body": body, "figures": figures, "warnings": warnings}
+        elif fmt == "numbers":
+            sheets, warnings = read_numbers(data)
+            fields = {"sheets": sheets, "warnings": warnings}
+        elif fmt == "sas":
+            sheets, warnings = read_sas(data, filename)
+            fields = {"sheets": sheets, "warnings": warnings}
         else:
             return read_text(data, sha, table_like_share=TABLE_LIKE_NUMERIC_SHARE)
     except NotText as exc:
         return {"state": "unreadable", "reason": str(exc)}
-    except Exception as exc:  # noqa: BLE001 - openpyxl, xlrd, zipfile, csv and python-docx raise many types for a damaged file
+    except Exception as exc:  # noqa: BLE001 - openpyxl, xlrd, zipfile, csv, python-docx, python-pptx, numbers-parser and pyreadstat raise many types for a damaged file
         return {"state": "unreadable", "reason": f"the {fmt} file could not be read ({type(exc).__name__}: {exc})"}
-    if fmt == "docx":
+    if fmt in ("docx", "pptx"):
         regions, outside = locate_docx(fields["body"], fields["figures"], sha)
         if unread:
-            return {**fields, "state": "partly_read", "reason": unread_reason(unread), "regions": regions, "outside": outside}
+            why = unread_reason(unread) if fmt == "docx" else pptx_unread_reason(unread)
+            return {**fields, "state": "partly_read", "reason": why, "regions": regions, "outside": outside}
         return {**fields, "state": "read", "regions": regions, "outside": outside}
     named = [s for s in sheets if _anchorable(s.name)]
     regions, outside = locate_sheets(named, sha)

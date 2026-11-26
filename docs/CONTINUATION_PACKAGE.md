@@ -233,7 +233,10 @@ a delivery by file type although most of what clients send never reaches a model
 - **Every format (code only, OCR on):** the 102 client files packaged with the audit (17 projects): 94 read, 1 partly
   read, 7 not opened (4 SAS datasets, 3 PowerPoint files), no crash.
 
-**Next:** the agents' baseline on the server's in-house model (D6), then phase 2 (SAS, PowerPoint, Numbers; dependencies approved, D5). The corpus data and
+- **Phase 2a (formats):** SAS datasets (`.sas7bdat`, `.xpt`), PowerPoint (`.pptx`, charts' data as tables) and Apple
+  Numbers are read; a known unread format says what to ask for. Corpus: 6 of the 7 unopened files now open.
+
+**Next:** phase 2b (CDISC domains described by code), the agents' baseline on the server's in-house model (D6). The corpus data and
 answer keys stay outside git.
 
 ### 4.0e 2026-11-22 → 25: redesign charter, implementation (slice 10, acceptance, in review)

@@ -13,6 +13,37 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 
 ## [Unreleased] — make the pipeline do real PBPK, S0 → S7
 
+### Added — SAS datasets, PowerPoint decks and Apple Numbers read; a known unread format says what to ask for (2026-11-26)
+- **Why:** phase 2 of `docs/plans/2026-11-26-data-room-groups-and-corpus-benchmark.md`. Of the 102 client files
+  packaged with the owner's corpus audit, 7 could not be opened: 4 CDISC SAS datasets (a CRO's standard delivery, which
+  went unused in that project), 3 PowerPoint files holding dissolution data and BE ratios. The owner approved the three
+  libraries (D5).
+- **What:**
+  - `modeler_intake.source.sas`: a `.sas7bdat` or SAS transport `.xpt` file is one sheet named after the dataset: line
+    1 the variable names, line 2 their labels, then one line per observation, each value as stored (a missing value
+    left empty). pyreadstat.
+  - `modeler_intake.source.pptx`: a deck is a body, as a Word file is: "Slide <n>", its text frames (groups too), its
+    tables as grids, **its charts' data as tables** (categories, then a row per series), its notes. A picture's text is
+    not read, so a deck with pictures is `partly_read`, naming the slides. python-pptx.
+  - `modeler_intake.source.numbers`: each table of each sheet of a Numbers document is a sheet, each value as stored.
+    numbers-parser.
+  - Every later step reads them unchanged: sheets and bodies are located as before (`locate_sheets`, `locate_docx`);
+    the Data room names their kinds `dataset`, `slides` and `workbook`.
+  - A known format no parser reads now says what to ask the client for: "no parser for .ppt: a legacy PowerPoint file:
+    please send it as .pptx or PDF" (also .doc, .pages, .key, .rtf, .odt, .ods, .odp, .rar, .7z, .msg, .eml, .sav,
+    .dta). The ready-made data request waits for the page rework (phase 5): requests are numbered per area, and a new
+    one now would shift the numbers of requests people have already edited.
+  - **Dependencies:** pyreadstat 1.3.7, python-pptx 1.0.2, numbers-parser 4.22.2 and their dependencies. Packages
+    published within two weeks of today were held at their previous release (narwhals 2.28.0, pyreadstat 1.3.7,
+    wcwidth 0.9.4, xlsxwriter 3.3.1); protobuf 7.36.1 → 7.36.2 (numbers-parser's generated code needs it).
+- **Measured on the corpus (code only):** of the 7 files no parser read, 6 now open: P30's four SAS datasets (PC 9,758
+  lines, PP 3,503, EX 143, ADSL 93) and its dissolution deck (8 tables) read; P27's deck partly read (3 tables; slides
+  1 and 3 hold pictures); P07's legacy `.ppt` says to send it as .pptx or PDF.
+- **Tests:** `test_source_formats.py` (10: a synthetic `.xpt` fixture made with pandas outside the project, a deck with
+  a table, a chart and a picture, a Numbers document, damaged files unreadable, the send-as reason). Four tests that used
+  `.xpt`, `.sas7bdat` or `.pptx` as an unreadable example now use `.mat`, `.sav` and `.ppt`. The legacy client-data
+  path (`documents.py`) is unchanged.
+
 ### Added — the Data room regrouped by purpose (foundations) and scored value by value; one prompt version per agent (2026-11-26)
 - **Why:** the owner's corpus audit of 30 of their PBPK/PBBM project folders (client confidential, outside the
   repository) showed that the Data room shows a delivery by type of file although most of what clients send never
