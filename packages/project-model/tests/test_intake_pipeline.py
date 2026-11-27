@@ -354,13 +354,13 @@ def test_a_stage_that_raises_later_fails_the_run_there_with_its_line_and_event(w
 
 
 def test_an_unsupported_or_unreadable_file_ends_done_with_its_state_and_reason(ws, delivery):
-    files = [dataclasses.replace(delivery[3], name="trial.xpt"),
+    files = [dataclasses.replace(delivery[3], name="trial.mat"),
              dataclasses.replace(delivery[3], name="broken.pdf", data=b"%PDF-1.4 not really a PDF")]
     _arrive(ws, files)
     runs = _drain(ws)
     assert [r.state for r in runs] == ["done", "done"] and all([s.stage for s in r.stages] == STAGES for r in runs)
     unsupported, unreadable = (r.coverage for r in runs)
-    assert unsupported is not None and (unsupported.state, unsupported.reason) == ("unsupported", "no parser for .xpt")
+    assert unsupported is not None and (unsupported.state, unsupported.reason) == ("unsupported", "no parser for .mat")
     assert unreadable is not None and unreadable.state == "unreadable" and unreadable.reason
     assert runs[0].parser == "none" and runs[0].counters.regions == 0 and runs[0].counters.values == 0
     assert IntakeStore(ws).coverage(runs[1].sha256) is not None

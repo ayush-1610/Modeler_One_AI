@@ -11,17 +11,22 @@ from modeler_project.dataroom.model import DataRoomView, MadeBy
 from modeler_project.dataroom.store import DataRoomStore
 
 
-def room_view(store: DataRoomStore) -> DataRoomView:
-    """The room assembled from the store: only the documents an extraction points into are loaded."""
+def room_inputs(store: DataRoomStore) -> Inputs:
+    """What the room is assembled from, read from the store: only the documents an extraction points into are loaded."""
     question, confirmed = store.question()
     files = store.files()
     extractions = store.extractions()
     wanted = {t.file or e.file for e in extractions for t in e.tables} | {f.file or e.file for e in extractions for f in e.facts}
     by_path = {f.path: f.sha256 for f in files}
     docs = {sha: d for path in wanted if (sha := by_path.get(path)) and (d := store.doc(sha)) is not None}
-    view = assemble(Inputs(files=files, docs=docs, question=question, question_confirmed=confirmed, extractions=extractions,
-                           decisions=store.decisions(), entered=store.entered(), request_edits=store.request_edits(),
-                           reviews=store.reviews(), writing=store.writing()))
+    return Inputs(files=files, docs=docs, question=question, question_confirmed=confirmed, extractions=extractions,
+                  decisions=store.decisions(), entered=store.entered(), request_edits=store.request_edits(),
+                  reviews=store.reviews(), writing=store.writing())
+
+
+def room_view(store: DataRoomStore) -> DataRoomView:
+    """The room assembled from the store."""
+    view = assemble(room_inputs(store))
     made = made_by(store.authors(), store.agent_steps())
     return view.model_copy(update={"made_by": made, "made_summary": made_summary(made)})
 
@@ -73,4 +78,4 @@ def made_summary(made: tuple[MadeBy, ...]) -> str:
             + ". Code read and checked every value; a modeler confirms each.")
 
 
-__all__ = ["DataRoomStore", "DataRoomView", "Inputs", "assemble", "made_by", "made_summary", "room_view"]
+__all__ = ["DataRoomStore", "DataRoomView", "Inputs", "assemble", "made_by", "made_summary", "room_inputs", "room_view"]

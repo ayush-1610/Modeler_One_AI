@@ -155,7 +155,8 @@ def _kind(doc: SourceDocument | None, suffix: str, delimited: bool) -> str:
     if doc is None:
         return "other"
     return {"xlsx": "workbook", "xlsm": "workbook", "xls": "workbook", "csv": "delimited", "tsv": "delimited",
-            "docx": "docx", "pdf": "pdf", "text": "text", "markdown": "text", "json": "text", "zip": "archive"}.get(
+            "docx": "docx", "pdf": "pdf", "text": "text", "markdown": "text", "json": "text", "zip": "archive",
+            "pptx": "slides", "numbers": "workbook", "sas": "dataset"}.get(
         str(doc.format), "other")
 
 

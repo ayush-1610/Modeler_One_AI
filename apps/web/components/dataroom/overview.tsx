@@ -69,7 +69,7 @@ function QuestionForm({ card, onDone }: { card: Card_ | null; onDone: () => void
   );
 }
 
-function QuestionCard({ room }: { room: Room }) {
+export function QuestionCard({ room }: { room: Room }) {
   const card = room.question ? fullCard(room.question) : null;
   const acts = useRoomActs();
   const paper = usePaper();
@@ -136,7 +136,7 @@ export function Headline({ room }: { room: Room }) {
     ["files", String(read), read === 1 ? "file read" : "files read"],
     ["inputs", room.inputs.length ? `${filled} of ${room.inputs.length}` : "0", "inputs found"],
     ["requests", String(room.requests.filter((r) => r.status === "open").length), "data requests open"],
-    ["decisions", String(room.decisions.filter((d) => !d.chosen).length), "decisions waiting"],
+    ["decisions", String(room.decisions.filter((d) => !d.chosen && !d.on_inputs).length), "decisions waiting"],
   ];
   return (
     <div className="dr-tiles" data-testid="headline">
@@ -163,7 +163,26 @@ export function Overview({ room, go }: { room: Room; go: (section: string) => vo
           {!paper && first.length > 6 && <p className="muted">and {first.length - 6} more in their sections</p>}
         </Card>
       )}
-      {!paper && (
+      {!paper && (room.layout ?? []).length > 0 && (
+        <Card title="Sections" testId="overview-sections">
+          {(room.layout ?? []).map((g) => (
+            <div key={g.id} className="dr-sections-group" data-testid={`overview-group-${g.id}`}>
+              <h4 className="dr-sections-group-title">{g.title}</h4>
+              <ul className="dr-sections">
+                {g.sections.map((s) => (
+                  <li key={s.id}>
+                    <button type="button" onClick={() => go(s.id)} data-testid={`overview-section-${s.id}`}>
+                      <span className="dr-sections-title"><Dot status={s.status} />{s.title}</span>
+                      <span className="dr-sections-finding">{s.finding || (s.count ? "" : "Nothing in this delivery yet")}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </Card>
+      )}
+      {!paper && !(room.layout ?? []).length && (
         <Card title="Sections" testId="overview-sections">
           <ul className="dr-sections">
             {room.sections.map((s) => (

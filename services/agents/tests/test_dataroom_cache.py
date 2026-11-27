@@ -240,3 +240,67 @@ def test_what_the_checker_flags_is_extracted_again_and_both_looks_are_reused_on_
     _run(b, second)
     assert (second.calls["A8 extract"], second.calls["A9 check"]) == (0, 0)       # the second pass and the second look too
     assert b.reviews() == a.reviews() and len(b.reviews()) == 6
+
+
+def test_a_new_version_of_one_agent_asks_only_that_agent_again(tmp_path, monkeypatch):
+    """One prompt version per agent (plan 2026-11-26 §4, decision 4): a new version of the extractor's instructions makes
+    the extractor read every file again, while the triage and the check of the same, unchanged extraction stay reused."""
+    from modeler_agents.dataroom import stages
+
+    _run(_project(tmp_path, "t1", "p1"), Recording())
+    monkeypatch.setitem(stages.PROMPT_VERSIONS, "A8", "dataroom-7-test")
+    again = Recording()
+    b = _project(tmp_path, "t1", "p2")
+    _run(b, again)
+    assert [again.calls[s] for s in PER_FILE] == [0, again.calls["A8 extract"], 0] and again.asked("A8 extract") == 9
+    assert {x["prompt"] for x in b.authors() if x["stage"] == "extract"} == {"dataroom-7-test"}
+    assert {x["prompt"] for x in b.authors() if x["stage"] == "triage"} == {"dataroom-6"}
+
+
+def test_every_run_stage_has_its_agent_and_only_the_extractor_moved_past_the_shared_version():
+    """The split kept the one version all five agents shared, so no answer cached before it is lost; since then only
+    the extractor's prompt changed (dataroom-7, phase 2b: an analyte column in a PK parameter table)."""
+    from modeler_agents.dataroom import RUN_STAGES, stages
+
+    agents = {agent for _sid, _label, agent in RUN_STAGES if agent}
+    assert agents == set(stages.PROMPT_VERSIONS) == set(stages.STAGE_AGENTS.values())
+    assert {stage: stages.STAGE_AGENTS[stage] for stage, _label, agent in RUN_STAGES if agent} == \
+        {stage: agent for stage, _label, agent in RUN_STAGES if agent}
+    assert stages.PROMPT_VERSIONS == {"A6": "dataroom-6", "A7": "dataroom-6", "A8": "dataroom-7", "A9": "dataroom-6",
+                                      "A10": "dataroom-6"}
+
+
+class _WithDataset(Recording):
+    """The recorded delivery plus a CRO's SDTM PC dataset: its triage says it is used; nothing else is recorded for it,
+    so an extractor or a checker asked about it would fail the run."""
+
+    DATASET = "Exampleamide delivery/Clinical/pc.csv"
+
+    def answer(self, submit: str, task: str) -> dict[str, Any]:
+        path = (_FILE.search(task) or [None, ""])[1] if submit not in ("submit_question", "submit_writing") else ""
+        if path == self.DATASET:
+            assert submit == "submit_triage", f"{AGENTS[submit]} was asked about a dataset code described"
+            return {"path": path, "purpose": "used", "topics": ["clinical_concentrations"],
+                    "reason": "the CRO's SDTM PC dataset: every concentration of studies EX-02 and EX-03"}
+        return super().answer(submit, task)
+
+
+def test_a_dataset_code_describes_asks_no_extractor_and_no_checker(tmp_path):
+    """Plan 2026-11-26 §7 phase 2b: a CDISC dataset whose standard variables say everything is described by code; the
+    triage still sorts it, the extractor and the checker are not asked about it, and its author is code."""
+    from modeler_project.dataroom.cdisc import DESCRIBER
+    from modeler_project.dataroom.synthetic import dataset_csv, pc_dataset_rows
+
+    store = DataRoomStore(Workspace(FileProjectStore(tmp_path), "t1", "p1"))
+    for name, data in {**delivery(), _WithDataset.DATASET: dataset_csv(pc_dataset_rows())}.items():
+        store.add_upload(name, data, by="user:m")
+    run_room(store, chat_for=lambda agent: None, actor="user:m", stages=["read"], use_ocr=False, workers=1)
+    model = _WithDataset()
+    _run(store, model)
+    assert _WithDataset.DATASET in model.files["A7 triage"]
+    assert _WithDataset.DATASET not in model.files["A8 extract"] | model.files["A9 check"]
+    dataset = next(f for f in store.files() if f.path == _WithDataset.DATASET)
+    assert store.extraction(dataset.sha256)[1] == {"agent": "code", "describer": DESCRIBER}
+    assert [(a["model"], a["identity"]) for a in store.authors() if a["file"] == _WithDataset.DATASET
+            and a["stage"] == "extract"] == [("code", DESCRIBER)]
+    assert model.asked("A8 extract") == len(RECORDED["extractions"]) == 9     # the delivery's own files only

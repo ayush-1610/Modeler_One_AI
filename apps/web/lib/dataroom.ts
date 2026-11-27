@@ -20,6 +20,10 @@ export type Run = Schema<"RoomRun">;
 export type Requirements = Schema<"Requirements">;
 export type RequirementItem = Schema<"RequirementItem">;
 export type Publication = Schema<"RoomPublication">;
+export type LayoutGroup = Schema<"LayoutGroup">;
+export type LayoutSection = Schema<"LayoutSection">;
+export type BeResult = Schema<"BeResult">;
+export type DoseCard = Schema<"DoseCard">;
 /** The question card with every field filled (the contract leaves a field with a default optional). */
 export type QuestionCard = Required<Schema<"QuestionCard">>;
 

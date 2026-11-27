@@ -24,7 +24,8 @@ from pydantic import BaseModel, ConfigDict, Field
 from modeler_intake.anchors import AnchorError, Box, SheetCell, anchor_text, format_locator
 from modeler_intake.fields import DocumentRole, TableKind
 
-FileFormat = Literal["xlsx", "xlsm", "xls", "csv", "tsv", "docx", "pdf", "text", "markdown", "json", "zip", "image", "other"]
+FileFormat = Literal["xlsx", "xlsm", "xls", "csv", "tsv", "docx", "pdf", "text", "markdown", "json", "zip", "image",
+                    "pptx", "numbers", "sas", "other"]
 DocState = Literal["read", "partly_read", "unsupported", "unreadable"]
 CellType = Literal["number", "text", "bool", "date", "empty"]
 

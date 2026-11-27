@@ -1697,8 +1697,9 @@ export interface paths {
         put?: never;
         /**
          * Set Dataset Study
-         * @description A study's facts: the multiple-dose regimen, the demographics or the explicit healthy adult default (D-29), with
-         *     no reason asked (D-27; the audit keeps before and after). The inputs are assembled again.
+         * @description A study's facts: the multiple-dose regimen, the demographics or the explicit healthy adult default (D-29), and
+         *     the Data room's proposals confirmed or changed (D1), with no reason asked (D-27; the audit keeps before and after).
+         *     The inputs are assembled again.
          */
         post: operations["set_dataset_study_api_v1_projects__project_id__datasets__dataset_id__study_post"];
         delete?: never;
@@ -4032,6 +4033,74 @@ export interface components {
             /** First Broken Index */
             first_broken_index: number | null;
         };
+        /**
+         * BeResult
+         * @description One metric's average bioequivalence of a study, computed by code from its subjects' values (plan 2026-11-26 §7
+         *     phase 3; the corpus audit's R01, R50, R55; decision D3: the CVw shown to confirm), beside the CSR's.
+         */
+        BeResult: {
+            /** Analysis Set */
+            analysis_set: string;
+            /** Ci High Percent */
+            ci_high_percent: number;
+            /** Ci Low Percent */
+            ci_low_percent: number;
+            /** Conclusion */
+            conclusion: string;
+            /** Csr */
+            csr: {
+                [key: string]: number;
+            };
+            /** Csr Difference Pp */
+            csr_difference_pp: {
+                [key: string]: number;
+            };
+            /**
+             * Csr Status
+             * @default none
+             * @enum {string}
+             */
+            csr_status: "reproduced" | "differs" | "none";
+            /** Cv Percent */
+            cv_percent: number | null;
+            /** Design */
+            design: string;
+            /** Df */
+            df: number;
+            /** Gmr Percent */
+            gmr_percent: number;
+            /** Label */
+            label: string;
+            /** Metric */
+            metric: string;
+            /** N */
+            n: number;
+            /**
+             * N By Group
+             * @default []
+             */
+            n_by_group: number[];
+            /** Reference */
+            reference: string;
+            /**
+             * Rule
+             * @default
+             */
+            rule: string;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "ours" | "client";
+            /** Test */
+            test: string;
+            /** Within Limits */
+            within_limits: boolean;
+            /** Zone High Percent */
+            zone_high_percent: number | null;
+            /** Zone Low Percent */
+            zone_low_percent: number | null;
+        };
         /** Blinded */
         Blinded: {
             /** Blinded */
@@ -5377,6 +5446,7 @@ export interface components {
              * @default []
              */
             dissolution: components["schemas"]["DissolutionView"][];
+            dose_card: components["schemas"]["DoseCard"] | null;
             /**
              * F2
              * @default []
@@ -5393,6 +5463,11 @@ export interface components {
              */
             inputs: components["schemas"]["InputRow"][];
             /**
+             * Layout
+             * @default []
+             */
+            layout: components["schemas"]["LayoutGroup"][];
+            /**
              * Made By
              * @default []
              */
@@ -5402,6 +5477,11 @@ export interface components {
              * @default
              */
             made_summary: string;
+            /**
+             * Other Analytes
+             * @default []
+             */
+            other_analytes: components["schemas"]["RoomStudy"][];
             /**
              * Plan
              * @default []
@@ -7810,6 +7890,45 @@ export interface components {
             /** Reading */
             reading: string[];
         };
+        /**
+         * DoseCard
+         * @description The dose in both bases (the corpus audit's R14): as written, its basis, the two molecular weights, the dose as
+         *     the free base (what PK-Sim is given) and as the salt, and the molar dose.
+         */
+        DoseCard: {
+            /**
+             * Basis
+             * @enum {string}
+             */
+            basis: "salt" | "base" | "unknown";
+            /** Dose As Base Mg */
+            dose_as_base_mg: number | null;
+            /** Dose As Salt Mg */
+            dose_as_salt_mg: number | null;
+            /** Dose Written */
+            dose_written: string;
+            /** Molar Dose Umol */
+            molar_dose_umol: number | null;
+            /** Mw Base */
+            mw_base: number | null;
+            /** Mw Salt */
+            mw_salt: number | null;
+            /**
+             * Rule
+             * @default
+             */
+            rule: string;
+            /**
+             * Salt
+             * @default
+             */
+            salt: string;
+            /**
+             * Sources
+             * @default []
+             */
+            sources: components["schemas"]["Chip"][];
+        };
         /** DoseNumber */
         DoseNumber: {
             /** Dose Number */
@@ -10017,6 +10136,23 @@ export interface components {
             /** Study Id */
             study_id: string;
         };
+        /** LayoutGroup */
+        LayoutGroup: {
+            /** Id */
+            id: string;
+            /** Meaning */
+            meaning: string;
+            /** Sections */
+            sections: components["schemas"]["LayoutSection"][];
+            /**
+             * Status
+             * @default empty
+             * @enum {string}
+             */
+            status: "ok" | "attention" | "missing" | "empty";
+            /** Title */
+            title: string;
+        };
         /** LayoutRequest */
         LayoutRequest: {
             /** Layout */
@@ -10025,6 +10161,61 @@ export interface components {
                     [key: string]: number;
                 };
             };
+        };
+        /**
+         * LayoutSection
+         * @description One section of the page in its groups (plan 2026-11-26 §9, slice 5a): what it shows, as code placed it.
+         */
+        LayoutSection: {
+            /**
+             * Answers
+             * @default []
+             */
+            answers: string[];
+            /**
+             * Count
+             * @default 0
+             */
+            count: number;
+            /**
+             * Decisions
+             * @default []
+             */
+            decisions: string[];
+            /**
+             * Dissolution
+             * @default []
+             */
+            dissolution: string[];
+            /**
+             * Finding
+             * @default
+             */
+            finding: string;
+            /** Id */
+            id: string;
+            /**
+             * Legacy
+             * @default
+             */
+            legacy: string;
+            /** Parts */
+            parts: string[];
+            /** Ref */
+            ref: string;
+            /**
+             * Status
+             * @default empty
+             * @enum {string}
+             */
+            status: "ok" | "attention" | "missing" | "empty";
+            /** Title */
+            title: string;
+            /**
+             * Values
+             * @default []
+             */
+            values: string[];
         };
         /**
          * LibraryEntryView
@@ -10951,6 +11142,10 @@ export interface components {
              */
             note: string;
             origin: components["schemas"]["DataOrigin"];
+            /** Proposed */
+            proposed?: {
+                [key: string]: unknown;
+            } | null;
             /**
              * Proposed At
              * Format: date-time
@@ -13075,6 +13270,11 @@ export interface components {
             evidence: components["schemas"]["Chip"][];
             /** Id */
             id: string;
+            /**
+             * On Inputs
+             * @default false
+             */
+            on_inputs: boolean;
             /** Options */
             options: components["schemas"]["Option"][];
             /** Question */
@@ -13355,10 +13555,20 @@ export interface components {
          */
         RoomStudy: {
             /**
+             * Analyte
+             * @default
+             */
+            analyte: string;
+            /**
              * Arms
              * @default []
              */
             arms: components["schemas"]["Arm"][];
+            /**
+             * Be
+             * @default []
+             */
+            be: components["schemas"]["BeResult"][];
             /**
              * Client Means
              * @default []
@@ -14457,8 +14667,12 @@ export interface components {
             changes?: {
                 [key: string]: unknown;
             };
+            /** Confirm */
+            confirm?: ("population" | "sex" | "meal")[];
             /** Demographics Choice */
             demographics_choice?: ("entered" | "healthy_adult_default") | null;
+            /** Meal Template */
+            meal_template?: string | null;
         };
         /**
          * StudyRow

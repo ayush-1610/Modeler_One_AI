@@ -29,7 +29,7 @@ type DatasetRow = { id: string; study_id: string; purpose: string; origin: strin
                     statistics: string[]; series: number };
 export type TodoItem = {
   kind: "conflict" | "correct" | "pka" | "missing" | "datasets" | "formulation" | "process" | "unit" | "check" | "review"
-    | "regimen" | "demographics" | "confirm";
+    | "regimen" | "demographics" | "proposal" | "confirm";
   target: string; message: string; items: (Ev | DatasetRow)[]; evidence?: string[];
   suggestions?: { targets: string[]; molecules: string[] };
   identity?: { value: number; unit: string; quote: string; cid: string; name: string } | null;
@@ -390,6 +390,7 @@ export function TodoAction({ t, projectId, run }: { t: TodoItem; projectId: stri
         </>
       )}
       {(t.kind === "regimen" || t.kind === "demographics") && <StudyFix t={t} projectId={projectId} run={run} />}
+      {t.kind === "proposal" && <p className="muted m-2-0 fs-13">{t.message}: on Individuals, under Proposed by the Data room</p>}
       {t.kind === "datasets" && <Datasets t={t} />}
       {t.kind === "formulation" && (
         <>

@@ -91,6 +91,8 @@ from pydantic import BaseModel, ConfigDict
 
 from modeler_project.dataroom import checklist
 from modeler_project.dataroom.assemble import (
+    MEAL_HIGH_FAT,
+    MEAL_STANDARD,
     MEDIA_CONVENTION,
     POPULATION_LABELS,
     WATER_DEFAULT,
@@ -140,8 +142,9 @@ def _evidence_id(item: EvidenceItem) -> str:
 
 
 def _dataset_id(dataset: ObservedDataset) -> str:
+    # the proposals for Inputs are not what is sent: a second send of the same data keeps what a person chose there
     what = dataset.model_dump(mode="json", exclude={"id", "proposed_at", "proposed_by", "state", "decided_by",
-                                                    "decision_reason", "flags"})
+                                                    "decision_reason", "flags", "proposed"})
     return f"ds-dr{_digest(what)[:10]}"
 
 
@@ -435,6 +438,22 @@ def _dataset_source(study: RoomStudy) -> tuple[SourceRef, str]:
     return SourceRef(doc_sha256=first.sha256 or None, page=page, locator=locator, title=", ".join(files)), read
 
 
+def _proposals(view: DataRoomView, sid: str, *, demographics: dict[str, Any] | None, meals: list[dict[str, Any]]
+               ) -> dict[str, Any] | None:
+    """The room's suggestions for the study's population, sex and meal template that no person chose in the room: each
+    a proposal for Inputs (D1), with the option's label, why the room suggests it and its sources. None when none."""
+    out: dict[str, Any] = {}
+    for key in ("population", "sex", "meal"):
+        d = next((x for x in view.decisions if x.id == f"{key}:{sid}"), None)
+        if d is None or d.chosen or (not meals if key == "meal" else not demographics):
+            continue
+        option = next((o for o in d.options if o.id == d.suggested), None)
+        value = (MEAL_HIGH_FAT if d.suggested == "high_fat" else MEAL_STANDARD) if key == "meal" else d.suggested
+        out[key] = {"value": value, "label": option.label if option else d.suggested, "why": d.why,
+                    "sources": [f"{c.file} · {c.part}" + (f", line {c.line}" if c.line else "") for c in d.evidence]}
+    return out or None
+
+
 def _dataset(study: RoomStudy, arm: Arm, set_name: str, *, view: DataRoomView, rows: list[InputRow], by: str,
              formulation_name: str, formulation: str, route_note: str, food: str, meals: list[dict[str, Any]],
              notes: list[str]) -> tuple[ObservedDataset | None, str]:
@@ -480,7 +499,8 @@ def _dataset(study: RoomStudy, arm: Arm, set_name: str, *, view: DataRoomView, r
     dataset = ObservedDataset(
         id="ds-dr", kind="profile", study=record, analyte=analyte, matrix=matrix, time_unit="h", unit=unit, series=series,
         origin=Origin.CLIENT, extraction="TABLE", source=source, provider="CLIENT", purpose="model_building",
-        proposed_by=by, demographics_choice="entered" if demographics else None, note=note)
+        proposed_by=by, demographics_choice="entered" if demographics else None, note=note,
+        proposed=_proposals(view, sid, demographics=demographics, meals=meals))
     try:
         checked = check_dataset(dataset)
     except ValueError as exc:
@@ -522,7 +542,8 @@ def plan_publication(view: DataRoomView, *, by: str, ws: Workspace | None = None
     in the project through Delivery or Inputs blocks too."""
     blocked: list[str] = []
     notes: list[str] = []
-    waiting = [d.title for d in view.decisions if not d.chosen]
+    # the population, sex and meal template are chosen on Inputs (D1): their suggestions go there as proposals
+    waiting = [d.title for d in view.decisions if not d.chosen and not d.on_inputs]
     if waiting:
         blocked.append("decisions waiting: " + "; ".join(waiting))
     if not view.question_confirmed:

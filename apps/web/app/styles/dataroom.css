@@ -52,6 +52,15 @@
 .dr-rail button:hover { background: color-mix(in srgb, var(--brand-indigo) 5%, transparent); color: var(--ink); }
 .dr-rail button.on { background: color-mix(in srgb, var(--brand-indigo) 9%, transparent); color: var(--brand-ink); font-weight: 600; }
 .dr-rail-select { display: none; }
+/* the page in its groups (plan 2026-11-26 §9): each group's title above its sections; an empty section is quieter */
+.dr-rail-group { margin-top: 14px; }
+.dr-rail-group-title { margin: 0 0 4px; padding: 0 12px; font-size: 12px; font-weight: 600; letter-spacing: .02em;
+  text-transform: uppercase; color: var(--ink-quiet); }
+.dr-rail button.quiet { color: var(--ink-quiet); }
+.dr-sections-group + .dr-sections-group { margin-top: 14px; }
+.dr-sections-group-title { margin: 0 0 6px; font-size: 13px; font-weight: 600; color: var(--ink-quiet); }
+.dr-section-decisions { margin-top: 18px; }
+.dr-subtitle { margin: 0 0 8px; font-size: 15px; font-weight: 600; }
 .dr-rail-select select { width: 100%; font: inherit; font-size: 15px; padding: 10px 12px; border-radius: var(--radius-sm);
   border: 1px solid var(--control-border); background: var(--surface); color: var(--ink); min-height: 44px; }
 .dr-main { display: grid; gap: var(--dr-gap); min-width: 0; }

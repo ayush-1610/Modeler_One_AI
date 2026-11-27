@@ -56,7 +56,7 @@ class AnswerKey(BaseModel):
 
     tenant: str
     stage: CachedStage
-    prompt_version: str                 # the stages' PROMPT_VERSION (their instructions and tools)
+    prompt_version: str                 # the agent's prompt version (`stages.prompt_version(stage)`: its instructions and tools)
     file_sha256: str
     path: str                           # the file's path in the delivery, as the prompt names it
     reader: str                         # parser/parser version; lines version (`modeler_intake.room.LINES_VERSION`)

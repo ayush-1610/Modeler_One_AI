@@ -22,6 +22,14 @@ class _B(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
 
+class Be(_B):
+    """A study's bioequivalence computed by code (the corpus audit's R01, R50, R55; UNVERIFIED)."""
+
+    confidence: float
+    limits_percent: tuple[float, float]
+    csr_tolerance_pp: float
+
+
 class AnalysisSets(_B):
     evaluable_min_quantifiable: int
 
@@ -119,6 +127,7 @@ class Rules(_B):
     version: str
     status: str
     analysis_sets: AnalysisSets
+    be: Be
     means: Means
     nca: Nca
     dissolution: Dissolution

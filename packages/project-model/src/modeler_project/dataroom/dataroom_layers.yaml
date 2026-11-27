@@ -1,0 +1,172 @@
+# The Data room's groups and sections (plan docs/plans/2026-11-26-data-room-groups-and-corpus-benchmark.md §3; the
+# owner's decisions of 2026-11-26: the group names, and population, sex, meal template and release model chosen on
+# Inputs). Code places every extracted fact and table into one section with this map: an agent never decides where a
+# value belongs (it says what the value is; `modeler_project.dataroom.layers` places it).
+#
+# Each placement key is a Data room vocabulary entry, as the requirement drafts write them: `field:<fact field>` for a
+# fact (`modeler_intake.room_specs.FIELDS`) and `table:<kind>` for a described table (`room_specs.TableKind`). Every
+# field and table kind has its own entry (a test checks it), so a new field cannot be added and forgotten here; a field
+# the vocabulary does not know (it is open: an agent may name a new dotted field) goes to `default`.
+#
+#   at:          the section the entry belongs to
+#   promote_to:  a Model Input Data section the entry moves to when the question's applications require it (the
+#                requirement drafts' REQUIRED or USUALLY_NEEDED items naming it), e.g. the meal's composition for a
+#                food-effect question, where it defines the simulated meal
+#   unselected:  where a dissolution entry goes when its profile is not the release input a person selected
+#   not_modeled: where a clinical entry goes when its analyte is not the one the model simulates (a metabolite, an
+#                isotope-labelled tracer: decision analyte:<study>, plan §7 phase 2b)
+#
+# What this map is not: it decides where the page shows a value, never whether the value is read, checked or kept.
+# Every file is read and every value is kept whatever its section (Source Records holds them all).
+version: "0.2"
+groups:
+  - id: question
+    title: Question and Context of Use
+    meaning: What the modelling must answer, for which regulator, and the products it compares.
+    sections:
+      - {id: question, title: Question and Context of Use}
+  - id: model_input
+    title: Model Input Data
+    meaning: >-
+      Data from this delivery that parameterise, calibrate or validate the model. They go to Inputs, each with its
+      source, once confirmed.
+    sections:
+      - {id: products, title: Test and Reference Products}
+      - {id: substance, title: Drug Substance Properties}
+      - {id: release, title: In Vitro Release Input}
+      - {id: design, title: Clinical Study Design}
+      - {id: observed, title: Observed PK and BE Outcome}
+      - {id: scenarios, title: Simulation Scenarios}
+  - id: supporting
+    title: Supporting Evidence
+    meaning: >-
+      Data that never enter the model but justify a modelling decision: a medium choice, a population or meal template,
+      an exclusion, a cross-check target.
+    sections:
+      - {id: formulation_differences, title: Formulation Differences (Q1/Q2)}
+      - {id: solid_state, title: Solid-State and Particle Characterization}
+      - {id: other_dissolution, title: Dissolution in Other Media and Batches}
+      - {id: conduct, title: Study Conduct and Deviations}
+      - {id: other_analytes, title: Metabolites and Other Analytes}
+      - {id: literature, title: Label and Literature PK}
+      - {id: other_context, title: Other Delivered Facts}
+  - id: source
+    title: Source Records
+    meaning: Every file of the delivery, fully read and kept, with what it gave or why it gave nothing.
+    sections:
+      - {id: files, title: All Source Files}
+  - id: requests
+    title: Data Requests
+    meaning: What is missing or unclear, worded as a request to the client.
+    sections:
+      - {id: requests, title: Data Requests}
+
+default: supporting/other_context
+
+placements:
+  # the question
+  field:question.regulator: {at: question/question}
+  field:question.approach: {at: question/question}
+  field:question.text: {at: question/question}
+  field:question.context_of_use: {at: question/question}
+  # products and batches
+  field:product.name: {at: model_input/products}
+  field:product.role: {at: model_input/products}
+  field:product.strength: {at: model_input/products}
+  field:product.dosage_form: {at: model_input/products}
+  field:product.release: {at: model_input/products}
+  field:product.batch: {at: model_input/products}
+  field:batch.use: {at: model_input/products}
+  field:product.manufacturer: {at: supporting/formulation_differences}
+  field:product.coating: {at: supporting/formulation_differences}
+  field:product.core_weight: {at: supporting/formulation_differences}
+  field:product.composition_change: {at: supporting/formulation_differences}
+  field:batch.api_batch: {at: supporting/formulation_differences}
+  # drug substance
+  field:substance.mw: {at: model_input/substance}
+  field:substance.salt: {at: model_input/substance}
+  field:substance.dose_basis: {at: model_input/substance}
+  field:substance.pka: {at: model_input/substance}
+  field:substance.logp: {at: model_input/substance}
+  field:substance.logd: {at: model_input/substance}
+  field:substance.solubility: {at: model_input/substance}
+  field:substance.permeability: {at: model_input/substance}
+  field:substance.particle_size: {at: supporting/solid_state, promote_to: model_input/substance}
+  field:substance.solid_form: {at: supporting/solid_state}
+  field:substance.melting_point: {at: supporting/solid_state}
+  field:substance.bcs: {at: supporting/solid_state}
+  # absorption, distribution, metabolism, elimination: label and literature values, cross-checks on Inputs; a measured
+  # binding value the question needs is shown with the drug substance
+  field:adme.fu: {at: supporting/literature, promote_to: model_input/substance}
+  field:adme.bp_ratio: {at: supporting/literature, promote_to: model_input/substance}
+  field:adme.vd: {at: supporting/literature}
+  field:adme.cl: {at: supporting/literature}
+  field:adme.bioavailability: {at: supporting/literature}
+  field:adme.tmax: {at: supporting/literature}
+  field:adme.half_life: {at: supporting/literature}
+  field:adme.metabolism: {at: supporting/literature}
+  field:adme.excretion: {at: supporting/literature}
+  field:adme.food_effect: {at: supporting/literature}
+  field:adme.ddi: {at: supporting/literature}
+  field:adme.transporters: {at: supporting/literature}
+  # clinical study design: what the simulation of each arm is built from
+  field:study.id: {at: model_input/design}
+  field:study.title: {at: model_input/design}
+  field:study.design: {at: model_input/design}
+  field:study.n_planned: {at: model_input/design}
+  field:study.n_dosed: {at: model_input/design}
+  field:study.sex: {at: model_input/design}
+  field:study.age: {at: model_input/design}
+  field:study.weight: {at: model_input/design}
+  field:study.height: {at: model_input/design}
+  field:study.bmi: {at: model_input/design}
+  field:study.dose: {at: model_input/design}
+  field:study.route: {at: model_input/design}
+  field:study.regimen: {at: model_input/design}
+  field:study.fasting: {at: model_input/design}
+  field:study.fed: {at: model_input/design}
+  field:study.meal_times: {at: model_input/design}
+  field:study.water: {at: model_input/design}
+  field:study.treatment_code: {at: model_input/design}
+  # the population and the meal are chosen on Inputs (the owner's decision 1): their facts justify that choice; the
+  # meal's composition defines the simulated meal when the question is the food effect
+  field:study.population: {at: supporting/conduct}
+  field:study.ethnicity: {at: supporting/conduct}
+  field:study.meal_composition: {at: supporting/conduct, promote_to: model_input/design}
+  field:study.blinding: {at: supporting/conduct}
+  field:study.comedication: {at: supporting/conduct}
+  field:study.washout: {at: supporting/conduct}
+  field:study.bioanalytical_method: {at: supporting/conduct}
+  field:study.dates: {at: supporting/conduct}
+  # observed PK: analysis sets, what was measured and how, the BE result
+  field:study.n_completed: {at: model_input/observed}
+  field:study.completed_subjects: {at: model_input/observed}
+  field:study.statistical_set: {at: model_input/observed}
+  field:study.excluded_subjects: {at: model_input/observed}
+  field:study.sampling_times: {at: model_input/observed}
+  field:study.analyte: {at: model_input/observed}
+  field:study.matrix: {at: model_input/observed}
+  field:study.lloq: {at: model_input/observed}
+  field:study.be_result: {at: model_input/observed}
+  # dissolution: the method of the profile chosen as a release input, or of another profile kept as evidence
+  field:dissolution.apparatus: {at: model_input/release, unselected: supporting/other_dissolution}
+  field:dissolution.speed: {at: model_input/release, unselected: supporting/other_dissolution}
+  field:dissolution.volume: {at: model_input/release, unselected: supporting/other_dissolution}
+  field:dissolution.medium: {at: model_input/release, unselected: supporting/other_dissolution}
+  field:dissolution.temperature: {at: model_input/release, unselected: supporting/other_dissolution}
+  field:dissolution.units: {at: model_input/release, unselected: supporting/other_dissolution}
+  field:dissolution.f2: {at: supporting/other_dissolution}
+  # described tables
+  table:concentrations: {at: model_input/observed, not_modeled: supporting/other_analytes}
+  table:pk_parameters: {at: model_input/observed, not_modeled: supporting/other_analytes}
+  table:disposition: {at: model_input/observed}
+  table:be_statistics: {at: model_input/observed}
+  table:demographics: {at: model_input/design}
+  table:dosing: {at: model_input/design}
+  table:dissolution: {at: model_input/release, unselected: supporting/other_dissolution}
+  table:solubility: {at: model_input/substance}
+  table:physchem: {at: model_input/substance}
+  table:particle_size: {at: supporting/solid_state, promote_to: model_input/substance}
+  table:composition: {at: supporting/formulation_differences}
+  table:process: {at: supporting/formulation_differences}
+  table:other: {at: supporting/other_context}

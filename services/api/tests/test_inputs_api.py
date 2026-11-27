@@ -147,7 +147,7 @@ def test_the_molecular_weight_is_proposed_from_the_briefs_pubchem_record(setup):
 def test_a_studys_facts_are_set_with_no_reason_and_the_default_individual_is_explicit(setup):
     """D-27 and D-29: the multiple-dose regimen and the demographics are set in place; the healthy adult default is a
     person's explicit choice, never applied silently."""
-    c, _ws, _read_root = setup
+    c, ws, _read_root = setup
     ds = next(d for d in c.get("/api/v1/projects/p1/evidence", headers=H).json()["data"]["datasets"])
     url = f"/api/v1/projects/p1/datasets/{ds['id']}:study"
     assert c.post(url, headers=H, json={}).status_code == 422
@@ -161,6 +161,14 @@ def test_a_studys_facts_are_set_with_no_reason_and_the_default_individual_is_exp
     assert back["demographics_choice"] == "healthy_adult_default" and "demographics" not in back["study"]
     refused = c.post(url, headers=H, json={"changes": {"study_id": "other"}})
     assert refused.status_code == 422 and "study id" in refused.json()["detail"]
+    # the Data room's proposals (D1; plan 2026-11-26 §9, slice 5b): confirmed as they are, by name only
+    ws.commit(ArtifactKind.DATASET, ds["id"], {**ws.latest(ArtifactKind.DATASET, ds["id"]).content,
+                                                "proposed": {"sex": {"value": "MALE", "label": "male", "why": "", "sources": []}}},
+               actor="u", reason="as the Data room sends it")
+    assert c.post(url, headers=H, json={"confirm": ["dose"]}).status_code == 422
+    assert c.post(url, headers=H, json={"meal_template": "Meal: Standard (Human)"}).status_code == 422   # it has no meal
+    confirmed = c.post(url, headers=H, json={"confirm": ["sex"]})
+    assert confirmed.status_code == 200 and "proposed" not in confirmed.json()["data"]
 
 
 def test_the_inputs_assemble_after_each_change_and_the_plan_reads_them_without_an_acceptance(setup):

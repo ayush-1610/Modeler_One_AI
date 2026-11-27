@@ -14,6 +14,7 @@ from modeler_intake import synthetic
 from modeler_intake.anchors import sha256_of
 from modeler_intake.documents import MAX_BYTES
 from modeler_intake.source import SOURCE_VERSION, parse, parse_document, parser_for
+from modeler_intake.source.parse import SEND_AS
 
 pytestmark = pytest.mark.req("T-47")
 
@@ -22,9 +23,9 @@ OLE2 = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
 
 @pytest.mark.parametrize(("name", "data"), [
     ("protocol.doc", OLE2 + b"\x00" * 64),
-    ("slides.pptx", b"PK\x03\x04" + b"\x00" * 64),
-    ("adpc.xpt", b"HEADER RECORD*******LIBRARY HEADER RECORD!!!!!!!"),
-    ("study.sas7bdat", b"\x00" * 64),
+    ("slides.ppt", OLE2 + b"\x00" * 64),             # .pptx, .xpt and .sas7bdat are read since phase 2 (2026-11-26)
+    ("adpc.sav", b"$FL2@(#) SPSS DATA FILE"),
+    ("study.mat", b"MATLAB 5.0 MAT-file"),
     ("mail.msg", OLE2 + b"\x01" * 32),
     ("page.html", b"<html><body><table><tr><td>12.5</td></tr></table></body></html>"),
     ("data.xml", b"<?xml version='1.0'?><a>1</a>"),
@@ -34,7 +35,8 @@ def test_a_format_with_no_parser_is_unsupported_with_its_reason(name, data):
     doc = parse_document(data, name)
     suffix = name[name.rindex("."):] if "." in name else None
     assert (doc.state, doc.parser, doc.format) == ("unsupported", "none", "other")
-    assert doc.reason == (f"no parser for {suffix}" if suffix else "no parser for a file with no extension")
+    advice = f": {SEND_AS[suffix]}" if suffix in SEND_AS else ""      # a known format says what to ask for
+    assert doc.reason == (f"no parser for {suffix}{advice}" if suffix else "no parser for a file with no extension")
     assert doc.regions == () and parser_for(data, name) == ("none", SOURCE_VERSION)
 
 

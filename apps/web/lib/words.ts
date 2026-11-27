@@ -448,6 +448,7 @@ export function todoLabel(kind: string, target: string): string {
     case "datasets": return "Observed data to compare the model with";
     case "regimen": return `Dosing of the multiple-dose study ${target}`;
     case "demographics": return `Demographics of study ${target}`;
+    case "proposal": return `The Data room's proposals for study ${target}`;
     case "check": return "The model can't be built yet";
     case "confirm": return `Confirm ${target}`;
     default: return `${spaced(kind)} · ${p}`;

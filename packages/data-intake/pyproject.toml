@@ -15,6 +15,9 @@ dependencies = [
   "pypdfium2>=4.30",
   "pillow>=10",
   "opencv-python-headless>=4.10",
+  "pyreadstat>=1.2",
+  "python-pptx>=1.0",
+  "numbers-parser>=4.10",
 ]
 
 [tool.uv.sources]

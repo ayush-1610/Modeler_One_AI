@@ -108,6 +108,11 @@ class ObservedDataset(BaseModel):
     # D-29: never a silent default. "entered": the study's demographics are given; "healthy_adult_default": a person
     # chose the OSP reference individual (pbpk_domain.campaign.split.DEFAULT_DEMOGRAPHICS), a MAP limitation
     demographics_choice: Literal["entered", "healthy_adult_default"] | None = None
+    # the Data room's proposals for this study's choices on Inputs (the owner's D1; plan 2026-11-26 §9, slice 5b): its
+    # population, sex and meal template, each {"value", "label", "why", "sources"}, until a person confirms or changes it
+    # there (the inputs are not ready while one waits). Left out of the dump when None, so a dataset with none keeps the
+    # content and the sha256 it had (contracts §11.6)
+    proposed: dict[str, Any] | None = Field(default=None, exclude_if=lambda v: v is None)
     flags: tuple[str, ...] = ()
     state: EvidenceState = EvidenceState.PROPOSED
     proposed_by: str = ""

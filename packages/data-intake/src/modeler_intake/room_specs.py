@@ -20,8 +20,8 @@ from pydantic import BaseModel, ConfigDict, Field
 
 Area = Literal["A", "B", "C", "D"]   # A formulation and manufacturing · B in vitro · C drug substance and disposition · D clinical
 Purpose = Literal["used", "context", "not_needed"]
-TableKind = Literal["concentrations", "pk_parameters", "demographics", "disposition", "dissolution", "composition",
-                    "solubility", "particle_size", "physchem", "be_statistics", "process", "other"]
+TableKind = Literal["concentrations", "pk_parameters", "demographics", "disposition", "dosing", "dissolution",
+                    "composition", "solubility", "particle_size", "physchem", "be_statistics", "process", "other"]
 
 TOPICS = ("question", "clinical_design", "clinical_concentrations", "clinical_pk", "clinical_demographics",
           "clinical_disposition", "bioanalysis", "dosing_and_meals", "be_statistics", "composition", "manufacturing",
@@ -78,16 +78,21 @@ ROLES: dict[str, tuple[str, ...]] = {
     # "time" is the nominal (scheduled) time; an "actual_time" column is kept as context
     "concentrations": ("subject", "sequence", "period", "treatment", "time", "actual_time", "value", "statistic", "analyte",
                        "matrix", "dose", "group"),
+    # a PK table is wide (a column per parameter) or long (a line per parameter: its name in "parameter", its number in
+    # "value", its unit in "unit", as a CRO's PP dataset gives them)
     "pk_parameters": ("subject", "sequence", "period", "treatment", "cmax", "tmax", "auc_t", "auc_inf", "t_half",
-                      "lambda_z", "statistic", "group"),
+                      "lambda_z", "parameter", "statistic", "analyte", "group"),
     "demographics": ("subject", "sex", "age", "weight", "height", "bmi", "race", "smoking", "group"),
     "disposition": ("subject", "status", "reason", "period"),
+    # what each subject was given on each occasion (a dosing listing, a CRO's EX dataset): the product as written, its
+    # dose (the column's unit), route and dosage form
+    "dosing": ("subject", "period", "treatment", "dose", "route", "form", "frequency", "group"),
     "dissolution": ("unit", "time", "value", "statistic", "batch", "medium"),
     "composition": ("component", "function", "grade", "specification", "amount", "percent"),
     "solubility": ("medium", "ph", "solubility", "dose_volume", "temperature"),
     "particle_size": ("batch", "d10", "d50", "d90", "api_batch", "remark"),
     "physchem": ("property", "value"),
-    "be_statistics": ("parameter", "ratio", "ci_low", "ci_high", "statistic"),
+    "be_statistics": ("parameter", "ratio", "ci_low", "ci_high", "cv", "statistic"),    # cv: the stated within-subject CV
     "process": ("step", "parameter", "value"),
 }
 

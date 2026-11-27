@@ -13,6 +13,383 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 
 ## [Unreleased] — make the pipeline do real PBPK, S0 → S7
 
+### Changed — the population, sex and meal template are chosen on Inputs, with the Data room's facts as proposals (2026-11-27)
+- **Why:** the owner's D1 and slice 5b of `docs/plans/2026-11-26-data-room-groups-and-corpus-benchmark.md` (§9), the
+  owner's go of 2026-11-27. These are model choices, made where the model's inputs are confirmed. The room has the
+  facts behind them; Inputs is where a person decides.
+- **What, the Data room:**
+  - The `population:`, `sex:` and `meal:` decisions are marked `on_inputs` (`RoomDecision.on_inputs`). "Send to the
+    model" no longer waits for them.
+  - Clinical Study Design shows each one as a proposal ("Chosen on Inputs": the suggestion, why, its sources, a link
+    to Individuals). They are no longer decision cards, and the headline counts only the room's own decisions.
+- **What, the send:**
+  - The suggestions go on the study record as before, so the values sent are unchanged.
+  - Each arm's dataset keeps them as `ObservedDataset.proposed` (value, label, why, sources). This sits outside the
+    study record because `split.StudyRecord` is locked, and is left out of the stored content when empty, so older
+    datasets are byte-identical.
+  - A second send of the same data keeps what a person chose on Inputs (the dataset's id leaves the proposals out).
+- **What, Inputs:**
+  - Individuals lists them under "Proposed by the Data room". A person confirms them, or picks the other harvested
+    meal template.
+  - `POST …/datasets/{id}:study` takes `confirm` (population, sex, meal) and `meal_template` (one of the two harvested
+    templates, applied to every meal of the study). Demographics entered there answer the population and sex.
+  - Readiness gains "the Data room's proposals confirmed (D1)". To do lists each study with a `proposal` item under
+    "Confirm the client's data" (to confirm, not missing) that opens the study's proposals on Individuals.
+- **What, the MAP:** each proposal is named among the limitations as chosen on Inputs (`DecisionLine.on_inputs`), not
+  as a room decision that was not made.
+- **Also:** the room's reason for its sex suggestion counts in the singular when one ("5 men and 1 woman", was
+  "1 women").
+- **Deviation (recorded in the plan, §8):** the release model stays a room decision. It decides which release evidence
+  (Weibull parameters or particle sizes) the send accepts as the formulation's. Moving it means sending both sets
+  unaccepted and accepting one on Inputs, which changes the evidence register's flow, not the page.
+- **Impact:** a project whose room was already sent is unchanged; its D1 choices were made in the room and carry no
+  proposals. A new send asks the modeller on Inputs instead of in the room.
+- **API:** `RoomDecision.on_inputs`, `ObservedDataset.proposed` (optional), `StudyFacts.confirm` and
+  `StudyFacts.meal_template`. The OpenAPI snapshot and `apps/web/lib/api-types.ts` are regenerated.
+- **Tests:**
+  - `test_dataroom.py`: the proposals are sent with why and sources, and sending is not held. What is sent is
+    identical to the suggestions taken in the room. A confirmation and a changed meal template survive a second send.
+  - `test_inputs.py`: readiness and To do wait for the proposals, and a confirmation clears them.
+  - `test_inputs_api.py`: the `:study` confirm body.
+  - `test_brief_from_room.py`: the MAP's proposal line.
+  - `test_plan_api.py`: its "every key of ObservedDataset" check allows `proposed` to be absent.
+  - E2E: `dataroom.spec.ts` checks the proposals on Clinical Study Design. `dataroom-to-map.spec.ts` leaves D1 to
+    Inputs and confirms on Individuals (one arm as proposed, the other with the high-fat meal) before the MAP.
+
+### Changed — the Data room page in its groups: Question, Model Input Data, Supporting Evidence, Source Records, Data Requests (2026-11-26)
+- **Why:** phase 5 of `docs/plans/2026-11-26-data-room-groups-and-corpus-benchmark.md` (slice 5a, §9), the owner's go
+  of 2026-11-26. The page showed a delivery as 13 sections by kind of file. It now follows the layers map and the
+  mockup the owner saw: what feeds the model first, then what justifies a decision, then the files and the requests.
+- **What, the API (`dataroom/layout.py`, `DataRoomView.layout`):**
+  - Each group of the layers map has its sections. Each section lists the parts it draws (product values, the
+    composition, substance values, solubility, the dose card, dissolution profiles, studies, observed profiles, the
+    BE results, other analytes, files, requests, the plan).
+  - Each section also lists the keys of the values placed there. A value goes where its field is placed by the map,
+    and into Model Input Data when the question's applications require it.
+  - The selected release inputs (each product's `release:` decision) show under In Vitro Release Input; the other
+    profiles under Dissolution in Other Media and Batches.
+  - Each decision sits in the section it decides. Each section has its count and the room's status for what it shows
+    (`empty` when it holds nothing), and the old addresses it answers.
+- **What, the page (`components/dataroom/layout.tsx`, `DataRoom.tsx`):**
+  - The rail lists the Overview, then each group's title with its sections. On a phone this is a select with one
+    option group per group.
+  - Each section draws today's cards filtered to what is placed in it: Dissolution by profile, Decisions by id.
+  - New cards: the BE results under Observed PK (GMR, 90 % CI, CVw, BE zone, conclusion, against the CSR), the dose in
+    both bases under Drug Substance Properties, and the other analytes under Metabolites and Other Analytes.
+  - The Overview's Sections card is grouped.
+  - An old address (`?section=clinical`, `?section=inputs`) opens the section that now holds it.
+  - A room without a layout keeps the old rail.
+- **Not yet (later slices of §9):**
+  - 5b: the D1 choices (population, sex, meal, release model) move to Inputs. Until then they stay as decisions under
+    Clinical Study Design. (Done, 2026-11-27, above; the release model deferred.)
+  - 5c: the empty and reading states.
+  - 5d: each check on the item it concerns.
+  - The printable evidence report keeps its sections as they were.
+- **API:** `DataRoomView.layout` (`LayoutGroup`, `LayoutSection`), optional. The OpenAPI snapshot and
+  `apps/web/lib/api-types.ts` are regenerated.
+- **Tests:**
+  - `test_dataroom_layout.py` (5): groups and sections in page order; every value, decision and profile placed once;
+    the release inputs split from the other profiles; a value the question requires promoted; every old address opens
+    a section.
+  - E2E: `dataroom.spec.ts` follows the groups. It checks the release inputs and the other medium separately, the BE
+    results under Observed PK, the decisions on Clinical Study Design, and solubility in Drug Substance Properties.
+    `dataroom-to-map.spec.ts` sends from Simulation Scenarios.
+
+### Fixed — the acceptance pass counts each page's top heading with a retrying assertion (2026-11-26)
+- **What:** `e2e/acceptance.spec.ts` counts the one top heading with `toHaveCount(1)`, which retries while a page is
+  still arriving, rather than one snapshot. That `/no-access` is checked once it has landed is `main`'s fix (#186,
+  below); the two met in the merge, and `main`'s landing pattern was kept.
+- **Why:** on PR ayush-1610/Modeler_One_AI#187 the check once counted two top headings on `/no-access`, the loading
+  state's and home's, mid-redirect, on a commit that changed no web code.
+- **Impact:** test only; no page changes.
+
+### Changed — a spreadsheet formula error in a client's table is said as one (2026-11-26)
+- **Why:** phase 4 of `docs/plans/2026-11-26-data-room-groups-and-corpus-benchmark.md`. Corpus workbooks held "#REF!"
+  and "#DIV/0!" where a value was expected. The room said "'#REF!' is not a concentration", which hides that the
+  client's own file has a broken formula.
+- **What:** `extract.unreadable` names the formula errors (#REF!, #DIV/0!, #N/A, #VALUE!, #NAME?, #NUM!, #NULL!,
+  #SPILL!, #CALC!) as SPREADSHEET_ERROR: "the client's file has a broken formula there; ask for the value". This
+  applies to concentration and dissolution tables. Any other unreadable cell stays UNREADABLE_VALUE. Either way the
+  cell is still left out of the values, as before.
+- **Not in this change:** phase 4's agent work (the extractor's CVw and dissolution-stage columns, the checker taking
+  Model Input Data first, the writer's new sections). It is to be scored on the server's in-house model (D6) before
+  and after, and so waits for that run.
+- **Tests:** `test_dataroom_checks.py` (+1).
+
+### Added — the dose in both bases, PK-Sim given the free base's; delivery-wide checks for simulated data, lots, another drug and personal data (2026-11-26)
+- **Why:** phase 3 of `docs/plans/2026-11-26-data-room-groups-and-corpus-benchmark.md`, and the corpus audit's rules:
+  - **R14:** "when the MW basis changes, recompute the molar dose and record both bases". P01's model was given a salt
+    dose against the base's molecular weight, +46 % molar dose.
+  - **R03:** "reject an observed dataset whose time grid equals a simulator output grid". P25 used simulated curves as
+    observed.
+  - **R07:** "lot and batch must match the protocol/CSR". P04 had lot …001 against …002.
+  - **Two further cases** the projects met: a document about another drug, and personal data in a delivery.
+- **What, the dose card (`dataroom/dosecard.py`, `DataRoomView.dose_card`):**
+  - The dose as written (`study.dose`, else the first `product.strength`), and its basis: the `substance.dose_basis`
+    fact, else the dose's own words. "Equivalent to 90 mg <base>" is the base's; "100 mg hydrochloride" is the salt's.
+  - Each molecular weight's form, read from what its fact is about (value, subject, note; not the quote, which often
+    names both).
+  - The dose as the free base and as the salt (× MW base / MW salt), and the molar dose.
+  - PK-Sim's `InputDose` is now the free base's when the study's dose is the salt's and both molecular weights are
+    known (status calculated, the rule in its note). PK-Sim's compound is the molecule.
+  - Said, never assumed: a salt form with no stated basis (DOSE_BASIS_UNKNOWN), a salt dose without both molecular
+    weights (DOSE_BASIS_NEEDS_MW), a "salt" lighter than its base (SALT_MW_NOT_HEAVIER). With no salt form stated, the
+    dose is taken as the molecule's own.
+- **What, the checks (`dataroom/detectors.py`, room problems):**
+  - LOOKS_SIMULATED (R03), on a concentration table with any of: 40 or more equally spaced times, 90 % of its values
+    with 6 or more significant figures, or a file naming a simulator (Simcyp, GastroPlus, PK-Sim, "simulated plasma
+    concentrations", "virtual subjects").
+  - LOT_TWO_PRODUCTS: one lot given for two products. LOT_CONFLICT: one product's lots in two files within two
+    characters of each other (R07).
+  - FILE_NAMES_NOT_THE_DRUG (info): a used PDF, Word, text or slide document that never names the delivery's drug.
+  - PERSONAL_DATA: identifying columns (name, initials, date of birth, address, phone, e-mail, national or medical
+    record number) in a subject listing, or a date of birth in a document's text. An excipient's "Name" column in a
+    composition table is not a subject listing.
+  - Each flags with its evidence and decides nothing. Their thresholds are the detectors' constants, not ruleset
+    values.
+- **API:** `DataRoomView.dose_card` (optional). The OpenAPI snapshot and `apps/web/lib/api-types.ts` are regenerated.
+  The page does not show it yet (phase 5).
+- **Measured on the corpus's 102 client files (17 projects, code only):** nothing fired, so there were no false
+  alarms. The audit package was redacted. Its R03 and R07 cases (P25, P04) need files not packaged, or the agents'
+  facts.
+- **Impact:** a delivery that states no salt keeps its dose. One whose dose is the salt's and gives both molecular
+  weights now sends PK-Sim the free base's dose.
+- **Tests:** `test_dataroom_checks.py` (7): a salt dose to the base, an "equivalent to" dose, what the card cannot
+  know, a simulator's grid and unrounded values against an observed table, the two lot conflicts, a document about
+  another drug, and personal data against plain demographics and a composition table.
+
+### Added — a study's bioequivalence computed by code beside the CSR's: GMR, 90 % CI, CVw, BE zone (2026-11-26)
+- **Why:** phase 3 of `docs/plans/2026-11-26-data-room-groups-and-corpus-benchmark.md`, and the owner's decision D3
+  (the within-subject CV computed by code). The corpus audit's R01 asks to rebuild the BE result from subject-level
+  data on the CSR's analysis set and to reproduce the CSR's GMRs and 90 % CIs within 0.5 percentage points. Its P05 and
+  P28 violated that. R50 asks for the full 90 % CI within 80.00–125.00 %, with the conclusion written from the numbers
+  (P29 concluded favourably at 126.8 %). R55 asks for the BE zone, exp(±t·√(2σw²/n)) inside the limits. Before this
+  change the room read the CSR's BE table only for the scorer and computed none of these itself.
+- **What, statistics (`pbpk_domain.bioequivalence`):**
+  - `crossover_be`: the standard 2×2 analysis. The treatment difference is the mean of the two sequences' mean log
+    differences. MSE is their pooled within-sequence variance over 2, on n − 2 degrees of freedom. CVw is
+    √(exp(MSE) − 1). It equals the ANOVA with sequence, subject within sequence, period and treatment, checked in the
+    tests against an independent least-squares fit, balanced and unbalanced. When the periods do not give the
+    sequences, it falls back to the paired form.
+  - `parallel_be`: the pooled two-sample analysis.
+  - `be_zone`: the GMRs a balanced 2×2 crossover of n subjects with that σw² concludes bioequivalent; None when no GMR
+    does.
+- **What, the room (`dataroom/bestats.py`, `assemble.py`):**
+  - For each study, Cmax, AUC0–t and AUC0–inf are analysed, test against reference as the question card's products
+    name them, on the analysis set the modeler chose (decision `analysis-set:<study>`). Cmax uses the whole set; the
+    AUCs use its subjects whose profiles run to the last scheduled sample (the AUC set). The room's exposures already
+    did this, and P03's CSR did the same.
+  - Each is computed from our NCA and, where present, from the client's NCA values of the same subjects. The second
+    isolates the statistics and the set from the NCA. AUC0–t is linear when the client's NCA was found linear.
+  - Each result carries the GMR, CI, CVw, n per sequence, df, the conclusion (R50) and the BE zone (R55).
+  - The CSR's BE table is compared metric by metric. A table line's metric is read from "ln(Cmax)", "AUC0-t",
+    "Log AUCinf"; a ratio written as 0.935 or 93.5 % is the same. The difference is in percentage points, "reproduced"
+    within 0.5, else BE_CSR_DIFFERS, said once per metric. The CRO's stated CV is shown beside ours, to confirm (D3).
+  - A replicate design, or test and reference roles not known one each, is said (BE_NOT_COMPUTED, info).
+  - `RoomStudy.be` (`BeResult`) is new. The `be_statistics` table kind gains the role `cv`, the CSR's stated
+    within-subject CV. A8's prompt stays `dataroom-7` (unreleased).
+- **Rules 0.4 (`dataroom_rules.yaml`, UNVERIFIED, awaiting the SME):** a `be` block holding confidence 0.90, limits
+  80.0–125.0 % and the CSR tolerance of 0.5 percentage points. The values are those of the owner's approved plan and
+  the audit's R01 and R50, and the owner confirmed them on 2026-11-26. Two tests that pinned 0.3 now read 0.4.
+- **API:** `RoomStudy.be` (optional, default empty). The OpenAPI snapshot and `apps/web/lib/api-types.ts` are
+  regenerated. The page does not show it yet (phase 5).
+- **Measured on P03, a real BE delivery (code only, session files):**
+  - Its concentration table was described as a modeler would, test and reference were taken from its SAS output, and
+    the result was compared with the CSR's GMRs and 90 % CIs.
+  - Cmax was reproduced within 0.05 percentage points (34 subjects).
+  - AUC0–t and AUC0–inf were reproduced within 0.13 percentage points (31 subjects, the AUC set).
+  - On the modeling set the AUCs were up to 1.1 pp off, which is why the AUCs use the AUC set.
+  - CVw by code: 34.5 % for Cmax, 25.7 % for AUC0–t.
+- **Elsewhere:** P30 has no test and reference product (a PBPK, not a BE, delivery), so it has nothing to compute.
+  On the made-up delivery, every metric was computed.
+- **Tests:**
+  - `pbpk-domain/tests/test_study_bioequivalence.py` (5): the 2×2 analysis equals the least-squares ANOVA, balanced
+    and unbalanced; the paired and parallel forms; the BE zone's edges sit on the limits.
+  - `test_dataroom_bestats.py` (11): our results, the CSR reproduced or not by 1 pp, BE_NOT_COMPUTED, and the metric
+    and percent readers.
+
+### Added — each profile's treatment from the dosing data; long PK tables; CDISC EX and PP described by code (2026-11-26)
+- **Why:** phase 2c of `docs/plans/2026-11-26-data-room-groups-and-corpus-benchmark.md`. An SDTM PC dataset names no
+  treatment. After phase 2b, every P30 study showed per-profile NCA but no mean profile or exposure per arm
+  (NO_TREATMENT). The client's NCA came in a long PP dataset (a line per parameter), which the room could not read.
+- **What, dosing (`room_specs`, `clinical.py`, `assemble.py`):**
+  - A new table kind, `dosing` (subject, period, treatment, dose with its unit, route, form, frequency), placed under
+    Clinical Study Design. A8's vocabulary gains it for files about dosing.
+  - When the concentration data name no treatment, each profile takes what the dosing data say its subject was given
+    on that occasion (`assignments`, TREATMENT_FROM_DOSING). Occasions are matched by period number however written
+    (`occasion_key`: "Period 2", "PERIOD II", "P2"), else the subject's only one. Two products on one occasion are one
+    treatment ("A + B").
+  - Decision `dose-arms:<study>`: whether two doses of one product are two arms (`dose_arms`). Suggested one arm per
+    dose when a subject had two doses on two occasions, or when at most four doses were each given to two subjects
+    or more. Otherwise one arm per product, with each subject's own dose (individualised, e.g. by weight).
+- **What, long PK tables:**
+  - `pk_parameters` gains the role `parameter`; `value` and `unit` are on the line.
+  - `pk_role` knows CDISC codes and written names (CMAX, AUCLST, AUCIFO, LAMZHL, "AUC0-t", "t½").
+  - The client-NCA reader merges a long table into one row per subject and occasion. A parameter given twice with two
+    values is not compared, and is said (PK_PARAMETER_TWICE).
+  - The scorer reads long rows.
+- **What, CDISC by code (`cdisc.py`):**
+  - **SDTM EX** becomes a dosing table: the period from EXGRPID, EPOCH or EXTPT when every value names one, and one
+    dose unit per study.
+  - **SDTM PP** becomes a long PK table from its non-compartmental lines only (PPSCAT): a model's parameters are not
+    the client's NCA. It is described only when each parameter is given once per subject, analyte and occasion.
+  - PK values whose analyte the concentration data do not name are said (PK_ANALYTE_NOT_IN_DATA).
+  - ADSL TRTxxP is not used. In P30, TRT02P and TRT03P were empty for a 3-period study whose periods EX tells apart
+    by dose.
+- **Measured on P30 (code only, no AI service, session files):**
+  - All four datasets are described: EX, PC and ADSL for the 4 studies, PP for 2 of them.
+  - Every study now has arms, mean profiles and exposures. In the 3-period study, the 0.5 mg and 1 mg periods are
+    two arms (suggested from a subject given both). In an IV study, the individual doses are one arm.
+  - In the two single-dose studies, the client's NCA is shown beside ours. Cmax and Tmax are equal on every profile
+    checked. In one study AUC is within 1.3 %, flagged "investigate" (likely actual sampling times); in the other the
+    client's NCA is reproduced 100 of 100.
+  - The two multiple-dose studies' PP repeats each parameter per day within a period, so it is left to the agents,
+    with the reason.
+- **Known gap:** actual sampling times (PCDTC against the dose's EXSTDTC) are not derived. ADaM ADPC / ADPP wait for a
+  delivery that has them.
+- **Impact:** a delivery whose concentration data name their treatments is unchanged (the dosing data are not used
+  then). A8's prompt stays `dataroom-7`, which is unreleased and now also carries the dosing kind and long PK roles.
+  No API change.
+- **Tests:**
+  - `test_dataroom_cdisc.py` (+2): EX ties treatments and the dose-arms decision both ways; PP gives the client's NCA
+    from the NCA lines and says the metabolite PC names otherwise. Both use made-up datasets
+    (`synthetic.ex_dataset_rows`, `pp_dataset_rows`).
+  - `test_dataroom_analytes.py` (+19): `pk_role`, `occasion_key`, PK_PARAMETER_TWICE.
+
+### Added — a study's analytes told apart; CDISC PC and DM / ADSL described by code, no agent asked (2026-11-26)
+- **Why:** phase 2b of `docs/plans/2026-11-26-data-room-groups-and-corpus-benchmark.md`, the owner's option A. A CRO's
+  SDTM PC dataset (P30 in the owner's corpus) holds the drug, two metabolites and a labelled tracer line by line, four
+  pooled studies in one file. Before this change, the room had no analyte per line. Its four analytes' samples would
+  have collided (refused) or been averaged together into one profile. And an agent was asked to describe a table whose
+  standard variable names already say what each column is.
+- **What, the analyte dimension (`dataroom/clinical.py`, `assemble.py`, `model.py`):**
+  - A sample's analyte is its line's analyte cell, else the table's analyte constant (`Sample.analyte`).
+  - A study whose data name two or more analytes is viewed once per analyte, each by the same rules
+    (`study_view`).
+  - New decision `analyte:<study>`: "which analyte does the model simulate?", with each analyte's sample count. The
+    suggestion is the drug the delivery names (a `study.analyte` fact, the substance's subject, a product of the
+    question card; a code such as "EXAM" matches "Exampleamide"), else the first analyte not marked a metabolite or a labelled
+    compound.
+  - `DataRoomView.studies` holds the modeled analyte (study ids and every other decision unchanged). The new
+    `DataRoomView.other_analytes` holds the rest, as Supporting Evidence that is never sent to the model.
+  - Lines that name no analyte in a study of several are left out of every analyte and said (ANALYTE_NOT_NAMED).
+  - `colliding_samples` keys on the analyte, so a drug and its metabolite at one time are two samples.
+  - A study whose data name no treatment now says so (NO_TREATMENT). Its NCA and sets are shown, no mean profile
+    per arm. An arm is never made up from the periods.
+  - `RoomStudy.analyte` is new. The scorer emits each line's analyte. The `pk_parameters` table kind gets an
+    `analyte` column role, so A8's prompt is now `dataroom-7` (only A8: the per-agent versions of phase 1a).
+- **What, CDISC by code (`dataroom/cdisc.py`, describer `cdisc-1`):**
+  - **SDTM PC:** subject USUBJID; analyte PCTEST, else PCTESTCD; time PCTPTNUM; result PCSTRESC with PCSTRESU, else
+    PCORRES; specimen PCSPEC; category PCCAT. Described only when all of these hold:
+    - PCTPTNUM agrees with every line's PCELTM or PCTPT, in one unit.
+    - One unit holds every result.
+    - Read back, no two lines of one analyte share a subject, an occasion and a time.
+  - The PC occasion is PCTPTREF, else PCGRPID or EPOCH when every value names a period. It is **never VISIT**: in
+    P30, a profile's 24 h sample is on "Day 1" and its 48 h sample on "Day 2".
+  - "MS" on lines PCSTAT marks NOT DONE is a missing sample. "<", "<0.500" are below the LLOQ. "N.R." stays unread
+    and is said.
+  - **DM / ADSL:** one line per subject: sex, age, weight, height, BMI, race, each with its unit variable.
+  - A pooled dataset gives one table per STUDYID run.
+  - Run first in the extract stage (`describe_room`, also callable with no AI service). A8 and A9 skip what code
+    described. The author is recorded as `code` / `cdisc-1`. A table code is not sure of is left to the agents, with
+    the reason in the stage notes. An agent's description stands unless re-extracting.
+- **Layers 0.2 (`dataroom_layers.yaml`):** a new Supporting Evidence section, *Metabolites and Other Analytes*.
+  Concentration and PK-parameter values of an analyte the model does not simulate go there (`not_modeled`,
+  `place(..., modeled=False)`).
+- **API:** `RoomStudy.analyte` and `DataRoomView.other_analytes`, both optional with defaults. The OpenAPI snapshot and
+  `apps/web/lib/api-types.ts` are regenerated. The page does not show them yet (phase 5).
+- **Measured on P30 (code only, no AI service, session files):**
+  - PC and ADSL are described by code, 4 studies each.
+  - Each study's 3–4 analytes (the drug, two metabolites, a labelled tracer) are viewed apart, the drug suggested in each.
+  - Two studies' periods come from PCGRPID.
+  - The 2 "N.R." results are said. No room-level problem.
+- **Deviation from the plan, recorded there (§8):** PP and EX are left to the agents (phase 2c).
+  - P30's PP holds model-based and NCA values side by side, with 716 repeated (subject, analyte, group, parameter)
+    keys, and names its analytes differently from PC.
+  - Tying a period to its treatment needs EX or ADSL TRTxxP, a join a table description does not express.
+- **Impact:** a delivery of one analyte reads exactly as before (no analyte decision, no other analytes; tested).
+- **Tests:**
+  - `test_dataroom_cdisc.py` (10): a made-up two-study, two-analyte SDTM PC dataset (`synthetic.pc_dataset_rows`) and
+    its SAS transport twin `fixtures/dataroom/pc_two_analytes.xpt`, made with pyreadstat 1.3.7 outside the project.
+    Five refusals, each with its reason: a time in other units, a free-text time point, two units, a study's lines
+    apart, no period variable. DM with units.
+  - `test_dataroom_analytes.py` (7): the modeled-analyte suggestion, samples of two analytes not colliding,
+    ANALYTE_NOT_NAMED, one analyte as before.
+  - Layers: 1 new test, plus a refused map.
+  - `test_dataroom_cache.py`: a dataset code describes asks no extractor and no checker. The version test is updated
+    for A8's `dataroom-7`.
+
+### Added — SAS datasets, PowerPoint decks and Apple Numbers read; a known unread format says what to ask for (2026-11-26)
+- **Why:** phase 2 of `docs/plans/2026-11-26-data-room-groups-and-corpus-benchmark.md`. Of the 102 client files
+  packaged with the owner's corpus audit, 7 could not be opened: 4 CDISC SAS datasets (a CRO's standard delivery, which
+  went unused in that project), 3 PowerPoint files holding dissolution data and BE ratios. The owner approved the three
+  libraries (D5).
+- **What:**
+  - `modeler_intake.source.sas`: a `.sas7bdat` or SAS transport `.xpt` file is one sheet named after the dataset: line
+    1 the variable names, line 2 their labels, then one line per observation, each value as stored (a missing value
+    left empty). pyreadstat.
+  - `modeler_intake.source.pptx`: a deck is a body, as a Word file is: "Slide <n>", its text frames (groups too), its
+    tables as grids, **its charts' data as tables** (categories, then a row per series), its notes. A picture's text is
+    not read, so a deck with pictures is `partly_read`, naming the slides. python-pptx.
+  - `modeler_intake.source.numbers`: each table of each sheet of a Numbers document is a sheet, each value as stored.
+    numbers-parser.
+  - Every later step reads them unchanged: sheets and bodies are located as before (`locate_sheets`, `locate_docx`);
+    the Data room names their kinds `dataset`, `slides` and `workbook`.
+  - A known format no parser reads now says what to ask the client for: "no parser for .ppt: a legacy PowerPoint file:
+    please send it as .pptx or PDF" (also .doc, .pages, .key, .rtf, .odt, .ods, .odp, .rar, .7z, .msg, .eml, .sav,
+    .dta). The ready-made data request waits for the page rework (phase 5): requests are numbered per area, and a new
+    one now would shift the numbers of requests people have already edited.
+  - **Dependencies:** pyreadstat 1.3.7, python-pptx 1.0.2, numbers-parser 4.22.2 and their dependencies. Packages
+    published within two weeks of today were held at their previous release (narwhals 2.28.0, pyreadstat 1.3.7,
+    wcwidth 0.9.4, xlsxwriter 3.3.1); protobuf 7.36.1 → 7.36.2 (numbers-parser's generated code needs it).
+- **Measured on the corpus (code only):** of the 7 files no parser read, 6 now open: P30's four SAS datasets (PC 9,758
+  lines, PP 3,503, EX 143, ADSL 93) and its dissolution deck (8 tables) read; P27's deck partly read (3 tables; slides
+  1 and 3 hold pictures); P07's legacy `.ppt` says to send it as .pptx or PDF.
+- **Tests:** `test_source_formats.py` (10: a synthetic `.xpt` fixture made with pandas outside the project, a deck with
+  a table, a chart and a picture, a Numbers document, damaged files unreadable, the send-as reason). Four tests that used
+  `.xpt`, `.sas7bdat` or `.pptx` as an unreadable example now use `.mat`, `.sav` and `.ppt`. The legacy client-data
+  path (`documents.py`) is unchanged.
+
+### Added — the Data room regrouped by purpose (foundations) and scored value by value; one prompt version per agent (2026-11-26)
+- **Why:** the owner's corpus audit of 30 of their PBPK/PBBM project folders (client confidential, outside the
+  repository) showed that the Data room shows a delivery by type of file although most of what clients send never
+  reaches a model, and that the room had never been measured on a real delivery. The owner approved the plan
+  `docs/plans/2026-11-26-data-room-groups-and-corpus-benchmark.md` (decisions D1–D7 in its §1) and asked for phases 0
+  and 1. Nothing a person sees changes yet; no locked file is touched.
+- **What:**
+  - **One prompt version per Data room agent (D4).** `stages.PROMPT_VERSIONS` (A6 … A10) and `prompt_version(stage)`
+    replace the one `PROMPT_VERSION`; the answer cache's key and each answer's author record hold the stage's agent
+    version. A new version of one agent's instructions now makes only that agent read again: before, it discarded every
+    agent's cached answers and the next delivery was read in full at full cost. All five start at `dataroom-6`, the
+    version they shared, so no cached answer is lost.
+  - **The groups and sections (D2), as data.** `dataroom/dataroom_layers.yaml` 0.1 and `dataroom/layers.py` place every
+    fact field and table kind of the room's vocabulary in **Question and Context of Use · Model Input Data · Supporting
+    Evidence · Source Records · Data Requests** and their sections (e.g. Observed PK and BE Outcome, Formulation
+    Differences (Q1/Q2)). Code places a value, never an agent. A field the open vocabulary does not know goes to Other
+    Delivered Facts; a value the question's applications require moves to Model Input Data where the map allows it (the
+    meal's composition for a food-effect question); a dissolution profile not selected as the release input is shown as
+    evidence. The population, sex, meal template and release model are chosen on Inputs (D1): their facts are
+    Supporting Evidence. A test fails naming any vocabulary entry left unplaced. The page reads it in phase 5.
+  - **The Data room in the value scorer (D0).** `dataroom/scoring.py` `from_dataroom(ws)` gives the room's reading in
+    the scorer's long form (`value_score.Extracted`): every individual concentration (BLQ censored, the subject as the
+    file writes it), every per-subject PK parameter, every test/reference ratio, every dissolution mean.
+    `python -m modeler_project.value_score ... --source dataroom` scores it against an analysts' key (value-key/2) with
+    the same verdicts as the intake pipeline (found, wrong value, missing, unexpected). No new observation record was
+    made: the ledger's and the scorer's already exist; the room lacked an adapter (plan §5 records the deviation).
+  - To serve it without a second reading: `assemble.read_extractions(inputs)` (the room's table reading and fact
+    checking, now shared) and `dataroom.room_inputs(store)` (what `room_view` assembles from); `Sample.subject_text`
+    keeps the subject as written beside its id.
+- **Measured (code only, no model):** the owner's P03 cinacalcet delivery (packaged copy, outside git), its
+  concentration table described as a modeler would, scored against a draft key generated from the file: **1,678 of
+  1,678 measured concentrations right, none unexpected**; 146 values the file writes as 0.000 for BLQ are censored by
+  the room and written "0.000" in the draft key (the modeler settles the key's convention); 3 BE ratios of the SAS
+  output missing (that file is not described yet). Every format, code only with OCR: of the 102 client files packaged
+  with the audit (17 projects, 2,087 pages, 199 by OCR), 94 read, 1 partly read, 7 not opened (4 SAS datasets, 3
+  PowerPoint files: phase 2). Tests: `test_dataroom_layers.py` (7), `test_dataroom_scoring.py`
+  (3), two in `test_dataroom_cache.py`; the project-model and agents suites pass (1,469).
+- **Known gap:** the adapter gives no anchor (the report names a value's file, not its sheet or page) and not yet the
+  demographics, solubility, composition or quoted facts (their key rows score missing, and the report says so).
+
 ### Fixed — two tests that failed now and then in CI, not the code they check (2026-11-26)
 - **The blinded-study test** (`test_delivery_api.py`, a sheet-form group joined to a blinded study) looked for each
   withheld value as a bare substring of every answer, and the answers carry timestamps with fractional seconds: a run
@@ -11654,3 +12031,4 @@ record it here so a reader knows which context produced which work.
 | 2026-11-22 (cloud session, branch `claude/inspiring-einstein-191gn3`; the owner switched the model mid-session) | per commit trailer | Redesign charter Gate 1: read-only product discovery in `design-review/` (audit, feature inventory, bloatware report, proposed features, unknowns, current-state screenshots) |
 | 2026-11-23 (same cloud session, continued after a context reset) | per commit trailer | Redesign Gates 2–4 and Phase 9 (archive, implementation plan); security fixes R-S01, R-S03, R-S04; slice 0 (`main` fast-forwarded, archive branch pushed) and slice 1 (R-S02 and the console shell) |
 | 2026-11-24 (cloud session, branch `claude/optimistic-feynman-zy100a`) | per commit trailer | Where the client's files may go moved from each project's Data room and Settings to a company setting the administrator keeps on Admin → Companies (the owner's request) |
+| 2026-11-25 → 26 (cloud session, branch `claude/exciting-galileo-x1ziov`) | per commit trailer | Read-only assessment of the owner's PBPK corpus audit (30 project folders) against the codebase, with a rule-by-rule map and a Data room mockup (session files, not committed); the plan `2026-11-26-data-room-groups-and-corpus-benchmark.md` with the owner's decisions; phases 0 and 1: one prompt version per agent, the Data room's group map, the room in the value scorer, P03 scored code-only |
