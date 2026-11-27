@@ -213,3 +213,29 @@ def test_a_formulations_release_model_is_answered_on_inputs(setup):
         ("held", "the plateau is the solubility limit")]
     taken = c.post(url, headers=H, json={"model": "weibull", "reason": "no particle size given"})
     assert taken.status_code == 200 and taken.json()["data"]["release_models"] == []
+
+
+def test_a_held_formulations_particle_inputs_are_posted_all_or_none(setup):
+    """Registry 1.3: a held formulation's radius and layer thickness, with their source, converted and accepted; a unit
+    that does not convert keeps none of them."""
+    from modeler_project.evidence import EvidenceItem, EvidenceState, SourceType
+    from modeler_project.evidence_register import decide, items, propose
+
+    c, ws, _read_root = setup
+    propose(ws, EvidenceItem(id="ev-dr0kind", target="form.Tab_100_mg.type", value="Weibull", source_type=SourceType.CLIENT_FILE,
+                             proposed={"release_model": {"value": "weibull", "label": "Weibull", "other": None}}), actor="u")
+    decide(ws, "ev-dr0kind", state=EvidenceState.ACCEPTED, reason="sent", by="u")
+    url = "/api/v1/projects/p1/formulations/Tab_100_mg"
+    body = {"radius": {"value": 25, "unit": "µm"}, "thickness": {"value": 30, "unit": "µm"}, "source_type": "PUBLICATION",
+            "title": "Particle size report", "quote": "d50 50 µm"}
+    assert c.post(f"{url}:particles", headers=H, json=body).status_code == 422          # not held yet
+    assert c.post(f"{url}:release-model", headers=H, json={"model": "particles", "reason": "solubility-limited"}).status_code == 200
+    bad = c.post(f"{url}:particles", headers=H, json={**body, "thickness": {"value": 30, "unit": "min"}})
+    assert bad.status_code == 422 and not [e for e in items(ws) if ".particles." in e.target and e.state is EvidenceState.ACCEPTED]
+    done = c.post(f"{url}:particles", headers=H, json=body)
+    assert done.status_code == 200, done.text
+    assert done.json()["data"]["release_models"] == []
+    kept = {e.target: e for e in items(ws) if e.target.startswith("form.Tab_100_mg.") and e.state is EvidenceState.ACCEPTED}
+    assert kept["form.Tab_100_mg.type"].value == "Particles"
+    assert (kept["form.Tab_100_mg.particles.thickness"].value_pksim, kept["form.Tab_100_mg.particles.thickness"].unit_pksim) \
+        == (0.03, "mm")
