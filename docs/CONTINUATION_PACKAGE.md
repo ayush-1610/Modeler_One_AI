@@ -213,7 +213,7 @@ T-05 → T-07 → T-08 → T-18 and T-09 in parallel.
 
 ## 4. Where things stand (2026-11-27)
 
-### 4.0g 2026-11-27: the "Graphite" restyle (R1–R3 merged; R4 in review)
+### 4.0g 2026-11-27: the "Graphite" restyle (R1–R4 merged; R5, the sign-in pages, in review)
 The owner chose a new look for the console from design catalogues (a Design Studio artifact) and approved its prototype
 and six choices (`design-review/DECISIONS.md` D-I4): Graphite colours (near-black ink for actions, one blue for charts,
 source links and focus), Plus Jakarta Sans at 15 px with JetBrains Mono for identifiers, 14 px rounded panels with soft
@@ -221,8 +221,10 @@ shadows, a left sidebar in place of the top bar, the app's own icons at a 1.5 st
 `docs/plans/2026-11-27-console-graphite-restyle.md`, four PRs, each reviewed: **R1** colours, font, corners, shadows
 (#189, merged as `ca7903a`); **R2** the sidebar layout (#190, merged as `3b9cbc9`); **R3** icons at 1.5, tabs, tables,
 side panel, dialogs, source links in blue (#191, merged as `599989d`); **R4** a contrast check on every page in CI, the
-last faint text fixed, the admin pages audited, a sign-off gallery (private artifact), the deploy plan (a PR, **waits for
-the owner's review**). After R4: the owner's acceptance by use (deploy plan §6, A1–A13) and the deploy on their go-ahead. Later: a per-person Compact view. The deploy still
+last faint text fixed, the admin pages audited, a sign-off gallery (private artifact), the deploy plan (#193, merged as
+`032a139`); **R5** the sign-in pages in the owner's split design, from the gallery's marks (DECISIONS D-I5; verified on a
+local Keycloak 26.7.5 with the realm imported; a PR, **waits for the owner's review**). Then: the owner's acceptance by
+use (deploy plan §6, A1–A13) and the deploy on their go-ahead. Later: a per-person Compact view. The deploy still
 waits for the owner's acceptance and go-ahead.
 
 ### 4.0f 2026-11-25 → 26: the corpus audit, the Data room regrouped by purpose, the room scored value by value
@@ -294,9 +296,22 @@ a delivery by file type although most of what clients send never reaches a model
   each opening where it is done. Fixed: the personal-data check now runs when a file is read (the room loads only
   extracted documents, so it never saw a listing nobody extracted). Phase 5 is complete.
 
-**Next:** the release model on Inputs (5b's deviation);
-phase 4's agent work with the agents' baseline on the server's in-house model (D6). The corpus data and answer keys stay
-outside git.
+- **The release model on Inputs (5b's deviation, 2026-11-27):** the room's `release-model:` decision is Inputs'; the
+  Weibull fit is sent with the suggestion as a proposal (`EvidenceItem.proposed`); Formulations confirms it, holds the
+  formulation for particle dissolution (with a reason) or takes it back (`release_choice`). **Pending the owner:** the
+  particle radius and layer thickness need entries in the locked parameter registry before Inputs can hold them.
+
+**Next (each needs the owner or the server; nothing code-only is left in this plan):**
+- the particle inputs: entries for `form.<name>.particles.radius` (µm) and `.thickness` (mm) in the parameter registry
+  (locked; harvested names in `pbpk_domain.cpf.formulations.PARTICLE_PARAMETERS`), in their own PR with the owner's go;
+- phase 4: the extractor's dissolution stage column, the checker on Model Input Data first, the writer's new sections
+  (prompt changes, scored before and after on the server's in-house model, D6); "NR" as a missing token is a rules
+  change (`dataroom_rules.yaml`, SME-governed, the owner's approval and a version bump);
+- phase 6: the harvested catalogue (`golden/catalog.json`, PK-Sim 12.4.4) holds 8 human populations, no disease states,
+  and two meal templates. Disease populations and more meal sets need a new harvest on the engine (server), and custom
+  meals touch the builder and `split.StudyRecord`: all locked files, so the owner's approval first;
+- phase 7: every corpus delivery through the finished room on the server's in-house model (D6).
+The corpus data and answer keys stay outside git.
 
 ### 4.0e 2026-11-22 → 25: redesign charter, implementation (slice 10, acceptance, in review)
 **Now (2026-11-23):** the owner authorised slices 0 and 1, one PR per slice into `main`, a review after each. Slice 0:

@@ -96,7 +96,7 @@ async function signIn(page: Page, who: Person = PERSON) {
   if (who === PERSON) await page.screenshot({ path: test.info().outputPath("signin.png"), fullPage: true });
   await page.getByTestId("signin-go").click();
   await expect(page).toHaveURL(new RegExp(`^${ISSUER.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}/protocol/openid-connect/auth`));
-  await expect(page.locator("#kc-page-title")).toHaveText("Sign in to Modeler One");
+  await expect(page.locator("#kc-page-title")).toHaveText("Login");   // the split sign-in design (2026-11-27)
   if (who === PERSON) await page.screenshot({ path: test.info().outputPath("keycloak-signin.png"), fullPage: true });
   await page.locator("#username").fill(who.username);
   await page.locator("#password").fill(who.password);

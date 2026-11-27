@@ -33,6 +33,24 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
   from mm and µm); `test_parameter_characterization.py` probes the three ids and records them in
   `docs/architecture/parameter-vocabulary.json`.
 
+### Changed — the sign-in pages in the owner's split design; signing out lands on sign-in (R5, 2026-11-27)
+- **What:** the app's sign-in, signed-out and no-access pages (`components/auth/AuthPage.tsx`, `app/styles/auth.css`)
+  and Keycloak's sign-in form (`deploy/keycloak/themes/modeler-one`: CSS, a white mark, the words in
+  `messages_en.properties`; no template copied) share one split design: a full-screen abstract background drawn in CSS
+  (no outside image), "Whatever happens here, *stays* here" with a line under it on the left, a frosted card on the
+  right ("Login"; at Keycloak "Your Name", "Password", "Lets Go →"; in the app a "Lets Go →" button that continues to
+  Keycloak); stacked on a phone, where "on the right side" reads "below". The card ends with "No account, or forgot
+  your password? Ask your Modeler One administrator." /signed-out is now the sign-in page with a "You have signed out"
+  note. `oidc-signing.spec.ts` expects Keycloak's card title "Login".
+- **Why:** the owner's marks in the Graphite sign-off gallery and their answers (`design-review/DECISIONS.md` D-I5).
+- **Verified on a real Keycloak 26.7.5** (the version `deploy/server/keycloak.sh` installs, run locally with
+  `deploy/keycloak/realm-modeler.json` imported): its sign-in page in the new design at 1440 and 390 px, and every
+  `oidc-*.spec.ts` flow passes (7: sign-in, the signing step-up, sign-out, members, no access, a failed sign-in, the
+  admin's System status). Contrast computed by hand (the gradient puts these pages outside the automatic check): the
+  card's grey 6.3:1 or more, the hero's subtitle about 7:1, "stays" 5.7:1 (large).
+- **Impact:** the look and words of the pages before the app; no change to how sign-in works (registration and password
+  reset stay off in the realm). Deploy: copy the Keycloak theme in and restart Keycloak (deploy plan §3).
+
 ### Added — a contrast check on every page; the last faint text fixed; the deploy plan for the Graphite look (R4, 2026-11-27)
 - **What:** `e2e/fixtures/a11y.ts` `lowContrast()` measures every piece of text against what is behind it, from the
   rendered colours (backgrounds up the tree blended, opacity included, after any finite animation has ended), and lists
@@ -107,6 +125,38 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
   (`design-review/DESIGN_SYSTEM.md` §2); `e2e/acceptance.spec.ts` (one heading, named controls, no sideways scroll,
   24 px targets, at 1440 and 390 px) passes on every page. Deploy: the Keycloak theme needs copying in and a Keycloak
   restart (`docs/plans/2026-11-25-console-redesign-deploy.md` §3).
+
+### Changed — a formulation's release model is chosen on Inputs, with the Data room's suggestion as a proposal (2026-11-27)
+- **Why:** the owner's D1 and the deviation recorded at slice 5b of
+  `docs/plans/2026-11-26-data-room-groups-and-corpus-benchmark.md` (§8), the owner's go of 2026-11-27. The release model
+  was the last D1 choice still made in the Data room.
+- **What, the Data room:** the `release-model:` decision (a product whose chosen profile levels off below 100 %) is
+  Inputs' (`on_inputs`). Sending is not held for it; In Vitro Release Input shows it as a proposal under "Chosen on
+  Inputs", with a link to Formulations.
+- **What, the send:** the Weibull fit goes as it always did; the room never sent a particle release (choosing particles
+  in the room only blocked the send, and still does for a room that chose it). The suggestion rides on the formulation's
+  type item as `EvidenceItem.proposed["release_model"]` (the model, why, its sources, the other model), left out of the
+  stored content when there is none. A second send of the same data keeps the answer.
+- **What, Inputs (Formulations, "Release models proposed by the Data room"):** a person confirms the Weibull fit, or
+  holds the formulation for particle dissolution with a reason (its Weibull values are rejected with that reason), or
+  takes the Weibull fit again (`POST …/formulations/{name}:release-model`; `modeler_project.release_choice`).
+  - Readiness: a proposal waiting joins "the Data room's proposals confirmed (D1)", and To do opens Formulations. A held
+    formulation fails "formulations of solid studies", saying why.
+  - The MAP names it as a proposal chosen on Inputs.
+- **Pending the owner:** a particle formulation needs its particle radius (µm) and unstirred-layer thickness (mm). The
+  CPF builder takes them (`form.<name>.particles.*`, harvested names), but the parameter registry
+  (`pbpk_domain/parameters/registry.yaml`, a locked file) has no entry for them, so Inputs cannot hold them yet. Adding
+  them is a locked-file change for its own PR, with the owner's approval. Until then a held formulation waits.
+- **API:** `EvidenceItem.proposed`, `InputsPage.release_models` (`ReleaseModelRow`), and the new
+  `POST /projects/{project_id}/formulations/{name}:release-model`. The OpenAPI snapshot and `apps/web/lib/api-types.ts`
+  are regenerated.
+- **Tests:**
+  - `test_release_choice.py`: the proposal is sent with the Weibull fit and the room is not held; a room that took the
+    Weibull fit sends none, one that took particles still blocks; confirm, hold (a reason required) and take back; the
+    readiness waits, and says why a held formulation is not built.
+  - `test_inputs_api.py`: the endpoint and `release_models`.
+  - E2E: `dataroom.spec.ts` counts one decision fewer in the room. `dataroom-to-map.spec.ts` leaves the release model to
+    Inputs, confirms it on Formulations, and finds it among the MAP's limitations.
 
 ### Changed — each Data room check on what it concerns, and the Overview's "Needs you" (2026-11-27)
 - **Why:** slice 5d of `docs/plans/2026-11-26-data-room-groups-and-corpus-benchmark.md` (§9), the owner's go of

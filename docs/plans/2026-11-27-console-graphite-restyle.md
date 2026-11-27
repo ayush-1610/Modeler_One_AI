@@ -31,6 +31,10 @@ Fit tab):
 
 Later, by the owner's choice: a per-person "Compact view" switch (14 px text, tighter rows).
 
+**R5 (added after R4, from the owner's sign-off marks; DECISIONS D-I5):** the sign-in pages (the app's and Keycloak's)
+in the owner's split design; /signed-out lands on sign-in. Exit: the design on a real Keycloak, the `oidc-*.spec.ts`
+flows green, the owner's review.
+
 ## 3. Rules that hold throughout
 - **Tokens only.** Components keep naming tokens, never a hex value; dark mode, later, redefines the token block alone.
   Plotly takes no CSS variable, so a chart reads the token at run time or (the Data room's products) names the token's

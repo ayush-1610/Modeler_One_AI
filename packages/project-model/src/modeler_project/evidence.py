@@ -101,6 +101,9 @@ class EvidenceItem(BaseModel):
     decided_at: datetime | None = None
     decision_reason: str = ""
     note: str = ""
+    # the Data room's proposal for a choice made on Inputs (the owner's D1; plan 2026-11-26 §8): a formulation's release
+    # model, with why and its sources, until a person confirms or changes it. Left out of the content when there is none
+    proposed: dict[str, Any] | None = Field(default=None, exclude_if=lambda v: v is None)
 
     def to_content(self) -> dict[str, Any]:
         return self.model_dump(mode="json")

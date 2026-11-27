@@ -1,23 +1,64 @@
-/* The pages before and after the app (sign in, signed out, no access; components/auth/AuthPage.tsx) and the account
-   page: the console's tokens (app/styles/tokens.css, the "Graphite" look, DECISIONS.md D-I4), the same look as the sign-in
-   form at Keycloak (deploy/keycloak/themes/modeler-one). */
-.auth-body { background: var(--c-canvas); color: var(--c-ink); margin: 0; }
-.auth-page { min-height: 100vh; display: grid; align-content: center; justify-items: center; gap: 20px; padding: 32px 16px;
-             box-sizing: border-box; }
-.auth-brand { display: flex; align-items: center; gap: 12px; font-size: 24px; font-weight: 700; letter-spacing: -0.02em; }
-.auth-card { width: 100%; max-width: 440px; box-sizing: border-box; background: var(--c-surface); border: 1px solid var(--c-border-soft);
-             border-radius: var(--rad-lg); padding: 32px; box-shadow: var(--elev-1); }
-.auth-card h1 { font-size: 22px; line-height: 28px; font-weight: 700; letter-spacing: -0.01em; margin: 0 0 12px; }
+/* The pages before and after the app (sign in, signed out, no access; components/auth/AuthPage.tsx): the owner's split
+   sign-in design (2026-11-27, the Graphite sign-off). A full-screen abstract background drawn here (no outside image: a
+   visitor contacts no other server before signing in), the product's words on the left, a frosted card on the right;
+   stacked on a phone. The same values as Keycloak's form (deploy/keycloak/themes/modeler-one/.../modeler-one.css).
+   Contrast: the hero's white on the darkest background over 15:1; the card is 90 % white, so its ink reads 14:1 and its
+   secondary grey over 6.5:1 wherever it sits on the background. */
+.auth-body { margin: 0; min-height: 100vh; color: #FFFFFF; background-color: #0E0E11;
+  background-image:
+    radial-gradient(42% 55% at 16% 26%, rgba(37, 99, 235, 0.55) 0%, rgba(37, 99, 235, 0) 70%),
+    radial-gradient(36% 48% at 84% 80%, rgba(13, 148, 136, 0.45) 0%, rgba(13, 148, 136, 0) 70%),
+    radial-gradient(28% 38% at 72% 14%, rgba(234, 88, 12, 0.26) 0%, rgba(234, 88, 12, 0) 70%),
+    radial-gradient(55% 65% at 40% 96%, rgba(99, 102, 241, 0.22) 0%, rgba(99, 102, 241, 0) 70%),
+    linear-gradient(160deg, #111114 0%, #18181B 46%, #0B1220 100%);
+  background-attachment: fixed; }
+/* two glass spheres for depth: lit from the top left, as the "3D" of the design; decoration only */
+.auth-body::before, .auth-body::after { content: ""; position: fixed; border-radius: 50%; pointer-events: none; z-index: 0; }
+.auth-body::before { width: 46vmin; height: 46vmin; left: 6vw; bottom: -12vmin;
+  background: radial-gradient(circle at 32% 28%, rgba(255, 255, 255, 0.32), rgba(96, 165, 250, 0.28) 34%, rgba(30, 58, 138, 0.10) 62%, rgba(14, 14, 17, 0) 72%); }
+.auth-body::after { width: 30vmin; height: 30vmin; right: 8vw; top: 8vh;
+  background: radial-gradient(circle at 34% 30%, rgba(255, 255, 255, 0.28), rgba(45, 212, 191, 0.26) 36%, rgba(15, 118, 110, 0.10) 62%, rgba(14, 14, 17, 0) 72%); }
+.auth-split, .auth-page { position: relative; z-index: 1; min-height: 100vh; box-sizing: border-box;
+  padding-block: 40px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.auth-split { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 440px); align-items: center; gap: 48px 64px;
+  max-width: 1180px; margin: 0 auto; }
+.auth-page { display: grid; align-content: center; justify-items: center; }
+.auth-hero { display: grid; gap: 18px; min-width: 0; }
+.auth-brand { display: flex; align-items: center; gap: 12px; color: #FFFFFF; font-size: 20px; font-weight: 700; letter-spacing: -0.01em; }
+.auth-hero-title { margin: 0; max-width: 14ch; color: #FFFFFF; font-size: clamp(36px, 5.2vw, 64px); line-height: 1.05; font-weight: 700;
+  letter-spacing: -0.035em; text-wrap: balance; }
+.auth-hero-title em { font-style: normal; color: #93C5FD; }   /* "stays": the one blue's light step, 10:1 on the darkest ground */
+/* where the form is: on the right, or below on a phone */
+.auth-narrow { display: none; }
+.auth-hero-sub { margin: 0; max-width: 46ch; color: #D4D4D8; font-size: 17px; line-height: 1.5; }
+/* the frosted card: 90 % white over the background, blurred behind; the words in ink */
+.auth-card { width: 100%; box-sizing: border-box; padding: 32px; color: var(--c-ink); background: rgba(255, 255, 255, 0.90);
+  -webkit-backdrop-filter: blur(18px) saturate(140%); backdrop-filter: blur(18px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.55); border-radius: 18px; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12), 0 30px 60px -20px rgba(0, 0, 0, 0.55); }
+.auth-page .auth-card { max-width: 440px; }
+.auth-card h1 { font-size: 26px; line-height: 32px; font-weight: 700; letter-spacing: -0.02em; margin: 0 0 12px; color: var(--c-ink); }
 .auth-card p { margin: 0 0 12px; line-height: 22px; color: var(--c-ink-2); }
 .auth-card .banner { margin: 0 0 16px; }
-.auth-go { display: flex; justify-content: center; width: 100%; min-height: 40px; box-sizing: border-box; margin: 8px 0 16px; }
+.auth-go { display: flex; justify-content: center; width: 100%; min-height: 44px; box-sizing: border-box; margin: 8px 0 14px; font-size: 15px; }
 .auth-card .btn { border-radius: var(--rad-md); text-decoration: none; align-items: center; }
 .auth-card .btn.primary { background: var(--c-accent); border-color: var(--c-accent); color: var(--c-on-accent); }
 .auth-card .btn.primary:hover { background: var(--c-accent-hover); }
 .auth-card .btn:focus-visible { outline: 2px solid var(--c-focus); outline-offset: 2px; }
-.auth-notes { margin: 0; padding-left: 18px; color: var(--c-ink-3); font-size: 14px; line-height: 21px; display: grid; gap: 6px; }
+.auth-notes { margin: 0; padding-left: 18px; color: var(--c-ink-3); font-size: 13.5px; line-height: 20px; display: grid; gap: 4px; }
 .auth-acts { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 16px; }
-.auth-foot { margin: 0; color: var(--c-ink-muted); font-size: 13px; }
+.auth-card .auth-ask { margin: 16px 0 0; padding-top: 14px; border-top: 1px solid rgba(24, 24, 27, 0.10); text-align: center; font-size: 13.5px;
+  color: var(--c-ink-3); }
+.auth-foot { margin: 0; color: #D4D4D8; font-size: 13px; }
+@media (max-width: 900px) {
+  .auth-split { grid-template-columns: minmax(0, 1fr); align-content: center; gap: 28px; max-width: 520px; }
+  .auth-hero { gap: 12px; }
+  .auth-hero-title { font-size: clamp(30px, 8.5vw, 40px); max-width: none; }
+  .auth-hero-sub { font-size: 15px; }
+  .auth-wide { display: none; }
+  .auth-narrow { display: inline; }
+  .auth-card { padding: 24px; }
+}
+@media (prefers-reduced-transparency: reduce) { .auth-card { background: #FFFFFF; -webkit-backdrop-filter: none; backdrop-filter: none; } }
 
 /* the account page */
 .account-grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); margin-top: 16px; }

@@ -504,9 +504,14 @@ def _check(name: str, ok: bool, detail: str | list[str] = "") -> dict[str, Any]:
 
 
 def readiness(cpf: CPF, rows: list[dict[str, Any]], assembly: dict[str, Any], brief: ProjectBrief | None,
-              room: RoomBasis | None = None) -> dict[str, Any]:
+              room: RoomBasis | None = None, release: dict[str, dict[str, Any]] | None = None) -> dict[str, Any]:
     """The checks before the plan: complete, placeable, every planned simulation builds. `room`: the Data room's send
-    (`room_basis`), whose applications count where the brief has none a person set (its food effect: no fed fit)."""
+    (`room_basis`), whose applications count where the brief has none a person set (its food effect: no fed fit).
+    `release`: each formulation's release model waiting on a person or held for particle dissolution
+    (`release_choice.release_states`; the owner's D1)."""
+    from modeler_project.release_choice import HELD_WHY
+
+    release = release or {}
     from pbpk_domain.campaign.map import generate_map
     from pbpk_domain.campaign.round_build import ScenarioBuildError, build_stage_snapshot
     from pbpk_domain.campaign.split import QuestionOfInterest, StudyRecord, split_studies
@@ -537,6 +542,10 @@ def readiness(cpf: CPF, rows: list[dict[str, Any]], assembly: dict[str, Any], br
             formulation_problems.append(f"{row['study_id']}: study record: {exc}")
             continue
         if row.get("formulation") in SOLID:
+            held = release.get(str(row.get("formulation_name") or ""), {})
+            if held.get("state") == "held":            # its Weibull values set aside on Inputs (D1): said as such
+                formulation_problems.append(f"{row['study_id']}: {row.get('formulation_name')}: {HELD_WHY}")
+                continue
             try:
                 name, _note = resolve_formulation_name(cpf, row.get("formulation_name"))
                 cpf_formulation(cpf, name)
@@ -549,9 +558,11 @@ def readiness(cpf: CPF, rows: list[dict[str, Any]], assembly: dict[str, Any], br
     checks.append(_check("demographics stated (D-29)", not (unstated := unstated_demographics(rows)),
                          [f"{sid}: give the demographics, or choose the healthy adult default" for sid in unstated]))
     waiting = waiting_proposals(rows)
-    checks.append(_check("the Data room's proposals confirmed (D1)", not waiting,
+    models = sorted(name for name, r in release.items() if r.get("state") == "proposed")
+    checks.append(_check("the Data room's proposals confirmed (D1)", not waiting and not models,
                          [f"{sid}: confirm or change its {' and '.join(keys)} (proposed by the Data room)"
-                          for sid, keys in waiting.items()]))
+                          for sid, keys in waiting.items()]
+                         + [f"{name}: confirm or change its release model (proposed by the Data room)" for name in models]))
     evaluable = [r for r in rows if r.get("evaluable")]
     not_real = [f"{r['study_id']} ({r['origin'].lower()})" for r in evaluable if r["origin"] not in {o.value for o in REAL_ORIGINS}]
     checks.append(_check("observed data to judge on", bool(evaluable), [] if evaluable else ["no dataset with a profile"]))
@@ -620,9 +631,11 @@ def assemble(ws: Workspace, *, by: str) -> dict[str, Any]:
     catalog_version = ws.commit(ArtifactKind.STUDY_CATALOG, MAIN, {"studies": rows, "notes": notes},
                                 derived_from=[*([picked_version.ref] if picked_version else []), *[v.ref for v in datasets_used]],
                                 actor=by, reason=f"{len(rows)} studies from accepted datasets")
+    from modeler_project.release_choice import release_states
     from modeler_project.room_basis import room_basis
 
-    result = {**readiness(cpf, rows, report, brief, room_basis(ws, full=False)), "inputs_key": inputs_key(ws)}
+    result = {**readiness(cpf, rows, report, brief, room_basis(ws, full=False), release_states(ws)),
+              "inputs_key": inputs_key(ws)}
     ready_version = ws.commit(ArtifactKind.READINESS, MAIN, result, derived_from=[cpf_version.ref, catalog_version.ref],
                               actor=by, reason="ready" if result["ready"] else "not ready")
     return {"cpf": cpf_version, "catalog": catalog_version, "readiness": ready_version}
@@ -902,12 +915,16 @@ def todo(ws: Workspace) -> list[dict[str, Any]]:
                               for d in observed]})
     rows = catalog_rows(ws)
     dataset_of = {str(r["study_id"]): r.get("dataset_id") for r in rows}
+    from modeler_project.release_choice import release_states
+
+    released = release_states(ws)          # a formulation's release model is answered on Formulations (D1)
     for name, kind in (("multiple-dose regimens", "regimen"), ("demographics stated (D-29)", "demographics"),
                        ("the Data room's proposals confirmed (D1)", "proposal")):
         check = checks.get(name)
         for detail in (check or {"detail": []})["detail"] if check and not check["ok"] else []:
             sid = detail.split(":", 1)[0]
-            out.append({"kind": kind, "target": sid, "message": detail, "items": [], "dataset_id": dataset_of.get(sid)})
+            entry = {"kind": kind, "target": sid, "message": detail, "items": [], "dataset_id": dataset_of.get(sid)}
+            out.append({**entry, "tab": "formulations"} if kind == "proposal" and sid in released else entry)
     formulations = checks.get("formulations of solid studies")
     failing = list(formulations["detail"]) if formulations and not formulations["ok"] else []
     from modeler_project.formulation_way import ASKS, elsewhere_problem, formulation_way

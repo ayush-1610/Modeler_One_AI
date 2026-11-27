@@ -186,9 +186,9 @@ test("an extracted delivery shows its study and dissolution, a decision is taken
   await page.goto(`/projects/${projectId}/dataroom`);
   await expect(page.getByTestId("question-text-shown")).toContainText("reformulated Exampleamide tablet");
   await expect(page.getByTestId("headline-files")).toContainText("11");
-  // six of the room, and which applications the question has (the requirement drafts, D5); the population, sex and meal
-  // template are chosen on Inputs (the owner's D1), so not counted here
-  await expect(page.getByTestId("headline-decisions")).toContainText("7");
+  // five of the room, and which applications the question has (the requirement drafts, D5); the population, sex, meal
+  // template and release model are chosen on Inputs (the owner's D1), so not counted here
+  await expect(page.getByTestId("headline-decisions")).toContainText("6");
   const needs = page.getByTestId("needs-you");
   await expect(needs.getByTestId("need-question")).toContainText("Confirm the question");
   await expect(needs.locator("[data-kind='conflict']")).toHaveCount(2);              // the client's NCA, a mean row
