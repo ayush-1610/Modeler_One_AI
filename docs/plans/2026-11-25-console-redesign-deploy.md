@@ -1,6 +1,7 @@
 # The console redesign: deploy plan and acceptance by use (slice 10)
 
-**Status:** for the owner's review (2026-11-25). Nothing here is done until the owner says so: the deploy needs the
+**Status:** for the owner's review (2026-11-25; brought up to date for the "Graphite" restyle, R1–R4, on 2026-11-27).
+Nothing here is done until the owner says so: the deploy needs the
 owner's separate go-ahead (the redesign charter: no production change before that), and it is run by the owner from the
 Mac, because this plan's author has no access to the server.
 
@@ -8,14 +9,20 @@ Parent plan: `docs/plans/2026-11-23-console-redesign-implementation.md` (§6 sli
 and responsive pass, the owner uses it on real work, deploy plan"; exit: the owner's acceptance).
 
 ## 1. What goes out
-`main` after slice 10 merges: slices 1–10 of the console redesign (#174–#184 and slice 10's PR) and the work merged
-into `main` beside them (the data story's Data room phases, the Claude API provider, the paid-model cap).
+`main` after slice 10 merges: slices 1–10 of the console redesign (#174–#185), the `/templates` retirement (#186), the
+"Graphite" restyle (R1 #189, R2 #190, R3 #191 and R4's PR; `design-review/DECISIONS.md` D-I4) and the work merged into
+`main` beside them (the data story's Data room phases and groups #187, the Claude API provider, the paid-model cap).
 
 What people will notice:
-- **The console:** a navy top bar (Your work with its count, All projects, Help, whether the API answers) and a side
-  navigation (Home, Your work, Projects, Campaigns, Start from proposal; a project's Overview, its four steps with their
-  state, Data plan, Compounds, Documents, History, Agent activity, Members, Settings, Add data; the Admin console for the
-  platform's owner). Breadcrumbs on every page; tabs keep their choice in the address.
+- **The look ("Graphite"):** near-black ink for actions and the current choice, one blue for charts, source links and
+  the focus outline; Plus Jakarta Sans at 15 px, JetBrains Mono for identifiers; rounded panels with soft shadows; the
+  sign-in pages (the app's and Keycloak's) in the same look.
+- **The console:** no top bar. A sidebar on the grey canvas: the mark to Home, **Start from proposal**, **Search**
+  (⌘K / Ctrl K), Home, Your work with its count, Projects, Campaigns; then a project's Overview, its four steps with
+  their state, Data plan, Compounds, Documents, History, Agent activity, Members, Settings, Add data (or the Admin
+  console for the platform's owner); Help; the person and Sign out at the foot. The page is a white rounded panel whose
+  bar holds the breadcrumbs, **notifications** (what waits on the person), Help and whether the API answers. Page tabs are
+  underlined and keep their choice in the address; a value's source opens from a blue link.
 - **Decisions are asked where the person is:** a bar "A decision is waiting" on the campaign's and its project's pages,
   and a row in Your work, for the people who may decide (R-S02). There is no pop-up on every page any more.
 - **New pages:** Your work, Projects, Campaigns, a project's Overview, Data plan, Compounds, Agent activity and a run's
@@ -71,7 +78,8 @@ ssh adt-server 'bash ~/Modeler_One_AI/deploy/server/keycloak.sh theme && bash ~/
 |---|---|---|
 | The stack is up | `ssh adt-server 'bash ~/Modeler_One_AI/deploy/server/status_modeler.sh'` | API UP, web UP, Keycloak UP, "Keycloak sign-in" |
 | The engine answers | Admin console → System status | the engine is **PK-Sim (OSP suite)** and **it answers** (the check starts `run_job.R` without a job). A software fixture, or "it does not answer", means the engine command is wrong: stop and fix it before anyone runs a campaign |
-| Navigation | Home, Your work, Projects, Campaigns, Help | each opens in the console; breadcrumbs say where |
+| Navigation | the sidebar: Start from proposal, Search (⌘K), Home, Your work, Projects, Campaigns, Help | each opens in the console; the page bar's breadcrumbs say where; the bell lists what waits on you |
+| The look | any page; then sign out and in | the Graphite look (ink buttons, rounded panels, Plus Jakarta Sans); the Keycloak sign-in page in the same look (if it still shows Keycloak's own, the theme step of §3 was missed) |
 | A project | Overview → each step in the side navigation | each step's state shows; the Waiting on you line links where it is settled |
 | Inputs | open a study card | it opens in the side panel; Previous / Next move between cards |
 | Review & sign | its tabs | the tab is in the address; a viewer sees it read-only |
@@ -85,6 +93,8 @@ ssh adt-server 'bash ~/Modeler_One_AI/deploy/server/keycloak.sh theme && bash ~/
   `bash deploy/dev/deploy_to_server.sh` (it warns that this is not `main`: expected for a rollback), then put `main`
   right (revert, below) and deploy `main` again so IQ-01 passes.
 - **One slice:** each slice is one merge commit on `main`; `git revert -m 1 <merge>` undoes it, then deploy `main`.
+- **The Graphite look alone:** revert its merges newest first (R4's, then R3 `599989d`, R2 `3b9cbc9`, R1 `ca7903a`) and
+  deploy `main`; the console's slices stay. Then copy the Keycloak theme in again (§3), as R1 changed it.
   Backend changes are additive and separate commits, revertible alone.
 - **The web app only:** restore `apps/web` from the tag `pre-aws-redesign-20261123-1601`. The API is compatible with
   the old web app except the retired operations, which the old app did not call either.
@@ -107,7 +117,8 @@ was slower, unclear or missing (a GitHub issue, or a message to the session), an
 | A9 | Share and settle | Members, Settings | a reviewer added; a test project archived with a reason, then restored |
 | A10 | Run the platform | Admin console | Companies, People, Keys, Models, Limits, System status |
 | A11 | A QA person's view | signed in as `modeler-qa` | every project of the company readable; no change or signature offered, and refused if tried |
-| A12 | On a phone | Your work, a decision, a campaign | the menu opens from the top bar; nothing scrolls sideways |
+| A12 | On a phone | Your work, a decision, a campaign | the menu opens from the page bar's button; nothing scrolls sideways |
+| A13 | The look | a full working day | the type reads comfortably at 15 px; nothing is too faint or too small; say if the Compact view (later, by the owner's choice) is wanted |
 
 ## 7. Known limits at acceptance
 - `DataTable` and `SortableTable` stay beside `kit/Table` (paging, grouped rows); the stylesheets stay global (B-11).

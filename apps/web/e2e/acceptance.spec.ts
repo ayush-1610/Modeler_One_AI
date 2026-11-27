@@ -9,7 +9,7 @@ import { join, relative } from "node:path";
 
 import { expect, test, type Page } from "@playwright/test";
 
-import { open, sideways, smallTargets, unnamed } from "./fixtures/a11y";
+import { lowContrast, open, sideways, smallTargets, unnamed } from "./fixtures/a11y";
 import { projectWithInputs } from "./fixtures/inputs";
 
 const DRUG = "Acceptamide";
@@ -107,9 +107,11 @@ async function check(page: Page, path: string) {
   const [wide, who] = await sideways(page);
   expect(wide, `${path}: no sideways scroll (${who})`).toBeLessThanOrEqual(1);
   expect(await smallTargets(page), `${path}: every control at least 24 x 24 px to the pointer`).toEqual([]);
+  // soft: one run names every page whose text falls short, not only the first (the Graphite restyle's pass, R4)
+  expect.soft(await lowContrast(page), `${path}: text contrast AA (4.5:1, large text 3:1)`).toEqual([]);
 }
 
-test("every page of the app, at 1440 and 390 px: one heading, named controls, no sideways scroll, 24 px targets", async ({ page, request }) => {
+test("every page of the app, at 1440 and 390 px: one heading, named controls, no sideways scroll, 24 px targets, AA contrast", async ({ page, request }) => {
   test.setTimeout(600_000);
   const projectId = await projectWithInputs(request, DRUG, [{ study_id: "iv-100", route: "iv_infusion", dose_mg: 100 }]);
   seed(projectId);
