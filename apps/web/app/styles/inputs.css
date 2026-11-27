@@ -80,10 +80,10 @@
 .to-confirm-btn[aria-pressed="true"] { outline: 2px solid var(--warn-ink); outline-offset: 1px; }
 
 /* the areas in one bar across the top (plan 2026-11-14 slice 1): it stays in view, opaque over what scrolls under it;
-   below 900 px it is one row that scrolls sideways (under the phone's top bar), never a block of wrapped tabs. The area
+   below 900 px it is one row that scrolls sideways (under the phone's page bar), never a block of wrapped tabs. The area
    under it takes only its content's height: no dead band under a short area. */
 .area-bar { position: sticky; top: 0; z-index: 18; display: flex; align-items: center; gap: 10px; margin: 0 -12px;
-  padding: 10px 12px; background: var(--bg); border-bottom: 1px solid var(--hairline); }
+  padding: 10px 12px; background: var(--c-surface); border-bottom: 1px solid var(--hairline); }   /* the page panel's white (Graphite, R2) */
 /* positioned, so a count's screen-reader text (absolute) stays inside the row that scrolls, not beyond the page's edge */
 .area-bar .tabs.area-tabs { position: relative; flex: 1 1 auto; min-width: 0; margin: 0; }
 .area-bar .tabs.area-tabs { gap: 2px; }

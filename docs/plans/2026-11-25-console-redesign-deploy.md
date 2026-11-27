@@ -60,6 +60,11 @@ clean `main` (IQ-01) among the rest:
 ```bash
 ssh adt-server 'bash ~/Modeler_One_AI/deploy/server/qualify.sh iq'
 ```
+**Since the Graphite restyle (R1, 2026-11-27):** the Keycloak sign-in pages changed too. Copy the theme in and restart
+Keycloak (it reads its themes when it starts; sign-ins in progress must start again):
+```bash
+ssh adt-server 'bash ~/Modeler_One_AI/deploy/server/keycloak.sh theme && bash ~/Modeler_One_AI/deploy/server/keycloak.sh stop && bash ~/Modeler_One_AI/deploy/server/keycloak.sh start'
+```
 
 ## 4. Right after (about 15 minutes; the owner, signed in through Keycloak)
 | Check | Where | Expected |

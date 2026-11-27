@@ -79,7 +79,7 @@ html[data-dialogs] { overflow: hidden; }
 /* ---- the source peek (components/kit/SourcePeek.tsx; plan 2026-11-03 §3.3): centre of the screen, the page dimmed behind ---- */
 .dialog-backdrop.peek { background: rgba(0, 0, 0, 0.28); }
 .dialog.peek { width: min(980px, 100%); height: min(82vh, 900px); display: flex; flex-direction: column; gap: 8px;
-  box-shadow: 0 40px 100px -30px rgba(0, 0, 0, 0.4); }
+  box-shadow: var(--elev-2); }
 .dialog.peek .dialog-actions { margin-top: 4px; }
 .peek-where { margin: 0; font-size: 13px; }
 .peek-body { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 8px; }

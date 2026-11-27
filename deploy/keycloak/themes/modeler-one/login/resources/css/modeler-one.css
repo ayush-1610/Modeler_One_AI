@@ -1,38 +1,38 @@
-/* Modeler One on Keycloak's keycloak.v2 login pages: the design system's tokens (design-review/DESIGN_SYSTEM.md §2,
-   accent #001B94), IBM Plex Sans (SIL OFL 1.1, fonts/OFL.txt), the product's mark. Keycloak's PatternFly 5 variables
+/* Modeler One on Keycloak's keycloak.v2 login pages: the console's "Graphite" tokens (apps/web/app/styles/tokens.css,
+   design-review/DECISIONS.md D-I4), Plus Jakarta Sans (SIL OFL 1.1, fonts/OFL-PlusJakartaSans.txt), the product's mark. Keycloak's PatternFly 5 variables
    are overridden, never its markup. */
 @font-face {
-  font-family: "IBM Plex Sans";
-  src: url("../fonts/IBMPlexSans-latin-var.woff2") format("woff2");
-  font-weight: 400 600;
+  font-family: "Plus Jakarta Sans";
+  src: url("../fonts/PlusJakartaSans-latin-var.woff2") format("woff2");
+  font-weight: 200 800;
   font-display: swap;
 }
 
 :root {
-  --mo-canvas: #F8FAFC;
+  --mo-canvas: #F4F4F5;
   --mo-surface: #FFFFFF;
-  --mo-border: #E2E8F0;
-  --mo-control-edge: #7C8798;
-  --mo-ink: #0F172A;
-  --mo-ink-3: #475569;
-  --mo-accent: #001B94;
-  --mo-accent-hover: #00136B;
-  --mo-accent-tint: #EEF2FF;
-  --mo-fail: #B3261E;
-  --mo-fail-bg: #FBEAE8;
-  --keycloak-card-top-color: var(--mo-accent);
-  --pf-v5-global--FontFamily--text: "IBM Plex Sans", system-ui, sans-serif;
-  --pf-v5-global--FontFamily--heading: "IBM Plex Sans", system-ui, sans-serif;
+  --mo-border: #EFEFF1;
+  --mo-control-edge: #8A8A93;
+  --mo-ink: #18181B;
+  --mo-ink-3: #52525B;
+  --mo-accent: #18181B;
+  --mo-accent-hover: #2E2E33;
+  --mo-accent-tint: #ECECEE;
+  --mo-focus: #2563EB;
+  --mo-fail: #991B1B;
+  --mo-fail-bg: #FEE2E2;
+  --pf-v5-global--FontFamily--text: "Plus Jakarta Sans", system-ui, sans-serif;
+  --pf-v5-global--FontFamily--heading: "Plus Jakarta Sans", system-ui, sans-serif;
   --pf-v5-global--primary-color--100: var(--mo-accent);
   --pf-v5-global--primary-color--200: var(--mo-accent-hover);
-  --pf-v5-global--link--Color: var(--mo-accent);
+  --pf-v5-global--link--Color: var(--mo-ink);
   --pf-v5-global--link--Color--hover: var(--mo-accent-hover);
   --pf-v5-global--active-color--100: var(--mo-accent);
   --pf-v5-c-button--m-primary--BackgroundColor: var(--mo-accent);
   --pf-v5-c-button--m-primary--hover--BackgroundColor: var(--mo-accent-hover);
   --pf-v5-c-button--m-primary--focus--BackgroundColor: var(--mo-accent-hover);
   --pf-v5-c-button--m-primary--active--BackgroundColor: var(--mo-accent-hover);
-  --pf-v5-c-form-control--focus--after--BorderBottomColor: var(--mo-accent);
+  --pf-v5-c-form-control--focus--after--BorderBottomColor: var(--mo-focus);
   --pf-v5-c-form-control--hover--after--BorderBottomColor: var(--mo-accent);
 }
 
@@ -40,7 +40,8 @@
 .login-pf body, body#keycloak-bg {
   background: var(--mo-canvas);
   color: var(--mo-ink);
-  font-family: "IBM Plex Sans", system-ui, sans-serif;
+  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+  font-size: 15px;
 }
 
 /* the header above the card: the mark and the product's name */
@@ -51,8 +52,8 @@
   gap: 12px;
   padding: 8px 0 4px;
   font-size: 24px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
+  font-weight: 700;
+  letter-spacing: -0.02em;
   text-transform: none;           /* PatternFly's brand is upper case; the product's name is not */
   color: var(--mo-ink);
 }
@@ -65,23 +66,25 @@
 .mo-brand { color: var(--mo-ink); }
 div.kc-logo-text { display: none; }
 
-/* the card: white, a hairline, the accent on top, small radius */
+/* the card: white, rounded (14 px), a hairline and a soft shadow */
 .pf-v5-c-login__main {
+  --keycloak-card-top-color: transparent;
   background: var(--mo-surface);
   border: 1px solid var(--mo-border);
-  border-radius: 8px;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+  border-radius: 14px;
+  box-shadow: 0 1px 2px rgba(24, 24, 27, 0.05), 0 6px 18px -8px rgba(24, 24, 27, 0.14);
 }
-.pf-v5-c-login__main-header { border-top: 3px solid var(--mo-accent); border-radius: 8px 8px 0 0; }
-.pf-v5-c-title.pf-m-3xl { font-size: 22px; font-weight: 600; color: var(--mo-ink); }
+.pf-v5-c-login__main-header { border-top: 0; border-radius: 14px 14px 0 0; }
+.pf-v5-c-title.pf-m-3xl { font-size: 22px; font-weight: 700; letter-spacing: -0.01em; color: var(--mo-ink); }
 
-/* inputs: a visible edge (3:1 against white) and the accent focus ring */
+/* inputs: a visible edge (3:1 against white) and the blue focus outline */
 .pf-v5-c-form-control { --pf-v5-c-form-control--before--BorderColor: var(--mo-control-edge); }
-.pf-v5-c-form-control:focus-within { outline: 2px solid var(--mo-accent); outline-offset: 1px; }
-.pf-v5-c-button:focus-visible { outline: 2px solid var(--mo-accent); outline-offset: 2px; }
+.pf-v5-c-form-control { border-radius: 10px; }
+.pf-v5-c-form-control:focus-within { outline: 2px solid var(--mo-focus); outline-offset: 1px; }
+.pf-v5-c-button:focus-visible { outline: 2px solid var(--mo-focus); outline-offset: 2px; }
 
 /* the primary button: at least 40 px high (target size, WCAG 2.2 2.5.8) */
-.pf-v5-c-button.pf-m-primary { min-height: 40px; font-weight: 600; border-radius: 6px; }
+.pf-v5-c-button.pf-m-primary { min-height: 40px; font-weight: 600; border-radius: 10px; }
 
 /* errors in the product's fail colours */
 .pf-v5-c-alert.pf-m-danger { --pf-v5-c-alert--BorderTopColor: var(--mo-fail); background: var(--mo-fail-bg); }

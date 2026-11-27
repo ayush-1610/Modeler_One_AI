@@ -75,12 +75,12 @@ test("the area bar is high on every area, stays in view, and the page opens on T
     if (area !== "files") await expect(page.getByTestId("delivery-section")).toHaveCount(0);
   }
 
-  // scrolled down a long area, the bar is still at the top of the window, just under the top bar (which stays), and
+  // scrolled down a long area, the bar is still at the top of the window, just under the page bar (which stays), and
   // nothing below the fold is faded out
   await page.getByTestId("tab-compound").click();
   await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
-  const topbar = (await page.locator(".topbar").boundingBox())!;
-  await expect.poll(async () => Math.abs((await bar.boundingBox())!.y - (topbar.y + topbar.height))).toBeLessThanOrEqual(1);
+  const pagebar = (await page.locator(".pagebar").boundingBox())!;
+  await expect.poll(async () => Math.abs((await bar.boundingBox())!.y - (pagebar.y + pagebar.height))).toBeLessThanOrEqual(1);
   const faded = await page.evaluate(() => [...document.querySelectorAll<HTMLElement>("[data-no-reveal] section, [data-no-reveal] .card")]
     .filter((el) => el.style.opacity === "0").length);
   expect(faded).toBe(0);

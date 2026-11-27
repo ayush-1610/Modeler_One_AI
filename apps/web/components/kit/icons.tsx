@@ -27,6 +27,7 @@ const PATHS = {
   search: "M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z M21 21l-4.3-4.3",
   chevl: "M15 6l-6 6 6 6", chevr: "M9 6l6 6-6 6", chevd: "M6 9l6 6 6-6",
   menu: "M4 6h16 M4 12h16 M4 18h16", x: "M6 6l12 12 M18 6 6 18",
+  bell: "M6 16v-5a6 6 0 1 1 12 0v5l1.5 2h-15z M10 21h4",   // notifications (the Graphite page bar, R2)
   sliders: "M4 6h9 M17 6h3 M4 12h3 M11 12h9 M4 18h11 M19 18h1 M15 4v4 M9 10v4 M17 16v4",
 } as const;
 

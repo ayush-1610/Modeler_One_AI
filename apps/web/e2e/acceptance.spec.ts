@@ -129,14 +129,14 @@ test("the keyboard: the skip link first, past the shell to the page; a dialog ke
   await page.setViewportSize({ width: 1440, height: 900 });
   await open(page, `/projects/${projectId}/settings`);
 
-  // the first Tab stop is the skip link; it takes the focus past the top bar and the navigation
+  // the first Tab stop is the skip link; it takes the focus past the sidebar and the page bar
   await page.keyboard.press("Tab");
   const skip = page.locator(".skip-link");
   await expect(skip).toBeFocused();
   await page.keyboard.press("Enter");
   await expect(page.locator("#content")).toBeFocused();
   await page.keyboard.press("Tab");
-  const inShell = await page.evaluate(() => Boolean(document.activeElement?.closest(".topbar, .sidenav")));
+  const inShell = await page.evaluate(() => Boolean(document.activeElement?.closest(".pagebar, .sidenav")));
   expect(inShell, "the next stop is on the page, not the shell").toBe(false);
 
   // a dialog: the focus moves in, Tab stays inside, Escape closes it and the focus is back on its opener

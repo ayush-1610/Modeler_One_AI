@@ -9,9 +9,10 @@ Cloudscape Design System (app layout with navigation, help and split panels; fla
 with filter, preferences and pagination; status indicators; key-value pairs). No AWS logo, colour, typeface, icon or
 product label is used: Modeler One keeps its own mark, palette and type.
 
-> **Revision 2026-11-24 (decision D-I1):** the visual style is design option 5, "Brand Navy bar"
-> (`design-review/console-options/O5-NavyBar.dc.html`). Where this document and D-I1 differ (top bar colour, radii,
-> button and tab style, alert style, status colours), D-I1 and `apps/web/app/styles/tokens.css` win.
+> **Revision 2026-11-27 (decision D-I4):** the look is "Graphite" (`docs/plans/2026-11-27-console-graphite-restyle.md`),
+> which replaced design option 5, "Brand Navy bar" (D-I1, 2026-11-24). §2 and §3 below carry its values. Where another
+> part of this document and D-I4 differ (tab and button style, until R3), D-I4 and
+> `apps/web/app/styles/tokens.css` win.
 
 ## 1. Principles
 1. **Evidence before decoration.** No curve, sparkline or number is drawn unless it comes from the record; a chart says
@@ -25,63 +26,73 @@ product label is used: Modeler One keeps its own mark, palette and type.
 6. **Accessible by construction.** WCAG 2.2 AA, keyboard first, colour never alone.
 
 ## 2. Colour
-Tokens only; no component names a hex value. 60 % neutral · 30 % structure · 10 % accent.
+Tokens only; no component names a hex value (`apps/web/app/styles/tokens.css`). Graphite: a neutral, slightly warm grey
+scale; near-black ink for actions and the current choice; one blue for data, source links and focus; the status colours.
+Ratios computed (WCAG 2.x relative luminance).
 
 | Token | Value | Use | Contrast (computed) |
 |---|---|---|---|
-| `--canvas` | `#F8FAFC` | page background | — |
-| `--surface` | `#FFFFFF` | panels, tables, top bar, side navigation | — |
-| `--surface-2` | `#F1F5F9` | table headers, toolbars, hover | — |
-| `--surface-3` | `#E2E8F0` | skeletons, empty bars | — |
-| `--border` / `--border-2` | `#E2E8F0` / `#CBD5E1` | hairlines / stronger dividers | non-text |
-| `--control-edge` | `#7C8798` | edges of inputs, buttons, checkboxes | 3.64:1 on white (≥ 3:1) |
-| `--ink` | `#0F172A` | headings, primary text | 17.85:1 |
-| `--ink-2` | `#334155` | table text, labels | 10.35:1 |
-| `--ink-3` | `#475569` | secondary text on any surface | 7.58:1 white, 6.78:1 on tint |
-| `--ink-muted` | `#64748B` | placeholder, meta on white/canvas only | 4.76:1; **not on tints** (4.26:1) |
-| `--accent` | `#001B94` | primary button, active nav and tab, focus ring, key counts, progress | white on it 13.25:1 |
-| `--accent-hover` | `#00136B` | hover/pressed primary | 16.09:1 |
-| `--accent-tint` | `#EEF2FF` | selected row, active nav background | accent text 11.85:1 |
-| Status ink / background | pass `#17663A`/`#E7F4EC` · warn `#9A4500`/`#FDF1E4` · fail `#B3261E`/`#FBEAE8` · info `#001B94`/`#EEF2FF` | status indicators, flash bars | ink ≥ 6.5:1 |
+| `--c-canvas` | `#F4F4F5` | page background | — |
+| `--c-surface` | `#FFFFFF` | panels, tables, side navigation | — |
+| `--c-surface-2` | `#F4F4F5` | table headers, toolbars, hover | — |
+| `--c-surface-3` | `#E9E9EC` | the segmented control's track, a progress rail | — |
+| `--c-border` / `--c-border-soft` / `--c-border-2` | `#E4E4E7` / `#EFEFF1` / `#D4D4D8` | hairlines / panel edges and rows / a secondary button's edge | non-text (a button's word names it) |
+| `--c-control-edge` | `#8A8A93` | edges of inputs, selects, checkboxes | 3.42:1 white, 3.11:1 canvas (≥ 3:1) |
+| `--c-ink` | `#18181B` | headings, primary text, links (underlined) | 17.72:1 white, 16.12:1 canvas |
+| `--c-ink-2` | `#3F3F46` | table text, labels | 10.44:1 |
+| `--c-ink-3` | `#52525B` | secondary text on any surface | 7.73:1 white, 6.55:1 on the tint, 6.38:1 on the track |
+| `--c-ink-muted` | `#6B6B74` | placeholder, meta on white or the canvas only | 5.28:1 white, 4.80:1 canvas; **not on the tint** (4.47:1) |
+| `--c-accent` | `#18181B` | the primary button, the current navigation item and tab, key counts, progress | white on it 17.72:1 |
+| `--c-accent-hover` | `#2E2E33` | hover/pressed primary | white on it 13.51:1 |
+| `--c-accent-tint` | `#ECECEE` | selected row, current navigation item | ink on it 15.02:1 |
+| `--c-focus` | `#2563EB` | the focus outline (2 px) | 5.17:1 white, 4.70:1 canvas, 4.38:1 tint, 3.43:1 on the ink |
+| `--c-run` / `--c-run-bg` | `#1D4ED8` / `#E8F0FE` | something running (a step, a campaign, an agent run) | 5.85:1 |
+| `--c-flash` / `--c-flash-line` | `#FEF3C7` / `#E8C16A` | the bar that asks for a person (a decision waiting) | ink on it 15.91:1 |
+| `--c-info-bg` / `--c-info-line` | `#EFF5FF` / `#A9C3F7` | information banners | ink 16.18:1, ink-3 7.06:1 |
+| Status ink / background | pass `#166534`/`#DCFCE7` · warn `#92400E`/`#FEF3C7` · fail `#991B1B`/`#FEE2E2` (unchanged, D-I4) | status labels, banners | 6.49 · 6.37 · 6.80:1 |
 
-**Accent budget (10 %).** Allowed: the one primary button per region, the active navigation item and tab, focus
-rings, the Your work count, progress fills, selection, chart series 1. Not allowed: headings, tab counts (neutral),
-decorative fills, large backgrounds. **Top bar stays light**: the accent on a dark bar is 1.35:1.
+**The one blue.** `#2563EB` is for the charts' first series, source links, the focus outline and (as its darker step)
+what is running. Not for headings, buttons or large fills. The ink does the work the navy accent did.
 
-### 2.1 Chart palette (validated with the data-viz skill's validator, light surface)
+### 2.1 Chart palette (validated with the data-viz skill's validator, all pairs, on white and on the canvas)
 | Slot | Token | Value | Job |
 |---|---|---|---|
-| 1 | `--chart-1` | `#2E4BC6` | the model / predicted; reference product. The accent's chart step: `#001B94` itself is too dark for marks (OKLCH L 0.33 < 0.43) |
-| 2 | `--chart-2` | `#B25000` | observed; test product |
-| 3 | `--chart-3` | `#1BAF7A` | reformulated product |
+| 1 | `--c-chart-1` | `#2563EB` | the model / predicted; the reference product |
+| 2 | `--c-chart-2` | `#EA580C` | observed; the test product |
+| 3 | `--c-chart-3` | `#0D9488` | the reformulated product |
 
-Result: lightness band, chroma floor, colour-blind separation (worst ΔE 13.6 deutan) and normal-vision floor (26.9) all
-pass. Slot 3 is 2.82:1 against white, so **every chart has direct labels and a table view** (required, not optional).
-Fixed order, never cycled; a 4th series folds into small multiples. Colour follows the entity, never its rank. Grid
-`#E2E8F0`, axis `#94A3B8`, text in ink tokens, never in series colour.
+Result (2026-11-27): lightness band, chroma floor, contrast (all ≥ 3:1 on white), normal-vision floor (worst ΔE 22.6,
+blue↔teal) and CVD separation (worst 13.8 protan) pass; blue↔teal under tritan is 6.4, inside the 6–8 band that is legal
+only with secondary encoding, which every chart has: **direct labels or a legend, and a table view (required)**. Fixed
+order, never cycled; a 4th series folds into small multiples. Colour follows the entity, never its rank. Grid `#E4E4E7`,
+axis `#A1A1AA`, text in ink tokens, never in series colour. The Data room's products use the same three (D-I4).
 
 ## 3. Type, space, shape
 | | |
 |---|---|
-| Typefaces | **IBM Plex Sans** (400–600, variable) for everything; **IBM Plex Mono** (400, 500) for ids, codes, hashes, sheet cells. Self-hosted (SIL OFL), no third-party request |
-| Scale | 12 · 13 · 14 (body) · 16 (section) · 20 · 24 (page title) px; line height 1.5 body, 1.25 titles; weights 400 / 500 / 600 |
+| Typefaces | **Plus Jakarta Sans** (variable, 200–800; used at 400–700) for everything; **JetBrains Mono** (400, 500) for ids, codes, hashes, sheet cells. Self-hosted (SIL OFL 1.1), no third-party request (D-I4) |
+| Scale | 12 · 13 · 15 (body) · 16 · 17 (section) · 20 · 28 (page title) px; line height 1.5 body, 1.25 titles; weights 400 / 500 / 600, 700 for headings with −0.01 to −0.02 em tracking |
 | Numbers | tabular figures in tables and counts; right-aligned numeric columns; units in the column header or after the value, never omitted |
 | Dates | `2026-11-22 16:04` (24 h); relative time only as a tooltip |
 | Spacing | 4 px grid: 4 · 8 · 12 · 16 · 20 · 24 · 32. Panel padding 16; between panels 16; page gutter 24 (16 on phones) |
-| Radii | 4 (chips, badges inner) · 6 (controls, buttons) · 8 (panels, dialogs). No pill containers |
-| Elevation | panels: 1 px border + `0 1px 2px rgba(15,23,42,.06)`; overlays (dialog, popover, side panel): `0 8px 24px rgba(15,23,42,.12)`. Nothing else casts a shadow |
-| Icons | 24-unit line icons, 1.75 stroke, 16 px in navigation and text, 13–14 px in badges; always beside a word, or with an accessible name |
+| Radii | 6 (code, small wells) · 10 (buttons, fields, navigation items, banners) · 14 (panels, tables, dialogs) · pill for status labels (D-I4) |
+| Elevation | panels: a hairline + `0 1px 2px rgba(24,24,27,.05), 0 6px 18px -8px rgba(24,24,27,.14)`; overlays (dialog, popover, side panel): `0 2px 6px rgba(24,24,27,.06), 0 24px 48px -16px rgba(24,24,27,.28)`; the primary button and a secondary button's faint lift. Nothing else casts a shadow |
+| Icons | 24-unit line icons, 1.75 stroke (1.5 from R3, D-I4), 16 px in navigation and text, 13–14 px in badges; always beside a word, or with an accessible name |
 | Motion | none decorative. State changes only (focus, hover 120 ms, side navigation slide on small screens); `prefers-reduced-motion` turns spinners and skeleton shimmer off |
 
 ## 4. Layout
+The Graphite layout (D-I4 choice 3, built in R2): no top bar. A sidebar on the grey canvas; the page as one white rounded
+panel beside it, its own bar on top.
+
 | Region | Spec |
 |---|---|
-| Top bar | 52 px, white, bottom border. Logo (the "Dose to curve" mark, unchanged, Q4) + name → Home · "Go to project…" (220 px, type-ahead) · right: Your work (count), Help, API status, avatar menu |
-| Side navigation | 256 px, fixed, always open ≥ 1024 px, scrolls on its own; context: portfolio, project, admin (`PRODUCT_SITEMAP.md` §1). Group headings 11 px caps; items 34 px; active = 3 px accent bar + tint + accent text; step items carry a status icon |
-| Content | fluid; tables use the full width; reading text max 80 ch |
+| Sidebar | 256 px on the canvas, fixed, always open ≥ 1024 px. **Top (always, never scrolls):** the mark on an ink tile and "Modeler One" → Home; **Start from proposal** (the product's one primary action, filled ink); **Search** "Go to project…" with its shortcut (⌘K, Ctrl K off a Mac); Home, Your work (with the count of what waits on the person), Projects, Campaigns. **Middle (scrolls):** the context from the address: a project (its name, Add data, Overview, the four steps with their state, Records, Project), the platform administration, or the portfolio's Admin console link for its owner; then Help. **Foot:** the person (initials, name to the account page, Sign out; "Development sign-in" under the development sign-in). Items 34 px, 10 px radius; hover the tint; the current item a white raised row with its word in ink |
+| Page panel | white, 14 px radius, a hairline and the soft shadow, 10 px from the window's edge |
+| Page bar | 52 px at the top of the panel, sticky to the window: the menu button (below 1024 px), the breadcrumbs on one line (the page's own name in ink; below 760 px the last two only), then **notifications** (a bell; a dot when something waits on the person; its list: the first six of Your work, each a link), **Help**, and **the API's state** (a pill with a green dot when its reads answer; a click asks again) |
+| Content | fluid; tables use the full width; reading text max 80 ch; page gutter 24 px (16 on phones) |
 | Help panel | 340 px right column (overlay below 1100 px); opened by "Info" |
-| Side (split) panel | 520 px right overlay for a selected row's detail or a source; Escape closes |
-| Breakpoints | ≥ 1100 full · < 1100 help panel overlays · < 1024 navigation becomes a menu, columns stack, in-page navigation becomes a scroll row · < 640 top bar drops the switcher and Help, tables stack into labelled rows |
+| Side (split) panel | 600 px on the right from 1600 px; docked at the bottom below that; a sheet on a phone. Escape closes |
+| Breakpoints | ≥ 1100 full · < 1100 help panel overlays · < 1024 the sidebar becomes a menu under the page bar (Escape or a new page closes it), the panel fills the window · < 760 the breadcrumbs keep two parts, the API pill its dot · < 640 tables stack into labelled rows |
 
 ### 4.1 Page templates
 | Template | Used by | Shape |
@@ -172,7 +183,7 @@ info flash naming the owner; edit controls absent (not disabled), sign controls 
 
 ## 7. Accessibility
 WCAG 2.2 AA. Skip link; one `h1` per page; landmarks (banner, navigation, main, complementary). Focus visible (2 px
-accent ring) and managed (dialogs trap and return focus; side panel focuses its Close). Targets ≥ 24 × 24 px (2.5.8).
+blue outline, `--c-focus`) and managed (dialogs trap and return focus; side panel focuses its Close). Targets ≥ 24 × 24 px (2.5.8).
 Status by icon and word; charts with a table view. Live regions for action results. Reduced motion respected. The
 prototype passes an automated check that every visible control has an accessible name and every page one `h1`.
 
