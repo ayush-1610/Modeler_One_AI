@@ -7,8 +7,8 @@ import { useId } from "react";
 
 /** The product's mark, "Dose to curve" (plan 2026-11-21 v2 §10, option A): a concentration curve rising from a dose
  *  point and settling, one line through small nodes, indigo to magenta, on a transparent background (no box). The same
- *  mark is the app's icon (app/icon.svg). `light`: the same mark in white for the console's dark top bar (D-I1, ink since
- *  D-I4), where the indigo line would vanish; its two nodes are filled with the bar's colour so the line reads through. */
+ *  mark is the app's icon (app/icon.svg). `light`: the same mark in white on a dark ground (the sidebar's ink tile, the
+ *  Graphite layout), where the indigo line would vanish; its two nodes are filled with the ink so the line reads through. */
 export function Logo({ size = 28, light = false }: { size?: number; light?: boolean }) {
   // each mark its own gradient: a second mark on the page (the report's cover) must not lean on the sidebar's, which
   // print hides

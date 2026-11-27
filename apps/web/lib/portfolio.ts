@@ -1,6 +1,6 @@
 // The portfolio's reading of the projects (the console redesign, slice 2): where each project stands, and the person's
 // work across projects. Pure functions over what the API answered (`GET /projects?with=steps,owner`, `GET /campaigns`,
-// `GET /escalations`, `GET /me`), shared by Home, Your work, Projects and the top bar's count.
+// `GET /escalations`, `GET /me`), shared by Home, Your work, Projects and the sidebar's count.
 //
 // Your work is a list of links (the owner's decision G1-3): nothing is decided in it; each item opens the page where it
 // is decided. An item is listed only for someone who may act on it: a project's owner for its steps, a reviewer it is

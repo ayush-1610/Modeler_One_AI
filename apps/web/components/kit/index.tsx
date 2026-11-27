@@ -5,15 +5,14 @@
 
 import { Fragment, type ReactNode } from "react";
 
-import { Breadcrumbs } from "@/components/shell/Breadcrumbs";
-
 /** The area a page belongs to. Kept for the callers that name it; the console's header draws no colour wash (decision
  *  G1-2: no decorative headers). */
 export type HeroTone = "projects" | "new" | "start" | "inputs" | "review" | "run" | "inbox" | "library" | "history" | "admin";
 
-/** A page's header (design-review/DESIGN_SYSTEM.md §5.1): breadcrumbs, the title, one sentence, and the page's actions on
- *  the right. Compact (about 88 px) so the work starts on the first screen; it replaces the 300-420 px hero of the
- *  7 Nov look. `eyebrow`, `tone` and `size` are accepted and ignored: the breadcrumbs say where the page is. */
+/** A page's header (design-review/DESIGN_SYSTEM.md §5.1): the title, one sentence, and the page's actions on the right.
+ *  Compact (about 88 px) so the work starts on the first screen; it replaces the 300-420 px hero of the 7 Nov look. The
+ *  breadcrumbs are in the page bar above it (the Graphite layout, R2). `eyebrow`, `tone` and `size` are accepted and
+ *  ignored: the breadcrumbs say where the page is. */
 export function Hero({ title, lede, actions, testId }: {
   eyebrow?: ReactNode; title: ReactNode; lede?: ReactNode; actions?: ReactNode; tone?: HeroTone;
   size?: "full" | "compact" | "slim";
@@ -21,7 +20,6 @@ export function Hero({ title, lede, actions, testId }: {
 }) {
   return (
     <header className="page-head" data-testid={testId}>
-      <Breadcrumbs />
       <div className="page-head-row">
         <div className="page-head-titles">
           <h1>{title}</h1>

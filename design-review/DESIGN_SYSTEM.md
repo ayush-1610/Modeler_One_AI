@@ -11,7 +11,7 @@ product label is used: Modeler One keeps its own mark, palette and type.
 
 > **Revision 2026-11-27 (decision D-I4):** the look is "Graphite" (`docs/plans/2026-11-27-console-graphite-restyle.md`),
 > which replaced design option 5, "Brand Navy bar" (D-I1, 2026-11-24). §2 and §3 below carry its values. Where another
-> part of this document and D-I4 differ (the top bar, which R2 replaces with a sidebar; tab and button style), D-I4 and
+> part of this document and D-I4 differ (tab and button style, until R3), D-I4 and
 > `apps/web/app/styles/tokens.css` win.
 
 ## 1. Principles
@@ -81,14 +81,18 @@ axis `#A1A1AA`, text in ink tokens, never in series colour. The Data room's prod
 | Motion | none decorative. State changes only (focus, hover 120 ms, side navigation slide on small screens); `prefers-reduced-motion` turns spinners and skeleton shimmer off |
 
 ## 4. Layout
+The Graphite layout (D-I4 choice 3, built in R2): no top bar. A sidebar on the grey canvas; the page as one white rounded
+panel beside it, its own bar on top.
+
 | Region | Spec |
 |---|---|
-| Top bar | 52 px, white, bottom border. Logo (the "Dose to curve" mark, unchanged, Q4) + name → Home · "Go to project…" (220 px, type-ahead) · right: Your work (count), Help, API status, avatar menu |
-| Side navigation | 256 px, fixed, always open ≥ 1024 px, scrolls on its own; context: portfolio, project, admin (`PRODUCT_SITEMAP.md` §1). Group headings 11 px caps; items 34 px; active = 3 px accent bar + tint + accent text; step items carry a status icon |
-| Content | fluid; tables use the full width; reading text max 80 ch |
+| Sidebar | 256 px on the canvas, fixed, always open ≥ 1024 px. **Top (always, never scrolls):** the mark on an ink tile and "Modeler One" → Home; **Start from proposal** (the product's one primary action, filled ink); **Search** "Go to project…" with its shortcut (⌘K, Ctrl K off a Mac); Home, Your work (with the count of what waits on the person), Projects, Campaigns. **Middle (scrolls):** the context from the address: a project (its name, Add data, Overview, the four steps with their state, Records, Project), the platform administration, or the portfolio's Admin console link for its owner; then Help. **Foot:** the person (initials, name to the account page, Sign out; "Development sign-in" under the development sign-in). Items 34 px, 10 px radius; hover the tint; the current item a white raised row with its word in ink |
+| Page panel | white, 14 px radius, a hairline and the soft shadow, 10 px from the window's edge |
+| Page bar | 52 px at the top of the panel, sticky to the window: the menu button (below 1024 px), the breadcrumbs on one line (the page's own name in ink; below 760 px the last two only), then **notifications** (a bell; a dot when something waits on the person; its list: the first six of Your work, each a link), **Help**, and **the API's state** (a pill with a green dot when its reads answer; a click asks again) |
+| Content | fluid; tables use the full width; reading text max 80 ch; page gutter 24 px (16 on phones) |
 | Help panel | 340 px right column (overlay below 1100 px); opened by "Info" |
-| Side (split) panel | 520 px right overlay for a selected row's detail or a source; Escape closes |
-| Breakpoints | ≥ 1100 full · < 1100 help panel overlays · < 1024 navigation becomes a menu, columns stack, in-page navigation becomes a scroll row · < 640 top bar drops the switcher and Help, tables stack into labelled rows |
+| Side (split) panel | 600 px on the right from 1600 px; docked at the bottom below that; a sheet on a phone. Escape closes |
+| Breakpoints | ≥ 1100 full · < 1100 help panel overlays · < 1024 the sidebar becomes a menu under the page bar (Escape or a new page closes it), the panel fills the window · < 760 the breadcrumbs keep two parts, the API pill its dot · < 640 tables stack into labelled rows |
 
 ### 4.1 Page templates
 | Template | Used by | Shape |

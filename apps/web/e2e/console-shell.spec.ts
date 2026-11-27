@@ -1,6 +1,6 @@
 // The console shell (docs/plans/2026-11-23-console-redesign-implementation.md, slice 1; design-review/DESIGN_SYSTEM.md
-// §4, §7): on a desktop the side navigation is fixed and shows the project's steps; on a phone it is a menu the top bar
-// opens. Every page's heading, names, width and target sizes are checked by acceptance.spec.ts (slice 10), at 1440 and
+// §4, §7): on a desktop the side navigation is fixed and shows the project's steps; on a phone it is a menu the page bar
+// opens (the Graphite layout, R2). Every page's heading, names, width and target sizes are checked by acceptance.spec.ts (slice 10), at 1440 and
 // 390 px, with the helpers of fixtures/a11y.ts this spec used to hold.
 import { expect, test } from "@playwright/test";
 

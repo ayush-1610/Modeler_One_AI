@@ -1,8 +1,10 @@
 "use client";
 
-// The console's side navigation (design-review/PRODUCT_SITEMAP.md §1–§4): fixed and always open on a desktop, a menu
-// below 1024 px, never opened by hover. Three contexts, from the address: the portfolio, a project (its four steps with
-// where each stands, its records, Add data), and the platform's administration.
+// The console's sidebar (design-review/PRODUCT_SITEMAP.md §1–§4; the Graphite layout, design-review/DECISIONS.md D-I4
+// choice 3): fixed and always open on a desktop, a menu below 1024 px, never opened by hover. On top, always: the
+// product's mark to Home, Start from proposal, Search (⌘K) and the main links with Your work's count. Under them, from
+// the address: the portfolio's, a project's (its four steps with where each stands, its records, Add data) or the
+// platform administration's. Help, then the person, at the foot.
 //
 // Links only the pages that exist (docs/plans/2026-11-23-console-redesign-implementation.md): Home, Your work, Projects,
 // Campaigns and Help since slice 2; the project Overview, Compounds and Members since slice 3 (Settings came with the
@@ -13,9 +15,12 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { createPortal } from "react-dom";
 
+import { Logo } from "@/components/Nav";
 import { Icon, type IconName } from "@/components/kit/icons";
 import { AddData, stepOf } from "@/components/library/AddData";
 import { useWorkCount } from "@/components/portfolio/useWork";
+import { Account } from "@/components/shell/Account";
+import { Search } from "@/components/shell/Search";
 import { useResource } from "@/lib/hooks";
 import { STEP_ROUTES, type StepId, type StepRow } from "@/lib/pipeline";
 import { stepReason } from "@/lib/words";
@@ -43,33 +48,41 @@ function Group({ label, testId, children }: { label: string; testId?: string; ch
   );
 }
 
-function PortfolioNav({ path, admin }: { path: string; admin: boolean }) {
+/** Always on top: Start from proposal (the product's one primary action), Search, and the main links; Your work with
+ *  the count of what waits on this person (Gate 3: the count where the person looks first). */
+function MainNav({ path }: { path: string }) {
   const work = useWorkCount();
+  const starting = path.startsWith("/projects/start");
   return (
-    <>
-      <nav className="sn-group" aria-label="Main">
-        <span className="sn-heading">Modeler One</span>
-        <ul>
-          <NavItem it={{ href: "/", label: "Home", icon: "home", active: path === "/", testId: "nav-home" }} />
-          <li>
-            <Link href="/work" className="sn-item" aria-current={path.startsWith("/work") ? "page" : undefined} data-testid="nav-work" prefetch={false}>
-              <span className="sn-icon" aria-hidden><Icon name="checkc" /></span>
-              <span className="sn-text">Your work</span>
-              {work !== null && work > 0 && <span className="sn-count" aria-label={`${work} waiting`}>{work}</span>}
-            </Link>
-          </li>
-          <NavItem it={{ href: "/projects", label: "Projects", icon: "folder", active: path === "/projects", testId: "nav-projects" }} />
-          <NavItem it={{ href: "/campaigns", label: "Campaigns", icon: "pipeline", active: path.startsWith("/campaigns"), testId: "nav-campaigns" }} />
-          <NavItem it={{ href: "/projects/start", label: "Start from proposal", icon: "fileplus", active: path.startsWith("/projects/start") }} />
-          <NavItem it={{ href: "/help", label: "Help", icon: "info", active: path.startsWith("/help"), testId: "nav-help-guide" }} />
-        </ul>
-      </nav>
-      {admin && (
-        <Group label="Platform" testId="nav-platform">
-          <NavItem it={{ href: "/admin", label: "Admin console", icon: "shield", active: false, testId: "nav-admin" }} />
-        </Group>
-      )}
-    </>
+    <nav className="sn-group sn-main" aria-label="Main">
+      <Link href="/projects/start" prefetch={false} className="sn-new" aria-current={starting ? "page" : undefined} data-testid="nav-start">
+        <Icon name="plus" /><span>Start from proposal</span>
+      </Link>
+      <Search />
+      <ul>
+        <NavItem it={{ href: "/", label: "Home", icon: "home", active: path === "/", testId: "nav-home" }} />
+        <li>
+          <Link href="/work" className="sn-item" aria-current={path.startsWith("/work") ? "page" : undefined} data-testid="top-work" prefetch={false}
+                aria-label={work ? `Your work, ${work} waiting` : "Your work"}>
+            <span className="sn-icon" aria-hidden><Icon name="checkc" /></span>
+            <span className="sn-text">Your work</span>
+            {work !== null && work > 0 && <span className="sn-count" aria-hidden>{work}</span>}
+          </Link>
+        </li>
+        <NavItem it={{ href: "/projects", label: "Projects", icon: "folder", active: path === "/projects", testId: "nav-projects" }} />
+        <NavItem it={{ href: "/campaigns", label: "Campaigns", icon: "pipeline", active: path.startsWith("/campaigns"), testId: "nav-campaigns" }} />
+      </ul>
+    </nav>
+  );
+}
+
+/** The portfolio's own part: the platform's console, for its owner alone. */
+function PortfolioNav({ admin }: { admin: boolean }) {
+  if (!admin) return null;
+  return (
+    <Group label="Platform" testId="nav-platform">
+      <NavItem it={{ href: "/admin", label: "Admin console", icon: "shield", active: false, testId: "nav-admin" }} />
+    </Group>
   );
 }
 
@@ -147,9 +160,8 @@ function ProjectNav({ projectId, path }: { projectId: string; path: string }) {
   const name = useResource("/api/v1/projects/{project_id}", { project_id: projectId }, { select: (d) => d.name }).data;
   const [adding, setAdding] = useState(false);
   return (
-    <div data-testid="nav-project">
-      <Link href="/projects" prefetch={false} className="sn-back"><Icon name="chevl" size={14} /> All projects</Link>
-      <div className="sn-project"><strong>{name ?? projectId}</strong></div>
+    <div className="sn-group" data-testid="nav-project">
+      <div className="sn-project"><span className="sn-heading">Project</span><strong>{name ?? projectId}</strong></div>
       {/* "Add data" opens a card over the page, at any step (the document library plan) */}
       <button type="button" className="sn-action" data-testid="nav-add-data" onClick={() => setAdding(true)}>
         <span className="sn-icon" aria-hidden><Icon name="plus" /></span><span className="sn-text">Add data</span>
@@ -185,16 +197,13 @@ function AdminNav({ path }: { path: string }) {
     ["/admin/pipeline", "Intake pipeline", "pipeline"], ["/admin/system", "System status", "checkc"],
   ];
   return (
-    <>
-      <Link href="/" className="sn-back"><Icon name="chevl" size={14} /> Modeler One</Link>
-      <Group label="Platform administration">
-        {items.map(([href, label, icon]) => <NavItem key={href} it={{ href, label, icon, active: at(href) }} />)}
-      </Group>
-    </>
+    <Group label="Platform administration">
+      {items.map(([href, label, icon]) => <NavItem key={href} it={{ href, label, icon, active: at(href) }} />)}
+    </Group>
   );
 }
 
-export function SideNav({ open }: { open: boolean }) {
+export function SideNav({ open, user }: { open: boolean; user?: string | null }) {
   const path = usePathname();
   const match = /^\/projects\/([^/]+)/.exec(path)?.[1];
   const project = match && match !== "start" ? decodeURIComponent(match) : null;
@@ -202,11 +211,24 @@ export function SideNav({ open }: { open: boolean }) {
   const admin = useResource("/api/v1/me", {}, { select: (d) => d.admin }).data === true;
   return (
     <aside id="sidenav" className={`sidenav${open ? " open" : ""}`} data-testid="sidebar">
-      {project ? <ProjectNav projectId={project} path={path} />
-        // the console's own navigation only for the platform's owner: anyone else at an admin address finds the app's
-        // 404 and nothing of the console (admin-console.spec.ts)
-        : path.startsWith("/admin") && admin ? <AdminNav path={path} />
-        : <PortfolioNav path={path} admin={admin} />}
+      {/* the top stays in place (Search's list opens over the page from it); the rest scrolls between it and the person */}
+      <div className="sn-head">
+        <Link href="/" prefetch={false} className="sn-brand" aria-label="Modeler One, home">
+          <span className="sn-mark" aria-hidden><Logo size={18} light /></span><span>Modeler One</span>
+        </Link>
+        <MainNav path={path} />
+      </div>
+      <div className="sn-scroll">
+        {project ? <ProjectNav projectId={project} path={path} />
+          // the console's own navigation only for the platform's owner: anyone else at an admin address finds the app's
+          // 404 and nothing of the console (admin-console.spec.ts)
+          : path.startsWith("/admin") && admin ? <AdminNav path={path} />
+          : <PortfolioNav admin={admin} />}
+        <nav className="sn-group sn-help" aria-label="Help">
+          <ul><NavItem it={{ href: "/help", label: "Help", icon: "info", active: path.startsWith("/help"), testId: "nav-help-guide" }} /></ul>
+        </nav>
+      </div>
+      <div className="sn-foot"><Account user={user} /></div>
     </aside>
   );
 }

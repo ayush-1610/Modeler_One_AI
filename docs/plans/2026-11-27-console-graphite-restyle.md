@@ -40,6 +40,14 @@ Later, by the owner's choice: a per-person "Compact view" switch (14 px text, ti
 - **No science changes.** Rulesets, acceptance, MS-01, the CPF, the builder and the engine are untouched; no API change.
 - **Each step is reversible alone:** one merge commit on `main` (`git revert -m 1`).
 
-## 4. Deviations
-None yet. R1 also restyles the Keycloak sign-in theme (not named in the approved step list) so the first page a person
-sees matches the app; its deploy needs `bash deploy/server/keycloak.sh theme` and a Keycloak restart.
+## 4. Deviations and choices made while building
+- **R1** also restyles the Keycloak sign-in theme (not named in the approved step list) so the first page a person sees
+  matches the app; its deploy needs `bash deploy/server/keycloak.sh theme` and a Keycloak restart. The owner approved R1
+  with it (#189, 2026-11-27).
+- **R2, notifications:** the product has no notification store; the bell lists what Your work lists (decisions, signatures
+  and confirmations waiting on the person), the first six, with a link to all of it. A separate feed (things that
+  happened, not things to do) would need the API, so it is not built.
+- **R2, Search** opens its list under its button in the sidebar's top, which does not scroll (a list in the scrolling
+  part would be cut off); the sidebar's top therefore always shows Start, Search and the main links.
+- **R2, breadcrumbs** moved from each page's header into the page bar (they come from the address, so every page has them
+  without a change to the page). Home has none, as before.
