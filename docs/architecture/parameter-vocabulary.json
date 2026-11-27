@@ -1207,6 +1207,49 @@
    "to_storage_unit(1, no unit)": "ConversionError: cannot convert None to min for form.tablet.particle.d50",
    "value_origin_method": "InVitro"
   },
+  "form.tablet.particles.distribution": {
+   "binding_candidates": [],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'form.tablet.particles.distribution'",
+   "numeric": true,
+   "physical_bounds": null,
+   "placement": "model",
+   "process_id": false,
+   "s0_satisfies": [],
+   "storage_family": null,
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": [
+    1.0,
+    null,
+    "dimensionless, unchanged"
+   ],
+   "value_origin_method": "InVitro"
+  },
+  "form.tablet.particles.radius": {
+   "binding_candidates": [],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'form.tablet.particles.radius'",
+   "numeric": true,
+   "physical_bounds": null,
+   "placement": "model",
+   "process_id": false,
+   "s0_satisfies": [],
+   "storage_family": "µm",
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": "ConversionError: cannot convert None to µm for form.tablet.particles.radius",
+   "value_origin_method": "InVitro"
+  },
+  "form.tablet.particles.thickness": {
+   "binding_candidates": [],
+   "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'form.tablet.particles.thickness'",
+   "numeric": true,
+   "physical_bounds": null,
+   "placement": "model",
+   "process_id": false,
+   "s0_satisfies": [],
+   "storage_family": "mm",
+   "target_problem": null,
+   "to_storage_unit(1, no unit)": "ConversionError: cannot convert None to mm for form.tablet.particles.thickness",
+   "value_origin_method": "InVitro"
+  },
   "form.tablet.shape": {
    "binding_candidates": [],
    "compound_path": "ParameterPathError: no harvested compound path for CPF parameter 'form.tablet.shape'",
@@ -2191,6 +2234,30 @@
      "l/min/kg": 1000.0,
      "ml/h/kg": 0.016666666666666666,
      "ml/min/kg": 1.0
+    }
+   ],
+   "mm": [
+    "mm",
+    {
+     "cm": 10.0,
+     "m": 1000.0,
+     "micron": 0.001,
+     "microns": 0.001,
+     "mm": 1.0,
+     "um": 0.001,
+     "µm": 0.001
+    }
+   ],
+   "µm": [
+    "µm",
+    {
+     "cm": 10000.0,
+     "micron": 1.0,
+     "microns": 1.0,
+     "mm": 1000.0,
+     "nm": 0.001,
+     "um": 1.0,
+     "µm": 1.0
     }
    ],
    "µmol/l": [

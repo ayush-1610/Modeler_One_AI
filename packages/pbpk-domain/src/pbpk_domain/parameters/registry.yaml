@@ -42,8 +42,13 @@
 #     - elim.ehc_fraction is placed on the Individual at "Organism|Liver|EHC continuous fraction", the path harvested
 #       from the OSP reference snapshots (Dapagliflozin, Midazolam, Rifampicin, Verapamil, Itraconazole set it there),
 #       instead of being refused; stored as a fraction (0–1), flagged for review outside [0, 1].
+# 1.3 (2026-11-27, the owner's approval, UNVERIFIED pending SME sign-off; plan 2026-11-26 §8, the release model on
+#     Inputs): a particle formulation's inputs get their storage units, the units the CPF builder takes them in
+#     (`pbpk_domain.cpf.formulations.PARTICLE_PARAMETERS`, harvested: "Particle radius (mean)" µm, "Thickness (unstirred
+#     water layer)" mm, "Type of particle size distribution" without a unit). Before, every form.* id was stored in
+#     minutes, so a radius or a thickness could not be entered (a "µm" or "mm" could not be converted to min).
 id: parameter-registry
-version: "1.2"
+version: "1.3"
 status: UNVERIFIED
 
 parameters:
@@ -93,6 +98,9 @@ parameters:
   # --- formulation, system and simulation ------------------------------------------------------------------------
   - {key: form., placement: model, storage: min, origin: in_vitro}
   - {key: form., suffix: .shape, storage: dimensionless}
+  - {key: form., suffix: .particles.radius, storage: µm}
+  - {key: form., suffix: .particles.thickness, storage: mm}
+  - {key: form., suffix: .particles.distribution, storage: dimensionless}
   - {key: expr., placement: model}
   - {key: indiv., placement: model}
   - {key: sim., placement: model}

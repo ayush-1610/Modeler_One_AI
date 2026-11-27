@@ -190,24 +190,29 @@ changes. Every person who uses the app must then be on the tailnet.
 The console adds people and companies, disables them, gives roles, moves a person to another company and resets a lost
 authenticator. It does this through Keycloak's admin API as the service account of the client `modeler-admin-api`.
 That account holds only `realm-management`'s `view-realm`, `view-users`, `query-users` and `manage-users`.
-- **A realm imported from now on** has the client and its roles. Only its secret is missing: step 3 below.
-- **A realm that exists already** (adt-server) keeps its clients when `install` runs again, so create the client once
-  in Keycloak's admin console (`https://$NAME:8443/admin`, realm **modeler**):
-  1. *Clients → Create client*: Client type OpenID Connect, Client ID `modeler-admin-api` → *Next*. Turn **Client
-     authentication** On; under Authentication flow, untick *Standard flow* and *Direct access grants*, tick
-     **Service accounts roles** → *Next* → *Save*.
-  2. *Service account roles* tab → *Assign role* → *Client roles* (or *Filter by clients*) → search `realm-management`
-     → tick `manage-users`, `query-users`, `view-realm`, `view-users` → *Assign*.
-  3. *Credentials* tab → copy the **Client secret** (*Regenerate* first if you are not sure who has seen it).
-- **In Modeler One's console:** *Keys → Add a key*, provider **Keycloak service account**, Client ID
-  `modeler-admin-api`, the client secret, a reason → *Add the key* → *Test* (it should say the service account can read
-  the realm's people) → *Make active*. The *People* tab then lists the realm's people.
-- **First passwords:** the platform never sets, sees or sends one.
+- **Connect it once, on the server (2026-11-27; no step in Keycloak's console).** From the Mac (`-t`: the password
+  prompt needs a terminal; on a machine without Keycloak the script stops and says to run it on the server):
+  ```bash
+  ssh -t adt-server 'bash ~/Modeler_One_AI/deploy/server/keycloak.sh connect'   # or: … connect <Keycloak admin name>
+  ```
+  Keycloak's own command line (`kcadm.sh`) asks for its administrator's password; the script keeps nothing. It then:
+  1. creates the client `modeler-admin-api`, or keeps an existing one to its service account only (no browser
+     sign-in, no password grant);
+  2. gives its service account `realm-management`'s four roles above;
+  3. adds the web's address (`MODELER_WEB_URL`) to `modeler-web`'s sign-in redirects, and sets the login theme
+     `modeler-one` (the two steps a realm imported earlier needed by hand);
+  4. has Keycloak make a **new** client secret (an older one stops working) and pipes it to
+     `modeler_api.keycloak_connect`, which tests it, stores it sealed under `MODELER_MASTER_KEY` as the console's
+     active key, and records `admin.key.add` and `admin.key.activate` on the owner's audit chain (last 4 characters
+     only).
+  Run it again to rotate the secret. *Admin → People* and each company's page then add and change people.
+- **First passwords** (the owner, 2026-11-27):
   - With a mail server in Keycloak (*Realm settings → Email*: host, port, from address, login; *Test connection*), the
     console asks Keycloak to email each new person a link, valid 12 hours, to set their password and authenticator.
-  - Without one, the console links to the new person's *Credentials* page in Keycloak: *Set password*, Temporary on,
-    and give them that temporary password yourself. At their first sign-in they choose their own and set up their
-    authenticator.
+  - Without one, the console sets a random **temporary password** in Keycloak (20 readable characters) and shows it to
+    the administrator **once**, to give in person or by phone. It is kept nowhere: not in the platform's files, not on
+    the audit trail (which records only that one was issued). Keycloak makes the person choose their own, and set up
+    their authenticator, at their first sign-in. "New password" on a person does the same.
 - **What the console never does:** delete a person (they are disabled), give `modeler-admin` (the owner's alone; only
   here, in Keycloak's console), or disable, move or lock out the owner.
 

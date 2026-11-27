@@ -28,6 +28,81 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 - **Impact:** a deploy that changes the theme restarts Keycloak (a few seconds; a sign-in in progress starts again).
   On the server now: `ssh adt-server 'bash ~/Modeler_One_AI/deploy/server/keycloak.sh sync-theme'`.
 
+### Fixed — `keycloak.sh connect` says it must run on the server, and the People page gives the exact command (2026-11-27)
+- **What:** run on the Mac, the command printed a Python traceback from the server settings it reads (no
+  `golden/catalog.json` at the Mac's `~/Modeler_One_AI`) and stopped without saying why. It now checks first that
+  Keycloak is installed on this machine; if not, it stops and prints
+  `ssh -t <the server> 'bash ~/Modeler_One_AI/deploy/server/keycloak.sh connect'`. The People page shows the command to
+  type on your own computer, built by the API from the server it runs on (`PeoplePage.connect_command`, e.g.
+  `ssh -t adt-server 'bash ~/Modeler_One_AI/deploy/server/keycloak.sh connect'`); it said
+  `bash deploy/server/keycloak.sh connect` "on the server".
+- **Why:** the owner's first try ran it in the Mac's terminal (2026-11-27 screenshot).
+- **Impact:** `PeoplePage` gains `connect_command`; OpenAPI snapshot and web types regenerated. Tests:
+  `test_keycloak_connect.py` (off the server it stops first and says where to run it), `test_admin_people.py`.
+
+### Changed — people are added and managed from the admin console only; a temporary first password shown once (2026-11-27, the owner's request)
+- **What:**
+  - **`bash deploy/server/keycloak.sh connect`, once on the server**, replaces every step that was done by hand in
+    Keycloak's admin console for the console's people pages. With `kcadm.sh` (Keycloak asks for its administrator's
+    password in the terminal; nothing keeps it) it:
+    - creates the client `modeler-admin-api`, or keeps an existing one to its service account only;
+    - gives its service account `realm-management`'s `manage-users`, `query-users`, `view-realm`, `view-users`;
+    - adds `MODELER_WEB_URL` to `modeler-web`'s sign-in redirects and sets the login theme `modeler-one`;
+    - has Keycloak make a new client secret and pipes it (stdin only) to the new `modeler_api.keycloak_connect`, which
+      tests it, stores it sealed as the active `keycloak` key (retiring the one before) and records `admin.key.add` and
+      `admin.key.activate` on the owner's chain (found from who holds `modeler-admin`; last 4 characters only). A secret
+      that fails the test is not stored. Running it again rotates the secret.
+  - **The People page** says to run that command when the console is not connected (it listed the Keycloak steps).
+  - **A company's page** now has *Add a person to this company* and *Its people in Keycloak* (roles, sign-in state,
+    Change: roles, move, disable, reset authenticator, new password), the People page's panels fixed to that company.
+    The usage table there is renamed "What each person used".
+  - **A first password when Keycloak cannot email** (no mail server, or the email failed): the console sets a random
+    temporary password in Keycloak (`keycloak_admin.temporary_password`: 4 × 5 readable characters, about 116 bits;
+    `PUT /users/{id}/reset-password`, `temporary: true`) and the answer carries it once (`PeoplePage.temporary_password`,
+    `temporary_for`; `Cache-Control: no-store`). The page shows it with Copy and "I have given it, hide it". It is kept
+    nowhere: not in the platform's files, not on the audit trail, which records only how the first password went
+    (`first_password` on `admin.person.add`, `password` on `admin.person.reset`: "emailed", "temporary password shown
+    once to the administrator", or "link given to set it in Keycloak" when Keycloak refused even that). "New password"
+    on a person does the same. Keycloak makes the person choose their own at their first sign-in.
+- **Why:** the owner, 2026-11-27: "add support to add users within companies from admin … enable from here only", and
+  the owner's answers that day: a temporary password shown once (was: the platform never sets one; the owner set it in
+  Keycloak's console), and `modeler-admin` stays given only in Keycloak's own console (unchanged).
+- **Impact:**
+  - On adt-server: run `keycloak.sh connect` once; the People page and the company pages then work. The command
+    retires any key added by hand.
+  - **Security:** the temporary password is a one-time credential the person must replace, generated with `secrets`;
+    the platform never reads or keeps anyone's own password. It travels once, over the HTTPS session of an
+    administrator with a fresh step-up.
+  - API: `PeoplePage` gains `temporary_password` and `temporary_for`; `docs/api/openapi.json` and `lib/api-types.ts`
+    regenerated. No route added or removed.
+  - Tests: `test_admin_people.py` (the temporary password shown once, Keycloak given it, never on disk or the audit
+    trail, `no-store`; the link when Keycloak refuses it; the client's `reset-password` call);
+    `test_keycloak_connect.py` (a working secret becomes the active key, audited on the owner's chain; a failing one is
+    not stored; the shell's kcadm steps with stand-ins, the secret only on stdin, the session file removed).
+    `keycloak.sh connect` has not run against a real Keycloak in this container (none here): first real run on the
+    server.
+  - No ruleset, acceptance criterion or locked file changed.
+
+### Changed — a particle formulation's inputs can be held: parameter registry 1.3 and the length units (2026-11-27)
+- **Why:** the owner's approval of 2026-11-27 ("approve the particle inputs PR"), for the release model on Inputs
+  (`docs/plans/2026-11-26-data-room-groups-and-corpus-benchmark.md` §8). A formulation held for particle dissolution
+  needs its particle radius and unstirred-layer thickness. The CPF builder takes them (`form.<name>.particles.radius`
+  in µm, `.thickness` in mm: `pbpk_domain.cpf.formulations.PARTICLE_PARAMETERS`, harvested), but the registry stored
+  every `form.*` id in minutes, so a radius or a thickness could not be entered.
+- **What (locked files, in their own PR):**
+  - `pbpk_domain/parameters/registry.yaml` 1.2 → 1.3 (UNVERIFIED pending SME sign-off): suffix rules
+    `form.*.particles.radius` µm, `form.*.particles.thickness` mm, `form.*.particles.distribution` without a unit. The
+    Weibull values stay in minutes, the shape without a unit.
+  - `pbpk_domain/parameter_units.py`: the length families µm and mm, with their aliases (µm, um, micron, nm, mm, cm; mm,
+    µm, cm, m).
+  - `docs/architecture/locked-files.json`: the two files' hashes refreshed.
+- **Impact:** a particle radius or thickness now converts to the builder's unit and is graded like any other value
+  (`evidence.assess`). No id that was answered before changes: the vocabulary snapshot gains the two unit families and
+  the three particle ids only. The OSP Ketoconazole import (particles) is unchanged.
+- **Tests:** `test_parameter_registry.py` (the version, and the three particle ids in the builder's units, converted
+  from mm and µm); `test_parameter_characterization.py` probes the three ids and records them in
+  `docs/architecture/parameter-vocabulary.json`.
+
 ### Changed — the sign-in pages in the owner's split design; signing out lands on sign-in (R5, 2026-11-27)
 - **What:** the app's sign-in, signed-out and no-access pages (`components/auth/AuthPage.tsx`, `app/styles/auth.css`)
   and Keycloak's sign-in form (`deploy/keycloak/themes/modeler-one`: CSS, a white mark, the words in
@@ -120,6 +195,38 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
   (`design-review/DESIGN_SYSTEM.md` §2); `e2e/acceptance.spec.ts` (one heading, named controls, no sideways scroll,
   24 px targets, at 1440 and 390 px) passes on every page. Deploy: the Keycloak theme needs copying in and a Keycloak
   restart (`docs/plans/2026-11-25-console-redesign-deploy.md` §3).
+
+### Changed — a formulation's release model is chosen on Inputs, with the Data room's suggestion as a proposal (2026-11-27)
+- **Why:** the owner's D1 and the deviation recorded at slice 5b of
+  `docs/plans/2026-11-26-data-room-groups-and-corpus-benchmark.md` (§8), the owner's go of 2026-11-27. The release model
+  was the last D1 choice still made in the Data room.
+- **What, the Data room:** the `release-model:` decision (a product whose chosen profile levels off below 100 %) is
+  Inputs' (`on_inputs`). Sending is not held for it; In Vitro Release Input shows it as a proposal under "Chosen on
+  Inputs", with a link to Formulations.
+- **What, the send:** the Weibull fit goes as it always did; the room never sent a particle release (choosing particles
+  in the room only blocked the send, and still does for a room that chose it). The suggestion rides on the formulation's
+  type item as `EvidenceItem.proposed["release_model"]` (the model, why, its sources, the other model), left out of the
+  stored content when there is none. A second send of the same data keeps the answer.
+- **What, Inputs (Formulations, "Release models proposed by the Data room"):** a person confirms the Weibull fit, or
+  holds the formulation for particle dissolution with a reason (its Weibull values are rejected with that reason), or
+  takes the Weibull fit again (`POST …/formulations/{name}:release-model`; `modeler_project.release_choice`).
+  - Readiness: a proposal waiting joins "the Data room's proposals confirmed (D1)", and To do opens Formulations. A held
+    formulation fails "formulations of solid studies", saying why.
+  - The MAP names it as a proposal chosen on Inputs.
+- **Pending the owner:** a particle formulation needs its particle radius (µm) and unstirred-layer thickness (mm). The
+  CPF builder takes them (`form.<name>.particles.*`, harvested names), but the parameter registry
+  (`pbpk_domain/parameters/registry.yaml`, a locked file) has no entry for them, so Inputs cannot hold them yet. Adding
+  them is a locked-file change for its own PR, with the owner's approval. Until then a held formulation waits.
+- **API:** `EvidenceItem.proposed`, `InputsPage.release_models` (`ReleaseModelRow`), and the new
+  `POST /projects/{project_id}/formulations/{name}:release-model`. The OpenAPI snapshot and `apps/web/lib/api-types.ts`
+  are regenerated.
+- **Tests:**
+  - `test_release_choice.py`: the proposal is sent with the Weibull fit and the room is not held; a room that took the
+    Weibull fit sends none, one that took particles still blocks; confirm, hold (a reason required) and take back; the
+    readiness waits, and says why a held formulation is not built.
+  - `test_inputs_api.py`: the endpoint and `release_models`.
+  - E2E: `dataroom.spec.ts` counts one decision fewer in the room. `dataroom-to-map.spec.ts` leaves the release model to
+    Inputs, confirms it on Formulations, and finds it among the MAP's limitations.
 
 ### Changed — each Data room check on what it concerns, and the Overview's "Needs you" (2026-11-27)
 - **Why:** slice 5d of `docs/plans/2026-11-26-data-room-groups-and-corpus-benchmark.md` (§9), the owner's go of
@@ -12213,3 +12320,4 @@ record it here so a reader knows which context produced which work.
 | 2026-11-23 (same cloud session, continued after a context reset) | per commit trailer | Redesign Gates 2–4 and Phase 9 (archive, implementation plan); security fixes R-S01, R-S03, R-S04; slice 0 (`main` fast-forwarded, archive branch pushed) and slice 1 (R-S02 and the console shell) |
 | 2026-11-24 (cloud session, branch `claude/optimistic-feynman-zy100a`) | per commit trailer | Where the client's files may go moved from each project's Data room and Settings to a company setting the administrator keeps on Admin → Companies (the owner's request) |
 | 2026-11-25 → 26 (cloud session, branch `claude/exciting-galileo-x1ziov`) | per commit trailer | Read-only assessment of the owner's PBPK corpus audit (30 project folders) against the codebase, with a rule-by-rule map and a Data room mockup (session files, not committed); the plan `2026-11-26-data-room-groups-and-corpus-benchmark.md` with the owner's decisions; phases 0 and 1: one prompt version per agent, the Data room's group map, the room in the value scorer, P03 scored code-only |
+| 2026-11-27 (cloud session, branch `claude/optimistic-feynman-zy100a`) | per commit trailer | People added and managed from the admin console only: `keycloak.sh connect`, a company's people on its page, a temporary first password shown once |

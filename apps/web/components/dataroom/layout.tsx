@@ -158,16 +158,19 @@ function Exclusions({ room }: { room: Room }) {
   );
 }
 
-/** The choices made on Inputs (the owner's D1): population, sex and meal template, the room's suggestion for each with
- *  why and its sources. "Send to Inputs" carries them there as proposals; a person confirms or changes them on Inputs. */
-function InputsChoices({ room, projectId }: { room: Room; projectId: string }) {
-  const mine = room.decisions.filter((d) => d.on_inputs);
+/** The choices made on Inputs (the owner's D1), the room's suggestion for each with why and its sources: on Clinical
+ *  Study Design the population, sex and meal template (Inputs' Individuals), on In Vitro Release Input the release model
+ *  (Inputs' Formulations). "Send to the model" carries them there as proposals; a person confirms or changes them. */
+function InputsChoices({ room, projectId, release }: { room: Room; projectId: string; release: boolean }) {
+  const mine = room.decisions.filter((d) => d.on_inputs && d.id.startsWith("release-model:") === release);
   if (!mine.length) return null;
   return (
     <Card title="Chosen on Inputs" testId="inputs-choices"
-          aside={<a className="dr-small" href={`/projects/${projectId}/inputs?tab=individuals`} data-testid="inputs-choices-link">Open Inputs</a>}>
-      <p className="muted dr-small">The population, the sex and the meal template are chosen on Inputs. Each goes there as
-        this proposal, with why and its sources, once the room is sent.</p>
+          aside={<a className="dr-small" href={`/projects/${projectId}/inputs?tab=${release ? "formulations" : "individuals"}`}
+                    data-testid="inputs-choices-link">Open Inputs</a>}>
+      <p className="muted dr-small">{release
+        ? "The release model is chosen on Inputs (Formulations). The Weibull fit is sent with this proposal, with why and its sources."
+        : "The population, the sex and the meal template are chosen on Inputs. Each goes there as this proposal, with why and its sources, once the room is sent."}</p>
       <ul className="dr-list">
         {mine.map((d) => {
           const option = d.options.find((o) => o.id === (d.chosen || d.suggested));
@@ -227,7 +230,7 @@ export function LayoutBody({ section, room, run, projectId, go, stage = "read" }
       case "conduct_values": return pick(studyValues, section.values).length
         ? <Card key={part} title="Facts" testId={`values-${section.id}`}><ValueTable values={pick(studyValues, section.values)} label={section.title} /></Card> : null;
       case "exclusions": return <Exclusions key={part} room={room} />;
-      case "inputs_choices": return <InputsChoices key={part} room={room} projectId={projectId} />;
+      case "inputs_choices": return <InputsChoices key={part} room={room} projectId={projectId} release={section.id === "release"} />;
       case "other_analytes": return <OtherAnalytes key={part} room={room} />;
       case "adme": case "other_values": return pick([...all, ...studyValues], section.values).length
         ? <Card key={part} title="Values" testId={`values-${section.id}`}><ValueTable values={pick([...all, ...studyValues], section.values)} label={section.title} /></Card> : null;

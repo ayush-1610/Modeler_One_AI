@@ -30,6 +30,7 @@ import { type CardEnv, type CardFocus, focused } from "./cards/ConfirmPath";
 import { Dissolution, ProductCard, dissolutionNotes, productOf } from "./cards/ProductCard";
 import { CompoundCard } from "./cards/StudyCard";
 import { StudyIndividuals } from "./IndividualsTab";
+import { ReleaseModels } from "./ReleaseModels";
 import { InputRows, type Row } from "./InputRows";
 import type { Run, TodoItem } from "./InputsTodo";
 import { AccessRequests } from "./ObservedDatasets";
@@ -837,6 +838,7 @@ function Workspace({ projectId, initialTab, initialOnly, initialStatus, steps }:
               </table>
             </section>
           )}
+          <ReleaseModels rows={view?.release_models ?? []} projectId={projectId} run={run} />
           <h3 className="area-section-title">Formulations in the model</h3>
           {/* a formulation is in the model once a product's dissolution profile is used as its release (OWN-10): said here */}
           <InputRows rows={listed("formulations")} todo={panelTodo("formulations")} projectId={projectId} run={run}

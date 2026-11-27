@@ -37,6 +37,7 @@ from modeler_project.inputs import (
     todo,
 )
 from modeler_project.inputs_view import compound_rows, study_rows
+from modeler_project.release_choice import ReleaseChoiceError, release_states, set_release_model
 from modeler_project.sources import rule
 from pbpk_domain.campaign.split import FoodState, FormulationKind, Route, Sex
 from pbpk_domain.cpf.process_bindings import binding_candidates, is_process_id
@@ -95,6 +96,7 @@ def _view(ws: Workspace) -> dict[str, Any]:
         "study_options": _study_options(ws),
         "selection_rule": f"source selection {rule().version} ({rule().status})",
         "published_models": [{"id": tid, "name": spec["name"]} for tid, spec in published_models(_drug(ws))],
+        "release_models": [{"formulation": name, **state} for name, state in sorted(release_states(ws).items())],
     }
 
 
@@ -146,6 +148,30 @@ def put_choice(project_id: str, body: ChoiceRequest, principal: Writer, store: S
             raise HTTPException(status_code=422, detail=f"{body.value} is not a harvested process for {body.key} "
                                                         f"({', '.join(sorted(offered))})")
     set_choice(ws, kind=body.kind, key=body.key, value=body.value, reason=body.reason, by=principal.user_id)
+    try:
+        assemble(ws, by=principal.user_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return envelope(_view(ws))
+
+
+class ReleaseModelAnswer(BaseModel):
+    model: Literal["weibull", "particles"]
+    reason: str = ""                       # required to hold a formulation for particle dissolution
+
+
+@router.post("/projects/{project_id}/formulations/{name}:release-model", **answers(InputsPage))
+def answer_release_model(project_id: str, name: str, body: ReleaseModelAnswer, principal: Writer,
+                         store: StoreDep) -> dict[str, Any]:
+    """A formulation's release model, chosen here (the owner's D1; plan 2026-11-26 §8): "weibull" confirms the Data
+    room's proposal (or takes a held formulation's Weibull values again); "particles" holds the formulation for particle
+    dissolution, with a reason (its Weibull values are set aside; Inputs cannot hold the particle inputs yet). The
+    inputs are assembled again."""
+    ws = workspace_for(project_id, principal, store)
+    try:
+        set_release_model(ws, name, model=body.model, reason=body.reason, by=principal.user_id)
+    except ReleaseChoiceError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     try:
         assemble(ws, by=principal.user_id)
     except ValueError as exc:

@@ -52,8 +52,9 @@ test("a made-up delivery goes from the Data room through Start and Inputs to a s
   const decisions = (await (await request.get(room, { headers: AUTH })).json()).data.decisions as
     { id: string; suggested: string; on_inputs: boolean }[];
   expect(decisions.map((d) => d.id)).toContain("applications");
-  // the population, sex and meal template are left for Inputs (the owner's D1): sending is not held for them
-  expect(decisions.filter((d) => d.on_inputs).map((d) => d.id).sort()).toEqual(["meal:EX-01", "population:EX-01", "sex:EX-01"]);
+  // the population, sex, meal template and release model are left for Inputs (the owner's D1): sending is not held for them
+  expect(decisions.filter((d) => d.on_inputs).map((d) => d.id).sort()).toEqual(
+    ["meal:EX-01", "population:EX-01", "release-model:Exampleamide 100 mg reformulated", "sex:EX-01"]);
   for (const d of decisions.filter((x) => !x.on_inputs)) {
     const made = await request.post(`${room}/decisions/${encodeURIComponent(d.id)}`, { headers: AUTH,
       data: { chosen: d.suggested, reason: "as suggested" } });
@@ -121,6 +122,13 @@ test("a made-up delivery goes from the Data room through Start and Inputs to a s
   await proposals.getByTestId("proposal-meal-EX-01-B").selectOption("Meal: High-fat breakfast (Human)");
   await proposals.getByTestId("proposal-confirm-EX-01-B").click();
   await expect(page.getByTestId("dataroom-proposals")).toHaveCount(0);
+  // the release model of the reformulated tablet (its profile levels off at 87 %), confirmed on Formulations
+  await page.goto(`/projects/${projectId}/inputs?tab=formulations`);
+  const release = page.getByTestId("release-models").getByTestId("proposal-Exampleamide_100_mg_reformulated");
+  await expect(release).toContainText("Weibull fitted to the profile as measured");
+  await expect(release).toContainText("the highest mean is 87 %");
+  await release.getByTestId("release-confirm-Exampleamide_100_mg_reformulated").click();
+  await expect(page.getByTestId("release-models")).toHaveCount(0);
   const evidence = (await (await request.get(`${api}/evidence`, { headers: AUTH })).json()).data.datasets as
     { study: { study_id: string; meals: { template: string }[] } }[];
   expect(evidence.find((d) => d.study.study_id === "EX-01-B")!.study.meals.map((m) => m.template))
@@ -177,6 +185,8 @@ test("a made-up delivery goes from the Data room through Start and Inputs to a s
   expect(design.inputs).toMatchObject({ test_formulation: "Exampleamide_100_mg_reformulated",
     reference_formulation: "Refamide_100_mg", n_subjects: 24, n_trials: 100, seed: 20261124, pos_threshold: 0.8 });
   expect((design.inputs.observed_be as { source: string }).source).toContain("the room's own NCA");
+  expect((map.split_limitations as string[]).some((l) => l.startsWith("Data room proposal, Release model for Exampleamide 100 mg "
+    + "reformulated: Weibull fitted to the profile as measured, chosen on Inputs"))).toBe(true);
   expect((map.split_limitations as string[]).some((l) => l.startsWith("Data room proposal, Population for EX-01: Asian (Tanaka 1996), "
     + "chosen on Inputs"))).toBe(true);
 

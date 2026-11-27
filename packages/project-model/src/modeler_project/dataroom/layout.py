@@ -35,7 +35,7 @@ PARTS: dict[str, tuple[str, ...]] = {
     "question/question": ("question", "requirements"),
     "model_input/products": ("products",),
     "model_input/substance": ("substance", "solubility", "dose_card"),
-    "model_input/release": ("dissolution",),
+    "model_input/release": ("dissolution", "inputs_choices"),
     "model_input/design": ("studies", "design_values", "inputs_choices"),
     "model_input/observed": ("observed", "be"),
     "model_input/scenarios": ("plan", "inputs"),

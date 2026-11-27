@@ -349,7 +349,8 @@ export interface paths {
         put?: never;
         /**
          * Add Person
-         * @description A new person of a company, in Keycloak: they set their own password and authenticator at their first sign-in.
+         * @description A new person of a company, in Keycloak: they set their own password and authenticator at their first sign-in,
+         *     through Keycloak's email, or with the temporary password this answer carries once when Keycloak cannot email.
          */
         post: operations["add_person_api_v1_admin_people_post"];
         delete?: never;
@@ -2523,6 +2524,29 @@ export interface paths {
          *     With agents off, the structured sources alone (code, no AI; plan 2026-11-05 §3.3).
          */
         post: operations["start_research_api_v1_projects__project_id__evidence_research_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/formulations/{name}:release-model": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Answer Release Model
+         * @description A formulation's release model, chosen here (the owner's D1; plan 2026-11-26 §8): "weibull" confirms the Data
+         *     room's proposal (or takes a held formulation's Weibull values again); "particles" holds the formulation for particle
+         *     dissolution, with a reason (its Weibull values are set aside; Inputs cannot hold the particle inputs yet). The
+         *     inputs are assembled again.
+         */
+        post: operations["answer_release_model_api_v1_projects__project_id__formulations__name__release_model_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -8939,6 +8963,10 @@ export interface components {
              * @default
              */
             note: string;
+            /** Proposed */
+            proposed?: {
+                [key: string]: unknown;
+            } | null;
             /**
              * Proposed At
              * Format: date-time
@@ -9754,6 +9782,8 @@ export interface components {
             records: {
                 [key: string]: unknown;
             }[];
+            /** Release Models */
+            release_models?: components["schemas"]["ReleaseModelRow"][];
             /** Selection Rule */
             selection_rule: string;
             /** Studies */
@@ -9919,6 +9949,8 @@ export interface components {
             records: {
                 [key: string]: unknown;
             }[];
+            /** Release Models */
+            release_models?: components["schemas"]["ReleaseModelRow"][];
             /** Selection Rule */
             selection_rule: string;
             /** Studies */
@@ -11574,12 +11606,16 @@ export interface components {
         /**
          * PeoplePage
          * @description The console's people (F). `ready` false: Keycloak is not set up for the console, `problem` says what to do.
-         *     `smtp`: Keycloak can email a person their set-password link; without it the owner sets a first password in
-         *     Keycloak's own console (`notice_link`). Passwords never pass through the platform.
+         *     `smtp`: Keycloak can email a person their set-password link. Without it, the answer to adding a person (or a new
+         *     password) carries `temporary_password` once, for `temporary_for`, to hand over; it is kept nowhere and the person
+         *     replaces it at their first sign-in (the owner, 2026-11-27). `notice_link`: their page in Keycloak, when the console
+         *     could set neither.
          */
         PeoplePage: {
             /** Companies */
             companies: string[];
+            /** Connect Command */
+            connect_command: string;
             /** Notice */
             notice: string | null;
             /** Notice Link */
@@ -11596,6 +11632,10 @@ export interface components {
             service_client: string;
             /** Smtp */
             smtp: boolean;
+            /** Temporary For */
+            temporary_for: string | null;
+            /** Temporary Password */
+            temporary_password: string | null;
         };
         /**
          * PersonChange
@@ -11633,7 +11673,7 @@ export interface components {
         /**
          * PersonReset
          * @description A lost authenticator (removed; set up again at the next sign-in) and/or a forgotten password (Keycloak's email
-         *     link, or a temporary one set by the owner in Keycloak's console: the platform never handles it).
+         *     link, or a temporary one shown once to the administrator: `_first_password`).
          */
         PersonReset: {
             /**
@@ -12627,10 +12667,84 @@ export interface components {
             /** Task */
             task: string;
         };
+        /** ReleaseModelAnswer */
+        ReleaseModelAnswer: {
+            /**
+             * Model
+             * @enum {string}
+             */
+            model: "weibull" | "particles";
+            /**
+             * Reason
+             * @default
+             */
+            reason?: string;
+        };
+        /** ReleaseModelOption */
+        ReleaseModelOption: {
+            /**
+             * Detail
+             * @default
+             */
+            detail?: string;
+            /** Label */
+            label: string;
+            /** Value */
+            value: string;
+        };
         /** ReleaseModelRequest */
         ReleaseModelRequest: {
             /** Formulation */
             formulation: string;
+        };
+        /**
+         * ReleaseModelRow
+         * @description A formulation's release model chosen on Inputs (the owner's D1): the Data room's proposal waiting on a person,
+         *     or the formulation held for particle dissolution (`release_choice.release_states`).
+         */
+        ReleaseModelRow: {
+            /**
+             * By
+             * @default
+             */
+            by?: string;
+            /**
+             * Detail
+             * @default
+             */
+            detail?: string;
+            /** Evidence Id */
+            evidence_id: string;
+            /** Formulation */
+            formulation: string;
+            /**
+             * Label
+             * @default
+             */
+            label?: string;
+            other?: components["schemas"]["ReleaseModelOption"] | null;
+            /**
+             * Reason
+             * @default
+             */
+            reason?: string;
+            /** Sources */
+            sources?: string[];
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "proposed" | "held";
+            /**
+             * Value
+             * @default
+             */
+            value?: string;
+            /**
+             * Why
+             * @default
+             */
+            why?: string;
         };
         /**
          * ReleaseProposal
@@ -20575,6 +20689,44 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Envelope_ResearchStart_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    answer_release_model_api_v1_projects__project_id__formulations__name__release_model_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReleaseModelAnswer"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_InputsPage_"];
                 };
             };
             /** @description Validation Error */

@@ -324,6 +324,31 @@ agents have a model. On a project, the Data room's run says which model wrote ea
 `ANTHROPIC_API_KEY=` and `MODELER_LLM_MODEL=claude-sonnet-5-5`, then restart. The console's per-agent
 choices, when made, take precedence over the file.
 
+## 6c. People and companies (the admin console)
+
+Everything is done in Modeler One's admin console; Keycloak's own console is needed only to give the platform-admin
+role (`modeler-admin`), which stays there on purpose.
+
+**Once, from the Mac:** connect the console to Keycloak. It runs on the server (`ssh -t` gives it a terminal for the
+password prompt); run on the Mac itself, it stops and says so.
+```bash
+ssh -t adt-server 'bash ~/Modeler_One_AI/deploy/server/keycloak.sh connect'
+```
+Keycloak asks for its administrator's password in the terminal (it never reaches the app). The command sets up the
+console's service account, makes it a new secret and stores it as the console's active key. Run it again any time to
+rotate that secret.
+
+**Add a person:** Admin → Companies → the company → *Add a person to this company* (or Admin → People): username,
+email, name, roles, and why. Confirm with your password and authenticator code.
+- With a mail server in Keycloak, they get an email link to set their password and authenticator.
+- Without one, the page shows a **temporary password once**. Copy it and give it to them in person or by phone. It
+  is kept nowhere: if you leave the page first, use *New password* on the person to make another. At their first
+  sign-in they choose their own password and set up their authenticator app.
+
+**Change a person:** on the company's page or Admin → People → *Change*: roles, move to another company, disable or
+enable, *Reset authenticator* (a lost phone), *New password* (a forgotten one). Each change needs a reason and is on the
+company's audit trail. People are disabled, never deleted.
+
 ## 7. Inputs (step 2): from every source to a ready CPF
 
 The Inputs page (`/projects/{id}/inputs`) is one workspace in PK-Sim's building blocks: **Compound**, **Formulations**,

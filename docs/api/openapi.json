@@ -16195,6 +16195,18 @@
             "title": "Note",
             "type": "string"
           },
+          "proposed": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Proposed"
+          },
           "proposed_at": {
             "format": "date-time",
             "title": "Proposed At",
@@ -18123,6 +18135,13 @@
             "title": "Records",
             "type": "array"
           },
+          "release_models": {
+            "items": {
+              "$ref": "#/components/schemas/ReleaseModelRow"
+            },
+            "title": "Release Models",
+            "type": "array"
+          },
           "selection_rule": {
             "title": "Selection Rule",
             "type": "string"
@@ -18568,6 +18587,13 @@
               "type": "object"
             },
             "title": "Records",
+            "type": "array"
+          },
+          "release_models": {
+            "items": {
+              "$ref": "#/components/schemas/ReleaseModelRow"
+            },
+            "title": "Release Models",
             "type": "array"
           },
           "selection_rule": {
@@ -22828,7 +22854,7 @@
       },
       "PeoplePage": {
         "additionalProperties": false,
-        "description": "The console's people (F). `ready` false: Keycloak is not set up for the console, `problem` says what to do.\n`smtp`: Keycloak can email a person their set-password link; without it the owner sets a first password in\nKeycloak's own console (`notice_link`). Passwords never pass through the platform.",
+        "description": "The console's people (F). `ready` false: Keycloak is not set up for the console, `problem` says what to do.\n`smtp`: Keycloak can email a person their set-password link. Without it, the answer to adding a person (or a new\npassword) carries `temporary_password` once, for `temporary_for`, to hand over; it is kept nowhere and the person\nreplaces it at their first sign-in (the owner, 2026-11-27). `notice_link`: their page in Keycloak, when the console\ncould set neither.",
         "properties": {
           "companies": {
             "items": {
@@ -22836,6 +22862,10 @@
             },
             "title": "Companies",
             "type": "array"
+          },
+          "connect_command": {
+            "title": "Connect Command",
+            "type": "string"
           },
           "notice": {
             "anyOf": [
@@ -22895,6 +22925,28 @@
           "smtp": {
             "title": "Smtp",
             "type": "boolean"
+          },
+          "temporary_for": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Temporary For"
+          },
+          "temporary_password": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Temporary Password"
           }
         },
         "required": [
@@ -22902,11 +22954,14 @@
           "problem",
           "smtp",
           "service_client",
+          "connect_command",
           "roles",
           "companies",
           "people",
           "notice",
-          "notice_link"
+          "notice_link",
+          "temporary_password",
+          "temporary_for"
         ],
         "title": "PeoplePage",
         "type": "object"
@@ -23018,7 +23073,7 @@
         "type": "object"
       },
       "PersonReset": {
-        "description": "A lost authenticator (removed; set up again at the next sign-in) and/or a forgotten password (Keycloak's email\nlink, or a temporary one set by the owner in Keycloak's console: the platform never handles it).",
+        "description": "A lost authenticator (removed; set up again at the next sign-in) and/or a forgotten password (Keycloak's email\nlink, or a temporary one shown once to the administrator: `_first_password`).",
         "properties": {
           "authenticator": {
             "default": false,
@@ -25585,6 +25640,52 @@
         "title": "RelatesToView",
         "type": "object"
       },
+      "ReleaseModelAnswer": {
+        "properties": {
+          "model": {
+            "enum": [
+              "weibull",
+              "particles"
+            ],
+            "title": "Model",
+            "type": "string"
+          },
+          "reason": {
+            "default": "",
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "model"
+        ],
+        "title": "ReleaseModelAnswer",
+        "type": "object"
+      },
+      "ReleaseModelOption": {
+        "additionalProperties": false,
+        "properties": {
+          "detail": {
+            "default": "",
+            "title": "Detail",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "value",
+          "label"
+        ],
+        "title": "ReleaseModelOption",
+        "type": "object"
+      },
       "ReleaseModelRequest": {
         "properties": {
           "formulation": {
@@ -25597,6 +25698,82 @@
           "formulation"
         ],
         "title": "ReleaseModelRequest",
+        "type": "object"
+      },
+      "ReleaseModelRow": {
+        "additionalProperties": false,
+        "description": "A formulation's release model chosen on Inputs (the owner's D1): the Data room's proposal waiting on a person,\nor the formulation held for particle dissolution (`release_choice.release_states`).",
+        "properties": {
+          "by": {
+            "default": "",
+            "title": "By",
+            "type": "string"
+          },
+          "detail": {
+            "default": "",
+            "title": "Detail",
+            "type": "string"
+          },
+          "evidence_id": {
+            "title": "Evidence Id",
+            "type": "string"
+          },
+          "formulation": {
+            "title": "Formulation",
+            "type": "string"
+          },
+          "label": {
+            "default": "",
+            "title": "Label",
+            "type": "string"
+          },
+          "other": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReleaseModelOption"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reason": {
+            "default": "",
+            "title": "Reason",
+            "type": "string"
+          },
+          "sources": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Sources",
+            "type": "array"
+          },
+          "state": {
+            "enum": [
+              "proposed",
+              "held"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "value": {
+            "default": "",
+            "title": "Value",
+            "type": "string"
+          },
+          "why": {
+            "default": "",
+            "title": "Why",
+            "type": "string"
+          }
+        },
+        "required": [
+          "formulation",
+          "state",
+          "evidence_id"
+        ],
+        "title": "ReleaseModelRow",
         "type": "object"
       },
       "ReleaseProposal": {
@@ -35066,7 +35243,7 @@
         ]
       },
       "post": {
-        "description": "A new person of a company, in Keycloak: they set their own password and authenticator at their first sign-in.",
+        "description": "A new person of a company, in Keycloak: they set their own password and authenticator at their first sign-in,\nthrough Keycloak's email, or with the temporary password this answer carries once when Keycloak cannot email.",
         "operationId": "add_person_api_v1_admin_people_post",
         "parameters": [
           {
@@ -43254,6 +43431,84 @@
         "summary": "Start Research",
         "tags": [
           "evidence"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/formulations/{name}:release-model": {
+      "post": {
+        "description": "A formulation's release model, chosen here (the owner's D1; plan 2026-11-26 §8): \"weibull\" confirms the Data\nroom's proposal (or takes a held formulation's Weibull values again); \"particles\" holds the formulation for particle\ndissolution, with a reason (its Weibull values are set aside; Inputs cannot hold the particle inputs yet). The\ninputs are assembled again.",
+        "operationId": "answer_release_model_api_v1_projects__project_id__formulations__name__release_model_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReleaseModelAnswer"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_InputsPage_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Answer Release Model",
+        "tags": [
+          "inputs"
         ]
       }
     },
