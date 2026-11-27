@@ -6,12 +6,12 @@
 
 import type { ReactNode } from "react";
 
-import { SECTION_STATE, num, type BeResult, type LayoutGroup, type LayoutSection, type Room, type Run, type Value } from "@/lib/dataroom";
+import { SECTION_STATE, num, type BeResult, type LayoutGroup, type LayoutSection, type Problem, type Room, type Run, type Value } from "@/lib/dataroom";
 
-import { Card, Dot, Nothing, Row, Sources, Table } from "./kit";
+import { Card, Dot, Nothing, READING, Row, Sources, Table } from "./kit";
 import { Files, QuestionCard } from "./overview";
 import { Requirements } from "./requirements";
-import { Clinical, Dissolution, Formulation, Observed, Solubility, ValueTable } from "./science";
+import { Checks, Clinical, Dissolution, Formulation, Observed, Solubility, ValueTable } from "./science";
 import { Decisions, Inputs, Plan, Requests } from "./work";
 
 export const OVERVIEW_ID = "overview";
@@ -23,7 +23,16 @@ export function sectionFor(layout: readonly LayoutGroup[], asked: string): strin
   return all.find((s) => (s.answers ?? []).includes(asked))?.id ?? OVERVIEW_ID;
 }
 
-export function GroupedRail({ layout, current, go }: { layout: readonly LayoutGroup[]; current: string; go: (id: string) => void }) {
+/** Where the delivery stands, for what an empty section says (plan 2026-11-26 §9, slice 5c): no file yet, a run reading
+ *  the files, or read. */
+export type RoomStage = "empty" | "reading" | "read";
+
+/** A section's status word, "Reading" while a run reads the delivery and the section has nothing yet. */
+const stateWord = (s: LayoutSection, reading: boolean) => (reading && s.status === "empty" ? READING : SECTION_STATE[s.status]);
+
+export function GroupedRail({ layout, current, go, reading = false }: {
+  layout: readonly LayoutGroup[]; current: string; go: (id: string) => void; reading?: boolean;
+}) {
   return (
     <>
       <nav className="dr-rail" aria-label="Data room sections" data-testid="dataroom-rail">
@@ -43,8 +52,8 @@ export function GroupedRail({ layout, current, go }: { layout: readonly LayoutGr
                 <li key={s.id}>
                   <button type="button" className={`${current === s.id ? "on" : ""}${s.status === "empty" ? " quiet" : ""}`}
                           aria-current={current === s.id ? "page" : undefined} onClick={() => go(s.id)}
-                          data-testid={`rail-${s.id}`} title={`${s.title}: ${SECTION_STATE[s.status]}`}>
-                    <Dot status={s.status} /><span>{s.title}</span>
+                          data-testid={`rail-${s.id}`} title={`${s.title}: ${stateWord(s, reading)}`}>
+                    <Dot status={s.status} reading={reading} /><span>{s.title}</span>
                   </button>
                 </li>
               ))}
@@ -58,7 +67,7 @@ export function GroupedRail({ layout, current, go }: { layout: readonly LayoutGr
           <option value={OVERVIEW_ID}>Overview</option>
           {layout.map((g) => (
             <optgroup key={g.id} label={g.title}>
-              {g.sections.map((s) => <option key={s.id} value={s.id}>{s.title} · {SECTION_STATE[s.status]}</option>)}
+              {g.sections.map((s) => <option key={s.id} value={s.id}>{s.title} · {stateWord(s, reading)}</option>)}
             </optgroup>
           ))}
         </select>
@@ -94,9 +103,13 @@ function BeTable({ room }: { room: Room }) {
   );
 }
 
-function DoseCardView({ room }: { room: Room }) {
+/** The checks the dose card itself raises (R14), shown on it (slice 5d). */
+const DOSE_CHECKS = new Set(["DOSE_BASIS_UNKNOWN", "DOSE_BASIS_NEEDS_MW", "SALT_MW_NOT_HEAVIER"]);
+
+function DoseCardView({ room, checks }: { room: Room; checks: readonly Problem[] }) {
   const d = room.dose_card;
   if (!d) return null;
+  const own = checks.filter((p) => DOSE_CHECKS.has(p.code));
   const mg = (x: number | null | undefined) => (x == null ? "not known" : `${num(x)} mg`);
   return (
     <Card title="Dose in both bases" testId="dose-card" aside={<Sources chips={d.sources} max={3} />}>
@@ -107,6 +120,12 @@ function DoseCardView({ room }: { room: Room }) {
         {d.molar_dose_umol != null && <li>Molar dose: {num(d.molar_dose_umol)} µmol</li>}
       </ul>
       {d.rule && <p className="muted dr-small">{d.rule}</p>}
+      {own.length > 0 && (
+        <ul className="dr-list" data-testid="dose-card-checks">
+          {own.map((p, i) => <li key={i} className="dr-flag" data-testid={`check-${p.code}`}><span className="dr-tag warn small">Check</span>
+            <span className="dr-flag-body"><span>{p.message}</span>{p.where && <Sources chips={[p.where]} />}</span></li>)}
+        </ul>
+      )}
     </Card>
   );
 }
@@ -165,12 +184,29 @@ function InputsChoices({ room, projectId }: { room: Room; projectId: string }) {
   );
 }
 
+/** A section with nothing in it yet (slice 5c): where the delivery stands, and what the section will hold. */
+function EmptySection({ section, stage }: { section: LayoutSection; stage: RoomStage }) {
+  const lead = stage === "reading" ? "Reading: this section fills in as the files are read."
+    : stage === "empty" ? "Nothing yet: drop the client's delivery above, and Run reads it."
+      : "Nothing in this delivery belongs here yet.";
+  return (
+    <div className="dr-nothing" data-testid="section-empty" data-stage={stage}>
+      <p className="m-0">{lead}</p>
+      {section.holds && <p className="dr-holds" data-testid="section-holds"><span className="muted">It holds: </span>{section.holds}</p>}
+    </div>
+  );
+}
+
 /** One section of the page in its groups: what the API placed in it, drawn with today's cards. */
-export function LayoutBody({ section, room, run, projectId, go }: {
-  section: LayoutSection; room: Room; run: Run | null; projectId: string; go: (id: string) => void;
+export function LayoutBody({ section, room, run, projectId, go, stage = "read" }: {
+  section: LayoutSection; room: Room; run: Run | null; projectId: string; go: (id: string) => void; stage?: RoomStage;
 }): ReactNode {
   const all = [...room.substance, ...room.adme, ...room.products];
   const studyValues = room.studies.flatMap((s) => s.facts);
+  // the room's own checks placed here by code, each on what it concerns (slice 5d): the dose card's on the card, the files'
+  // with the files, the rest in this section's Checks
+  const placed = (section.checks ?? []).map((i) => room.problems[i]).filter((p): p is Problem => p !== undefined);
+  const onCard = room.dose_card ? placed.filter((p) => DOSE_CHECKS.has(p.code)) : [];
   const parts = section.parts.map((part) => {
     switch (part) {
       case "question": return <QuestionCard key={part} room={room} />;
@@ -181,7 +217,7 @@ export function LayoutBody({ section, room, run, projectId, go }: {
       case "substance": return pick(room.substance, section.values).length
         ? <Card key={part} title="Values" testId={`values-${section.id}`}><ValueTable values={pick(room.substance, section.values)} label={section.title} /></Card> : null;
       case "solubility": return <Solubility key={part} room={room} />;
-      case "dose_card": return <DoseCardView key={part} room={room} />;
+      case "dose_card": return <DoseCardView key={part} room={room} checks={onCard} />;
       case "dissolution": return <Dissolution key={part} room={room} only={section.dissolution} checks={section.id !== "release"} />;
       case "studies": return <Clinical key={part} room={room} />;
       case "observed": return <Observed key={part} room={room} />;
@@ -195,15 +231,17 @@ export function LayoutBody({ section, room, run, projectId, go }: {
       case "other_analytes": return <OtherAnalytes key={part} room={room} />;
       case "adme": case "other_values": return pick([...all, ...studyValues], section.values).length
         ? <Card key={part} title="Values" testId={`values-${section.id}`}><ValueTable values={pick([...all, ...studyValues], section.values)} label={section.title} /></Card> : null;
-      case "files": return <Files key={part} room={room} run={run} />;
+      case "files": return <Files key={part} room={room} run={run} checks={placed} />;
       case "requests": return <Requests key={part} room={room} />;
       default: return null;
     }
   });
   const empty = !section.count && !section.decisions.length;
+  const here = section.parts.includes("files") ? [] : placed.filter((p) => !onCard.includes(p));
   return (
     <>
-      {empty && <Nothing>Nothing in this delivery belongs here yet.</Nothing>}
+      {empty && <EmptySection section={section} stage={stage} />}
+      <Checks problems={here} title="Checks" testId={`checks-${section.id}`} aside="What code found here, and why it matters" />
       {parts}
       {section.decisions.length > 0 && (
         <section className="dr-section-decisions" aria-label="Decisions" data-testid={`decisions-${section.id}`}>

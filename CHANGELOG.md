@@ -68,6 +68,79 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
   24 px targets, at 1440 and 390 px) passes on every page. Deploy: the Keycloak theme needs copying in and a Keycloak
   restart (`docs/plans/2026-11-25-console-redesign-deploy.md` §3).
 
+### Changed — each Data room check on what it concerns, and the Overview's "Needs you" (2026-11-27)
+- **Why:** slice 5d of `docs/plans/2026-11-26-data-room-groups-and-corpus-benchmark.md` (§9), the owner's go of
+  2026-11-27. The room's own checks (the dose card, the detectors, refused facts, a table read with a problem) were one
+  list on All Source Files, capped at 12, away from what they concern. The Overview listed only the conflicts.
+- **What, each check on its item (`layout.CHECK_SECTION`, `LayoutSection.checks`):** code places each of the room's
+  checks in the section of what it concerns. The page shows a section's checks first.
+  - The dose card's checks (basis unknown, a molecular weight missing, a salt lighter than its base) go on the dose card,
+    under Drug Substance Properties.
+  - A lot named for two products, or written two ways: Test and Reference Products.
+  - Concentrations that look simulated: Observed PK and BE Outcome.
+  - A dissolution table read with a problem: In Vitro Release Input. A profile with no known product: Dissolution in
+    Other Media and Batches.
+  - A check about reading the files (a refused fact, a line not found) stays with the files.
+  - A file's own check (personal data, a file that never names the drug) is a tag on its row, with its words in the
+    row's details. The two detectors now give the line they were found on (`Problem.where`).
+- **What, "Needs you" (`DataRoomView.needs_you`, `layout.needs_you`):** the Overview lists what needs a person, each
+  with the one section where it is done and an Open button, in this order:
+  - the question to write or confirm;
+  - what holds an error;
+  - the values and client numbers that disagree;
+  - the checks a person must settle (`NEEDS_YOU`: the dose card, the detectors, a sample with two values, a spreadsheet
+    error, our BE against the CSR), one line per kind of check on one item, with its count;
+  - the decisions waiting, each with its suggestion.
+  - It says the population, sex and meal template are chosen on Inputs. It replaces "Needs attention first", and shows
+    10 lines (all on paper).
+- **Found and fixed (phase 3b):** the room loads only the documents an extraction points into, so the personal-data
+  check never saw a file nobody extracted, such as a subject listing. It is now made once when each file is read and
+  kept on the file (`FileView.checks`). A room read before gets it at its next run (the read stage passes every file).
+  Phase 3b's corpus run called the detectors with every document loaded, which is why it did not show.
+- **API:** `LayoutSection.checks`, `DataRoomView.needs_you` (`NeedItem`) and `FileView.checks`, all optional (a file
+  with no check is stored as before). The OpenAPI snapshot and `apps/web/lib/api-types.ts` are regenerated.
+- **Tests:**
+  - `test_dataroom_layout.py`: each check in the section of what it concerns; "Needs you" in its order, each with its
+    section, never the D1 choices, never a reading check, a study's NCA differences said once with their count.
+  - `test_dataroom_checks.py`: the detectors give their file and line; a listing no extraction points into is checked
+    when read and reaches the room, the files section and "Needs you".
+  - E2E `dataroom.spec.ts`: a made-up subject listing is added to the delivery. "Needs you" lists the question, the two
+    client numbers that differ and the personal data; confirming the question removes its line; Open goes to the
+    listing's row, tagged "Personal data".
+
+### Changed — the Data room before a file arrives and while a run reads it (2026-11-27)
+- **Why:** slice 5c of `docs/plans/2026-11-26-data-room-groups-and-corpus-benchmark.md` (§9), the owner's go of
+  2026-11-27. An empty room showed 16 sections saying "Nothing yet" and 7 data requests for a delivery that had not
+  arrived. A running read showed the room as it was before the run until the run ended.
+- **What, the layers map (0.3):** each section says what it will hold (`holds`, in a person's words). The API carries it
+  as `LayoutSection.holds`. Page wording only: no value moves.
+- **What, before a file arrives:**
+  - The Overview shows the question, then "What you will see here": each group with its meaning, and each section with
+    what it will hold. The headline tiles are not shown.
+  - An empty section's page says what it will hold and that the delivery is dropped above.
+  - The Overview's line says what comes first: write the question, confirm it, or drop the delivery.
+  - The drop zone names the formats phase 2a added (PowerPoint, SAS exports).
+- **What, the requests (a behaviour change):** an empty room asks for nothing. The requests for what is "not in the
+  delivery" (the compound inputs, and the question checklist's asks) are raised once the room holds a file; before,
+  an empty room raised 7. A room with files is unchanged.
+- **What, while a run reads:**
+  - The run's head says "Reading N files" and how long it has gone on, that sections fill in as the files are read, and
+    that the page can be left (the run goes on, and pauses if a model is busy).
+  - Each section with nothing yet shows "Reading" (a breathing ring, still when the system asks for reduced motion), in
+    the rail, the phone's section list and the Overview.
+  - The room is read again every 10 s while the run goes on, so sections fill in as each file's answers land (each is
+    written whole, by file).
+- **Not built from the mockup:** an estimate of the run's total time (nothing to base it on yet), and per-section
+  progress ("2 of 3"), which needs the run to say which section each file feeds.
+- **API:** `LayoutSection.holds`, optional. The OpenAPI snapshot and `apps/web/lib/api-types.ts` are regenerated.
+- **Tests:**
+  - `test_dataroom_layers.py`: every section says what it will hold.
+  - `test_dataroom_layout.py`: an empty room lays out every group and section, each empty, each with what it will hold,
+    and asks for nothing.
+  - E2E `dataroom.spec.ts`: the empty project (what each of the 16 sections will hold, no requests, an empty section's
+    page), and a new test of a running read (the real room, its run record answered as one 12 minutes into
+    extraction): "Reading 10 files", "12 min so far", empty sections "Reading", and the room read again during the run.
+
 ### Changed — the population, sex and meal template are chosen on Inputs, with the Data room's facts as proposals (2026-11-27)
 - **Why:** the owner's D1 and slice 5b of `docs/plans/2026-11-26-data-room-groups-and-corpus-benchmark.md` (§9), the
   owner's go of 2026-11-27. These are model choices, made where the model's inputs are confirmed. The room has the

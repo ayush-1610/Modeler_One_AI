@@ -466,6 +466,9 @@ class FileView(_B):
     duplicate_of: str | None = None
     same_content_as: str | None = None
     triage: FileTriage | None = None
+    # the checks of the file alone, made once when it is read (personal data): the room loads only the documents an
+    # extraction points into, so a check on a file nobody extracts is made here (plan 2026-11-26 §9, slice 5d)
+    checks: tuple[Problem, ...] = Field(default=(), exclude_if=lambda v: not v)
 
 
 # --- what the question needs (plan 2026-11-24 §6: the requirement drafts per context of use, UNVERIFIED) ---------------
@@ -568,15 +571,31 @@ class LayoutSection(_B):
     id: str                          # the map's section id (products, substance, release, design …)
     ref: str                         # group/section
     title: str
+    holds: str = ""                  # what it will hold (the layers map's words; shown while it is empty, slice 5c)
     parts: tuple[str, ...]           # what it draws: question, products, substance, dissolution, studies, be …
     values: tuple[str, ...] = ()     # the keys of the values placed here
     dissolution: tuple[str, ...] = ()  # the dissolution profiles shown here (the release inputs, or the others)
     decisions: tuple[str, ...] = ()  # the decisions it holds
+    checks: tuple[int, ...] = ()     # the room-wide checks shown here, on what they concern (indexes into `problems`)
     count: int = 0
     status: Literal["ok", "attention", "missing", "empty"] = "empty"
     finding: str = ""
     legacy: str = ""                 # the room's section whose status and finding it shows (an old address's)
     answers: tuple[str, ...] = ()    # the old addresses (?section=clinical) that open this section
+
+
+class NeedItem(_B):
+    """One line of the Overview's "Needs you" (plan 2026-11-26 §9, slice 5d): what a person must write, decide, settle or
+    check, with the one section where it is done."""
+
+    id: str                          # question, decision:<id>, conflict:<key>, check:<code>:<owner>
+    kind: Literal["question", "decision", "conflict", "check"]
+    title: str
+    detail: str = ""
+    section: str                     # the layout section that opens it
+    severity: Severity = "warning"
+    count: int = 1                   # the checks of one kind on one item, said once
+    sources: tuple[Chip, ...] = ()
 
 
 class LayoutGroup(_B):
@@ -611,6 +630,8 @@ class DataRoomView(_B):
     dose_card: DoseCard | None = None
     # the page in its groups: each section and what it shows, placed by code (`dataroom.layout`)
     layout: tuple[LayoutGroup, ...] = ()
+    # what needs a person first, each opening where it is done (`dataroom.layout.needs_you`; slice 5d)
+    needs_you: tuple[NeedItem, ...] = ()
     decisions: tuple[RoomDecision, ...] = ()
     requests: tuple[DataRequest, ...] = ()
     plan: tuple[PlanRow, ...] = ()

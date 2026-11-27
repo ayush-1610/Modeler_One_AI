@@ -26,9 +26,16 @@ def _read_one(args: tuple[str, bytes, bool]) -> RoomFile:
 
 
 def file_view(room: RoomFile) -> FileView:
-    return FileView(path=room.path, name=room.name, sha256=room.sha256, kind=room.kind, pages=room.pages,
+    view = FileView(path=room.path, name=room.name, sha256=room.sha256, kind=room.kind, pages=room.pages,
                     ocr_pages=room.ocr_pages, turned_pages=room.turned_pages, state=room.state, reason=room.reason,
                     duplicate_of=room.duplicate_of, same_content_as=room.same_content_as)
+    # the file's own checks, made while its document is at hand (slice 5d): the room loads only extracted documents
+    if room.document is not None and room.duplicate_of is None:
+        from modeler_project.dataroom.detectors import personal_data
+
+        if found := personal_data([view], {room.sha256: room.document}):
+            view = view.model_copy(update={"checks": tuple(found)})
+    return view
 
 
 def read_uploads(store: DataRoomStore, *, use_ocr: bool = True, workers: int | None = None,

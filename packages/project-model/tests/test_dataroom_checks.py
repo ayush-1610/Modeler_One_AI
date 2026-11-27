@@ -100,6 +100,7 @@ def test_a_document_that_never_names_the_drug_is_asked_about():
     other, docs = _file("Clinical/report.txt", ("The study of Otheramide in 24 healthy volunteers. " * 12).encode())
     (said,) = not_the_drug([other], docs, ["Drugamide 100 mg tablet"])
     assert said.code == "FILE_NAMES_NOT_THE_DRUG" and "never names Drugamide" in said.message
+    assert said.where is not None and said.where.file == "Clinical/report.txt"         # shown on its file (slice 5d)
     ours, docs = _file("Clinical/report.txt", ("The study of Drugamide in 24 healthy volunteers. " * 12).encode())
     assert not_the_drug([ours], docs, ["Drugamide 100 mg tablet"]) == []
     assert not_the_drug([other], docs, []) == []                                          # no drug known: nothing said
@@ -109,6 +110,7 @@ def test_a_subject_listing_with_identifying_columns_is_personal_data():
     listing, docs = _file("Clinical/subjects.csv", b"Subject,Initials,Date of Birth,Sex,Age\n001,J.D.,1985-03-12,M,39\n")
     (said,) = personal_data([listing], docs)
     assert said.code == "PERSONAL_DATA" and "'Initials'" in said.message and "'Date of Birth'" in said.message
+    assert said.where is not None and (said.where.file, said.where.line) == ("Clinical/subjects.csv", 1)   # its header line
     plain, docs = _file("Clinical/subjects.csv", b"Subject,Sex,Age,Weight (kg)\n001,M,39,72\n")
     assert personal_data([plain], docs) == []
     composition, docs = _file("CMC/composition.csv", b"Name,Function,mg per tablet\nLactose,filler,120\n")
@@ -124,3 +126,24 @@ def test_a_spreadsheet_formula_error_is_said_as_one_not_as_an_unreadable_value()
     codes = {p.code: p.message for p in problems}
     assert codes.keys() == {"SPREADSHEET_ERROR", "UNREADABLE_VALUE"}
     assert "a broken formula" in codes["SPREADSHEET_ERROR"] and "'#REF!'" in codes["SPREADSHEET_ERROR"]
+
+
+def test_a_file_no_extraction_points_into_is_still_checked_for_personal_data(tmp_path):
+    """Slice 5d: the room loads only the documents an extraction points into, so the file's own check is made when it
+    is read and kept on the file; the room says it on the file, and Needs you asks about it."""
+    from modeler_project.dataroom import DataRoomStore, room_view
+    from modeler_project.dataroom.reading import read_uploads
+    from modeler_project.store import FileProjectStore
+    from modeler_project.workspace import Workspace
+
+    store = DataRoomStore(Workspace(FileProjectStore(tmp_path), "t1", "p1"))
+    store.add_upload("subjects.csv", b"Subject,Initials,Date of Birth,Sex,Age\n001,A.B.,1990-01-01,M,34\n", by="u")
+    store.add_upload("notes.txt", b"Plain notes about the study schedule.\n", by="u")
+    (listing, notes) = sorted(read_uploads(store, use_ocr=False, workers=1), key=lambda f: f.path)[::-1]
+    assert [c.code for c in listing.checks] == ["PERSONAL_DATA"] and notes.checks == ()
+    assert "checks" not in notes.model_dump()                 # a file with none is stored as before
+    view = room_view(store)
+    assert [(p.code, p.where.file) for p in view.problems if p.where] == [("PERSONAL_DATA", "subjects.csv")]
+    files = next(s for g in view.layout for s in g.sections if s.id == "files")
+    assert [view.problems[i].code for i in files.checks] == ["PERSONAL_DATA"]
+    assert any(n.id == "check:PERSONAL_DATA:" and n.section == "files" for n in view.needs_you)

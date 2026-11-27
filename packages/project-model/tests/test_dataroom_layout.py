@@ -74,3 +74,57 @@ def test_every_old_address_opens_a_section_that_exists(view):
     ids = {s.id for s in _sections(view)}
     assert set(OLD_ADDRESSES.values()) <= ids
     assert {s.id for s in view.sections} <= set(OLD_ADDRESSES)        # every section of today has a new home
+
+
+def test_an_empty_room_shows_every_group_and_section_with_what_it_will_hold():
+    """Slice 5c: before a file arrives, the page still shows each group and section, each saying what it will hold."""
+    from modeler_project.dataroom.assemble import Inputs
+
+    empty = assemble(Inputs(files=[], docs={}))
+    sections = _sections(empty)
+    assert [s.id for s in sections] == [s.id for g in load_layers().groups for s in g.sections]
+    assert all(s.status == "empty" and s.count == 0 and s.holds for s in sections)
+    assert {g.status for g in empty.layout} == {"empty"}
+
+
+def test_each_check_is_placed_on_what_it_concerns_and_the_rest_with_the_files(view):
+    """Slice 5d: the dose card's checks on Drug Substance Properties, a lot's on the products, simulated-looking
+    concentrations on Observed PK; a check about reading the files stays with the files."""
+    from modeler_project.dataroom.model import Chip, Problem
+
+    listing = Chip(file="Clinical/subjects.csv", part="sheet:subjects", line=1)
+    checks = (Problem(code="DOSE_BASIS_UNKNOWN", message="m"), Problem(code="LOT_CONFLICT", message="m"),
+              Problem(code="LOOKS_SIMULATED", message="m"), Problem(code="FACT_REFUSED", message="m"),
+              Problem(code="PERSONAL_DATA", message="m", where=listing))
+    room = view.model_copy(update={"problems": checks})
+    placed = {s.id: [room.problems[i].code for i in s.checks] for g in build_layout(room) for s in g.sections if s.checks}
+    assert placed == {"substance": ["DOSE_BASIS_UNKNOWN"], "products": ["LOT_CONFLICT"], "observed": ["LOOKS_SIMULATED"],
+                      "files": ["FACT_REFUSED", "PERSONAL_DATA"]}
+
+
+def test_needs_you_lists_what_a_person_must_do_each_with_the_one_section_where_it_is_done(view):
+    """Slice 5d: the question to confirm first, then what disagrees, the checks to settle (one line per kind of check
+    on one item), and the decisions waiting (never Inputs' D1 choices); a reading check is not there."""
+    from modeler_project.dataroom.layout import needs_you
+    from modeler_project.dataroom.model import Problem
+
+    waiting = tuple(d.model_copy(update={"chosen": None}) for d in view.decisions)
+    differs = tuple(Problem(code="NCA_DIFFERS", message=f"subject {i}: AUC differs") for i in (1, 2, 3))
+    studies = (view.studies[0].model_copy(update={"problems": (*view.studies[0].problems, *differs)}), *view.studies[1:])
+    room = view.model_copy(update={"question_confirmed": False, "decisions": waiting, "studies": studies,
+                                   "problems": (Problem(code="DOSE_BASIS_UNKNOWN", message="ask which"),
+                                                Problem(code="FACT_REFUSED", message="not in its quote"))})
+    items = needs_you(room, build_layout(room))
+    assert items[0].id == "question" and items[0].section == "question"
+    decided = {i.id.split(":", 1)[1]: i.section for i in items if i.kind == "decision"}
+    assert set(decided) == {d.id for d in waiting if not d.on_inputs} and not any(":EX-01" in k and k.startswith(
+        ("population", "sex", "meal")) for k in decided)
+    assert decided["analysis-set:EX-01"] == "observed" and decided["solubility-ref"] == "substance"
+    nca = next(i for i in items if i.id == "check:NCA_DIFFERS:EX-01")
+    assert (nca.kind, nca.section, nca.title) == ("conflict", "observed", "EX-01: The client's NCA is not reproduced")
+    assert nca.count >= 3                                     # every NCA difference of the study, said once
+    dose = next(i for i in items if i.id == "check:DOSE_BASIS_UNKNOWN:")
+    assert (dose.kind, dose.section, dose.detail) == ("check", "substance", "ask which")
+    assert not any("FACT_REFUSED" in i.id for i in items)    # shown with the files, not asked of a person
+    kinds = [i.kind for i in items]
+    assert kinds == sorted(kinds, key=["question", "conflict", "check", "decision"].index)

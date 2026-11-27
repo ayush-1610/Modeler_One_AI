@@ -6,10 +6,11 @@
 
 import { useState } from "react";
 
-import { PURPOSE, baseName, conflicts, fullCard, roleColour, type FileView, type QuestionCard as Card_, type Room, type Run } from "@/lib/dataroom";
+import { PURPOSE, baseName, conflicts, fullCard, roleColour, type FileView, type NeedItem, type Problem, type QuestionCard as Card_, type Room, type Run } from "@/lib/dataroom";
 
 import { useRoomActs } from "./acts";
 import { Card, Dot, Nothing, Row, Sources, StatusTag, Table, usePaper } from "./kit";
+import type { RoomStage } from "./layout";
 
 const ROLES: Card_["products"][number]["role"][] = ["reference", "test", "original", "reformulated", "other"];
 
@@ -145,14 +146,91 @@ export function Headline({ room }: { room: Room }) {
   );
 }
 
-export function Overview({ room, go }: { room: Room; go: (section: string) => void }) {
+const NEED_KIND: Record<NeedItem["kind"], [string, string]> = {
+  question: ["info", "Question"], decision: ["warn", "Decide"], conflict: ["bad", "Settle"], check: ["warn", "Check"],
+};
+
+/** What needs a person first (plan 2026-11-26 §9, slice 5d), as code lists it (`room.needs_you`): the question, what
+ *  holds an error, what disagrees, the checks to settle, then the decisions waiting. Each opens the one section where it
+ *  is done. The population, sex and meal template are Inputs' (D1): said, not listed. */
+function NeedsYou({ room, go }: { room: Room; go: (section: string) => void }) {
+  const paper = usePaper();
+  const items = room.needs_you ?? [];
+  const onInputs = room.decisions.some((d) => d.on_inputs);
+  const titles = new Map((room.layout ?? []).flatMap((g) => g.sections.map((s) => [s.id, s.title] as const)));
+  const shown = paper ? items : items.slice(0, 10);
+  return (
+    <Card title="Needs you" testId="needs-you" aside={<span className="muted dr-small">Each opens where it is done</span>}>
+      {items.length ? (
+        <ul className="dr-list">
+          {shown.map((n) => (
+            <li key={n.id} className="dr-flag dr-need" data-testid={`need-${n.id}`} data-kind={n.kind}>
+              <span className={`dr-tag ${n.severity === "error" ? "bad" : NEED_KIND[n.kind][0]} small`}>{NEED_KIND[n.kind][1]}</span>
+              <span className="dr-need-body">
+                <span><strong>{n.title}</strong>{(n.count ?? 1) > 1 ? <span className="muted"> ({n.count})</span> : null}</span>
+                {n.detail && <span className="muted dr-small">{n.detail}</span>}
+                {(n.sources ?? []).length > 0 && <Sources chips={n.sources ?? []} max={2} />}
+              </span>
+              {!paper && (
+                <span className="dr-need-open">
+                  <span className="muted dr-small">{titles.get(n.section) ?? ""}</span>
+                  <button type="button" className="btn small" onClick={() => go(n.section)} data-testid={`need-open-${n.id}`}
+                          aria-label={`Open ${titles.get(n.section) ?? "its section"}: ${n.title}`}>Open</button>
+                </span>
+              )}
+            </li>
+          ))}
+        </ul>
+      ) : <p className="muted m-0" data-testid="needs-you-none">Nothing in this delivery waits for you.</p>}
+      {!paper && items.length > shown.length && <p className="muted">and {items.length - shown.length} more, each in its section</p>}
+      {onInputs && (
+        <p className="muted dr-small m-0" data-testid="needs-you-inputs">The population, sex and meal template are chosen on Inputs: Clinical
+          Study Design shows the delivery&apos;s facts behind them.</p>
+      )}
+    </Card>
+  );
+}
+
+/** Before a file arrives (plan 2026-11-26 §9, slice 5c): each group, what it means, and what each of its sections will
+ *  hold, each with nothing yet. */
+function WillHold({ room, go }: { room: Room; go: (section: string) => void }) {
+  return (
+    <Card title="What you will see here" testId="overview-will-hold">
+      <p className="muted dr-small m-0">Every file of the delivery is read and kept. What the model needs is checked, with its
+        source, before it goes to Inputs.</p>
+      {(room.layout ?? []).map((g) => (
+        <div key={g.id} className="dr-sections-group" data-testid={`will-hold-${g.id}`}>
+          <h4 className="dr-sections-group-title">{g.title}</h4>
+          <p className="dr-small m-0-0-6">{g.meaning}</p>
+          <ul className="dr-sections">
+            {g.sections.map((s) => (
+              <li key={s.id}>
+                <button type="button" onClick={() => go(s.id)} data-testid={`will-hold-section-${s.id}`}>
+                  <span className="dr-sections-title"><Dot status="empty" />{s.title}</span>
+                  <span className="dr-sections-finding">{s.holds}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </Card>
+  );
+}
+
+export function Overview({ room, go, stage = "read" }: { room: Room; go: (section: string) => void; stage?: RoomStage }) {
   const paper = usePaper();
   const first = conflicts(room);
+  const reading = stage === "reading";
+  if (stage === "empty" && !paper && (room.layout ?? []).length) {
+    return <><QuestionCard room={room} /><WillHold room={room} go={go} /></>;
+  }
   return (
     <>
       <QuestionCard room={room} />
       <Headline room={room} />
-      {first.length > 0 && (
+      {(room.layout ?? []).length > 0 && <NeedsYou room={room} go={go} />}
+      {!(room.layout ?? []).length && first.length > 0 && (
         <Card title="Needs attention first" testId="overview-conflicts">
           <ul className="dr-list">
             {first.slice(0, paper ? undefined : 6).map((c, i) => (
@@ -172,8 +250,9 @@ export function Overview({ room, go }: { room: Room; go: (section: string) => vo
                 {g.sections.map((s) => (
                   <li key={s.id}>
                     <button type="button" onClick={() => go(s.id)} data-testid={`overview-section-${s.id}`}>
-                      <span className="dr-sections-title"><Dot status={s.status} />{s.title}</span>
-                      <span className="dr-sections-finding">{s.finding || (s.count ? "" : "Nothing in this delivery yet")}</span>
+                      <span className="dr-sections-title"><Dot status={s.status} reading={reading} />{s.title}</span>
+                      <span className="dr-sections-finding">{s.finding || (s.count ? "" : reading ? "Fills in as the files are read"
+                        : "Nothing in this delivery yet")}</span>
                     </button>
                   </li>
                 ))}
@@ -236,11 +315,17 @@ function notes(file: FileView): string[] {
   return out;
 }
 
-export function Files({ room, run }: { room: Room; run: Run | null }) {
+/** A check about a whole file, shown as a tag on its row (slice 5d). */
+const FILE_TAG: Record<string, string> = { PERSONAL_DATA: "Personal data", FILE_NAMES_NOT_THE_DRUG: "Never names the drug" };
+
+/** `checks`: the room's checks the layout places with the files (slice 5d); without a layout, every check (as before). */
+export function Files({ room, run, checks }: { room: Room; run: Run | null; checks?: readonly Problem[] }) {
   // duplicates under the file they repeat, in the delivery's order
   const firsts = room.files.filter((f) => !f.duplicate_of);
   const ordered = firsts.flatMap((f) => [f, ...room.files.filter((d) => d.duplicate_of === f.path)]);
-  const reading = room.problems.filter((p) => p.severity !== "info");
+  const placed = checks ?? room.problems;
+  const onFile = (path: string) => placed.filter((p) => FILE_TAG[p.code] && p.where?.file === path);
+  const reading = placed.filter((p) => p.severity !== "info" && !(FILE_TAG[p.code] && p.where));
   const unsorted = run?.stages.find((s) => s.id === "triage")?.state === "skipped";
   if (!room.files.length) return <Nothing>No file is read yet: add the client&apos;s files and run.</Nothing>;
   return (
@@ -255,6 +340,7 @@ export function Files({ room, run }: { room: Room; run: Run | null }) {
               <span key="p" className="tnum">{f.pages || "—"}</span>,
               <Purpose key="u" file={f} />,
               <span key="o" className="dr-notes">
+                {onFile(f.path).map((p) => <span key={p.code} className="dr-tag warn" data-testid={`file-check-${p.code}`}>{FILE_TAG[p.code]}</span>)}
                 {f.ocr_pages.length > 0 && <span className="dr-tag info" data-testid="read-by-ocr">Read by OCR</span>}
                 {notes(f).filter((n) => !n.startsWith("read by OCR")).join(" · ")}
               </span>,
@@ -264,6 +350,7 @@ export function Files({ room, run }: { room: Room; run: Run | null }) {
                 {f.triage?.reason && <div className="wide"><dt>Why</dt><dd>{f.triage.reason}</dd></div>}
                 {f.triage?.study && <div><dt>Study</dt><dd>{f.triage.study}</dd></div>}
                 {notes(f).length > 0 && <div className="wide"><dt>Reading</dt><dd>{notes(f).join(" · ")}</dd></div>}
+                {onFile(f.path).map((p) => <div key={p.code} className="wide"><dt>{FILE_TAG[p.code]}</dt><dd>{p.message}</dd></div>)}
               </dl>
             )} />
           ))}

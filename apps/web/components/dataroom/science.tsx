@@ -26,7 +26,7 @@ const SEVERITY: Record<Problem["severity"], [string, string]> = {
 };
 
 /** The science checks of one section or study, each with its reason (plan 2026-11-24 §8): a flag, never a deletion. */
-function Checks({ problems, title, testId, aside }: { problems: readonly Problem[]; title: string; testId: string; aside?: string }) {
+export function Checks({ problems, title, testId, aside }: { problems: readonly Problem[]; title: string; testId: string; aside?: string }) {
   if (!problems.length) return null;
   return (
     <Card title={title} testId={testId} aside={aside ? <span className="muted dr-small">{aside}</span> : undefined}>

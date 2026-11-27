@@ -29,6 +29,8 @@ def test_the_groups_carry_the_owners_names_in_page_order():
     assert [s.title for s in layers.group("model_input").sections] == [
         "Test and Reference Products", "Drug Substance Properties", "In Vitro Release Input", "Clinical Study Design",
         "Observed PK and BE Outcome", "Simulation Scenarios"]
+    # each section says what it will hold, shown before a file arrives (plan §9, slice 5c)
+    assert all(s.holds.endswith(".") and len(s.holds) > 30 for g in layers.groups for s in g.sections)
 
 
 def test_population_sex_meal_and_release_model_are_chosen_on_inputs_and_their_facts_support_the_choice():

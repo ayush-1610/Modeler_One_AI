@@ -48,6 +48,19 @@ test("a delivery dropped in the Data room is read with agents off, each stage sa
   await page.getByTestId("nav-dataroom").click();
   await expect(page).toHaveURL(new RegExp(`/projects/${projectId}/dataroom$`));
   await expect(page.getByTestId("dataroom-run")).toBeDisabled();             // nothing to read yet
+  // before a file arrives (plan 2026-11-26 §9, slice 5c): each group and what each section will hold, nothing asked yet
+  await expect(page.getByTestId("section-finding")).toContainText("No file yet");
+  const will = page.getByTestId("overview-will-hold");
+  await expect(will.locator("[data-testid^='will-hold-section-']")).toHaveCount(16);
+  await expect(will.getByTestId("will-hold-model_input")).toContainText("parameterise, calibrate or validate the model");
+  await expect(will.getByTestId("will-hold-section-release")).toContainText("The dissolution profile chosen as each product's release input");
+  await expect(page.getByTestId("headline")).toHaveCount(0);
+  await expect(page.getByTestId("rail-requests")).toHaveAttribute("title", "Data Requests: Nothing yet");   // nothing is missing from no delivery
+  await shot(page, "dataroom-empty");
+  await page.getByTestId("rail-release").click();
+  await expect(page.getByTestId("section-empty")).toHaveAttribute("data-stage", "empty");
+  await expect(page.getByTestId("section-holds")).toContainText("the release model fitted to it");
+  await page.getByTestId("rail-overview").click();
 
   await page.getByTestId("dataroom-upload").setInputFiles(zip);
   await expect(page.getByTestId("intake-note")).toContainText("1 file added");
@@ -111,7 +124,9 @@ test("a paused run says where and why it stopped and when it goes on, and resume
   await expect(page.getByTestId("stage-question")).toHaveAttribute("data-state", "done");      // finished before the pause
 });
 
-test("an extracted delivery shows its study and dissolution, a decision is taken and a source opens on its page", async ({ page, request }) => {
+test("while a run reads the delivery, the page says how many files and for how long, and each empty section says it is being read", async ({ page, request }) => {
+  // plan 2026-11-26 §9, slice 5c. The run is read by code (no model in these flows), then its record is answered as a run
+  // still at extraction, 12 minutes in: the page's reading state, over the real room
   const projectId = await project(request);
   const api = `/api/v1/projects/${projectId}/dataroom`;
   const zip = fixture("zip", mkdtempSync(join(tmpdir(), "dataroom-"))).zip as string;
@@ -121,19 +136,73 @@ test("an extracted delivery shows its study and dissolution, a decision is taken
   expect((await request.post(`${api}/run`, { headers: AUTH, data: {} })).ok()).toBeTruthy();
   await expect.poll(async () => (await (await request.get(`${api}/run`, { headers: AUTH })).json()).data.state,
                     { timeout: 120_000 }).toBe("done");
+  const started = new Date(Date.now() - 12 * 60_000 - 5_000).toISOString();
+  await page.route((url) => url.pathname === `${api}/run`, async (route) => {
+    const response = await route.fetch();
+    const body = await response.json();
+    body.data = { ...body.data, state: "running", finished_at: null, started_at: started,
+      stages: body.data.stages.map((st: { id: string }) => st.id === "extract" ? { ...st, state: "running", done: 3, total: 8, note: "Clinical/EX-01 synopsis.pdf" }
+        : ["check", "write"].includes(st.id) ? { ...st, state: "waiting", note: "" } : { ...st, state: "done" }) };
+    await route.fulfill({ response, json: body });
+  });
+  await page.goto(`/projects/${projectId}/dataroom`);
+  const progress = page.getByTestId("run-progress");
+  await expect(progress).toHaveAttribute("data-state", "running");
+  await expect(progress).toContainText("Reading 10 files");
+  await expect(page.getByTestId("run-elapsed")).toHaveText("12 min so far");
+  await expect(page.getByTestId("run-reading-note")).toContainText("You can leave this page");
+  await expect(page.getByTestId("stage-extract")).toContainText("3 of 8");
+  // a section with nothing yet is being read; one that holds something keeps its own state
+  await expect(page.getByTestId("rail-release")).toHaveAttribute("title", "In Vitro Release Input: Reading");
+  await expect(page.getByTestId("rail-files")).not.toHaveAttribute("title", /Reading/);
+  await expect(page.getByTestId("overview-section-release")).toContainText("Fills in as the files are read");
+  await shot(page, "dataroom-reading");
+  // the room is read again while the run goes on, so its sections fill in as each file's answers land
+  const again = page.waitForRequest((r) => new URL(r.url()).pathname === api && r.method() === "GET", { timeout: 15_000 });
+  await page.getByTestId("rail-release").click();
+  await expect(page.getByTestId("section-empty")).toHaveAttribute("data-stage", "reading");
+  await expect(page.getByTestId("section-empty")).toContainText("Reading: this section fills in as the files are read.");
+  await again;
+});
+
+test("an extracted delivery shows its study and dissolution, a decision is taken and a source opens on its page", async ({ page, request }) => {
+  const projectId = await project(request);
+  const api = `/api/v1/projects/${projectId}/dataroom`;
+  const zip = fixture("zip", mkdtempSync(join(tmpdir(), "dataroom-"))).zip as string;
+  const up = await request.post(`${api}/uploads`, { headers: AUTH, multipart: {
+    files: { name: "Exampleamide delivery.zip", mimeType: "application/zip", buffer: readFileSync(zip) } } });
+  expect(up.ok(), await up.text()).toBeTruthy();
+  // and a subject listing with identifying columns (made up): the delivery-wide check for personal data (R07's kin)
+  const listing = await request.post(`${api}/uploads`, { headers: AUTH, multipart: {
+    files: { name: "subjects.csv", mimeType: "text/csv",
+             buffer: Buffer.from("Subject,Initials,Date of Birth,Sex,Age\n001,A.B.,1990-01-01,M,34\n002,C.D.,1988-06-15,M,36\n") } } });
+  expect(listing.ok(), await listing.text()).toBeTruthy();
+  expect((await request.post(`${api}/run`, { headers: AUTH, data: {} })).ok()).toBeTruthy();
+  await expect.poll(async () => (await (await request.get(`${api}/run`, { headers: AUTH })).json()).data.state,
+                    { timeout: 120_000 }).toBe("done");
   fixture("seed", join(process.env.E2E_DATA_DIR!, "read-root"), projectId);
 
-  // the overview: the question to confirm, the headline numbers, the conflicts first
+  // the overview: the question to confirm, the headline numbers, and what needs you (plan 2026-11-26 §9, slice 5d)
   await page.goto(`/projects/${projectId}/dataroom`);
   await expect(page.getByTestId("question-text-shown")).toContainText("reformulated Exampleamide tablet");
-  await expect(page.getByTestId("headline-files")).toContainText("10");
+  await expect(page.getByTestId("headline-files")).toContainText("11");
   // six of the room, and which applications the question has (the requirement drafts, D5); the population, sex and meal
   // template are chosen on Inputs (the owner's D1), so not counted here
   await expect(page.getByTestId("headline-decisions")).toContainText("7");
-  await expect(page.getByTestId("overview-conflicts").getByTestId("conflict")).toHaveCount(2);
+  const needs = page.getByTestId("needs-you");
+  await expect(needs.getByTestId("need-question")).toContainText("Confirm the question");
+  await expect(needs.locator("[data-kind='conflict']")).toHaveCount(2);              // the client's NCA, a mean row
+  await expect(needs.getByTestId("need-check:PERSONAL_DATA:")).toContainText("Personal data in the delivery");
+  await expect(needs.getByTestId("needs-you-inputs")).toContainText("chosen on Inputs");
   await page.getByTestId("question-confirm").click();
   await expect(page.getByTestId("question-confirmed")).toBeVisible();
+  await expect(needs.getByTestId("need-question")).toHaveCount(0);
   await shot(page, "dataroom-overview");
+  // each opens the one section where it is done: the personal data on its file's row
+  await needs.getByTestId("need-open-check:PERSONAL_DATA:").click();
+  await expect(page.getByTestId("section-files")).toBeVisible();
+  await expect(page.getByTestId("file-row-subjects.csv").getByTestId("file-check-PERSONAL_DATA")).toHaveText("Personal data");
+  await page.getByTestId("rail-overview").click();
 
   // the page in its groups (plan 2026-11-26 §9): the study's design, its subject flow, and who is out and why
   await expect(page.getByTestId("rail-group-model_input")).toContainText("Clinical Study Design");

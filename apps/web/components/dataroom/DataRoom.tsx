@@ -14,7 +14,7 @@ import { readAgain, useResource } from "@/lib/hooks";
 
 import { ActsContext, PUBLICATION, ROOM, RUN, UPLOADS, useActs } from "./acts";
 import { Intake } from "./Intake";
-import { GroupedRail, LayoutBody, sectionFor } from "./layout";
+import { GroupedRail, LayoutBody, sectionFor, type RoomStage } from "./layout";
 import { Dot, Nothing, SourceProvider } from "./kit";
 import { Files, Overview } from "./overview";
 import { Requirements } from "./requirements";
@@ -25,17 +25,19 @@ import { Decisions, Inputs, Plan, Requests } from "./work";
 export const OVERVIEW: Section = { id: "overview", title: "Overview", finding: "", status: "ok", computed: "" };
 
 /** One section's cards (the page and the report draw the same). */
-export function SectionBody({ id, room, run, projectId, go, withRequests = true }: {
+export function SectionBody({ id, room, run, projectId, go, withRequests = true, stage = "read" }: {
   id: string; room: Room; run: Run | null; projectId: string; go: (section: string) => void;
   /** The section's own data requests at its end (the report lists them once, in Data requests). */
   withRequests?: boolean;
+  /** Where the delivery stands: no file yet, being read, read (slice 5c). */
+  stage?: RoomStage;
 }): ReactNode {
   const extractSkipped = run?.stages.find((s) => s.id === "extract")?.state === "skipped";
   const why = extractSkipped ? " The extraction step has no AI model set up yet: the admin console sets one." : "";
   const area = SECTION_AREA[id];
   const body = (() => {
     switch (id) {
-      case "overview": return <Overview room={room} go={go} />;
+      case "overview": return <Overview room={room} go={go} stage={stage} />;
       case "files": return <Files room={room} run={run} />;
       case "requirements": return <Requirements room={room} go={go} />;
       case "substance": return <Values values={room.substance} title="Drug substance" empty={`No drug-substance property was found yet.${why}`} />;
@@ -103,6 +105,15 @@ export function DataRoom({ projectId }: { projectId: string }) {
     if (was.current === "running" && state !== "running") void readAgain(client, [ROOM, PUBLICATION, UPLOADS]);
     was.current = state;
   }, [run.data?.state]); // eslint-disable-line react-hooks/exhaustive-deps
+  // while a run reads the delivery, the sections fill in as each file's answers land (each is written whole, by file):
+  // the room is read again every 10 s (plan 2026-11-26 §9, slice 5c)
+  const reading = run.data?.state === "running";
+  useEffect(() => {
+    if (!reading) return;
+    const every = window.setInterval(() => void readAgain(client, [ROOM]), 10_000);
+    return () => window.clearInterval(every);
+  }, [reading]); // eslint-disable-line react-hooks/exhaustive-deps
+  const stage: RoomStage = reading ? "reading" : (room.data?.files.length ?? 0) > 0 ? "read" : "empty";
 
   const sections = [OVERVIEW, ...(room.data?.sections ?? [])];
   // the page in its groups (plan 2026-11-26 §9, slice 5a) when the API gives its layout; an old address opens the
@@ -122,7 +133,11 @@ export function DataRoom({ projectId }: { projectId: string }) {
   const section = placed ? { id: placed.id, title: placed.title, finding: placed.finding, status: placed.status, computed: "" }
     : sections.find((s) => s.id === current) ?? OVERVIEW;
   const finding = current === "overview"
-    ? (room.data?.question?.question ? "Where the delivery stands, and what needs you first." : "Start with the question the modelling must answer.")
+    ? (reading ? "Reading the delivery: each section fills in as its files are read."
+      : stage === "empty" ? (room.data?.question_confirmed ? "No file yet: drop the client's delivery above, and Run reads it."
+        : room.data?.question?.question ? "No file yet. Confirm the question, then drop the client's delivery above."
+          : "No file yet. Write the question below, or drop the client's delivery above: the question is drafted from it.")
+        : room.data?.question?.question ? "Where the delivery stands, and what needs you first." : "Start with the question the modelling must answer.")
     : section.finding;
 
   return (
@@ -134,15 +149,15 @@ export function DataRoom({ projectId }: { projectId: string }) {
           {room.problem && <div className="banner err" role="alert">{room.problem}</div>}
           {room.data && (
             <div className="dr-layout">
-              {grouped ? <GroupedRail layout={layout} current={current} go={go} />
+              {grouped ? <GroupedRail layout={layout} current={current} go={go} reading={reading} />
                 : <Rail sections={sections} current={current} go={go} />}
               <div className="dr-main" data-testid={`section-${current}`}>
                 <header className="dr-head">
                   <h2 ref={top} tabIndex={-1} className="dr-title">{section.title}</h2>
                   {finding && <p className="dr-finding" data-testid="section-finding">{finding}</p>}
                 </header>
-                {placed ? <LayoutBody section={placed} room={room.data} run={run.data} projectId={projectId} go={go} />
-                  : <SectionBody id={current} room={room.data} run={run.data} projectId={projectId} go={go} />}
+                {placed ? <LayoutBody section={placed} room={room.data} run={run.data} projectId={projectId} go={go} stage={stage} />
+                  : <SectionBody id={current} room={room.data} run={run.data} projectId={projectId} go={go} stage={stage} />}
               </div>
             </div>
           )}
