@@ -48,6 +48,19 @@ test("a delivery dropped in the Data room is read with agents off, each stage sa
   await page.getByTestId("nav-dataroom").click();
   await expect(page).toHaveURL(new RegExp(`/projects/${projectId}/dataroom$`));
   await expect(page.getByTestId("dataroom-run")).toBeDisabled();             // nothing to read yet
+  // before a file arrives (plan 2026-11-26 §9, slice 5c): each group and what each section will hold, nothing asked yet
+  await expect(page.getByTestId("section-finding")).toContainText("No file yet");
+  const will = page.getByTestId("overview-will-hold");
+  await expect(will.locator("[data-testid^='will-hold-section-']")).toHaveCount(16);
+  await expect(will.getByTestId("will-hold-model_input")).toContainText("parameterise, calibrate or validate the model");
+  await expect(will.getByTestId("will-hold-section-release")).toContainText("The dissolution profile chosen as each product's release input");
+  await expect(page.getByTestId("headline")).toHaveCount(0);
+  await expect(page.getByTestId("rail-requests")).toHaveAttribute("title", "Data Requests: Nothing yet");   // nothing is missing from no delivery
+  await shot(page, "dataroom-empty");
+  await page.getByTestId("rail-release").click();
+  await expect(page.getByTestId("section-empty")).toHaveAttribute("data-stage", "empty");
+  await expect(page.getByTestId("section-holds")).toContainText("the release model fitted to it");
+  await page.getByTestId("rail-overview").click();
 
   await page.getByTestId("dataroom-upload").setInputFiles(zip);
   await expect(page.getByTestId("intake-note")).toContainText("1 file added");
@@ -109,6 +122,47 @@ test("a paused run says where and why it stopped and when it goes on, and resume
   await expect(page.getByTestId("dr-run-paused")).toHaveCount(0);
   await expect(page.getByTestId("stage-extract")).toHaveAttribute("data-state", "skipped");
   await expect(page.getByTestId("stage-question")).toHaveAttribute("data-state", "done");      // finished before the pause
+});
+
+test("while a run reads the delivery, the page says how many files and for how long, and each empty section says it is being read", async ({ page, request }) => {
+  // plan 2026-11-26 §9, slice 5c. The run is read by code (no model in these flows), then its record is answered as a run
+  // still at extraction, 12 minutes in: the page's reading state, over the real room
+  const projectId = await project(request);
+  const api = `/api/v1/projects/${projectId}/dataroom`;
+  const zip = fixture("zip", mkdtempSync(join(tmpdir(), "dataroom-"))).zip as string;
+  const up = await request.post(`${api}/uploads`, { headers: AUTH, multipart: {
+    files: { name: "Exampleamide delivery.zip", mimeType: "application/zip", buffer: readFileSync(zip) } } });
+  expect(up.ok(), await up.text()).toBeTruthy();
+  expect((await request.post(`${api}/run`, { headers: AUTH, data: {} })).ok()).toBeTruthy();
+  await expect.poll(async () => (await (await request.get(`${api}/run`, { headers: AUTH })).json()).data.state,
+                    { timeout: 120_000 }).toBe("done");
+  const started = new Date(Date.now() - 12 * 60_000 - 5_000).toISOString();
+  await page.route((url) => url.pathname === `${api}/run`, async (route) => {
+    const response = await route.fetch();
+    const body = await response.json();
+    body.data = { ...body.data, state: "running", finished_at: null, started_at: started,
+      stages: body.data.stages.map((st: { id: string }) => st.id === "extract" ? { ...st, state: "running", done: 3, total: 8, note: "Clinical/EX-01 synopsis.pdf" }
+        : ["check", "write"].includes(st.id) ? { ...st, state: "waiting", note: "" } : { ...st, state: "done" }) };
+    await route.fulfill({ response, json: body });
+  });
+  await page.goto(`/projects/${projectId}/dataroom`);
+  const progress = page.getByTestId("run-progress");
+  await expect(progress).toHaveAttribute("data-state", "running");
+  await expect(progress).toContainText("Reading 10 files");
+  await expect(page.getByTestId("run-elapsed")).toHaveText("12 min so far");
+  await expect(page.getByTestId("run-reading-note")).toContainText("You can leave this page");
+  await expect(page.getByTestId("stage-extract")).toContainText("3 of 8");
+  // a section with nothing yet is being read; one that holds something keeps its own state
+  await expect(page.getByTestId("rail-release")).toHaveAttribute("title", "In Vitro Release Input: Reading");
+  await expect(page.getByTestId("rail-files")).not.toHaveAttribute("title", /Reading/);
+  await expect(page.getByTestId("overview-section-release")).toContainText("Fills in as the files are read");
+  await shot(page, "dataroom-reading");
+  // the room is read again while the run goes on, so its sections fill in as each file's answers land
+  const again = page.waitForRequest((r) => new URL(r.url()).pathname === api && r.method() === "GET", { timeout: 15_000 });
+  await page.getByTestId("rail-release").click();
+  await expect(page.getByTestId("section-empty")).toHaveAttribute("data-stage", "reading");
+  await expect(page.getByTestId("section-empty")).toContainText("Reading: this section fills in as the files are read.");
+  await again;
 });
 
 test("an extracted delivery shows its study and dissolution, a decision is taken and a source opens on its page", async ({ page, request }) => {

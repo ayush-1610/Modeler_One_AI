@@ -13,6 +13,39 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 
 ## [Unreleased] — make the pipeline do real PBPK, S0 → S7
 
+### Changed — the Data room before a file arrives and while a run reads it (2026-11-27)
+- **Why:** slice 5c of `docs/plans/2026-11-26-data-room-groups-and-corpus-benchmark.md` (§9), the owner's go of
+  2026-11-27. An empty room showed 16 sections saying "Nothing yet" and 7 data requests for a delivery that had not
+  arrived. A running read showed the room as it was before the run until the run ended.
+- **What, the layers map (0.3):** each section says what it will hold (`holds`, in a person's words). The API carries it
+  as `LayoutSection.holds`. Page wording only: no value moves.
+- **What, before a file arrives:**
+  - The Overview shows the question, then "What you will see here": each group with its meaning, and each section with
+    what it will hold. The headline tiles are not shown.
+  - An empty section's page says what it will hold and that the delivery is dropped above.
+  - The Overview's line says what comes first: write the question, confirm it, or drop the delivery.
+  - The drop zone names the formats phase 2a added (PowerPoint, SAS exports).
+- **What, the requests (a behaviour change):** an empty room asks for nothing. The requests for what is "not in the
+  delivery" (the compound inputs, and the question checklist's asks) are raised once the room holds a file; before,
+  an empty room raised 7. A room with files is unchanged.
+- **What, while a run reads:**
+  - The run's head says "Reading N files" and how long it has gone on, that sections fill in as the files are read, and
+    that the page can be left (the run goes on, and pauses if a model is busy).
+  - Each section with nothing yet shows "Reading" (a breathing ring, still when the system asks for reduced motion), in
+    the rail, the phone's section list and the Overview.
+  - The room is read again every 10 s while the run goes on, so sections fill in as each file's answers land (each is
+    written whole, by file).
+- **Not built from the mockup:** an estimate of the run's total time (nothing to base it on yet), and per-section
+  progress ("2 of 3"), which needs the run to say which section each file feeds.
+- **API:** `LayoutSection.holds`, optional. The OpenAPI snapshot and `apps/web/lib/api-types.ts` are regenerated.
+- **Tests:**
+  - `test_dataroom_layers.py`: every section says what it will hold.
+  - `test_dataroom_layout.py`: an empty room lays out every group and section, each empty, each with what it will hold,
+    and asks for nothing.
+  - E2E `dataroom.spec.ts`: the empty project (what each of the 16 sections will hold, no requests, an empty section's
+    page), and a new test of a running read (the real room, its run record answered as one 12 minutes into
+    extraction): "Reading 10 files", "12 min so far", empty sections "Reading", and the room read again during the run.
+
 ### Changed — the population, sex and meal template are chosen on Inputs, with the Data room's facts as proposals (2026-11-27)
 - **Why:** the owner's D1 and slice 5b of `docs/plans/2026-11-26-data-room-groups-and-corpus-benchmark.md` (§9), the
   owner's go of 2026-11-27. These are model choices, made where the model's inputs are confirmed. The room has the

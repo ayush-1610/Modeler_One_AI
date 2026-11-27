@@ -1028,7 +1028,10 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
             "measured in the same assay (for example metoprolol, atenolol): an apparent permeability is on another "
             "scale than PK-Sim's intestinal permeability (about 100 ×), and each lab needs its own calibration, so "
             "without them the value stays evidence"), "substance.permeability")
-    for key, label, field, _unit in COMPOUND:
+    # what is missing from the delivery is asked once there is one: before a file arrives nothing is missing from it
+    # (plan 2026-11-26 §9, slice 5c: an empty room says what it will hold, not 7 requests for what no file gave yet)
+    delivered = bool(inputs.files)
+    for key, label, field, _unit in COMPOUND if delivered else ():
         word = label.split(" (")[0].lower()
         asked = any(word in r.title.lower() or field in r.checklist for r in requests)
         found = (bool(own_permeability) if key == "perm.intestinal" else any(v.key.startswith(field) for v in substance + adme)
@@ -1041,7 +1044,7 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
     # not needed, inapplicable, not known, optional or context-only is asked for.
     if needs is not None:
         asked_in: dict[str, str] = {}
-        if question and inputs.question_confirmed:
+        if question and inputs.question_confirmed and delivered:
             for ask in checklist.asks(needs.items):
                 same = checklist.already_asked(ask, requests)
                 if same is None:

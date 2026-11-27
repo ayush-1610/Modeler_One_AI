@@ -74,3 +74,14 @@ def test_every_old_address_opens_a_section_that_exists(view):
     ids = {s.id for s in _sections(view)}
     assert set(OLD_ADDRESSES.values()) <= ids
     assert {s.id for s in view.sections} <= set(OLD_ADDRESSES)        # every section of today has a new home
+
+
+def test_an_empty_room_shows_every_group_and_section_with_what_it_will_hold():
+    """Slice 5c: before a file arrives, the page still shows each group and section, each saying what it will hold."""
+    from modeler_project.dataroom.assemble import Inputs
+
+    empty = assemble(Inputs(files=[], docs={}))
+    sections = _sections(empty)
+    assert [s.id for s in sections] == [s.id for g in load_layers().groups for s in g.sections]
+    assert all(s.status == "empty" and s.count == 0 and s.holds for s in sections)
+    assert {g.status for g in empty.layout} == {"empty"}

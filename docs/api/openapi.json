@@ -19291,6 +19291,11 @@
             "title": "Finding",
             "type": "string"
           },
+          "holds": {
+            "default": "",
+            "title": "Holds",
+            "type": "string"
+          },
           "id": {
             "title": "Id",
             "type": "string"
@@ -19339,6 +19344,7 @@
           "id",
           "ref",
           "title",
+          "holds",
           "parts",
           "values",
           "dissolution",

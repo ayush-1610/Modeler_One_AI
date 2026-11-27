@@ -8,7 +8,7 @@ import type { ReactNode } from "react";
 
 import { SECTION_STATE, num, type BeResult, type LayoutGroup, type LayoutSection, type Room, type Run, type Value } from "@/lib/dataroom";
 
-import { Card, Dot, Nothing, Row, Sources, Table } from "./kit";
+import { Card, Dot, Nothing, READING, Row, Sources, Table } from "./kit";
 import { Files, QuestionCard } from "./overview";
 import { Requirements } from "./requirements";
 import { Clinical, Dissolution, Formulation, Observed, Solubility, ValueTable } from "./science";
@@ -23,7 +23,16 @@ export function sectionFor(layout: readonly LayoutGroup[], asked: string): strin
   return all.find((s) => (s.answers ?? []).includes(asked))?.id ?? OVERVIEW_ID;
 }
 
-export function GroupedRail({ layout, current, go }: { layout: readonly LayoutGroup[]; current: string; go: (id: string) => void }) {
+/** Where the delivery stands, for what an empty section says (plan 2026-11-26 §9, slice 5c): no file yet, a run reading
+ *  the files, or read. */
+export type RoomStage = "empty" | "reading" | "read";
+
+/** A section's status word, "Reading" while a run reads the delivery and the section has nothing yet. */
+const stateWord = (s: LayoutSection, reading: boolean) => (reading && s.status === "empty" ? READING : SECTION_STATE[s.status]);
+
+export function GroupedRail({ layout, current, go, reading = false }: {
+  layout: readonly LayoutGroup[]; current: string; go: (id: string) => void; reading?: boolean;
+}) {
   return (
     <>
       <nav className="dr-rail" aria-label="Data room sections" data-testid="dataroom-rail">
@@ -43,8 +52,8 @@ export function GroupedRail({ layout, current, go }: { layout: readonly LayoutGr
                 <li key={s.id}>
                   <button type="button" className={`${current === s.id ? "on" : ""}${s.status === "empty" ? " quiet" : ""}`}
                           aria-current={current === s.id ? "page" : undefined} onClick={() => go(s.id)}
-                          data-testid={`rail-${s.id}`} title={`${s.title}: ${SECTION_STATE[s.status]}`}>
-                    <Dot status={s.status} /><span>{s.title}</span>
+                          data-testid={`rail-${s.id}`} title={`${s.title}: ${stateWord(s, reading)}`}>
+                    <Dot status={s.status} reading={reading} /><span>{s.title}</span>
                   </button>
                 </li>
               ))}
@@ -58,7 +67,7 @@ export function GroupedRail({ layout, current, go }: { layout: readonly LayoutGr
           <option value={OVERVIEW_ID}>Overview</option>
           {layout.map((g) => (
             <optgroup key={g.id} label={g.title}>
-              {g.sections.map((s) => <option key={s.id} value={s.id}>{s.title} · {SECTION_STATE[s.status]}</option>)}
+              {g.sections.map((s) => <option key={s.id} value={s.id}>{s.title} · {stateWord(s, reading)}</option>)}
             </optgroup>
           ))}
         </select>
@@ -165,9 +174,22 @@ function InputsChoices({ room, projectId }: { room: Room; projectId: string }) {
   );
 }
 
+/** A section with nothing in it yet (slice 5c): where the delivery stands, and what the section will hold. */
+function EmptySection({ section, stage }: { section: LayoutSection; stage: RoomStage }) {
+  const lead = stage === "reading" ? "Reading: this section fills in as the files are read."
+    : stage === "empty" ? "Nothing yet: drop the client's delivery above, and Run reads it."
+      : "Nothing in this delivery belongs here yet.";
+  return (
+    <div className="dr-nothing" data-testid="section-empty" data-stage={stage}>
+      <p className="m-0">{lead}</p>
+      {section.holds && <p className="dr-holds" data-testid="section-holds"><span className="muted">It holds: </span>{section.holds}</p>}
+    </div>
+  );
+}
+
 /** One section of the page in its groups: what the API placed in it, drawn with today's cards. */
-export function LayoutBody({ section, room, run, projectId, go }: {
-  section: LayoutSection; room: Room; run: Run | null; projectId: string; go: (id: string) => void;
+export function LayoutBody({ section, room, run, projectId, go, stage = "read" }: {
+  section: LayoutSection; room: Room; run: Run | null; projectId: string; go: (id: string) => void; stage?: RoomStage;
 }): ReactNode {
   const all = [...room.substance, ...room.adme, ...room.products];
   const studyValues = room.studies.flatMap((s) => s.facts);
@@ -203,7 +225,7 @@ export function LayoutBody({ section, room, run, projectId, go }: {
   const empty = !section.count && !section.decisions.length;
   return (
     <>
-      {empty && <Nothing>Nothing in this delivery belongs here yet.</Nothing>}
+      {empty && <EmptySection section={section} stage={stage} />}
       {parts}
       {section.decisions.length > 0 && (
         <section className="dr-section-decisions" aria-label="Decisions" data-testid={`decisions-${section.id}`}>

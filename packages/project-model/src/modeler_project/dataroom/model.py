@@ -568,6 +568,7 @@ class LayoutSection(_B):
     id: str                          # the map's section id (products, substance, release, design …)
     ref: str                         # group/section
     title: str
+    holds: str = ""                  # what it will hold (the layers map's words; shown while it is empty, slice 5c)
     parts: tuple[str, ...]           # what it draws: question, products, substance, dissolution, studies, be …
     values: tuple[str, ...] = ()     # the keys of the values placed here
     dissolution: tuple[str, ...] = ()  # the dissolution profiles shown here (the release inputs, or the others)

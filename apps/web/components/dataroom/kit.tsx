@@ -22,14 +22,20 @@ export function StatusTag({ status }: { status: Status }) {
   return <span className={`dr-status ${status}`} title={s.means} data-status={status}><span className="dr-status-dot" aria-hidden />{s.word}</span>;
 }
 
-export function Dot({ status, label }: { status: Section["status"]; label?: boolean }) {
+/** A section's status as a dot (its word for a screen reader, or beside it with `label`). While a run reads the
+ *  delivery (`reading`), a section with nothing yet says it is being read (plan 2026-11-26 §9, slice 5c). */
+export function Dot({ status, label, reading = false }: { status: Section["status"]; label?: boolean; reading?: boolean }) {
+  const shown = reading && status === "empty";
+  const word = shown ? READING : SECTION_STATE[status];
   return (
-    <span className={`dr-dot-wrap${label ? " labelled" : ""}`} title={SECTION_STATE[status]}>
-      <span className={`dr-dot ${status}`} aria-hidden />
-      {label ? <span className="dr-dot-word">{SECTION_STATE[status]}</span> : <span className="sr-only">{SECTION_STATE[status]}</span>}
+    <span className={`dr-dot-wrap${label ? " labelled" : ""}`} title={word}>
+      <span className={`dr-dot ${shown ? "reading" : status}`} aria-hidden />
+      {label ? <span className="dr-dot-word">{word}</span> : <span className="sr-only">{word}</span>}
     </span>
   );
 }
+
+export const READING = "Reading";
 
 // --- sources ---------------------------------------------------------------------------------------------------------
 

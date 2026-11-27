@@ -3,6 +3,9 @@
 # Inputs). Code places every extracted fact and table into one section with this map: an agent never decides where a
 # value belongs (it says what the value is; `modeler_project.dataroom.layers` places it).
 #
+# Each section says what it will hold (`holds`, in a person's words): the page shows it before a file arrives and while
+# a section is still empty (plan §9, slice 5c).
+#
 # Each placement key is a Data room vocabulary entry, as the requirement drafts write them: `field:<fact field>` for a
 # fact (`modeler_intake.room_specs.FIELDS`) and `table:<kind>` for a described table (`room_specs.TableKind`). Every
 # field and table kind has its own entry (a test checks it), so a new field cannot be added and forgotten here; a field
@@ -18,48 +21,105 @@
 #
 # What this map is not: it decides where the page shows a value, never whether the value is read, checked or kept.
 # Every file is read and every value is kept whatever its section (Source Records holds them all).
-version: "0.2"
+version: "0.3"
 groups:
   - id: question
     title: Question and Context of Use
     meaning: What the modelling must answer, for which regulator, and the products it compares.
     sections:
-      - {id: question, title: Question and Context of Use}
+      - id: question
+        title: Question and Context of Use
+        holds: >-
+          The question the modelling must answer, its regulator and context of use, the products it compares and the
+          inputs it needs.
   - id: model_input
     title: Model Input Data
     meaning: >-
       Data from this delivery that parameterise, calibrate or validate the model. They go to Inputs, each with its
       source, once confirmed.
     sections:
-      - {id: products, title: Test and Reference Products}
-      - {id: substance, title: Drug Substance Properties}
-      - {id: release, title: In Vitro Release Input}
-      - {id: design, title: Clinical Study Design}
-      - {id: observed, title: Observed PK and BE Outcome}
-      - {id: scenarios, title: Simulation Scenarios}
+      - id: products
+        title: Test and Reference Products
+        holds: >-
+          Each product's name, strength, dosage form, release type and batches, with its role in the question.
+      - id: substance
+        title: Drug Substance Properties
+        holds: >-
+          The drug's molecular weight, salt form, pKa, lipophilicity, permeability and solubility, the volume the dose
+          needs to dissolve, and the dose as the free base.
+      - id: release
+        title: In Vitro Release Input
+        holds: >-
+          The dissolution profile chosen as each product's release input, and the release model fitted to it.
+      - id: design
+        title: Clinical Study Design
+        holds: >-
+          Each study's design, arms, treatments, doses, subjects and analysis sets, with the population, sex and meal
+          it proposes for Inputs.
+      - id: observed
+        title: Observed PK and BE Outcome
+        holds: >-
+          The mean concentration profiles of each arm, the exposures computed by code beside the client's, and the
+          bioequivalence result.
+      - id: scenarios
+        title: Simulation Scenarios
+        holds: >-
+          What the delivery lets the model simulate: each study's proposed role, the PK-Sim inputs, and what Send to
+          the model would send.
   - id: supporting
     title: Supporting Evidence
     meaning: >-
       Data that never enter the model but justify a modelling decision: a medium choice, a population or meal template,
       an exclusion, a cross-check target.
     sections:
-      - {id: formulation_differences, title: Formulation Differences (Q1/Q2)}
-      - {id: solid_state, title: Solid-State and Particle Characterization}
-      - {id: other_dissolution, title: Dissolution in Other Media and Batches}
-      - {id: conduct, title: Study Conduct and Deviations}
-      - {id: other_analytes, title: Metabolites and Other Analytes}
-      - {id: literature, title: Label and Literature PK}
-      - {id: other_context, title: Other Delivered Facts}
+      - id: formulation_differences
+        title: Formulation Differences (Q1/Q2)
+        holds: >-
+          What differs between the products: their composition (Q1/Q2), coating, core weight, manufacturer, process
+          and API batch.
+      - id: solid_state
+        title: Solid-State and Particle Characterization
+        holds: >-
+          The drug's solid form, particle size, melting point and BCS class.
+      - id: other_dissolution
+        title: Dissolution in Other Media and Batches
+        holds: >-
+          Dissolution profiles not chosen as a release input, in other media or of other batches, with their f2
+          against the reference.
+      - id: conduct
+        title: Study Conduct and Deviations
+        holds: >-
+          How the studies were run (population, blinding, washout, comedication, meals, bioanalytical method, dates),
+          and who is out of each analysis set, and why.
+      - id: other_analytes
+        title: Metabolites and Other Analytes
+        holds: >-
+          The profiles of metabolites and other analytes the model does not simulate.
+      - id: literature
+        title: Label and Literature PK
+        holds: >-
+          ADME and PK values from the label and the literature (protein binding, volume, clearance, half-life,
+          metabolism, excretion, interactions).
+      - id: other_context
+        title: Other Delivered Facts
+        holds: >-
+          Tables and facts the delivery holds that no other section takes.
   - id: source
     title: Source Records
     meaning: Every file of the delivery, fully read and kept, with what it gave or why it gave nothing.
     sections:
-      - {id: files, title: All Source Files}
+      - id: files
+        title: All Source Files
+        holds: >-
+          Every file of the delivery, how it was read, and what it gave or why it gave nothing.
   - id: requests
     title: Data Requests
     meaning: What is missing or unclear, worded as a request to the client.
     sections:
-      - {id: requests, title: Data Requests}
+      - id: requests
+        title: Data Requests
+        holds: >-
+          What is missing or unclear, worded as a request to the client.
 
 default: supporting/other_context
 

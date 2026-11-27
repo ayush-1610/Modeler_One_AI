@@ -45,6 +45,7 @@ class _B(BaseModel):
 class SectionDef(_B):
     id: str
     title: str
+    holds: str = ""                  # what it will hold, in a person's words (shown while it is empty; plan §9, 5c)
 
 
 class GroupDef(_B):

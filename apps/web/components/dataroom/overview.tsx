@@ -10,6 +10,7 @@ import { PURPOSE, baseName, conflicts, fullCard, roleColour, type FileView, type
 
 import { useRoomActs } from "./acts";
 import { Card, Dot, Nothing, Row, Sources, StatusTag, Table, usePaper } from "./kit";
+import type { RoomStage } from "./layout";
 
 const ROLES: Card_["products"][number]["role"][] = ["reference", "test", "original", "reformulated", "other"];
 
@@ -145,9 +146,40 @@ export function Headline({ room }: { room: Room }) {
   );
 }
 
-export function Overview({ room, go }: { room: Room; go: (section: string) => void }) {
+/** Before a file arrives (plan 2026-11-26 §9, slice 5c): each group, what it means, and what each of its sections will
+ *  hold, each with nothing yet. */
+function WillHold({ room, go }: { room: Room; go: (section: string) => void }) {
+  return (
+    <Card title="What you will see here" testId="overview-will-hold">
+      <p className="muted dr-small m-0">Every file of the delivery is read and kept. What the model needs is checked, with its
+        source, before it goes to Inputs.</p>
+      {(room.layout ?? []).map((g) => (
+        <div key={g.id} className="dr-sections-group" data-testid={`will-hold-${g.id}`}>
+          <h4 className="dr-sections-group-title">{g.title}</h4>
+          <p className="dr-small m-0-0-6">{g.meaning}</p>
+          <ul className="dr-sections">
+            {g.sections.map((s) => (
+              <li key={s.id}>
+                <button type="button" onClick={() => go(s.id)} data-testid={`will-hold-section-${s.id}`}>
+                  <span className="dr-sections-title"><Dot status="empty" />{s.title}</span>
+                  <span className="dr-sections-finding">{s.holds}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </Card>
+  );
+}
+
+export function Overview({ room, go, stage = "read" }: { room: Room; go: (section: string) => void; stage?: RoomStage }) {
   const paper = usePaper();
   const first = conflicts(room);
+  const reading = stage === "reading";
+  if (stage === "empty" && !paper && (room.layout ?? []).length) {
+    return <><QuestionCard room={room} /><WillHold room={room} go={go} /></>;
+  }
   return (
     <>
       <QuestionCard room={room} />
@@ -172,8 +204,9 @@ export function Overview({ room, go }: { room: Room; go: (section: string) => vo
                 {g.sections.map((s) => (
                   <li key={s.id}>
                     <button type="button" onClick={() => go(s.id)} data-testid={`overview-section-${s.id}`}>
-                      <span className="dr-sections-title"><Dot status={s.status} />{s.title}</span>
-                      <span className="dr-sections-finding">{s.finding || (s.count ? "" : "Nothing in this delivery yet")}</span>
+                      <span className="dr-sections-title"><Dot status={s.status} reading={reading} />{s.title}</span>
+                      <span className="dr-sections-finding">{s.finding || (s.count ? "" : reading ? "Fills in as the files are read"
+                        : "Nothing in this delivery yet")}</span>
                     </button>
                   </li>
                 ))}

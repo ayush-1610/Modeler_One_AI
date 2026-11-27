@@ -50,22 +50,42 @@ export function pausedSentence(pause: Pause): string {
   return `Paused at ${pause.where}${files}. ${pause.said} ${next} Nothing finished is read again.`;
 }
 
-export function Progress({ run, onResume, busy = false }: { run: Run; onResume?: () => void; busy?: boolean }) {
+/** How long a run has gone on, in minutes: "under a minute so far", "12 min so far" (slice 5c). */
+export function soFar(startedAt: string | null, now: number = Date.now()): string {
+  if (!startedAt) return "";
+  const minutes = Math.floor((now - new Date(startedAt).getTime()) / 60_000);
+  return minutes < 1 ? "under a minute so far" : `${minutes} min so far`;
+}
+
+/** The files a run reads: the read stage's count, else the room's files (slice 5c). */
+function readingCount(run: Run, files: number): number {
+  const read = run.stages.find((s) => s.id === "read");
+  return read && read.total > 0 ? read.total : files;
+}
+
+export function Progress({ run, onResume, busy = false, files = 0 }: { run: Run; onResume?: () => void; busy?: boolean; files?: number }) {
   const [open, setOpen] = useState(run.state !== "done");
   if (run.state === "idle") return null;
   const running = run.state === "running";
   const pause = run.state === "paused" ? run.pause : null;
-  const head = running ? "Reading the delivery…" : run.state === "failed" ? "The run stopped" : pause ? "The run is paused" : "Last run";
+  const n = readingCount(run, files);
+  const head = running ? (n ? `Reading ${n} ${n === 1 ? "file" : "files"}` : "Reading the delivery…")
+    : run.state === "failed" ? "The run stopped" : pause ? "The run is paused" : "Last run";
   return (
     <section className={`dr-progress ${run.state}`} aria-live="polite" data-testid="run-progress" data-state={run.state}>
       <header className="spread">
         <span className="dr-progress-head">
           <strong>{head}</strong>
           {run.state === "done" && <span className="muted dr-small" data-testid="run-summary">{summary(run)}</span>}
+          {running && <span className="muted dr-small" data-testid="run-elapsed">{soFar(run.started_at)}</span>}
         </span>
         {!running && <button type="button" className="dr-link" aria-expanded={open} onClick={() => setOpen(!open)} data-testid="run-steps-toggle">
           {open ? "Hide the steps" : "Show the steps"}</button>}
       </header>
+      {running && (
+        <p className="muted dr-small m-0" data-testid="run-reading-note">Sections fill in as the files are read. You can leave this page:
+          the run goes on, and pauses if a model is busy.</p>
+      )}
       {run.error && <p className="dr-bad" role="alert">{run.error}</p>}
       {pause && (
         <div className="dr-paused" data-testid="dr-run-paused" data-reason={pause.reason}>
@@ -146,7 +166,7 @@ export function Intake({ projectId, run, files, uploads }: { projectId: string; 
         </svg>
         <span className="dr-drop-text">
           <strong>{empty ? "Drop the client's delivery here" : "Add more files"}</strong>
-          <span className="muted">{empty ? "A zip, or many files at once: PDFs, Word, spreadsheets, text exports, scans." : `${uploads} ${uploads === 1 ? "upload" : "uploads"} so far · ${files} files read`}</span>
+          <span className="muted">{empty ? "A zip, or many files at once: PDFs, Word, PowerPoint, spreadsheets, text and SAS exports, scans (read by OCR). Every file is read and kept." : `${uploads} ${uploads === 1 ? "upload" : "uploads"} so far · ${files} files read`}</span>
         </span>
         <input ref={input} type="file" multiple hidden data-testid="dataroom-upload" onChange={(e) => { if (e.target.files) void add(e.target.files); e.target.value = ""; }} />
       </div>
@@ -167,7 +187,7 @@ export function Intake({ projectId, run, files, uploads }: { projectId: string; 
         </div>
       )}
       {note && <div className={`banner ${note.ok ? "ok" : "err"} dr-intake-note`} role={note.ok ? "status" : "alert"} data-testid="intake-note">{note.text}</div>}
-      {run && <Progress run={run} onResume={() => void resume()} busy={busy} />}
+      {run && <Progress run={run} onResume={() => void resume()} busy={busy} files={files} />}
     </div>
   );
 }

@@ -10192,6 +10192,11 @@ export interface components {
              * @default
              */
             finding: string;
+            /**
+             * Holds
+             * @default
+             */
+            holds: string;
             /** Id */
             id: string;
             /**

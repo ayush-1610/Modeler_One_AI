@@ -1,7 +1,7 @@
 """Where the page shows each part of a room (plan 2026-11-26 §9, slice 5a): the layers map (`dataroom_layers.yaml`,
 `layers.place`) applied to one assembled room, so the page draws what the API says and never places a value itself.
 
-Each section of each group lists:
+Each section of each group lists what it will hold (`holds`, the map's words, shown while it is empty) and:
 - `parts`: what it draws (the question, product values, the composition, substance values, solubility, the dose card,
   dissolution profiles, studies, observed profiles, the BE results, other analytes, files, requests, the plan);
 - `values`: the keys of the values placed there (a value's field, `field:<field>`, placed by the map; promoted to Model
@@ -123,7 +123,7 @@ def build_layout(view: DataRoomView, *, required: Iterable[str] = (), layers: La
             legacy = old.get(LEGACY.get(ref, ""))
             status = (legacy.status if legacy else "ok") if count else "empty"
             sections.append(LayoutSection(
-                id=s.id, ref=ref, title=s.title, parts=PARTS.get(ref, ("other_values",)), values=values,
+                id=s.id, ref=ref, title=s.title, holds=s.holds, parts=PARTS.get(ref, ("other_values",)), values=values,
                 dissolution=profiles, decisions=tuple(decisions.get(ref, ())), count=count, status=status,
                 finding=legacy.finding if legacy and count else "", legacy=LEGACY.get(ref, ""),
                 answers=tuple(a for a, home in OLD_ADDRESSES.items() if home == s.id)))
