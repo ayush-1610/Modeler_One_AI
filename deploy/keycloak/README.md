@@ -30,6 +30,7 @@ bash deploy/server/keycloak.sh install   # Java 21 (conda-forge), Keycloak (chec
 bash deploy/server/keycloak.sh admin     # first time only: Keycloak asks YOU for the administrator's password
 bash deploy/server/keycloak.sh start
 bash deploy/server/keycloak.sh status    # keycloak UP  https://<server>:8443/admin
+bash deploy/server/keycloak.sh sync-theme  # the sign-in pages from the checkout; every deploy runs it (restarts on a change)
 ```
 
 ### HTTPS
