@@ -673,3 +673,72 @@ def test_a_document_added_to_be_read_for_data_keeps_its_role_and_is_queued_for_t
     proposal = c.post(f"/api/v1/projects/{pid}/documents", headers=H, data={"role": "proposal", "read": "true"},
                       files=[("files", ("p2.pdf", synthetic_pdf([["A second proposal."]]), "application/pdf"))]).json()["data"]
     assert proposal["reading"] == []                                               # the proposal has its own reader (A1)
+
+
+CLIENT_CSV = b"Subject,Time (h),Conc (ng/mL)\n101,0.5,12.3\n101,1,25.1\n102,0.5,11.8\n"
+
+
+def _start_with_room(c, *, client_files) -> dict:
+    answer = c.post("/api/v1/projects:initiate", headers=H,
+                    data={"drug_name": "Exampleamide", "extract": "false", "dataroom": "true",
+                          "tags": '{"pk.csv": {"kind": "clinical", "study": "EX-101"}}'},
+                    files=[("files", ("proposal.txt", PROPOSAL, "text/plain")), *client_files])
+    assert answer.status_code == 201, answer.text
+    return answer.json()["data"]
+
+
+def _room_idle(store, pid: str) -> None:
+    for _ in range(6000):    # the run's background job ends before the test's store goes
+        if not jobs.running(store, "t1", pid, "dataroom"):
+            return
+        time.sleep(0.01)
+
+
+def test_with_dataroom_the_clients_files_go_to_the_data_room_untagged_and_its_run_starts(client):
+    """The owner's D1 and D2 (2026-11-27; plan 2026-11-27 step 1): one way in. The client's files are the Data room's
+    uploads, as they came, with no tag (A7 sorts them); its run starts at once (agents off here: code reads the files,
+    each agent's stage says it has no model). The earlier reader takes none of them, so nothing waits on Inputs twice."""
+    from modeler_project import Workspace
+    from modeler_project.dataroom import DataRoomStore
+
+    c, store = client
+    data = _start_with_room(c, client_files=[("client_files", ("pk.csv", CLIENT_CSV, "text/csv")),
+                                             ("client_files", ("Table 2.dat", b"a\tb\tc\n1\t2\t3\n4\t5\t6\n", "text/plain"))])
+    pid = data["project_id"]
+    assert data["client_files"] == []
+    assert data["dataroom"] == {"uploads": 2, "run": "started", "estimate": None, "problem": ""}
+    room = DataRoomStore(Workspace(store, "t1", pid))
+    assert sorted(u["name"] for u in room.uploads()) == ["Table 2.dat", "pk.csv"]
+    runs = [r.event for r in store.audit("t1").records() if r.event.action == "dataroom.run"]
+    assert [(e.actor, e.resource_id) for e in runs] == [("u1", f"{pid}/run")]
+    _room_idle(store, pid)
+    run = c.get(f"/api/v1/projects/{pid}/dataroom/run", headers=H).json()["data"]
+    assert run["state"] != "running" and run["stages"][0]["id"] == "read"
+    # the proposal is still read for the brief; no client file is in the library, tagged, or queued for Inputs
+    docs = c.get(f"/api/v1/projects/{pid}/documents", headers=H).json()["data"]["documents"]
+    assert [d["role"] for d in docs] == ["proposal"]
+
+
+def test_with_dataroom_on_a_paid_model_the_run_waits_for_the_persons_word(client, monkeypatch):
+    """D1: when an agent starts on a paid model, the answer carries what the run should cost and nothing runs until the
+    person says Start (the Data room's own Run asks the same, plan 2026-11-24 §2.4)."""
+    estimate = {"paid": True, "files": 1, "characters": 120, "calls_low": 9, "calls_high": 10, "input_tokens_low": 900,
+                "input_tokens_high": 1200, "output_tokens_low": 9000, "output_tokens_high": 13000, "usd": 0.42,
+                "usd_low": 0.3, "usd_high": 0.55, "agents": [{"agent": "A8", "provider": "anthropic", "model": "m",
+                                                               "paid": True}],
+                "basis": "measured", "run_cap_usd": 5.0, "month_cap_usd": 50.0, "month_spent_usd": 1.0}
+    monkeypatch.setattr(brief_api.agent_jobs, "dataroom_estimate", lambda room: estimate)
+    c, store = client
+    data = _start_with_room(c, client_files=[("client_files", ("pk.csv", CLIENT_CSV, "text/csv"))])
+    pid = data["project_id"]
+    assert data["dataroom"]["run"] == "asks" and data["dataroom"]["estimate"]["usd"] == 0.42
+    assert c.get(f"/api/v1/projects/{pid}/dataroom/run", headers=H).json()["data"]["state"] == "idle"
+    started = c.post(f"/api/v1/projects/{pid}/dataroom/run", headers=H, json={})        # the person's word
+    assert started.status_code == 202, started.text
+    _room_idle(store, pid)
+
+
+def test_without_client_files_dataroom_changes_nothing(client):
+    c, _ = client
+    data = _start_with_room(c, client_files=[])
+    assert data["dataroom"] is None and data["client_files"] == []

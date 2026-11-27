@@ -13,6 +13,36 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 
 ## [Unreleased] — make the pipeline do real PBPK, S0 → S7
 
+### Changed — one way in: the start page's client files go to the Data room, and its run starts at once (2026-11-27)
+- **What:**
+  - **The start page** (`app/projects/start`) has two drop zones, the technical proposal and its annexes (read for the
+    brief, as before) and the client's files (many files or one ZIP). No file is tagged, and the "A look at these files
+    first" list after the upload is gone. With client files the person lands on the project's Data room and watches its
+    run; with none, on Start, as before. A ZIP dropped on the proposal's box joins the client's files.
+  - **`POST /projects:initiate` takes `dataroom`** (the start page sends it): the client's files become the Data room's
+    uploads as they came, and its run starts at once, or, when an agent starts on a paid model, the answer carries the
+    run's cost estimate and the page asks "Start the run?" (the run then starts by `POST …/dataroom/run`, as the Data
+    room's own Run asks). The answer says which in `dataroom` (`uploads`, `run`: started, asks or not_started,
+    `estimate`, `problem`). Without `dataroom`, or on a store with no file folder, the client's files are read by the
+    earlier reader as before (`docs/api/openapi.json` and `lib/api-types.ts` regenerated).
+  - **`dataroom_runs.begin`** starts a run the one way both callers use: its first record (each stage waiting), the
+    audit event, the job. `POST …/dataroom/run` now calls it; behaviour unchanged.
+- **Why:** the owner, 2026-11-27, after their upload showed about 25 tag choices and many files not read: "why don't we
+  start those agents directly?" The start page fed the earlier reader (no OCR, no `.dat`, a tag per file), and the Data
+  room, where OCR and agents A6–A10 work, never received the files. The owner approved D1 (the run starts by itself; a
+  paid model's estimate is asked first) and D2 (no tags at upload; A7 sorts the files), with D3, D4 and two rules of
+  their own for the next steps: `docs/plans/2026-11-27-one-way-in.md`.
+- **Verified:** three API tests (`test_brief_api.py`: the files are the room's uploads, untagged, the run started and
+  audited as the person, none read by the earlier reader; on a paid model the run waits until the person starts it;
+  with no client files nothing changes); the Data room's API tests unchanged (221 passed with the architecture tests);
+  `start-project.spec.ts` rewritten (the files go to the Data room and its run shows; no tag is asked; a ZIP joins the
+  client's files; on a paid model the page states the estimate and starts nothing until asked), with the start-page,
+  Data room, shell and target-size specs (15 passed).
+- **Impact:** a project's client files are read once, in the Data room, by its OCR, its text and SAS export readers
+  and its agents; they no longer appear on Inputs or in Documents from the start page (the Data room lists them, and
+  "Send to the model" carries the confirmed values on). "+ Add data" and the Inputs page keep the earlier reader until
+  step 5 of the plan. `docs/USING_THE_TOOL.md` says the new way in.
+
 ### Fixed — a client ZIP's file names, and its .dat tables, on "Start from proposal" (2026-11-27)
 - **What:**
   - **Names:** a ZIP whose archiver wrote UTF-8 names without the flag that says so (bit 0x800) had them read as CP437,

@@ -16,6 +16,7 @@ from modeler_api.views.common import (
     VersionView,
     View,
 )
+from modeler_api.views.dataroom import RoomRunEstimate
 
 
 class ExtractionStart(View):
@@ -38,13 +39,25 @@ class ClientFileStarted(View):
     needs_ocr: bool = False                       # a scan or an image: not read until OCR is added
 
 
+class DataroomStarted(View):
+    """Where the client's files went when the project started with `dataroom` (plan 2026-11-27 step 1, D1): the Data
+    room's uploads, and its run: `started`; `asks`, when an agent starts on a paid model, with what it should cost
+    (the run starts on the person's word, as the Data room's own Run asks); or `not_started`, with the reason."""
+
+    uploads: int
+    run: Literal["started", "asks", "not_started"]
+    estimate: RoomRunEstimate | None = None
+    problem: str = ""
+
+
 class ProjectStarted(View):
     project_id: str
     name: str
     documents: list[DocumentView]
-    client_files: list[ClientFileStarted]
+    client_files: list[ClientFileStarted]          # read by the earlier reader: empty when they went to the Data room
     brief_version: int
     extraction: ExtractionStart | None
+    dataroom: DataroomStarted | None = None        # the client's files in the Data room (`dataroom` on the request)
 
 
 class Documents(View):

@@ -220,6 +220,15 @@ T-05 → T-07 → T-08 → T-18 and T-09 in parallel.
 
 ## 4. Where things stand (2026-11-27)
 
+### 4.0h 2026-11-27: one way in (the upload feeds the Data room; step 1 in review)
+The owner asked why the agents do not start when the client's files are uploaded. Found: "Start from proposal" fed the
+earlier reader (no OCR, no `.dat`, a tag per file), and the Data room, where OCR and agents A6–A10 work, never received
+those files. Approved (D1–D4, and the owner's rules: the agent proposes test or reference, fasted or fed first; every
+choice a click, reasons from a list): `docs/plans/2026-11-27-one-way-in.md`, five steps, each a PR the owner reviews.
+**Step 1** (one way in: the start page's client files go to the Data room untagged, its run starts, the page lands
+there) is in its PR. Before it: #200 (Keycloak's stylesheet named by its content, merged) and #201 (ZIP names and `.dat`
+text exports on the earlier reader, in review).
+
 ### 4.0g 2026-11-27: the "Graphite" restyle (R1–R4 merged; R5, the sign-in pages, in review)
 The owner chose a new look for the console from design catalogues (a Design Studio artifact) and approved its prototype
 and six choices (`design-review/DECISIONS.md` D-I4): Graphite colours (near-black ink for actions, one blue for charts,

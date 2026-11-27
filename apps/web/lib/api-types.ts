@@ -3380,9 +3380,14 @@ export interface paths {
         /**
          * Initiate Project
          * @description P0: create the project from the drug name, the technical proposal and the client's files (one upload, map rows
-         *     p0-files and p3-upload), then start the extraction. A client file that cannot be read is answered with the reason;
-         *     the project still starts. `tags`: what each client file is, per file name (plan 2026-11-03 §3.1); each answer says
-         *     the tag kept and any other tag code read from the file's content.
+         *     p0-files and p3-upload), then start the extraction.
+         *
+         *     `dataroom` (plan 2026-11-27 step 1, the owner's D1 and D2; the "Start from proposal" page sends it): the client's
+         *     files go to the project's Data room as its uploads, untagged (A7 sorts them), and its run starts at once, or, when
+         *     an agent starts on a paid model, the answer carries the estimate and the run starts on the person's word. Without
+         *     it (the earlier reader, until step 3 retires it): each client file is read into Inputs, a file that cannot be read
+         *     is answered with the reason and the project still starts; `tags` says what each file is, per file name (plan
+         *     2026-11-03 §3.1), and each answer says the tag kept and any other tag code read from the file's content.
          */
         post: operations["initiate_project_api_v1_projects_initiate_post"];
         delete?: never;
@@ -4195,6 +4200,11 @@ export interface components {
              * @default
              */
             context?: string;
+            /**
+             * Dataroom
+             * @default false
+             */
+            dataroom?: boolean;
             /** Drug Name */
             drug_name: string;
             /**
@@ -5567,6 +5577,27 @@ export interface components {
             label: string;
             /** Service */
             service: string;
+        };
+        /**
+         * DataroomStarted
+         * @description Where the client's files went when the project started with `dataroom` (plan 2026-11-27 step 1, D1): the Data
+         *     room's uploads, and its run: `started`; `asks`, when an agent starts on a paid model, with what it should cost
+         *     (the run starts on the person's word, as the Data room's own Run asks); or `not_started`, with the reason.
+         */
+        DataroomStarted: {
+            estimate?: components["schemas"]["RoomRunEstimate"] | null;
+            /**
+             * Problem
+             * @default
+             */
+            problem?: string;
+            /**
+             * Run
+             * @enum {string}
+             */
+            run: "started" | "asks" | "not_started";
+            /** Uploads */
+            uploads: number;
         };
         /** DatasetBody */
         DatasetBody: {
@@ -12203,6 +12234,7 @@ export interface components {
             brief_version: number;
             /** Client Files */
             client_files: components["schemas"]["ClientFileStarted"][];
+            dataroom?: components["schemas"]["DataroomStarted"] | null;
             /** Documents */
             documents: components["schemas"]["DocumentView"][];
             extraction: components["schemas"]["ExtractionStart"] | null;

@@ -14,10 +14,6 @@ export type UploadedFile = {
   tag?: Schema<"FileTagView"> | null; tag_proposal?: Schema<"TagProposalView"> | null;
 };
 
-export function needsALook(files: UploadedFile[]): boolean {
-  return files.some((f) => f.problem || f.needs_ocr || f.tag_proposal?.decided === "open");
-}
-
 export function TagProposals({ projectId, files, testId = "tag-proposals" }: {
   projectId: string; files: UploadedFile[]; testId?: string;
 }) {

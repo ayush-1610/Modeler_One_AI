@@ -1,7 +1,7 @@
-// One upload (map rows p0-files, p3-upload): a project starts from its proposal and the client's file, and lands on
-// Start with both files listed and nothing approved anywhere (D-27). Then a value typed into its row on Inputs, and the
-// history, opened from the Projects page (page review 1). Agents are off in this run (no provider key), so the brief starts
-// from the drug name: the manual path.
+// One way in (plan 2026-11-27 step 1; the owner's D1, D2): a project starts from its proposal, read for the brief, and the
+// client's file, which goes to the Data room untagged; its run starts at once and the person lands on it. Nothing is
+// approved anywhere (D-27). Then Start, a value typed into its row on Inputs, and the history, opened from the Projects
+// page (page review 1). Agents are off in this run (no provider key), so the brief starts from the drug name.
 import { expect, test } from "@playwright/test";
 
 import { finishStart } from "./fixtures/inputs";
@@ -13,24 +13,27 @@ const PROPOSAL = [
 ].join("\n");
 const CLIENT_CSV = "study_id,time_h,conc_ng_ml\nEX-101,1,30.4\n";
 
-test("a project starts from its proposal and the client's file in one upload, with no approval", async ({ page, request }) => {
+test("a project starts from its proposal and the client's file; the file goes to the Data room and its run starts",
+  async ({ page, request }) => {
   await page.goto("/projects/start");
   await page.getByTestId("drug-name").fill("Dapagliflozin");
-  await page.getByTestId("proposal-files").setInputFiles([
-    { name: "proposal.md", mimeType: "text/markdown", buffer: Buffer.from(PROPOSAL) },
-    { name: "client-pk.csv", mimeType: "text/csv", buffer: Buffer.from(CLIENT_CSV) },
-  ]);
-  await expect(page.getByLabel("What client-pk.csv is")).toHaveValue("clinical");      // the tag read from the name
-  await expect(page.getByLabel("What proposal.md is")).toHaveValue("proposal");
+  await page.getByTestId("proposal-files").setInputFiles({ name: "proposal.md", mimeType: "text/markdown", buffer: Buffer.from(PROPOSAL) });
+  await page.getByTestId("client-files").setInputFiles({ name: "client-pk.csv", mimeType: "text/csv", buffer: Buffer.from(CLIENT_CSV) });
+  await expect(page.getByTestId("client-files-list")).toContainText("client-pk.csv");
+  await expect(page.locator("select")).toHaveCount(0);                                // no tag is asked (D2)
+  await page.screenshot({ path: test.info().outputPath("start-from-proposal.png"), fullPage: true });
   await page.getByTestId("start-project").click();
 
-  await page.waitForURL(/\/projects\/[^/]+\/start$/);
+  // the Data room, its run started by itself (D1): the person watches the files read
+  await page.waitForURL(/\/projects\/[^/]+\/dataroom$/);
+  await expect(page.getByTestId("run-progress")).toBeVisible();
+  await page.screenshot({ path: test.info().outputPath("start-lands-on-the-data-room.png"), fullPage: true });
+  const startUrl = page.url().replace(/\/dataroom$/, "/start");
+  await page.goto(startUrl);
   await expect(page.getByTestId("start-drug-name")).toHaveText("Dapagliflozin");
-  await expect(page.getByTestId("start-files")).toContainText("proposal.md");
-  await expect(page.getByTestId("start-files")).toContainText("client-pk.csv");
+  await expect(page.getByTestId("start-files")).toContainText("proposal.md");          // the proposal, read for the brief
   await expect(page.getByTestId("step-start")).toHaveAttribute("data-state", "needs_you");
   await expect(page.getByRole("button", { name: /approve/i })).toHaveCount(0);
-  const startUrl = page.url();
   const projectId = /\/projects\/([^/]+)\/start$/.exec(startUrl)![1];
 
   // Inputs comes after Start (page review 1, decision 7): reached by its address, it says what Start still needs
@@ -63,34 +66,33 @@ test("a project starts from its proposal and the client's file in one upload, wi
   await expect(page.getByText("brief/main").first()).toBeVisible();
 });
 
-test("each file is tagged at upload, and a tag the content contradicts is proposed and decided in one click",
-  async ({ page }) => {
-    // plan 2026-11-03 §3.1 (the owner, 2026-11-03): tags on the "Start from proposal" page; a hint, not a fact; no reason
-    await page.goto("/projects/start");
-    await page.getByTestId("drug-name").fill("Tagamide");
-    await page.getByTestId("proposal-files").setInputFiles([
-      { name: "proposal.md", mimeType: "text/markdown", buffer: Buffer.from(PROPOSAL) },
-      { name: "Data_Q3_final.csv", mimeType: "text/csv",
-        buffer: Buffer.from("Subject,Time (h),Conc (ng/mL)\n101-001,1,39.8\n101-001,2,50.1\n") },
-      { name: "EXZ-101_dosing.csv", mimeType: "text/csv", buffer: Buffer.from("arm,dose_mg\nA,10\n") },
-    ]);
-    await expect(page.getByLabel("What Data_Q3_final.csv is")).toHaveValue("other");       // the name says nothing
-    await expect(page.getByLabel("What EXZ-101_dosing.csv is")).toHaveValue("clinical");
-    await expect(page.getByLabel("Which study EXZ-101_dosing.csv belongs to")).toHaveValue("EXZ-101");
-    await page.screenshot({ path: test.info().outputPath("start-from-proposal-tags.png"), fullPage: true });
-    await page.getByTestId("start-project").click();
+test("a ZIP dropped with the proposal goes with the client's files", async ({ page }) => {
+  await page.goto("/projects/start");
+  await page.getByTestId("proposal-files").setInputFiles([
+    { name: "proposal.md", mimeType: "text/markdown", buffer: Buffer.from(PROPOSAL) },
+    { name: "delivery.zip", mimeType: "application/zip", buffer: Buffer.from("PK\u0005\u0006" + "\u0000".repeat(18)) },
+  ]);
+  await expect(page.getByTestId("proposal-files-list")).not.toContainText("delivery.zip");
+  await expect(page.getByTestId("client-files-list")).toContainText("delivery.zip");
+});
 
-    const proposal = page.getByTestId("tag-proposal-Data_Q3_final.csv");
-    await expect(proposal).toContainText("The content suggests “Clinical study”");
-    await expect(proposal).toContainText("Subject");                                      // what prompted it, quoted
-    await page.screenshot({ path: test.info().outputPath("start-tag-proposal.png"), fullPage: true });
-    await page.getByTestId("tag-use-Data_Q3_final.csv").click();
-    await expect(proposal).toContainText("Tag now “Clinical study”");
-    await page.getByTestId("start-continue").click();
-    await page.waitForURL(/\/projects\/[^/]+\/start$/);
-
-    await page.getByTestId("nav-library").click();
-    await expect(page.getByTestId("library-tag-select-Data_Q3_final.csv")).toHaveValue("clinical");
-    await page.getByTestId("library-tag-select-EXZ-101_dosing.csv").selectOption("formulation");   // option D: any time
-    await expect(page.getByTestId("library-tag-select-EXZ-101_dosing.csv")).toHaveValue("formulation");
-  });
+test("on a paid model the page says what the run should cost, and starts it only on the person's word", async ({ page }) => {
+  // the API is stood in for: with agents off no run is paid (the API's own test covers the answer, test_brief_api.py)
+  const estimate = { paid: true, files: 3, characters: 9000, calls_low: 26, calls_high: 30, input_tokens_low: 9000,
+    input_tokens_high: 12000, output_tokens_low: 27000, output_tokens_high: 39000, usd: 1.25, usd_low: 0.9, usd_high: 1.6,
+    agents: [], basis: "measured", run_cap_usd: 5, month_cap_usd: 50, month_spent_usd: 0 };
+  await page.route("**/api/v1/projects:initiate", (route) => route.fulfill({ status: 201, contentType: "application/json",
+    body: JSON.stringify({ data: { project_id: "paid-demo", name: "Paidamide PBPK", documents: [], client_files: [],
+      brief_version: 1, extraction: null, dataroom: { uploads: 1, run: "asks", estimate, problem: "" } } }) }));
+  await page.goto("/projects/start");
+  await page.getByTestId("drug-name").fill("Paidamide");
+  await page.getByTestId("proposal-files").setInputFiles({ name: "proposal.md", mimeType: "text/markdown", buffer: Buffer.from(PROPOSAL) });
+  await page.getByTestId("client-files").setInputFiles({ name: "client-pk.csv", mimeType: "text/csv", buffer: Buffer.from(CLIENT_CSV) });
+  await page.getByTestId("start-project").click();
+  const ask = page.getByTestId("start-run-estimate");
+  await expect(ask).toContainText("about $1.25");
+  await expect(ask).toContainText("$0.90 to $1.60 for 3 files");
+  await expect(page.getByTestId("start-project")).toBeDisabled();
+  await page.getByTestId("start-run-later").click();
+  await page.waitForURL(/\/projects\/paid-demo\/dataroom$/);
+});
