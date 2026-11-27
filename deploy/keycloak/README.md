@@ -11,6 +11,11 @@ tenant, realm roles, project membership), and a signature needs a fresh step-up 
   - Every electronic signature asks for the password and the authenticator code (TOTP) again. The `modeler loa2
     signing` flow has a max age of 0, so nothing is reused (21 CFR 11.200).
   - A person enrols their authenticator app the first time they sign.
+  - **TEMPORARY on adt-server (the owner, 2026-11-27): the code is asked of `modeler-admin` only** until the owner's
+    end-to-end test; everyone else re-enters the password alone. Switch it with
+    `ssh -t adt-server 'bash ~/Modeler_One_AI/deploy/server/keycloak.sh authenticator off|on'`: off moves the code step
+    into a sub-flow `modeler loa2 admin code` (Condition - user role `modeler-admin`) and clears everyone else's pending
+    authenticator set-up; on restores the code step for everyone. The realm file keeps the code for everyone.
 - **Tokens for the web app (`modeler-web`, public client, PKCE S256):** they carry `tenant_id`, `projects`, the realm
   roles, `acr`, `auth_time`, and the audience `modeler-api`.
 - **The user profile** declares `tenant_id` and `projects` as admin-only attributes. Keycloak drops undeclared
@@ -27,6 +32,10 @@ bash deploy/server/keycloak.sh start
 bash deploy/server/keycloak.sh status    # keycloak UP  https://<server>:8443/admin
 bash deploy/server/keycloak.sh sync-theme  # the sign-in pages from the checkout; every deploy runs it (restarts on a change)
 ```
+Keycloak's copy of the theme names the stylesheet after its content (`css/modeler-one-<12 hex of its sha256>.css`,
+written into its `theme.properties`): browsers keep Keycloak's theme files for 30 days at an address that changes only
+with Keycloak's version, so a stylesheet changed under its old name would not reach them. The repository keeps
+`css/modeler-one.css`; an image or font that changes takes a new file name here.
 
 ### HTTPS
 Keycloak marks its cookies Secure, so browsers can sign in only over HTTPS (plain HTTP works on `localhost` only).

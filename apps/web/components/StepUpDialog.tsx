@@ -36,8 +36,8 @@ export function StepUpDialog() {
     <Dialog title="Confirm your identity to sign" onClose={cancel} above testId="step-up-dialog">
       <>
         <p className="muted">
-          An electronic signature needs your password and your authenticator code again, every time (21 CFR 11.200).
-          Keycloak asks for them in a small window; the signature is sent as soon as you are done.
+          An electronic signature needs your password again, every time, and your authenticator code where your account
+          uses one (21 CFR 11.200). Keycloak asks for them in a small window; the signature is sent as soon as you are done.
         </p>
         {blocked && (
           <div className="banner warn" data-testid="step-up-blocked">

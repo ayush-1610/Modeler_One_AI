@@ -74,7 +74,10 @@ sign-ins in progress must start again). By hand, for a deploy made before that:
 ```bash
 ssh adt-server 'bash ~/Modeler_One_AI/deploy/server/keycloak.sh sync-theme'
 ```
-A browser that had the old page open may keep its styles until a hard reload; a private window shows the new page.
+Browsers keep Keycloak's theme files for 30 days at an address that changes only with Keycloak's version, so since
+2026-11-27 the copy names the stylesheet after its content (`modeler-one-<hash>.css`): a changed look reaches every
+browser on its next visit, with no cache to clear. (Before that, a browser that had seen the old page showed the new
+page's words in the old navy look, the owner's Safari included.)
 
 ## 4. Right after (about 15 minutes; the owner, signed in through Keycloak)
 | Check | Where | Expected |

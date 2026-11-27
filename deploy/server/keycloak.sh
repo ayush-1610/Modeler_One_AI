@@ -13,6 +13,9 @@
 #   keycloak.sh connect [admin]   connect Modeler One's admin console to Keycloak, once (and again to rotate its
 #                         secret): the service account, its roles, a new secret stored as the console's active key,
 #                         the web's address and the login theme. Keycloak asks for its administrator's password.
+#   keycloak.sh authenticator off|on [admin]   off: only modeler-admin needs an authenticator code (sign-in set-up
+#                         and signing); everyone else uses their password alone. on: everyone again. TEMPORARY off
+#                         (the owner, 2026-11-27) until the owner's end-to-end test. Same password prompt.
 #
 # Settings (environment, default in brackets):
 #   MODELER_KEYCLOAK_HOST   the name or address browsers use for this server [this server's first address]
@@ -145,10 +148,30 @@ PY
 # The product's own sign-in pages (deploy/keycloak/themes/modeler-one: Keycloak's keycloak.v2 pages with Modeler One's
 # look and words), copied into Keycloak's themes folder, which Keycloak reads when it starts. The realm file names it as
 # its login theme; a realm imported before it existed keeps Keycloak's pages until it is chosen once (`theme` says how).
+#
+# Browsers keep Keycloak's theme files for 30 days without asking again (Cache-Control: max-age=2592000, no ETag), at
+# an address that changes only with Keycloak's version (/resources/<version>/login/modeler-one/css/...). A stylesheet
+# changed under the same name therefore never reaches a browser that opened the sign-in page before: it shows the new
+# page's words in the old look (the owner's Safari, 2026-11-27, after the theme first changed). So the copy carries the
+# stylesheet under a name made from its content (modeler-one-<12 hex of its sha256>.css) and its theme.properties names
+# that file: a changed stylesheet is a new address, fetched at once. The repository keeps the plain name. An image or a
+# font that changes takes a new file name in the repository (the stylesheet names them).
+stage_theme() {   # stage_theme <folder>: the theme as Keycloak gets it
+  local to="$1" css hash
+  rm -rf "$to"
+  cp -R "$THEMES/modeler-one" "$to"
+  css="$to/login/resources/css/modeler-one.css"
+  hash="$(sha256sum "$css" | cut -c1-12)"
+  mv "$css" "${css%.css}-$hash.css"
+  sed "s#css/modeler-one\.css#css/modeler-one-$hash.css#" "$to/login/theme.properties" > "$to/login/theme.properties.new"
+  mv "$to/login/theme.properties.new" "$to/login/theme.properties"
+  grep -q "^styles=.*css/modeler-one-$hash\.css" "$to/login/theme.properties" \
+    || die "theme: login/theme.properties does not list css/modeler-one.css in its styles"
+}
+
 install_theme() {
   [ -d "$KC_HOME/themes" ] || die "Keycloak is not installed: run 'keycloak.sh install'"
-  rm -rf "$KC_HOME/themes/modeler-one"
-  cp -R "$THEMES/modeler-one" "$KC_HOME/themes/modeler-one"
+  stage_theme "$KC_HOME/themes/modeler-one"
   echo "theme: modeler-one copied to $KC_HOME/themes"
 }
 
@@ -164,9 +187,11 @@ cmd_theme() {
 # only when they changed, the old copy removed first (install_theme), and Keycloak restarted so it reads them.
 cmd_sync_theme() {
   if [ ! -d "$KC_HOME/themes" ]; then echo "theme: Keycloak is not installed here; nothing to update"; return; fi
-  if diff -rq "$THEMES/modeler-one" "$KC_HOME/themes/modeler-one" >/dev/null 2>&1; then
-    echo "theme: Keycloak's sign-in pages are current"; return
-  fi
+  local staged="$KC_ROOT/.theme-staged" same=0
+  stage_theme "$staged"
+  diff -rq "$staged" "$KC_HOME/themes/modeler-one" >/dev/null 2>&1 && same=1
+  rm -rf "$staged"
+  if [ "$same" = 1 ]; then echo "theme: Keycloak's sign-in pages are current"; return; fi
   install_theme
   if running; then cmd_stop; cmd_start
   else echo "theme: Keycloak is not running; it shows the new sign-in pages when it starts"; fi
@@ -243,6 +268,94 @@ kca() {
   JAVA_HOME="$home" PATH="$home/bin:$PATH" "$KC_HOME/bin/kcadm.sh" "${command[@]}" --config "$KCADM_CONFIG" "$@"
 }
 
+# A kcadm session for this run, as Keycloak's administrator `$1`: kcadm asks for the password itself.
+kcadm_login() {
+  KCADM_CONFIG="$(umask 077; mktemp "$KC_ROOT/kcadm-XXXXXX.config")"
+  # shellcheck disable=SC2064 # the path is fixed now: the session file is removed however this ends
+  trap "rm -f '$KCADM_CONFIG'" EXIT
+  echo "Keycloak asks for the password of its administrator '$1' (realm master). It is used for this run only."
+  kca config credentials --server "http://127.0.0.1:$HTTP_PORT" --realm master --user "$1"
+}
+
+# Who needs an authenticator code (the owner, 2026-11-27: "everywhere, except admins, for now only, after I test the
+# full product end to end myself ... enable"). The signing step-up `modeler loa2 signing` asks for the password and the
+# code. `off` sets its code step to DISABLED and adds a sub-flow that asks for the code only when the person holds
+# modeler-admin (Condition - user role); it also clears the pending "set up your authenticator" of everyone else, which
+# the console set at their creation. `on` restores the code step for everyone and disables the sub-flow; the console
+# then asks new people to set one up again, and anyone without one sets it up the first time they sign. Sign-in itself
+# (loa1) asks for the password only, either way. The API reads which holds from the flow (keycloak_admin).
+LOA2_URL="authentication/flows/modeler%20loa2%20signing"
+ADMIN_CODE="modeler loa2 admin code"
+ADMIN_CODE_URL="authentication/flows/modeler%20loa2%20admin%20code"
+
+# The id of a step of the signing flow: its provider (or, for a sub-flow, its name) at a level (0: the flow's own).
+loa2_step() {
+  kca get "$LOA2_URL/executions" -r modeler | python3 -c '
+import json, sys
+want, level = sys.argv[1], int(sys.argv[2])
+for e in json.load(sys.stdin):
+    if e.get("level") == level and (e.get("providerId") == want or (e.get("authenticationFlow") and e.get("displayName") == want)):
+        print(e["id"])
+        break' "$1" "$2"
+}
+
+require_step() {   # flow url, step id, REQUIRED | CONDITIONAL | DISABLED
+  kca update "$1/executions" -r modeler --no-merge -b "{\"id\": \"$2\", \"requirement\": \"$3\"}"
+}
+
+cmd_authenticator() {
+  local mode="${1:-}" user="${2:-admin}"
+  [ "$mode" = off ] || [ "$mode" = on ] || die "say 'authenticator off' (only modeler-admin needs a code) or 'authenticator on'"
+  [ -x "$KC_HOME/bin/kcadm.sh" ] || die "Keycloak is not installed on this machine ($(hostname -s 2>/dev/null || hostname)).
+  Run this on the server, where Keycloak runs. From your own computer:
+    ssh -t <the server> 'bash ~/Modeler_One_AI/deploy/server/keycloak.sh authenticator $mode'"
+  running || die "Keycloak is not running: 'keycloak.sh start' first"
+  kcadm_login "$user"
+  local code sub
+  code="$(loa2_step auth-otp-form 0)"
+  [ -n "$code" ] || die "the signing flow 'modeler loa2 signing' has no authenticator step: is this the modeler realm?"
+  sub="$(loa2_step "$ADMIN_CODE" 0)"
+  if [ "$mode" = off ]; then
+    if [ -z "$sub" ]; then
+      kca create "$LOA2_URL/executions/flow" -r modeler -s "alias=$ADMIN_CODE" -s type=basic-flow \
+        -s provider=registration-page-form -s "description=The authenticator code, for modeler-admin only (keycloak.sh authenticator off)"
+      kca create "$ADMIN_CODE_URL/executions/execution" -r modeler -s provider=conditional-user-role
+      kca create "$ADMIN_CODE_URL/executions/execution" -r modeler -s provider=auth-otp-form
+      sub="$(loa2_step "$ADMIN_CODE" 0)"
+      local role otp
+      role="$(loa2_step conditional-user-role 1)"
+      otp="$(loa2_step auth-otp-form 1)"
+      kca create "authentication/executions/$role/config" -r modeler \
+        -b '{"alias": "modeler admins only", "config": {"condUserRole": "modeler-admin", "negate": "false"}}'
+      require_step "$ADMIN_CODE_URL" "$role" REQUIRED
+      require_step "$ADMIN_CODE_URL" "$otp" REQUIRED
+    fi
+    require_step "$LOA2_URL" "$sub" CONDITIONAL
+    require_step "$LOA2_URL" "$code" DISABLED
+    echo "signing: the password for everyone; the authenticator code for modeler-admin only"
+    # nobody but an administrator is asked to set one up at sign-in any more
+    local admins
+    admins="$(kca get roles/modeler-admin/users -r modeler --fields id --format csv --noquotes | tr '\n' ' ')"
+    kca get users -r modeler -q max=5000 --fields id,username,requiredActions | python3 -c '
+import json, sys
+admins = set(sys.argv[1].split())
+for u in json.load(sys.stdin):
+    pending = u.get("requiredActions") or []
+    if "CONFIGURE_TOTP" in pending and u["id"] not in admins:
+        print(u["id"], u.get("username", ""), json.dumps([a for a in pending if a != "CONFIGURE_TOTP"]).replace(" ", ""))' "$admins" \
+      | while read -r id name rest; do
+          kca update "users/$id" -r modeler -s "requiredActions=$rest"
+          echo "  $name: no longer asked to set up an authenticator"
+        done
+    echo "authenticator OFF except for modeler-admin. TEMPORARY: 'keycloak.sh authenticator on' turns it back on."
+  else
+    require_step "$LOA2_URL" "$code" REQUIRED
+    [ -n "$sub" ] && require_step "$LOA2_URL" "$sub" DISABLED
+    echo "authenticator ON for everyone: signing asks for the password and the code; a person without an authenticator"
+    echo "  sets one up the first time they sign, and the console asks new people to set one up at their first sign-in."
+  fi
+}
+
 # Modeler One's admin console reaches Keycloak as the service account `modeler-admin-api` (deploy/keycloak/README.md).
 # This does, once, every step that was done by hand in Keycloak's admin console (the owner, 2026-11-27): the client
 # (made, or repaired to service-account only), its service account's realm-management roles, the web's address among the
@@ -258,11 +371,7 @@ cmd_connect() {
   running || die "Keycloak is not running: 'keycloak.sh start' first"
   [ -n "${MODELER_OIDC_ISSUER:-}" ] || die "Modeler One does not sign in through Keycloak yet: add the lines of 'keycloak.sh env' to $SECRETS_FILE and restart it"
   [ -n "${MODELER_MASTER_KEY:-}" ] || die "MODELER_MASTER_KEY is not set in $SECRETS_FILE: the console seals its keys with it"
-  KCADM_CONFIG="$(umask 077; mktemp "$KC_ROOT/kcadm-XXXXXX.config")"
-  # shellcheck disable=SC2064 # the path is fixed now: the session file is removed however this ends
-  trap "rm -f '$KCADM_CONFIG'" EXIT
-  echo "Keycloak asks for the password of its administrator '$user' (realm master). It is used for this run only."
-  kca config credentials --server "http://127.0.0.1:$HTTP_PORT" --realm master --user "$user"
+  kcadm_login "$user"
 
   local id
   id="$(kca get clients -r modeler -q clientId=modeler-admin-api --fields id --format csv --noquotes)"
@@ -348,5 +457,6 @@ case "${1:-}" in
   theme) cmd_theme ;;
   sync-theme) cmd_sync_theme ;;
   connect) shift; cmd_connect "$@" ;;
+  authenticator) shift; cmd_authenticator "$@" ;;
   *) sed -n '2,26p' "$0"; exit 2 ;;
 esac
