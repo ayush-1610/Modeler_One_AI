@@ -20,10 +20,10 @@ test("Your work lists each waiting step as a link, filters it, and the counts ag
   await expect(row).toContainText("Confirm the brief");
   await expect(row).toContainText("To confirm");
   await expect(page.getByTestId(`work-open-step-${projectId}-start`)).toHaveAttribute("href", `/projects/${projectId}/start`);
-  // the count in the top bar and in the side navigation is the list's
+  // the count in the sidebar (one place since the Graphite layout, R2) and the page bar's notifications are the list's
   const rows = await page.getByTestId("work-table").locator("tbody tr").count();
   await expect(page.getByTestId("top-work")).toContainText(String(rows));
-  await expect(page.getByTestId("nav-work")).toContainText(String(rows));
+  await expect(page.getByTestId("nav-notifications")).toHaveAccessibleName(`Notifications: ${rows} waiting on you`);
   // filters: a kind with nothing of it says so; the project filter keeps this project's row
   await page.getByTestId("work-kind").selectOption("To sign");
   await expect(row).toHaveCount(0);

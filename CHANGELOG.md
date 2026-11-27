@@ -13,6 +13,25 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 
 ## [Unreleased] — make the pipeline do real PBPK, S0 → S7
 
+### Changed — the sidebar layout replaces the top bar (Graphite R2, 2026-11-27)
+- **What:** no top bar. The sidebar sits on the grey canvas and holds, always on top: the mark on an ink tile and the name
+  (to Home), **Start from proposal** (filled ink), **Search** "Go to project…" (⌘K, Ctrl K off a Mac), Home, **Your
+  work** with its count, Projects and Campaigns; under them the project's, the administration's or the portfolio's own
+  navigation, then Help; the person at the foot (name to the account page, Sign out; "Development sign-in" under the
+  development sign-in). The page is one white rounded panel beside it, with its own bar at the top of the window: the
+  breadcrumbs (moved there from each page's header; one line, the last two parts on a phone), a **notifications** bell
+  (a dot when something waits on the person; its list is the first six items of Your work, each a link), Help, and the
+  API's state. Below 1024 px the panel fills the window and the page bar's menu button opens the sidebar under it
+  (Escape or a new page closes it). New: `components/shell/PageBar.tsx`, `Search.tsx`, `Account.tsx`, a `bell` icon,
+  `useWorkItems`; `TopBar.tsx` removed. The Inputs tab bar takes the panel's white. Four e2e specs follow the change
+  (the page bar for the top bar; one Your work count, the notifications' name beside it).
+- **Why:** the owner's approved choice 3 (`design-review/DECISIONS.md` D-I4; plan
+  `docs/plans/2026-11-27-console-graphite-restyle.md`, step R2), after the owner approved R1 ("R1 approved, merge it and
+  proceed to R2").
+- **Impact:** the frame only: every page, link and test id the shell had stays (`nav-menu`, `project-switcher`,
+  `top-work`, `nav-help`, `nav-conn`, `signed-in`, `nav-account`, `sign-out`, `dev-sign-in`), except the second Your
+  work count (`nav-work`), which the single one replaces. No route, API, record or science change.
+
 ### Changed — the console's look is "Graphite": colours, font, corners and shadows on every page (R1, 2026-11-27)
 - **What:** the console's tokens (`apps/web/app/styles/tokens.css`) take the Graphite values the owner chose: a neutral
   grey scale, near-black `#18181B` for the primary button, the current navigation item and tab; one blue `#2563EB` for
