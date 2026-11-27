@@ -59,5 +59,9 @@ flows green, the owner's review.
   `modeler-admin`, and `auth.py` is locked). They were audited with the same checks through a local, uncommitted harness
   (a `sitecustomize` on that run's `PYTHONPATH` adding the role in its API process alone); CI checks the rest. Under
   Keycloak, `oidc-signing.spec.ts` reaches them as the owner.
+- **R5, on the server** (found by the owner, 2026-11-27): the deploy did not copy Keycloak's theme (fixed by
+  `keycloak.sh sync-theme` in every deploy, #198), and then browsers kept the old stylesheet, which Keycloak lets them
+  cache for 30 days under an unchanged address, so the new page showed in the old look. Keycloak's copy now names the
+  stylesheet after its content (`deploy/server/keycloak.sh` `stage_theme`; `test_keycloak_theme_sync.py`).
 - **R4, the gallery** is a private artifact with all 92 screens (46 pages × 2 widths) and a mark per screen ("Looks
   right" / "Needs a change" and a note) that this session can read back for a next round.
