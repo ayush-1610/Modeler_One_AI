@@ -2,6 +2,42 @@
 
 Every owner decision on the redesign, verbatim where possible, with what it changes. Newest first.
 
+## D-I4 (2026-11-27): the look is "Graphite"; it replaces the navy look of D-I1
+The owner found the redesigned console still short of what they wanted and asked for catalogues to choose from (palettes,
+icon styles, fonts, inspiration from B2B SaaS, pharma and AI products, "our own way", comfortable for people from 18 to
+60). A Design Studio (a private artifact of the owner's, with live previews) offered each choice; the owner's saved picks:
+**direction** Clinical calm · **colours** Graphite mono · **fonts** Plus Jakarta Sans · **icons** fine line (1.5 stroke) ·
+**corners** round (14) · **surfaces** soft shadows · **layout** left sidebar · **text size** standard (15 px; compact
+shortlisted) · **theme** light. Note: Linear, Notion and the other inspirations "are great to get inspired or have
+elements of them in our tool". A prototype of three pages in that look followed; **the owner approved it and the six
+choices below ("approved", 2026-11-27):**
+1. Corners: 14 px panels, 10 px buttons and fields.
+2. Colour: near-black `#18181B` for buttons and the current choice; **one blue `#2563EB`** for charts, source links and
+   the focus outline; the status colours (green, amber, red) unchanged.
+3. The navy top bar goes: search (⌘K), "Start from proposal", Your work with its count and the account move into the
+   left sidebar; notifications and Help sit top right of the page.
+4. Icons: the app's own set at a 1.5 stroke, the missing ones drawn (a bell among them); no new icon dependency.
+5. Identifiers (parameter ids, campaign ids, paths) in JetBrains Mono, as in the prototype.
+6. A per-person "Compact view" switch, later.
+
+The build, each step its own PR with the owner's review (`docs/plans/2026-11-27-console-graphite-restyle.md`): **R1**
+colours, font, corners and shadows on every page; **R2** the sidebar layout replaces the top bar (phone menu included);
+**R3** icons, buttons, tables, side panel and dialogs polished; **R4** accessibility pass over every page, a screenshot
+gallery for sign-off, the deploy plan updated.
+
+Consequences found while building R1 (for the owner's review in the R1 PR):
+- The tokens keep their names (`app/styles/tokens.css`); only the values change, so no component changed its classes.
+  `--c-ink-muted` (`#6B6B74`) stays for white and the canvas only (4.47:1 on the selected tint), as before.
+- "Running" is the one blue's tint (`#1D4ED8` on `#E8F0FE`, 5.85:1), as in the prototype; it was navy on navy's tint.
+- The bar that asks for a person (a decision waiting) is amber tint with its edge, not solid yellow: the prototype's
+  decision banner.
+- The charts' three colours are validated again (the data-viz validator, all pairs, on white and the canvas): predicted
+  blue `#2563EB`, observed orange `#EA580C`, reformulated teal `#0D9488`. The Data room's products use the same three in
+  place of the earlier brand indigo, teal and magenta, so every chart in the product speaks one palette.
+- The sign-in pages (the app's and Keycloak's theme, `deploy/keycloak/themes/modeler-one`) take the same look; the
+  Keycloak theme needs copying in at deploy (`deploy/server/keycloak.sh theme`, then a Keycloak restart).
+- The product's mark is unchanged (G1-3). Until R2, the top bar is the ink, white on it.
+
 ## D-G4 · Gate 4 approved (2026-11-23)
 The design system, the high-fidelity prototype and the backend mapping are approved. Next: the implementation plan
 (`docs/plans/2026-11-23-console-redesign-implementation.md`) and the archive (`ARCHIVE.md`). Implementation needs the

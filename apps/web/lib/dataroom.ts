@@ -159,10 +159,12 @@ export function roleColour(role: string | null | undefined): string {
 
 /** A role's colour as a hex value (for the charts, which do not read CSS variables). */
 export function roleHex(role: string | null | undefined): string {
-  if (role === "reference") return "#4B2A99";
-  if (role === "test" || role === "original") return "#1A9AA6";
-  if (role === "reformulated") return "#C2307A";
-  return "#6e6e73";
+  // the console's chart colours (app/styles/tokens.css --c-chart-1..3, validated together; the Graphite look, D-I4), as
+  // hex because Plotly takes no CSS variable: the reference blue, the test orange, the reformulated teal
+  if (role === "reference") return "#2563EB";
+  if (role === "test" || role === "original") return "#EA580C";
+  if (role === "reformulated") return "#0D9488";
+  return "#6B6B74";
 }
 
 /** A product's role on the question card ("" when the card does not name it). */
