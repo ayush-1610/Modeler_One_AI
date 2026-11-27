@@ -37,7 +37,7 @@ from modeler_project.inputs import (
     todo,
 )
 from modeler_project.inputs_view import compound_rows, study_rows
-from modeler_project.release_choice import ReleaseChoiceError, release_states, set_release_model
+from modeler_project.release_choice import ReleaseChoiceError, enter_particles, release_states, set_release_model
 from modeler_project.sources import rule
 from pbpk_domain.campaign.split import FoodState, FormulationKind, Route, Sex
 from pbpk_domain.cpf.process_bindings import binding_candidates, is_process_id
@@ -170,6 +170,43 @@ def answer_release_model(project_id: str, name: str, body: ReleaseModelAnswer, p
     ws = workspace_for(project_id, principal, store)
     try:
         set_release_model(ws, name, model=body.model, reason=body.reason, by=principal.user_id)
+    except ReleaseChoiceError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    try:
+        assemble(ws, by=principal.user_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return envelope(_view(ws))
+
+
+class StatedValue(BaseModel):
+    value: float
+    unit: str = Field(min_length=1)       # as the source states it; converted to the builder's unit by code
+
+
+class ParticleInputs(BaseModel):
+    radius: StatedValue                   # the particle radius (mean): stored in µm (parameter registry 1.3)
+    thickness: StatedValue                # the unstirred water layer's thickness: stored in mm
+    source_type: Literal["PUBLICATION", "CLIENT_REPORT", "REGULATORY_REVIEW", "DATABASE", "ASSUMPTION"]
+    title: str = ""
+    quote: str = ""
+    doi: str | None = None
+    url: str | None = None
+
+
+@router.post("/projects/{project_id}/formulations/{name}:particles", **answers(InputsPage))
+def post_particle_inputs(project_id: str, name: str, body: ParticleInputs, principal: Writer,
+                         store: StoreDep) -> dict[str, Any]:
+    """A formulation held for particle dissolution gets its particle radius and unstirred-layer thickness, with their
+    source (the owner's D1; plan 2026-11-26 §8): graded, converted to the builder's units and accepted with its type
+    `Particles`, all or none. The inputs are assembled again."""
+    from modeler_project.evidence import SourceType
+
+    ws = workspace_for(project_id, principal, store)
+    try:
+        enter_particles(ws, name, radius=(body.radius.value, body.radius.unit),
+                        thickness=(body.thickness.value, body.thickness.unit), source_type=SourceType(body.source_type),
+                        title=body.title, quote=body.quote, doi=body.doi, url=body.url, by=principal.user_id)
     except ReleaseChoiceError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     try:

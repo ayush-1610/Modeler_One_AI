@@ -7,9 +7,11 @@ as a proposal (`EvidenceItem.proposed["release_model"]` on `form.<name>.type`); 
 
 - **confirm** the Weibull fit: the proposal is taken as it is;
 - **hold** the formulation for particle dissolution, with a reason: its Weibull values are set aside (rejected, the
-  reason recorded) and the formulation waits. Inputs cannot hold a particle radius and the unstirred-layer thickness
-  yet: the parameter registry (a locked file of harvested PK-Sim names and units) has no entry for them, so a particle
-  formulation is built only once the owner approves that change. Until then the readiness check says so;
+  reason recorded) and the formulation waits for its particle inputs. The readiness check says so;
+- **enter the particle inputs** of a held formulation: its particle radius and unstirred-layer thickness, each with its
+  source (parameter registry 1.3: µm and mm, the units the CPF builder takes, `cpf.formulations.PARTICLE_PARAMETERS`).
+  They are graded and accepted with the formulation's type `Particles`, and the formulation is built as PK-Sim's
+  particle dissolution (monodisperse, the builder's default distribution);
 - **use the Weibull fit after all** for a held formulation: its values are taken again.
 
 Nothing is decided without a person; every step is a new version of the evidence items, with who and why.
@@ -19,15 +21,14 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from modeler_project.evidence import EvidenceItem, EvidenceState
+from modeler_project.evidence import EvidenceItem, EvidenceState, Extraction, SourceRef, SourceType, new_id
 from modeler_project.workspace import Workspace
 
 # the reason a held formulation's Weibull values were set aside starts with this (how a held formulation is known)
 HELD = "particle dissolution chosen on Inputs (D1)"
 # why a held formulation is not built, as the readiness check says it
-HELD_WHY = ("particle dissolution was chosen on Inputs, and Inputs cannot hold a particle radius and the unstirred-layer "
-            "thickness yet (the parameter registry has no entry for them: the owner's decision); use the Weibull fit, or "
-            "wait for that")
+HELD_WHY = ("particle dissolution was chosen on Inputs: enter its particle radius and unstirred-layer thickness on "
+            "Formulations, or use the Weibull fit")
 
 
 class ReleaseChoiceError(ValueError):
@@ -102,6 +103,42 @@ def set_release_model(ws: Workspace, name: str, *, model: Literal["weibull", "pa
     return {"formulation": name, "model": "weibull", "taken": taken}
 
 
+def enter_particles(ws: Workspace, name: str, *, radius: tuple[float, str], thickness: tuple[float, str],
+                    source_type: SourceType, title: str = "", quote: str = "", doi: str | None = None,
+                    url: str | None = None, by: str) -> list[str]:
+    """A held formulation's particle inputs, as a person gives them on Formulations: the radius and the unstirred-layer
+    thickness (each a value and its unit as the source states it), with their source. They are graded like any value
+    (converted to µm and mm, the builder's units) and accepted with the formulation's type `Particles`, the person's
+    choice (its reason the hold's). Returns the ids of the three items."""
+    from modeler_project.evidence_register import EvidenceError, decide, propose
+
+    state = release_states(ws).get(name)
+    if state is None or state["state"] != "held":
+        raise ReleaseChoiceError(f"{name} is not held for particle dissolution: hold it first, with the reason")
+    for what, (value, _unit) in (("radius", radius), ("thickness", thickness)):
+        if not value > 0:
+            raise ReleaseChoiceError(f"the particle {what} must be above 0")
+    source = SourceRef(title=title.strip(), doi=doi or None, url=url or None)
+    note = f"Inputs, {HELD}: {state['reason']}"
+    items = [EvidenceItem(id=new_id(), target=f"form.{name}.type", value="Particles", source_type=SourceType.ASSUMPTION,
+                          extraction=Extraction.MANUAL, quote=state["reason"], note=note)]
+    items += [EvidenceItem(id=new_id(), target=f"form.{name}.particles.{key}", value=float(value), unit=unit,
+                           source_type=source_type, source=source, extraction=Extraction.MANUAL, quote=quote.strip(),
+                           note=note)
+              for key, (value, unit) in (("radius", radius), ("thickness", thickness))]
+    done = []
+    try:
+        for item in items:
+            propose(ws, item, actor=by)
+            decide(ws, item.id, state=EvidenceState.ACCEPTED, reason="particle inputs entered on Inputs (D1)", by=by)
+            done.append(item.id)
+    except EvidenceError as exc:
+        for evidence_id in done:          # all or none: what was accepted before the refusal is set aside again
+            decide(ws, evidence_id, state=EvidenceState.REJECTED, reason=f"the particle inputs were refused: {exc}", by=by)
+        raise ReleaseChoiceError(str(exc)) from exc
+    return done
+
+
 def _answered(ws: Workspace, evidence_id: str, *, by: str, what: str) -> None:
     """The proposal answered: a new version of the type item without it (the evidence register's own write)."""
     from modeler_project.evidence_register import EvidenceError, answer_proposal
@@ -112,4 +149,4 @@ def _answered(ws: Workspace, evidence_id: str, *, by: str, what: str) -> None:
         raise ReleaseChoiceError(str(exc)) from exc
 
 
-__all__ = ["HELD", "HELD_WHY", "ReleaseChoiceError", "release_states", "set_release_model"]
+__all__ = ["HELD", "HELD_WHY", "ReleaseChoiceError", "enter_particles", "release_states", "set_release_model"]
