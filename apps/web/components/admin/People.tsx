@@ -70,7 +70,8 @@ function AddPerson({ page, onDone, tenantId }: { page: Page; onDone: (p: Page) =
   return (
     <Panel title={tenantId ? "Add a person to this company" : "Add a person"}>
       <p className="muted" style={{ marginTop: 0 }}>
-        They are created in Keycloak and set their own password and authenticator at their first sign-in.{" "}
+        They are created in Keycloak and set their own password{page.authenticator === "admins" ? "" : " and authenticator"} at
+        their first sign-in.{" "}
         {page.smtp ? "Keycloak emails them the link."
           : "Keycloak has no mail server: you get a temporary password here, shown once, to give them in person or by phone."}
       </p>
@@ -202,6 +203,13 @@ export function People({ initial, tenantId }: { initial: Page; tenantId?: string
           {page.notice_link && <a href={page.notice_link} target="_blank" rel="noreferrer" data-testid="people-notice-link">Open their page in Keycloak</a>}
         </div>
       )}
+      {page.authenticator === "admins" && (
+        <div className="banner warn" style={{ marginBottom: 16 }} data-testid="people-authenticator-off">
+          <strong>Authenticator off for now</strong> for everyone but platform administrators: others sign in and sign with
+          their password alone (administrators still give the code). To turn it back on for everyone, from your computer:
+          <pre className="code-block" data-testid="people-authenticator-on">{page.authenticator_on_command}</pre>
+        </div>
+      )}
       <TemporaryPassword page={page} onHide={() => setPage({ ...page, temporary_password: null, temporary_for: null })} />
       <AddPerson page={page} onDone={setPage} tenantId={tenantId} />
       <Panel title={tenantId ? "Its people in Keycloak" : "People"}>
@@ -229,7 +237,9 @@ export function People({ initial, tenantId }: { initial: Page; tenantId?: string
                   <td>{p.roles.map((r) => ROLE_LABEL[r] ?? r).join(", ") || "—"}</td>
                   <td>
                     <span className={`chip ${p.enabled ? "low" : "high"}`}><span className="chip-dot" />{p.enabled ? "can sign in" : "disabled"}</span>
-                    <div className="muted">{p.authenticator ? "authenticator set up" : "no authenticator yet"}</div>
+                    <div className="muted">{p.authenticator ? "authenticator set up"
+                      : page.authenticator === "admins" && !p.roles.includes("modeler-admin") ? "no authenticator (not needed for now)"
+                        : "no authenticator yet"}</div>
                     {p.required_actions.length > 0 && (
                       <div className="muted">next sign-in: {p.required_actions.map((a) => ACTION_LABEL[a] ?? a).join(", ")}</div>
                     )}

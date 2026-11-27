@@ -32,6 +32,31 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
   a changed look on its next visit, with no cache to clear. An image or font in the theme that changes needs a new
   file name (README).
 
+### Changed — TEMPORARY: the authenticator code only for platform administrators (2026-11-27, the owner's request)
+- **What:**
+  - `keycloak.sh authenticator off|on` (on the server; Keycloak asks for its administrator's password, as `connect`
+    does). **off:** in the signing flow `modeler loa2 signing` the code step (`auth-otp-form`) is DISABLED and a
+    sub-flow `modeler loa2 admin code` (CONDITIONAL: Condition - user role `modeler-admin`, then the code) asks it of
+    administrators only; every non-administrator's pending `CONFIGURE_TOTP` is cleared. **on:** the code step REQUIRED
+    for everyone again and the sub-flow DISABLED. Sign-in (loa1) asks for the password only, either way.
+  - The console reads which holds from the flow (`KeycloakDirectory.authenticator_for`: `everyone` or `admins`;
+    unknown counts as `everyone`). While `admins`, a new person is created with `UPDATE_PASSWORD` only, and *Reset
+    authenticator* on a non-administrator removes the code without asking for a new one. The People page says the
+    authenticator is off and gives the command that turns it on (`PeoplePage.authenticator`,
+    `authenticator_on_command`).
+- **Why:** the owner, 2026-11-27: "Everywhere, except admins. For now only, after I test the full product end to end
+  myself and then I'll come back to this and enable. Remember this for future." Recorded at the top of
+  `docs/CONTINUATION_PACKAGE.md` so the next session reminds the owner to turn it back on.
+- **Impact:**
+  - **Known gap until it is on again:** a non-administrator's electronic signature rests on the user ID and a password
+    re-entered at every signing (21 CFR 11.200(a)'s minimum of two components); the design is password plus code.
+    `auth.py` (locked) is unchanged: Keycloak still issues `acr=loa2` after the step-up.
+  - The realm file keeps the code for everyone (a fresh install starts with it on).
+  - Tests: `test_admin_people.py` (new people and resets under `admins`; the client reads the flow);
+    `test_keycloak_connect.py` (off builds the admin sub-flow and clears pending set-ups for non-administrators only;
+    on restores; a stand-in kcadm). Not yet run against a real Keycloak: first run on adt-server.
+  - `docs/api/openapi.json` and `lib/api-types.ts` regenerated.
+
 ### Fixed — the deploy now brings Keycloak's sign-in pages with it (2026-11-27)
 - **What:** after the deploy of R1–R5 the app's own sign-in page showed the new split design, but the username and
   password page (Keycloak's) still showed the old navy card: Keycloak reads its theme from its own folder when it

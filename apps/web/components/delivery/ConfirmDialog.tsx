@@ -98,7 +98,7 @@ export function ConfirmDialog({ projectId, subject, onClose }: { projectId: stri
     <Dialog title={`Confirm ${KIND_LABEL[subject.subject_type].toLowerCase()} ${subject.label}`} size="narrow" onClose={onClose} testId="delivery-confirm-dialog"
             focusKey="confirm">
       <p className="muted">Your electronic signature (meaning: Reviewed) binds this record, and its values are then loaded into
-        the project. You are asked for your password and authenticator code again.</p>
+        the project. You are asked for your password again (and your authenticator code, where your account uses one).</p>
       <dl className="delivery-facts" data-testid="delivery-confirm-record">
         <dt>You sign</dt><dd>{KIND_LABEL[subject.subject_type]} <strong>{subject.label}</strong></dd>
         <dt>Values</dt>

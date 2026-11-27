@@ -45,6 +45,7 @@ class FakeDirectory:
         self.emails: list[tuple[str, list[str]]] = []
         self.passwords: dict[str, str] = {}             # what Keycloak was given, temporary
         self.refuse_password = False
+        self.policy = kc.EVERYONE                        # who must use an authenticator (keycloak.sh authenticator)
 
     def add_existing(self, user_id: str, username: str, tenant_id: str, roles: list[str], *, enabled: bool = True,
                      authenticator: bool = True) -> None:
@@ -59,13 +60,16 @@ class FakeDirectory:
     def people(self) -> list[dict[str, Any]]:
         return [dict(u, roles=list(u["roles"])) for u in self.users.values()]
 
-    def create(self, *, username, email, first_name, last_name, tenant_id, roles) -> str:
+    def authenticator_for(self) -> str:
+        return self.policy
+
+    def create(self, *, username, email, first_name, last_name, tenant_id, roles, actions=kc.FIRST_SIGN_IN) -> str:
         if any(u["username"] == username for u in self.users.values()):
             raise kc.DirectoryError("Keycloak already has that person (User exists with same username)")
         user_id = str(uuid.uuid4())
         self.users[user_id] = {"id": user_id, "username": username, "email": email, "first_name": first_name,
                                "last_name": last_name, "tenant_id": tenant_id, "enabled": True, "authenticator": False,
-                               "required_actions": list(kc.FIRST_SIGN_IN), "created_ms": 1_700_000_000_000,
+                               "required_actions": list(actions), "created_ms": 1_700_000_000_000,
                                "roles": list(roles)}
         return user_id
 
@@ -183,6 +187,29 @@ def test_when_keycloak_refuses_the_temporary_password_the_page_links_to_keycloak
     assert event["after"]["first_password"] == "link given to set it in Keycloak"
 
 
+def test_while_the_authenticator_is_off_but_for_admins_nobody_else_is_asked_to_set_one_up(client, tmp_path, directory):
+    """The owner, 2026-11-27 (TEMPORARY, until the owner's end-to-end test): `keycloak.sh authenticator off`."""
+    _company(client)
+    directory.policy = kc.ADMINS
+    page = client.post("/api/v1/admin/people", json=NEW, headers=_as("owner")).json()["data"]
+    (rita,) = [p for p in page["people"] if p["username"] == "rita"]
+    assert rita["required_actions"] == ["UPDATE_PASSWORD"] and page["authenticator"] == "admins"
+    assert "set up their authenticator" not in page["notice"] and page["temporary_password"]
+    assert page["authenticator_on_command"].endswith("keycloak.sh authenticator on'")
+    directory.add_existing("u-ana", "ana", "acme", ["modeler-viewer"])            # a lost phone: nothing to set up again
+    page = client.post("/api/v1/admin/people/u-ana:reset", json={"authenticator": True, "reason": "lost her phone"},
+                       headers=_as("owner")).json()["data"]
+    assert "CONFIGURE_TOTP" not in directory.users["u-ana"]["required_actions"] and "only administrators" in page["notice"]
+    directory.add_existing("u-boss", "boss", "platform", ["modeler-admin"])      # an administrator still needs one
+    client.post("/api/v1/admin/people/u-boss:reset", json={"authenticator": True, "reason": "new phone"}, headers=_as("owner"))
+    assert "CONFIGURE_TOTP" in directory.users["u-boss"]["required_actions"]
+    directory.policy = kc.EVERYONE                                               # `authenticator on`: as before
+    page = client.post("/api/v1/admin/people", json=NEW | {"username": "sam", "email": "sam@acme.test"},
+                       headers=_as("owner")).json()["data"]
+    (sam,) = [p for p in page["people"] if p["username"] == "sam"]
+    assert sam["required_actions"] == ["CONFIGURE_TOTP", "UPDATE_PASSWORD"] and page["authenticator"] == "everyone"
+
+
 def test_adding_a_person_is_refused_without_a_step_up_a_company_or_with_the_admin_role(client):
     _company(client)
     stale = client.post("/api/v1/admin/people", json=NEW, headers=_as("owner-stale"))
@@ -283,6 +310,7 @@ class _Keycloak(BaseHTTPRequestHandler):
 
     users: ClassVar[dict[str, dict[str, Any]]] = {}
     calls: ClassVar[list[tuple[str, str, Any]]] = []
+    code_off: ClassVar[bool] = False
 
     def log_message(self, *_args):
         pass
@@ -313,6 +341,11 @@ class _Keycloak(BaseHTTPRequestHandler):
             return self._answer(401, {"error": "no token"})
         if path == prefix:
             return self._answer(200, {"realm": "modeler", "smtpServer": {}})
+        if path == f"{prefix}/authentication/flows/modeler%20loa2%20signing/executions":
+            code = "DISABLED" if type(self).code_off else "REQUIRED"
+            return self._answer(200, [{"id": "pw", "providerId": "auth-password-form", "level": 0, "requirement": "REQUIRED"},
+                                      {"id": "code", "providerId": "auth-otp-form", "level": 0, "requirement": code},
+                                      {"id": "otp2", "providerId": "auth-otp-form", "level": 1, "requirement": "REQUIRED"}])
         if path == f"{prefix}/users" and method == "POST":
             user_id = "new-1"
             type(self).users[user_id] = {"id": user_id, **body}
@@ -349,7 +382,7 @@ class _Keycloak(BaseHTTPRequestHandler):
 
 @pytest.fixture
 def keycloak():
-    _Keycloak.users, _Keycloak.calls = {}, []
+    _Keycloak.users, _Keycloak.calls, _Keycloak.code_off = {}, [], False
     server = ThreadingHTTPServer(("127.0.0.1", 0), _Keycloak)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
@@ -372,6 +405,12 @@ def test_the_client_creates_a_person_as_the_service_account_and_keeps_their_othe
     assert _Keycloak.users["new-1"]["attributes"] == {"tenant_id": ["beta"], "projects": ["p-1"]}
     assert directory.smtp() is False
     assert directory.console_link("new-1") == "https://kc.example.test:8443/admin/master/console/#/modeler/users/new-1/credentials"
+    assert directory.authenticator_for() == kc.EVERYONE                   # read from the signing flow itself
+    _Keycloak.code_off = True
+    assert directory.authenticator_for() == kc.ADMINS
+    directory.create(username="sam", email="sam@acme.test", first_name="Sam", last_name="Lee", tenant_id="acme",
+                     roles=["modeler-viewer"], actions=("UPDATE_PASSWORD",))
+    assert _Keycloak.users["new-1"]["requiredActions"] == ["UPDATE_PASSWORD"]
     directory.set_temporary_password("new-1", "Abcde-23456-fghij-KLMNP")
     assert ("PUT", "/admin/realms/modeler/users/new-1/reset-password",
             {"type": "password", "value": "Abcde-23456-fghij-KLMNP", "temporary": True}) in _Keycloak.calls
