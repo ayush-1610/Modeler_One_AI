@@ -5,6 +5,7 @@ import { useState, type ReactNode } from "react";
 import { InlineIssue } from "@/components/kit";
 import { display, type FieldDef, type FieldRecord, type Question } from "@/lib/brief";
 import { drafter, type Answer, type BriefChange, type Open, type Save } from "@/lib/start";
+import { Icon } from "@/components/kit/icons";
 
 /** What a box still needs from the person, in red with a warning sign (page review 1: the side panel is gone; Start
  *  cannot be left until these are resolved). */
@@ -12,7 +13,7 @@ export function NeedsYou({ issues, testId }: { issues: string[]; testId?: string
   if (!issues.length) return null;
   return (
     <div className="needs-you" data-testid={testId}>
-      {issues.map((m) => <InlineIssue key={m} severity="error"><span aria-hidden>⚠ </span>{m}</InlineIssue>)}
+      {issues.map((m) => <InlineIssue key={m} severity="error"><Icon name="alert" /> {m}</InlineIssue>)}
     </div>
   );
 }
@@ -22,7 +23,7 @@ export function QuestionRow({ q, onAnswer }: { q: Question; onAnswer: Answer }) 
   const [text, setText] = useState("");
   return (
     <div className="start-question needs-you" data-testid={`question-${q.id}`}>
-      <p><span aria-hidden>⚠ </span>{q.question}</p>
+      <p><Icon name="alert" /> {q.question}</p>
       <div className="row">
         <input value={text} onChange={(e) => setText(e.target.value)} placeholder="The answer, or why it is acceptable" />
         <button type="button" className="btn" disabled={!text.trim()} onClick={() => onAnswer(q.id, text, "answered")}>Answer</button>

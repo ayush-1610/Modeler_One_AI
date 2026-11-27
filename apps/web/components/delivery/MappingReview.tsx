@@ -29,6 +29,7 @@ import {
 import { LayoutEditor, columnsSent } from "./LayoutEditor";
 import { ChipFor, MAPPING_STATE, Problem, WITHHELD, Why, plural, useDecide } from "./shared";
 import { writeMapping } from "./writes";
+import { Icon } from "@/components/kit/icons";
 
 type Mapping = Schema<"DeliveryMapping">;
 type Finding = Schema<"DeliveryMappingFinding">;
@@ -142,8 +143,8 @@ export function MappingReview({ projectId, mappingId, version, at, onClose, queu
         {queue && (
           <>
             <span className="muted" data-testid="mapping-position">{queue.at + 1} of {queue.total}</span>
-            <button type="button" className="btn small" disabled={queue.at === 0} onClick={() => move(-1)} data-testid="mapping-prev">‹ Previous</button>
-            <button type="button" className="btn small" disabled={queue.at >= queue.total - 1} onClick={() => move(1)} data-testid="mapping-next">Next ›</button>
+            <button type="button" className="btn small" disabled={queue.at === 0} onClick={() => move(-1)} data-testid="mapping-prev"><Icon name="chevl" /> Previous</button>
+            <button type="button" className="btn small" disabled={queue.at >= queue.total - 1} onClick={() => move(1)} data-testid="mapping-next">Next <Icon name="chevr" /></button>
           </>
         )}
         <button type="button" className="btn" onClick={onClose} data-testid="mapping-close">Close</button>

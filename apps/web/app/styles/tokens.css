@@ -23,6 +23,7 @@
   --c-on-accent: #FFFFFF;       /* 17.7:1 on the accent */
   --c-focus: #2563EB;           /* the focus outline: 5.17:1 on white, 4.70:1 on the canvas, 3.43:1 on the accent */
   --c-link: #18181B;            /* links read as ink, underlined: the underline, not a colour, says it is a link */
+  --c-source: #2563EB;          /* a link to a value's source (a citation, Open the source): the one blue, 5.17:1 */
   --c-run: #1D4ED8; --c-run-bg: #E8F0FE; --c-run-dot: #2563EB;   /* something running (a step, a stage): 5.85:1 */
   --c-pass: #166534; --c-pass-bg: #DCFCE7; --c-pass-line: #9AD5AE; --c-pass-dot: #16A34A;
   --c-warn: #92400E; --c-warn-bg: #FEF3C7; --c-warn-line: #E8C16A; --c-warn-dot: #F59E0B;

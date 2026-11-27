@@ -6,6 +6,7 @@
 // on a later page.
 
 import { useMemo, useState, type ReactNode } from "react";
+import { Icon } from "@/components/kit/icons";
 
 export type Column<T> = {
   key: string;
@@ -80,7 +81,7 @@ export function Table<T>({ title, count, actions, columns, rows, rowKey, rowTest
                         aria-sort={sort?.key === c.key ? (sort.dir === 1 ? "ascending" : "descending") : undefined}>
                       {c.sort ? (
                         <button type="button" className="tbl-sort" onClick={() => press(c.key)}>
-                          {c.label}<span aria-hidden className="tbl-arrow">{sort?.key === c.key ? (sort.dir === 1 ? "▲" : "▼") : "↕"}</span>
+                          {c.label}<span aria-hidden className={`tbl-arrow${sort?.key === c.key ? " on" : ""}`}><Icon name={sort?.key === c.key ? (sort.dir === 1 ? "chevu" : "chevd") : "sort"} size={14} /></span>
                         </button>
                       ) : c.label}
                     </th>

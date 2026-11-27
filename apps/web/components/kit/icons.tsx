@@ -1,5 +1,7 @@
-// The console's line icons (design-review/DESIGN_SYSTEM.md §3): a 24-unit grid, 1.75 stroke, drawn in the text's colour.
-// Always beside a word or inside a control that has an accessible name; the icon itself is hidden from assistive tech.
+// The console's line icons (design-review/DESIGN_SYSTEM.md §3): a 24-unit grid, a 1.5 stroke (the Graphite look's fine line,
+// DECISIONS D-I4 choice 4; it was 1.75), round ends, drawn in the text's colour. The product's own set, no icon library;
+// the arrows, chevrons up and down, the sort mark and the bell were drawn for it in R2-R3. Always beside a word or inside
+// a control that has an accessible name; the icon itself is hidden from assistive tech.
 
 const PATHS = {
   home: "M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z",
@@ -25,9 +27,16 @@ const PATHS = {
   info: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M12 11v5 M12 8h.01",
   xc: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z M9 9l6 6 M15 9l-6 6",
   search: "M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z M21 21l-4.3-4.3",
-  chevl: "M15 6l-6 6 6 6", chevr: "M9 6l6 6-6 6", chevd: "M6 9l6 6 6-6",
+  chevl: "M15 6l-6 6 6 6", chevr: "M9 6l6 6-6 6", chevd: "M6 9l6 6 6-6", chevu: "M6 15l6-6 6 6",
+  // a table head's sort: both ways (not sorted) or one way
+  sort: "M8 9l4-4 4 4 M8 15l4 4 4-4",
+  arrowu: "M12 19V5 M6 11l6-6 6 6", arrowd: "M12 5v14 M6 13l6 6 6-6",
   menu: "M4 6h16 M4 12h16 M4 18h16", x: "M6 6l12 12 M18 6 6 18",
   bell: "M6 16v-5a6 6 0 1 1 12 0v5l1.5 2h-15z M10 21h4",   // notifications (the Graphite page bar, R2)
+  // a value's source (Open the source), a delivery to upload, a source file: in the set since R3 (they were drawn inline)
+  source: "M6.5 4h11A2.5 2.5 0 0 1 20 6.5v11a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 17.5v-11A2.5 2.5 0 0 1 6.5 4z M9.5 8.5h5a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1h-5a1 1 0 0 1-1-1v-5a1 1 0 0 1 1-1z",
+  upload: "M12 16V4 M7 9l5-5 5 5 M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3",
+  file: "M6 3h8l5 5v13H6z M14 3v5h5",
   sliders: "M4 6h9 M17 6h3 M4 12h3 M11 12h9 M4 18h11 M19 18h1 M15 4v4 M9 10v4 M17 16v4",
 } as const;
 
@@ -36,7 +45,7 @@ export type IconName = keyof typeof PATHS;
 export function Icon({ name, size = 16, className }: { name: IconName; size?: number; className?: string }) {
   return (
     <svg className={`ico${className ? ` ${className}` : ""}`} viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor"
-         strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden focusable="false">
+         strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden focusable="false">
       <path d={PATHS[name]} />
     </svg>
   );

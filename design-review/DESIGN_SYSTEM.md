@@ -11,7 +11,7 @@ product label is used: Modeler One keeps its own mark, palette and type.
 
 > **Revision 2026-11-27 (decision D-I4):** the look is "Graphite" (`docs/plans/2026-11-27-console-graphite-restyle.md`),
 > which replaced design option 5, "Brand Navy bar" (D-I1, 2026-11-24). §2 and §3 below carry its values. Where another
-> part of this document and D-I4 differ (tab and button style, until R3), D-I4 and
+> part of this document and D-I4 differ, D-I4 and
 > `apps/web/app/styles/tokens.css` win.
 
 ## 1. Principles
@@ -77,7 +77,7 @@ axis `#A1A1AA`, text in ink tokens, never in series colour. The Data room's prod
 | Spacing | 4 px grid: 4 · 8 · 12 · 16 · 20 · 24 · 32. Panel padding 16; between panels 16; page gutter 24 (16 on phones) |
 | Radii | 6 (code, small wells) · 10 (buttons, fields, navigation items, banners) · 14 (panels, tables, dialogs) · pill for status labels (D-I4) |
 | Elevation | panels: a hairline + `0 1px 2px rgba(24,24,27,.05), 0 6px 18px -8px rgba(24,24,27,.14)`; overlays (dialog, popover, side panel): `0 2px 6px rgba(24,24,27,.06), 0 24px 48px -16px rgba(24,24,27,.28)`; the primary button and a secondary button's faint lift. Nothing else casts a shadow |
-| Icons | 24-unit line icons, 1.75 stroke (1.5 from R3, D-I4), 16 px in navigation and text, 13–14 px in badges; always beside a word, or with an accessible name |
+| Icons | the product's own 24-unit line icons (`components/kit/icons.tsx`, no icon library), **1.5 stroke** (D-I4, R3), round ends; 16 px in navigation and text, 18 px in the page bar, 13–14 px in chips and carets; always beside a word, or on a control with an accessible name. No text glyph stands in for an icon (‹ › ▾ ▸ ⚠ ↕ ▲ ▼ ↑ ↓ were replaced in R3) |
 | Motion | none decorative. State changes only (focus, hover 120 ms, side navigation slide on small screens); `prefers-reduced-motion` turns spinners and skeleton shimmer off |
 
 ## 4. Layout
@@ -114,10 +114,11 @@ then secondary, then link buttons. Breadcrumbs above on every page below Home.
 | Variant | When |
 |---|---|
 | Primary (accent fill) | the page's or dialog's main action: Create project, Approve and sign, Upload a delivery. One per region |
-| Normal (outline) | other actions |
+| Normal (white, a grey edge, the word in ink) | other actions |
 | Link | inline secondary: "Back to the MS-01 default", "Its columns" |
 | Danger (red outline) | archive, disable, retire; always behind a reason dialog |
-| Small (28 px) | inside tables and side panels |
+| Small (30 px) | inside tables and side panels |
+| Icon only (36 px square; 30 px when small) | Previous / Next page, Move up / down: the name is on the button (`aria-label`) |
 Labels are verbs naming the object ("Confirm and sign", not "OK"). Disabled buttons say why (title + a line nearby).
 
 ### 5.3 Status indicator
@@ -128,8 +129,9 @@ work"; elsewhere neutral.
 
 ### 5.4 Tables (collections)
 Toolbar: filter with a search icon (filters on every column's text), selects for the main facets, toggles. Header:
-sortable columns show a chevron; `aria-sort` set. Rows: 9 px vertical padding; hover tint; a clickable row opens the
-side panel (Enter works); the selected row keeps an accent edge. Footer: "n rows", pager, preferences (rows per page,
+sortable columns show the sort mark (both ways) or a chevron (the way it is sorted); `aria-sort` set. The head is white,
+its words 13 px in `--c-ink-3`, one rule under it (R3). Rows: 11 px vertical padding, hairlines between; hover the
+grey tint; a clickable row opens the side panel (Enter works); the selected row keeps an ink edge on the selected tint. Footer: "n rows", pager, preferences (rows per page,
 wrap lines, columns). Empty: one sentence of what will appear and, when the person can act, the action. **Phones:**
 each row becomes a labelled block (cell label from the column header), controls keep their natural width.
 
@@ -173,6 +175,17 @@ the studies table below (keyboard), and every move asks for a reason.
 Loading: skeleton lines (no spinner over content). Empty: icon, a title, one sentence, the action if any. Error: error
 flash ("The API did not answer. Nothing on this page is current.") + Try again; never cached or sample data. Read-only:
 info flash naming the owner; edit controls absent (not disabled), sign controls present for a reviewer.
+
+### 5.13 Graphite details (R3, 2026-11-27)
+- **Tabs:** a page's tabs are underlined: words in `--c-ink-3`, the current one in ink with a 2 px rule drawn inside the
+  tab (so a scrolling strip never cuts it), a hairline under the strip. A view switch (log/linear, cards/table, the
+  pricing switch) stays a segmented control.
+- **Side panel:** a floating panel, 14 px radius, 10 px from the window's edges, the overlay shadow; docked at the
+  bottom below 1600 px, a sheet under the page bar on a phone.
+- **Dialogs:** a hairline edge, 18 px bold title, the actions at the foot on the right behind a hairline, the main one
+  last.
+- **Source links in the one blue** (`--c-source`, `#2563EB`, 5.17:1): Open the source, a citation on Start, a Data room
+  source chip. Every other link is ink, underlined.
 
 ## 6. Content rules
 - Status words exactly as in §5.3; one name per concept (`lib/words.ts`).

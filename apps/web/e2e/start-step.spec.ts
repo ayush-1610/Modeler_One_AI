@@ -117,7 +117,10 @@ test("Start: each box that waits on the person is marked red, and Start cannot b
   await expect(page.getByTestId("confirm-scenarios[0].route")).toHaveCount(0);
   await expect(page.getByTestId("gate-routes-state")).toHaveText("supported");
   await page.getByTestId("dose-0").fill("10");
+  // the dose is saved when the field is left: wait for that save before reloading (a reload sent at once could cancel it)
+  const saved = page.waitForResponse((r) => /\/brief$/.test(new URL(r.url()).pathname) && r.request().method() === "PUT");
   await page.getByTestId("dose-0").blur();
+  expect((await saved).ok()).toBe(true);
   await page.reload();
   await expect(page.getByTestId("dose-0")).toHaveValue("10");
 

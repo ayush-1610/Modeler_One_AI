@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import type { DocumentView } from "@/lib/brief";
 import { useResource } from "@/lib/hooks";
+import { Icon } from "@/components/kit/icons";
 
 /** Highlight `quote` inside `text`, tolerating whitespace differences (the citation check normalizes whitespace). */
 function highlight(text: string, quote: string | null) {
@@ -52,9 +53,9 @@ export function DocumentViewer({
         </select>
         {doc && (
           <span className="row gap-6">
-            <button className="btn" disabled={pageNo <= 1} onClick={() => setPageNo(pageNo - 1)}>‹</button>
+            <button className="btn" aria-label="Previous page" disabled={pageNo <= 1} onClick={() => setPageNo(pageNo - 1)}><Icon name="chevl" /></button>
             <span className="muted tnum">p. {pageNo} / {doc.n_pages}</span>
-            <button className="btn" disabled={pageNo >= doc.n_pages} onClick={() => setPageNo(pageNo + 1)}>›</button>
+            <button className="btn" aria-label="Next page" disabled={pageNo >= doc.n_pages} onClick={() => setPageNo(pageNo + 1)}><Icon name="chevr" /></button>
             {/* a file that holds a blinded study's values (D-15): its pages come with their digits masked, and its
                 original is not served until the plan is signed */}
             {doc.blinded ? <span className="muted fs-13" data-testid="document-original-withheld">original withheld (blinded)</span>

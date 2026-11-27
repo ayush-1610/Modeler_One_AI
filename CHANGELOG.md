@@ -13,6 +13,23 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 
 ## [Unreleased] — make the pipeline do real PBPK, S0 → S7
 
+### Changed — icons, tabs, tables, side panel, dialogs and source links polished (Graphite R3, 2026-11-27)
+- **What:** the product's own icons draw at a **1.5 stroke** (was 1.75); new in the set: chevron up, a sort mark, arrows
+  up and down, a source mark, upload and file (the last three were drawn inline in their components). No text glyph
+  stands in for an icon any more: Previous/Next page (now named for a screen reader on the document viewer too), the
+  menu and disclosure carets, the warning sign on Start and Inputs, the table's sort marks and the admin's Move up/down
+  are icons. **Page tabs** are underlined (the current one in ink with a 2 px rule; History, the campaign, Inputs, Review
+  & sign); view switches stay segmented. **Table heads** are white with small grey words and one rule (were a grey band);
+  a console table's row hover is the grey tint. The **side panel** floats, rounded, 10 px from the window's edges.
+  **Dialogs** have a hairline edge and their actions at the foot behind a hairline. Icon-only buttons are square.
+  **Source links** take the one blue (`--c-source`): Open the source, a citation on Start, a Data room source chip.
+- **Fixed (test only):** `start-step.spec.ts` typed a dose, left the field and reloaded at once, so the reload could cancel
+  the save the field sends when left (it failed once in a run for R3, then passed four times): it now waits for that
+  save's answer before reloading. No product change.
+- **Why:** the owner's approved choices 2 and 4 (`design-review/DECISIONS.md` D-I4; plan
+  `docs/plans/2026-11-27-console-graphite-restyle.md`, step R3), after R2's approval ("R2 approved, proceed to R3").
+- **Impact:** the look only; no route, API, record or science change. Every test id stays.
+
 ### Changed — the sidebar layout replaces the top bar (Graphite R2, 2026-11-27)
 - **What:** no top bar. The sidebar sits on the grey canvas and holds, always on top: the mark on an ink tile and the name
   (to Home), **Start from proposal** (filled ink), **Search** "Go to project…" (⌘K, Ctrl K off a Mac), Home, **Your

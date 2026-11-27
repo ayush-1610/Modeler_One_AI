@@ -14,6 +14,7 @@ import type { BriefView, Citation, DocumentView } from "@/lib/brief";
 import { useMutation, useResource, type After } from "@/lib/hooks";
 import { STEP_ROUTES } from "@/lib/pipeline";
 import { intakeStopped, LINEAR_DRAFT, marks as startMarks, recordOf, type BriefChange } from "@/lib/start";
+import { Icon } from "@/components/kit/icons";
 
 type Focus = { sha256: string | null; page: number; quote: string | null; title?: string; locator?: string } | null;
 
@@ -150,7 +151,7 @@ export function StartScreen({ projectId }: { projectId: string }) {
       <div className={`start-continue${waiting ? " needs-you" : ""}`} data-testid={waiting ? "start-waiting" : "start-done"}>
         {waiting ? (
           <>
-            <span><span aria-hidden>⚠ </span>{waiting} {waiting === 1 ? "thing still needs" : "things still need"} you, marked in red above.
+            <span><Icon name="alert" /> {waiting} {waiting === 1 ? "thing still needs" : "things still need"} you, marked in red above.
               Start is done when none is left.</span>
             {drafts.length > 1 && (
               <button type="button" className="btn" data-testid="start-confirm-all" onClick={confirmAll}
