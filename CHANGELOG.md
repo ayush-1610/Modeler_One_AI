@@ -13,6 +13,21 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 
 ## [Unreleased] — make the pipeline do real PBPK, S0 → S7
 
+### Fixed — a Data room run could stay "running" for ever while reading its files (2026-11-27)
+- **What:** the room's read stage (`dataroom/reading.py`) reads files in a process pool. Its workers were forks of the
+  API, made from the job thread a room run runs on. A child forked from a multi-threaded process can deadlock on a lock
+  another thread held at the fork (Python 3.12 and 3.13 warn so at that fork); the run then waited on that file for
+  ever. The pool's workers are now fresh interpreters (the `spawn` start method).
+- **Why:** CI's browser flows on ayush-1610/Modeler_One_AI#199 failed twice that way. Once, `release-model.spec.ts`'s
+  run stayed `running` and the test server then hung for about 12 minutes. Once, `dataroom-to-start.spec.ts`'s run
+  stayed `running` past its 120 s wait while the runs after it finished. Neither reproduced locally, so the deadlock
+  itself is not proven; the fork from a multi-threaded process is, and it is the one hazard that fits both.
+- **Impact:**
+  - Each pool start costs a fresh interpreter per worker (about a second, in parallel), once per run's read stage.
+  - Reading with one worker (the tests) is unchanged.
+  - `test_dataroom.py` (new test): files read on a job thread by three workers use spawn, finish, and match what one
+    worker reads. It fails on the fork pool. The Data room browser specs pass with it (8, locally).
+
 ### Added — a formulation held for particle dissolution takes its particle inputs on Inputs (2026-11-27)
 - **Why:** the release model on Inputs (plan 2026-11-26 §8) held a formulation for particle dissolution but could not
   build it: the particle radius and the unstirred-layer thickness had nowhere to go. Parameter registry 1.3

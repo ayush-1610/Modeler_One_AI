@@ -5,6 +5,7 @@ version, in parallel, scans by our OCR engine; a file already read (same bytes, 
 from __future__ import annotations
 
 import hashlib
+import multiprocessing
 import os
 from collections.abc import Callable
 from concurrent.futures import ProcessPoolExecutor
@@ -66,7 +67,10 @@ def read_uploads(store: DataRoomStore, *, use_ocr: bool = True, workers: int | N
     workers = workers or max(1, min(4, (os.cpu_count() or 2) - 1))
     if todo:
         if workers > 1 and total > 1:
-            with ProcessPoolExecutor(max_workers=workers) as pool:
+            # fresh interpreters, not forks: a room run reads on a job thread of the API, and a child forked from a
+            # multi-threaded process can deadlock on a lock another thread held (Python warns so); the run then waits
+            # on that file for ever (CI, 2026-11-27)
+            with ProcessPoolExecutor(max_workers=workers, mp_context=multiprocessing.get_context("spawn")) as pool:
                 for room in pool.map(_read_one, [(p, d, use_ocr) for p, d in todo]):
                     cached[room.sha256] = room
                     done += 1
