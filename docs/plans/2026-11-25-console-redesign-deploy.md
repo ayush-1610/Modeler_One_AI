@@ -67,11 +67,14 @@ clean `main` (IQ-01) among the rest:
 ```bash
 ssh adt-server 'bash ~/Modeler_One_AI/deploy/server/qualify.sh iq'
 ```
-**Since the Graphite restyle (R1, 2026-11-27):** the Keycloak sign-in pages changed too. Copy the theme in and restart
-Keycloak (it reads its themes when it starts; sign-ins in progress must start again):
+**Keycloak's sign-in pages** (the username and password page) come from `deploy/keycloak/themes/modeler-one`, which
+Keycloak reads from its own folder when it starts. Since 2026-11-27 the deploy script copies them in itself
+(`keycloak.sh sync-theme`: only when they changed, the old copy removed first, Keycloak restarted so it shows them;
+sign-ins in progress must start again). By hand, for a deploy made before that:
 ```bash
-ssh adt-server 'bash ~/Modeler_One_AI/deploy/server/keycloak.sh theme && bash ~/Modeler_One_AI/deploy/server/keycloak.sh stop && bash ~/Modeler_One_AI/deploy/server/keycloak.sh start'
+ssh adt-server 'bash ~/Modeler_One_AI/deploy/server/keycloak.sh sync-theme'
 ```
+A browser that had the old page open may keep its styles until a hard reload; a private window shows the new page.
 
 ## 4. Right after (about 15 minutes; the owner, signed in through Keycloak)
 | Check | Where | Expected |
@@ -79,7 +82,7 @@ ssh adt-server 'bash ~/Modeler_One_AI/deploy/server/keycloak.sh theme && bash ~/
 | The stack is up | `ssh adt-server 'bash ~/Modeler_One_AI/deploy/server/status_modeler.sh'` | API UP, web UP, Keycloak UP, "Keycloak sign-in" |
 | The engine answers | Admin console → System status | the engine is **PK-Sim (OSP suite)** and **it answers** (the check starts `run_job.R` without a job). A software fixture, or "it does not answer", means the engine command is wrong: stop and fix it before anyone runs a campaign |
 | Navigation | the sidebar: Start from proposal, Search (⌘K), Home, Your work, Projects, Campaigns, Help | each opens in the console; the page bar's breadcrumbs say where; the bell lists what waits on you |
-| The look | any page; then sign out and in | the Graphite look (ink buttons, rounded panels, Plus Jakarta Sans); the Keycloak sign-in page in the same look (if it still shows Keycloak's own, the theme step of §3 was missed) |
+| The look | any page; then sign out and in | the Graphite look (ink buttons, rounded panels, Plus Jakarta Sans); the username and password page in the same split design as the app's sign-in page (if it shows the older navy card, Keycloak still has the old theme: `keycloak.sh sync-theme`, §3) |
 | A project | Overview → each step in the side navigation | each step's state shows; the Waiting on you line links where it is settled |
 | Inputs | open a study card | it opens in the side panel; Previous / Next move between cards |
 | Review & sign | its tabs | the tab is in the address; a viewer sees it read-only |
@@ -94,7 +97,7 @@ ssh adt-server 'bash ~/Modeler_One_AI/deploy/server/keycloak.sh theme && bash ~/
   right (revert, below) and deploy `main` again so IQ-01 passes.
 - **One slice:** each slice is one merge commit on `main`; `git revert -m 1 <merge>` undoes it, then deploy `main`.
 - **The Graphite look alone:** revert its merges newest first (R4's, then R3 `599989d`, R2 `3b9cbc9`, R1 `ca7903a`) and
-  deploy `main`; the console's slices stay. Then copy the Keycloak theme in again (§3), as R1 changed it.
+  deploy `main`; the console's slices stay (the deploy brings Keycloak's theme back with it, §3).
   Backend changes are additive and separate commits, revertible alone.
 - **The web app only:** restore `apps/web` from the tag `pre-aws-redesign-20261123-1601`. The API is compatible with
   the old web app except the retired operations, which the old app did not call either.
