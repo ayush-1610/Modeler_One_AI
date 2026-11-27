@@ -13,6 +13,25 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 
 ## [Unreleased] — make the pipeline do real PBPK, S0 → S7
 
+### Changed — the console's look is "Graphite": colours, font, corners and shadows on every page (R1, 2026-11-27)
+- **What:** the console's tokens (`apps/web/app/styles/tokens.css`) take the Graphite values the owner chose: a neutral
+  grey scale, near-black `#18181B` for the primary button, the current navigation item and tab; one blue `#2563EB` for
+  the focus outline, the charts' first series and what is running (`#1D4ED8` on `#E8F0FE`); status green, amber and red
+  unchanged. Text is **Plus Jakarta Sans** at 15 px (was IBM Plex Sans at 14), identifiers **JetBrains Mono** (was IBM
+  Plex Mono); both self-hosted under the SIL OFL 1.1 (`app/fonts/OFL-*.txt`), no third-party request. Panels round to
+  14 px with a hairline and a soft shadow, buttons and fields to 10 px; secondary buttons are white with a grey edge and
+  the word in ink (were outlined in navy); links are ink, underlined; the bar that asks for a person is amber tint with
+  its edge (was solid yellow). The chart palette is validated again (blue, orange `#EA580C`, teal `#0D9488`: every
+  check passes on white and the canvas, all pairs) and the Data room's products use it in place of the earlier indigo,
+  teal and magenta. The sign-in pages (`auth.css`) and Keycloak's theme (`deploy/keycloak/themes/modeler-one`) take the
+  same look. Until R2 the top bar is the ink, white on it.
+- **Why:** the owner's choice in the Design Studio and its prototype, approved 2026-11-27 (`design-review/DECISIONS.md`
+  D-I4; plan `docs/plans/2026-11-27-console-graphite-restyle.md`, step R1 of four). It replaces the navy look of D-I1.
+- **Impact:** the look only: no page, route, API, record or science change. Contrast computed for every pair
+  (`design-review/DESIGN_SYSTEM.md` §2); `e2e/acceptance.spec.ts` (one heading, named controls, no sideways scroll,
+  24 px targets, at 1440 and 390 px) passes on every page. Deploy: the Keycloak theme needs copying in and a Keycloak
+  restart (`docs/plans/2026-11-25-console-redesign-deploy.md` §3).
+
 ### Fixed — two tests that failed now and then in CI, not the code they check (2026-11-26)
 - **The blinded-study test** (`test_delivery_api.py`, a sheet-form group joined to a blinded study) looked for each
   withheld value as a bare substring of every answer, and the answers carry timestamps with fractional seconds: a run

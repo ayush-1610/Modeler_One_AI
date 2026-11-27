@@ -37,8 +37,8 @@ export function Chart({ series, label, empty, testId }: {
       if (cancelled || !container.current) return;
       // the series colours off the design tokens, so the chart says what the rest of the interface says
       const css = getComputedStyle(document.documentElement);
-      const sim = css.getPropertyValue("--sim").trim() || "#0071e3";
-      const obs = css.getPropertyValue("--obs").trim() || "#b25000";
+      const sim = css.getPropertyValue("--sim").trim() || "#2563EB";
+      const obs = css.getPropertyValue("--obs").trim() || "#EA580C";
       const ink = css.getPropertyValue("--ink-dim").trim() || "#6e6e73";
       const grid = css.getPropertyValue("--line").trim() || "#e3e3e8";
       const font = getComputedStyle(document.body).fontFamily || "system-ui, sans-serif";   // the page's own type

@@ -1,8 +1,8 @@
 "use client";
 
 // The console's top bar (design-review/DESIGN_SYSTEM.md §4): the mark and name to Home, "Go to project…", the API's
-// state, and the person. The brand's navy, #001B94, with white on it (13.9:1): design option 5, chosen 2026-11-24
-// (design-review/DECISIONS.md D-I1).
+// state, and the person. Dark, white on it (17.7:1): first the navy of design option 5 (D-I1), the ink since the Graphite
+// look (design-review/DECISIONS.md D-I4), until the sidebar layout replaces this bar (R2 of that plan).
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";

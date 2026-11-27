@@ -160,7 +160,9 @@ export function Plot({ traces, layout, height = 320, testId, label }: {
     let gone = false;
     void import("plotly.js-dist-min").then((Plotly) => {
       if (gone || !box.current) return;
-      const font = { family: "\"IBM Plex Sans\", -apple-system, system-ui, sans-serif", size: 13, color: "#515154" };
+      // the page's own type and secondary ink (app/layout.tsx, app/styles/tokens.css), so the chart reads as the page does
+      const ink = getComputedStyle(document.documentElement).getPropertyValue("--c-ink-3").trim() || "#52525B";
+      const font = { family: getComputedStyle(document.body).fontFamily || "system-ui, sans-serif", size: 13, color: ink };
       const axis = { gridcolor: "rgba(0,0,0,0.06)", zerolinecolor: "rgba(0,0,0,0.12)", linecolor: "rgba(0,0,0,0.18)",
                      tickfont: { size: 12 }, title: { font: { size: 13 } }, automargin: true };
       const given = layout as { xaxis?: Record<string, unknown>; yaxis?: Record<string, unknown> };
@@ -187,7 +189,7 @@ export function series(name: string, x: number[], y: (number | null)[], colour: 
 /** A dashed vertical rule with its label (a meal after the dose). */
 export function rule(x: number, label: string): { shape: Record<string, unknown>; note: Record<string, unknown> } {
   return {
-    shape: { type: "line", xref: "x", yref: "paper", x0: x, x1: x, y0: 0, y1: 1, line: { color: "#8e8e93", width: 1, dash: "dash" } },
-    note: { x, y: 1, xref: "x", yref: "paper", text: label, showarrow: false, yanchor: "bottom", font: { size: 11, color: "#6e6e73" } },
+    shape: { type: "line", xref: "x", yref: "paper", x0: x, x1: x, y0: 0, y1: 1, line: { color: "#A1A1AA", width: 1, dash: "dash" } },
+    note: { x, y: 1, xref: "x", yref: "paper", text: label, showarrow: false, yanchor: "bottom", font: { size: 11, color: "#52525B" } },
   };
 }

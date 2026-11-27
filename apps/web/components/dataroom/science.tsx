@@ -128,7 +128,7 @@ export function Solubility({ room }: { room: Room }) {
   const paper = usePaper();
   const traces = useMemo(() => [{
     type: "bar", x: rows.map((r) => `${r.ph !== null ? `pH ${num(r.ph)}` : ""} ${r.medium}`.trim()),
-    y: rows.map((r) => r.solubility_mg_ml), marker: { color: "#4B2A99", opacity: 0.85 }, name: "Solubility",
+    y: rows.map((r) => r.solubility_mg_ml), marker: { color: roleHex("reference"), opacity: 0.85 }, name: "Solubility",
     text: rows.map((r) => (r.volume_for_dose_ml !== null ? `dose in ${num(r.volume_for_dose_ml, 3)} mL` : "")),
     textposition: "outside", cliponaxis: false, hovertemplate: "%{x}: %{y} mg/mL<extra></extra>",
   }], [rows]);

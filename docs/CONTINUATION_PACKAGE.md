@@ -211,7 +211,17 @@ T-25 (parallel from week 2) · T-29 (P3) · T-30 (human, parallel) · T-19 (P3) 
 Critical path to the first unattended S0→S2 campaign (P1 milestone): T-01 → T-02 → T-03 → T-04/T-10 → T-13, with
 T-05 → T-07 → T-08 → T-18 and T-09 in parallel.
 
-## 4. Where things stand (2026-11-24)
+## 4. Where things stand (2026-11-27)
+
+### 4.0f 2026-11-27: the "Graphite" restyle (R1 in review)
+The owner chose a new look for the console from design catalogues (a Design Studio artifact) and approved its prototype
+and six choices (`design-review/DECISIONS.md` D-I4): Graphite colours (near-black ink for actions, one blue for charts,
+source links and focus), Plus Jakarta Sans at 15 px with JetBrains Mono for identifiers, 14 px rounded panels with soft
+shadows, a left sidebar in place of the top bar, the app's own icons at a 1.5 stroke. Plan:
+`docs/plans/2026-11-27-console-graphite-restyle.md`, four PRs, each reviewed: **R1** colours, font, corners, shadows (a PR,
+**waits for the owner's review**); R2 the sidebar layout; R3 icons and components; R4 accessibility, a screenshot
+gallery, the deploy plan. Later: a per-person Compact view. All of slices 1–10 and `/templates`' retirement are on
+`main` (`e308a06`); the deploy still waits for the owner's acceptance and go-ahead.
 
 ### 4.0e 2026-11-22 → 25: redesign charter, implementation (slice 10, acceptance, in review)
 **Now (2026-11-23):** the owner authorised slices 0 and 1, one PR per slice into `main`, a review after each. Slice 0:
