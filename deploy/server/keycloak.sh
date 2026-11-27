@@ -148,10 +148,30 @@ PY
 # The product's own sign-in pages (deploy/keycloak/themes/modeler-one: Keycloak's keycloak.v2 pages with Modeler One's
 # look and words), copied into Keycloak's themes folder, which Keycloak reads when it starts. The realm file names it as
 # its login theme; a realm imported before it existed keeps Keycloak's pages until it is chosen once (`theme` says how).
+#
+# Browsers keep Keycloak's theme files for 30 days without asking again (Cache-Control: max-age=2592000, no ETag), at
+# an address that changes only with Keycloak's version (/resources/<version>/login/modeler-one/css/...). A stylesheet
+# changed under the same name therefore never reaches a browser that opened the sign-in page before: it shows the new
+# page's words in the old look (the owner's Safari, 2026-11-27, after the theme first changed). So the copy carries the
+# stylesheet under a name made from its content (modeler-one-<12 hex of its sha256>.css) and its theme.properties names
+# that file: a changed stylesheet is a new address, fetched at once. The repository keeps the plain name. An image or a
+# font that changes takes a new file name in the repository (the stylesheet names them).
+stage_theme() {   # stage_theme <folder>: the theme as Keycloak gets it
+  local to="$1" css hash
+  rm -rf "$to"
+  cp -R "$THEMES/modeler-one" "$to"
+  css="$to/login/resources/css/modeler-one.css"
+  hash="$(sha256sum "$css" | cut -c1-12)"
+  mv "$css" "${css%.css}-$hash.css"
+  sed "s#css/modeler-one\.css#css/modeler-one-$hash.css#" "$to/login/theme.properties" > "$to/login/theme.properties.new"
+  mv "$to/login/theme.properties.new" "$to/login/theme.properties"
+  grep -q "^styles=.*css/modeler-one-$hash\.css" "$to/login/theme.properties" \
+    || die "theme: login/theme.properties does not list css/modeler-one.css in its styles"
+}
+
 install_theme() {
   [ -d "$KC_HOME/themes" ] || die "Keycloak is not installed: run 'keycloak.sh install'"
-  rm -rf "$KC_HOME/themes/modeler-one"
-  cp -R "$THEMES/modeler-one" "$KC_HOME/themes/modeler-one"
+  stage_theme "$KC_HOME/themes/modeler-one"
   echo "theme: modeler-one copied to $KC_HOME/themes"
 }
 
@@ -167,9 +187,11 @@ cmd_theme() {
 # only when they changed, the old copy removed first (install_theme), and Keycloak restarted so it reads them.
 cmd_sync_theme() {
   if [ ! -d "$KC_HOME/themes" ]; then echo "theme: Keycloak is not installed here; nothing to update"; return; fi
-  if diff -rq "$THEMES/modeler-one" "$KC_HOME/themes/modeler-one" >/dev/null 2>&1; then
-    echo "theme: Keycloak's sign-in pages are current"; return
-  fi
+  local staged="$KC_ROOT/.theme-staged" same=0
+  stage_theme "$staged"
+  diff -rq "$staged" "$KC_HOME/themes/modeler-one" >/dev/null 2>&1 && same=1
+  rm -rf "$staged"
+  if [ "$same" = 1 ]; then echo "theme: Keycloak's sign-in pages are current"; return; fi
   install_theme
   if running; then cmd_stop; cmd_start
   else echo "theme: Keycloak is not running; it shows the new sign-in pages when it starts"; fi

@@ -32,6 +32,10 @@ bash deploy/server/keycloak.sh start
 bash deploy/server/keycloak.sh status    # keycloak UP  https://<server>:8443/admin
 bash deploy/server/keycloak.sh sync-theme  # the sign-in pages from the checkout; every deploy runs it (restarts on a change)
 ```
+Keycloak's copy of the theme names the stylesheet after its content (`css/modeler-one-<12 hex of its sha256>.css`,
+written into its `theme.properties`): browsers keep Keycloak's theme files for 30 days at an address that changes only
+with Keycloak's version, so a stylesheet changed under its old name would not reach them. The repository keeps
+`css/modeler-one.css`; an image or font that changes takes a new file name here.
 
 ### HTTPS
 Keycloak marks its cookies Secure, so browsers can sign in only over HTTPS (plain HTTP works on `localhost` only).

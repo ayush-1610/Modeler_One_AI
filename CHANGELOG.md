@@ -13,6 +13,25 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 
 ## [Unreleased] — make the pipeline do real PBPK, S0 → S7
 
+### Fixed — Keycloak's sign-in page showed the new words in the old look (2026-11-27)
+- **What:** after `keycloak.sh sync-theme` (#198) put the new theme on the server, the owner's Safari still showed the
+  username and password page with the old navy button, card line and light canvas, under the new split design's words.
+  Keycloak serves theme files with `Cache-Control: max-age=2592000` (30 days, no ETag) at
+  `/resources/<its version>/login/modeler-one/css/modeler-one.css`, an address that does not change when the theme
+  does, so a browser that had opened the sign-in page kept the old stylesheet while fetching the new page. Keycloak's
+  copy of the theme now carries the stylesheet as `modeler-one-<12 hex of its sha256>.css`, named in its
+  `theme.properties` (`stage_theme` in `deploy/server/keycloak.sh`); the repository keeps the plain name. `sync-theme`
+  compares that staged form, so an unchanged theme still means no copy and no restart.
+- **Why:** the owner's screenshot (2026-11-27), "still it is showing this".
+- **Verified:** reproduced on Keycloak 26.7.5 in production mode (as the server runs it): one browser profile opened
+  the pre-R1 page, then the current theme was installed as #198 does, and the same profile showed exactly the owner's
+  screenshot; after the fixed `sync-theme` it showed the split design. `test_keycloak_theme_sync.py` (new) checks the
+  name, that everything else is copied unchanged, that a changed stylesheet gets a new name with the old one removed,
+  and that a second run does nothing; both of its tests fail on the script before this fix.
+- **Impact:** the next deploy restarts Keycloak once (the installed copy changes form); after that, every browser gets
+  a changed look on its next visit, with no cache to clear. An image or font in the theme that changes needs a new
+  file name (README).
+
 ### Changed — TEMPORARY: the authenticator code only for platform administrators (2026-11-27, the owner's request)
 - **What:**
   - `keycloak.sh authenticator off|on` (on the server; Keycloak asks for its administrator's password, as `connect`
