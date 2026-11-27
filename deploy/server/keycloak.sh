@@ -9,6 +9,9 @@
 #   keycloak.sh status    is it up, and where             keycloak.sh env      the lines for ~/.modeler-secrets.env
 #   keycloak.sh migrate-db   move every realm, user and authenticator enrolment from the file database to PostgreSQL
 #   keycloak.sh theme     copy in the product's sign-in pages (deploy/keycloak/themes/modeler-one); restart after
+#   keycloak.sh connect [admin]   connect Modeler One's admin console to Keycloak, once (and again to rotate its
+#                         secret): the service account, its roles, a new secret stored as the console's active key,
+#                         the web's address and the login theme. Keycloak asks for its administrator's password.
 #
 # Settings (environment, default in brackets):
 #   MODELER_KEYCLOAK_HOST   the name or address browsers use for this server [this server's first address]
@@ -218,6 +221,70 @@ cmd_migrate_db() {
   echo "Keycloak's realms, users and enrolments are in PostgreSQL. Start it: 'keycloak.sh start'"
 }
 
+# kcadm.sh, Keycloak's admin command line, with a session file of its own for this run only (it holds a token).
+kca() {
+  local home; home="$(java_home)" || die "no Java 21: run 'keycloak.sh install' first"
+  local command=("$1"); shift
+  [ "${command[0]}" = config ] && { command+=("$1"); shift; }      # `config credentials`: the option after both words
+  JAVA_HOME="$home" PATH="$home/bin:$PATH" "$KC_HOME/bin/kcadm.sh" "${command[@]}" --config "$KCADM_CONFIG" "$@"
+}
+
+# Modeler One's admin console reaches Keycloak as the service account `modeler-admin-api` (deploy/keycloak/README.md).
+# This does, once, every step that was done by hand in Keycloak's admin console (the owner, 2026-11-27): the client
+# (made, or repaired to service-account only), its service account's realm-management roles, the web's address among the
+# sign-in redirects, the product's login theme, and a NEW client secret (an older one stops working). The secret goes
+# by pipe to modeler_api.keycloak_connect, which tests it and stores it, sealed, as the console's active key, audited.
+# The only password is Keycloak's administrator's, typed into kcadm's own prompt; nothing here keeps it.
+cmd_connect() {
+  local user="${1:-admin}"
+  running || die "Keycloak is not running: 'keycloak.sh start' first"
+  [ -n "${MODELER_OIDC_ISSUER:-}" ] || die "Modeler One does not sign in through Keycloak yet: add the lines of 'keycloak.sh env' to $SECRETS_FILE and restart it"
+  [ -n "${MODELER_MASTER_KEY:-}" ] || die "MODELER_MASTER_KEY is not set in $SECRETS_FILE: the console seals its keys with it"
+  KCADM_CONFIG="$(umask 077; mktemp "$KC_ROOT/kcadm-XXXXXX.config")"
+  # shellcheck disable=SC2064 # the path is fixed now: the session file is removed however this ends
+  trap "rm -f '$KCADM_CONFIG'" EXIT
+  echo "Keycloak asks for the password of its administrator '$user' (realm master). It is used for this run only."
+  kca config credentials --server "http://127.0.0.1:$HTTP_PORT" --realm master --user "$user"
+
+  local id
+  id="$(kca get clients -r modeler -q clientId=modeler-admin-api --fields id --format csv --noquotes)"
+  if [ -z "$id" ]; then
+    id="$(kca create clients -r modeler -i -s clientId=modeler-admin-api -s enabled=true -s publicClient=false \
+      -s serviceAccountsEnabled=true -s standardFlowEnabled=false -s implicitFlowEnabled=false \
+      -s directAccessGrantsEnabled=false -s clientAuthenticatorType=client-secret \
+      -s "description=The admin console's people and companies (keycloak.sh connect)")"
+    echo "client modeler-admin-api: created"
+  else
+    kca update "clients/$id" -r modeler -s enabled=true -s publicClient=false -s serviceAccountsEnabled=true \
+      -s standardFlowEnabled=false -s implicitFlowEnabled=false -s directAccessGrantsEnabled=false
+    echo "client modeler-admin-api: there, kept to its service account only"
+  fi
+  kca add-roles -r modeler --uusername service-account-modeler-admin-api --cclientid realm-management \
+    --rolename manage-users --rolename query-users --rolename view-realm --rolename view-users
+  echo "its service account: realm-management manage-users, query-users, view-realm, view-users"
+
+  local web="${MODELER_WEB_URL:-https://$HOST:$WEB_PORT}" wid uris
+  wid="$(kca get clients -r modeler -q clientId=modeler-web --fields id --format csv --noquotes)"
+  if [ -n "$wid" ]; then
+    uris="$(kca get "clients/$wid" -r modeler --fields redirectUris | python3 -c '
+import json, sys
+uris = json.load(sys.stdin).get("redirectUris") or []
+want = sys.argv[1].rstrip("/") + "/*"
+print(json.dumps(uris + [want]) if want not in uris else "")' "$web")"
+    if [ -n "$uris" ]; then kca update "clients/$wid" -r modeler -s "redirectUris=$uris"; echo "sign-in may return to $web"; fi
+  fi
+  if [ -d "$KC_HOME/themes/modeler-one" ]; then
+    kca update realms/modeler -s loginTheme=modeler-one && echo "login theme: modeler-one"
+  fi
+
+  kca create "clients/$id/client-secret" -r modeler >/dev/null
+  echo "a new client secret is made; storing it in the console"
+  kca get "clients/$id/client-secret" -r modeler \
+    | python3 -c 'import json, sys; print(json.load(sys.stdin)["value"], end="")' \
+    | (cd "$REPO" && uv run --quiet python -m modeler_api.keycloak_connect --by "keycloak:$user via keycloak.sh connect on $(hostname)") \
+    || die "the console could not keep the new secret (above). The old one no longer works: fix that, then run 'keycloak.sh connect' again"
+}
+
 cmd_stop() {
   if ! running; then echo "keycloak not running"; rm -f "$PID_FILE"; return; fi
   local pid; pid="$(cat "$PID_FILE")"
@@ -261,5 +328,6 @@ case "${1:-}" in
   env) cmd_env ;;
   migrate-db) cmd_migrate_db ;;
   theme) cmd_theme ;;
-  *) sed -n '2,21p' "$0"; exit 2 ;;
+  connect) shift; cmd_connect "$@" ;;
+  *) sed -n '2,24p' "$0"; exit 2 ;;
 esac

@@ -5,10 +5,15 @@ as the realm's service account `modeler-admin-api`, whose client secret the owne
 `keycloak`, sealed under the master key). The account holds only `realm-management`'s `view-realm`, `view-users`,
 `query-users` and `manage-users` (deploy/keycloak/README.md).
 
-What it never does (CLAUDE.md, the plan's §2): it never sets, reads or sends a password. A new person sets their own:
-through the link Keycloak emails them when the realm has a mail server, or, without one, after the owner sets a
-temporary password in Keycloak's own console (the console links to the person's Credentials page). It never deletes a
-person: people are disabled. It never grants `modeler-admin`, held by the platform's owner alone.
+A new person sets their own password and authenticator at their first sign-in. They get there through the link
+Keycloak emails them when the realm has a mail server. Without one (the owner, 2026-11-27: "temporary, shown once"),
+the console sets a random temporary password (`temporary_password`) and shows it to the administrator once, to hand
+over in person or by phone. It is never stored, logged or put on the audit trail (only that one was issued), and
+Keycloak makes the person replace it at their first sign-in. The platform never reads or keeps anyone's own password.
+It never deletes a person: people are disabled. It never grants `modeler-admin`, held by the platform's owner alone.
+
+`deploy/server/keycloak.sh connect` sets the service account up once from the server (no step in Keycloak's console):
+the client, its roles and a new secret, stored here as the active key (`modeler_api.keycloak_connect`).
 
 `Directory` is what the routes use; the tests replace it with an in-memory one.
 """
@@ -17,6 +22,7 @@ from __future__ import annotations
 
 import json
 import re
+import secrets
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -53,7 +59,21 @@ class Directory(Protocol):
     def require(self, user_id: str, actions: list[str]) -> None: ...
     def email_actions(self, user_id: str, actions: list[str]) -> None: ...
     def remove_authenticator(self, user_id: str) -> int: ...
+    def set_temporary_password(self, user_id: str, password: str) -> None: ...
     def console_link(self, user_id: str, tab: str = "credentials") -> str: ...
+
+
+# letters and digits that cannot be misread aloud or on paper (no 0/O, 1/l/I)
+_READABLE = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789"
+
+
+def temporary_password() -> str:
+    """A first password to hand over: 4 groups of 5 readable characters (about 116 bits), with an upper-case letter, a
+    lower-case letter and a digit, so a realm password policy of that kind accepts it."""
+    while True:
+        word = "-".join("".join(secrets.choice(_READABLE) for _ in range(5)) for _ in range(4))
+        if any(c.isupper() for c in word) and any(c.islower() for c in word) and any(c.isdigit() for c in word):
+            return word
 
 
 def _realm_urls(settings: Settings) -> tuple[str, str, str]:
@@ -194,6 +214,10 @@ class KeycloakDirectory:
             self._call("DELETE", f"/users/{user_id}/credentials/{credential['id']}")
         return len(otp)
 
+    def set_temporary_password(self, user_id: str, password: str) -> None:
+        """Keycloak keeps it hashed and makes the person choose their own at their next sign-in (`temporary`)."""
+        self._call("PUT", f"/users/{user_id}/reset-password", {"type": "password", "value": password, "temporary": True})
+
     def console_link(self, user_id: str, tab: str = "credentials") -> str:
         return f"{self._public}/admin/master/console/#/{self._realm}/users/{user_id}/{tab}"
 
@@ -216,8 +240,9 @@ def directory_for(settings: Settings, fields: dict[str, str] | None = None) -> K
     if fields is None:
         fields = ps.KeyStore(settings.read_root, settings.master_key).active("keycloak")
         if fields is None:
-            raise DirectoryError(f"no active Keycloak service-account key: add the client secret of `{SERVICE_CLIENT}` "
-                                 "under Keys (provider: Keycloak service account) and make it active")
+            raise DirectoryError("the console is not connected to Keycloak yet: on the server, run "
+                                 "`bash deploy/server/keycloak.sh connect` once (no active key for the service account "
+                                 f"`{SERVICE_CLIENT}`)")
     return KeycloakDirectory(base, realm, public, fields.get("client_id") or SERVICE_CLIENT, fields["client_secret"])
 
 

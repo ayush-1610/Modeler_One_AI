@@ -3,7 +3,7 @@ import { ApiProblem, Hero } from "@/components/kit";
 import { getPeople, hideUnlessAdmin } from "@/lib/admin";
 
 const LEDE = "Every person of every company, as Keycloak keeps them: add them, give or take roles, move, disable, reset a " +
-  "lost authenticator. Passwords are never typed here.";
+  "lost authenticator or password. Passwords are never typed here.";
 
 /** The realm's people (docs/plans/2026-11-10-admin-console.md, F). */
 export default async function PeoplePage() {

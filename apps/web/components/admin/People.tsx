@@ -2,8 +2,9 @@
 
 // The realm's people, kept in Keycloak and changed here as its service account (docs/plans/2026-11-10-admin-console.md,
 // F): added to a company with their roles, disabled, given or taken roles, moved, a lost authenticator reset. Every
-// change needs a reason and a fresh step-up. No password is ever typed here: a new person sets their own through
-// Keycloak's email, or the owner sets a temporary one in Keycloak's own console (the link this page gives).
+// change needs a reason and a fresh step-up. No password is typed here: a new person sets their own through Keycloak's
+// email, or, when Keycloak cannot email, with a temporary one the console sets and shows here once to hand over (the
+// owner, 2026-11-27). On a company's page (`tenantId`) the same panels hold only that company's people.
 
 import { useMemo, useState } from "react";
 
@@ -42,8 +43,8 @@ function RoleBoxes({ roles, chosen, onChange, prefix }: {
   );
 }
 
-function AddPerson({ page, onDone }: { page: Page; onDone: (p: Page) => void }) {
-  const [tenant, setTenant] = useState(page.companies[0] ?? "");
+function AddPerson({ page, onDone, tenantId }: { page: Page; onDone: (p: Page) => void; tenantId?: string }) {
+  const [tenant, setTenant] = useState(tenantId ?? page.companies[0] ?? "");
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [first, setFirst] = useState("");
@@ -67,17 +68,20 @@ function AddPerson({ page, onDone }: { page: Page; onDone: (p: Page) => void }) 
   }
 
   return (
-    <Panel title="Add a person">
+    <Panel title={tenantId ? "Add a person to this company" : "Add a person"}>
       <p className="muted" style={{ marginTop: 0 }}>
         They are created in Keycloak and set their own password and authenticator at their first sign-in.{" "}
-        {page.smtp ? "Keycloak emails them the link." : "Keycloak has no mail server: the next step is a temporary password you set in Keycloak's own console (the link appears here)."}
+        {page.smtp ? "Keycloak emails them the link."
+          : "Keycloak has no mail server: you get a temporary password here, shown once, to give them in person or by phone."}
       </p>
       <form className="admin-filter" autoComplete="off" onSubmit={(e) => { e.preventDefault(); void add(); }} data-testid="person-add">
-        <label>Company
-          <select value={tenant} onChange={(e) => setTenant(e.target.value)} data-testid="person-tenant">
-            {page.companies.map((c) => <option key={c} value={c}>{c}</option>)}
-          </select>
-        </label>
+        {!tenantId && (
+          <label>Company
+            <select value={tenant} onChange={(e) => setTenant(e.target.value)} data-testid="person-tenant">
+              {page.companies.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </label>
+        )}
         <label>Username<input value={username} onChange={(e) => setUsername(e.target.value)} data-testid="person-username" /></label>
         <label>Email<input type="email" value={email} onChange={(e) => setEmail(e.target.value)} data-testid="person-email" /></label>
         <label>First name<input value={first} onChange={(e) => setFirst(e.target.value)} data-testid="person-first" /></label>
@@ -141,26 +145,52 @@ function PersonEditor({ person, page, onDone }: { person: Person; page: Page; on
   );
 }
 
-export function People({ initial }: { initial: Page }) {
+/** A temporary first password, shown this once: the platform keeps it nowhere (the owner, 2026-11-27). */
+function TemporaryPassword({ page, onHide }: { page: Page; onHide: () => void }) {
+  const [copied, setCopied] = useState(false);
+  if (!page.temporary_password) return null;
+  async function copy() {
+    try { await navigator.clipboard.writeText(page.temporary_password ?? ""); setCopied(true); } catch { setCopied(false); }
+  }
+  return (
+    <div className="banner warn temp-password" role="status" data-testid="people-temporary">
+      <div>Temporary password for <strong>{page.temporary_for}</strong>:</div>
+      <div className="temp-password-row">
+        <code data-testid="people-temporary-password">{page.temporary_password}</code>
+        <button type="button" className="btn small" onClick={() => void copy()} data-testid="people-temporary-copy">
+          {copied ? "Copied" : "Copy"}</button>
+        <button type="button" className="btn small" onClick={onHide} data-testid="people-temporary-hide">I have given it, hide it</button>
+      </div>
+      <div className="muted">
+        Shown only now: it is not kept anywhere, and leaving this page loses it (then choose &ldquo;New password&rdquo;). Give
+        it in person or by phone, not by email or chat. Keycloak makes them choose their own at their first sign-in.
+      </div>
+    </div>
+  );
+}
+
+export function NotConnected({ page }: { page: Page }) {
+  return (
+    <Panel title="The console is not connected to Keycloak yet">
+      <div className="banner warn" data-testid="people-not-ready">{page.problem}</div>
+      <p className="muted">Once, on the server (it creates the console&apos;s service account <code>{page.service_client}</code>,
+        its roles and a new secret, stores the secret here as the active key and tests it):</p>
+      <pre className="code-block" data-testid="people-connect-command">bash deploy/server/keycloak.sh connect</pre>
+      <p className="muted" style={{ marginBottom: 0 }}>
+        Keycloak asks for its own administrator&apos;s password in that terminal; it never reaches this app. Then reload this
+        page: adding people, roles, moving, disabling and resets all happen here.
+      </p>
+    </Panel>
+  );
+}
+
+export function People({ initial, tenantId }: { initial: Page; tenantId?: string }) {
   const [page, setPage] = useState(initial);
-  const [company, setCompany] = useState("");
+  const [company, setCompany] = useState(tenantId ?? "");
   const [open, setOpen] = useState<string | null>(null);
   const shown = useMemo(() => page.people.filter((p) => !company || p.tenant_id === company), [page.people, company]);
 
-  if (!page.ready) {
-    return (
-      <Panel title="Keycloak is not set up for the console yet">
-        <div className="banner warn" data-testid="people-not-ready">{page.problem}</div>
-        <ol className="muted" style={{ marginBottom: 0 }}>
-          <li>In Keycloak (realm <strong>modeler</strong>), create the client <code>{page.service_client}</code> with only
-            &ldquo;Service accounts roles&rdquo;, and give its service account <code>realm-management</code>&apos;s
-            manage-users, query-users, view-realm and view-users (deploy/keycloak/README.md).</li>
-          <li>Here, under <strong>Keys</strong>: add a key of provider &ldquo;Keycloak service account&rdquo; with its client
-            secret, test it, make it active.</li>
-        </ol>
-      </Panel>
-    );
-  }
+  if (!page.ready) return <NotConnected page={page} />;
 
   return (
     <>
@@ -170,16 +200,19 @@ export function People({ initial }: { initial: Page }) {
           {page.notice_link && <a href={page.notice_link} target="_blank" rel="noreferrer" data-testid="people-notice-link">Open their page in Keycloak</a>}
         </div>
       )}
-      <AddPerson page={page} onDone={setPage} />
-      <Panel title="People">
-        <div className="admin-filter" style={{ marginBottom: 10 }}>
-          <label>Company
-            <select value={company} onChange={(e) => setCompany(e.target.value)} data-testid="people-filter">
-              <option value="">every company</option>
-              {page.companies.map((c) => <option key={c} value={c}>{c}</option>)}
-            </select>
-          </label>
-        </div>
+      <TemporaryPassword page={page} onHide={() => setPage({ ...page, temporary_password: null, temporary_for: null })} />
+      <AddPerson page={page} onDone={setPage} tenantId={tenantId} />
+      <Panel title={tenantId ? "Its people in Keycloak" : "People"}>
+        {!tenantId && (
+          <div className="admin-filter" style={{ marginBottom: 10 }}>
+            <label>Company
+              <select value={company} onChange={(e) => setCompany(e.target.value)} data-testid="people-filter">
+                <option value="">every company</option>
+                {page.companies.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </label>
+          </div>
+        )}
         <div className="table-scroll">
           <table data-testid="admin-people-list">
             <thead><tr><th>Person</th><th>Company</th><th>Roles</th><th>Sign-in</th><th>Added</th><th /></tr></thead>

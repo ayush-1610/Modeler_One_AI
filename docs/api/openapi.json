@@ -22854,7 +22854,7 @@
       },
       "PeoplePage": {
         "additionalProperties": false,
-        "description": "The console's people (F). `ready` false: Keycloak is not set up for the console, `problem` says what to do.\n`smtp`: Keycloak can email a person their set-password link; without it the owner sets a first password in\nKeycloak's own console (`notice_link`). Passwords never pass through the platform.",
+        "description": "The console's people (F). `ready` false: Keycloak is not set up for the console, `problem` says what to do.\n`smtp`: Keycloak can email a person their set-password link. Without it, the answer to adding a person (or a new\npassword) carries `temporary_password` once, for `temporary_for`, to hand over; it is kept nowhere and the person\nreplaces it at their first sign-in (the owner, 2026-11-27). `notice_link`: their page in Keycloak, when the console\ncould set neither.",
         "properties": {
           "companies": {
             "items": {
@@ -22921,6 +22921,28 @@
           "smtp": {
             "title": "Smtp",
             "type": "boolean"
+          },
+          "temporary_for": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Temporary For"
+          },
+          "temporary_password": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Temporary Password"
           }
         },
         "required": [
@@ -22932,7 +22954,9 @@
           "companies",
           "people",
           "notice",
-          "notice_link"
+          "notice_link",
+          "temporary_password",
+          "temporary_for"
         ],
         "title": "PeoplePage",
         "type": "object"
@@ -23044,7 +23068,7 @@
         "type": "object"
       },
       "PersonReset": {
-        "description": "A lost authenticator (removed; set up again at the next sign-in) and/or a forgotten password (Keycloak's email\nlink, or a temporary one set by the owner in Keycloak's console: the platform never handles it).",
+        "description": "A lost authenticator (removed; set up again at the next sign-in) and/or a forgotten password (Keycloak's email\nlink, or a temporary one shown once to the administrator: `_first_password`).",
         "properties": {
           "authenticator": {
             "default": false,
@@ -35214,7 +35238,7 @@
         ]
       },
       "post": {
-        "description": "A new person of a company, in Keycloak: they set their own password and authenticator at their first sign-in.",
+        "description": "A new person of a company, in Keycloak: they set their own password and authenticator at their first sign-in,\nthrough Keycloak's email, or with the temporary password this answer carries once when Keycloak cannot email.",
         "operationId": "add_person_api_v1_admin_people_post",
         "parameters": [
           {

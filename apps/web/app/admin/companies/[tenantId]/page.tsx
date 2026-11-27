@@ -5,18 +5,20 @@ import { PricingSwitch, USAGE_HEADS, UsageCells, UsageKpis } from "@/components/
 import { CompanyState } from "@/components/admin/CompanyAdmin";
 import { FilesGo } from "@/components/admin/FilesGo";
 import { GiveProjects } from "@/components/admin/GiveProjects";
+import { People } from "@/components/admin/People";
 import { ApiProblem, Hero } from "@/components/kit";
 import { Panel } from "@/components/kit/Panel";
-import { getCompany, pricedAs, refused } from "@/lib/admin";
+import { getCompany, getPeople, pricedAs, refused } from "@/lib/admin";
 
-/** One company in full: its people and projects, each with what its agents used (the console, build A), and where its
- *  client files may go, set here for all its projects at once (the owner, 2026-11-24). */
+/** One company in full: its people and projects, each with what its agents used (the console, build A), where its
+ *  client files may go, set here for all its projects at once (the owner, 2026-11-24), and its people's sign-in accounts
+ *  in Keycloak, added and changed here (the owner, 2026-11-27). */
 export default async function CompanyPage({ params, searchParams }: {
   params: Promise<{ tenantId: string }>; searchParams: Promise<{ priced_as?: string }>;
 }) {
   const tenantId = decodeURIComponent((await params).tenantId);
   const priced = pricedAs((await searchParams).priced_as);
-  const live = await getCompany(tenantId, priced);
+  const [live, accounts] = await Promise.all([getCompany(tenantId, priced), getPeople(tenantId)]);
   // An unknown company and a person without modeler-admin (the API's 403) look the same: the app's 404.
   if (live.notFound || refused(live.problem)) notFound();
   const data = live.data;
@@ -25,8 +27,8 @@ export default async function CompanyPage({ params, searchParams }: {
   return (
     <main>
       <Hero tone="admin" eyebrow={<Link href={`/admin?priced_as=${priced}`}>Admin console</Link>} title={data?.name || tenantId}
-            lede="Its people (everyone who has signed in), its projects (archived ones too), what their agents used, and where its
-              client files may go." />
+            lede="Its people (add them here; they sign in through Keycloak), its projects (archived ones too), what their agents
+              used, and where its client files may go." />
       <PricingSwitch priced={priced} base={base} />
       {live.problem && <ApiProblem problem={live.problem} />}
       {data && (
@@ -37,7 +39,9 @@ export default async function CompanyPage({ params, searchParams }: {
             </div>
           )}
           <Panel title="This company"><UsageKpis usage={data.usage} /></Panel>
-          <Panel title="People">
+          {accounts.problem && <ApiProblem problem={accounts.problem} />}
+          {accounts.data && <People initial={accounts.data} tenantId={tenantId} />}
+          <Panel title="What each person used">
             <div className="table-scroll">
               <table data-testid="admin-people">
                 <thead><tr><th>Name</th><th>Sign-in id</th><th>Projects</th>{USAGE_HEADS}</tr></thead>

@@ -404,8 +404,10 @@ class PersonView(View):
 
 class PeoplePage(View):
     """The console's people (F). `ready` false: Keycloak is not set up for the console, `problem` says what to do.
-    `smtp`: Keycloak can email a person their set-password link; without it the owner sets a first password in
-    Keycloak's own console (`notice_link`). Passwords never pass through the platform."""
+    `smtp`: Keycloak can email a person their set-password link. Without it, the answer to adding a person (or a new
+    password) carries `temporary_password` once, for `temporary_for`, to hand over; it is kept nowhere and the person
+    replaces it at their first sign-in (the owner, 2026-11-27). `notice_link`: their page in Keycloak, when the console
+    could set neither."""
 
     ready: bool
     problem: str | None
@@ -416,6 +418,8 @@ class PeoplePage(View):
     people: list[PersonView]
     notice: str | None
     notice_link: str | None
+    temporary_password: str | None
+    temporary_for: str | None
 
 
 class PipelineStage(View):

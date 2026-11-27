@@ -53,3 +53,11 @@
 .files-go-row label:first-child { display: flex; align-items: center; gap: 6px; min-width: 220px; }
 .files-go-acts { display: flex; gap: 8px; flex-wrap: wrap; }
 .files-go-history summary { cursor: pointer; color: var(--ink-quiet); }
+
+/* a temporary first password, shown once (the owner, 2026-11-27) */
+.temp-password { display: grid; gap: 8px; margin-bottom: 16px; }
+.temp-password-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.temp-password-row code { font-size: 16px; letter-spacing: 0.04em; padding: 4px 8px; border-radius: 6px;
+  background: var(--raised, #f4f4f6); user-select: all; overflow-wrap: anywhere; }
+.code-block { margin: 8px 0; padding: 10px 12px; border-radius: 8px; background: var(--raised, #f4f4f6);
+  font-family: var(--font-mono, ui-monospace, monospace); font-size: 13px; overflow-x: auto; white-space: pre; }

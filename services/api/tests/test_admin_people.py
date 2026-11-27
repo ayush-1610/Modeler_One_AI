@@ -1,7 +1,8 @@
 """The admin console's F (docs/plans/2026-11-10-admin-console.md): companies and their people, kept in Keycloak and
 changed from the console as the realm's service account. Only `modeler-admin`, a fresh step-up and a reason for every
-change; each an audit event on the company's own chain. No password ever passes through the platform; nobody is
-deleted; `modeler-admin` is never given from the console; the owner cannot lock themselves out."""
+change; each an audit event on the company's own chain. A first password is Keycloak's email link, or a temporary one
+shown once to the administrator (the owner, 2026-11-27) and kept nowhere; nobody is deleted; `modeler-admin` is never
+given from the console; the owner cannot lock themselves out."""
 
 from __future__ import annotations
 
@@ -42,6 +43,8 @@ class FakeDirectory:
         self.mail = smtp
         self.users: dict[str, dict[str, Any]] = {}
         self.emails: list[tuple[str, list[str]]] = []
+        self.passwords: dict[str, str] = {}             # what Keycloak was given, temporary
+        self.refuse_password = False
 
     def add_existing(self, user_id: str, username: str, tenant_id: str, roles: list[str], *, enabled: bool = True,
                      authenticator: bool = True) -> None:
@@ -86,6 +89,12 @@ class FakeDirectory:
         had = self.users[user_id]["authenticator"]
         self.users[user_id]["authenticator"] = False
         return int(had)
+
+    def set_temporary_password(self, user_id, password) -> None:
+        if self.refuse_password:
+            raise kc.DirectoryError("Keycloak answered 400: invalid password")
+        self.passwords[user_id] = password
+        self.require(user_id, ["UPDATE_PASSWORD"])
 
     def console_link(self, user_id, tab="credentials") -> str:
         return f"https://kc.example.test:8443/admin/master/console/#/modeler/users/{user_id}/{tab}"
@@ -136,23 +145,42 @@ def test_a_company_is_added_with_its_name_and_its_own_audit_chain(client, tmp_pa
         assert why in _company(client, wrong).json()["detail"]
 
 
-def test_a_person_is_added_and_sets_their_own_password_by_email_or_through_keycloaks_console(client, tmp_path, directory):
+def test_a_person_is_added_and_gets_a_temporary_password_shown_once_or_keycloaks_email(client, tmp_path, directory):
     _company(client)
-    page = client.post("/api/v1/admin/people", json=NEW, headers=_as("owner")).json()["data"]
+    answer = client.post("/api/v1/admin/people", json=NEW, headers=_as("owner"))
+    page = answer.json()["data"]
     (rita,) = [p for p in page["people"] if p["username"] == "rita"]
     assert (rita["tenant_id"], rita["roles"], rita["required_actions"]) == (
-        "acme", ["modeler-viewer", "modeler-reviewer"], ["UPDATE_PASSWORD", "CONFIGURE_TOTP"])
-    # no mail server: the owner sets a temporary password in Keycloak's own console, never here
-    assert "no mail server" in page["notice"] and page["notice_link"].endswith(f"/users/{rita['id']}/credentials")
-    assert "password" not in json.dumps(NEW) and directory.emails == []
+        "acme", ["modeler-viewer", "modeler-reviewer"], ["CONFIGURE_TOTP", "UPDATE_PASSWORD"])
+    # no mail server: a random temporary password, given to Keycloak and shown to the administrator once (2026-11-27)
+    shown = page["temporary_password"]
+    assert shown == directory.passwords[rita["id"]] and page["temporary_for"] == "Rita Rao (rita)"
+    assert len(shown) == 23 and shown.count("-") == 3 and not set(shown) & set("0O1lI")
+    assert "no mail server" in page["notice"] and "shown only now" in page["notice"] and page["notice_link"] is None
+    assert answer.headers["cache-control"] == "no-store" and directory.emails == []
+    # kept nowhere: not on the audit trail, not in the platform's files, not in the next answer
     (event,) = [e for e in _events(tmp_path, "acme") if e["action"] == "admin.person.add"]
     assert event["after"]["roles"] == ["modeler-viewer", "modeler-reviewer"] and event["reason"] == NEW["reason"]
+    assert event["after"]["first_password"] == "temporary password shown once to the administrator"
+    assert not [f for f in tmp_path.rglob("*") if f.is_file() and shown in f.read_text(encoding="utf-8", errors="ignore")]
+    assert client.get("/api/v1/admin/people", headers=_as("owner")).json()["data"]["temporary_password"] is None
 
     directory.mail = True                                           # with a mail server, Keycloak emails the link
     page = client.post("/api/v1/admin/people", json=NEW | {"username": "sam", "email": "sam@acme.test"},
                        headers=_as("owner")).json()["data"]
-    assert "emailed" in page["notice"] and page["notice_link"] is None
+    assert "emailed" in page["notice"] and page["notice_link"] is None and page["temporary_password"] is None
     assert directory.emails[-1][1] == ["UPDATE_PASSWORD", "CONFIGURE_TOTP"]
+
+
+def test_when_keycloak_refuses_the_temporary_password_the_page_links_to_keycloak(client, tmp_path, directory):
+    _company(client)
+    directory.refuse_password = True
+    page = client.post("/api/v1/admin/people", json=NEW, headers=_as("owner")).json()["data"]
+    (rita,) = [p for p in page["people"] if p["username"] == "rita"]
+    assert page["temporary_password"] is None and "could not set a temporary password" in page["notice"]
+    assert page["notice_link"].endswith(f"/users/{rita['id']}/credentials")
+    (event,) = [e for e in _events(tmp_path, "acme") if e["action"] == "admin.person.add"]
+    assert event["after"]["first_password"] == "link given to set it in Keycloak"
 
 
 def test_adding_a_person_is_refused_without_a_step_up_a_company_or_with_the_admin_role(client):
@@ -193,15 +221,19 @@ def test_a_person_is_disabled_given_roles_and_moved_and_the_owner_cannot_lock_th
                        headers=_as("owner")).status_code == 404
 
 
-def test_a_lost_authenticator_is_removed_and_a_forgotten_password_set_again_outside_the_platform(client, tmp_path, directory):
+def test_a_lost_authenticator_is_removed_and_a_forgotten_password_replaced_by_a_temporary_one(client, tmp_path, directory):
     _company(client)
     directory.add_existing("u-ana", "ana", "acme", ["modeler-viewer"])
-    page = client.post("/api/v1/admin/people/u-ana:reset", json={"authenticator": True, "password": True,
-                                                                "reason": "lost her phone"}, headers=_as("owner")).json()["data"]
-    assert directory.users["u-ana"]["authenticator"] is False and "CONFIGURE_TOTP" in directory.users["u-ana"]["required_actions"]
-    assert "authenticator is removed" in page["notice"] and page["notice_link"].endswith("/users/u-ana/credentials")
+    answer = client.post("/api/v1/admin/people/u-ana:reset", json={"authenticator": True, "password": True,
+                                                                  "reason": "lost her phone"}, headers=_as("owner"))
+    page = answer.json()["data"]
+    assert directory.users["u-ana"]["authenticator"] is False
+    assert {"CONFIGURE_TOTP", "UPDATE_PASSWORD"} <= set(directory.users["u-ana"]["required_actions"])
+    assert "authenticator is removed" in page["notice"] and page["temporary_password"] == directory.passwords["u-ana"]
+    assert answer.headers["cache-control"] == "no-store"
     (event,) = [e for e in _events(tmp_path, "acme") if e["action"] == "admin.person.reset"]
-    assert event["after"] == {"username": "ana", "authenticators_removed": 1, "password": "link given to set it in Keycloak"}
+    assert event["after"] == {"username": "ana", "authenticators_removed": 1,
+                              "password": "temporary password shown once to the administrator"}
     assert client.post("/api/v1/admin/people/u-ana:reset", json={"reason": "x"}, headers=_as("owner")).status_code == 409
 
 
@@ -233,7 +265,7 @@ def test_without_keycloak_set_up_the_page_says_what_to_do(tmp_path, api_settings
         api_settings(read_root=str(tmp_path), oidc_jwks_url="http://127.0.0.1:9/realms/modeler/protocol/openid-connect/certs",
                      oidc_issuer="https://kc.example.test:8443/realms/modeler")
         page = TestClient(app).get("/api/v1/admin/people", headers=_as("owner")).json()["data"]
-        assert page["ready"] is False and "no active Keycloak service-account key" in page["problem"]
+        assert page["ready"] is False and "keycloak.sh connect" in page["problem"]
         refused = TestClient(app).post("/api/v1/admin/people", json=NEW, headers=_as("owner"))
         assert refused.status_code == 409
     finally:
@@ -289,7 +321,7 @@ class _Keycloak(BaseHTTPRequestHandler):
         if path.startswith(f"{prefix}/roles/"):
             name = path.rsplit("/", 1)[-1]
             return self._answer(200, {"id": f"id-{name}", "name": name})
-        if path.startswith(f"{prefix}/users/") and path.endswith("/role-mappings/realm"):
+        if path.startswith(f"{prefix}/users/") and path.endswith(("/role-mappings/realm", "/reset-password")):
             return self._answer(204)
         if path.startswith(f"{prefix}/users/"):
             user_id = path.split("/")[5]
@@ -337,6 +369,9 @@ def test_the_client_creates_a_person_as_the_service_account_and_keeps_their_othe
     assert _Keycloak.users["new-1"]["attributes"] == {"tenant_id": ["beta"], "projects": ["p-1"]}
     assert directory.smtp() is False
     assert directory.console_link("new-1") == "https://kc.example.test:8443/admin/master/console/#/modeler/users/new-1/credentials"
+    directory.set_temporary_password("new-1", "Abcde-23456-fghij-KLMNP")
+    assert ("PUT", "/admin/realms/modeler/users/new-1/reset-password",
+            {"type": "password", "value": "Abcde-23456-fghij-KLMNP", "temporary": True}) in _Keycloak.calls
     wrong = kc.KeycloakDirectory(keycloak, "modeler", "https://x", "modeler-admin-api", "nope")
     with pytest.raises(kc.DirectoryError, match="refused the service account"):
         wrong.people()

@@ -349,7 +349,8 @@ export interface paths {
         put?: never;
         /**
          * Add Person
-         * @description A new person of a company, in Keycloak: they set their own password and authenticator at their first sign-in.
+         * @description A new person of a company, in Keycloak: they set their own password and authenticator at their first sign-in,
+         *     through Keycloak's email, or with the temporary password this answer carries once when Keycloak cannot email.
          */
         post: operations["add_person_api_v1_admin_people_post"];
         delete?: never;
@@ -11605,8 +11606,10 @@ export interface components {
         /**
          * PeoplePage
          * @description The console's people (F). `ready` false: Keycloak is not set up for the console, `problem` says what to do.
-         *     `smtp`: Keycloak can email a person their set-password link; without it the owner sets a first password in
-         *     Keycloak's own console (`notice_link`). Passwords never pass through the platform.
+         *     `smtp`: Keycloak can email a person their set-password link. Without it, the answer to adding a person (or a new
+         *     password) carries `temporary_password` once, for `temporary_for`, to hand over; it is kept nowhere and the person
+         *     replaces it at their first sign-in (the owner, 2026-11-27). `notice_link`: their page in Keycloak, when the console
+         *     could set neither.
          */
         PeoplePage: {
             /** Companies */
@@ -11627,6 +11630,10 @@ export interface components {
             service_client: string;
             /** Smtp */
             smtp: boolean;
+            /** Temporary For */
+            temporary_for: string | null;
+            /** Temporary Password */
+            temporary_password: string | null;
         };
         /**
          * PersonChange
@@ -11664,7 +11671,7 @@ export interface components {
         /**
          * PersonReset
          * @description A lost authenticator (removed; set up again at the next sign-in) and/or a forgotten password (Keycloak's email
-         *     link, or a temporary one set by the owner in Keycloak's console: the platform never handles it).
+         *     link, or a temporary one shown once to the administrator: `_first_password`).
          */
         PersonReset: {
             /**

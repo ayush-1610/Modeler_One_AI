@@ -30,7 +30,7 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, ConfigDict, Field
 
 from modeler_api import agent_jobs, dataroom_runs
@@ -779,10 +779,11 @@ def _person(directory: kc.Directory, p: dict[str, Any]) -> dict[str, Any]:
 
 
 def _people_page(directory: kc.Directory, settings: Settings, tenant_id: str | None = None, *,
-                 notice: str | None = None, link: str | None = None) -> dict[str, Any]:
+                 notice: str | None = None, link: str | None = None, first: FirstPassword | None = None) -> dict[str, Any]:
     companies = _companies(_root(settings))
     page = {"ready": False, "problem": directory.problem, "smtp": False, "service_client": kc.SERVICE_CLIENT,
-            "roles": list(kc.ROLES), "companies": companies, "people": [], "notice": notice, "notice_link": link}
+            "roles": list(kc.ROLES), "companies": companies, "people": [], "notice": notice, "notice_link": link,
+            "temporary_password": first.password if first else None, "temporary_for": first.who if first else None}
     if directory.problem:
         return envelope(page)
     try:
@@ -845,7 +846,7 @@ class PersonChange(BaseModel):
 
 class PersonReset(BaseModel):
     """A lost authenticator (removed; set up again at the next sign-in) and/or a forgotten password (Keycloak's email
-    link, or a temporary one set by the owner in Keycloak's console: the platform never handles it)."""
+    link, or a temporary one shown once to the administrator: `_first_password`)."""
 
     password: bool = False
     authenticator: bool = False
@@ -870,8 +871,11 @@ def people(principal: Admin, settings: SettingsDep, directory: kc.DirectoryDep, 
 
 
 @router.post("/admin/people", **answers(PeoplePage))
-def add_person(body: PersonNew, principal: Admin, settings: SettingsDep, directory: kc.DirectoryDep) -> dict[str, Any]:
-    """A new person of a company, in Keycloak: they set their own password and authenticator at their first sign-in."""
+def add_person(body: PersonNew, principal: Admin, settings: SettingsDep, directory: kc.DirectoryDep,
+               response: Response) -> dict[str, Any]:
+    """A new person of a company, in Keycloak: they set their own password and authenticator at their first sign-in,
+    through Keycloak's email, or with the temporary password this answer carries once when Keycloak cannot email."""
+    response.headers["Cache-Control"] = "no-store"
     _root(settings)
     ensure_step_up(principal)
     _company_open(settings, body.tenant_id)
@@ -884,28 +888,46 @@ def add_person(body: PersonNew, principal: Admin, settings: SettingsDep, directo
     except kc.DirectoryError as exc:
         raise _refused_by(exc) from exc
     name = f"{body.first_name.strip()} {body.last_name.strip()}"
+    first = _first_password(directory, user_id, name, body.username, body.email.strip(), list(kc.FIRST_SIGN_IN))
     _on_chain(settings, principal, body.tenant_id, "admin.person.add", "person", user_id, reason=body.reason,
               after={"username": body.username, "name": name, "email": body.email.strip(), "tenant_id": body.tenant_id,
-                     "roles": roles})
-    notice, link = _first_password(directory, user_id, name, body.email.strip(), list(kc.FIRST_SIGN_IN))
-    return _people_page(directory, settings, notice=notice, link=link)
+                     "roles": roles, "first_password": first.how})
+    return _people_page(directory, settings, notice=first.notice, link=first.link, first=first)
 
 
-def _first_password(directory: kc.Directory, user_id: str, name: str, email: str, actions: list[str]) -> tuple[str, str | None]:
-    """Keycloak emails the person their link when it has a mail server; else the owner sets a temporary password in
-    Keycloak's own console (the link). Either way the platform never sees a password."""
+class FirstPassword:
+    """How a person gets their first password: Keycloak's email, a temporary one shown here once, or (when Keycloak
+    refuses both) the link to their page in Keycloak's console. `how` is what the audit trail keeps: never the password."""
+
+    def __init__(self, notice: str, how: str, *, link: str | None = None, password: str | None = None, who: str = ""):
+        self.notice, self.how, self.link, self.password, self.who = notice, how, link, password, who
+
+
+def _first_password(directory: kc.Directory, user_id: str, name: str, username: str, email: str,
+                    actions: list[str]) -> FirstPassword:
+    """Keycloak emails the person their link when it has a mail server. Else the console sets a random temporary
+    password, shown once to the administrator to hand over (the owner, 2026-11-27); the person replaces it at their
+    first sign-in. The platform keeps no password."""
+    then = "choose their own and set up their authenticator" if "CONFIGURE_TOTP" in actions else "choose their own"
     try:
         if directory.smtp():
             directory.email_actions(user_id, actions)
             what = "password and authenticator" if "CONFIGURE_TOTP" in actions else "password"
-            return f"Keycloak emailed {name} ({email}) a link, valid 12 hours, to set their {what}.", None
+            return FirstPassword(f"Keycloak emailed {name} ({email}) a link, valid 12 hours, to set their {what}.", "emailed")
         problem = "Keycloak has no mail server, so it cannot email them."
     except kc.DirectoryError as exc:
         problem = f"Keycloak could not email them ({exc})."
-    told = (f"{problem} Open their page in Keycloak (the link), Credentials → Set password, Temporary on, and give the "
-            f"temporary password to {name} yourself (in person or by phone, never by this platform). At their first "
-            "sign-in they choose their own and set up their authenticator.")
-    return told, directory.console_link(user_id)
+    password = kc.temporary_password()
+    try:
+        directory.set_temporary_password(user_id, password)
+    except kc.DirectoryError as exc:
+        told = (f"{problem} The console could not set a temporary password either ({exc}). Open their page in Keycloak "
+                f"(the link), Credentials → Set password, Temporary on, and give it to {name} yourself.")
+        return FirstPassword(told, "link given to set it in Keycloak", link=directory.console_link(user_id))
+    told = (f"{problem} Give {name} the temporary password below yourself, in person or by phone (not by email or "
+            f"chat). It is shown only now. At their first sign-in they {then}.")
+    return FirstPassword(told, "temporary password shown once to the administrator", password=password,
+                         who=f"{name} ({username})")
 
 
 @router.post("/admin/people/{user_id}:change", **answers(PeoplePage))
@@ -947,7 +969,8 @@ def change_person(user_id: str, body: PersonChange, principal: Admin, settings: 
 
 @router.post("/admin/people/{user_id}:reset", **answers(PeoplePage))
 def reset_person(user_id: str, body: PersonReset, principal: Admin, settings: SettingsDep,
-                 directory: kc.DirectoryDep) -> dict[str, Any]:
+                 directory: kc.DirectoryDep, response: Response) -> dict[str, Any]:
+    response.headers["Cache-Control"] = "no-store"
     _root(settings)
     ensure_step_up(principal)
     if not (body.password or body.authenticator):
@@ -955,7 +978,7 @@ def reset_person(user_id: str, body: PersonReset, principal: Admin, settings: Se
     person = _find(directory, user_id)
     name = f"{person['first_name']} {person['last_name']}".strip() or person["username"]
     removed = 0
-    notice, link = None, None
+    notice, first = None, None
     try:
         if body.authenticator:
             removed = directory.remove_authenticator(user_id)
@@ -964,13 +987,12 @@ def reset_person(user_id: str, body: PersonReset, principal: Admin, settings: Se
     except kc.DirectoryError as exc:
         raise _refused_by(exc) from exc
     if body.password:
-        told, link = _first_password(directory, user_id, name, person["email"], ["UPDATE_PASSWORD"])
-        notice = f"{notice} {told}" if notice else told
+        first = _first_password(directory, user_id, name, person["username"], person["email"], ["UPDATE_PASSWORD"])
+        notice = f"{notice} {first.notice}" if notice else first.notice
     _on_chain(settings, principal, person["tenant_id"] or principal.tenant_id, "admin.person.reset", "person", user_id,
               reason=body.reason, after={"username": person["username"], "authenticators_removed": removed,
-                                         "password": ("link given to set it in Keycloak" if link else "emailed")
-                                         if body.password else None})
-    return _people_page(directory, settings, notice=notice, link=link)
+                                         "password": first.how if first else None})
+    return _people_page(directory, settings, notice=notice, link=first.link if first else None, first=first)
 
 
 @router.post("/admin/companies", **answers(CompanyPage))
