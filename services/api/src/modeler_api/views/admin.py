@@ -414,6 +414,8 @@ class PeoplePage(View):
     smtp: bool
     service_client: str
     connect_command: str       # `keycloak.sh connect` from the administrator's own computer: ssh to this server
+    authenticator: str         # who must use an authenticator: "everyone", or "admins" (TEMPORARY, the owner 2026-11-27)
+    authenticator_on_command: str   # `keycloak.sh authenticator on`, from the administrator's own computer
     roles: list[str]
     companies: list[str]
     people: list[PersonView]

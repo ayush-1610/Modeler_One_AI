@@ -40,6 +40,10 @@ SERVICE_CLIENT = "modeler-admin-api"
 ROLES = ("modeler-viewer", "modeler-curator", "modeler-reviewer", "modeler-qa")
 SHOWN_ROLES = (*ROLES, "modeler-admin")
 FIRST_SIGN_IN = ("UPDATE_PASSWORD", "CONFIGURE_TOTP")      # a new person's own password and authenticator
+# The signing step-up's flow (deploy/keycloak/realm-modeler.json). `keycloak.sh authenticator off` keeps its code step
+# for `modeler-admin` only (the owner, 2026-11-27, TEMPORARY until the owner's own end-to-end test); `on` restores it.
+LOA2_FLOW = "modeler loa2 signing"
+EVERYONE, ADMINS = "everyone", "admins"
 EMAIL_LINK_SECONDS = 12 * 3600
 TIMEOUT_S = 20
 
@@ -54,7 +58,8 @@ class Directory(Protocol):
     def smtp(self) -> bool: ...
     def people(self) -> list[dict[str, Any]]: ...
     def create(self, *, username: str, email: str, first_name: str, last_name: str, tenant_id: str,
-               roles: list[str]) -> str: ...
+               roles: list[str], actions: tuple[str, ...] = FIRST_SIGN_IN) -> str: ...
+    def authenticator_for(self) -> str: ...
     def set_enabled(self, user_id: str, enabled: bool) -> None: ...
     def set_tenant(self, user_id: str, tenant_id: str) -> None: ...
     def set_roles(self, user_id: str, *, add: list[str], remove: list[str]) -> None: ...
@@ -173,11 +178,22 @@ class KeycloakDirectory:
         # the whole representation back: a partial one would drop the attributes it leaves out (`projects`)
         self._call("PUT", f"/users/{user['id']}", user)
 
+    def authenticator_for(self) -> str:
+        """Who must use an authenticator: `everyone` (the realm as imported) or `admins` (`keycloak.sh authenticator
+        off`: the signing flow's code step is off but for `modeler-admin`). Read from the flow itself; unknown counts as
+        `everyone`, the stricter."""
+        try:
+            _, steps = self._call("GET", f"/authentication/flows/{urllib.parse.quote(LOA2_FLOW)}/executions")
+        except DirectoryError:
+            return EVERYONE
+        code = next((e for e in steps or [] if e.get("providerId") == "auth-otp-form" and e.get("level") == 0), None)
+        return ADMINS if code is not None and code.get("requirement") == "DISABLED" else EVERYONE
+
     def create(self, *, username: str, email: str, first_name: str, last_name: str, tenant_id: str,
-               roles: list[str]) -> str:
+               roles: list[str], actions: tuple[str, ...] = FIRST_SIGN_IN) -> str:
         headers, _ = self._call("POST", "/users", {
             "username": username, "email": email, "firstName": first_name, "lastName": last_name, "enabled": True,
-            "emailVerified": True, "attributes": {"tenant_id": [tenant_id]}, "requiredActions": list(FIRST_SIGN_IN)})
+            "emailVerified": True, "attributes": {"tenant_id": [tenant_id]}, "requiredActions": list(actions)})
         location = headers.get("Location") or headers.get("location") or ""
         user_id = location.rstrip("/").rsplit("/", 1)[-1]
         if not user_id:
@@ -236,18 +252,22 @@ class _Unavailable:
         return refuse
 
 
-def connect_command() -> str:
-    """`keycloak.sh connect` as the administrator types it on their own computer: ssh to the server this API runs on
+def server_command(args: str) -> str:
+    """`keycloak.sh <args>` as the administrator types it on their own computer: ssh to the server this API runs on
     (its host name) and the script by its path there. Keycloak and the console's key store are only on the server; run
     on a laptop, the script stops and says so."""
     script = Path(__file__).resolve().parents[4] / "deploy" / "server" / "keycloak.sh"
     if not script.is_file():
-        return "bash deploy/server/keycloak.sh connect"
+        return f"bash deploy/server/keycloak.sh {args}"
     where, home = str(script), str(Path.home())
     if where.startswith(home + "/"):
         where = "~" + where[len(home):]
     host = socket.gethostname().split(".")[0] or "the-server"
-    return f"ssh -t {host} 'bash {where} connect'"
+    return f"ssh -t {host} 'bash {where} {args}'"
+
+
+def connect_command() -> str:
+    return server_command("connect")
 
 
 def directory_for(settings: Settings, fields: dict[str, str] | None = None) -> KeycloakDirectory:

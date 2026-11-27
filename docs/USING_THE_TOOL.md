@@ -345,6 +345,14 @@ email, name, roles, and why. Confirm with your password and authenticator code.
   is kept nowhere: if you leave the page first, use *New password* on the person to make another. At their first
   sign-in they choose their own password and set up their authenticator app.
 
+**The authenticator (for now off for everyone but administrators).** Until the owner's end-to-end test, only
+platform administrators give the 6-digit code; everyone else signs in and signs with their password alone, and new
+people are not asked to set up the app. Turn it back on for everyone from the Mac:
+```bash
+ssh -t adt-server 'bash ~/Modeler_One_AI/deploy/server/keycloak.sh authenticator on'
+```
+(`authenticator off` turns it off again.) The People page says which holds.
+
 **Change a person:** on the company's page or Admin → People → *Change*: roles, move to another company, disable or
 enable, *Reset authenticator* (a lost phone), *New password* (a forgotten one). Each change needs a reason and is on the
 company's audit trail. People are disabled, never deleted.

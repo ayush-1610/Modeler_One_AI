@@ -161,3 +161,79 @@ def test_connect_run_off_the_server_says_where_to_run_it(tmp_path):
     done = _refused(tmp_path, installed=False)
     assert done.returncode != 0 and "Keycloak is not installed on this machine" in done.stderr
     assert "ssh -t <the server> 'bash ~/Modeler_One_AI/deploy/server/keycloak.sh connect'" in done.stderr
+
+
+# --- keycloak.sh authenticator off | on (the owner, 2026-11-27: off except for admins, TEMPORARY) -----------------------
+
+KCADM_FLOWS = r'''#!/usr/bin/env bash
+# a stand-in for kcadm.sh holding the signing flow as Keycloak would; each call logged without its session file
+printf '%s\n' "$*" | sed 's/--config [^ ]* //' >> "$LOG"
+args="$(echo "$*" | sed 's/--config [^ ]* //')"
+case "$args" in
+  "config credentials"*) ;;
+  *"create authentication/flows/modeler%20loa2%20signing/executions/flow"*) touch "$STATE/sub";;
+  *"get authentication/flows/modeler%20loa2%20signing/executions"*)
+    if [ -f "$STATE/sub" ]; then
+      echo '[{"id":"cond","providerId":"conditional-level-of-authentication","level":0},
+             {"id":"pw","providerId":"auth-password-form","level":0},{"id":"code","providerId":"auth-otp-form","level":0},
+             {"id":"sub","authenticationFlow":true,"displayName":"modeler loa2 admin code","level":0},
+             {"id":"role","providerId":"conditional-user-role","level":1},{"id":"otp2","providerId":"auth-otp-form","level":1}]'
+    else
+      echo '[{"id":"cond","providerId":"conditional-level-of-authentication","level":0},
+             {"id":"pw","providerId":"auth-password-form","level":0},{"id":"code","providerId":"auth-otp-form","level":0}]'
+    fi;;
+  *"get roles/modeler-admin/users"*) echo owner-id;;
+  *"get users -r modeler"*)
+    echo '[{"id":"owner-id","username":"ayush","requiredActions":["CONFIGURE_TOTP"]},
+           {"id":"rita-id","username":"rita","requiredActions":["UPDATE_PASSWORD","CONFIGURE_TOTP"]},
+           {"id":"ben-id","username":"ben","requiredActions":[]}]';;
+esac
+'''
+
+
+def _switch(tmp_path: Path, mode: str) -> tuple[subprocess.CompletedProcess, list[str]]:
+    kc_root, logs, state = tmp_path / "kc", tmp_path / "logs", tmp_path / "state"
+    _executable(kc_root / "keycloak-26.7.5" / "bin" / "kcadm.sh", KCADM_FLOWS)
+    _executable(kc_root / "jdk" / "bin" / "java", "#!/bin/sh\necho 'version \"21.0.1\"'\n")
+    logs.mkdir(exist_ok=True)
+    state.mkdir(exist_ok=True)
+    (logs / "keycloak.pid").write_text(str(os.getpid()))
+    log = tmp_path / f"kcadm-{mode}.log"
+    env = {"HOME": str(tmp_path), "PATH": "/usr/bin:/bin", "MODELER_REPO": str(REPO), "MODELER_DATA": str(tmp_path / "d"),
+           "MODELER_LOGS": str(logs), "MODELER_SECRETS_FILE": str(tmp_path / "none.env"),
+           "MODELER_KEYCLOAK_HOME": str(kc_root), "LOG": str(log), "STATE": str(state)}
+    done = subprocess.run(["bash", str(REPO / "deploy/server/keycloak.sh"), "authenticator", mode], env=env,
+                          capture_output=True, text=True, timeout=60, check=False)
+    return done, log.read_text().splitlines() if log.exists() else []
+
+
+def _required(calls: list[str], flow: str, step: str) -> str | None:
+    found = [c for c in calls if c.startswith(f"update {flow}/executions") and f'"id": "{step}"' in c]
+    return json.loads(found[-1].split("-b ", 1)[1])["requirement"] if found else None
+
+
+def test_authenticator_off_keeps_the_code_for_admins_only_and_clears_everyone_elses_set_up(tmp_path):
+    done, calls = _switch(tmp_path, "off")
+    assert done.returncode == 0, done.stdout + done.stderr
+    loa2, sub = "authentication/flows/modeler%20loa2%20signing", "authentication/flows/modeler%20loa2%20admin%20code"
+    assert any(c.startswith(f"create {loa2}/executions/flow") and "alias=modeler loa2 admin code" in c for c in calls)
+    assert [c.split("provider=")[1] for c in calls if c.startswith(f"create {sub}/executions/execution")] == [
+        "conditional-user-role", "auth-otp-form"]
+    config = next(c for c in calls if c.startswith("create authentication/executions/role/config"))
+    assert json.loads(config.split("-b ", 1)[1])["config"] == {"condUserRole": "modeler-admin", "negate": "false"}
+    assert (_required(calls, sub, "role"), _required(calls, sub, "otp2")) == ("REQUIRED", "REQUIRED")
+    assert (_required(calls, loa2, "sub"), _required(calls, loa2, "code")) == ("CONDITIONAL", "DISABLED")
+    assert all("--no-merge" in c for c in calls if c.startswith(f"update {loa2}/executions"))
+    # rita stops being asked to set one up; the administrator keeps it; ben had nothing to clear
+    assert [c for c in calls if c.startswith("update users/")] == ['update users/rita-id -r modeler -s requiredActions=["UPDATE_PASSWORD"]']
+    assert "authenticator OFF except for modeler-admin" in done.stdout and "TEMPORARY" in done.stdout
+
+    done, calls = _switch(tmp_path, "on")                              # and back: everyone again, nothing created
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert (_required(calls, loa2, "code"), _required(calls, loa2, "sub")) == ("REQUIRED", "DISABLED")
+    assert not [c for c in calls if c.startswith("create ")] and "authenticator ON for everyone" in done.stdout
+
+
+def test_authenticator_needs_off_or_on(tmp_path):
+    done, _ = _switch(tmp_path, "maybe")
+    assert done.returncode != 0 and "authenticator off" in done.stderr

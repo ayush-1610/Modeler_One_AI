@@ -7,6 +7,13 @@ that commit and §4 was not updated with it, §4 is stale — fix it before trus
 
 ## 30-second system state
 
+> **TEMPORARY setting on adt-server, to undo (the owner, 2026-11-27): the authenticator is OFF for everyone except
+> `modeler-admin`.** Others sign in and sign (Part 11 step-up) with their password alone; administrators still give the
+> code. The owner asked for it "for now only, after I test the full product end to end myself and then I'll come back
+> to this and enable. Remember this." When the owner says the end-to-end test is done, remind them and turn it back on:
+> `ssh -t adt-server 'bash ~/Modeler_One_AI/deploy/server/keycloak.sh authenticator on'` (the People page shows the
+> same command while it is off). Details: CHANGELOG 2026-11-27, `deploy/keycloak/README.md`.
+
 Modeler One automates PBPK model development on the open-source OSP engine (ospsuite R 12.4.x, PK-Sim 12.3, .NET 8,
 run as an isolated subprocess through `services/engine-worker/r/run_job.R`) and is meant to produce
 regulator-reproducible packages under ICH M15 and 21 CFR Part 11. The scientific procedure is MS-01
@@ -432,6 +439,13 @@ streams; every Data room turn and switch is recorded; each answer names the mode
 - Each run is audited at its start and kept in the room's run history.
 - Still open: consent per client rather than per project (done 2026-11-24, below), and an admin registry of clients'
   agreements.
+
+**2026-11-27: the authenticator off except for admins (TEMPORARY, see the note at the top).**
+- `keycloak.sh authenticator off|on` edits the realm's signing flow on the server with kcadm: off keeps the code step
+  in a sub-flow for `modeler-admin` only (Condition - user role) and clears everyone else's pending "set up your
+  authenticator"; on restores the code step for everyone. The console reads which holds from the flow
+  (`KeycloakDirectory.authenticator_for`) and asks new people to set one up only when it is on.
+- Run only against a stand-in kcadm here; its first real run is on adt-server.
 
 **2026-11-27: people from the admin console only.**
 - `bash deploy/server/keycloak.sh connect` (once on the server; Keycloak asks for its admin's password) sets up the

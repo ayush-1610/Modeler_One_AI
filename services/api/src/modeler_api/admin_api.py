@@ -782,7 +782,9 @@ def _people_page(directory: kc.Directory, settings: Settings, tenant_id: str | N
                  notice: str | None = None, link: str | None = None, first: FirstPassword | None = None) -> dict[str, Any]:
     companies = _companies(_root(settings))
     page = {"ready": False, "problem": directory.problem, "smtp": False, "service_client": kc.SERVICE_CLIENT,
-            "connect_command": kc.connect_command(), "roles": list(kc.ROLES), "companies": companies, "people": [], "notice": notice, "notice_link": link,
+            "connect_command": kc.connect_command(), "authenticator": kc.EVERYONE,
+            "authenticator_on_command": kc.server_command("authenticator on"), "roles": list(kc.ROLES),
+            "companies": companies, "people": [], "notice": notice, "notice_link": link,
             "temporary_password": first.password if first else None, "temporary_for": first.who if first else None}
     if directory.problem:
         return envelope(page)
@@ -792,7 +794,13 @@ def _people_page(directory: kc.Directory, settings: Settings, tenant_id: str | N
         return envelope(page | {"problem": str(exc)})
     rows = [_person(directory, p) for p in people if tenant_id is None or p["tenant_id"] == tenant_id]
     rows.sort(key=lambda r: (r["tenant_id"], r["name"].lower()))
-    return envelope(page | {"ready": True, "smtp": smtp, "people": rows})
+    return envelope(page | {"ready": True, "smtp": smtp, "people": rows, "authenticator": directory.authenticator_for()})
+
+
+def _needs_authenticator(directory: kc.Directory, roles: list[str]) -> bool:
+    """Whether this person must set up an authenticator: everyone's rule, or, while `keycloak.sh authenticator off`
+    holds (the owner, 2026-11-27, TEMPORARY), the platform's administrators only."""
+    return "modeler-admin" in roles or directory.authenticator_for() != kc.ADMINS
 
 
 def _refused_by(exc: kc.DirectoryError) -> HTTPException:
@@ -882,13 +890,14 @@ def add_person(body: PersonNew, principal: Admin, settings: SettingsDep, directo
     roles = _roles_given(body.roles)
     if not roles or "@" not in body.email:
         raise HTTPException(status_code=409, detail="a person needs an email address and at least one role")
+    actions = kc.FIRST_SIGN_IN if _needs_authenticator(directory, roles) else ("UPDATE_PASSWORD",)
     try:
         user_id = directory.create(username=body.username, email=body.email.strip(), first_name=body.first_name.strip(),
-                                   last_name=body.last_name.strip(), tenant_id=body.tenant_id, roles=roles)
+                                   last_name=body.last_name.strip(), tenant_id=body.tenant_id, roles=roles, actions=actions)
     except kc.DirectoryError as exc:
         raise _refused_by(exc) from exc
     name = f"{body.first_name.strip()} {body.last_name.strip()}"
-    first = _first_password(directory, user_id, name, body.username, body.email.strip(), list(kc.FIRST_SIGN_IN))
+    first = _first_password(directory, user_id, name, body.username, body.email.strip(), list(actions))
     _on_chain(settings, principal, body.tenant_id, "admin.person.add", "person", user_id, reason=body.reason,
               after={"username": body.username, "name": name, "email": body.email.strip(), "tenant_id": body.tenant_id,
                      "roles": roles, "first_password": first.how})
@@ -982,8 +991,12 @@ def reset_person(user_id: str, body: PersonReset, principal: Admin, settings: Se
     try:
         if body.authenticator:
             removed = directory.remove_authenticator(user_id)
-            directory.require(user_id, ["CONFIGURE_TOTP"])
-            notice = f"{name}'s authenticator is removed; they set up a new one at their next sign-in."
+            if _needs_authenticator(directory, person["roles"]):
+                directory.require(user_id, ["CONFIGURE_TOTP"])
+                notice = f"{name}'s authenticator is removed; they set up a new one at their next sign-in."
+            else:
+                notice = (f"{name}'s authenticator is removed. For now only administrators need one, so they sign in "
+                          "and sign with their password alone.")
     except kc.DirectoryError as exc:
         raise _refused_by(exc) from exc
     if body.password:

@@ -11612,6 +11612,10 @@ export interface components {
          *     could set neither.
          */
         PeoplePage: {
+            /** Authenticator */
+            authenticator: string;
+            /** Authenticator On Command */
+            authenticator_on_command: string;
             /** Companies */
             companies: string[];
             /** Connect Command */
