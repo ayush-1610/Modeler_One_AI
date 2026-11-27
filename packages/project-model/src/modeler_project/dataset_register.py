@@ -7,6 +7,7 @@ usable only after the person approved the overlay of the computed points on the 
 
 from __future__ import annotations
 
+from collections.abc import Collection
 from typing import Any
 
 from modeler_project.artifacts import ArtifactKind
@@ -82,11 +83,32 @@ def decide_dataset(ws: Workspace, dataset_id: str, *, state: EvidenceState, reas
 
 
 def set_study_facts(ws: Workspace, dataset_id: str, *, changes: dict[str, Any], by: str,
-                    demographics_choice: str | None = None) -> ObservedDataset:
+                    demographics_choice: str | None = None, confirm: Collection[str] = (),
+                    meal_template: str | None = None) -> ObservedDataset:
     """A person's change to a study's facts, such as the multiple-dose regimen or the demographics (D-29), with no
     reason asked (D-27; the audit keeps the facts before and after). A None value clears a fact. The study id stays.
-    Choosing the healthy adult default removes any demographics; giving demographics records them as entered."""
+    Choosing the healthy adult default removes any demographics; giving demographics records them as entered.
+
+    The Data room's proposals (D1; plan 2026-11-26 §9, slice 5b): `confirm` takes the named ones as they are
+    (population, sex, meal); `meal_template` gives every meal of the study that PK-Sim meal; demographics given here
+    answer the population and sex proposals, a meal template the meal's. What stays proposed keeps the inputs waiting."""
     dataset = _latest(ws, dataset_id)
+    unknown = set(confirm) - {"population", "sex", "meal"}
+    if unknown:
+        raise DatasetError(f"nothing to confirm by the name {', '.join(sorted(unknown))}: population, sex or meal")
+    if meal_template is not None:
+        from modeler_project.dataroom.assemble import MEAL_HIGH_FAT, MEAL_STANDARD
+
+        if meal_template not in (MEAL_STANDARD, MEAL_HIGH_FAT):
+            raise DatasetError(f"meal template {meal_template!r} is not one of {MEAL_STANDARD!r}, {MEAL_HIGH_FAT!r}")
+        meals = [{**m, "template": meal_template, "name": meal_template.split(": ", 1)[-1]}
+                 for m in dataset.study.get("meals") or ()]
+        if not meals:
+            raise DatasetError("the study has no meal to give a template")
+        changes = {**changes, "meals": meals}
+    answered = set(confirm) | ({"population", "sex"} if changes.get("demographics") else set()) \
+        | ({"meal"} if meal_template is not None else set())
+    proposed = {k: v for k, v in (dataset.proposed or {}).items() if k not in answered} or None
     if "study_id" in changes and changes["study_id"] != dataset.study.get("study_id"):
         raise DatasetError("the study id is not changed here")
     population = (changes.get("demographics") or {}).get("population")
@@ -101,8 +123,9 @@ def set_study_facts(ws: Workspace, dataset_id: str, *, changes: dict[str, Any], 
         choice = demographics_choice
     elif demographics_choice == "entered" and not study.get("demographics"):
         raise DatasetError("give the demographics (population, sex, age …), or choose the healthy adult default")
-    updated = check_dataset(dataset.model_copy(update={"study": study, "demographics_choice": choice}))
-    what = ", ".join(sorted(changes)) or f"demographics: {choice}"
+    updated = check_dataset(dataset.model_copy(update={"study": study, "demographics_choice": choice,
+                                                       "proposed": proposed}))
+    what = ", ".join([*sorted(changes), *(f"{k} confirmed" for k in sorted(set(confirm)))]) or f"demographics: {choice}"
     ws.commit(ArtifactKind.DATASET, dataset_id, updated.to_content(), actor=by, reason=f"study facts set: {what}")
     return updated
 

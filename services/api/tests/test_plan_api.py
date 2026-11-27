@@ -256,8 +256,9 @@ def test_external_values_are_blinded_until_the_map_is_signed(setup):
     revealed = c.post(f"/api/v1/projects/p1/datasets/{hidden['id']}:reveal", headers=H,
                       json={"reason": "check the digitized points before acceptance"}).json()["data"]
     assert revealed["series"][0]["values"][0] == 20.0
-    # the stored dataset, read through its owner: every key of ObservedDataset, and no redaction mark (phase 9e)
-    assert set(revealed) == set(ObservedDataset.model_fields) and "blinded" not in revealed
+    # the stored dataset, read through its owner: every key of ObservedDataset, and no redaction mark (phase 9e); the
+    # Data room's proposals are written only while they wait (plan 2026-11-26 §9, slice 5b), so old content is unchanged
+    assert set(revealed) == set(ObservedDataset.model_fields) - {"proposed"} and "blinded" not in revealed
     audit = c.get("/api/v1/projects/p1/audit", headers=H).json()["data"]["events"]
     assert any(e["action"] == "dataset.reveal" and "digitized points" in e["reason"] for e in audit)
     assert any(e["action"] == "blinding.set" and e["after"] is True for e in audit)

@@ -49,9 +49,12 @@ test("a made-up delivery goes from the Data room through Start and Inputs to a s
   await expect(page.getByTestId("question-text-shown")).toContainText("reformulated Exampleamide tablet");
   await page.getByTestId("question-confirm").click();
   await expect(page.getByTestId("question-confirmed")).toBeVisible();
-  const decisions = (await (await request.get(room, { headers: AUTH })).json()).data.decisions as { id: string; suggested: string }[];
+  const decisions = (await (await request.get(room, { headers: AUTH })).json()).data.decisions as
+    { id: string; suggested: string; on_inputs: boolean }[];
   expect(decisions.map((d) => d.id)).toContain("applications");
-  for (const d of decisions) {
+  // the population, sex and meal template are left for Inputs (the owner's D1): sending is not held for them
+  expect(decisions.filter((d) => d.on_inputs).map((d) => d.id).sort()).toEqual(["meal:EX-01", "population:EX-01", "sex:EX-01"]);
+  for (const d of decisions.filter((x) => !x.on_inputs)) {
     const made = await request.post(`${room}/decisions/${encodeURIComponent(d.id)}`, { headers: AUTH,
       data: { chosen: d.suggested, reason: "as suggested" } });
     expect(made.ok(), await made.text()).toBeTruthy();
@@ -103,6 +106,25 @@ test("a made-up delivery goes from the Data room through Start and Inputs to a s
     expect((await request.post(`${api}/evidence/${id}:decide`, { headers: AUTH,
       data: { state: "ACCEPTED", reason: "checked" } })).ok()).toBeTruthy();
   }
+  // the room's proposals wait on Individuals, each with why and its source: one arm confirmed as proposed, the other
+  // with another meal template
+  const waiting = await request.post(`${api}/inputs:assemble`, { headers: AUTH });
+  expect((await waiting.json()).data.readiness.content.checks).toContainEqual(expect.objectContaining({
+    check: "the Data room's proposals confirmed (D1)", ok: false }));
+  await page.goto(`/projects/${projectId}/inputs?tab=individuals`);
+  const proposals = page.getByTestId("dataroom-proposals");
+  await expect(proposals.getByTestId("proposal-EX-01-A")).toContainText("Asian (Tanaka 1996)");
+  await expect(proposals.getByTestId("proposal-EX-01-A")).toContainText("EX-01 synopsis.pdf · p1, line 5");
+  await page.screenshot({ path: test.info().outputPath("inputs-dataroom-proposals.png"), fullPage: true });
+  await proposals.getByTestId("proposal-confirm-EX-01-A").click();
+  await expect(proposals.getByTestId("proposal-EX-01-A")).toHaveCount(0);
+  await proposals.getByTestId("proposal-meal-EX-01-B").selectOption("Meal: High-fat breakfast (Human)");
+  await proposals.getByTestId("proposal-confirm-EX-01-B").click();
+  await expect(page.getByTestId("dataroom-proposals")).toHaveCount(0);
+  const evidence = (await (await request.get(`${api}/evidence`, { headers: AUTH })).json()).data.datasets as
+    { study: { study_id: string; meals: { template: string }[] } }[];
+  expect(evidence.find((d) => d.study.study_id === "EX-01-B")!.study.meals.map((m) => m.template))
+    .toEqual(["Meal: High-fat breakfast (Human)", "Meal: High-fat breakfast (Human)"]);
   const assembled = await request.post(`${api}/inputs:assemble`, { headers: AUTH });
   expect((await assembled.json()).data.readiness.content.ready).toBeTruthy();
 
@@ -155,7 +177,8 @@ test("a made-up delivery goes from the Data room through Start and Inputs to a s
   expect(design.inputs).toMatchObject({ test_formulation: "Exampleamide_100_mg_reformulated",
     reference_formulation: "Refamide_100_mg", n_subjects: 24, n_trials: 100, seed: 20261124, pos_threshold: 0.8 });
   expect((design.inputs.observed_be as { source: string }).source).toContain("the room's own NCA");
-  expect((map.split_limitations as string[]).some((l) => l.startsWith("Data room decision, Population for EX-01"))).toBe(true);
+  expect((map.split_limitations as string[]).some((l) => l.startsWith("Data room proposal, Population for EX-01: Asian (Tanaka 1996), "
+    + "chosen on Inputs"))).toBe(true);
 
   // --- a second send of the same delivery: nothing new, the MAP stays signed, and there is nothing to sign again
   const again = await request.post(`${room}/publish`, { headers: AUTH, data: { reason: "sent again by mistake" } });

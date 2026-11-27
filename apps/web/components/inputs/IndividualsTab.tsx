@@ -151,6 +151,64 @@ function SharedLine({ studies, projectId, run, options, whyOf }: {
   );
 }
 
+type Proposal = { value: string; label: string; why: string; sources: string[] };
+const MEALS = ["Meal: Standard (Human)", "Meal: High-fat breakfast (Human)"] as const;   // harvested PK-Sim meal templates
+const WHAT: Record<string, string> = { population: "Population", sex: "Sex", meal: "Meal template" };
+
+function proposalsOf(s: StudyRow): Record<string, Proposal> {
+  return ((s.facts as Record<string, unknown>).proposed ?? {}) as Record<string, Proposal>;
+}
+
+/** The Data room's proposals for each study's choices made here (the owner's D1; plan 2026-11-26 §9, slice 5b): the
+ *  population, the sex and the meal template the room suggests from the delivery's facts, each with why and its
+ *  sources. A person confirms them as proposed, chooses another meal template, or changes the individual below; until
+ *  then the inputs wait ("the Data room's proposals confirmed (D1)"). */
+function Proposals({ studies, projectId, run }: { studies: StudyRow[]; projectId: string; run: Run }) {
+  const waiting = studies.filter((s) => !s.excluded && s.dataset_id && Object.keys(proposalsOf(s)).length);
+  const [meal, setMeal] = useState<Record<string, string>>({});
+  if (!waiting.length) return null;
+  const path = "/api/v1/projects/{project_id}/datasets/{dataset_id}:study" as const;
+  const confirm = (s: StudyRow) => {
+    const keys = Object.keys(proposalsOf(s)) as ("population" | "sex" | "meal")[];
+    const chosen = meal[s.study_id];
+    const changed = chosen && chosen !== proposalsOf(s).meal?.value;
+    return send("post", path, { project_id: projectId, dataset_id: s.dataset_id ?? "" },
+                { confirm: keys.filter((k) => !(k === "meal" && changed)), ...(changed ? { meal_template: chosen } : {}) });
+  };
+  return (
+    <section className="card proposals" data-testid="dataroom-proposals" aria-label="Proposed by the Data room">
+      <h3 className="m-0">Proposed by the Data room</h3>
+      <p className="muted fs-13 m-4-0-0">The Data room suggests these from the delivery&apos;s facts. Confirm them, choose another meal
+        template, or change an individual below: the inputs wait for it.</p>
+      {waiting.map((s) => (
+        <div key={s.study_id} className="proposal mt-12" data-testid={`proposal-${s.study_id}`} id={`proposal-${s.study_id}`}>
+          <strong>{s.study_id}</strong>
+          <ul className="m-4-0-0">
+            {Object.entries(proposalsOf(s)).map(([k, p]) => (
+              <li key={k}>
+                {WHAT[k] ?? k}:{" "}
+                {k === "meal" ? (
+                  <select value={meal[s.study_id] ?? p.value} onChange={(e) => setMeal({ ...meal, [s.study_id]: e.target.value })}
+                          aria-label={`meal template for ${s.study_id}`} data-testid={`proposal-meal-${s.study_id}`}>
+                    {MEALS.map((m) => <option key={m} value={m}>{m.replace("Meal: ", "").replace(" (Human)", "")}</option>)}
+                  </select>
+                ) : <strong>{p.label}</strong>}
+                {p.why && <span className="muted fs-12"> · {p.why}</span>}
+                {p.sources.length > 0 && <span className="muted fs-12"> · {p.sources.join("; ")}</span>}
+              </li>
+            ))}
+          </ul>
+          <button type="button" className="btn primary mt-6" data-testid={`proposal-confirm-${s.study_id}`}
+                  aria-label={`Confirm the Data room's proposals for ${s.study_id}`}
+                  onClick={() => void run(() => confirm(s), `${s.study_id}: the Data room's proposals are confirmed.`, MODEL)}>
+            Confirm
+          </button>
+        </div>
+      ))}
+    </section>
+  );
+}
+
 /** The individuals of the studies (D-29): each study in the model with its form, those sharing an individual on one line;
  *  the client's studies still to confirm, with their demographics now (on the delivery) or once confirmed (the sheet
  *  form). */
@@ -182,6 +240,7 @@ export function StudyIndividuals({ studies, projectId, run, options, subjects = 
   return (
     <>
       {used.length === 0 && <p className="muted m-0 fs-13">No study is in the model yet: each confirmed study gets its individual here.</p>}
+      <Proposals studies={used} projectId={projectId} run={run} />
       {[...groups.values()].map((list) => <SharedLine key={list.map((s) => s.study_id).join("|")} studies={list} projectId={projectId} run={run}
                                                        options={options} whyOf={whyOf} />)}
       {alone.map((s) => <Individual key={`${s.study_id}-${s.demographics}`} s={s} projectId={projectId} run={run} options={options}

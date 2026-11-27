@@ -811,7 +811,7 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
         ethnicity = _first(sfacts, "study.ethnicity")
         guess = (population_of(ethnicity.fact.value) if ethnicity else None) or "European_ICRP_2002"
         decisions.append(_decision(inputs.decisions, RoomDecision(
-            id=f"population:{sid}", title=f"Population for {sid}",
+            id=f"population:{sid}", title=f"Population for {sid}", on_inputs=True,
             question="Which PK-Sim population database stands for the study's subjects?",
             options=tuple(Option(id=p, label=POPULATION_LABELS[p]) for p in POPULATIONS), suggested=guess,
             why=(f"the study's subjects are {ethnicity.fact.value}" if ethnicity else "no ethnicity found: the reference European")
@@ -822,17 +822,18 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
         stated = sex_of(sex_fact.fact.value) if sex_fact else None
         if (males and females) or stated == "MIXED":
             decisions.append(_decision(inputs.decisions, RoomDecision(
-                id=f"sex:{sid}", title=f"Sex of {sid}'s individual",
+                id=f"sex:{sid}", title=f"Sex of {sid}'s individual", on_inputs=True,
                 question="The study has men and women; a PK-Sim individual is one sex. Which stands for the study?",
                 options=(Option(id="MALE", label="Male"), Option(id="FEMALE", label="Female")),
                 suggested="FEMALE" if females > males else "MALE",
-                why=f"{males} men and {females} women in the modeling set" if males or females else sex_fact.fact.value,
+                why=(f"{males} {'man' if males == 1 else 'men'} and {females} {'woman' if females == 1 else 'women'} in the "
+                     "modeling set") if males or females else sex_fact.fact.value,
                 evidence=(sex_fact.chip,) if sex_fact and sex_fact.chip else ())))
         meal = _first(sfacts, "study.meal_composition") or _first(sfacts, "study.fed") or _first(sfacts, "study.meal_times")
         if meal:
             high_fat = "high" in meal.fact.value.lower() and "fat" in meal.fact.value.lower()
             decisions.append(_decision(inputs.decisions, RoomDecision(
-                id=f"meal:{sid}", title=f"Meal template for {sid}",
+                id=f"meal:{sid}", title=f"Meal template for {sid}", on_inputs=True,
                 question="Which PK-Sim meal stands for the study's meals?",
                 options=(Option(id="standard", label="Standard meal"), Option(id="high_fat", label="High-fat breakfast")),
                 suggested="high_fat" if high_fat else "standard",

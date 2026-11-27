@@ -413,6 +413,9 @@ class RoomDecision(_B):
     reason: str = ""
     by: str = ""
     at: str = ""
+    # chosen on Inputs, not here (the owner's D1; plan 2026-11-26 §9, slice 5b): the room's suggestion and its evidence
+    # go to Inputs as a proposal with the study's datasets; the room does not wait for it
+    on_inputs: bool = False
 
 
 class DataRequest(_B):

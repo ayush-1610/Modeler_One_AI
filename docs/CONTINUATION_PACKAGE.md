@@ -2,7 +2,7 @@
 
 **Purpose:** the entry point for anyone — engineer or AI model — resuming work on Modeler One. Read in this order:
 `CLAUDE.md` (working rules) → this file (where things stand) → `CHANGELOG.md` (what changed, why, when) → the active
-plan in `docs/plans/`. **Last brought up to date: 2026-11-26 (§4.0f: the Data room regrouped by purpose and scored value by value, phases 0–3 and 5a of `docs/plans/2026-11-26-data-room-groups-and-corpus-benchmark.md`; §4.0e and earlier were current on 2026-11-25).** If HEAD is far ahead of
+plan in `docs/plans/`. **Last brought up to date: 2026-11-27 (§4.0f: the Data room regrouped by purpose and scored value by value, phases 0–3, 5a and 5b of `docs/plans/2026-11-26-data-room-groups-and-corpus-benchmark.md`; §4.0e and earlier were current on 2026-11-25).** If HEAD is far ahead of
 that commit and §4 was not updated with it, §4 is stale — fix it before trusting it.
 
 ## 30-second system state
@@ -265,7 +265,15 @@ a delivery by file type although most of what clients send never reaches a model
   filtered to what is placed in it, plus the BE results, the dose card and the other analytes. Old `?section=` addresses
   open the section that now holds them. The BE values of rules 0.4 are confirmed by the owner (still UNVERIFIED).
 
-**Next:** phase 5b–5d (§9 of the plan: the D1 choices on Inputs, the empty and reading states, each check on its item);
+- **Phase 5b (the D1 choices on Inputs, 2026-11-27):** the population, sex and meal template are no longer decided in
+  the room (`RoomDecision.on_inputs`); the send writes the suggestions on the study record as before and keeps them on
+  the dataset as `ObservedDataset.proposed`; Inputs' Individuals tab confirms them or picks the other meal template
+  (`:study` with `confirm`, `meal_template`), and readiness waits until it is done ("the Data room's proposals confirmed
+  (D1)"). **Deviation:** the release model stays a room decision (it decides which release evidence the send accepts;
+  the plan's §8 says why).
+
+**Next:** phase 5c–5d (§9 of the plan: the empty and reading states, each check on its item); the release model on
+Inputs (5b's deviation);
 phase 4's agent work with the agents' baseline on the server's in-house model (D6). The corpus data and answer keys stay
 outside git.
 

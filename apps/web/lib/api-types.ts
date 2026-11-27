@@ -1697,8 +1697,9 @@ export interface paths {
         put?: never;
         /**
          * Set Dataset Study
-         * @description A study's facts: the multiple-dose regimen, the demographics or the explicit healthy adult default (D-29), with
-         *     no reason asked (D-27; the audit keeps before and after). The inputs are assembled again.
+         * @description A study's facts: the multiple-dose regimen, the demographics or the explicit healthy adult default (D-29), and
+         *     the Data room's proposals confirmed or changed (D1), with no reason asked (D-27; the audit keeps before and after).
+         *     The inputs are assembled again.
          */
         post: operations["set_dataset_study_api_v1_projects__project_id__datasets__dataset_id__study_post"];
         delete?: never;
@@ -11141,6 +11142,10 @@ export interface components {
              */
             note: string;
             origin: components["schemas"]["DataOrigin"];
+            /** Proposed */
+            proposed?: {
+                [key: string]: unknown;
+            } | null;
             /**
              * Proposed At
              * Format: date-time
@@ -13265,6 +13270,11 @@ export interface components {
             evidence: components["schemas"]["Chip"][];
             /** Id */
             id: string;
+            /**
+             * On Inputs
+             * @default false
+             */
+            on_inputs: boolean;
             /** Options */
             options: components["schemas"]["Option"][];
             /** Question */
@@ -14657,8 +14667,12 @@ export interface components {
             changes?: {
                 [key: string]: unknown;
             };
+            /** Confirm */
+            confirm?: ("population" | "sex" | "meal")[];
             /** Demographics Choice */
             demographics_choice?: ("entered" | "healthy_adult_default") | null;
+            /** Meal Template */
+            meal_template?: string | null;
         };
         /**
          * StudyRow

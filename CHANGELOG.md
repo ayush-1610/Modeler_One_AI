@@ -13,6 +13,49 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 
 ## [Unreleased] — make the pipeline do real PBPK, S0 → S7
 
+### Changed — the population, sex and meal template are chosen on Inputs, with the Data room's facts as proposals (2026-11-27)
+- **Why:** the owner's D1 and slice 5b of `docs/plans/2026-11-26-data-room-groups-and-corpus-benchmark.md` (§9), the
+  owner's go of 2026-11-27. These are model choices, made where the model's inputs are confirmed. The room has the
+  facts behind them; Inputs is where a person decides.
+- **What, the Data room:**
+  - The `population:`, `sex:` and `meal:` decisions are marked `on_inputs` (`RoomDecision.on_inputs`). "Send to the
+    model" no longer waits for them.
+  - Clinical Study Design shows each one as a proposal ("Chosen on Inputs": the suggestion, why, its sources, a link
+    to Individuals). They are no longer decision cards, and the headline counts only the room's own decisions.
+- **What, the send:**
+  - The suggestions go on the study record as before, so the values sent are unchanged.
+  - Each arm's dataset keeps them as `ObservedDataset.proposed` (value, label, why, sources). This sits outside the
+    study record because `split.StudyRecord` is locked, and is left out of the stored content when empty, so older
+    datasets are byte-identical.
+  - A second send of the same data keeps what a person chose on Inputs (the dataset's id leaves the proposals out).
+- **What, Inputs:**
+  - Individuals lists them under "Proposed by the Data room". A person confirms them, or picks the other harvested
+    meal template.
+  - `POST …/datasets/{id}:study` takes `confirm` (population, sex, meal) and `meal_template` (one of the two harvested
+    templates, applied to every meal of the study). Demographics entered there answer the population and sex.
+  - Readiness gains "the Data room's proposals confirmed (D1)". To do lists each study with a `proposal` item under
+    "Confirm the client's data" (to confirm, not missing) that opens the study's proposals on Individuals.
+- **What, the MAP:** each proposal is named among the limitations as chosen on Inputs (`DecisionLine.on_inputs`), not
+  as a room decision that was not made.
+- **Also:** the room's reason for its sex suggestion counts in the singular when one ("5 men and 1 woman", was
+  "1 women").
+- **Deviation (recorded in the plan, §8):** the release model stays a room decision. It decides which release evidence
+  (Weibull parameters or particle sizes) the send accepts as the formulation's. Moving it means sending both sets
+  unaccepted and accepting one on Inputs, which changes the evidence register's flow, not the page.
+- **Impact:** a project whose room was already sent is unchanged; its D1 choices were made in the room and carry no
+  proposals. A new send asks the modeller on Inputs instead of in the room.
+- **API:** `RoomDecision.on_inputs`, `ObservedDataset.proposed` (optional), `StudyFacts.confirm` and
+  `StudyFacts.meal_template`. The OpenAPI snapshot and `apps/web/lib/api-types.ts` are regenerated.
+- **Tests:**
+  - `test_dataroom.py`: the proposals are sent with why and sources, and sending is not held. What is sent is
+    identical to the suggestions taken in the room. A confirmation and a changed meal template survive a second send.
+  - `test_inputs.py`: readiness and To do wait for the proposals, and a confirmation clears them.
+  - `test_inputs_api.py`: the `:study` confirm body.
+  - `test_brief_from_room.py`: the MAP's proposal line.
+  - `test_plan_api.py`: its "every key of ObservedDataset" check allows `proposed` to be absent.
+  - E2E: `dataroom.spec.ts` checks the proposals on Clinical Study Design. `dataroom-to-map.spec.ts` leaves D1 to
+    Inputs and confirms on Individuals (one arm as proposed, the other with the high-fat meal) before the MAP.
+
 ### Changed — the Data room page in its groups: Question, Model Input Data, Supporting Evidence, Source Records, Data Requests (2026-11-26)
 - **Why:** phase 5 of `docs/plans/2026-11-26-data-room-groups-and-corpus-benchmark.md` (slice 5a, §9), the owner's go
   of 2026-11-26. The page showed a delivery as 13 sections by kind of file. It now follows the layers map and the
@@ -38,7 +81,7 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
   - A room without a layout keeps the old rail.
 - **Not yet (later slices of §9):**
   - 5b: the D1 choices (population, sex, meal, release model) move to Inputs. Until then they stay as decisions under
-    Clinical Study Design.
+    Clinical Study Design. (Done, 2026-11-27, above; the release model deferred.)
   - 5c: the empty and reading states.
   - 5d: each check on the item it concerns.
   - The printable evidence report keeps its sections as they were.

@@ -28,7 +28,7 @@ PARTS: dict[str, tuple[str, ...]] = {
     "model_input/products": ("products",),
     "model_input/substance": ("substance", "solubility", "dose_card"),
     "model_input/release": ("dissolution",),
-    "model_input/design": ("studies", "design_values"),
+    "model_input/design": ("studies", "design_values", "inputs_choices"),
     "model_input/observed": ("observed", "be"),
     "model_input/scenarios": ("plan", "inputs"),
     "supporting/formulation_differences": ("products", "composition"),
@@ -101,7 +101,8 @@ def build_layout(view: DataRoomView, *, required: Iterable[str] = (), layers: La
                    "supporting/other_dissolution": [d.id for d in view.dissolution if d.id not in selected]}
     decisions: dict[str, list[str]] = {}
     for d in view.decisions:
-        decisions.setdefault(_decision_section(d), []).append(d.id)
+        if not d.on_inputs:              # population, sex and meal template are chosen on Inputs (D1): proposals here
+            decisions.setdefault(_decision_section(d), []).append(d.id)
     old = {s.id: s for s in view.sections}
     counts = {
         "question/question": int(view.question is not None),

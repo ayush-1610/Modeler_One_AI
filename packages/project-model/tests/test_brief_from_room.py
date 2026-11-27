@@ -338,7 +338,10 @@ def test_the_maps_limitations_name_the_rooms_decisions_requests_nca_findings_and
         DecisionLine(id="population:EX-01", title="Population for EX-01", chosen="Asian (Tanaka 1996)", suggested=True,
                      waiting=False, reason="", why="the study's subjects are Asian", by="Dr Modeller"),
         DecisionLine(id="analysis-set:EX-01", title="Analysis set for EX-01", chosen="Completed: 7 subjects",
-                     suggested=False, waiting=False, reason="the client's statistical set", by="Dr Modeller")),
+                     suggested=False, waiting=False, reason="the client's statistical set", by="Dr Modeller"),
+        # D1 (plan 2026-11-26 §9, slice 5b): left for Inputs, the room's suggestion sent there as a proposal
+        DecisionLine(id="meal:EX-01", title="Meal template for EX-01", chosen="High-fat breakfast", suggested=True,
+                     waiting=False, why="the composition says high-fat", on_inputs=True)),
         open_requests=(RequestLine(id="D-01", area="D", title="Subject 3: every concentration below the LLOQ",
                                    why="confirm the dose was taken", required=True),
                        RequestLine(id="C-05", area="C", title="Solid form", why="Usually needed for …", required=False)),
@@ -349,6 +352,8 @@ def test_the_maps_limitations_name_the_rooms_decisions_requests_nca_findings_and
         ("Data room decision, Population for EX-01: Asian (Tanaka 1996) (by Dr Modeller); the room's suggestion: the "
          "study's subjects are Asian"),
         "Data room decision, Analysis set for EX-01: Completed: 7 subjects (by Dr Modeller); the client's statistical set",
+        ("Data room proposal, Meal template for EX-01: High-fat breakfast, chosen on Inputs (the study record holds what "
+         "was confirmed or changed there); the room's reason: the composition says high-fat"),
         "Open data request D-01 (Data room): Subject 3: every concentration below the LLOQ. confirm the dose was taken",
         "Usually-needed data requests still open in the Data room: C-05",
         "The client's NCA (Data room), EX-01: 2 of the client's 30 NCA values are not reproduced",

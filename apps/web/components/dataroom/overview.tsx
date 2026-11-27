@@ -136,7 +136,7 @@ export function Headline({ room }: { room: Room }) {
     ["files", String(read), read === 1 ? "file read" : "files read"],
     ["inputs", room.inputs.length ? `${filled} of ${room.inputs.length}` : "0", "inputs found"],
     ["requests", String(room.requests.filter((r) => r.status === "open").length), "data requests open"],
-    ["decisions", String(room.decisions.filter((d) => !d.chosen).length), "decisions waiting"],
+    ["decisions", String(room.decisions.filter((d) => !d.chosen && !d.on_inputs).length), "decisions waiting"],
   ];
   return (
     <div className="dr-tiles" data-testid="headline">

@@ -120,6 +120,34 @@ def test_an_ehc_fraction_is_set_on_the_individual_at_its_harvested_path(tmp_path
     assert not [i for i in report["issues"] if i["target"] == "elim.ehc_fraction"]
 
 
+def test_the_data_rooms_proposals_keep_the_inputs_waiting_until_a_person_confirms_them(tmp_path):
+    """The owner's D1 (plan 2026-11-26 §9, slice 5b): a study the Data room sent carries its population and meal template
+    as proposals; readiness waits, the to-do opens Individuals, and a person's confirmation there clears it."""
+    from modeler_project.dataset_register import datasets, set_study_facts
+    from modeler_project.inputs import catalog_rows, todo
+
+    ws = _project(tmp_path)
+    ds = datasets(ws)[0]
+    proposal = {"value": "Asian_Tanaka_1996", "label": "Asian (Tanaka 1996)", "why": "the study's subjects are Asian",
+                "sources": ["synopsis.md · body, line 4"]}
+    ws.commit(ArtifactKind.DATASET, ds.id, {**ws.latest(ArtifactKind.DATASET, ds.id).content, "proposed": {"population": proposal}},
+              actor="u", reason="as the Data room sends it")
+    ready = assemble(ws, by="u")["readiness"].content
+    assert next(r for r in catalog_rows(ws) if r["dataset_id"] == ds.id)["proposed"] == {"population": proposal}
+    failing = {c["check"]: c["detail"] for c in ready["checks"] if not c["ok"]}
+    assert not ready["ready"] and failing["the Data room's proposals confirmed (D1)"] == [
+        "doe-iv-250: confirm or change its population (proposed by the Data room)"]
+    assert [(t["target"], t["tab"], t["dataset_id"]) for t in todo(ws) if t["kind"] == "proposal"] == [
+        ("doe-iv-250", "individuals", ds.id)]
+    with pytest.raises(ValueError, match="no meal to give a template"):
+        set_study_facts(ws, ds.id, changes={}, meal_template="Meal: Standard (Human)", by="u")
+    set_study_facts(ws, ds.id, changes={}, confirm=["population"], by="u")
+    assert "proposed" not in ws.latest(ArtifactKind.DATASET, ds.id).content
+    checks = {c["check"]: c["ok"] for c in assemble(ws, by="u")["readiness"].content["checks"]}
+    assert checks["the Data room's proposals confirmed (D1)"]
+    assert ws.history(ArtifactKind.DATASET, ds.id)[-1]["reason"] == "study facts set: population confirmed"
+
+
 def test_demographics_are_never_defaulted_silently_and_a_multiple_dose_study_names_its_regimen(tmp_path):
     """D-29: a study without demographics waits until a person enters them or chooses the healthy adult default; an
     MD study without its number of doses and interval is not run as a single dose."""

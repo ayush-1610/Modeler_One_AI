@@ -487,18 +487,22 @@ def digitize_dataset(project_id: str, body: DigitizeBody, principal: Writer, sto
 class StudyFacts(BaseModel):
     changes: dict[str, Any] = Field(default_factory=dict)   # study facts to set (None clears one); the id stays
     demographics_choice: Literal["entered", "healthy_adult_default"] | None = None
+    # the Data room's proposals (D1; plan 2026-11-26 §9, slice 5b): those taken as they are, and the meal template
+    confirm: list[Literal["population", "sex", "meal"]] = Field(default_factory=list)
+    meal_template: str | None = None
 
 
 @router.post("/projects/{project_id}/datasets/{dataset_id}:study", **answers(ObservedDataset))
 def set_dataset_study(project_id: str, dataset_id: str, body: StudyFacts, principal: Writer, store: StoreDep) -> dict[str, Any]:
-    """A study's facts: the multiple-dose regimen, the demographics or the explicit healthy adult default (D-29), with
-    no reason asked (D-27; the audit keeps before and after). The inputs are assembled again."""
+    """A study's facts: the multiple-dose regimen, the demographics or the explicit healthy adult default (D-29), and
+    the Data room's proposals confirmed or changed (D1), with no reason asked (D-27; the audit keeps before and after).
+    The inputs are assembled again."""
     ws = workspace_for(project_id, principal, store)
-    if not body.changes and body.demographics_choice is None:
-        raise HTTPException(status_code=422, detail="give the facts to change, or the demographics choice")
+    if not body.changes and body.demographics_choice is None and not body.confirm and body.meal_template is None:
+        raise HTTPException(status_code=422, detail="give the facts to change, the demographics choice, or what to confirm")
     try:
         updated = set_study_facts(ws, dataset_id, changes=body.changes, demographics_choice=body.demographics_choice,
-                                  by=principal.user_id)
+                                  confirm=body.confirm, meal_template=body.meal_template, by=principal.user_id)
     except DatasetError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     refresh_inputs(ws, by=principal.user_id)   # the inputs follow every change (redesign §3.2)

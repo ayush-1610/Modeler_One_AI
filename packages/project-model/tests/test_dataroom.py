@@ -649,10 +649,11 @@ def test_a_data_row_is_no_statement_a_dose_is_a_mass_and_a_counted_list_gives_it
 # --- "Send to the model", right for the study it sends (plan 2026-11-24 §7, phase 4) ----------------------------------
 
 
-def _send_room(room, *, drop=(), files=(), decisions=None, entered=(), question=None):
+def _send_room(room, *, drop=(), files=(), decisions=None, entered=(), question=None, inputs_choices=True):
     """The room "Send to the model" reads (`_published_room`: both products' releases read, the study fasted), with the
     synopsis's facts of the `drop` fields left out, more files ((name, text, triage topics, facts)), decisions other than
-    the suggestions, values a person entered, another question card. Every other decision is made as suggested."""
+    the suggestions, values a person entered, another question card. Every other decision is made as suggested; with
+    `inputs_choices` False, the population, sex and meal template are left for Inputs (the owner's D1)."""
     from modeler_intake.room_specs import FileTriage
 
     _published_room(room)
@@ -678,7 +679,7 @@ def _send_room(room, *, drop=(), files=(), decisions=None, entered=(), question=
     for _ in range(3):        # a decision that appears once another is made (release model, the convention) too
         view = assembled()
         waiting = {d.id: {"chosen": d.suggested, "reason": "as suggested", "by": "user:m"} for d in view.decisions
-                   if d.id not in made}
+                   if d.id not in made and (inputs_choices or not d.on_inputs)}
         if not waiting:
             return view
         made |= waiting
@@ -974,3 +975,63 @@ def test_a_release_a_weibull_curve_does_not_describe_is_said_beside_its_decision
                                                   "the SME decides (dissolution_similarity / MS-01)")
     fast_said = release_remark(fast, load_rules())
     assert "releases ≥ 85 % within 15 min" in fast_said and fast_said.endswith("the SME decides (dissolution_similarity / MS-01)")
+
+
+
+def test_the_population_and_meal_are_proposals_for_inputs_and_a_persons_answer_there_survives_a_resend(room, tmp_path):
+    """The owner's D1 (plan 2026-11-26 §9, slice 5b): the room suggests the population, sex and meal template and
+    Inputs decides. Sending is not held for them; each arm's dataset carries the suggestions with why and where from,
+    and Inputs' readiness waits until a person confirms or changes each. Sending the same data again keeps the answer."""
+    from modeler_project import dataset_register
+    from modeler_project.dataroom.assemble import MEAL_HIGH_FAT, MEAL_STANDARD
+    from modeler_project.dataroom.layout import build_layout
+    from modeler_project.dataroom.publish import plan_publication, publish
+    from modeler_project.inputs import waiting_proposals
+    from modeler_project.store import FileProjectStore
+    from modeler_project.workspace import Workspace
+
+    said = "All subjects were healthy male volunteers, mean age 31 years (range 19-45), mean weight 72.0 kg."
+    synopsis = ("dem.txt", f"{said}\n", (), [
+        Fact(field="study.sex", subject="EX-01", value="male", quote=said),
+        Fact(field="study.age", subject="EX-01", value="mean age 31 years (range 19-45)", quote=said),
+        Fact(field="study.weight", subject="EX-01", value="mean weight 72.0 kg", quote=said)])
+    view = _send_room(room, drop=("study.treatment_code",), question=FE_CARD, files=[_food_effect(), synopsis],
+                      inputs_choices=False)
+    left = {d.id for d in view.decisions if not d.chosen}
+    assert left == {"population:EX-01", "meal:EX-01"} and all(d.on_inputs for d in view.decisions if d.id in left)
+    placed = {d for g in build_layout(view) for s in g.sections for d in s.decisions}
+    assert not left & placed                                          # the room's page shows them as proposals only
+    plan = plan_publication(view, by="u")
+    assert plan.blocked == ()                                         # not held: Inputs decides
+    for d in plan.datasets:
+        assert d.study["demographics"]["population"] == "Asian_Tanaka_1996"      # the suggestion, on the record
+        assert d.proposed["population"] == {"value": "Asian_Tanaka_1996", "label": "Asian (Tanaka 1996)",
+                                            "why": "the study's subjects are Asian",
+                                            "sources": ["D/synopsis.md · body, line 4"]}
+        assert d.proposed["meal"]["value"] == MEAL_HIGH_FAT and d.proposed["meal"]["sources"] == ["D/fe.txt · body, line 2"]
+        assert "sex" not in d.proposed                                # every subject male: nothing to propose
+    # §9's check: what is sent is what it was when the room's suggestions were taken there (the proposals aside)
+    taken = plan_publication(_send_room(room, drop=("study.treatment_code",), question=FE_CARD,
+                                        files=[_food_effect(), synopsis]), by="u")
+    assert [d.id for d in taken.datasets] == [d.id for d in plan.datasets] and all(d.proposed is None for d in taken.datasets)
+
+    ws = Workspace(FileProjectStore(tmp_path), "t1", "p1")
+    publish(ws, view, by="u", reason="sent")
+    landed = {d.study["study_id"]: d for d in dataset_register.datasets(ws)}
+    rows = [{"study_id": sid, "proposed": d.proposed} for sid, d in landed.items()]
+    assert waiting_proposals(rows) == {"EX-01-A": ["population", "meal template"], "EX-01-B": ["population", "meal template"]}
+    a, b = landed["EX-01-A"], landed["EX-01-B"]
+    with pytest.raises(dataset_register.DatasetError, match="nothing to confirm by the name dose"):
+        dataset_register.set_study_facts(ws, a.id, changes={}, by="u", confirm=["dose"])
+    with pytest.raises(dataset_register.DatasetError, match="is not one of"):
+        dataset_register.set_study_facts(ws, a.id, changes={}, by="u", meal_template="Meal: Hamburger")
+    confirmed = dataset_register.set_study_facts(ws, a.id, changes={}, by="u", confirm=["population", "meal"])
+    assert confirmed.proposed is None and confirmed.study["meals"] == a.study["meals"]
+    changed = dataset_register.set_study_facts(ws, b.id, changes={}, by="u", confirm=["population"],
+                                               meal_template=MEAL_STANDARD)
+    assert changed.proposed is None
+    assert {(m["template"], m["name"]) for m in changed.study["meals"]} == {(MEAL_STANDARD, MEAL_STANDARD.split(": ", 1)[1])}
+    again = publish(ws, view, by="u", reason="again")
+    assert again["datasets"] == 0 and again["superseded"] == 0       # the same data: what a person chose stays
+    kept = {d.study["study_id"]: d for d in dataset_register.datasets(ws)}
+    assert kept["EX-01-A"].proposed is None and kept["EX-01-B"].study["meals"] == changed.study["meals"]

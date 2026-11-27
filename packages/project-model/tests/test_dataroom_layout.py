@@ -48,7 +48,7 @@ def test_every_value_and_decision_is_placed_once_and_every_profile_once(view):
             homes.setdefault(k, set()).add(sec.id)
     assert all(len(v) == 1 for v in homes.values())  # a field's values all in one section
     decisions = [d for s in _sections(view) for d in s.decisions]
-    assert sorted(decisions) == sorted(d.id for d in view.decisions)
+    assert sorted(decisions) == sorted(d.id for d in view.decisions if not d.on_inputs)   # D1's are Inputs'
     profiles = [p for s in _sections(view) for p in s.dissolution]
     assert sorted(profiles) == sorted(d.id for d in view.dissolution) and len(profiles) == len(set(profiles))
 

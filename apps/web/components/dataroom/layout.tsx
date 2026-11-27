@@ -139,6 +139,32 @@ function Exclusions({ room }: { room: Room }) {
   );
 }
 
+/** The choices made on Inputs (the owner's D1): population, sex and meal template, the room's suggestion for each with
+ *  why and its sources. "Send to Inputs" carries them there as proposals; a person confirms or changes them on Inputs. */
+function InputsChoices({ room, projectId }: { room: Room; projectId: string }) {
+  const mine = room.decisions.filter((d) => d.on_inputs);
+  if (!mine.length) return null;
+  return (
+    <Card title="Chosen on Inputs" testId="inputs-choices"
+          aside={<a className="dr-small" href={`/projects/${projectId}/inputs?tab=individuals`} data-testid="inputs-choices-link">Open Inputs</a>}>
+      <p className="muted dr-small">The population, the sex and the meal template are chosen on Inputs. Each goes there as
+        this proposal, with why and its sources, once the room is sent.</p>
+      <ul className="dr-list">
+        {mine.map((d) => {
+          const option = d.options.find((o) => o.id === (d.chosen || d.suggested));
+          return (
+            <li key={d.id} data-testid={`proposal-${d.id}`}>
+              <span><strong>{d.title}</strong>: {option?.label ?? d.suggested}{d.chosen ? " (chosen)" : " (proposed)"}</span>
+              {d.why && <span className="muted dr-small"> · {d.why}</span>}
+              {d.evidence.length > 0 && <Sources chips={d.evidence} />}
+            </li>
+          );
+        })}
+      </ul>
+    </Card>
+  );
+}
+
 /** One section of the page in its groups: what the API placed in it, drawn with today's cards. */
 export function LayoutBody({ section, room, run, projectId, go }: {
   section: LayoutSection; room: Room; run: Run | null; projectId: string; go: (id: string) => void;
@@ -165,6 +191,7 @@ export function LayoutBody({ section, room, run, projectId, go }: {
       case "conduct_values": return pick(studyValues, section.values).length
         ? <Card key={part} title="Facts" testId={`values-${section.id}`}><ValueTable values={pick(studyValues, section.values)} label={section.title} /></Card> : null;
       case "exclusions": return <Exclusions key={part} room={room} />;
+      case "inputs_choices": return <InputsChoices key={part} room={room} projectId={projectId} />;
       case "other_analytes": return <OtherAnalytes key={part} room={room} />;
       case "adme": case "other_values": return pick([...all, ...studyValues], section.values).length
         ? <Card key={part} title="Values" testId={`values-${section.id}`}><ValueTable values={pick([...all, ...studyValues], section.values)} label={section.title} /></Card> : null;

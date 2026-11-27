@@ -523,7 +523,7 @@ function Workspace({ projectId, initialTab, initialOnly, initialStatus, steps }:
       setCardFocus({ key: card.key, ref: w.subject, group, anchor: w.anchor, at });
     }
     const fallback = item.todo?.kind === "regimen" ? `study-${item.todo.target}` : item.todo?.kind === "demographics" ? `individual-${item.todo.target}`
-      : card ? cardAnchor(card) : undefined;
+      : item.todo?.kind === "proposal" ? `proposal-${item.todo.target}` : card ? cardAnchor(card) : undefined;
     // a card to confirm opens at its head (its whole body is what is confirmed); an item on a card, at its place there
     if (card && item.id.startsWith("confirm:")) bringIntoView(cardAnchor(card));
     else if (w.anchor) bringIntoView(w.anchor, fallback, card ? cardAnchor(card) : undefined);
@@ -855,8 +855,9 @@ function Workspace({ projectId, initialTab, initialOnly, initialStatus, steps }:
                      fields={["kind", "age_range", "sex", "ethnicity", "impairment_class", "genotype", "species"]}
                      title="The populations the proposal names"
                      lede="The populations the predictions are made for; each study below is simulated in its own individual." />}
-          {panelTodo("individuals").filter((t) => t.kind !== "demographics").length > 0 && (
-            <InputRows rows={[]} todo={panelTodo("individuals").filter((t) => t.kind !== "demographics")} projectId={projectId} run={run} empty="" />
+          {panelTodo("individuals").filter((t) => t.kind !== "demographics" && t.kind !== "proposal").length > 0 && (
+            <InputRows rows={[]} todo={panelTodo("individuals").filter((t) => t.kind !== "demographics" && t.kind !== "proposal")}
+                       projectId={projectId} run={run} empty="" />
           )}
           <h3 className="area-section-title">Each study&apos;s individual</h3>
           <StudyIndividuals studies={only ? studies.filter((s) => s.demographics === "missing") : studies} projectId={projectId} run={run} options={options}

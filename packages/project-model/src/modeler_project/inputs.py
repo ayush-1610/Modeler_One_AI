@@ -447,6 +447,8 @@ def study_catalog(ws: Workspace, picked: InputChoices, *,
         row: dict[str, Any] = {**study, "origin": dataset.origin.value, "dataset_id": dataset.id,
                                "purpose": dataset.purpose, "evaluable": profile is not None,
                                "demographics_choice": dataset.demographics_choice}
+        if dataset.proposed:                       # the Data room's proposals waiting for a person here (D1)
+            row["proposed"] = dataset.proposed
         if profile is not None:
             row["profile"] = profile
             if not plasma:
@@ -486,6 +488,15 @@ def unstated_demographics(rows: list[dict[str, Any]]) -> list[str]:
     is never applied silently)."""
     return [r["study_id"] for r in rows if not (r.get("demographics") or r.get("published_individual")
                                                 or r.get("demographics_choice") == "healthy_adult_default")]
+
+
+PROPOSAL_WORDS = {"population": "population", "sex": "sex", "meal": "meal template"}
+
+
+def waiting_proposals(rows: list[dict[str, Any]]) -> dict[str, list[str]]:
+    """Each study's choices the Data room proposed and no person has confirmed or changed here yet (D1; plan 2026-11-26
+    §9, slice 5b): the population, the sex and the meal template, in words."""
+    return {r["study_id"]: [PROPOSAL_WORDS.get(k, k) for k in r["proposed"]] for r in rows if r.get("proposed")}
 
 
 def _check(name: str, ok: bool, detail: str | list[str] = "") -> dict[str, Any]:
@@ -537,6 +548,10 @@ def readiness(cpf: CPF, rows: list[dict[str, Any]], assembly: dict[str, Any], br
     checks.append(_check("multiple-dose regimens", not regimen, regimen))
     checks.append(_check("demographics stated (D-29)", not (unstated := unstated_demographics(rows)),
                          [f"{sid}: give the demographics, or choose the healthy adult default" for sid in unstated]))
+    waiting = waiting_proposals(rows)
+    checks.append(_check("the Data room's proposals confirmed (D1)", not waiting,
+                         [f"{sid}: confirm or change its {' and '.join(keys)} (proposed by the Data room)"
+                          for sid, keys in waiting.items()]))
     evaluable = [r for r in rows if r.get("evaluable")]
     not_real = [f"{r['study_id']} ({r['origin'].lower()})" for r in evaluable if r["origin"] not in {o.value for o in REAL_ORIGINS}]
     checks.append(_check("observed data to judge on", bool(evaluable), [] if evaluable else ["no dataset with a profile"]))
@@ -825,7 +840,7 @@ _TAB_PREFIXES = (("form.", "formulations"), ("indiv.", "individuals"), ("expr.",
                  ("dist.partition_method", "settings"), ("dist.permeability_method", "settings"))
 # what a to-do item is about when its kind says more than its target
 _KIND_TAB = {"formulation": "formulations", "datasets": "studies", "regimen": "studies", "demographics": "individuals",
-             "check": "studies"}
+             "proposal": "individuals", "check": "studies"}
 
 
 def tab_of(cpf_id: str) -> str:
@@ -887,7 +902,8 @@ def todo(ws: Workspace) -> list[dict[str, Any]]:
                               for d in observed]})
     rows = catalog_rows(ws)
     dataset_of = {str(r["study_id"]): r.get("dataset_id") for r in rows}
-    for name, kind in (("multiple-dose regimens", "regimen"), ("demographics stated (D-29)", "demographics")):
+    for name, kind in (("multiple-dose regimens", "regimen"), ("demographics stated (D-29)", "demographics"),
+                       ("the Data room's proposals confirmed (D1)", "proposal")):
         check = checks.get(name)
         for detail in (check or {"detail": []})["detail"] if check and not check["ok"] else []:
             sid = detail.split(":", 1)[0]

@@ -21713,6 +21713,18 @@
           "origin": {
             "$ref": "#/components/schemas/DataOrigin"
           },
+          "proposed": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Proposed"
+          },
           "proposed_at": {
             "format": "date-time",
             "title": "Proposed At",
@@ -27425,6 +27437,11 @@
             "title": "Id",
             "type": "string"
           },
+          "on_inputs": {
+            "default": false,
+            "title": "On Inputs",
+            "type": "boolean"
+          },
           "options": {
             "items": {
               "$ref": "#/components/schemas/Option"
@@ -27466,7 +27483,8 @@
           "chosen",
           "reason",
           "by",
-          "at"
+          "at",
+          "on_inputs"
         ],
         "title": "RoomDecision",
         "type": "object"
@@ -31005,6 +31023,18 @@
             "title": "Changes",
             "type": "object"
           },
+          "confirm": {
+            "items": {
+              "enum": [
+                "population",
+                "sex",
+                "meal"
+              ],
+              "type": "string"
+            },
+            "title": "Confirm",
+            "type": "array"
+          },
           "demographics_choice": {
             "anyOf": [
               {
@@ -31019,6 +31049,17 @@
               }
             ],
             "title": "Demographics Choice"
+          },
+          "meal_template": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meal Template"
           }
         },
         "title": "StudyFacts",
@@ -39894,7 +39935,7 @@
     },
     "/api/v1/projects/{project_id}/datasets/{dataset_id}:study": {
       "post": {
-        "description": "A study's facts: the multiple-dose regimen, the demographics or the explicit healthy adult default (D-29), with\nno reason asked (D-27; the audit keeps before and after). The inputs are assembled again.",
+        "description": "A study's facts: the multiple-dose regimen, the demographics or the explicit healthy adult default (D-29), and\nthe Data room's proposals confirmed or changed (D1), with no reason asked (D-27; the audit keeps before and after).\nThe inputs are assembled again.",
         "operationId": "set_dataset_study_api_v1_projects__project_id__datasets__dataset_id__study_post",
         "parameters": [
           {

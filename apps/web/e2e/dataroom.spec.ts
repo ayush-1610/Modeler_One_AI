@@ -127,7 +127,9 @@ test("an extracted delivery shows its study and dissolution, a decision is taken
   await page.goto(`/projects/${projectId}/dataroom`);
   await expect(page.getByTestId("question-text-shown")).toContainText("reformulated Exampleamide tablet");
   await expect(page.getByTestId("headline-files")).toContainText("10");
-  await expect(page.getByTestId("headline-decisions")).toContainText("10");   // nine of the room, and which applications the question has (the requirement drafts, D5)
+  // six of the room, and which applications the question has (the requirement drafts, D5); the population, sex and meal
+  // template are chosen on Inputs (the owner's D1), so not counted here
+  await expect(page.getByTestId("headline-decisions")).toContainText("7");
   await expect(page.getByTestId("overview-conflicts").getByTestId("conflict")).toHaveCount(2);
   await page.getByTestId("question-confirm").click();
   await expect(page.getByTestId("question-confirmed")).toBeVisible();
@@ -164,20 +166,27 @@ test("an extracted delivery shows its study and dissolution, a decision is taken
   await expect(page.getByTestId("be-auc_t-ours")).toContainText("within the limits");
   await shot(page, "dataroom-observed");
 
-  // a decision, on the section it decides (the study's design): the suggestion taken, who took it shown
+  // the population, sex and meal template are chosen on Inputs (the owner's D1): the study's design shows the room's
+  // proposal for each, with why, and no decision to make here
   await page.getByTestId("rail-design").click();
-  const population = page.getByTestId("decision-population:EX-01");
-  await expect(population.getByTestId("decision-suggestion")).toContainText("Asian (Tanaka 1996)");
-  await population.getByTestId("decision-accept").click();
-  await expect(population.getByTestId("decision-chosen")).toBeVisible();
-  await expect(population.getByTestId("decision-made")).toContainText("Asian (Tanaka 1996)");
+  const choices = page.getByTestId("inputs-choices");
+  await expect(choices.getByTestId("proposal-population:EX-01")).toContainText("Asian (Tanaka 1996) (proposed)");
+  await expect(choices.getByTestId("proposal-meal:EX-01")).toContainText("(proposed)");
+  await expect(choices.getByTestId("inputs-choices-link")).toHaveAttribute("href", `/projects/${projectId}/inputs?tab=individuals`);
+  await expect(page.getByTestId("decision-population:EX-01")).toHaveCount(0);
+  // a decision, on the section it decides (the observed profiles): the suggestion taken, who took it shown
+  await page.getByTestId("rail-observed").click();
+  const analysis = page.getByTestId("decision-analysis-set:EX-01");
+  await analysis.getByTestId("decision-accept").click();
+  await expect(analysis.getByTestId("decision-chosen")).toBeVisible();
   // another option needs a reason
-  const meal = page.getByTestId("decision-meal:EX-01");
-  await meal.getByTestId("decision-others").click();
-  await meal.getByTestId("option-high_fat").click();
-  await meal.getByTestId("decision-reason").fill("the protocol's breakfast was the FDA high-fat meal");
-  await meal.getByTestId("decision-choose").click();
-  await expect(meal.getByTestId("decision-made")).toContainText("High-fat breakfast");
+  await page.getByTestId("rail-substance").click();
+  const solubility = page.getByTestId("decision-solubility-ref");
+  await solubility.getByTestId("decision-others").click();
+  await solubility.getByTestId("option-sol-1").click();
+  await solubility.getByTestId("decision-reason").fill("the medium nearest the intestine's pH");
+  await solubility.getByTestId("decision-choose").click();
+  await expect(solubility.getByTestId("decision-made")).toBeVisible();
 
   // a value's source: the synopsis page with the line highlighted, then a sheet with its cell
   await page.getByTestId("rail-substance").click();
