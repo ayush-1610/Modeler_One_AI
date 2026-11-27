@@ -2,6 +2,25 @@
 
 Every owner decision on the redesign, verbatim where possible, with what it changes. Newest first.
 
+## D-I5 (2026-11-27): the sign-in pages in the owner's split design
+From the Graphite sign-off gallery (the owner's marks on R1–R4): the sign-in page "needs a change", to a split layout
+(a full-screen abstract background, the words "Whatever happens here, *stays* here" on the left, a frosted login card
+on the right with "Your Name", "Password", "Lets Go →"); the signed-out page to match it, or to land back on it. The
+owner's answers (2026-11-27), each the recommended choice:
+1. **Both pages, matched:** Keycloak's form (where the password is typed) gets the full design; the app's own /signin
+   page gets the same words and card with a "Lets Go →" button that continues to Keycloak. The app never shows a
+   password field (21 CFR Part 11; CLAUDE.md).
+2. **No "Sign up", no "Forgot password":** accounts stay created by the platform's owner; the card says "No account, or
+   forgot your password? Ask your Modeler One administrator." (the realm keeps registration and reset off).
+3. **A self-hosted background:** drawn in CSS in the Graphite tones (blue, teal, a touch of orange, two glass spheres),
+   no outside image, so a visitor contacts no other server before signing in.
+4. **Signed out lands on sign-in:** /signed-out (the address the realm returns to) is the sign-in page with a note that
+   the session ended.
+
+The owner's reference image was not available to the session; the design follows the written brief. Noted for the
+owner: the brief's label "Your Name" is kept, though the field takes the username or email (Keycloak's
+`usernameOrEmail`).
+
 ## D-I4 (2026-11-27): the look is "Graphite"; it replaces the navy look of D-I1
 The owner found the redesigned console still short of what they wanted and asked for catalogues to choose from (palettes,
 icon styles, fonts, inspiration from B2B SaaS, pharma and AI products, "our own way", comfortable for people from 18 to

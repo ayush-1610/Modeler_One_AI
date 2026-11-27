@@ -13,6 +13,24 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 
 ## [Unreleased] — make the pipeline do real PBPK, S0 → S7
 
+### Changed — the sign-in pages in the owner's split design; signing out lands on sign-in (R5, 2026-11-27)
+- **What:** the app's sign-in, signed-out and no-access pages (`components/auth/AuthPage.tsx`, `app/styles/auth.css`)
+  and Keycloak's sign-in form (`deploy/keycloak/themes/modeler-one`: CSS, a white mark, the words in
+  `messages_en.properties`; no template copied) share one split design: a full-screen abstract background drawn in CSS
+  (no outside image), "Whatever happens here, *stays* here" with a line under it on the left, a frosted card on the
+  right ("Login"; at Keycloak "Your Name", "Password", "Lets Go →"; in the app a "Lets Go →" button that continues to
+  Keycloak); stacked on a phone, where "on the right side" reads "below". The card ends with "No account, or forgot
+  your password? Ask your Modeler One administrator." /signed-out is now the sign-in page with a "You have signed out"
+  note. `oidc-signing.spec.ts` expects Keycloak's card title "Login".
+- **Why:** the owner's marks in the Graphite sign-off gallery and their answers (`design-review/DECISIONS.md` D-I5).
+- **Verified on a real Keycloak 26.7.5** (the version `deploy/server/keycloak.sh` installs, run locally with
+  `deploy/keycloak/realm-modeler.json` imported): its sign-in page in the new design at 1440 and 390 px, and every
+  `oidc-*.spec.ts` flow passes (7: sign-in, the signing step-up, sign-out, members, no access, a failed sign-in, the
+  admin's System status). Contrast computed by hand (the gradient puts these pages outside the automatic check): the
+  card's grey 6.3:1 or more, the hero's subtitle about 7:1, "stays" 5.7:1 (large).
+- **Impact:** the look and words of the pages before the app; no change to how sign-in works (registration and password
+  reset stay off in the realm). Deploy: copy the Keycloak theme in and restart Keycloak (deploy plan §3).
+
 ### Added — a contrast check on every page; the last faint text fixed; the deploy plan for the Graphite look (R4, 2026-11-27)
 - **What:** `e2e/fixtures/a11y.ts` `lowContrast()` measures every piece of text against what is behind it, from the
   rendered colours (backgrounds up the tree blended, opacity included, after any finite animation has ended), and lists
