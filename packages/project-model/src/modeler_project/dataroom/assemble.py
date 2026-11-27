@@ -16,7 +16,21 @@ from modeler_intake.room import document_text, unmarked
 from modeler_intake.room_specs import Extraction, QuestionCard
 from modeler_intake.source_model import SourceDocument
 from modeler_project.dataroom import checklist
-from modeler_project.dataroom.clinical import _code_key, study_view, subject_id
+from modeler_project.dataroom.bestats import be_results, csr_values
+from modeler_project.dataroom.clinical import (
+    _code_key,
+    analyte_of,
+    analytes_in,
+    assignments,
+    dose_arms,
+    for_analyte,
+    samples_from,
+    study_view,
+    subject_id,
+    unnamed_lines,
+)
+from modeler_project.dataroom.detectors import detect
+from modeler_project.dataroom.dosecard import dose_card
 from modeler_project.dataroom.extract import check_fact, number_of, parse_number, read_table
 from modeler_project.dataroom.invitro import (
     batch_products,
@@ -31,6 +45,7 @@ from modeler_project.dataroom.invitro import (
     solubility_from_facts,
     solubility_rows,
 )
+from modeler_project.dataroom.layout import build_layout, required_from_drafts
 from modeler_project.dataroom.model import (
     Arm,
     CheckedFact,
@@ -550,11 +565,103 @@ def _first(facts: Sequence[CheckedFact], field: str, subject: str = "") -> Check
     return got[0] if got else None
 
 
-def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
-    rules = rules or load_rules()
+# an analyte that is not the drug itself, as files name it: a metabolite, an isotope-labelled tracer ("13C-labeled
+# EX-M2", "EX-M1 Exampleamide-Metabolite", "M1")
+_NOT_THE_DRUG = re.compile(r"(?i)metabolite|labell?ed|\b13c\b|\b14c\b|deuter|glucuronide|\bm\d{1,2}\b")
+
+
+def _words(text: str) -> list[str]:
+    return re.findall(r"[a-z0-9]+", text.lower())
+
+
+def modeled_analyte(named: Sequence[str], facts: Sequence[CheckedFact], question: QuestionCard | None) -> tuple[str, str]:
+    """The analyte suggested as the one the model simulates, and why: the one the delivery names as its drug (a
+    `study.analyte` fact, the drug substance's or ADME facts' subject, a product of the question card), written in full
+    ("Exampleamide") or as its code ("EXAM" begins "exampleamide"); else the first the data lists that is not marked a
+    metabolite or a labelled compound. Only a suggestion: the modeler chooses (decision analyte:<study>)."""
+    names = [f.fact.value for f in facts if f.ok and f.fact.field == "study.analyte"]
+    names += [f.fact.subject for f in facts if f.ok and f.fact.subject and f.fact.field.startswith(("substance.", "adme."))]
+    names += [p.name for p in (question.products if question else ())]
+
+    def match(analyte: str) -> tuple[int, str]:
+        if _NOT_THE_DRUG.search(analyte):
+            return -1, ""
+        words, best = _words(analyte), (0, "")
+        for name in names:
+            theirs = _words(name)
+            if words and all(w in theirs for w in words):
+                return 2, name
+            if any(len(a) >= 4 and len(b) >= 4 and (a.startswith(b) or b.startswith(a)) for a in words for b in theirs):
+                best = max(best, (1, name))
+        return best
+
+    (score, name), _i, analyte = max(((match(a), -i, a) for i, a in enumerate(named)), key=lambda x: (x[0][0], x[1]))
+    if score > 0:
+        return analyte, f"{analyte} is the drug the delivery names ({name})"
+    plain = [a for a in named if not _NOT_THE_DRUG.search(a)]
+    if plain:
+        return plain[0], ("no analyte matches a drug the delivery names: the first the data lists that is not marked a "
+                          "metabolite or a labelled compound")
+    return named[0], "no analyte matches a drug the delivery names: the first the data lists"
+
+
+def _analyte_decision(sid: str, named: Sequence[str], tables: Sequence[ReadTable], facts: Sequence[CheckedFact],
+                      question: QuestionCard | None) -> RoomDecision:
+    counts = {a: sum(len(samples_from(for_analyte(t, a))[0]) for t in tables) for a in named}
+    suggested, why = modeled_analyte(named, facts, question)
+    first = next((t for t in tables if t.rows), None)
+    return RoomDecision(
+        id=f"analyte:{sid}", title=f"Modeled analyte for {sid}",
+        question=("The study measured more than one analyte. Which one does the model simulate (its profiles are the "
+                  "observed data; the others are kept as Supporting Evidence)?"),
+        options=tuple(Option(id=a, label=f"{a}: {counts[a]} samples") for a in named), suggested=suggested, why=why,
+        evidence=(Chip(file=first.description.file, sha256=first.sha256, part=first.description.part,
+                       line=first.description.first_line),) if first else ())
+
+
+def _of_analyte(tables: Sequence[ReadTable], analyte: str, named: Sequence[str], *, unnamed_too: bool) -> list[ReadTable]:
+    """The tables' lines of one analyte of a study that measured several (`named`; with one or none, every table as
+    it is); a table that names no analyte at all only when `unnamed_too`."""
+    if len(named) < 2:
+        return list(tables)
+    out = []
+    for t in tables:
+        if not any(analyte_of(r, t.description) for r in t.rows):
+            if unnamed_too:
+                out.append(t)
+            continue
+        if (got := for_analyte(t, analyte)).rows:
+            out.append(got)
+    return out
+
+
+def _analyte_view(sid: str, analyte: str, *, named: Sequence[str], concentrations: Sequence[ReadTable],
+                  pk_tables: Sequence[ReadTable], facts: Sequence[CheckedFact], arms: Sequence[Arm], release: str,
+                  rules: Rules, question: QuestionCard | None, study_values: Sequence[Value] = (),
+                  unnamed_pk: bool = False, treatments: Mapping[tuple[str, str], str] | None = None) -> RoomStudy:
+    """One analyte of a study, viewed as a study (`study_view`). `unnamed_pk`: a PK table that names no analyte is
+    this analyte's (the modeled one's, as before analytes were told apart)."""
+    tables = _of_analyte(concentrations, analyte, named, unnamed_too=False)
+    view = study_view(sid, concentrations=tables, pk_tables=_of_analyte(pk_tables, analyte, named, unnamed_too=unnamed_pk),
+                      facts=facts, arms=arms, study_values=study_values, release=release, rules=rules,
+                      treatments=treatments)
+    # the tables the profiles are read from: each arm's dataset names them as its source (ICH M15)
+    view = view.model_copy(update={"analyte": analyte, "sources": tuple(
+        Chip(file=t.description.file, sha256=t.sha256, part=t.description.part, line=t.description.first_line)
+        for t in tables)})
+    tied, asked = _single_arm(view, question)
+    if tied != view.arms:
+        # a single arm tied to every treatment of the data no longer asks which treatment it is
+        kept = tuple(x for x in view.problems if x.code != "ARM_MATCHES_NO_TREATMENT" or len(view.arms) != 1)
+        view = view.model_copy(update={"arms": tied, "problems": kept + tuple(asked)})
+    return view
+
+
+def read_extractions(inputs: Inputs) -> tuple[list[ReadTable], list[CheckedFact], list[Problem]]:
+    """Every described table read and every quoted fact checked against the read documents, each table's method
+    conditions kept as the delivery says them: the room's first step (`assemble`), and what the value scorer reads
+    (`modeler_project.value_score.from_dataroom`), so both see the same values."""
     by_path = {f.path: f for f in inputs.files}
-    triage = {f.path: f.triage for f in inputs.files if f.triage}
-    literature_files = {p for p, t in triage.items() if t and set(t.topics) & _LITERATURE_TOPICS}
     problems: list[Problem] = []
     tables: list[ReadTable] = []
     facts: list[CheckedFact] = []
@@ -578,7 +685,14 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
                 continue
             facts.append(check_fact(fact.model_copy(update={"file": path}), doc, file=path, sha256=file.sha256))
     tables, found = _said_constants(tables, inputs.docs.values(), [f.fact.quote for f in facts if f.ok])
-    problems += found
+    return tables, facts, problems + found
+
+
+def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
+    rules = rules or load_rules()
+    triage = {f.path: f.triage for f in inputs.files if f.triage}
+    literature_files = {p for p, t in triage.items() if t and set(t.topics) & _LITERATURE_TOPICS}
+    tables, facts, problems = read_extractions(inputs)
     for f in facts:
         if not f.ok:
             problems.append(Problem(code="FACT_REFUSED", message=f"{_field_label(f.fact.field)} “{f.fact.value}” ({f.fact.file}): "
@@ -603,6 +717,15 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
     products = _values(facts, "product.", FIELDS, literature_files, rules) + _values(facts, "batch.", FIELDS, literature_files, rules)
     entered = {v.key: v for v in inputs.entered}
 
+    # the dose in both bases (R14): PK-Sim's compound is the free base, so a salt dose is given as the base's
+    dose_info, found = dose_card(facts)
+    problems += found
+    # checks across the delivery (R03 simulated data, R07 lots, a file about another drug, personal data)
+    drug_names = [f.fact.subject for f in facts if f.ok and f.fact.subject and f.fact.field.startswith(("substance.", "adme."))]
+    drug_names += [f.fact.value for f in facts if f.ok and f.fact.field == "study.analyte"]
+    drug_names += [p.name for p in (question.products if question else ())]
+    problems += detect(files=inputs.files, docs=inputs.docs, tables=tables, facts=facts, drug_names=drug_names)
+
     # --- clinical ---------------------------------------------------------------------------------------------------
     study_ids: list[str] = []
     for t in by_kind["concentrations"]:
@@ -610,6 +733,7 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
         if not any(_same_study(sid, s) for s in study_ids):
             study_ids.append(sid)
     studies: list[RoomStudy] = []
+    other_analytes: list[RoomStudy] = []
     decisions: list[RoomDecision] = []
     # the products' release as the files write it (the vomiting rule is for immediate release)
     release = "; ".join(dict.fromkeys(f.fact.value for f in facts if f.ok and f.fact.field == "product.release"))
@@ -623,17 +747,52 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
         arms = _arms([f for f in sfacts if f.ok and f.fact.field == "study.treatment_code"], question, batch_products(facts))
         study_values = _values([f for f in sfacts if f.fact.field != "study.treatment_code"], "study.", FIELDS,
                                literature_files, rules)
-        view = study_view(sid, concentrations=mine("concentrations"), pk_tables=mine("pk_parameters"), facts=sfacts,
-                          arms=arms, study_values=study_values, release=release, rules=rules)
-        # the tables the profiles are read from: each arm's dataset names them as its source (ICH M15)
-        view = view.model_copy(update={"sources": tuple(
-            Chip(file=t.description.file, sha256=t.sha256, part=t.description.part, line=t.description.first_line)
-            for t in mine("concentrations"))})
-        tied, asked = _single_arm(view, question)
-        if tied != view.arms:
-            # a single arm tied to every treatment of the data no longer asks which treatment it is
-            kept = tuple(x for x in view.problems if x.code != "ARM_MATCHES_NO_TREATMENT" or len(view.arms) != 1)
-            view = view.model_copy(update={"arms": tied, "problems": kept + tuple(asked)})
+        # a study that measured several analytes (the drug and its metabolites, line by line in a CRO's PC dataset) is
+        # viewed once per analyte: the modeler chooses the one the model simulates; the others are Supporting Evidence
+        conc, pk = mine("concentrations"), mine("pk_parameters")
+        named = analytes_in(conc)
+        modeled = named[0] if named else ""
+        if len(named) > 1:
+            choice = _decision(inputs.decisions, _analyte_decision(sid, named, conc, facts, question))
+            decisions.append(choice)
+            modeled = _pick(choice)
+            if unnamed := sum(unnamed_lines(t) for t in conc):
+                problems.append(Problem(code="ANALYTE_NOT_NAMED", severity="error", message=(
+                    f"{sid}: {unnamed} concentration line{'s' if unnamed > 1 else ''} name no analyte, while the study "
+                    f"measured {len(named)} ({', '.join(named)}): left out of every analyte's profiles; say which "
+                    "analyte they are (an analyte column, or the table's analyte)")))
+
+        known = {a.lower() for a in named}
+        if named and (strays := [a for a in analytes_in(pk) if a.lower() not in known]):
+            problems.append(Problem(code="PK_ANALYTE_NOT_IN_DATA", message=(
+                f"{sid}: the client's PK values of {', '.join(strays)} name no analyte of the concentration data "
+                f"({', '.join(named)}): they are not compared with ours")))
+        # what each subject was given on each occasion (an EX dataset): the profiles' treatments when the concentration
+        # data name none; whether two doses of one product make two arms is the modeler's choice
+        dosing = mine("dosing")
+        treatments: dict[tuple[str, str], str] = {}
+        if dosing:
+            several, suggested, why = dose_arms(dosing)
+            per_dose = True
+            if several:
+                choice = _decision(inputs.decisions, RoomDecision(
+                    id=f"dose-arms:{sid}", title=f"Dose groups of {sid}",
+                    question=("A product was given at more than one dose. Is each dose its own arm (the design's dose "
+                              "levels), or one arm per product with each subject's own dose (individualised dosing)?"),
+                    options=(Option(id="per_dose", label="One arm per dose"),
+                             Option(id="one_arm", label="One arm per product, each subject's own dose")),
+                    suggested=suggested, why=why, evidence=tuple(
+                        Chip(file=t.description.file, sha256=t.sha256, part=t.description.part,
+                             line=t.description.first_line) for t in dosing[:1])))
+                decisions.append(choice)
+                per_dose = _pick(choice) == "per_dose"
+            treatments = assignments(dosing, per_dose=per_dose)
+        view = _analyte_view(sid, modeled, named=named, concentrations=conc, pk_tables=pk, facts=sfacts, arms=arms,
+                             study_values=study_values, release=release, rules=rules, question=question,
+                             unnamed_pk=True, treatments=treatments)
+        other_analytes += [_analyte_view(sid, a, named=named, concentrations=conc, pk_tables=pk, facts=sfacts, arms=arms,
+                                         release=release, rules=rules, question=question, treatments=treatments)
+                           for a in named if a != modeled]
         sets = {s.name: s for s in view.sets}
         options = [Option(id=name, label=f"{sets[name].label}: {len(sets[name].subjects)} subjects", detail=sets[name].rule)
                    for name in ("modeling", "client_statistical", "completed", "dosed") if name in sets]
@@ -644,11 +803,15 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
                 suggested="modeling", why="; ".join(f"subject {s}: {r}" for s, r in sorted(
                     view.excluded.items(), key=lambda kv: int(kv[0]) if kv[0].isdigit() else 0) if "LLOQ" in r) or
                 "the completers with evaluable profiles in every period")))
+        # the study's bioequivalence computed by code on the chosen set, beside the CSR's (plan 2026-11-26 phase 3)
+        chosen_set = _pick(decisions[-1]) if options else "modeling"
+        be, found = be_results(view, set_name=chosen_set, csr=csr_values(mine("be_statistics")), rules=rules)
+        view = view.model_copy(update={"be": be, "problems": view.problems + tuple(found)})
         dem = _demographics(mine("demographics"), sets["modeling"].subjects if "modeling" in sets else ())
         ethnicity = _first(sfacts, "study.ethnicity")
         guess = (population_of(ethnicity.fact.value) if ethnicity else None) or "European_ICRP_2002"
         decisions.append(_decision(inputs.decisions, RoomDecision(
-            id=f"population:{sid}", title=f"Population for {sid}",
+            id=f"population:{sid}", title=f"Population for {sid}", on_inputs=True,
             question="Which PK-Sim population database stands for the study's subjects?",
             options=tuple(Option(id=p, label=POPULATION_LABELS[p]) for p in POPULATIONS), suggested=guess,
             why=(f"the study's subjects are {ethnicity.fact.value}" if ethnicity else "no ethnicity found: the reference European")
@@ -659,17 +822,18 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
         stated = sex_of(sex_fact.fact.value) if sex_fact else None
         if (males and females) or stated == "MIXED":
             decisions.append(_decision(inputs.decisions, RoomDecision(
-                id=f"sex:{sid}", title=f"Sex of {sid}'s individual",
+                id=f"sex:{sid}", title=f"Sex of {sid}'s individual", on_inputs=True,
                 question="The study has men and women; a PK-Sim individual is one sex. Which stands for the study?",
                 options=(Option(id="MALE", label="Male"), Option(id="FEMALE", label="Female")),
                 suggested="FEMALE" if females > males else "MALE",
-                why=f"{males} men and {females} women in the modeling set" if males or females else sex_fact.fact.value,
+                why=(f"{males} {'man' if males == 1 else 'men'} and {females} {'woman' if females == 1 else 'women'} in the "
+                     "modeling set") if males or females else sex_fact.fact.value,
                 evidence=(sex_fact.chip,) if sex_fact and sex_fact.chip else ())))
         meal = _first(sfacts, "study.meal_composition") or _first(sfacts, "study.fed") or _first(sfacts, "study.meal_times")
         if meal:
             high_fat = "high" in meal.fact.value.lower() and "fat" in meal.fact.value.lower()
             decisions.append(_decision(inputs.decisions, RoomDecision(
-                id=f"meal:{sid}", title=f"Meal template for {sid}",
+                id=f"meal:{sid}", title=f"Meal template for {sid}", on_inputs=True,
                 question="Which PK-Sim meal stands for the study's meals?",
                 options=(Option(id="standard", label="Standard meal"), Option(id="high_fat", label="High-fat breakfast")),
                 suggested="high_fat" if high_fat else "standard",
@@ -1061,9 +1225,18 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
                                         status="sponsor" if (r := next((v for v in view.facts if v.key.startswith("study.route")),
                                                                        None)) else "missing",
                                         sources=r.sources if r else ()))
-            inputs_rows.append(InputRow(block="protocol", owner=owner, name="InputDose", label="Dose",
-                                        value=dose_v.value if dose_v else None, unit=(dose_v.unit or "mg") if dose_v else "mg",
-                                        status=dose_v.status if dose_v else "missing", sources=dose_v.sources if dose_v else ()))
+            if (dose_v and dose_info and dose_info.basis == "salt" and dose_info.dose_as_base_mg is not None
+                    and isinstance(dose_v.value, float) and abs(dose_v.value - (dose_info.dose_as_salt_mg or 0)) < 1e-9):
+                # the study's dose is the salt's: PK-Sim is given the free base's (R14), both bases on the card
+                inputs_rows.append(InputRow(block="protocol", owner=owner, name="InputDose", label="Dose",
+                                            value=dose_info.dose_as_base_mg, unit="mg", status="calculated",
+                                            sources=dose_v.sources + dose_info.sources, note=dose_info.rule))
+            else:
+                inputs_rows.append(InputRow(block="protocol", owner=owner, name="InputDose", label="Dose",
+                                            value=dose_v.value if dose_v else None,
+                                            unit=(dose_v.unit or "mg") if dose_v else "mg",
+                                            status=dose_v.status if dose_v else "missing",
+                                            sources=dose_v.sources if dose_v else ()))
             if water and isinstance(water.value, float) and weight:
                 inputs_rows.append(InputRow(block="protocol", owner=owner, name="Volume of water/body weight",
                                             label="Water with the dose", value=round(water.value / weight[0], 3), unit="ml/kg",
@@ -1189,12 +1362,16 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
         section("inputs", "PK-Sim inputs", f"{sum(1 for r in inputs_rows if r.status != 'missing')} of {len(inputs_rows)} filled",
                 not any(r.status == "missing" for r in inputs_rows), not inputs_rows),
     ]
-    return DataRoomView(rules=rules.label(), files=tuple(inputs.files), question=question,
+    view = DataRoomView(rules=rules.label(), files=tuple(inputs.files), question=question,
                         question_confirmed=inputs.question_confirmed, sections=tuple(sections), substance=tuple(substance),
                         adme=tuple(adme), products=tuple(products), composition=tuple(composition), solubility=tuple(solubility),
                         absorption=tuple(absorption), dissolution=tuple(diss), f2=tuple(f2s), studies=tuple(studies),
-                        decisions=tuple(decisions), requests=tuple(requests), plan=tuple(plan), inputs=tuple(inputs_rows),
+                        other_analytes=tuple(other_analytes), dose_card=dose_info, decisions=tuple(decisions),
+                        requests=tuple(requests), plan=tuple(plan), inputs=tuple(inputs_rows),
                         problems=tuple(problems), checks=checks, requirements=needs)
+    # the page in its groups (plan 2026-11-26 §9, slice 5a): code places every part, the page draws it
+    return view.model_copy(update={"layout": build_layout(
+        view, required=required_from_drafts(needs.items if needs else ()))})
 
 
 # a value the files state was fitted to clinical PK, not measured

@@ -45,9 +45,9 @@ def _said(field: str, value: str, quote: str, subject: str = "S") -> CheckedFact
                        chip=Chip(file="notes.md", part="body", line=1, text=quote))
 
 
-def test_the_rules_carry_the_new_checks_unverified_at_0_3():
+def test_the_rules_carry_the_new_checks_unverified():
     rules = load_rules()
-    assert (rules.version, rules.status) == ("0.3", "UNVERIFIED")
+    assert (rules.version, rules.status) == ("0.4", "UNVERIFIED")   # 0.4: the be block (phase 3)
     rep = rules.nca.reproduce
     assert (rep.pass_percent, rep.investigate_percent) == (1.0, 5.0)
     assert rep.integration[0] == "linear-up/log-down" and rep.lambda_z[0] == "best_fit"     # ours first

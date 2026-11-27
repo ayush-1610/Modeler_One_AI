@@ -277,7 +277,7 @@ def test_a_medium_named_without_its_ph_takes_its_conventional_ph_only_once_confi
     from modeler_project.dataroom.rules import load_rules
 
     rules = load_rules()
-    assert rules.version == "0.3" and rules.status == "UNVERIFIED"
+    assert rules.version == "0.4" and rules.status == "UNVERIFIED"
     assert rules.convention_ph("Dissolution in 0.1 N HCl, 900 mL") == 1.2
     assert rules.convention_ph("FeSSIF-V2") == 5.8 and rules.convention_ph("FeSSIF") == 5.0   # the longest name first
     assert rules.convention_ph("phosphate buffer") is None and rules.convention_ph("HCl solution") is None

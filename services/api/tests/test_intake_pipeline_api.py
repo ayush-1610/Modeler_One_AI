@@ -45,7 +45,7 @@ H = {"Authorization": "Bearer t"}
 BINARY = "application/octet-stream"
 PAGES = ("client-data", "client-review", "reading-queue", "inputs")
 BROKEN = ("broken.pdf", b"%PDF-1.4 not really a PDF")
-UNSUPPORTED = ("trial.xpt", b"HEADER RECORD*******LIBRARY HEADER RECORD")
+UNSUPPORTED = ("trial.mat", b"MATLAB 5.0 MAT-file, Platform: GLNXA64")   # .xpt is read since phase 2 (2026-11-26)
 
 
 class FakeVerifier:
@@ -166,7 +166,7 @@ def test_the_upload_answers_and_the_legacy_pages_are_the_same_in_both_and_legacy
     both = _legacy_answers(both_project)
     assert [legacy[name][0] for name in ("upload", "refused", *PAGES)] == [201, 422, 200, 200, 200, 200]
     assert legacy["refused"][1]["detail"] == (
-        "broken.pdf: the PDF could not be read: Stream has ended unexpectedly; trial.xpt: unsupported file type .xpt: "
+        "broken.pdf: the PDF could not be read: Stream has ended unexpectedly; trial.mat: unsupported file type .mat: "
         "use PDF, DOCX, Markdown, text, JSON, CSV, XLSX, PNG or JPEG (added: design-report.docx)")
     assert both["refused"] == legacy["refused"]                               # the same 422 and the same detail
     assert _same(both["upload"]) == _same(legacy["upload"])
@@ -275,10 +275,10 @@ def test_a_broken_and_an_unsupported_file_are_recorded_with_the_reason_and_their
     refused = one.upload(BROKEN, UNSUPPORTED)
     assert refused.status_code == 422
     reasons = dict(part.split(": ", 1) for part in refused.json()["detail"].split("; "))
-    assert set(reasons) == {"broken.pdf", "trial.xpt"}
+    assert set(reasons) == {"broken.pdf", "trial.mat"}
     one.settle()
     files = {f.name: f for f in intake_files.files(one.ws)}
-    assert set(files) == {"broken.pdf", "trial.xpt"}
+    assert set(files) == {"broken.pdf", "trial.mat"}
     for name, data in (BROKEN, UNSUPPORTED):
         record = files[name]
         assert (record.sha256, record.size_bytes, record.legacy_sid) == (_sha(data), len(data), None)
@@ -289,7 +289,7 @@ def test_a_broken_and_an_unsupported_file_are_recorded_with_the_reason_and_their
     broken, unsupported = states[_sha(BROKEN[1])], states[_sha(UNSUPPORTED[1])]
     assert (broken.state, broken.coverage.state) == ("done", "unreadable") and broken.coverage.reason
     assert (unsupported.state, unsupported.coverage.state, unsupported.coverage.reason) == (
-        "done", "unsupported", "no parser for .xpt")
+        "done", "unsupported", "no parser for .mat")
     assert one.page("client-data").json()["data"]["files"] == []             # today's pages do not list them, as before
 
 

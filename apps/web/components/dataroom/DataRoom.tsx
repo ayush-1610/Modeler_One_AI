@@ -1,7 +1,7 @@
 "use client";
 
-// The Data room (plan 2026-11-21 v2 §5, §10): the delivery's way in on top, then a rail of sections, each with its status
-// dot, and the section shown beside it: its one-line finding first, at most three cards, every value with its source
+// The Data room (plan 2026-11-21 v2 §5, §10; in its groups since plan 2026-11-26 §9): the delivery's way in on top,
+// then a rail of the groups' sections, each with its status dot, and the section shown beside it: its one-line finding first, at most three cards, every value with its source
 // chip, its data requests at the bottom. The section is kept in the address (`?section=`), so a link opens it. Only the
 // PK-Sim inputs section speaks PK-Sim's own names.
 
@@ -14,6 +14,7 @@ import { readAgain, useResource } from "@/lib/hooks";
 
 import { ActsContext, PUBLICATION, ROOM, RUN, UPLOADS, useActs } from "./acts";
 import { Intake } from "./Intake";
+import { GroupedRail, LayoutBody, sectionFor } from "./layout";
 import { Dot, Nothing, SourceProvider } from "./kit";
 import { Files, Overview } from "./overview";
 import { Requirements } from "./requirements";
@@ -104,15 +105,22 @@ export function DataRoom({ projectId }: { projectId: string }) {
   }, [run.data?.state]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const sections = [OVERVIEW, ...(room.data?.sections ?? [])];
+  // the page in its groups (plan 2026-11-26 §9, slice 5a) when the API gives its layout; an old address opens the
+  // section that now holds it
+  const layout = room.data?.layout ?? [];
+  const grouped = layout.length > 0;
   const asked = search.get("section") ?? "overview";
-  const current = sections.some((s) => s.id === asked) ? asked : "overview";
+  const current = grouped ? (asked === "overview" ? "overview" : sectionFor(layout, asked))
+    : sections.some((s) => s.id === asked) ? asked : "overview";
+  const placed = grouped ? layout.flatMap((g) => g.sections).find((s) => s.id === current) : undefined;
   const go = (id: string) => {
     const q = new URLSearchParams(search.toString());
     if (id === "overview") q.delete("section"); else q.set("section", id);
     router.replace(`${here}${q.size ? `?${q}` : ""}`, { scroll: false });
     window.setTimeout(() => top.current?.focus({ preventScroll: false }), 0);
   };
-  const section = sections.find((s) => s.id === current)!;
+  const section = placed ? { id: placed.id, title: placed.title, finding: placed.finding, status: placed.status, computed: "" }
+    : sections.find((s) => s.id === current) ?? OVERVIEW;
   const finding = current === "overview"
     ? (room.data?.question?.question ? "Where the delivery stands, and what needs you first." : "Start with the question the modelling must answer.")
     : section.finding;
@@ -126,13 +134,15 @@ export function DataRoom({ projectId }: { projectId: string }) {
           {room.problem && <div className="banner err" role="alert">{room.problem}</div>}
           {room.data && (
             <div className="dr-layout">
-              <Rail sections={sections} current={current} go={go} />
+              {grouped ? <GroupedRail layout={layout} current={current} go={go} />
+                : <Rail sections={sections} current={current} go={go} />}
               <div className="dr-main" data-testid={`section-${current}`}>
                 <header className="dr-head">
                   <h2 ref={top} tabIndex={-1} className="dr-title">{section.title}</h2>
                   {finding && <p className="dr-finding" data-testid="section-finding">{finding}</p>}
                 </header>
-                <SectionBody id={current} room={room.data} run={run.data} projectId={projectId} go={go} />
+                {placed ? <LayoutBody section={placed} room={room.data} run={run.data} projectId={projectId} go={go} />
+                  : <SectionBody id={current} room={room.data} run={run.data} projectId={projectId} go={go} />}
               </div>
             </div>
           )}

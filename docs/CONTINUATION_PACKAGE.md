@@ -2,7 +2,7 @@
 
 **Purpose:** the entry point for anyone — engineer or AI model — resuming work on Modeler One. Read in this order:
 `CLAUDE.md` (working rules) → this file (where things stand) → `CHANGELOG.md` (what changed, why, when) → the active
-plan in `docs/plans/`. **Last brought up to date: 2026-11-19 (§4.0c: the Inputs task-first redesign and its final review, merged to `main` for the owner's trial).** If HEAD is far ahead of
+plan in `docs/plans/`. **Last brought up to date: 2026-11-27 (§4.0f: the Data room regrouped by purpose and scored value by value, phases 0–3, 5a and 5b of `docs/plans/2026-11-26-data-room-groups-and-corpus-benchmark.md`; §4.0e and earlier were current on 2026-11-25).** If HEAD is far ahead of
 that commit and §4 was not updated with it, §4 is stale — fix it before trusting it.
 
 ## 30-second system state
@@ -213,15 +213,79 @@ T-05 → T-07 → T-08 → T-18 and T-09 in parallel.
 
 ## 4. Where things stand (2026-11-27)
 
-### 4.0f 2026-11-27: the "Graphite" restyle (R1 in review)
+### 4.0g 2026-11-27: the "Graphite" restyle (R1 approved, R2 next)
 The owner chose a new look for the console from design catalogues (a Design Studio artifact) and approved its prototype
 and six choices (`design-review/DECISIONS.md` D-I4): Graphite colours (near-black ink for actions, one blue for charts,
 source links and focus), Plus Jakarta Sans at 15 px with JetBrains Mono for identifiers, 14 px rounded panels with soft
 shadows, a left sidebar in place of the top bar, the app's own icons at a 1.5 stroke. Plan:
-`docs/plans/2026-11-27-console-graphite-restyle.md`, four PRs, each reviewed: **R1** colours, font, corners, shadows (a PR,
-**waits for the owner's review**); R2 the sidebar layout; R3 icons and components; R4 accessibility, a screenshot
+`docs/plans/2026-11-27-console-graphite-restyle.md`, four PRs, each reviewed: **R1** colours, font, corners, shadows
+(#189, approved by the owner 2026-11-27, with `main`'s Data room work merged in); R2 the sidebar layout; R3 icons and components; R4 accessibility, a screenshot
 gallery, the deploy plan. Later: a per-person Compact view. All of slices 1–10 and `/templates`' retirement are on
 `main` (`e308a06`); the deploy still waits for the owner's acceptance and go-ahead.
+
+### 4.0f 2026-11-25 → 26: the corpus audit, the Data room regrouped by purpose, the room scored value by value
+**The owner's input:** a client-confidential audit of 30 of the owner's PBPK/PBBM project folders (kept outside the
+repository). A read-only assessment against this codebase (session files, not committed) found the platform's
+architecture sound, the generic-product work (VBE, biowaivers, safe space) its thinnest area, and the Data room showing
+a delivery by file type although most of what clients send never reaches a model. **The plan:**
+`docs/plans/2026-11-26-data-room-groups-and-corpus-benchmark.md` (the owner's decisions D1–D7 in its §1; phases 0–7).
+
+**Built on the session branch `claude/exciting-galileo-x1ziov` (phases 0 and 1; no page change, no locked file):**
+- One prompt version per Data room agent (`stages.PROMPT_VERSIONS`): a change to one agent's instructions no longer
+  discards every agent's cached answers.
+- The group map `dataroom/dataroom_layers.yaml` 0.1 (`layers.py`): Question and Context of Use · Model Input Data ·
+  Supporting Evidence · Source Records · Data Requests, every vocabulary entry placed by code, question-driven
+  promotion, the D1 choices (population, sex, meal, release model) on Inputs. The page reads it in phase 5.
+- The Data room in the value scorer: `value_score --source dataroom` (`dataroom/scoring.py`), the same key format and
+  verdicts as the intake pipeline. The room's table reading is shared (`assemble.read_extractions`, `room_inputs`).
+- **First real measure (code only):** P03's concentration table, described as a modeler would: 1,678 of 1,678 measured
+  values right, none unexpected; 146 BLQ-coded zeros are a key convention for the modeler.
+- **Every format (code only, OCR on):** the 102 client files packaged with the audit (17 projects): 94 read, 1 partly
+  read, 7 not opened (4 SAS datasets, 3 PowerPoint files), no crash.
+
+- **Phase 2a (formats):** SAS datasets (`.sas7bdat`, `.xpt`), PowerPoint (`.pptx`, charts' data as tables) and Apple
+  Numbers are read; a known unread format says what to ask for. Corpus: 6 of the 7 unopened files now open.
+
+- **Phase 2b (analytes; CDISC by code; the owner's option A):** a study that measured the drug and its metabolites is
+  viewed once per analyte; the modeler chooses the modeled one (decision `analyte:<study>`, the drug suggested); the
+  others are Supporting Evidence (`DataRoomView.other_analytes`, layers 0.2). SDTM PC and DM / ADSL are described by code
+  (`dataroom/cdisc.py`, `cdisc-1`), and A8 / A9 skip them. P30, code only: PC and ADSL of 4 pooled studies described,
+  each study's 3–4 analytes apart. PP, EX and the period-to-treatment tie are left to the agents (phase 2c; the plan's
+  §8 says why); a study whose data names no treatment says so (NO_TREATMENT). A8 is at `dataroom-7`.
+- **CI (2026-11-26):** `ubuntu-latest` became Ubuntu 26.04 and turned Tests, Playwright and gitleaks red on `main`; the
+  fix (runners pinned to `ubuntu-24.04`, seven reviewed fixture hashes in `.gitleaksignore`) is its own PR,
+  ayush-1610/Modeler_One_AI#188, owner-approved.
+
+- **Phase 2c (treatments and PK parameters):** a `dosing` table kind; SDTM EX and PP described by code; a profile
+  whose data name no treatment takes it from the dosing data, with decision `dose-arms:<study>` when a product was
+  given at several doses; long PK tables (a line per parameter). P30, code only: every study now has arms, mean
+  profiles and exposures; the client's NCA beside ours in the two single-dose studies (Cmax, Tmax equal; AUC within
+  1.3 %, flagged). The CI fix (ayush-1610/Modeler_One_AI#188) is merged into `main` and `main` into this branch.
+
+- **Phase 3a (BE by code):** each study's GMR, 90 % CI, CVw and BE zone for Cmax, AUC0–t, AUC0–inf on the chosen
+  analysis set, from our NCA and the client's, the CSR's numbers reproduced within 0.5 pp or said (`dataroom/bestats.py`,
+  `pbpk_domain.bioequivalence.crossover_be`, rules 0.4 `be`, UNVERIFIED). `RoomStudy.be` in the API; not on the page yet.
+
+- **Phase 3b (dose card, detectors):** the dose in both bases with PK-Sim's dose as the free base (R14,
+  `dataroom/dosecard.py`, `DataRoomView.dose_card`); delivery-wide checks for simulated-looking concentrations (R03),
+  lot conflicts (R07), a document that never names the drug, and personal data (`dataroom/detectors.py`).
+
+- **Phase 5a (the page in its groups):** `DataRoomView.layout` (`dataroom/layout.py`) places every part of the room in
+  the layers map's sections; the page's rail lists the five groups with their sections, each drawing today's cards
+  filtered to what is placed in it, plus the BE results, the dose card and the other analytes. Old `?section=` addresses
+  open the section that now holds them. The BE values of rules 0.4 are confirmed by the owner (still UNVERIFIED).
+
+- **Phase 5b (the D1 choices on Inputs, 2026-11-27):** the population, sex and meal template are no longer decided in
+  the room (`RoomDecision.on_inputs`); the send writes the suggestions on the study record as before and keeps them on
+  the dataset as `ObservedDataset.proposed`; Inputs' Individuals tab confirms them or picks the other meal template
+  (`:study` with `confirm`, `meal_template`), and readiness waits until it is done ("the Data room's proposals confirmed
+  (D1)"). **Deviation:** the release model stays a room decision (it decides which release evidence the send accepts;
+  the plan's §8 says why).
+
+**Next:** phase 5c–5d (§9 of the plan: the empty and reading states, each check on its item); the release model on
+Inputs (5b's deviation);
+phase 4's agent work with the agents' baseline on the server's in-house model (D6). The corpus data and answer keys stay
+outside git.
 
 ### 4.0e 2026-11-22 → 25: redesign charter, implementation (slice 10, acceptance, in review)
 **Now (2026-11-23):** the owner authorised slices 0 and 1, one PR per slice into `main`, a review after each. Slice 0:

@@ -102,7 +102,7 @@ async function check(page: Page, path: string) {
     const name = path.replace(/\/projects\/(?!start\b)[^/?]+/, "/project").replace(/[/?=&]+/g, "_").replace(/^_|_$/g, "") || "home";
     await page.screenshot({ path: join(SHOTS, `${width}-${name}.jpg`), type: "jpeg", quality: 70 });
   }
-  expect(await page.locator("h1").count(), `${path}: one top heading`).toBe(1);
+  await expect(page.locator("h1"), `${path}: one top heading`).toHaveCount(1);   // retried: a page still arriving
   expect(await unnamed(page), `${path}: every control named`).toEqual([]);
   const [wide, who] = await sideways(page);
   expect(wide, `${path}: no sideways scroll (${who})`).toBeLessThanOrEqual(1);

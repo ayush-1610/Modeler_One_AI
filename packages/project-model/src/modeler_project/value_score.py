@@ -1,6 +1,7 @@
 """Score a delivery value by value against the analysts' key (plan 2026-11-12 G1, contracts §8.1 and §13).
 
-Two adapters give the values code read, as `Extracted`: `from_ledger` (the new pipeline: the ledger's active values,
+Three adapters give the values code read, as `Extracted`: the Data room's (`modeler_project.dataroom.scoring`,
+`--source dataroom`, plan 2026-11-26 §6), `from_ledger` (the new pipeline: the ledger's active values,
 derived spread facts left out) and `from_stores` (the baseline: today's datasets, the points of sheets read and
 waiting for a person, dissolution rows and records, and study facts). `score` compares them with a key
 (`value_key.ValueKey`); `timings` and `coverage_totals` add the time per delivery and stage (G7) and the coverage
@@ -1317,8 +1318,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--project", help="the project's id")
     parser.add_argument("--tenant", help="the tenant (found from the project when left out)")
     parser.add_argument("--key", help="the value key (a workbook: value-key/2)")
-    parser.add_argument("--source", choices=("ledger", "stores"), default="ledger",
-                        help="ledger: the new pipeline; stores: today's pipeline (the baseline)")
+    parser.add_argument("--source", choices=("ledger", "stores", "dataroom"), default="ledger",
+                        help="ledger: the new pipeline; stores: today's pipeline (the baseline); dataroom: the "
+                             "Data room's reading (modeler_project.dataroom.scoring)")
     parser.add_argument("--tolerance", type=float, default=0.0, help="relative tolerance (off by default)")
     parser.add_argument("--digitized-tolerance", type=float, default=0.0, help="relative tolerance for digitized values")
     parser.add_argument("--compare", help="a second analyst's key: compare it with --key (no project needed)")
@@ -1371,7 +1373,12 @@ def main(argv: list[str] | None = None) -> int:
               "all the same, with the break at the top of the report)", file=sys.stderr)
         return 2
     try:
-        extracted = from_ledger(ws) if args.source == "ledger" else from_stores(ws)
+        if args.source == "dataroom":         # the Data room's reading (plan 2026-11-26 §6)
+            from modeler_project.dataroom.scoring import from_dataroom
+
+            extracted = from_dataroom(ws)
+        else:
+            extracted = from_ledger(ws) if args.source == "ledger" else from_stores(ws)
         scored = score(key, extracted, tolerance=args.tolerance, digitized_tolerance=args.digitized_tolerance,
                        fold_arm=args.source == "stores")
         times, cover = timings(ws), coverage_totals(ws)

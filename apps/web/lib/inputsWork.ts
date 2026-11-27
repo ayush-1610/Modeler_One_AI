@@ -83,7 +83,7 @@ export const GROUP_LEDE: Record<Group, string> = {
   notread: "Numbers no table layout picked up. Mark them as not data, or read the table.",
   missing: "No file or source gives these.",
   disagree: "The sources or the client's files disagree, or a value waits for your check.",
-  confirm: "Confirming adds a study or product to the model under your name.",
+  confirm: "Confirming adds a study or product to the model under your name, or takes the Data room's proposal for a study's choice.",
   tidy: "Clean-up that holds up no signature: each row says why. Tidy it for the delivery record.",
   done: "Confirmed and in the model.",
 };
@@ -481,11 +481,14 @@ export function buildWork(sources: WorkSources): WorkModel {
     // round 7: a study the readiness check passes, whose file names a product while the model would use another
     // product's release for it, is why the item is open: said first
     const elsewhere = (t.way?.each ?? []).filter((e) => e.uses && e.named).map((e) => `${e.study}: ${elsewhereText(e.named!, e.uses!)}.`);
+    // the Data room's proposals (the owner's D1) are values to confirm, on Individuals, not values missing
+    const proposal = t.kind === "proposal";
     add({
-      id: `todo:${t.kind}:${t.target}`, group: decide ? "disagree" : "missing", status: decide ? "to_decide" : "missing", area: tab,
+      id: `todo:${t.kind}:${t.target}`, group: decide ? "disagree" : proposal ? "confirm" : "missing",
+      status: decide ? "to_decide" : proposal ? "to_confirm" : "missing", area: tab,
       label: todoLabel(t.kind, t.target), pipeline: "inputs",
       where: product ? { tab: product.area, anchor: releaseAnchor(product), subject: product.row ? `${product.row.subject_type}/${product.row.subject}` : undefined }
-        : { tab, anchor: `todo-${t.kind}-${t.target}` },
+        : { tab, anchor: proposal ? `proposal-${t.target}` : `todo-${t.kind}-${t.target}` },
       detail: way?.ways.length ? [...elsewhere, way.fix].join(" ") : undefined,
       files: [], subjects: product && lever!.products.length === 1 ? [product.key] : [], weight: 1, todo: t,
     });
@@ -712,6 +715,7 @@ const CHECK_TODO: Record<string, (t: TodoLike) => boolean> = {
     && (t.tab ?? "compound") === "compound"),
   "every pathway placeable": (t) => t.kind === "process", "formulations of solid studies": (t) => t.kind === "formulation",
   "multiple-dose regimens": (t) => t.kind === "regimen", "demographics stated": (t) => t.kind === "demographics",
+  "the Data room's proposals confirmed": (t) => t.kind === "proposal",
 };
 const checkKeyOf = (raw: string) => raw.replace(/\s*\([^)]*\)\s*$/, "");
 
@@ -740,7 +744,7 @@ export function nextText(model: WorkModel): string | null {
   const first = model.next;
   if (!first) return null;
   const n = model.items.filter((i) => i.open && i.group === first.group).length;
-  const name = first.label.replace(/^(Study|Product|Compound) /, (k) => k.toLowerCase());
+  const name = first.label.replace(/^(Study|Product|Compound|The) /, (k) => k.toLowerCase());
   switch (first.group) {
     case "ready": case "confirm": return `Next: Confirm ${name}`;
     case "layouts": return `Next: Check ${plural(n, "table layout")}`;

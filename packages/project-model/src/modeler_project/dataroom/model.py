@@ -97,7 +97,7 @@ class CheckedFact(_B):
 
 
 class Sample(_B):
-    subject: str
+    subject: str                     # one id however written (`clinical.subject_id`: "007" is 7)
     period: str = ""
     treatment: str = ""
     sequence: str = ""
@@ -108,6 +108,8 @@ class Sample(_B):
     blq: bool = False
     missing: bool = False
     chip: Chip | None = None
+    subject_text: str = ""           # the subject as the file writes it ("007"), for a value-by-value key
+    analyte: str = ""                # what was measured, as written: the line's analyte cell, else the table's constant
 
 
 class Arm(_B):
@@ -228,10 +230,58 @@ class Exposure(_B):
     difference_percent: float | None = None
 
 
+class BeResult(_B):
+    """One metric's average bioequivalence of a study, computed by code from its subjects' values (plan 2026-11-26 §7
+    phase 3; the corpus audit's R01, R50, R55; decision D3: the CVw shown to confirm), beside the CSR's."""
+
+    metric: str                      # cmax, auc_t, auc_inf
+    label: str                       # Cmax, AUC0–t, AUC0–inf
+    test: str                        # the treatments as the data write them
+    reference: str
+    source: Literal["ours", "client"]  # our NCA, or the client's NCA values of the same subjects
+    analysis_set: str
+    design: str                      # 2x2 crossover, paired (sequences not known), parallel
+    n: int
+    n_by_group: tuple[int, ...] = ()
+    df: int
+    gmr_percent: float
+    ci_low_percent: float
+    ci_high_percent: float
+    cv_percent: float | None = None  # within-subject (CVw) for a crossover, between-subject for a parallel study
+    within_limits: bool
+    conclusion: str                  # written from the numbers (R50)
+    zone_low_percent: float | None = None   # R55: the GMRs this CVw and n conclude bioequivalent (crossover only)
+    zone_high_percent: float | None = None
+    csr: dict[str, float] = Field(default_factory=dict)              # the CSR's ratio, ci_low, ci_high, cv (percent)
+    csr_difference_pp: dict[str, float] = Field(default_factory=dict)
+    csr_status: Literal["reproduced", "differs", "none"] = "none"
+    rule: str = ""                   # the method, written out
+
+
+class DoseCard(_B):
+    """The dose in both bases (the corpus audit's R14): as written, its basis, the two molecular weights, the dose as
+    the free base (what PK-Sim is given) and as the salt, and the molar dose."""
+
+    dose_written: str
+    basis: Literal["salt", "base", "unknown"]
+    salt: str = ""                   # the salt form, as written
+    mw_base: float | None = None
+    mw_salt: float | None = None
+    dose_as_base_mg: float | None = None
+    dose_as_salt_mg: float | None = None
+    molar_dose_umol: float | None = None
+    rule: str = ""
+    sources: tuple[Chip, ...] = ()
+
+
 class RoomStudy(_B):
     """One clinical study as the room shows it (named apart from the API's other study views)."""
 
     study_id: str
+    # the analyte these profiles are of, as the data writes it ("" when the data names none). A study that measured
+    # several is viewed once per analyte: `DataRoomView.studies` holds the one the model is compared with (decision
+    # analyte:<study>), `DataRoomView.other_analytes` the others (metabolites, a labelled tracer)
+    analyte: str = ""
     facts: tuple[Value, ...] = ()
     arms: tuple[Arm, ...] = ()
     periods: tuple[str, ...] = ()
@@ -241,6 +291,8 @@ class RoomStudy(_B):
     profiles: tuple[ArmProfile, ...] = ()
     nca: tuple[SubjectNca, ...] = ()
     exposures: tuple[Exposure, ...] = ()
+    # the study's bioequivalence computed by code on the chosen analysis set, from our NCA and the client's
+    be: tuple[BeResult, ...] = ()
     nca_method_client: str = ""      # the trapezoid rule the client's values follow, as found
     nca_reproduction: NcaReproduction | None = None
     client_means: tuple[ClientMean, ...] = ()
@@ -361,6 +413,9 @@ class RoomDecision(_B):
     reason: str = ""
     by: str = ""
     at: str = ""
+    # chosen on Inputs, not here (the owner's D1; plan 2026-11-26 §9, slice 5b): the room's suggestion and its evidence
+    # go to Inputs as a proposal with the study's datasets; the room does not wait for it
+    on_inputs: bool = False
 
 
 class DataRequest(_B):
@@ -507,6 +562,31 @@ class MadeBy(_B):
     switches: tuple[str, ...] = ()
 
 
+class LayoutSection(_B):
+    """One section of the page in its groups (plan 2026-11-26 §9, slice 5a): what it shows, as code placed it."""
+
+    id: str                          # the map's section id (products, substance, release, design …)
+    ref: str                         # group/section
+    title: str
+    parts: tuple[str, ...]           # what it draws: question, products, substance, dissolution, studies, be …
+    values: tuple[str, ...] = ()     # the keys of the values placed here
+    dissolution: tuple[str, ...] = ()  # the dissolution profiles shown here (the release inputs, or the others)
+    decisions: tuple[str, ...] = ()  # the decisions it holds
+    count: int = 0
+    status: Literal["ok", "attention", "missing", "empty"] = "empty"
+    finding: str = ""
+    legacy: str = ""                 # the room's section whose status and finding it shows (an old address's)
+    answers: tuple[str, ...] = ()    # the old addresses (?section=clinical) that open this section
+
+
+class LayoutGroup(_B):
+    id: str
+    title: str
+    meaning: str
+    sections: tuple[LayoutSection, ...]
+    status: Literal["ok", "attention", "missing", "empty"] = "empty"
+
+
 class DataRoomView(_B):
     """The Data room of one project, as the page and the report show it."""
 
@@ -524,6 +604,13 @@ class DataRoomView(_B):
     dissolution: tuple[DissolutionView, ...] = ()
     f2: tuple[F2View, ...] = ()
     studies: tuple[RoomStudy, ...] = ()
+    # each study's analytes the model is not compared with (a metabolite, a labelled tracer), each viewed as a study is:
+    # Supporting Evidence, never sent to the model
+    other_analytes: tuple[RoomStudy, ...] = ()
+    # the dose in both bases, salt and free base (R14); None when the delivery states no dose
+    dose_card: DoseCard | None = None
+    # the page in its groups: each section and what it shows, placed by code (`dataroom.layout`)
+    layout: tuple[LayoutGroup, ...] = ()
     decisions: tuple[RoomDecision, ...] = ()
     requests: tuple[DataRequest, ...] = ()
     plan: tuple[PlanRow, ...] = ()

@@ -104,9 +104,11 @@ function DecisionCard({ d }: { d: Decision }) {
   );
 }
 
-export function Decisions({ room }: { room: Room }) {
-  if (!room.decisions.length) return <Nothing>No decision is waiting: they come with the clinical and in vitro data.</Nothing>;
-  const ordered = [...room.decisions.filter((d) => !d.chosen), ...room.decisions.filter((d) => d.chosen)];
+/** The decisions, the waiting ones first; `ids`: only these (each section of the page in its groups holds its own). */
+export function Decisions({ room, ids }: { room: Room; ids?: readonly string[] }) {
+  const mine = ids ? room.decisions.filter((d) => ids.includes(d.id)) : room.decisions;
+  if (!mine.length) return ids ? null : <Nothing>No decision is waiting: they come with the clinical and in vitro data.</Nothing>;
+  const ordered = [...mine.filter((d) => !d.chosen), ...mine.filter((d) => d.chosen)];
   return <>{ordered.map((d) => <DecisionCard key={d.id} d={d} />)}</>;
 }
 

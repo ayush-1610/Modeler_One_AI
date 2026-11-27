@@ -346,6 +346,10 @@ def room_limitations(room: RoomBasis | None) -> tuple[str, ...]:
         if d.waiting:
             lines.append(f"Data room decision not made when the inputs were sent: {d.title}")
             continue
+        if d.on_inputs:                  # D1: proposed to Inputs; the study record holds what a person confirmed there
+            lines.append(f"Data room proposal, {d.title}: {d.chosen}, chosen on Inputs (the study record holds what was "
+                         "confirmed or changed there)" + (f"; the room's reason: {d.why}" if d.why else ""))
+            continue
         why = d.reason or (f"the room's suggestion: {d.why}" if d.suggested and d.why else "")
         lines.append(f"Data room decision, {d.title}: {d.chosen}" + (f" (by {d.by})" if d.by else "")
                      + (f"; {why}" if why else ""))

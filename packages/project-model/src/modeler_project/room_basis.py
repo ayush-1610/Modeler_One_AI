@@ -20,7 +20,7 @@ import math
 import re
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from modeler_intake.room_specs import QuestionCard
 from modeler_project.brief import Citation
@@ -95,6 +95,9 @@ class DecisionLine(_B):
     why: str = ""                    # the room's own reason for its suggestion
     by: str = ""
     at: str = ""
+    # left for Inputs (the owner's D1; plan 2026-11-26 §9, slice 5b): the population, sex or meal template not chosen
+    # in the room; `chosen` is the room's suggestion, proposed to Inputs, where a person confirms or changes it
+    on_inputs: bool = Field(default=False, exclude_if=lambda v: not v)
 
 
 class RequestLine(_B):
@@ -272,9 +275,12 @@ def basis_from_view(view: DataRoomView) -> RoomBasis | None:
 def _decisions(view: DataRoomView) -> list[DecisionLine]:
     out = []
     for d in view.decisions:
-        label = next((o.label for o in d.options if o.id == d.chosen), "") if d.chosen else ""
-        out.append(DecisionLine(id=d.id, title=d.title, chosen=label, suggested=d.chosen == d.suggested,
-                                waiting=not d.chosen, reason=d.reason, why=d.why, by=d.by, at=d.at))
+        left = d.on_inputs and not d.chosen
+        pick = d.suggested if left else d.chosen
+        label = next((o.label for o in d.options if o.id == pick), pick or "") if pick else ""
+        out.append(DecisionLine(id=d.id, title=d.title, chosen=label, suggested=left or d.chosen == d.suggested,
+                                waiting=not d.chosen and not left, reason=d.reason, why=d.why, by=d.by, at=d.at,
+                                on_inputs=left))
     return out
 
 

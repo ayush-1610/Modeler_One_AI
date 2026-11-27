@@ -413,3 +413,113 @@ def score_room(got: Any, key: Any) -> list[tuple[str, str, object, object]]:
         add(f"substance {base(kv.key)}", next((v.value for v in got.substance if base(v.key) == base(kv.key)), None),
             kv.value)
     return rows
+
+
+# --- a CRO's SDTM PC dataset (plan 2026-11-26 §7 phase 2b) -------------------------------------------------------------
+# Made up, in the shape such a dataset has: one line per sample, the drug and its metabolite M1 line by line, two
+# studies (EX-02, EX-03) pooled and sorted by STUDYID, each subject in two periods named by PCGRPID ("Period 1"), the
+# planned time in PCTPTNUM running on across visits (the 24 h sample is on "Day 2"), below the LLOQ written "<0.50", one
+# missing sample "MS" on a NOT DONE line. `test_dataroom_cdisc` describes it by code; its SAS transport twin is
+# tests/fixtures/dataroom/pc_two_analytes.xpt (made with pyreadstat 1.3.7 from these lines).
+
+PC_VARIABLES = ("STUDYID", "DOMAIN", "USUBJID", "PCSEQ", "PCGRPID", "PCTESTCD", "PCTEST", "PCSTRESC", "PCSTRESN",
+                "PCSTRESU", "PCSTAT", "PCREASND", "PCSPEC", "VISIT", "PCTPT", "PCTPTNUM")
+PC_STUDIES = ("EX-02", "EX-03")
+PC_ANALYTES = (("EXA", "Exampleamide"), ("EXAM1", "Exampleamide-M1 Metabolite"))
+PC_TIMES = (("Pre-dose", 0.0, "Day 1"), ("0.5 h", 0.5, "Day 1"), ("1 h", 1.0, "Day 1"), ("2 h", 2.0, "Day 1"),
+            ("4 h", 4.0, "Day 1"), ("8 h", 8.0, "Day 1"), ("24 h", 24.0, "Day 2"))
+
+
+def _pc_conc(subject: int, period: str, code: str, t: float) -> float:
+    import math
+
+    if t == 0:
+        return 0.0
+    c = 50 * (math.exp(-0.1 * t) - math.exp(-1.5 * t)) * (1 + 0.1 * subject) * (1.0 if period == "Period 1" else 0.95)
+    return round(c * (0.08 if code == "EXAM1" else 1.0), 3)
+
+
+def pc_dataset_rows() -> list[dict[str, str]]:
+    """The made-up SDTM PC dataset, one dict per line (variable -> value as the dataset writes it)."""
+    rows = []
+    for study in PC_STUDIES:
+        seq = 0
+        for s in (1, 2, 3):
+            for period in ("Period 1", "Period 2"):
+                for code, name in PC_ANALYTES:
+                    for tpt, t, visit in PC_TIMES:
+                        seq += 1
+                        c = _pc_conc(s, period, code, t)
+                        missing = (s, period, code, t) == (2, "Period 2", "EXA", 8.0)
+                        text = "MS" if missing else ("<0.50" if c < 0.5 else f"{c:g}")
+                        rows.append({"STUDYID": study, "DOMAIN": "PC", "USUBJID": f"{study}-00{s}", "PCSEQ": str(seq),
+                                     "PCGRPID": period, "PCTESTCD": code, "PCTEST": name, "PCSTRESC": text,
+                                     "PCSTRESN": "" if missing or c < 0.5 else f"{c:g}",
+                                     "PCSTRESU": "" if missing else "ng/mL", "PCSTAT": "NOT DONE" if missing else "",
+                                     "PCREASND": "MISSING" if missing else "", "PCSPEC": "PLASMA",
+                                     "VISIT": f"{period} {visit}", "PCTPT": tpt, "PCTPTNUM": f"{t:g}"})
+    return rows
+
+
+def dataset_csv(rows: list[dict[str, str]], variables: tuple[str, ...] = PC_VARIABLES) -> bytes:
+    """A dataset's lines as its CSV export (variables in line 1)."""
+    import csv
+
+    out = io.StringIO()
+    writer = csv.DictWriter(out, fieldnames=list(variables), extrasaction="ignore", lineterminator="\n")
+    writer.writeheader()
+    writer.writerows(rows)
+    return out.getvalue().encode()
+
+
+# the same studies' SDTM EX: EX-02 gives each subject 100 mg in period 1 and 50 mg in period 2 (the design's doses);
+# EX-03 gives each subject its own dose, the same in both periods (individualised, as by weight). The period is in
+# EXTPT ("PERIOD 1"), as the CRO's delivery of 2026-11-26 wrote it.
+EX_VARIABLES = ("STUDYID", "DOMAIN", "USUBJID", "EXSEQ", "EXTRT", "EXDOSE", "EXDOSU", "EXDOSFRM", "EXDOSFRQ", "EXROUTE",
+                "EPOCH", "EXTPT")
+EX_DOSES = {"EX-02": {1: ("100", "50"), 2: ("100", "50"), 3: ("100", "50")},
+            "EX-03": {1: ("98.5", "98.5"), 2: ("104", "104"), 3: ("111.5", "111.5")}}
+
+
+def ex_dataset_rows() -> list[dict[str, str]]:
+    rows = []
+    for study in PC_STUDIES:
+        seq = 0
+        for s in (1, 2, 3):
+            for k, period in enumerate(("PERIOD 1", "PERIOD 2")):
+                seq += 1
+                rows.append({"STUDYID": study, "DOMAIN": "EX", "USUBJID": f"{study}-00{s}", "EXSEQ": str(seq),
+                             "EXTRT": "EXAMPLEAMIDE", "EXDOSE": EX_DOSES[study][s][k], "EXDOSU": "mg",
+                             "EXDOSFRM": "TABLET", "EXDOSFRQ": "ONCE", "EXROUTE": "ORAL", "EPOCH": "TREATMENT",
+                             "EXTPT": period})
+    return rows
+
+
+# the same studies' SDTM PP: the client's NCA (CMAX, TMAX, AUCLST) of the drug and of M1 (named "EXAMPLEAMIDE-M1", not
+# as PC names it), plus a model-based CMAX line (PPSCAT "1 Compartment") that is not the client's NCA. EX-03 gives each
+# parameter twice per period (VISIT Day 1 and Day 2): not one value per profile.
+PP_VARIABLES = ("STUDYID", "DOMAIN", "USUBJID", "PPSEQ", "PPGRPID", "PPTESTCD", "PPTEST", "PPCAT", "PPSCAT", "PPSTRESC",
+                "PPSTRESN", "PPSTRESU", "VISIT")
+
+
+def pp_dataset_rows() -> list[dict[str, str]]:
+    rows = []
+    for study in PC_STUDIES:
+        seq = 0
+        for s in (1, 2, 3):
+            for period in ("Period 1", "Period 2"):
+                for cat, code in (("EXAMPLEAMIDE", "EXA"), ("EXAMPLEAMIDE-M1", "EXAM1")):
+                    peak = max(_pc_conc(s, period, code, t) for _tpt, t, _v in PC_TIMES)
+                    values = [("CMAX", "Max Conc", f"{peak:g}", "ng/mL", "Non-Compartmental"),
+                              ("TMAX", "Time of CMAX", "2", "h", "Non-Compartmental"),
+                              ("AUCLST", "AUC to Last Nonzero Conc", f"{round(peak * 9.1, 2):g}", "h*ng/mL",
+                               "Non-Compartmental"),
+                              ("CMAX", "Max Conc", f"{round(peak * 1.07, 3):g}", "ng/mL", "1 Compartment")]
+                    for visit in (("Day 1", "Day 2") if study == "EX-03" else ("",)):
+                        for testcd, test, value, unit, method in values:
+                            seq += 1
+                            rows.append({"STUDYID": study, "DOMAIN": "PP", "USUBJID": f"{study}-00{s}", "PPSEQ": str(seq),
+                                         "PPGRPID": period, "PPTESTCD": testcd, "PPTEST": test, "PPCAT": cat,
+                                         "PPSCAT": method, "PPSTRESC": value, "PPSTRESN": value, "PPSTRESU": unit,
+                                         "VISIT": f"{period} {visit}".strip() if visit else ""})
+    return rows

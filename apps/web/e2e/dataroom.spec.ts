@@ -127,47 +127,66 @@ test("an extracted delivery shows its study and dissolution, a decision is taken
   await page.goto(`/projects/${projectId}/dataroom`);
   await expect(page.getByTestId("question-text-shown")).toContainText("reformulated Exampleamide tablet");
   await expect(page.getByTestId("headline-files")).toContainText("10");
-  await expect(page.getByTestId("headline-decisions")).toContainText("10");   // nine of the room, and which applications the question has (the requirement drafts, D5)
+  // six of the room, and which applications the question has (the requirement drafts, D5); the population, sex and meal
+  // template are chosen on Inputs (the owner's D1), so not counted here
+  await expect(page.getByTestId("headline-decisions")).toContainText("7");
   await expect(page.getByTestId("overview-conflicts").getByTestId("conflict")).toHaveCount(2);
   await page.getByTestId("question-confirm").click();
   await expect(page.getByTestId("question-confirmed")).toBeVisible();
   await shot(page, "dataroom-overview");
 
-  // the clinical study: its subject flow, and who is out and why
-  await page.getByTestId("rail-clinical").click();
+  // the page in its groups (plan 2026-11-26 §9): the study's design, its subject flow, and who is out and why
+  await expect(page.getByTestId("rail-group-model_input")).toContainText("Clinical Study Design");
+  await expect(page.getByTestId("rail-group-supporting")).toContainText("Metabolites and Other Analytes");
+  await page.getByTestId("rail-design").click();
   await expect(page.getByTestId("set-modeling")).toContainText("6");
   await expect(page.getByTestId("set-auc")).toContainText("5");
   await expect(page.getByTestId("excluded-3")).toContainText("every sample below the LLOQ");
   await expect(page.getByTestId("excluded-4")).toContainText("adverse event");
 
-  // dissolution per medium: three products, the reformulated one levels off, f2 against the reference
-  await page.getByTestId("rail-dissolution").click();
+  // the release inputs, each product's suggested profile (no file names a QC medium here, so the first: pH 1.2 for the
+  // reference and the test, pH 6.8 for the reformulated one, which levels off) ...
+  await page.getByTestId("rail-release").click();
   await expect(page.getByTestId("dissolution-chart")).toHaveCount(2);
   await expect(page.getByTestId("profile-LOT-X").getByTestId("plateau")).toContainText("Levels off at 87 %");
   await expect(page.getByTestId("profile-LOT-X")).toContainText("Client's mean row: 30 min");
-  await expect(page.getByTestId("f2").filter({ hasText: "f2 57.2, similar" })).toHaveCount(1);
   await expect(page.getByTestId("f2").filter({ hasText: "similar without f2" })).toHaveCount(1);
+  // ... and the profiles not chosen, kept as Supporting Evidence, with their f2 against the reference
+  await page.getByTestId("rail-other_dissolution").click();
+  await expect(page.getByTestId("dissolution-chart")).toHaveCount(1);
+  await expect(page.getByTestId("f2").filter({ hasText: "f2 57.2, similar" })).toHaveCount(1);
   await shot(page, "dataroom-dissolution");
 
   // observed PK: the mean profiles, and the client's exposure recomputed beside it
   await page.getByTestId("rail-observed").click();
   await expect(page.getByTestId("profile-chart")).toBeVisible();
   await expect(page.getByTestId("nca-method")).toContainText("linear trapezoidal");
+  // the study's bioequivalence computed by code (phase 3a), beside the observed profiles
+  await expect(page.getByTestId("be-results")).toBeVisible();
+  await expect(page.getByTestId("be-auc_t-ours")).toContainText("within the limits");
+  await shot(page, "dataroom-observed");
 
-  // a decision: the suggestion taken, who took it shown
-  await page.getByTestId("rail-decisions").click();
-  const population = page.getByTestId("decision-population:EX-01");
-  await expect(population.getByTestId("decision-suggestion")).toContainText("Asian (Tanaka 1996)");
-  await population.getByTestId("decision-accept").click();
-  await expect(population.getByTestId("decision-chosen")).toBeVisible();
-  await expect(population.getByTestId("decision-made")).toContainText("Asian (Tanaka 1996)");
+  // the population, sex and meal template are chosen on Inputs (the owner's D1): the study's design shows the room's
+  // proposal for each, with why, and no decision to make here
+  await page.getByTestId("rail-design").click();
+  const choices = page.getByTestId("inputs-choices");
+  await expect(choices.getByTestId("proposal-population:EX-01")).toContainText("Asian (Tanaka 1996) (proposed)");
+  await expect(choices.getByTestId("proposal-meal:EX-01")).toContainText("(proposed)");
+  await expect(choices.getByTestId("inputs-choices-link")).toHaveAttribute("href", `/projects/${projectId}/inputs?tab=individuals`);
+  await expect(page.getByTestId("decision-population:EX-01")).toHaveCount(0);
+  // a decision, on the section it decides (the observed profiles): the suggestion taken, who took it shown
+  await page.getByTestId("rail-observed").click();
+  const analysis = page.getByTestId("decision-analysis-set:EX-01");
+  await analysis.getByTestId("decision-accept").click();
+  await expect(analysis.getByTestId("decision-chosen")).toBeVisible();
   // another option needs a reason
-  const meal = page.getByTestId("decision-meal:EX-01");
-  await meal.getByTestId("decision-others").click();
-  await meal.getByTestId("option-high_fat").click();
-  await meal.getByTestId("decision-reason").fill("the protocol's breakfast was the FDA high-fat meal");
-  await meal.getByTestId("decision-choose").click();
-  await expect(meal.getByTestId("decision-made")).toContainText("High-fat breakfast");
+  await page.getByTestId("rail-substance").click();
+  const solubility = page.getByTestId("decision-solubility-ref");
+  await solubility.getByTestId("decision-others").click();
+  await solubility.getByTestId("option-sol-1").click();
+  await solubility.getByTestId("decision-reason").fill("the medium nearest the intestine's pH");
+  await solubility.getByTestId("decision-choose").click();
+  await expect(solubility.getByTestId("decision-made")).toBeVisible();
 
   // a value's source: the synopsis page with the line highlighted, then a sheet with its cell
   await page.getByTestId("rail-substance").click();
@@ -178,14 +197,14 @@ test("an extracted delivery shows its study and dissolution, a decision is taken
   await expect(drawer.getByTestId("source-highlight")).toBeVisible();
   await shot(page, "dataroom-source-page");
   await drawer.getByTestId("source-drawer-close").click();
-  await page.getByTestId("rail-solubility").click();
-  await page.getByTestId("source-chip").first().click();
+  // solubility is in the same section: its table's first source
+  await page.getByRole("table", { name: "Solubility and the dose" }).getByTestId("source-chip").first().click();
   await expect(page.getByTestId("source-drawer").getByTestId("source-cell")).toHaveText("4.8");
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("source-drawer")).toHaveCount(0);
 
   // the PK-Sim inputs end with what "Send to the model" would send, and what still blocks it
-  await page.getByTestId("rail-inputs").click();
+  await page.getByTestId("rail-scenarios").click();
   await expect(page.getByTestId("input-phys.mw")).toContainText("412.5 g/mol");
   await expect(page.getByTestId("publish-blocked")).toContainText("decisions waiting");
 
