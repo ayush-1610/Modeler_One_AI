@@ -257,11 +257,11 @@
     },
     {
       "path": "packages/pbpk-domain/src/pbpk_domain/parameter_units.py",
-      "sha256": "cf848c1a747c08ff1c81aaa59492a74d162151c502f519f9a6f277518bf2406d"
+      "sha256": "da906592bd2c2fbb3daa1b3228ab9c5983b795ddb2b1fd2868ec3ce92fea0920"
     },
     {
       "path": "packages/pbpk-domain/src/pbpk_domain/parameters/registry.yaml",
-      "sha256": "f7b5cfababd5880ef34017c1e3f6bedf81cfc410ff067197f996836acd1238db"
+      "sha256": "a684b21af99bb8f96fd507097e5741cbb5292615d2701327be067463e7cfe5b9"
     },
     {
       "path": "packages/pbpk-domain/src/pbpk_domain/pksim_paths.py",

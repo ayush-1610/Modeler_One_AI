@@ -46,6 +46,9 @@ _FAMILIES: dict[str, tuple[str, dict[str, float]]] = {
     "µmol/l": ("µmol/l", {"µmol/l": 1.0, "umol/l": 1.0, "µm": 1.0, "um": 1.0, "nmol/l": 1e-3, "nm": 1e-3,
                           "mmol/l": 1e3, "mm": 1e3}),
     "ml/min/kg": ("ml/min/kg", {"ml/min/kg": 1.0, "l/h/kg": 1000 / 60, "ml/h/kg": 1 / 60, "l/min/kg": 1000.0}),
+    # lengths: a particle formulation's radius (µm) and unstirred-layer thickness (mm), registry 1.3
+    "µm": ("µm", {"µm": 1.0, "um": 1.0, "micron": 1.0, "microns": 1.0, "nm": 1e-3, "mm": 1e3, "cm": 1e4}),
+    "mm": ("mm", {"mm": 1.0, "µm": 1e-3, "um": 1e-3, "micron": 1e-3, "microns": 1e-3, "cm": 10.0, "m": 1e3}),
 }
 # CPF id prefix -> the family of its storage unit (None: dimensionless). Units are MS-01 §2.2's, kept in the parameter
 # registry (pbpk_domain/parameters/registry.yaml) with the rules for a family's ids by suffix (CLspec, Km, Weibull shape).
