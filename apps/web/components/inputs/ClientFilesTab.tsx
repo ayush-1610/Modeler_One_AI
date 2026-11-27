@@ -27,6 +27,7 @@ import type { Run } from "./InputsTodo";
 import type { SheetAsk } from "./openSheet";
 import { AiReading, ReadingTray } from "./ReadingTray";
 import { ACCEPT, AREA_FILES, AREA_LABEL, FILE_AREAS, addClientFiles, fileArea } from "./TabFiles";
+import { Icon } from "@/components/kit/icons";
 
 type ReadingItem = Schema<"ReadingItem">;
 
@@ -127,7 +128,7 @@ function FilesTable({ projectId, client, rows, work, ai, aiOn, act, onRetag, onS
                       <button type="button" className="files-name" aria-expanded={isOpen} aria-controls={`file-detail-${r.id}`}
                               data-testid={`file-toggle-${r.name}`} onClick={() => toggle(r.id)}
                               title={isOpen ? "Hide its reading" : "Show its tables, sheets and their reading"}>
-                        <span className="files-caret" aria-hidden="true">{isOpen ? "▾" : "▸"}</span>{r.name}
+                        <span className="files-caret" aria-hidden="true"><Icon name={isOpen ? "chevd" : "chevr"} size={14} /></span>{r.name}
                       </button>
                       {gives && <div className="muted fs-12">{gives}</div>}
                     </td>

@@ -12,6 +12,7 @@ import { useState } from "react";
 import { Panel } from "@/components/kit/Panel";
 import { send, type Schema } from "@/lib/api";
 import { when } from "@/lib/admin";
+import { Icon } from "@/components/kit/icons";
 
 type Page = Schema<"AgentsPage">;
 type Row = Page["agents"][number];
@@ -341,9 +342,9 @@ function FailoverChain({ page, onSaved }: { page: Page; onSaved: (p: Page) => vo
                   <div className="muted">{c?.terms}</div>
                   <span className="chain-moves">
                     <button type="button" className="btn small" disabled={i === 0} onClick={() => move(i, -1)}
-                            aria-label={`Move ${c?.label ?? id} up`}>↑</button>
+                            aria-label={`Move ${c?.label ?? id} up`}><Icon name="arrowu" /></button>
                     <button type="button" className="btn small" disabled={i === order.length - 1} onClick={() => move(i, 1)}
-                            aria-label={`Move ${c?.label ?? id} down`}>↓</button>
+                            aria-label={`Move ${c?.label ?? id} down`}><Icon name="arrowd" /></button>
                     <button type="button" className="btn small" onClick={() => setOrder(order.filter((x) => x !== id))}
                             aria-label={`Take ${c?.label ?? id} out`}>Take out</button>
                   </span>

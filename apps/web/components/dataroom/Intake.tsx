@@ -13,6 +13,7 @@ import { baseName, when, type Run } from "@/lib/dataroom";
 import { fetchResource, put, readAgain, useMutation } from "@/lib/hooks";
 
 import { ESTIMATE, RESUME, RUN, UPLOADS } from "./acts";
+import { Icon } from "@/components/kit/icons";
 
 type Estimate = Schema<"RoomRunEstimate">;
 type Pause = NonNullable<Run["pause"]>;
@@ -141,9 +142,7 @@ export function Intake({ projectId, run, files, uploads }: { projectId: string; 
            onClick={() => input.current?.click()} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); input.current?.click(); } }}
            onDragOver={(e) => { e.preventDefault(); setOver(true); }} onDragLeave={() => setOver(false)}
            onDrop={(e) => { e.preventDefault(); setOver(false); void add(e.dataTransfer.files); }}>
-        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-          <path d="M12 16V4 M7 9l5-5 5 5 M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3" />
-        </svg>
+        <Icon name="upload" size={22} />
         <span className="dr-drop-text">
           <strong>{empty ? "Drop the client's delivery here" : "Add more files"}</strong>
           <span className="muted">{empty ? "A zip, or many files at once: PDFs, Word, spreadsheets, text exports, scans." : `${uploads} ${uploads === 1 ? "upload" : "uploads"} so far · ${files} files read`}</span>

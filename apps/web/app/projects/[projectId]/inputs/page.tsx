@@ -4,6 +4,7 @@ import { InputsWorkspace } from "@/components/inputs/InputsWorkspace";
 import { Hero } from "@/components/kit";
 import { StepWaiting } from "@/components/kit/StepWaiting";
 import { getSteps, STEP_ROUTES } from "@/lib/pipeline";
+import { Icon } from "@/components/kit/icons";
 
 /** Step 2 · Inputs (redesign §3.2), in place of P2–P4's per-item acceptance: one workspace, its areas in a bar that stays
  *  in view (To do, the five data areas, Client files: plan 2026-11-14 slice 1). `?tab=studies` opens an area (the project
@@ -47,7 +48,7 @@ export default async function InputsPage({ params, searchParams }: {
                           {waiting && (
                             // inputs that have begun stay open; Start still says what it needs, in red
                             <div className="banner err" role="alert" data-testid="inputs-start-not-done">
-                              <span aria-hidden>⚠ </span>Start is not finished ({start.reasons.length} left): {start.reasons.join(" · ")}.{" "}
+                              <Icon name="alert" /> Start is not finished ({start.reasons.length} left): {start.reasons.join(" · ")}.{" "}
                               <Link href={STEP_ROUTES.start(projectId)} prefetch={false}>Finish Start first</Link>.
                             </div>
                           )}

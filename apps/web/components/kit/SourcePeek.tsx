@@ -11,6 +11,7 @@ import { useState } from "react";
 import { Dialog } from "@/components/kit/Dialog";
 import { useResource } from "@/lib/hooks";
 import { withheldWhy } from "@/lib/words";
+import { Icon } from "@/components/kit/icons";
 
 export type PeekSource = {
   doc_sha256?: string | null;
@@ -107,9 +108,9 @@ function StoredPage({ projectId, source }: { projectId: string; source: PeekSour
         <span className="peek-file">{doc?.name ?? source.title ?? "the stored document"}</span>
         {doc && doc.n_pages > 1 && (
           <span className="row gap-6">
-            <button type="button" className="btn small" aria-label="Previous page" disabled={pageNo <= 1} onClick={() => setPageNo(pageNo - 1)}>‹</button>
+            <button type="button" className="btn small" aria-label="Previous page" disabled={pageNo <= 1} onClick={() => setPageNo(pageNo - 1)}><Icon name="chevl" /></button>
             <span className="muted tnum">{table ? "part" : "p."} {pageNo} / {doc.n_pages}</span>
-            <button type="button" className="btn small" aria-label="Next page" disabled={pageNo >= doc.n_pages} onClick={() => setPageNo(pageNo + 1)}>›</button>
+            <button type="button" className="btn small" aria-label="Next page" disabled={pageNo >= doc.n_pages} onClick={() => setPageNo(pageNo + 1)}><Icon name="chevr" /></button>
           </span>
         )}
         {/* a file that holds a blinded study's values (D-15): its pages come with their digits masked, and the original is
@@ -166,11 +167,7 @@ export function PeekButton({ projectId, source, label, testId }: {
     <>
       <button type="button" className="peek-btn" aria-label={`Open the source of ${label}`} title="Open the source"
               data-testid={testId} onClick={() => setOpen(true)}>
-        <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.6"
-             strokeLinecap="round" strokeLinejoin="round">
-          <rect x="3" y="3" width="14" height="14" rx="2.5" />
-          <rect x="6.5" y="6.5" width="7" height="7" rx="1.2" />
-        </svg>
+        <Icon name="source" size={18} />
       </button>
       {open && <SourcePeek projectId={projectId} source={source} label={label} onClose={() => setOpen(false)} />}
     </>

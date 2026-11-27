@@ -10,6 +10,7 @@
 // when the page scrolls), then the menu opens with that action focused; closed again, the focus goes back to its button.
 
 import { useEffect, useId, useRef, type ReactNode } from "react";
+import { Icon } from "@/components/kit/icons";
 
 export function Menu({ label, testId, children, open, onToggle }: {
   label: ReactNode; testId?: string; children: ReactNode;
@@ -100,7 +101,7 @@ export function Menu({ label, testId, children, open, onToggle }: {
   return (
     <div className="menu">
       <button ref={button} type="button" className="btn" popoverTarget={id} data-testid={testId}>
-        {label} <span className="menu-caret" aria-hidden>▾</span>
+        {label} <span className="menu-caret" aria-hidden><Icon name="chevd" size={14} /></span>
       </button>
       <div ref={panel} id={id} popover="auto" className="menu-panel" data-testid={testId ? `${testId}-panel` : undefined}>
         {children}

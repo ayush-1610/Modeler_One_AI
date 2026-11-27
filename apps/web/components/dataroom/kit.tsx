@@ -7,6 +7,7 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 
 import { SECTION_STATE, STATUS, chipLabel, chipText, type Chip, type Section, type Status } from "@/lib/dataroom";
+import { Icon } from "@/components/kit/icons";
 
 // --- paper: the report prints what the page shows, without its controls ---------------------------------------------
 
@@ -43,9 +44,7 @@ export function SourceChip({ chip, testId }: { chip: Chip; testId?: string }) {
   if (paper) return <span className="dr-chip paper">{chipText(chip)}</span>;
   return (
     <button type="button" className="dr-chip" onClick={() => open(chip)} title={`Open ${chipText(chip)}`} data-testid={testId ?? "source-chip"}>
-      <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden fill="none" stroke="currentColor" strokeWidth="1.5">
-        <path d="M4 1.75h5.5L13 5.25v9H4z" /><path d="M9.5 1.75v3.5H13" />
-      </svg>
+      <Icon name="file" size={13} />
       <span className="dr-chip-text">{chipLabel(chip)}</span>
     </button>
   );
@@ -107,7 +106,7 @@ export function Row({ cells, details, testId, highlight }: {
           <td key={i} data-label={i > 0 ? head[i] : undefined}>
             {i === 0 && expandable ? (
               <button type="button" className="dr-row-toggle" aria-expanded={open} onClick={() => setOpen(!open)}>
-                <span className="dr-caret" aria-hidden>{open ? "▾" : "▸"}</span>{c}
+                <span className="dr-caret" aria-hidden><Icon name={open ? "chevd" : "chevr"} size={14} /></span>{c}
               </button>
             ) : c}
           </td>
