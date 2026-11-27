@@ -71,6 +71,67 @@ export async function smallTargets(page: Page): Promise<string[]> {
   }, CONTROLS);
 }
 
+/** Text below the AA contrast its size asks for (WCAG 2.x SC 1.4.3): 4.5:1, or 3:1 for large text (24 px, or 18.66 px
+ *  bold), against what is behind it: the backgrounds up the tree, a translucent one blended over the one under it, and the
+ *  text's own and its ancestors' opacity blended in. Left out, as the criterion leaves them out or styles cannot say: a
+ *  disabled control's text, text over an image or a gradient, a chart's own drawing (SVG), hidden text. The Graphite
+ *  restyle's accessibility pass (R4). Each finding names the element, its words, the ratio and the two colours. */
+export async function lowContrast(page: Page): Promise<string[]> {
+  return page.evaluate(() => {
+    type C = [number, number, number, number];
+    const parse = (c: string): C | null => {
+      let m = /^rgba?\(([^)]+)\)$/.exec(c);
+      if (m) { const p = m[1].split(/[\s,/]+/).filter(Boolean).map(Number); return [p[0], p[1], p[2], p.length > 3 ? p[3] : 1]; }
+      m = /^color\(srgb ([^)]+)\)$/.exec(c);   // a color-mix() is computed as color(srgb r g b / a), each 0..1
+      if (m) { const p = m[1].split(/[\s/]+/).filter(Boolean).map(Number); return [p[0] * 255, p[1] * 255, p[2] * 255, p.length > 3 ? p[3] : 1]; }
+      return null;
+    };
+    const over = (top: C, under: C): C => {
+      const a = top[3] + under[3] * (1 - top[3]);
+      if (a === 0) return [255, 255, 255, 0];
+      return [0, 1, 2].map((i) => (top[i] * top[3] + under[i] * under[3] * (1 - top[3])) / a).concat(a) as C;
+    };
+    const lum = (c: C) => {
+      const [r, g, b] = c.slice(0, 3).map((v) => { const x = v / 255; return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4; });
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    };
+    const hex = (c: C) => "#" + c.slice(0, 3).map((v) => Math.round(v).toString(16).padStart(2, "0")).join("");
+    const found = new Map<string, string>();
+    for (const el of Array.from(document.querySelectorAll<HTMLElement>("body *"))) {
+      const own = Array.from(el.childNodes).filter((n) => n.nodeType === Node.TEXT_NODE).map((n) => n.textContent ?? "").join("").trim();
+      if (!own || !/[\p{L}\p{N}]/u.test(own)) continue;
+      if (!el.checkVisibility({ visibilityProperty: true, opacityProperty: true })) continue;
+      if (el.closest("[aria-hidden=true], svg, .js-plotly-plot, :disabled, [aria-disabled=true], .sr-only")) continue;
+      const style = getComputedStyle(el);
+      const fg = parse(style.color);
+      if (!fg) continue;
+      // what is behind the text: each background up the tree, until one is opaque; the window's white under them all
+      const layers: C[] = [];
+      let unknown = false, opacity = 1;
+      for (let a: HTMLElement | null = el; a; a = a.parentElement) {
+        const st = getComputedStyle(a);
+        opacity *= Number(st.opacity);
+        if (st.backgroundImage !== "none") { unknown = true; break; }
+        const bg = parse(st.backgroundColor);
+        if (bg && bg[3] > 0) { layers.push(bg); if (bg[3] >= 1) break; }
+      }
+      if (unknown) continue;
+      let back: C = [255, 255, 255, 1];
+      for (const layer of layers.reverse()) back = over(layer, back);
+      const text = over([fg[0], fg[1], fg[2], fg[3] * opacity], back);
+      const l1 = lum(text), l2 = lum(back);
+      const ratio = (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
+      const size = parseFloat(style.fontSize), bold = Number(style.fontWeight) >= 700;
+      const need = size >= 24 || (size >= 18.66 && bold) ? 3 : 4.5;
+      if (ratio + 0.005 >= need) continue;
+      const who = `${el.tagName.toLowerCase()}.${(el.getAttribute("class") || "").split(" ")[0]}`;
+      const key = `${who} ${hex(text)} on ${hex(back)}`;
+      if (!found.has(key)) found.set(key, `${who} "${own.slice(0, 28)}" ${ratio.toFixed(2)}:1 (${hex(text)} on ${hex(back)}, needs ${need})`);
+    }
+    return [...found.values()].slice(0, 20);
+  });
+}
+
 /** Open a page and wait for the page itself, not its loading screen (a route's loading screen streams first). */
 export async function open(page: Page, path: string) {
   await page.goto(path);
