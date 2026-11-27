@@ -9,6 +9,7 @@
 #   keycloak.sh status    is it up, and where             keycloak.sh env      the lines for ~/.modeler-secrets.env
 #   keycloak.sh migrate-db   move every realm, user and authenticator enrolment from the file database to PostgreSQL
 #   keycloak.sh theme     copy in the product's sign-in pages (deploy/keycloak/themes/modeler-one); restart after
+#   keycloak.sh sync-theme   the same, only when they changed, and a restart so they show (run by every deploy)
 #
 # Settings (environment, default in brackets):
 #   MODELER_KEYCLOAK_HOST   the name or address browsers use for this server [this server's first address]
@@ -155,6 +156,19 @@ cmd_theme() {
   echo "  Themes > Login theme: modeler-one > Save. The sign-in page then shows Modeler One's name and look."
 }
 
+# The product's sign-in pages as this checkout holds them (deploy/dev/deploy_to_server.sh runs it after every deploy, so
+# Keycloak never keeps an older copy than the app's own pages: the owner, 2026-11-27, "remove old completely"). Copied
+# only when they changed, the old copy removed first (install_theme), and Keycloak restarted so it reads them.
+cmd_sync_theme() {
+  if [ ! -d "$KC_HOME/themes" ]; then echo "theme: Keycloak is not installed here; nothing to update"; return; fi
+  if diff -rq "$THEMES/modeler-one" "$KC_HOME/themes/modeler-one" >/dev/null 2>&1; then
+    echo "theme: Keycloak's sign-in pages are current"; return
+  fi
+  install_theme
+  if running; then cmd_stop; cmd_start
+  else echo "theme: Keycloak is not running; it shows the new sign-in pages when it starts"; fi
+}
+
 cmd_install() {
   mkdir -p "$KC_ROOT"
   install_java
@@ -261,5 +275,6 @@ case "${1:-}" in
   env) cmd_env ;;
   migrate-db) cmd_migrate_db ;;
   theme) cmd_theme ;;
-  *) sed -n '2,21p' "$0"; exit 2 ;;
+  sync-theme) cmd_sync_theme ;;
+  *) sed -n '2,22p' "$0"; exit 2 ;;
 esac

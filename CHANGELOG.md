@@ -13,6 +13,21 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 
 ## [Unreleased] — make the pipeline do real PBPK, S0 → S7
 
+### Fixed — the deploy now brings Keycloak's sign-in pages with it (2026-11-27)
+- **What:** after the deploy of R1–R5 the app's own sign-in page showed the new split design, but the username and
+  password page (Keycloak's) still showed the old navy card: Keycloak reads its theme from its own folder when it
+  starts, and only `keycloak.sh theme` plus a restart copies it there, a step the deploy plan named but the deploy did
+  not run. `deploy/server/keycloak.sh sync-theme` now copies the theme in when it differs from the checkout (the old
+  copy removed first), and restarts Keycloak if it runs; `deploy/dev/deploy_to_server.sh` runs it after every deploy.
+  The old gradient mark, unused since R5, is gone from the theme. The deploy plan and the Keycloak README say so.
+- **Why:** the owner's screenshots (2026-11-27): "have the username and password asking page same as first the new
+  style. remove old completely".
+- **Verified:** locally against Keycloak 26.7.5's folder layout: with the theme current it does nothing; with the
+  older navy copy installed (IBM Plex font and all) it replaces it with an exact copy of the checkout's; run again, it
+  does nothing.
+- **Impact:** a deploy that changes the theme restarts Keycloak (a few seconds; a sign-in in progress starts again).
+  On the server now: `ssh adt-server 'bash ~/Modeler_One_AI/deploy/server/keycloak.sh sync-theme'`.
+
 ### Changed — the sign-in pages in the owner's split design; signing out lands on sign-in (R5, 2026-11-27)
 - **What:** the app's sign-in, signed-out and no-access pages (`components/auth/AuthPage.tsx`, `app/styles/auth.css`)
   and Keycloak's sign-in form (`deploy/keycloak/themes/modeler-one`: CSS, a white mark, the words in
