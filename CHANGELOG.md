@@ -13,6 +13,26 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 
 ## [Unreleased] — make the pipeline do real PBPK, S0 → S7
 
+### Added — a contrast check on every page; the last faint text fixed; the deploy plan for the Graphite look (R4, 2026-11-27)
+- **What:** `e2e/fixtures/a11y.ts` `lowContrast()` measures every piece of text against what is behind it, from the
+  rendered colours (backgrounds up the tree blended, opacity included, after any finite animation has ended), and lists
+  text under WCAG 2.x AA (4.5:1; 3:1 for large text); `acceptance.spec.ts` runs it on every page at 1440 and 390 px
+  (a soft check, so one run names every page). It found text in `--ink-faint` (`#A1A1AA`, 2.56:1; the earlier value was
+  as faint) on Review & sign (the plan's "Datasets" heading, the diagram's layer labels, the flow headings and arrows,
+  a changed value's struck-through old value, the studies left out of the plan, the filter counts), on Inputs' sheet
+  grid row numbers and the release-form hint, and on the sort mark of the older tables: each now uses `--ink-quiet`
+  (7.7:1), the left-out studies the muted grey (5.28:1). The admin console's long state labels (System status) wrap as
+  rounded boxes, no longer as a stretched pill. The deploy plan (`docs/plans/2026-11-25-console-redesign-deploy.md`)
+  says what the Graphite look changes, checks the look and the Keycloak sign-in page after the deploy, gives the
+  rollback of the look alone (its merges, newest first) and adds A13 (the look over a full working day).
+- **Audit:** every page passes the acceptance checks (one heading, named controls, no sideways scroll, 24 px targets,
+  AA contrast) at both widths; the admin console's ten pages too, opened as the platform's owner through a local,
+  uncommitted harness (the development sign-in given `modeler-admin` in that run's API process alone; `auth.py`,
+  locked, is unchanged). A gallery of all 92 screens for the owner's sign-off is a private artifact.
+- **Why:** step R4 of `docs/plans/2026-11-27-console-graphite-restyle.md`, after R3's approval ("R3 approved, merge it
+  and proceed to R4").
+- **Impact:** colours of a few grey labels, and a CI check that holds every page's text to AA from now on.
+
 ### Changed — icons, tabs, tables, side panel, dialogs and source links polished (Graphite R3, 2026-11-27)
 - **What:** the product's own icons draw at a **1.5 stroke** (was 1.75); new in the set: chevron up, a sort mark, arrows
   up and down, a source mark, upload and file (the last three were drawn inline in their components). No text glyph

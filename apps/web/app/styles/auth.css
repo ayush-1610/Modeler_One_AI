@@ -42,7 +42,8 @@
 @media (max-width: 900px) { .help-layout { grid-template-columns: 1fr; } .help-toc { position: static; } }
 
 /* System status: a state word in the status colours (DESIGN_SYSTEM §2: pass, warn, neutral), compact tables */
-.status-chip { display: inline-block; padding: 1px 8px; border-radius: var(--rad-pill); font-size: 13px; line-height: 20px; }
+.status-chip { display: inline-block; padding: 1px 8px; border-radius: var(--rad-sm);   /* a long state wraps: no pill (R4) */
+  font-size: 13px; line-height: 20px; }
 .status-chip.ok { color: var(--c-pass); background: var(--c-pass-bg); }
 .status-chip.warn { color: var(--c-warn); background: var(--c-warn-bg); }
 .status-chip.muted { color: var(--c-ink-3); background: var(--c-surface-2); }
