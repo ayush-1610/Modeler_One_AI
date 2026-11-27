@@ -45,7 +45,7 @@ from modeler_project.dataroom.invitro import (
     solubility_from_facts,
     solubility_rows,
 )
-from modeler_project.dataroom.layout import build_layout, required_from_drafts
+from modeler_project.dataroom.layout import build_layout, needs_you, required_from_drafts
 from modeler_project.dataroom.model import (
     Arm,
     CheckedFact,
@@ -725,6 +725,9 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
     drug_names += [f.fact.value for f in facts if f.ok and f.fact.field == "study.analyte"]
     drug_names += [p.name for p in (question.products if question else ())]
     problems += detect(files=inputs.files, docs=inputs.docs, tables=tables, facts=facts, drug_names=drug_names)
+    # and each file's own checks, made when it was read (a file no extraction points into is not loaded here), once
+    said = {(p.code, p.where.file if p.where else "") for p in problems}
+    problems += [c for f in inputs.files for c in f.checks if (c.code, c.where.file if c.where else "") not in said]
 
     # --- clinical ---------------------------------------------------------------------------------------------------
     study_ids: list[str] = []
@@ -1373,8 +1376,9 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
                         requests=tuple(requests), plan=tuple(plan), inputs=tuple(inputs_rows),
                         problems=tuple(problems), checks=checks, requirements=needs)
     # the page in its groups (plan 2026-11-26 §9, slice 5a): code places every part, the page draws it
-    return view.model_copy(update={"layout": build_layout(
-        view, required=required_from_drafts(needs.items if needs else ()))})
+    layout = build_layout(view, required=required_from_drafts(needs.items if needs else ()))
+    # what needs a person first, each opening where it is done (slice 5d)
+    return view.model_copy(update={"layout": layout, "needs_you": needs_you(view, layout)})
 
 
 # a value the files state was fitted to clinical PK, not measured

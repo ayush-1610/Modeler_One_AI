@@ -172,22 +172,37 @@ test("an extracted delivery shows its study and dissolution, a decision is taken
   const up = await request.post(`${api}/uploads`, { headers: AUTH, multipart: {
     files: { name: "Exampleamide delivery.zip", mimeType: "application/zip", buffer: readFileSync(zip) } } });
   expect(up.ok(), await up.text()).toBeTruthy();
+  // and a subject listing with identifying columns (made up): the delivery-wide check for personal data (R07's kin)
+  const listing = await request.post(`${api}/uploads`, { headers: AUTH, multipart: {
+    files: { name: "subjects.csv", mimeType: "text/csv",
+             buffer: Buffer.from("Subject,Initials,Date of Birth,Sex,Age\n001,A.B.,1990-01-01,M,34\n002,C.D.,1988-06-15,M,36\n") } } });
+  expect(listing.ok(), await listing.text()).toBeTruthy();
   expect((await request.post(`${api}/run`, { headers: AUTH, data: {} })).ok()).toBeTruthy();
   await expect.poll(async () => (await (await request.get(`${api}/run`, { headers: AUTH })).json()).data.state,
                     { timeout: 120_000 }).toBe("done");
   fixture("seed", join(process.env.E2E_DATA_DIR!, "read-root"), projectId);
 
-  // the overview: the question to confirm, the headline numbers, the conflicts first
+  // the overview: the question to confirm, the headline numbers, and what needs you (plan 2026-11-26 §9, slice 5d)
   await page.goto(`/projects/${projectId}/dataroom`);
   await expect(page.getByTestId("question-text-shown")).toContainText("reformulated Exampleamide tablet");
-  await expect(page.getByTestId("headline-files")).toContainText("10");
+  await expect(page.getByTestId("headline-files")).toContainText("11");
   // six of the room, and which applications the question has (the requirement drafts, D5); the population, sex and meal
   // template are chosen on Inputs (the owner's D1), so not counted here
   await expect(page.getByTestId("headline-decisions")).toContainText("7");
-  await expect(page.getByTestId("overview-conflicts").getByTestId("conflict")).toHaveCount(2);
+  const needs = page.getByTestId("needs-you");
+  await expect(needs.getByTestId("need-question")).toContainText("Confirm the question");
+  await expect(needs.locator("[data-kind='conflict']")).toHaveCount(2);              // the client's NCA, a mean row
+  await expect(needs.getByTestId("need-check:PERSONAL_DATA:")).toContainText("Personal data in the delivery");
+  await expect(needs.getByTestId("needs-you-inputs")).toContainText("chosen on Inputs");
   await page.getByTestId("question-confirm").click();
   await expect(page.getByTestId("question-confirmed")).toBeVisible();
+  await expect(needs.getByTestId("need-question")).toHaveCount(0);
   await shot(page, "dataroom-overview");
+  // each opens the one section where it is done: the personal data on its file's row
+  await needs.getByTestId("need-open-check:PERSONAL_DATA:").click();
+  await expect(page.getByTestId("section-files")).toBeVisible();
+  await expect(page.getByTestId("file-row-subjects.csv").getByTestId("file-check-PERSONAL_DATA")).toHaveText("Personal data");
+  await page.getByTestId("rail-overview").click();
 
   // the page in its groups (plan 2026-11-26 §9): the study's design, its subject flow, and who is out and why
   await expect(page.getByTestId("rail-group-model_input")).toContainText("Clinical Study Design");

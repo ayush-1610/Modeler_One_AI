@@ -24,6 +24,7 @@ export type LayoutGroup = Schema<"LayoutGroup">;
 export type LayoutSection = Schema<"LayoutSection">;
 export type BeResult = Schema<"BeResult">;
 export type DoseCard = Schema<"DoseCard">;
+export type NeedItem = Schema<"NeedItem">;
 /** The question card with every field filled (the contract leaves a field with a default optional). */
 export type QuestionCard = Required<Schema<"QuestionCard">>;
 

@@ -272,6 +272,14 @@
 /* a flagged line (a conflict): its tag, then what differs and where */
 .dr-list li.dr-flag { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 12px; align-items: baseline; }
 .dr-flag-body { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; min-width: 0; }
+/* the Overview's "Needs you" (plan 2026-11-26 §9, slice 5d): the tag, what it is, and where it opens */
+.dr-list li.dr-need { grid-template-columns: auto minmax(0, 1fr) auto; align-items: start; }
+.dr-need-body { display: grid; gap: 2px; min-width: 0; }
+.dr-need-open { display: flex; gap: 10px; align-items: center; justify-content: flex-end; }
+@media (max-width: 640px) {
+  .dr-list li.dr-need { grid-template-columns: auto minmax(0, 1fr); }
+  .dr-need-open { grid-column: 2; justify-content: flex-start; }
+}
 /* a decision, folded: its suggestion and the evidence, the other options a click away */
 .dr-suggest { display: grid; gap: 8px; padding: 16px 20px; border-radius: var(--radius-sm); background: color-mix(in srgb, var(--brand-indigo) 4%, var(--surface));
   border: 1px solid color-mix(in srgb, var(--brand-indigo) 14%, var(--line)); }

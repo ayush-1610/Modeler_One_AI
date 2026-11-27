@@ -5478,6 +5478,11 @@ export interface components {
              */
             made_summary: string;
             /**
+             * Needs You
+             * @default []
+             */
+            needs_you: components["schemas"]["NeedItem"][];
+            /**
              * Other Analytes
              * @default []
              */
@@ -9337,6 +9342,11 @@ export interface components {
         };
         /** FileView */
         FileView: {
+            /**
+             * Checks
+             * @default []
+             */
+            checks?: components["schemas"]["Problem"][];
             /** Duplicate Of */
             duplicate_of: string | null;
             /** Kind */
@@ -10172,6 +10182,11 @@ export interface components {
              * @default []
              */
             answers: string[];
+            /**
+             * Checks
+             * @default []
+             */
+            checks: number[];
             /**
              * Count
              * @default 0
@@ -11100,6 +11115,45 @@ export interface components {
             lambda_z: string;
             /** Time Basis */
             time_basis: string;
+        };
+        /**
+         * NeedItem
+         * @description One line of the Overview's "Needs you" (plan 2026-11-26 §9, slice 5d): what a person must write, decide, settle or
+         *     check, with the one section where it is done.
+         */
+        NeedItem: {
+            /**
+             * Count
+             * @default 1
+             */
+            count: number;
+            /**
+             * Detail
+             * @default
+             */
+            detail: string;
+            /** Id */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "question" | "decision" | "conflict" | "check";
+            /** Section */
+            section: string;
+            /**
+             * Severity
+             * @default warning
+             * @enum {string}
+             */
+            severity: "error" | "warning" | "info";
+            /**
+             * Sources
+             * @default []
+             */
+            sources: components["schemas"]["Chip"][];
+            /** Title */
+            title: string;
         };
         /** ObservedDataset */
         ObservedDataset: {

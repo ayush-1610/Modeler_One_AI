@@ -2,7 +2,7 @@
 
 **Purpose:** the entry point for anyone — engineer or AI model — resuming work on Modeler One. Read in this order:
 `CLAUDE.md` (working rules) → this file (where things stand) → `CHANGELOG.md` (what changed, why, when) → the active
-plan in `docs/plans/`. **Last brought up to date: 2026-11-27 (§4.0f: the Data room regrouped by purpose and scored value by value, phases 0–3 and 5a–5c of `docs/plans/2026-11-26-data-room-groups-and-corpus-benchmark.md`; §4.0e and earlier were current on 2026-11-25).** If HEAD is far ahead of
+plan in `docs/plans/`. **Last brought up to date: 2026-11-27 (§4.0f: the Data room regrouped by purpose and scored value by value, phases 0–3 and 5 of `docs/plans/2026-11-26-data-room-groups-and-corpus-benchmark.md`; §4.0e and earlier were current on 2026-11-25).** If HEAD is far ahead of
 that commit and §4 was not updated with it, §4 is stale — fix it before trusting it.
 
 ## 30-second system state
@@ -277,8 +277,12 @@ a delivery by file type although most of what clients send never reaches a model
   running read says "Reading N files", how long, and each empty section "Reading", and the room is read again every
   10 s. ayush-1610/Modeler_One_AI#187 (phases 0–3, 5a, 5b) is merged into `main`.
 
-**Next:** phase 5d (§9 of the plan: each check on its item, and the Overview's "Needs you"); the release model on
-Inputs (5b's deviation);
+- **Phase 5d (each check on its item, "Needs you", 2026-11-27):** code places each of the room's checks in the section
+  of what it concerns (the dose card's on the card, a file's on its row) and lists what needs a person on the Overview,
+  each opening where it is done. Fixed: the personal-data check now runs when a file is read (the room loads only
+  extracted documents, so it never saw a listing nobody extracted). Phase 5 is complete.
+
+**Next:** the release model on Inputs (5b's deviation);
 phase 4's agent work with the agents' baseline on the server's in-house model (D6). The corpus data and answer keys stay
 outside git.
 

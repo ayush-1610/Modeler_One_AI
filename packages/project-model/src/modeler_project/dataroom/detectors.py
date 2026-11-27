@@ -131,9 +131,14 @@ def not_the_drug(files: Sequence[FileView], docs: Mapping[str, SourceDocument], 
         doc = docs.get(f.sha256)
         if doc is None or f.duplicate_of or (f.triage is not None and f.triage.purpose != "used") or doc.format not in _TEXT_KINDS:
             continue
-        text = "\n".join(ln.text for part in document_parts(doc) for ln in part.lines)
+        parts = document_parts(doc)
+        text = "\n".join(ln.text for part in parts for ln in part.lines)
         if len(text) >= 300 and not pattern.search(text) and not pattern.search(f.path):
-            out.append(Problem(code="FILE_NAMES_NOT_THE_DRUG", severity="info", message=(
+            # the file's first line, so the page shows the check on the file it concerns (plan §9, slice 5d)
+            first = next(((part, ln) for part in parts for ln in part.lines if ln.text.strip()), None)
+            where = Chip(file=f.path, sha256=f.sha256, part=first[0].name, line=first[1].number,
+                         text=first[1].text[:200]) if first else None
+            out.append(Problem(code="FILE_NAMES_NOT_THE_DRUG", severity="info", where=where, message=(
                 f"{f.path} never names {', '.join(words[:3])}: is it about this project's drug? (a corpus delivery held a "
                 "document about another drug)")))
     return out
@@ -146,16 +151,24 @@ def personal_data(files: Sequence[FileView], docs: Mapping[str, SourceDocument])
         if doc is None or f.duplicate_of:
             continue
         found: list[str] = []
+        where: Chip | None = None                    # the first line it was found on (plan §9, slice 5d)
         for part in document_parts(doc):
             for line in part.lines[:5] if part.name.startswith("sheet:") else ():
                 cells = [c.text.strip() for c in line.cells]
                 if sum(1 for c in cells if _LISTING.search(c)) >= 1 and len(cells) >= 3:
-                    found += [f"column {c!r} on {part.name}" for c in cells if c and _PERSONAL_COLUMN.search(c)]
+                    named = [f"column {c!r} on {part.name}" for c in cells if c and _PERSONAL_COLUMN.search(c)]
+                    if named and where is None:
+                        where = Chip(file=f.path, sha256=f.sha256, part=part.name, line=line.number, text=line.text[:200])
+                    found += named
             if not part.name.startswith("sheet:") and _BIRTH_IN_TEXT.search("\n".join(ln.text for ln in part.lines)):
                 found.append(f"a date of birth on {part.name}")
+                # its line (the part's first when the words run across two lines)
+                hit = next((ln for ln in part.lines if _BIRTH_IN_TEXT.search(ln.text)), part.lines[0] if part.lines else None)
+                if where is None and hit is not None:
+                    where = Chip(file=f.path, sha256=f.sha256, part=part.name, line=hit.number, text=hit.text[:200])
         if found:
             found = list(dict.fromkeys(found))
-            out.append(Problem(code="PERSONAL_DATA", message=(
+            out.append(Problem(code="PERSONAL_DATA", where=where, message=(
                 f"{f.path} holds personal data: {'; '.join(found[:4])}{' …' if len(found) > 4 else ''}. A client delivery "
                 "should hold pseudonymised subjects only: ask for it without them, or confirm it may be held")))
     return out

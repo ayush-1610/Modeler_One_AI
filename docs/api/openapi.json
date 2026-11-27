@@ -5374,6 +5374,14 @@
             "title": "Made Summary",
             "type": "string"
           },
+          "needs_you": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/NeedItem"
+            },
+            "title": "Needs You",
+            "type": "array"
+          },
           "other_analytes": {
             "default": [],
             "items": {
@@ -5494,6 +5502,7 @@
           "other_analytes",
           "dose_card",
           "layout",
+          "needs_you",
           "decisions",
           "requests",
           "plan",
@@ -17199,6 +17208,14 @@
       "FileView": {
         "additionalProperties": false,
         "properties": {
+          "checks": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/Problem"
+            },
+            "title": "Checks",
+            "type": "array"
+          },
           "duplicate_of": {
             "anyOf": [
               {
@@ -19265,6 +19282,14 @@
             "title": "Answers",
             "type": "array"
           },
+          "checks": {
+            "default": [],
+            "items": {
+              "type": "integer"
+            },
+            "title": "Checks",
+            "type": "array"
+          },
           "count": {
             "default": 0,
             "title": "Count",
@@ -19349,6 +19374,7 @@
           "values",
           "dissolution",
           "decisions",
+          "checks",
           "count",
           "status",
           "finding",
@@ -21623,6 +21649,74 @@
           "lambda_z"
         ],
         "title": "NcaSettings",
+        "type": "object"
+      },
+      "NeedItem": {
+        "additionalProperties": false,
+        "description": "One line of the Overview's \"Needs you\" (plan 2026-11-26 §9, slice 5d): what a person must write, decide, settle or\ncheck, with the one section where it is done.",
+        "properties": {
+          "count": {
+            "default": 1,
+            "title": "Count",
+            "type": "integer"
+          },
+          "detail": {
+            "default": "",
+            "title": "Detail",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "question",
+              "decision",
+              "conflict",
+              "check"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "section": {
+            "title": "Section",
+            "type": "string"
+          },
+          "severity": {
+            "default": "warning",
+            "enum": [
+              "error",
+              "warning",
+              "info"
+            ],
+            "title": "Severity",
+            "type": "string"
+          },
+          "sources": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/Chip"
+            },
+            "title": "Sources",
+            "type": "array"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "title",
+          "detail",
+          "section",
+          "severity",
+          "count",
+          "sources"
+        ],
+        "title": "NeedItem",
         "type": "object"
       },
       "ObservedDataset": {

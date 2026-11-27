@@ -6,12 +6,12 @@
 
 import type { ReactNode } from "react";
 
-import { SECTION_STATE, num, type BeResult, type LayoutGroup, type LayoutSection, type Room, type Run, type Value } from "@/lib/dataroom";
+import { SECTION_STATE, num, type BeResult, type LayoutGroup, type LayoutSection, type Problem, type Room, type Run, type Value } from "@/lib/dataroom";
 
 import { Card, Dot, Nothing, READING, Row, Sources, Table } from "./kit";
 import { Files, QuestionCard } from "./overview";
 import { Requirements } from "./requirements";
-import { Clinical, Dissolution, Formulation, Observed, Solubility, ValueTable } from "./science";
+import { Checks, Clinical, Dissolution, Formulation, Observed, Solubility, ValueTable } from "./science";
 import { Decisions, Inputs, Plan, Requests } from "./work";
 
 export const OVERVIEW_ID = "overview";
@@ -103,9 +103,13 @@ function BeTable({ room }: { room: Room }) {
   );
 }
 
-function DoseCardView({ room }: { room: Room }) {
+/** The checks the dose card itself raises (R14), shown on it (slice 5d). */
+const DOSE_CHECKS = new Set(["DOSE_BASIS_UNKNOWN", "DOSE_BASIS_NEEDS_MW", "SALT_MW_NOT_HEAVIER"]);
+
+function DoseCardView({ room, checks }: { room: Room; checks: readonly Problem[] }) {
   const d = room.dose_card;
   if (!d) return null;
+  const own = checks.filter((p) => DOSE_CHECKS.has(p.code));
   const mg = (x: number | null | undefined) => (x == null ? "not known" : `${num(x)} mg`);
   return (
     <Card title="Dose in both bases" testId="dose-card" aside={<Sources chips={d.sources} max={3} />}>
@@ -116,6 +120,12 @@ function DoseCardView({ room }: { room: Room }) {
         {d.molar_dose_umol != null && <li>Molar dose: {num(d.molar_dose_umol)} µmol</li>}
       </ul>
       {d.rule && <p className="muted dr-small">{d.rule}</p>}
+      {own.length > 0 && (
+        <ul className="dr-list" data-testid="dose-card-checks">
+          {own.map((p, i) => <li key={i} className="dr-flag" data-testid={`check-${p.code}`}><span className="dr-tag warn small">Check</span>
+            <span className="dr-flag-body"><span>{p.message}</span>{p.where && <Sources chips={[p.where]} />}</span></li>)}
+        </ul>
+      )}
     </Card>
   );
 }
@@ -193,6 +203,10 @@ export function LayoutBody({ section, room, run, projectId, go, stage = "read" }
 }): ReactNode {
   const all = [...room.substance, ...room.adme, ...room.products];
   const studyValues = room.studies.flatMap((s) => s.facts);
+  // the room's own checks placed here by code, each on what it concerns (slice 5d): the dose card's on the card, the files'
+  // with the files, the rest in this section's Checks
+  const placed = (section.checks ?? []).map((i) => room.problems[i]).filter((p): p is Problem => p !== undefined);
+  const onCard = room.dose_card ? placed.filter((p) => DOSE_CHECKS.has(p.code)) : [];
   const parts = section.parts.map((part) => {
     switch (part) {
       case "question": return <QuestionCard key={part} room={room} />;
@@ -203,7 +217,7 @@ export function LayoutBody({ section, room, run, projectId, go, stage = "read" }
       case "substance": return pick(room.substance, section.values).length
         ? <Card key={part} title="Values" testId={`values-${section.id}`}><ValueTable values={pick(room.substance, section.values)} label={section.title} /></Card> : null;
       case "solubility": return <Solubility key={part} room={room} />;
-      case "dose_card": return <DoseCardView key={part} room={room} />;
+      case "dose_card": return <DoseCardView key={part} room={room} checks={onCard} />;
       case "dissolution": return <Dissolution key={part} room={room} only={section.dissolution} checks={section.id !== "release"} />;
       case "studies": return <Clinical key={part} room={room} />;
       case "observed": return <Observed key={part} room={room} />;
@@ -217,15 +231,17 @@ export function LayoutBody({ section, room, run, projectId, go, stage = "read" }
       case "other_analytes": return <OtherAnalytes key={part} room={room} />;
       case "adme": case "other_values": return pick([...all, ...studyValues], section.values).length
         ? <Card key={part} title="Values" testId={`values-${section.id}`}><ValueTable values={pick([...all, ...studyValues], section.values)} label={section.title} /></Card> : null;
-      case "files": return <Files key={part} room={room} run={run} />;
+      case "files": return <Files key={part} room={room} run={run} checks={placed} />;
       case "requests": return <Requests key={part} room={room} />;
       default: return null;
     }
   });
   const empty = !section.count && !section.decisions.length;
+  const here = section.parts.includes("files") ? [] : placed.filter((p) => !onCard.includes(p));
   return (
     <>
       {empty && <EmptySection section={section} stage={stage} />}
+      <Checks problems={here} title="Checks" testId={`checks-${section.id}`} aside="What code found here, and why it matters" />
       {parts}
       {section.decisions.length > 0 && (
         <section className="dr-section-decisions" aria-label="Decisions" data-testid={`decisions-${section.id}`}>
