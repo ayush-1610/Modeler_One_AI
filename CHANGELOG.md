@@ -13,6 +13,26 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 
 ## [Unreleased] — make the pipeline do real PBPK, S0 → S7
 
+### Changed — a particle formulation's inputs can be held: parameter registry 1.3 and the length units (2026-11-27)
+- **Why:** the owner's approval of 2026-11-27 ("approve the particle inputs PR"), for the release model on Inputs
+  (`docs/plans/2026-11-26-data-room-groups-and-corpus-benchmark.md` §8). A formulation held for particle dissolution
+  needs its particle radius and unstirred-layer thickness. The CPF builder takes them (`form.<name>.particles.radius`
+  in µm, `.thickness` in mm: `pbpk_domain.cpf.formulations.PARTICLE_PARAMETERS`, harvested), but the registry stored
+  every `form.*` id in minutes, so a radius or a thickness could not be entered.
+- **What (locked files, in their own PR):**
+  - `pbpk_domain/parameters/registry.yaml` 1.2 → 1.3 (UNVERIFIED pending SME sign-off): suffix rules
+    `form.*.particles.radius` µm, `form.*.particles.thickness` mm, `form.*.particles.distribution` without a unit. The
+    Weibull values stay in minutes, the shape without a unit.
+  - `pbpk_domain/parameter_units.py`: the length families µm and mm, with their aliases (µm, um, micron, nm, mm, cm; mm,
+    µm, cm, m).
+  - `docs/architecture/locked-files.json`: the two files' hashes refreshed.
+- **Impact:** a particle radius or thickness now converts to the builder's unit and is graded like any other value
+  (`evidence.assess`). No id that was answered before changes: the vocabulary snapshot gains the two unit families and
+  the three particle ids only. The OSP Ketoconazole import (particles) is unchanged.
+- **Tests:** `test_parameter_registry.py` (the version, and the three particle ids in the builder's units, converted
+  from mm and µm); `test_parameter_characterization.py` probes the three ids and records them in
+  `docs/architecture/parameter-vocabulary.json`.
+
 ### Added — a contrast check on every page; the last faint text fixed; the deploy plan for the Graphite look (R4, 2026-11-27)
 - **What:** `e2e/fixtures/a11y.ts` `lowContrast()` measures every piece of text against what is behind it, from the
   rendered colours (backgrounds up the tree blended, opacity included, after any finite animation has ended), and lists

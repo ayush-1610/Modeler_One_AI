@@ -40,7 +40,7 @@ def _record(cpf_id: str) -> ParameterRecord:
 
 def test_registry_is_governed_content():
     reg = parameters.registry()
-    assert reg.id == "parameter-registry" and reg.version == "1.2" and reg.status == "UNVERIFIED"
+    assert reg.id == "parameter-registry" and reg.version == "1.3" and reg.status == "UNVERIFIED"
 
 
 def test_storage_units_are_parameter_units_tables():
@@ -163,3 +163,20 @@ def test_every_alias_stands_for_a_placed_id():
     for rule in parameters.registry().parameters:
         if rule.alias_of:
             assert parameters.placement(rule.alias_of) is not None, rule.key
+
+
+def test_a_particle_formulations_inputs_are_stored_in_the_builders_units():
+    """Registry 1.3 (2026-11-27, the owner's approval, UNVERIFIED): the particle radius in µm and the unstirred-layer
+    thickness in mm (the units `cpf.formulations.PARTICLE_PARAMETERS` takes them in), the distribution type without a
+    unit; the Weibull values stay in minutes."""
+    from pbpk_domain.cpf.formulations import PARTICLE_PARAMETERS
+
+    assert [parameters.storage_family(f"form.tablet.particles.{k}") for k in ("radius", "thickness", "distribution")] == [
+        PARTICLE_PARAMETERS["radius"][1], PARTICLE_PARAMETERS["thickness"][1], None]
+    assert parameters.storage_family("form.tablet.weibull.t50") == "min"
+    radius = parameter_units.to_storage_unit("form.tablet.particles.radius", 0.05, "mm")
+    assert (radius.value, radius.unit) == (pytest.approx(50.0), "µm")
+    thickness = parameter_units.to_storage_unit("form.tablet.particles.thickness", 30, "µm")
+    assert (thickness.value, thickness.unit) == (pytest.approx(0.03), "mm")
+    with pytest.raises(parameter_units.ConversionError, match="cannot convert 'min'"):
+        parameter_units.to_storage_unit("form.tablet.particles.radius", 3, "min")

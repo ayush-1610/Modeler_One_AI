@@ -56,6 +56,8 @@ PROBES = (
     "elim.hepatic.CYP3A4@alt.clspec", "sim.x", "sim[oral].x", "cmpd.x", "expr.x", "indiv.x", "alt.select",
     "elim.fe_urine", "elim.fm", "elim.hepatic.{enzyme}.clspec", "elim.hepatic.<enzyme>.clspec", "form.tablet.shape",
     "bind.specific.GABRG2.koff", "elim.renal.total.plasma_clearance", "elim.hepatic.total.plasma_clearance",
+    # a particle formulation's inputs, as the CPF builder takes them (registry 1.3)
+    "form.tablet.particles.radius", "form.tablet.particles.thickness", "form.tablet.particles.distribution",
 )
 _ID = re.compile(r"^[a-z]+(\.[A-Za-z0-9_@\[\]|]+)+\.?$")
 
