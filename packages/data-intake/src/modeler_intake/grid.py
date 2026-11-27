@@ -16,6 +16,8 @@ from typing import Any
 from openpyxl import load_workbook
 from openpyxl.utils import column_index_from_string, get_column_letter
 
+from modeler_intake.documents import TEXT_EXPORTS, decode_text, sniff_delimiter
+
 CellValue = str | float | int | bool | datetime | date | None
 
 
@@ -174,10 +176,15 @@ def read_workbook_bytes(data: bytes, filename: str) -> WorkbookGrid:
         return WorkbookGrid(Path(filename).name, sha256, grid.sheets)
     if suffix == ".xls":
         return _load_xls(data, Path(filename).name, sha256)
-    if suffix == ".csv":
+    if suffix == ".csv" or suffix in TEXT_EXPORTS:
+        # a text export (.dat, .prn, …) is a sheet when its lines split alike: its own delimiter, its characters as written
+        delimiter = "," if suffix == ".csv" else sniff_delimiter(data)
+        if delimiter is None:
+            raise ValueError(f"{Path(filename).name} is not a table: its lines do not split alike on a tab, ';', ',' or '|'")
+        text = data.decode("utf-8-sig") if suffix == ".csv" else decode_text(data) or ""
         name = Path(filename).stem
         sheet = SheetGrid(name=name, max_row=0, max_column=0)
-        for r, row in enumerate(csv.reader(io.StringIO(data.decode("utf-8-sig"))), start=1):
+        for r, row in enumerate(csv.reader(io.StringIO(text), delimiter=delimiter), start=1):
             sheet.max_row = r
             sheet.max_column = max(sheet.max_column, len(row))
             for c, value in enumerate(row, start=1):

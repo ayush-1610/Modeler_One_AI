@@ -31,6 +31,7 @@ from typing import Any
 
 from modeler_intake.client_template import ClientWorkbook, Row, read_client_workbook
 from modeler_intake.document_reading import inventory
+from modeler_intake.documents import TEXT_EXPORTS
 from modeler_intake.file_tags import TagKind, default_tag, from_pages, from_triage
 from modeler_intake.grid import read_workbook_bytes
 from modeler_intake.triage import SheetTriage, triage
@@ -424,7 +425,9 @@ def ingest(ws: Workspace, library: DocumentLibrary, data: bytes, filename: str, 
                                "template": False, "triage": [], "datasets": [], "evidence": [], "dissolution": [],
                                "products": [], "urine_feces": [], "studies": [], "issues": [], "brief_mismatches": [],
                                "other_sheets": [], "mappings": []}
-    if PurePath(filename).suffix.lower() in SPREADSHEETS:
+    suffix = PurePath(filename).suffix.lower()
+    # a text export the reader found to be a table (a .dat of concentrations, say) is read as a sheet, as a CSV is
+    if suffix in SPREADSHEETS or (suffix in TEXT_EXPORTS and content["kind"] == "csv"):
         workbook = read_workbook_bytes(data, filename)
         content["triage"] = [t.to_content() for t in triage(workbook)]
         read = read_client_workbook(workbook)

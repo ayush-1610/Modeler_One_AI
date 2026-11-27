@@ -130,3 +130,29 @@ def test_unreadable_files_are_refused_with_a_reason():
     assert figure.kind == "image" and figure.pages[0].text == "" and "digitized" in figure.warnings[0]
     with pytest.raises(DocumentError, match="empty"):
         extract_document(b"", "a.txt")
+
+
+# --- text exports (.dat, .prn, …): the owner's client ZIP, 2026-11-27, "unsupported file type .dat" ----------------------
+
+_TABLE = "Subject\tTime (h)\tConc (ng/mL)\r\n101\t0.5\t12.3\r\n101\t1\t25.1\r\n102\t0.5\t11.8\r\n"
+
+
+def test_a_delimited_dat_export_is_read_as_a_table_whatever_the_suffix_case():
+    doc = extract_document(_TABLE.encode("utf-8"), "17-06-138 – Cinacalcet - PK Data for SAS.DAT")
+    assert doc.kind == "csv" and doc.media_type == "text/csv"
+    sheet = "17-06-138 – Cinacalcet - PK Data for SAS"
+    assert doc.pages[0].text.splitlines()[:2] == [f"[{sheet} row 1] A1=Subject | B1=Time (h) | C1=Conc (ng/mL)",
+                                                 f"[{sheet} row 2] A2=101 | B2=0.5 | C2=12.3"]
+    semicolons = extract_document(b"Time;Conc;SD\n0.5;12,3;1,1\n1;25,1;2,0\n", "listing.prn")
+    assert semicolons.kind == "csv" and "B2=12,3" in semicolons.pages[0].text   # its own delimiter, values as written
+
+
+def test_a_dat_export_that_is_not_a_table_is_read_as_text_in_its_own_characters():
+    data = "Cinacalcet assay run 7\nLLOQ 0.1 µg/mL\nanalyst: J. Doe\n".encode("cp1252")   # a Windows program's µ
+    doc = extract_document(data, "run7.dat")
+    assert doc.kind == "text" and doc.pages[0].text == "Cinacalcet assay run 7\nLLOQ 0.1 µg/mL\nanalyst: J. Doe\n"
+
+
+def test_a_binary_dat_is_refused_with_the_reason():
+    with pytest.raises(DocumentError, match="is not text"):
+        extract_document(b"\x00\x00\x00\x01SAS FILE\x00\x00" + bytes(range(256)) * 4, "pk.dat")

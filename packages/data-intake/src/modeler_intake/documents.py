@@ -9,6 +9,9 @@ Technical proposals, annexes, papers and client files arrive as PDF, Word, Markd
 - Markdown / text / JSON: split at form feeds, else into ~3 500-character pages at line boundaries (JSON must parse).
 - CSV / Excel: one page per sheet (cut when long); each row is written as ``[Sheet row 3] A3=… | B3=…`` so a quote of
   a row's text also names its cells.
+- Text exports (``.dat``, ``.prn``, ``.asc``, ``.tab``, ``.out``, ``.lst``, a SAS or instrument export): a table, read as
+  CSV with its own delimiter, when most of its lines split alike (`sniff_delimiter`, which the Data room's reader uses
+  too); otherwise plain text. Bytes that are not text (a binary dataset) are refused with that reason.
 
 The bytes themselves are kept unchanged in the vault; this is only the searchable, quotable text.
 """
@@ -31,6 +34,9 @@ KINDS = {
     ".json": "json", ".csv": "csv", ".tsv": "csv", ".xlsx": "xlsx", ".xlsm": "xlsx", ".xls": "xls", ".png": "image",
     ".jpg": "image", ".jpeg": "image",
 }
+# text exports a table often comes in (the Data room's reader reads every one; this reader reads .txt as text already)
+TABLE_TEXT_SUFFIXES = (".txt", ".dat", ".prn", ".asc", ".tab", ".out", ".lst")
+TEXT_EXPORTS = tuple(s for s in TABLE_TEXT_SUFFIXES if s not in KINDS)
 MEDIA_TYPES = {
     "pdf": "application/pdf", "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     "markdown": "text/markdown", "text": "text/plain", "json": "application/json", "csv": "text/csv",
@@ -72,6 +78,11 @@ def detect_kind(data: bytes, filename: str) -> str:
     if suffix == ".doc":
         raise DocumentError("legacy .doc files are not read; save the file as .docx")
     kind = KINDS.get(suffix)
+    if kind is None and suffix in TEXT_EXPORTS:
+        if not is_text(data):
+            raise DocumentError(f"{filename} is not text (its bytes are binary, as a SAS dataset's are): export it as CSV "
+                                "or text to have it read")
+        return "csv" if sniff_delimiter(data) is not None else "text"
     if kind is None:
         if data.startswith(b"%PDF"):
             return "pdf"
@@ -85,6 +96,49 @@ def detect_kind(data: bytes, filename: str) -> str:
     if kind == "image" and not data.startswith((b"\x89PNG", b"\xff\xd8")):
         raise DocumentError(f"{filename} is not a PNG or JPEG image")
     return kind
+
+
+def decode_text(data: bytes) -> str | None:
+    """A text export's characters: UTF-8 (with or without its mark), else Windows-1252, else Latin-1 (a "µg/mL" written
+    by a Windows program is kept as written)."""
+    for encoding in ("utf-8-sig", "cp1252", "latin-1"):
+        try:
+            return data.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+    return None
+
+
+def is_text(data: bytes) -> bool:
+    """Whether a file's first 200 kB are text: no NUL byte, and at most 1 % control characters besides tab, line ends
+    and form feed."""
+    sample = data[:200_000]
+    text = decode_text(sample)
+    if text is None or "\x00" in text:
+        return False
+    controls = sum(1 for ch in text if ord(ch) < 32 and ch not in "\t\n\r\f")
+    return controls * 100 <= len(text)
+
+
+def sniff_delimiter(data: bytes) -> str | None:
+    """The delimiter of a text export that is a table (most lines split into the same number of fields, at least 3),
+    else None."""
+    text = decode_text(data[:200_000])
+    if text is None or "\x00" in text:
+        return None
+    lines = [ln for ln in text.splitlines() if ln.strip()][:200]
+    if len(lines) < 3:
+        return None
+    for delimiter in ("\t", ";", ",", "|"):
+        widths = [len(next(csv.reader([ln], delimiter=delimiter))) for ln in lines]
+        common = max(set(widths), key=widths.count)
+        if common >= 3 and widths.count(common) >= 0.8 * len(widths):
+            return delimiter
+    return None
+
+
+def _exported(name: str) -> bool:
+    return PurePath(name).suffix.lower() in TEXT_EXPORTS
 
 
 def _chunk(blocks: list[str], limit: int = PAGE_CHARS) -> list[str]:
@@ -148,8 +202,8 @@ def _docx_blocks(data: bytes) -> list[str]:
     return blocks
 
 
-def _text_pages(data: bytes) -> list[str]:
-    text = data.decode("utf-8", errors="replace").replace("\r\n", "\n")
+def _text_pages(data: bytes, *, exported: bool = False) -> list[str]:
+    text = ((decode_text(data) or "") if exported else data.decode("utf-8", errors="replace")).replace("\r\n", "\n")
     if "\f" in text:
         return [p for p in text.split("\f")] or [""]
     return _chunk(text.split("\n"))
@@ -174,8 +228,11 @@ def _rows_to_blocks(sheet: str, rows) -> list[str]:
 
 def _sheet_pages(data: bytes, kind: str, name: str) -> list[str]:
     if kind == "csv":
-        delimiter = "\t" if name.lower().endswith(".tsv") else ","
-        text = data.decode("utf-8-sig", errors="replace")
+        if _exported(name):   # a text export that is a table: its own delimiter, its characters as written
+            delimiter, text = sniff_delimiter(data) or ",", decode_text(data) or ""
+        else:
+            delimiter = "\t" if name.lower().endswith(".tsv") else ","
+            text = data.decode("utf-8-sig", errors="replace")
         return _chunk(_rows_to_blocks(PurePath(name).stem, csv.reader(io.StringIO(text), delimiter=delimiter)))
     if kind == "xls":
         from modeler_intake.grid import read_workbook_bytes
@@ -215,7 +272,7 @@ def extract_document(data: bytes, filename: str) -> ExtractedDocument:
     elif kind == "docx":
         texts = _chunk(_docx_blocks(data))
     elif kind in ("markdown", "text"):
-        texts = _text_pages(data)
+        texts = _text_pages(data, exported=_exported(filename))
     elif kind == "json":
         try:   # the pages are the file's own text, so a quote is checked against what the file says
             json.loads(data.decode("utf-8-sig"))

@@ -30,11 +30,12 @@ from pathlib import PurePosixPath
 
 from pydantic import BaseModel, ConfigDict
 
+from modeler_intake.documents import TABLE_TEXT_SUFFIXES, sniff_delimiter
+from modeler_intake.documents import decode_text as _decode
 from modeler_intake.ocr import image_to_pdf
 from modeler_intake.source import parse_document, zip_members
 from modeler_intake.source_model import OcrEngine, SourceDocument
 
-TABLE_TEXT_SUFFIXES = (".txt", ".dat", ".prn", ".asc", ".tab", ".out", ".lst")
 IMAGE_SUFFIXES = (".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp", ".gif", ".webp")
 _JUNK_NAMES = {".ds_store", "thumbs.db", "desktop.ini"}
 LINE_GAP_POINTS = 3.0       # words whose tops differ by at most this many points share a line
@@ -119,32 +120,6 @@ def is_junk(path: str) -> bool:
     parts = PurePosixPath(path.replace("\\", "/")).parts
     base = parts[-1] if parts else path
     return "__MACOSX" in parts or base.startswith("._") or base.lower() in _JUNK_NAMES
-
-
-def _decode(data: bytes) -> str | None:
-    for encoding in ("utf-8-sig", "cp1252", "latin-1"):
-        try:
-            return data.decode(encoding)
-        except UnicodeDecodeError:
-            continue
-    return None
-
-
-def sniff_delimiter(data: bytes) -> str | None:
-    """The delimiter of a text export that is a table (most lines split into the same number of fields, at least 3),
-    else None."""
-    text = _decode(data[:200_000])
-    if text is None or "\x00" in text:
-        return None
-    lines = [ln for ln in text.splitlines() if ln.strip()][:200]
-    if len(lines) < 3:
-        return None
-    for delimiter in ("\t", ";", ",", "|"):
-        widths = [len(next(csv.reader([ln], delimiter=delimiter))) for ln in lines]
-        common = max(set(widths), key=widths.count)
-        if common >= 3 and widths.count(common) >= 0.8 * len(widths):
-            return delimiter
-    return None
 
 
 def _kind(doc: SourceDocument | None, suffix: str, delimited: bool) -> str:

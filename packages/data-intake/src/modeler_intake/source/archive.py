@@ -5,7 +5,8 @@ ZIP is opened once more (its members are listed as `<inner.zip>/<member>`); a ZI
 Nothing is written to disk: member names are labels, never paths. The metadata an operating system adds when it makes
 an archive (a `__MACOSX/` resource fork, a `.DS_Store` folder view) is not a member: it holds no client content. An
 encrypted member, a member over the size limit, too many members or too many bytes in all is a `ValueError` naming the
-limit, so a refused archive is `unreadable` with that reason, never partly read in silence.
+limit, so a refused archive is `unreadable` with that reason, never partly read in silence. A member's name is read
+as its maker wrote it (`member_name`): a UTF-8 name an archiver did not mark as UTF-8 is not shown garbled.
 """
 
 from __future__ import annotations
@@ -29,6 +30,19 @@ class _Budget:
         self.members, self.max_members = members, members
         self.total, self.max_total = total, total
         self.member_bytes = member_bytes
+
+
+def member_name(info: zipfile.ZipInfo) -> str:
+    """A member's name as its maker wrote it. ZIP names are CP437 unless the member's flag 0x800 says UTF-8, and Python
+    reads them so; but many archivers write UTF-8 without the flag, so "17-06-138 – Cinacalcet" came out as
+    "17-06-138 ΓÇô Cinacalcet" (the owner's client ZIP, 2026-11-27). Without the flag, the name's bytes are read again as
+    UTF-8 when they are valid UTF-8; otherwise the CP437 reading stands. A name is a label, never a path."""
+    if info.flag_bits & 0x800:
+        return info.filename
+    try:
+        return info.filename.encode("cp437").decode("utf-8")
+    except UnicodeError:          # not CP437-encodable (zipfile already decoded it otherwise) or not valid UTF-8
+        return info.filename
 
 
 def is_zip_name(name: str) -> bool:
@@ -57,16 +71,17 @@ def _expand(data: bytes, filename: str, *, prefix: str, budget: _Budget, nested:
         raise ValueError(f"{filename}: not a readable ZIP archive ({type(exc).__name__}: {exc})") from exc
     out: list[tuple[str, bytes]] = []
     for info in infos:
-        if info.is_dir() or is_metadata(info.filename):
+        own = member_name(info)
+        if info.is_dir() or is_metadata(own):
             continue
-        name = prefix + info.filename
+        name = prefix + own
         if info.flag_bits & 0x1:
             raise ValueError(f"{filename}: the member {name} is encrypted; an encrypted ZIP cannot be read")
         if info.file_size > budget.member_bytes:
             raise ValueError(f"{filename}: the member {name} holds {info.file_size} bytes, over the limit of "
                              f"{budget.member_bytes} per member")
         member = _read(archive, info, name, filename, budget)
-        if not nested and is_zip_name(info.filename):
+        if not nested and is_zip_name(own):
             out += _expand(member, name, prefix=name + "/", budget=budget, nested=True)
             continue
         budget.members -= 1

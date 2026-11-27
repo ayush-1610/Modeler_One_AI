@@ -285,6 +285,46 @@ def test_one_upload_carries_the_proposal_and_the_clients_files(client):
     assert [f["file"] for f in files] == ["ModelerOne_ClientData.xlsx"]
 
 
+
+def test_a_client_zip_keeps_its_file_names_and_its_dat_tables_are_read(client, api_settings, tmp_path):
+    """The owner's upload (2026-11-27): the ZIP's names came out garbled ("ΓÇô" for "–", written as UTF-8 without the
+    flag that says so) and its .dat tables were "Not read: unsupported file type .dat". With the intake pipeline on, as
+    the server runs it (a ZIP is expanded member by member)."""
+    import io
+    import zipfile
+
+    from modeler_project import Workspace, intake_pipeline
+
+    api_settings(read_root=str(tmp_path), execution_backend="local", intake_pipeline="both")
+
+    class Unflagged(zipfile.ZipInfo):
+        def _encodeFilenameFlags(self):
+            return self.filename.encode("cp437"), self.flag_bits & ~0x800   # zipfile sets it for a non-ASCII name
+
+    table = "Client/Part D/17-06-138 – Cinacalcet - Concentration Table.dat"
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        archive.writestr(Unflagged(table.encode("utf-8").decode("cp437"), date_time=(1980, 1, 1, 0, 0, 0)),
+                         b"Subject\tTime (h)\tConc (ng/mL)\n101\t0.5\t12.3\n101\t1\t25.1\n102\t0.5\t11.8\n")
+        archive.writestr(zipfile.ZipInfo("Client/Part D/PK Data for SAS.DAT", date_time=(1980, 1, 1, 0, 0, 0)),
+                         b"\x00\x00\x00\x01SAS\x00" + bytes(range(256)) * 4)
+    c, _ = client
+    answer = c.post("/api/v1/projects:initiate", headers=H, data={"drug_name": "Cinacalcet", "extract": "false"},
+                    files=[("files", ("proposal.txt", PROPOSAL, "text/plain")),
+                           ("client_files", ("Client.zip", buffer.getvalue(), "application/zip"))])
+    assert answer.status_code == 201, answer.text
+    files = {f["file"]: f for f in answer.json()["data"]["client_files"]}
+    read, binary = files[f"Client.zip/{table}"], files["Client.zip/Client/Part D/PK Data for SAS.DAT"]
+    assert read["problem"] is None and read["id"]
+    assert binary["id"] is None and "is not text" in binary["problem"]
+    assert not any("ΓÇô" in name for name in files)
+    pid, store = answer.json()["data"]["project_id"], client[1]
+    for _ in range(6000):     # the pipeline's background jobs finish before the test's store goes
+        if not (jobs.running(store, "t1", pid, "intake") or jobs.running(store, "t1", pid, "reading")
+                or intake_pipeline.pending(Workspace(store, "t1", pid))):
+            break
+        time.sleep(0.01)
+
 def test_documents_extraction_items_and_questions_answer_through_their_typed_models(client, monkeypatch):
     # phase 6b: every brief route answers through its response model (the conftest guard compares each answer with
     # what the handler returned); these four had no test that called them

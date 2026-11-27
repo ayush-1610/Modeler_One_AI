@@ -103,3 +103,31 @@ def test_the_metadata_an_operating_system_adds_is_not_a_member():
                  "__MACOSX/inner/._x.csv": b"\x00", "folder/.DS_Store": b"\x00\x00\x00\x01Bud1"})
     assert [name for name, _data in zip_members(data, "mac.zip")] == ["listing.csv"]
     assert parse_document(data, "mac.zip").members == ("listing.csv",)
+
+
+class _UnflaggedName(zipfile.ZipInfo):
+    """A member written as many archivers write one: its UTF-8 name's bytes, without the 0x800 flag that says UTF-8."""
+
+    def _encodeFilenameFlags(self):
+        return self.filename.encode("cp437"), self.flag_bits & ~0x800   # zipfile sets it for a non-ASCII name
+
+
+def test_a_utf8_name_written_without_the_utf8_flag_is_read_as_written():
+    """The owner's client ZIP (2026-11-27): "17-06-138 – Cinacalcet" came out as "17-06-138 ΓÇô Cinacalcet"."""
+    name = "Client/Part D/17-06-138 – Cinacalcet - Concentration Table.dat"
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        archive.writestr(_UnflaggedName(name.encode("utf-8").decode("cp437"), date_time=(1980, 1, 1, 0, 0, 0)), b"t\n")
+    assert zipfile.ZipFile(io.BytesIO(buffer.getvalue())).infolist()[0].flag_bits & 0x800 == 0   # as the client's was
+    assert [n for n, _data in zip_members(buffer.getvalue(), "client.zip")] == [name]
+    assert parse_document(buffer.getvalue(), "client.zip").members == (name,)
+
+
+def test_a_flagged_name_a_plain_name_and_a_true_cp437_name_are_unchanged():
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        archive.writestr(zipfile.ZipInfo("Part B/Résumé – 2026.pdf", date_time=(1980, 1, 1, 0, 0, 0)), b"%PDF-")  # flagged
+        archive.writestr(zipfile.ZipInfo("Part A/listing.csv", date_time=(1980, 1, 1, 0, 0, 0)), b"a,b,c\n")
+        archive.writestr(_UnflaggedName("Part C/café.txt", date_time=(1980, 1, 1, 0, 0, 0)), b"x")  # é in CP437
+    names = [n for n, _data in zip_members(buffer.getvalue(), "mixed.zip")]
+    assert names == ["Part B/Résumé – 2026.pdf", "Part A/listing.csv", "Part C/café.txt"]
