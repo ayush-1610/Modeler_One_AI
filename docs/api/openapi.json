@@ -22820,6 +22820,66 @@
         "title": "ParticleFormulationSpec",
         "type": "object"
       },
+      "ParticleInputs": {
+        "properties": {
+          "doi": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Doi"
+          },
+          "quote": {
+            "default": "",
+            "title": "Quote",
+            "type": "string"
+          },
+          "radius": {
+            "$ref": "#/components/schemas/StatedValue"
+          },
+          "source_type": {
+            "enum": [
+              "PUBLICATION",
+              "CLIENT_REPORT",
+              "REGULATORY_REVIEW",
+              "DATABASE",
+              "ASSUMPTION"
+            ],
+            "title": "Source Type",
+            "type": "string"
+          },
+          "thickness": {
+            "$ref": "#/components/schemas/StatedValue"
+          },
+          "title": {
+            "default": "",
+            "title": "Title",
+            "type": "string"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url"
+          }
+        },
+        "required": [
+          "radius",
+          "thickness",
+          "source_type"
+        ],
+        "title": "ParticleInputs",
+        "type": "object"
+      },
       "Pathway": {
         "additionalProperties": false,
         "properties": {
@@ -30910,6 +30970,25 @@
           "advice"
         ],
         "title": "StartRoomView",
+        "type": "object"
+      },
+      "StatedValue": {
+        "properties": {
+          "unit": {
+            "minLength": 1,
+            "title": "Unit",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "number"
+          }
+        },
+        "required": [
+          "value",
+          "unit"
+        ],
+        "title": "StatedValue",
         "type": "object"
       },
       "StepRow": {
@@ -43402,6 +43481,84 @@
         "summary": "Start Research",
         "tags": [
           "evidence"
+        ]
+      }
+    },
+    "/api/v1/projects/{project_id}/formulations/{name}:particles": {
+      "post": {
+        "description": "A formulation held for particle dissolution gets its particle radius and unstirred-layer thickness, with their\nsource (the owner's D1; plan 2026-11-26 §8): graded, converted to the builder's units and accepted with its type\n`Particles`, all or none. The inputs are assembled again.",
+        "operationId": "post_particle_inputs_api_v1_projects__project_id__formulations__name__particles_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ParticleInputs"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_InputsPage_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Post Particle Inputs",
+        "tags": [
+          "inputs"
         ]
       }
     },
