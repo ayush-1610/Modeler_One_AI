@@ -137,14 +137,27 @@ def test_connect_does_keycloaks_steps_and_pipes_the_new_secret_to_the_console_on
     assert "connected (stand-in)" in done.stdout and SECRET not in done.stdout + done.stderr
 
 
-def test_connect_refuses_before_asking_for_a_password_when_the_console_cannot_keep_a_key(tmp_path):
+def _refused(tmp_path: Path, *, installed: bool) -> subprocess.CompletedProcess:
     secrets = tmp_path / "secrets.env"
     secrets.write_text("export MODELER_OIDC_ISSUER=https://kc.example.test:8443/realms/modeler\n")
     logs = tmp_path / "logs"
     logs.mkdir()
     (logs / "keycloak.pid").write_text(str(os.getpid()))
+    if installed:
+        _executable(tmp_path / "kc" / "keycloak-26.7.5" / "bin" / "kcadm.sh", "#!/bin/sh\nexit 1\n")
     env = {"HOME": str(tmp_path), "PATH": "/usr/bin:/bin", "MODELER_REPO": str(REPO), "MODELER_DATA": str(tmp_path / "d"),
            "MODELER_LOGS": str(logs), "MODELER_SECRETS_FILE": str(secrets), "MODELER_KEYCLOAK_HOME": str(tmp_path / "kc")}
-    done = subprocess.run(["bash", str(REPO / "deploy/server/keycloak.sh"), "connect"], env=env, capture_output=True,
+    return subprocess.run(["bash", str(REPO / "deploy/server/keycloak.sh"), "connect"], env=env, capture_output=True,
                           text=True, timeout=60, check=False)
+
+
+def test_connect_refuses_before_asking_for_a_password_when_the_console_cannot_keep_a_key(tmp_path):
+    done = _refused(tmp_path, installed=True)
     assert done.returncode != 0 and "MODELER_MASTER_KEY is not set" in done.stderr
+
+
+def test_connect_run_off_the_server_says_where_to_run_it(tmp_path):
+    """The owner ran it on the Mac (2026-11-27): it stops first, and says to run it on the server over ssh."""
+    done = _refused(tmp_path, installed=False)
+    assert done.returncode != 0 and "Keycloak is not installed on this machine" in done.stderr
+    assert "ssh -t <the server> 'bash ~/Modeler_One_AI/deploy/server/keycloak.sh connect'" in done.stderr

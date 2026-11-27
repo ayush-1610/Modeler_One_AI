@@ -23,9 +23,11 @@ from __future__ import annotations
 import json
 import re
 import secrets
+import socket
 import urllib.error
 import urllib.parse
 import urllib.request
+from pathlib import Path
 from typing import Annotated, Any, Protocol
 
 from fastapi import Depends
@@ -234,15 +236,28 @@ class _Unavailable:
         return refuse
 
 
+def connect_command() -> str:
+    """`keycloak.sh connect` as the administrator types it on their own computer: ssh to the server this API runs on
+    (its host name) and the script by its path there. Keycloak and the console's key store are only on the server; run
+    on a laptop, the script stops and says so."""
+    script = Path(__file__).resolve().parents[4] / "deploy" / "server" / "keycloak.sh"
+    if not script.is_file():
+        return "bash deploy/server/keycloak.sh connect"
+    where, home = str(script), str(Path.home())
+    if where.startswith(home + "/"):
+        where = "~" + where[len(home):]
+    host = socket.gethostname().split(".")[0] or "the-server"
+    return f"ssh -t {host} 'bash {where} connect'"
+
+
 def directory_for(settings: Settings, fields: dict[str, str] | None = None) -> KeycloakDirectory:
     """The directory as the service account: the given key fields (a key test), else the active `keycloak` key."""
     base, realm, public = _realm_urls(settings)
     if fields is None:
         fields = ps.KeyStore(settings.read_root, settings.master_key).active("keycloak")
         if fields is None:
-            raise DirectoryError("the console is not connected to Keycloak yet: on the server, run "
-                                 "`bash deploy/server/keycloak.sh connect` once (no active key for the service account "
-                                 f"`{SERVICE_CLIENT}`)")
+            raise DirectoryError("the console is not connected to Keycloak yet: run keycloak.sh connect once on the "
+                                 f"server, as below (no active key for the service account `{SERVICE_CLIENT}`)")
     return KeycloakDirectory(base, realm, public, fields.get("client_id") or SERVICE_CLIENT, fields["client_secret"])
 
 

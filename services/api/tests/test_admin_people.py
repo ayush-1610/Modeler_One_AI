@@ -266,6 +266,9 @@ def test_without_keycloak_set_up_the_page_says_what_to_do(tmp_path, api_settings
                      oidc_issuer="https://kc.example.test:8443/realms/modeler")
         page = TestClient(app).get("/api/v1/admin/people", headers=_as("owner")).json()["data"]
         assert page["ready"] is False and "keycloak.sh connect" in page["problem"]
+        # the command as typed on the administrator's own computer: ssh to this server, the script by its path there
+        assert page["connect_command"].startswith("ssh -t ")
+        assert page["connect_command"].endswith("/deploy/server/keycloak.sh connect'")
         refused = TestClient(app).post("/api/v1/admin/people", json=NEW, headers=_as("owner"))
         assert refused.status_code == 409
     finally:

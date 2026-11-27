@@ -189,9 +189,10 @@ changes. Every person who uses the app must then be on the tailnet.
 The console adds people and companies, disables them, gives roles, moves a person to another company and resets a lost
 authenticator. It does this through Keycloak's admin API as the service account of the client `modeler-admin-api`.
 That account holds only `realm-management`'s `view-realm`, `view-users`, `query-users` and `manage-users`.
-- **Connect it once, from the server (2026-11-27; no step in Keycloak's console):**
+- **Connect it once, on the server (2026-11-27; no step in Keycloak's console).** From the Mac (`-t`: the password
+  prompt needs a terminal; on a machine without Keycloak the script stops and says to run it on the server):
   ```bash
-  bash deploy/server/keycloak.sh connect          # or: connect <name of Keycloak's administrator>, default admin
+  ssh -t adt-server 'bash ~/Modeler_One_AI/deploy/server/keycloak.sh connect'   # or: … connect <Keycloak admin name>
   ```
   Keycloak's own command line (`kcadm.sh`) asks for its administrator's password; the script keeps nothing. It then:
   1. creates the client `modeler-admin-api`, or keeps an existing one to its service account only (no browser

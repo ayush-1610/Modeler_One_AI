@@ -782,7 +782,7 @@ def _people_page(directory: kc.Directory, settings: Settings, tenant_id: str | N
                  notice: str | None = None, link: str | None = None, first: FirstPassword | None = None) -> dict[str, Any]:
     companies = _companies(_root(settings))
     page = {"ready": False, "problem": directory.problem, "smtp": False, "service_client": kc.SERVICE_CLIENT,
-            "roles": list(kc.ROLES), "companies": companies, "people": [], "notice": notice, "notice_link": link,
+            "connect_command": kc.connect_command(), "roles": list(kc.ROLES), "companies": companies, "people": [], "notice": notice, "notice_link": link,
             "temporary_password": first.password if first else None, "temporary_for": first.who if first else None}
     if directory.problem:
         return envelope(page)

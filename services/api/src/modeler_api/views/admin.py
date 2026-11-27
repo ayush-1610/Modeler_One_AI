@@ -413,6 +413,7 @@ class PeoplePage(View):
     problem: str | None
     smtp: bool
     service_client: str
+    connect_command: str       # `keycloak.sh connect` from the administrator's own computer: ssh to this server
     roles: list[str]
     companies: list[str]
     people: list[PersonView]

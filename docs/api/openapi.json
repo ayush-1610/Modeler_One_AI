@@ -22863,6 +22863,10 @@
             "title": "Companies",
             "type": "array"
           },
+          "connect_command": {
+            "title": "Connect Command",
+            "type": "string"
+          },
           "notice": {
             "anyOf": [
               {
@@ -22950,6 +22954,7 @@
           "problem",
           "smtp",
           "service_client",
+          "connect_command",
           "roles",
           "companies",
           "people",

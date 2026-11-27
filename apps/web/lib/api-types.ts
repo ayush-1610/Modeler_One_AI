@@ -11614,6 +11614,8 @@ export interface components {
         PeoplePage: {
             /** Companies */
             companies: string[];
+            /** Connect Command */
+            connect_command: string;
             /** Notice */
             notice: string | null;
             /** Notice Link */

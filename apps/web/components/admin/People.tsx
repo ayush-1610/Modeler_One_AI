@@ -173,12 +173,14 @@ export function NotConnected({ page }: { page: Page }) {
   return (
     <Panel title="The console is not connected to Keycloak yet">
       <div className="banner warn" data-testid="people-not-ready">{page.problem}</div>
-      <p className="muted">Once, on the server (it creates the console&apos;s service account <code>{page.service_client}</code>,
-        its roles and a new secret, stores the secret here as the active key and tests it):</p>
-      <pre className="code-block" data-testid="people-connect-command">bash deploy/server/keycloak.sh connect</pre>
+      <p className="muted">Once, in a terminal on your own computer. It connects to the server, where Keycloak runs, and there
+        creates the console&apos;s service account <code>{page.service_client}</code>, its roles and a new secret, stores the
+        secret here as the active key and tests it:</p>
+      <pre className="code-block" data-testid="people-connect-command">{page.connect_command}</pre>
       <p className="muted" style={{ marginBottom: 0 }}>
-        Keycloak asks for its own administrator&apos;s password in that terminal; it never reaches this app. Then reload this
-        page: adding people, roles, moving, disabling and resets all happen here.
+        If you reach the server under another name, use that name after <code>ssh -t</code>. Keycloak asks for its own
+        administrator&apos;s password in that terminal; it never reaches this app. Then reload this page: adding people,
+        roles, moving, disabling and resets all happen here.
       </p>
     </Panel>
   );

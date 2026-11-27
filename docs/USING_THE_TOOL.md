@@ -329,9 +329,10 @@ choices, when made, take precedence over the file.
 Everything is done in Modeler One's admin console; Keycloak's own console is needed only to give the platform-admin
 role (`modeler-admin`), which stays there on purpose.
 
-**Once, on the server:** connect the console to Keycloak.
+**Once, from the Mac:** connect the console to Keycloak. It runs on the server (`ssh -t` gives it a terminal for the
+password prompt); run on the Mac itself, it stops and says so.
 ```bash
-bash ~/Modeler_One_AI/deploy/server/keycloak.sh connect
+ssh -t adt-server 'bash ~/Modeler_One_AI/deploy/server/keycloak.sh connect'
 ```
 Keycloak asks for its administrator's password in the terminal (it never reaches the app). The command sets up the
 console's service account, makes it a new secret and stores it as the console's active key. Run it again any time to

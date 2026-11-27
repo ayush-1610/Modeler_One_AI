@@ -237,6 +237,10 @@ kca() {
 # The only password is Keycloak's administrator's, typed into kcadm's own prompt; nothing here keeps it.
 cmd_connect() {
   local user="${1:-admin}"
+  # the server's own Keycloak, not a laptop's checkout: say where to run it before anything else
+  [ -x "$KC_HOME/bin/kcadm.sh" ] || die "Keycloak is not installed on this machine ($(hostname -s 2>/dev/null || hostname)).
+  Run this on the server, where Keycloak runs. From your own computer:
+    ssh -t <the server> 'bash ~/Modeler_One_AI/deploy/server/keycloak.sh connect'"
   running || die "Keycloak is not running: 'keycloak.sh start' first"
   [ -n "${MODELER_OIDC_ISSUER:-}" ] || die "Modeler One does not sign in through Keycloak yet: add the lines of 'keycloak.sh env' to $SECRETS_FILE and restart it"
   [ -n "${MODELER_MASTER_KEY:-}" ] || die "MODELER_MASTER_KEY is not set in $SECRETS_FILE: the console seals its keys with it"

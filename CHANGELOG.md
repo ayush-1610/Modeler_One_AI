@@ -13,6 +13,18 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 
 ## [Unreleased] — make the pipeline do real PBPK, S0 → S7
 
+### Fixed — `keycloak.sh connect` says it must run on the server, and the People page gives the exact command (2026-11-27)
+- **What:** run on the Mac, the command printed a Python traceback from the server settings it reads (no
+  `golden/catalog.json` at the Mac's `~/Modeler_One_AI`) and stopped without saying why. It now checks first that
+  Keycloak is installed on this machine; if not, it stops and prints
+  `ssh -t <the server> 'bash ~/Modeler_One_AI/deploy/server/keycloak.sh connect'`. The People page shows the command to
+  type on your own computer, built by the API from the server it runs on (`PeoplePage.connect_command`, e.g.
+  `ssh -t adt-server 'bash ~/Modeler_One_AI/deploy/server/keycloak.sh connect'`); it said
+  `bash deploy/server/keycloak.sh connect` "on the server".
+- **Why:** the owner's first try ran it in the Mac's terminal (2026-11-27 screenshot).
+- **Impact:** `PeoplePage` gains `connect_command`; OpenAPI snapshot and web types regenerated. Tests:
+  `test_keycloak_connect.py` (off the server it stops first and says where to run it), `test_admin_people.py`.
+
 ### Changed — people are added and managed from the admin console only; a temporary first password shown once (2026-11-27, the owner's request)
 - **What:**
   - **`bash deploy/server/keycloak.sh connect`, once on the server**, replaces every step that was done by hand in
