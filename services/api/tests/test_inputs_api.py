@@ -187,3 +187,29 @@ def test_the_inputs_assemble_after_each_change_and_the_plan_reads_them_without_a
                                                                 "value": "MetabolizationSpecific_FirstOrder", "reason": "x"})
     plan = c.get("/api/v1/projects/p1/plan", headers=H)
     assert plan.status_code == 200, plan.text                                          # nothing accepted
+
+
+def test_a_formulations_release_model_is_answered_on_inputs(setup):
+    """The owner's D1 (plan 2026-11-26 §8): the Data room's release-model proposal is listed on the Inputs page; a person
+    confirms it, holds the formulation for particle dissolution with a reason, or takes the Weibull fit again."""
+    from modeler_project.evidence import EvidenceItem, EvidenceState, SourceType
+    from modeler_project.evidence_register import decide, propose
+
+    c, ws, _read_root = setup
+    url = "/api/v1/projects/p1/formulations/Tab_100_mg:release-model"
+    assert c.post(url, headers=H, json={"model": "weibull"}).status_code == 422          # nothing waits yet
+    proposal = {"release_model": {"value": "weibull", "label": "Weibull fitted to the profile as measured",
+                                  "why": "the highest mean is 87 % at 60 min", "sources": ["diss.csv · sheet:diss"],
+                                  "other": {"value": "particles", "label": "Particle dissolution", "detail": "needs d50"}}}
+    propose(ws, EvidenceItem(id="ev-dr0release", target="form.Tab_100_mg.type", value="Weibull",
+                             source_type=SourceType.CLIENT_FILE, proposed=proposal), actor="u")
+    decide(ws, "ev-dr0release", state=EvidenceState.ACCEPTED, reason="sent from the Data room", by="u")
+    listed = c.get("/api/v1/projects/p1/inputs", headers=H).json()["data"]["release_models"]
+    assert [(r["formulation"], r["state"], r["other"]["value"]) for r in listed] == [("Tab_100_mg", "proposed", "particles")]
+    assert c.post(url, headers=H, json={"model": "particles"}).status_code == 422          # a hold needs its reason
+    held = c.post(url, headers=H, json={"model": "particles", "reason": "the plateau is the solubility limit"})
+    assert held.status_code == 200, held.text
+    assert [(r["state"], r["reason"]) for r in held.json()["data"]["release_models"]] == [
+        ("held", "the plateau is the solubility limit")]
+    taken = c.post(url, headers=H, json={"model": "weibull", "reason": "no particle size given"})
+    assert taken.status_code == 200 and taken.json()["data"]["release_models"] == []

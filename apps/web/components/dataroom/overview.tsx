@@ -184,8 +184,8 @@ function NeedsYou({ room, go }: { room: Room; go: (section: string) => void }) {
       ) : <p className="muted m-0" data-testid="needs-you-none">Nothing in this delivery waits for you.</p>}
       {!paper && items.length > shown.length && <p className="muted">and {items.length - shown.length} more, each in its section</p>}
       {onInputs && (
-        <p className="muted dr-small m-0" data-testid="needs-you-inputs">The population, sex and meal template are chosen on Inputs: Clinical
-          Study Design shows the delivery&apos;s facts behind them.</p>
+        <p className="muted dr-small m-0" data-testid="needs-you-inputs">The population, sex, meal template and release model are chosen on
+          Inputs: Clinical Study Design and In Vitro Release Input show the delivery&apos;s facts behind them.</p>
       )}
     </Card>
   );

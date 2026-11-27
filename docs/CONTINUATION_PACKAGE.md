@@ -296,9 +296,22 @@ a delivery by file type although most of what clients send never reaches a model
   each opening where it is done. Fixed: the personal-data check now runs when a file is read (the room loads only
   extracted documents, so it never saw a listing nobody extracted). Phase 5 is complete.
 
-**Next:** the release model on Inputs (5b's deviation);
-phase 4's agent work with the agents' baseline on the server's in-house model (D6). The corpus data and answer keys stay
-outside git.
+- **The release model on Inputs (5b's deviation, 2026-11-27):** the room's `release-model:` decision is Inputs'; the
+  Weibull fit is sent with the suggestion as a proposal (`EvidenceItem.proposed`); Formulations confirms it, holds the
+  formulation for particle dissolution (with a reason) or takes it back (`release_choice`). **Pending the owner:** the
+  particle radius and layer thickness need entries in the locked parameter registry before Inputs can hold them.
+
+**Next (each needs the owner or the server; nothing code-only is left in this plan):**
+- the particle inputs: entries for `form.<name>.particles.radius` (µm) and `.thickness` (mm) in the parameter registry
+  (locked; harvested names in `pbpk_domain.cpf.formulations.PARTICLE_PARAMETERS`), in their own PR with the owner's go;
+- phase 4: the extractor's dissolution stage column, the checker on Model Input Data first, the writer's new sections
+  (prompt changes, scored before and after on the server's in-house model, D6); "NR" as a missing token is a rules
+  change (`dataroom_rules.yaml`, SME-governed, the owner's approval and a version bump);
+- phase 6: the harvested catalogue (`golden/catalog.json`, PK-Sim 12.4.4) holds 8 human populations, no disease states,
+  and two meal templates. Disease populations and more meal sets need a new harvest on the engine (server), and custom
+  meals touch the builder and `split.StudyRecord`: all locked files, so the owner's approval first;
+- phase 7: every corpus delivery through the finished room on the server's in-house model (D6).
+The corpus data and answer keys stay outside git.
 
 ### 4.0e 2026-11-22 → 25: redesign charter, implementation (slice 10, acceptance, in review)
 **Now (2026-11-23):** the owner authorised slices 0 and 1, one PR per slice into `main`, a review after each. Slice 0:

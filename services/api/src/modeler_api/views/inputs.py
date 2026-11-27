@@ -5,6 +5,8 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
+from pydantic import Field
+
 from modeler_api.views.common import Number, VersionView, View
 
 InputsTab = Literal["compound", "formulations", "individuals", "settings", "studies"]
@@ -97,6 +99,29 @@ class PublishedModel(View):
     name: str
 
 
+class ReleaseModelOption(View):
+    value: str
+    label: str
+    detail: str = ""
+
+
+class ReleaseModelRow(View):
+    """A formulation's release model chosen on Inputs (the owner's D1): the Data room's proposal waiting on a person,
+    or the formulation held for particle dissolution (`release_choice.release_states`)."""
+
+    formulation: str
+    state: Literal["proposed", "held"]
+    evidence_id: str
+    value: str = ""                        # proposed: the room's suggestion ("weibull") with its label and detail
+    label: str = ""
+    detail: str = ""
+    why: str = ""
+    sources: list[str] = Field(default_factory=list)
+    other: ReleaseModelOption | None = None
+    reason: str = ""                       # held: why, and who held it
+    by: str = ""
+
+
 class InputsPage(View):
     cpf: CpfVersion | None
     records: list[dict[str, Any]]          # each CPF parameter record, with its block, placement and binding candidates
@@ -112,6 +137,7 @@ class InputsPage(View):
     study_options: dict[str, list[str]]
     selection_rule: str                    # the source-selection rule that picked the values (D-32), with its status
     published_models: list[PublishedModel]  # the published OSP models of the drug, a source like any other
+    release_models: list[ReleaseModelRow] = Field(default_factory=list)  # chosen here (D1): Formulations shows them
 
 
 class IdentityProposal(InputsPage):
