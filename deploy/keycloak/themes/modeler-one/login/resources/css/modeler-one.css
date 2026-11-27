@@ -1,6 +1,9 @@
-/* Modeler One on Keycloak's keycloak.v2 login pages: the console's "Graphite" tokens (apps/web/app/styles/tokens.css,
-   design-review/DECISIONS.md D-I4), Plus Jakarta Sans (SIL OFL 1.1, fonts/OFL-PlusJakartaSans.txt), the product's mark. Keycloak's PatternFly 5 variables
-   are overridden, never its markup. */
+/* Modeler One on Keycloak's keycloak.v2 login pages: the owner's split sign-in design (2026-11-27, the Graphite sign-off;
+   apps/web/components/auth/AuthPage.tsx draws the app's side the same way): a full-screen abstract background drawn here
+   (no outside image), the product's words on the left (the header, from messages loginTitleHtml), a frosted card on the
+   right (Keycloak's own form); stacked on a phone. The Graphite tokens (apps/web/app/styles/tokens.css, DECISIONS.md
+   D-I4), Plus Jakarta Sans (SIL OFL 1.1, fonts/OFL-PlusJakartaSans.txt). Keycloak's PatternFly 5 variables and classes
+   are styled, never its markup: no template is copied, so a Keycloak upgrade keeps working. */
 @font-face {
   font-family: "Plus Jakarta Sans";
   src: url("../fonts/PlusJakartaSans-latin-var.woff2") format("woff2");
@@ -9,15 +12,14 @@
 }
 
 :root {
-  --mo-canvas: #F4F4F5;
   --mo-surface: #FFFFFF;
   --mo-border: #EFEFF1;
   --mo-control-edge: #8A8A93;
   --mo-ink: #18181B;
+  --mo-ink-2: #3F3F46;
   --mo-ink-3: #52525B;
   --mo-accent: #18181B;
   --mo-accent-hover: #2E2E33;
-  --mo-accent-tint: #ECECEE;
   --mo-focus: #2563EB;
   --mo-fail: #991B1B;
   --mo-fail-bg: #FEE2E2;
@@ -33,64 +35,114 @@
   --pf-v5-c-button--m-primary--focus--BackgroundColor: var(--mo-accent-hover);
   --pf-v5-c-button--m-primary--active--BackgroundColor: var(--mo-accent-hover);
   --pf-v5-c-form-control--focus--after--BorderBottomColor: var(--mo-focus);
-  --pf-v5-c-form-control--hover--after--BorderBottomColor: var(--mo-accent);
+  --pf-v5-c-form-control--hover--after--BorderBottomColor: var(--mo-focus);
 }
 
-/* the page: the calm canvas, not Keycloak's photo background */
+/* the page: the self-hosted abstract background (the same layers as the app's sign-in page, apps/web/app/styles/auth.css) */
 .login-pf body, body#keycloak-bg {
-  background: var(--mo-canvas);
+  margin: 0;
+  min-height: 100vh;
   color: var(--mo-ink);
   font-family: "Plus Jakarta Sans", system-ui, sans-serif;
   font-size: 15px;
+  background-color: #0E0E11;
+  background-image:
+    radial-gradient(42% 55% at 16% 26%, rgba(37, 99, 235, 0.55) 0%, rgba(37, 99, 235, 0) 70%),
+    radial-gradient(36% 48% at 84% 80%, rgba(13, 148, 136, 0.45) 0%, rgba(13, 148, 136, 0) 70%),
+    radial-gradient(28% 38% at 72% 14%, rgba(234, 88, 12, 0.26) 0%, rgba(234, 88, 12, 0) 70%),
+    radial-gradient(55% 65% at 40% 96%, rgba(99, 102, 241, 0.22) 0%, rgba(99, 102, 241, 0) 70%),
+    linear-gradient(160deg, #111114 0%, #18181B 46%, #0B1220 100%);
+  background-attachment: fixed;
 }
+/* two glass spheres for depth, lit from the top left; decoration only */
+body#keycloak-bg::before, body#keycloak-bg::after { content: ""; position: fixed; border-radius: 50%; pointer-events: none; z-index: 0; }
+body#keycloak-bg::before { width: 46vmin; height: 46vmin; left: 6vw; bottom: -12vmin;
+  background: radial-gradient(circle at 32% 28%, rgba(255, 255, 255, 0.32), rgba(96, 165, 250, 0.28) 34%, rgba(30, 58, 138, 0.10) 62%, rgba(14, 14, 17, 0) 72%); }
+body#keycloak-bg::after { width: 30vmin; height: 30vmin; right: 8vw; top: 8vh;
+  background: radial-gradient(circle at 34% 30%, rgba(255, 255, 255, 0.28), rgba(45, 212, 191, 0.26) 36%, rgba(15, 118, 110, 0.10) 62%, rgba(14, 14, 17, 0) 72%); }
 
-/* the header above the card: the mark and the product's name */
-#kc-header-wrapper {
-  display: flex;
+/* the split: the words on the left, the card on the right */
+.pf-v5-c-login { position: relative; z-index: 1; min-height: 100vh; background: none; padding: 0; }
+.pf-v5-c-login__container {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 440px);
+  grid-template-areas: "header main";
   align-items: center;
-  justify-content: center;
-  gap: 12px;
-  padding: 8px 0 4px;
-  font-size: 24px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  text-transform: none;           /* PatternFly's brand is upper case; the product's name is not */
-  color: var(--mo-ink);
+  gap: 48px 64px;
+  max-width: 1180px;
+  min-height: 100vh;
+  margin: 0 auto;
+  padding: 40px max(16px, env(safe-area-inset-right, 0px)) 40px max(16px, env(safe-area-inset-left, 0px));
+  box-sizing: border-box;
 }
-#kc-header-wrapper::before {
-  content: "";
-  width: 40px;
-  height: 40px;
-  background: url("../img/modeler-one-mark.svg") no-repeat center / contain;
+.pf-v5-c-login__header { grid-area: header; align-self: center; margin: 0; padding: 0; color: #FFFFFF; }
+.pf-v5-c-login__main { grid-area: main; align-self: center; }
+
+/* the words: the mark and name, the headline, the line under it (messages_en.properties loginTitleHtml) */
+#kc-header-wrapper {
+  display: grid;
+  gap: 18px;
+  justify-items: start;
+  padding: 0;
+  text-align: left;
+  text-transform: none;           /* PatternFly's brand is upper case; the product's words are not */
+  color: #FFFFFF;
+  white-space: normal;
 }
-.mo-brand { color: var(--mo-ink); }
+.mo-brand { display: inline-flex; align-items: center; gap: 12px; color: #FFFFFF; font-size: 20px; font-weight: 700; letter-spacing: -0.01em; }
+.mo-brand::before { content: ""; width: 30px; height: 30px; background: url("../img/modeler-one-mark-light.svg") no-repeat center / contain; }
+.mo-hero { display: block; max-width: 14ch; color: #FFFFFF; font-size: clamp(36px, 5.2vw, 64px); line-height: 1.05; font-weight: 700;
+  letter-spacing: -0.035em; text-wrap: balance; }
+.mo-hero em { font-style: normal; color: #93C5FD; }
+/* where the form is: on the right, or below on a phone */
+.mo-narrow { display: none; }
+.mo-sub { display: block; max-width: 46ch; color: #D4D4D8; font-size: 17px; line-height: 1.5; font-weight: 400; letter-spacing: 0; }
 div.kc-logo-text { display: none; }
 
-/* the card: white, rounded (14 px), a hairline and a soft shadow */
+/* the card: frosted, 90 % white over the background (its ink 14:1, its grey over 6.5:1), rounded (18 px) */
 .pf-v5-c-login__main {
   --keycloak-card-top-color: transparent;
-  background: var(--mo-surface);
-  border: 1px solid var(--mo-border);
-  border-radius: 14px;
-  box-shadow: 0 1px 2px rgba(24, 24, 27, 0.05), 0 6px 18px -8px rgba(24, 24, 27, 0.14);
+  background: rgba(255, 255, 255, 0.90);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  backdrop-filter: blur(18px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  border-radius: 18px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12), 0 30px 60px -20px rgba(0, 0, 0, 0.55);
+  margin: 0;
 }
-.pf-v5-c-login__main-header { border-top: 0; border-radius: 14px 14px 0 0; }
-.pf-v5-c-title.pf-m-3xl { font-size: 22px; font-weight: 700; letter-spacing: -0.01em; color: var(--mo-ink); }
+.pf-v5-c-login__main-header { border-top: 0; border-radius: 18px 18px 0 0; background: none; padding-bottom: 4px; }
+.pf-v5-c-login__main-body, .pf-v5-c-login__main-footer { background: none; }
+.pf-v5-c-title.pf-m-3xl { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; color: var(--mo-ink); }
+.pf-v5-c-form__label-text { color: var(--mo-ink); font-weight: 600; }
 
-/* inputs: a visible edge (3:1 against white) and the blue focus outline */
-.pf-v5-c-form-control { --pf-v5-c-form-control--before--BorderColor: var(--mo-control-edge); }
-.pf-v5-c-form-control { border-radius: 10px; }
+/* inputs: solid white, high contrast, rounded; a visible edge (3:1) and the blue focus outline */
+.pf-v5-c-form-control {
+  --pf-v5-c-form-control--before--BorderColor: var(--mo-control-edge);
+  --pf-v5-c-form-control--BackgroundColor: #FFFFFF;
+  background: #FFFFFF;
+  border-radius: 10px;
+}
 .pf-v5-c-form-control:focus-within { outline: 2px solid var(--mo-focus); outline-offset: 1px; }
+.pf-v5-c-input-group .pf-v5-c-button.pf-m-control { background: #FFFFFF; border-radius: 0 10px 10px 0; }
 .pf-v5-c-button:focus-visible { outline: 2px solid var(--mo-focus); outline-offset: 2px; }
 
-/* the primary button: at least 40 px high (target size, WCAG 2.2 2.5.8) */
-.pf-v5-c-button.pf-m-primary { min-height: 40px; font-weight: 600; border-radius: 10px; }
+/* the primary button: full width, at least 44 px high (target size, WCAG 2.2 2.5.8) */
+.pf-v5-c-button.pf-m-primary { min-height: 44px; font-weight: 600; font-size: 15px; border-radius: 10px; }
 
 /* errors in the product's fail colours */
 .pf-v5-c-alert.pf-m-danger { --pf-v5-c-alert--BorderTopColor: var(--mo-fail); background: var(--mo-fail-bg); }
 .pf-v5-c-helper-text__item.pf-m-error, .kc-feedback-text { color: var(--mo-ink); }
 
-/* phones: the card fills the width with a 16 px gutter */
-@media (max-width: 600px) {
-  .pf-v5-c-login__container { grid-template-columns: 1fr; padding: 0 16px; }
+/* a phone or narrow window: the words above the card */
+@media (max-width: 900px) {
+  .pf-v5-c-login__container { grid-template-columns: minmax(0, 1fr); grid-template-areas: "header" "main"; align-content: center;
+    gap: 28px; max-width: 520px; }
+  #kc-header-wrapper { gap: 12px; }
+  .mo-hero { font-size: clamp(30px, 8.5vw, 40px); max-width: none; }
+  .mo-sub { font-size: 15px; }
+  .mo-wide { display: none; }
+  .mo-narrow { display: inline; }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .pf-v5-c-login__main { background: #FFFFFF; -webkit-backdrop-filter: none; backdrop-filter: none; }
 }

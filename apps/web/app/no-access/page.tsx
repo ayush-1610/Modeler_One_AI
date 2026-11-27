@@ -15,7 +15,7 @@ export default async function NoAccess() {
   const name = await signedInName();
   const roles = realmRoles((await cookies()).get(COOKIE.access)?.value).filter((r) => r.startsWith("modeler-"));
   return (
-    <AuthPage title="Your account has no access yet" testId="no-access-page">
+    <AuthPage title="Your account has no access yet" lede="You are signed in; your administrator opens Modeler One to you." testId="no-access-page">
       <p>
         You are signed in{name ? <> as <strong>{name}</strong></> : null}, but your account has no Modeler One role
         {roles.includes("modeler-qa") ? " that opens projects (the QA role opens none yet)" : ""}.

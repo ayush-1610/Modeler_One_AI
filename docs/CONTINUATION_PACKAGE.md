@@ -213,7 +213,7 @@ T-05 → T-07 → T-08 → T-18 and T-09 in parallel.
 
 ## 4. Where things stand (2026-11-27)
 
-### 4.0g 2026-11-27: the "Graphite" restyle (R1–R3 merged; R4 in review)
+### 4.0g 2026-11-27: the "Graphite" restyle (R1–R4 merged; R5, the sign-in pages, in review)
 The owner chose a new look for the console from design catalogues (a Design Studio artifact) and approved its prototype
 and six choices (`design-review/DECISIONS.md` D-I4): Graphite colours (near-black ink for actions, one blue for charts,
 source links and focus), Plus Jakarta Sans at 15 px with JetBrains Mono for identifiers, 14 px rounded panels with soft
@@ -221,8 +221,10 @@ shadows, a left sidebar in place of the top bar, the app's own icons at a 1.5 st
 `docs/plans/2026-11-27-console-graphite-restyle.md`, four PRs, each reviewed: **R1** colours, font, corners, shadows
 (#189, merged as `ca7903a`); **R2** the sidebar layout (#190, merged as `3b9cbc9`); **R3** icons at 1.5, tabs, tables,
 side panel, dialogs, source links in blue (#191, merged as `599989d`); **R4** a contrast check on every page in CI, the
-last faint text fixed, the admin pages audited, a sign-off gallery (private artifact), the deploy plan (a PR, **waits for
-the owner's review**). After R4: the owner's acceptance by use (deploy plan §6, A1–A13) and the deploy on their go-ahead. Later: a per-person Compact view. The deploy still
+last faint text fixed, the admin pages audited, a sign-off gallery (private artifact), the deploy plan (#193, merged as
+`032a139`); **R5** the sign-in pages in the owner's split design, from the gallery's marks (DECISIONS D-I5; verified on a
+local Keycloak 26.7.5 with the realm imported; a PR, **waits for the owner's review**). Then: the owner's acceptance by
+use (deploy plan §6, A1–A13) and the deploy on their go-ahead. Later: a per-person Compact view. The deploy still
 waits for the owner's acceptance and go-ahead.
 
 ### 4.0f 2026-11-25 → 26: the corpus audit, the Data room regrouped by purpose, the room scored value by value
