@@ -68,6 +68,38 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
   24 px targets, at 1440 and 390 px) passes on every page. Deploy: the Keycloak theme needs copying in and a Keycloak
   restart (`docs/plans/2026-11-25-console-redesign-deploy.md` §3).
 
+### Changed — a formulation's release model is chosen on Inputs, with the Data room's suggestion as a proposal (2026-11-27)
+- **Why:** the owner's D1 and the deviation recorded at slice 5b of
+  `docs/plans/2026-11-26-data-room-groups-and-corpus-benchmark.md` (§8), the owner's go of 2026-11-27. The release model
+  was the last D1 choice still made in the Data room.
+- **What, the Data room:** the `release-model:` decision (a product whose chosen profile levels off below 100 %) is
+  Inputs' (`on_inputs`). Sending is not held for it; In Vitro Release Input shows it as a proposal under "Chosen on
+  Inputs", with a link to Formulations.
+- **What, the send:** the Weibull fit goes as it always did; the room never sent a particle release (choosing particles
+  in the room only blocked the send, and still does for a room that chose it). The suggestion rides on the formulation's
+  type item as `EvidenceItem.proposed["release_model"]` (the model, why, its sources, the other model), left out of the
+  stored content when there is none. A second send of the same data keeps the answer.
+- **What, Inputs (Formulations, "Release models proposed by the Data room"):** a person confirms the Weibull fit, or
+  holds the formulation for particle dissolution with a reason (its Weibull values are rejected with that reason), or
+  takes the Weibull fit again (`POST …/formulations/{name}:release-model`; `modeler_project.release_choice`).
+  - Readiness: a proposal waiting joins "the Data room's proposals confirmed (D1)", and To do opens Formulations. A held
+    formulation fails "formulations of solid studies", saying why.
+  - The MAP names it as a proposal chosen on Inputs.
+- **Pending the owner:** a particle formulation needs its particle radius (µm) and unstirred-layer thickness (mm). The
+  CPF builder takes them (`form.<name>.particles.*`, harvested names), but the parameter registry
+  (`pbpk_domain/parameters/registry.yaml`, a locked file) has no entry for them, so Inputs cannot hold them yet. Adding
+  them is a locked-file change for its own PR, with the owner's approval. Until then a held formulation waits.
+- **API:** `EvidenceItem.proposed`, `InputsPage.release_models` (`ReleaseModelRow`), and the new
+  `POST /projects/{project_id}/formulations/{name}:release-model`. The OpenAPI snapshot and `apps/web/lib/api-types.ts`
+  are regenerated.
+- **Tests:**
+  - `test_release_choice.py`: the proposal is sent with the Weibull fit and the room is not held; a room that took the
+    Weibull fit sends none, one that took particles still blocks; confirm, hold (a reason required) and take back; the
+    readiness waits, and says why a held formulation is not built.
+  - `test_inputs_api.py`: the endpoint and `release_models`.
+  - E2E: `dataroom.spec.ts` counts one decision fewer in the room. `dataroom-to-map.spec.ts` leaves the release model to
+    Inputs, confirms it on Formulations, and finds it among the MAP's limitations.
+
 ### Changed — each Data room check on what it concerns, and the Overview's "Needs you" (2026-11-27)
 - **Why:** slice 5d of `docs/plans/2026-11-26-data-room-groups-and-corpus-benchmark.md` (§9), the owner's go of
   2026-11-27. The room's own checks (the dose card, the detectors, refused facts, a table read with a problem) were one

@@ -293,7 +293,12 @@ a delivery by file type although most of what clients send never reaches a model
   each opening where it is done. Fixed: the personal-data check now runs when a file is read (the room loads only
   extracted documents, so it never saw a listing nobody extracted). Phase 5 is complete.
 
-**Next:** the release model on Inputs (5b's deviation);
+- **The release model on Inputs (5b's deviation, 2026-11-27):** the room's `release-model:` decision is Inputs'; the
+  Weibull fit is sent with the suggestion as a proposal (`EvidenceItem.proposed`); Formulations confirms it, holds the
+  formulation for particle dissolution (with a reason) or takes it back (`release_choice`). **Pending the owner:** the
+  particle radius and layer thickness need entries in the locked parameter registry before Inputs can hold them.
+
+**Next:** the owner's approval for the particle inputs in the parameter registry (a locked-file PR);
 phase 4's agent work with the agents' baseline on the server's in-house model (D6). The corpus data and answer keys stay
 outside git.
 

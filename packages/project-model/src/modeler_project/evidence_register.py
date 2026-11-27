@@ -86,6 +86,17 @@ def decide(ws: Workspace, evidence_id: str, *, state: EvidenceState, reason: str
     return decided
 
 
+def answer_proposal(ws: Workspace, evidence_id: str, *, reason: str, by: str) -> EvidenceItem:
+    """The Data room's proposal on an item answered by a person on Inputs (the owner's D1; `release_choice`): a new
+    version without it, with who and why (the audit keeps the version that carried it)."""
+    version = ws.latest(ArtifactKind.EVIDENCE, evidence_id)
+    if version is None:
+        raise EvidenceError(f"no evidence {evidence_id}")
+    item = EvidenceItem.from_content(version.content).model_copy(update={"proposed": None})
+    ws.commit(ArtifactKind.EVIDENCE, evidence_id, item.to_content(), actor=by, reason=reason)
+    return item
+
+
 def choose(ws: Workspace, evidence_id: str, *, reason: str, by: str) -> list[str]:
     """Keep one value for its parameter: every other value of the same target not yet excluded is rejected, each with
     the person's reason and the value kept (the person's choice, recorded; it settles a conflict `sources.select`

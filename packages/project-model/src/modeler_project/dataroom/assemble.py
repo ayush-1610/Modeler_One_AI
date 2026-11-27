@@ -936,7 +936,7 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
         view = next((d for d in diss if d.id == chosen.get(f"release:{product}")), None)
         if view is not None and view.plateau:
             decisions.append(_decision(inputs.decisions, RoomDecision(
-                id=f"release-model:{product}", title=f"Release model for {product}",
+                id=f"release-model:{product}", title=f"Release model for {product}", on_inputs=True,
                 question="The chosen profile levels off below 100 %. How should the model release the drug?",
                 options=(Option(id="weibull", label="Weibull fitted to the profile as measured",
                                 detail=f"t50 {view.weibull.get('t50_min')} min, shape {view.weibull.get('shape')}: it creeps "

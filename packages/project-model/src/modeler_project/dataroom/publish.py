@@ -454,6 +454,21 @@ def _proposals(view: DataRoomView, sid: str, *, demographics: dict[str, Any] | N
     return out or None
 
 
+def _release_proposal(d: RoomDecision | None) -> dict[str, Any] | None:
+    """The room's release-model suggestion for a product whose chosen profile levels off, when no person chose it in the
+    room: a proposal for Inputs (the owner's D1), with the other model and what it would need. None otherwise."""
+    if d is None or d.chosen:
+        return None
+    option = {o.id: o for o in d.options}
+    suggested = option.get(d.suggested)
+    other = next((o for o in d.options if o.id != d.suggested), None)
+    return {"release_model": {
+        "value": d.suggested, "label": suggested.label if suggested else d.suggested,
+        "detail": suggested.detail if suggested else "", "why": d.why,
+        "sources": [f"{c.file} · {c.part}" + (f", line {c.line}" if c.line else "") for c in d.evidence],
+        "other": {"value": other.id, "label": other.label, "detail": other.detail} if other else None}}
+
+
 def _dataset(study: RoomStudy, arm: Arm, set_name: str, *, view: DataRoomView, rows: list[InputRow], by: str,
              formulation_name: str, formulation: str, route_note: str, food: str, meals: list[dict[str, Any]],
              notes: list[str]) -> tuple[ObservedDataset | None, str]:
@@ -604,9 +619,14 @@ def plan_publication(view: DataRoomView, *, by: str, ws: Workspace | None = None
                 notes.append(f"{row.owner}: {remark}")
             fits[row.owner] = (conditions, flags, remark, profile.sources[:1])
             formulations[row.owner] = name
-            evidence.append(_evidence(row.model_copy(update={"status": "calculated"}), f"form.{name}.type", "Weibull", by=by,
-                                      note=f"Data room: {row.owner}" + (f"; {remark}" if remark else ""), literature=literature,
-                                      chips=profile.sources[:1], conditions=conditions))
+            kind = _evidence(row.model_copy(update={"status": "calculated"}), f"form.{name}.type", "Weibull", by=by,
+                             note=f"Data room: {row.owner}" + (f"; {remark}" if remark else ""), literature=literature,
+                             chips=profile.sources[:1], conditions=conditions)
+            # the release model is chosen on Inputs (the owner's D1): the Weibull fit is sent, as the room suggests, with
+            # the room's reason as a proposal to confirm or change there (plan 2026-11-26 §8)
+            if proposal := _release_proposal(decisions.get(f"release-model:{row.owner}")):
+                kind = kind.model_copy(update={"proposed": proposal})
+            evidence.append(kind)
             continue
         key = {"Dissolution time (50% dissolved)": "t50", "Dissolution shape": "shape", "Lag time": "lag"}.get(row.name)
         if key and isinstance(row.value, float) and row.owner in formulations:
