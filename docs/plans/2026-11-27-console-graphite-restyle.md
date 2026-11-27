@@ -51,3 +51,9 @@ Later, by the owner's choice: a per-person "Compact view" switch (14 px text, ti
   part would be cut off); the sidebar's top therefore always shows Start, Search and the main links.
 - **R2, breadcrumbs** moved from each page's header into the page bar (they come from the address, so every page has them
   without a change to the page). Home has none, as before.
+- **R4, the admin pages** cannot be opened by the development sign-in the e2e suite uses (it does not hold
+  `modeler-admin`, and `auth.py` is locked). They were audited with the same checks through a local, uncommitted harness
+  (a `sitecustomize` on that run's `PYTHONPATH` adding the role in its API process alone); CI checks the rest. Under
+  Keycloak, `oidc-signing.spec.ts` reaches them as the owner.
+- **R4, the gallery** is a private artifact with all 92 screens (46 pages × 2 widths) and a mark per screen ("Looks
+  right" / "Needs a change" and a note) that this session can read back for a next round.

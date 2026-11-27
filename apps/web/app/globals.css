@@ -52,7 +52,8 @@
   /* Text-grade twins of the series and verdict colours: the base colours above are for dots, fills and borders (they are
    * 3.4-4.5:1 on a tint and fail AA as small text); these are >= 4.5:1 on the surface and on their own tints (a chip's
    * 14-16 % wash). --warn-ink is its own colour, no longer the observed series' --obs (plan 2026-11-14 slice 1).
-   * --ink-faint is for non-text only (rules, icons, graph edges); small text uses --ink-quiet. */
+   * --ink-faint is for non-text only (rules, graph edges; 2.56:1, under even the 3:1 for icons); text uses --ink-quiet
+   * (the Graphite restyle's contrast pass, R4, moved the last text off it). */
   --pass-ink: var(--c-pass);
   --warn-ink: var(--c-warn);
   --fail-ink: var(--c-fail);

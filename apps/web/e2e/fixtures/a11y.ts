@@ -77,6 +77,11 @@ export async function smallTargets(page: Page): Promise<string[]> {
  *  disabled control's text, text over an image or a gradient, a chart's own drawing (SVG), hidden text. The Graphite
  *  restyle's accessibility pass (R4). Each finding names the element, its words, the ratio and the two colours. */
 export async function lowContrast(page: Page): Promise<string[]> {
+  // colours at rest: a row's fade-in (kit.css table-row-in) measured half-way reads as low contrast; a spinner never ends
+  await page.evaluate(() => Promise.race([
+    Promise.all(document.getAnimations().filter((a) => a.effect?.getTiming().iterations !== Infinity).map((a) => a.finished.catch(() => null))),
+    new Promise((done) => setTimeout(done, 2_000)),
+  ]));
   return page.evaluate(() => {
     type C = [number, number, number, number];
     const parse = (c: string): C | null => {

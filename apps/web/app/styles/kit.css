@@ -20,7 +20,7 @@
 .inline-issue { margin: 4px 0; padding: 6px 10px; border-radius: var(--radius-sm); font-size: 13px; max-width: none;
   border-left: 3px solid var(--warn); background: color-mix(in srgb, var(--warn) 9%, transparent); color: var(--ink); }
 .inline-issue.error { border-left-color: var(--fail); background: color-mix(in srgb, var(--fail) 9%, transparent); }
-.inline-issue.note { border-left-color: var(--ink-faint); background: var(--raised); }
+.inline-issue.note { border-left-color: var(--ink-quiet); background: var(--raised); }
 
 .table-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
 .table-scroll table { min-width: 560px; }
@@ -128,7 +128,7 @@ html[data-dialogs] { overflow: hidden; }
 .sort-th:hover { color: var(--brand-ink); }
 .sort-th:focus-visible { outline: 2px solid var(--sim); outline-offset: 2px; }
 th.num .sort-th { flex-direction: row-reverse; }
-.sort-ind { display: inline-block; width: 0.9em; text-align: center; color: var(--ink-faint); font-size: 0.85em; }
+.sort-ind { display: inline-block; width: 0.9em; text-align: center; color: var(--ink-quiet); font-size: 0.85em; }
 .sort-ind::after { content: "↕"; opacity: 0.55; }
 th[aria-sort="ascending"] .sort-ind::after { content: "▲"; opacity: 1; color: var(--sim); }
 th[aria-sort="descending"] .sort-ind::after { content: "▼"; opacity: 1; color: var(--sim); }

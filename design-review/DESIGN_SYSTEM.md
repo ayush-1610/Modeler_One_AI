@@ -199,6 +199,9 @@ WCAG 2.2 AA. Skip link; one `h1` per page; landmarks (banner, navigation, main, 
 blue outline, `--c-focus`) and managed (dialogs trap and return focus; side panel focuses its Close). Targets ≥ 24 × 24 px (2.5.8).
 Status by icon and word; charts with a table view. Live regions for action results. Reduced motion respected. The
 prototype passes an automated check that every visible control has an accessible name and every page one `h1`.
+**Checked in CI on every page at 1440 and 390 px** (`apps/web/e2e/acceptance.spec.ts`, since slice 10; contrast since
+R4): one `h1`, every control named, no sideways scroll, targets of 24 × 24 px, and text contrast AA measured from the
+rendered colours (4.5:1, large text 3:1). `--ink-faint` is never text.
 
 ## 8. Dark mode (later)
 Every colour is a token in one `:root` block; dark mode redefines that block (and a validated dark chart palette)
