@@ -432,6 +432,14 @@ streams; every Data room turn and switch is recorded; each answer names the mode
 - Still open: consent per client rather than per project (done 2026-11-24, below), and an admin registry of clients'
   agreements.
 
+**2026-11-27: people from the admin console only.**
+- `bash deploy/server/keycloak.sh connect` (once on the server; Keycloak asks for its admin's password) sets up the
+  console's service account, a new secret stored as the active key, the web's redirect and the login theme. It has
+  only run against stand-ins here: its first real run is on adt-server.
+- A company's page adds and changes its people. Without a mail server, a new person's (or a reset) first password is a
+  temporary one shown once to the administrator, kept nowhere (the owner's choice that day). `modeler-admin` is still
+  given only in Keycloak's console.
+
 **2026-11-24: the way in, and the missing pages.**
 - ~~Only the project's owner or an administrator records where its files may go.~~ Replaced the same day: **where a
   company's client files may go is one setting per company, kept by the administrator** on Admin → Companies → the

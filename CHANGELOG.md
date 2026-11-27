@@ -35,6 +35,76 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
     its particle inputs are entered in mm and µm, and the evidence holds `Particles`, 50 µm and 0.03 mm, with no
     Weibull value kept.
 
+### Fixed — the deploy now brings Keycloak's sign-in pages with it (2026-11-27)
+- **What:** after the deploy of R1–R5 the app's own sign-in page showed the new split design, but the username and
+  password page (Keycloak's) still showed the old navy card: Keycloak reads its theme from its own folder when it
+  starts, and only `keycloak.sh theme` plus a restart copies it there, a step the deploy plan named but the deploy did
+  not run. `deploy/server/keycloak.sh sync-theme` now copies the theme in when it differs from the checkout (the old
+  copy removed first), and restarts Keycloak if it runs; `deploy/dev/deploy_to_server.sh` runs it after every deploy.
+  The old gradient mark, unused since R5, is gone from the theme. The deploy plan and the Keycloak README say so.
+- **Why:** the owner's screenshots (2026-11-27): "have the username and password asking page same as first the new
+  style. remove old completely".
+- **Verified:** locally against Keycloak 26.7.5's folder layout: with the theme current it does nothing; with the
+  older navy copy installed (IBM Plex font and all) it replaces it with an exact copy of the checkout's; run again, it
+  does nothing.
+- **Impact:** a deploy that changes the theme restarts Keycloak (a few seconds; a sign-in in progress starts again).
+  On the server now: `ssh adt-server 'bash ~/Modeler_One_AI/deploy/server/keycloak.sh sync-theme'`.
+
+### Fixed — `keycloak.sh connect` says it must run on the server, and the People page gives the exact command (2026-11-27)
+- **What:** run on the Mac, the command printed a Python traceback from the server settings it reads (no
+  `golden/catalog.json` at the Mac's `~/Modeler_One_AI`) and stopped without saying why. It now checks first that
+  Keycloak is installed on this machine; if not, it stops and prints
+  `ssh -t <the server> 'bash ~/Modeler_One_AI/deploy/server/keycloak.sh connect'`. The People page shows the command to
+  type on your own computer, built by the API from the server it runs on (`PeoplePage.connect_command`, e.g.
+  `ssh -t adt-server 'bash ~/Modeler_One_AI/deploy/server/keycloak.sh connect'`); it said
+  `bash deploy/server/keycloak.sh connect` "on the server".
+- **Why:** the owner's first try ran it in the Mac's terminal (2026-11-27 screenshot).
+- **Impact:** `PeoplePage` gains `connect_command`; OpenAPI snapshot and web types regenerated. Tests:
+  `test_keycloak_connect.py` (off the server it stops first and says where to run it), `test_admin_people.py`.
+
+### Changed — people are added and managed from the admin console only; a temporary first password shown once (2026-11-27, the owner's request)
+- **What:**
+  - **`bash deploy/server/keycloak.sh connect`, once on the server**, replaces every step that was done by hand in
+    Keycloak's admin console for the console's people pages. With `kcadm.sh` (Keycloak asks for its administrator's
+    password in the terminal; nothing keeps it) it:
+    - creates the client `modeler-admin-api`, or keeps an existing one to its service account only;
+    - gives its service account `realm-management`'s `manage-users`, `query-users`, `view-realm`, `view-users`;
+    - adds `MODELER_WEB_URL` to `modeler-web`'s sign-in redirects and sets the login theme `modeler-one`;
+    - has Keycloak make a new client secret and pipes it (stdin only) to the new `modeler_api.keycloak_connect`, which
+      tests it, stores it sealed as the active `keycloak` key (retiring the one before) and records `admin.key.add` and
+      `admin.key.activate` on the owner's chain (found from who holds `modeler-admin`; last 4 characters only). A secret
+      that fails the test is not stored. Running it again rotates the secret.
+  - **The People page** says to run that command when the console is not connected (it listed the Keycloak steps).
+  - **A company's page** now has *Add a person to this company* and *Its people in Keycloak* (roles, sign-in state,
+    Change: roles, move, disable, reset authenticator, new password), the People page's panels fixed to that company.
+    The usage table there is renamed "What each person used".
+  - **A first password when Keycloak cannot email** (no mail server, or the email failed): the console sets a random
+    temporary password in Keycloak (`keycloak_admin.temporary_password`: 4 × 5 readable characters, about 116 bits;
+    `PUT /users/{id}/reset-password`, `temporary: true`) and the answer carries it once (`PeoplePage.temporary_password`,
+    `temporary_for`; `Cache-Control: no-store`). The page shows it with Copy and "I have given it, hide it". It is kept
+    nowhere: not in the platform's files, not on the audit trail, which records only how the first password went
+    (`first_password` on `admin.person.add`, `password` on `admin.person.reset`: "emailed", "temporary password shown
+    once to the administrator", or "link given to set it in Keycloak" when Keycloak refused even that). "New password"
+    on a person does the same. Keycloak makes the person choose their own at their first sign-in.
+- **Why:** the owner, 2026-11-27: "add support to add users within companies from admin … enable from here only", and
+  the owner's answers that day: a temporary password shown once (was: the platform never sets one; the owner set it in
+  Keycloak's console), and `modeler-admin` stays given only in Keycloak's own console (unchanged).
+- **Impact:**
+  - On adt-server: run `keycloak.sh connect` once; the People page and the company pages then work. The command
+    retires any key added by hand.
+  - **Security:** the temporary password is a one-time credential the person must replace, generated with `secrets`;
+    the platform never reads or keeps anyone's own password. It travels once, over the HTTPS session of an
+    administrator with a fresh step-up.
+  - API: `PeoplePage` gains `temporary_password` and `temporary_for`; `docs/api/openapi.json` and `lib/api-types.ts`
+    regenerated. No route added or removed.
+  - Tests: `test_admin_people.py` (the temporary password shown once, Keycloak given it, never on disk or the audit
+    trail, `no-store`; the link when Keycloak refuses it; the client's `reset-password` call);
+    `test_keycloak_connect.py` (a working secret becomes the active key, audited on the owner's chain; a failing one is
+    not stored; the shell's kcadm steps with stand-ins, the secret only on stdin, the session file removed).
+    `keycloak.sh connect` has not run against a real Keycloak in this container (none here): first real run on the
+    server.
+  - No ruleset, acceptance criterion or locked file changed.
+
 ### Changed — a particle formulation's inputs can be held: parameter registry 1.3 and the length units (2026-11-27)
 - **Why:** the owner's approval of 2026-11-27 ("approve the particle inputs PR"), for the release model on Inputs
   (`docs/plans/2026-11-26-data-room-groups-and-corpus-benchmark.md` §8). A formulation held for particle dissolution
@@ -12272,3 +12342,4 @@ record it here so a reader knows which context produced which work.
 | 2026-11-23 (same cloud session, continued after a context reset) | per commit trailer | Redesign Gates 2–4 and Phase 9 (archive, implementation plan); security fixes R-S01, R-S03, R-S04; slice 0 (`main` fast-forwarded, archive branch pushed) and slice 1 (R-S02 and the console shell) |
 | 2026-11-24 (cloud session, branch `claude/optimistic-feynman-zy100a`) | per commit trailer | Where the client's files may go moved from each project's Data room and Settings to a company setting the administrator keeps on Admin → Companies (the owner's request) |
 | 2026-11-25 → 26 (cloud session, branch `claude/exciting-galileo-x1ziov`) | per commit trailer | Read-only assessment of the owner's PBPK corpus audit (30 project folders) against the codebase, with a rule-by-rule map and a Data room mockup (session files, not committed); the plan `2026-11-26-data-room-groups-and-corpus-benchmark.md` with the owner's decisions; phases 0 and 1: one prompt version per agent, the Data room's group map, the room in the value scorer, P03 scored code-only |
+| 2026-11-27 (cloud session, branch `claude/optimistic-feynman-zy100a`) | per commit trailer | People added and managed from the admin console only: `keycloak.sh connect`, a company's people on its page, a temporary first password shown once |

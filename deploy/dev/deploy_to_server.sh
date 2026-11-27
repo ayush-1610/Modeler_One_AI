@@ -35,5 +35,7 @@ ssh "$server" 'set -e
   (cd apps/web && npm ci --no-audit --no-fund --silent && npm run build --silent >/dev/null)
   bash deploy/server/stop_modeler.sh >/dev/null
   bash deploy/server/run_modeler.sh
+  # the Keycloak sign-in pages from this same checkout, so they never lag the app pages (restarts Keycloak only on a change)
+  bash deploy/server/keycloak.sh sync-theme
   sleep 8
   bash deploy/server/status_modeler.sh'
