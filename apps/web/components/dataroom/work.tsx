@@ -12,9 +12,30 @@ import {
   type DataRequest, type Decision, type InputRow, type Publication, type Room,
 } from "@/lib/dataroom";
 import { useMutation, useResource } from "@/lib/hooks";
+import { ENTERED_REASONS, OTHER_OPTION_REASONS, SEND_REASONS } from "@/lib/reasons";
 
 import { PUBLICATION, ROOM, useRoomActs } from "./acts";
 import { Card, Nothing, Row, Sources, StatusTag, Table, usePaper } from "./kit";
+
+// --- reasons, picked with a click -------------------------------------------------------------------------------------
+
+/** A reason the record needs, picked with one click from a short list (the owner's rule 2: nothing to type; plan
+ *  2026-11-27-one-way-in step 2). `onPick` acts at once, or `picked` holds it for a later button. */
+function Reasons({ label, reasons, picked, onPick, busy, testId }: {
+  label: string; reasons: readonly string[]; picked?: string; onPick: (reason: string) => void; busy?: boolean; testId: string;
+}) {
+  return (
+    <div className="dr-reasons" role="group" aria-label={label} data-testid={testId}>
+      <span className="dr-reasons-label">{label}</span>
+      <div className="dr-seg">
+        {reasons.map((r, i) => (
+          <button key={r} type="button" aria-pressed={picked === r} className={picked === r ? "on" : ""} disabled={busy}
+                  onClick={() => onPick(r)} data-testid={`${testId}-${i}`}>{r}</button>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 // --- decisions ---------------------------------------------------------------------------------------------------------
 
@@ -22,16 +43,15 @@ function DecisionCard({ d }: { d: Decision }) {
   const acts = useRoomActs();
   const paper = usePaper();
   const [choice, setChoice] = useState(d.chosen ?? d.suggested);
-  const [reason, setReason] = useState("");
   const [problem, setProblem] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const option = (id: string) => d.options.find((o) => o.id === id);
   const label = (id: string) => option(id)?.label ?? id;
   const name = `decision-${d.id}`;
   const choose = async (id: string, why: string) => {
-    const got = await acts!.decide(d.id, id, why.trim());
+    const got = await acts!.decide(d.id, id, why);
     setProblem(got.problem);
-    if (!got.problem) { setReason(""); setOpen(false); }
+    if (!got.problem) setOpen(false);
   };
   const suggested = option(d.suggested);
   const others = d.options.length - 1;
@@ -63,16 +83,15 @@ function DecisionCard({ d }: { d: Decision }) {
             </div>
           )}
           {!d.chosen && (
-            <form className="dr-form-row" onSubmit={(e) => { e.preventDefault(); void choose(d.suggested, reason); }}>
-              <label className="dr-field grow"><span>Reason (optional)</span>
-                <input value={open ? "" : reason} onChange={(e) => setReason(e.target.value)} disabled={open} data-testid="decision-accept-reason" /></label>
-              <button type="submit" className="btn primary" disabled={acts?.busy || open} data-testid="decision-accept">Choose the suggestion</button>
-            </form>
+            <div className="dr-form-row">
+              <button type="button" className="btn primary" disabled={acts?.busy} onClick={() => void choose(d.suggested, "")}
+                      data-testid="decision-accept">Choose the suggestion</button>
+            </div>
           )}
           {(others > 0 || d.chosen) && (
             <details className="dr-fold" open={open} onToggle={(e) => setOpen((e.currentTarget as HTMLDetailsElement).open)}>
               <summary data-testid="decision-others">{d.chosen ? "Change the choice" : `${others === 1 ? "The other option" : `The other ${others} options`}`}</summary>
-              <form className="dr-form" onSubmit={(e) => { e.preventDefault(); void choose(choice, reason); }}>
+              <div className="dr-form">
                 <fieldset className="dr-options">
                   <legend className="sr-only">{d.question}</legend>
                   {d.options.map((o) => (
@@ -86,15 +105,17 @@ function DecisionCard({ d }: { d: Decision }) {
                     </label>
                   ))}
                 </fieldset>
-                <div className="dr-form-row">
-                  <label className="dr-field grow"><span>Reason{choice !== d.suggested ? " (needed for another option than the suggestion)" : ""}</span>
-                    <input value={reason} onChange={(e) => setReason(e.target.value)} data-testid="decision-reason"
-                           required={choice !== d.suggested} placeholder={choice === d.suggested ? "optional" : "why this option"} />
-                  </label>
-                  <button type="submit" className="btn primary" disabled={acts?.busy || (choice === d.chosen && !reason.trim())}
-                          data-testid="decision-choose">Choose</button>
-                </div>
-              </form>
+                {choice === d.suggested ? (
+                  <div className="dr-form-row">
+                    <button type="button" className="btn primary" disabled={acts?.busy || choice === d.chosen}
+                            onClick={() => void choose(choice, "")} data-testid="decision-choose">Choose the suggestion</button>
+                  </div>
+                ) : choice !== d.chosen && (
+                  // another option than the suggestion is chosen by picking why (the record keeps it as the reason)
+                  <Reasons label="Choose it because" reasons={OTHER_OPTION_REASONS} busy={acts?.busy}
+                           onPick={(r) => void choose(choice, r)} testId="decision-reason" />
+                )}
+              </div>
             </details>
           )}
           {problem && <div className="banner err" role="alert">{problem}</div>}
@@ -124,19 +145,18 @@ function EnterValue({ input, label, unit, onDone }: { input: string; label: stri
     <form className="dr-form dr-enter" data-testid={`enter-${input}`} onSubmit={async (e) => {
       e.preventDefault();
       const n = Number(value);
-      const got = await acts!.enter(input, label, value.trim() !== "" && Number.isFinite(n) ? n : value.trim(), u.trim(), reason.trim());
+      const got = await acts!.enter(input, label, value.trim() !== "" && Number.isFinite(n) ? n : value.trim(), u.trim(), reason);
       setProblem(got.problem);
       if (!got.problem) onDone();
     }}>
       <div className="dr-form-row">
         <label className="dr-field"><span>Value</span><input value={value} onChange={(e) => setValue(e.target.value)} required data-testid="enter-value" /></label>
         <label className="dr-field"><span>Unit</span><input value={u} onChange={(e) => setU(e.target.value)} /></label>
-        <label className="dr-field grow"><span>Reason (where it comes from)</span>
-          <input value={reason} onChange={(e) => setReason(e.target.value)} required data-testid="enter-reason" /></label>
       </div>
+      <Reasons label="Where it comes from" reasons={ENTERED_REASONS} picked={reason} onPick={setReason} testId="enter-reason" />
       {problem && <div className="banner err" role="alert">{problem}</div>}
       <div className="dr-actions">
-        <button type="submit" className="btn primary" disabled={acts?.busy}>Enter</button>
+        <button type="submit" className="btn primary" disabled={acts?.busy || !reason}>Enter</button>
         <button type="button" className="btn ghost" onClick={onDone}>Cancel</button>
       </div>
     </form>
@@ -148,7 +168,6 @@ function EnterValue({ input, label, unit, onDone }: { input: string; label: stri
 function RequestItem({ r }: { r: DataRequest }) {
   const acts = useRoomActs();
   const paper = usePaper();
-  const [wording, setWording] = useState(r.wording);
   const [entering, setEntering] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   if (paper) {
@@ -174,14 +193,13 @@ function RequestItem({ r }: { r: DataRequest }) {
           </div>
         </div>
         <p className="muted dr-request-why">{r.why}</p>
-        <label className="dr-field"><span className="sr-only">Wording to the client</span>
-          <textarea rows={2} value={wording} placeholder="The request as the client will read it" onChange={(e) => setWording(e.target.value)}
-                    data-testid={`request-${r.id}-wording`} /></label>
-        <div className="dr-actions">
-          <button type="button" className="btn small" disabled={acts?.busy || wording === r.wording}
-                  onClick={async () => setProblem((await acts!.request(r.id, { wording })).problem)}>Save the wording</button>
-          {r.input && !entering && <button type="button" className="btn small" onClick={() => setEntering(true)}>Enter the value yourself</button>}
-        </div>
+        {/* the wording to the client, as drafted (the owner's rule 2: nothing to type) */}
+        <p className="dr-request-wording" data-testid={`request-${r.id}-wording`}>{r.wording || r.why}</p>
+        {r.input && !entering && (
+          <div className="dr-actions">
+            <button type="button" className="btn small" onClick={() => setEntering(true)}>Enter the value yourself</button>
+          </div>
+        )}
         {entering && r.input && <EnterValue input={r.input} label={r.title} unit="" onDone={() => setEntering(false)} />}
         {problem && <div className="banner err" role="alert">{problem}</div>}
       </div>
@@ -330,17 +348,15 @@ function Publish({ projectId }: { projectId: string }) {
               <ul>{p.notes.map((n) => <li key={n}>{n}</li>)}</ul>
             </div>
           )}
+          <Reasons label="Why now" reasons={SEND_REASONS} picked={reason} onPick={setReason} busy={busy} testId="publish-reason" />
           <form className="dr-form-row" onSubmit={async (e) => {
             e.preventDefault();
-            const got = await run(() => send("post", "/api/v1/projects/{project_id}/dataroom/publish", { project_id: projectId }, { reason: reason.trim() }),
+            const got = await run(() => send("post", "/api/v1/projects/{project_id}/dataroom/publish", { project_id: projectId }, { reason }),
                                   { reads: [PUBLICATION, ROOM] });
             setResult(got.problem ? { text: got.problem, ok: false }
               : { ok: true, text: `Sent as ${got.data?.publication}: ${got.data?.evidence} inputs and ${got.data?.datasets} datasets (${got.data?.skipped} already there, ${got.data?.superseded} earlier ones replaced). Signed ${got.data?.manifestation}.` });
           }}>
-            <label className="dr-field grow"><span>Why now</span>
-              <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. inputs confirmed with the client" required
-                     data-testid="publish-reason" /></label>
-            <button type="submit" className="btn primary" disabled={busy || p.blocked.length > 0 || !reason.trim()} data-testid="publish-send">
+            <button type="submit" className="btn primary" disabled={busy || p.blocked.length > 0 || !reason} data-testid="publish-send">
               Send to the model</button>
           </form>
           {result && <div className={`banner ${result.ok ? "ok" : "err"}`} role={result.ok ? "status" : "alert"}>{result.text}</div>}

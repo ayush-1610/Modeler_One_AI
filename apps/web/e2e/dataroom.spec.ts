@@ -248,14 +248,14 @@ test("an extracted delivery shows its study and dissolution, a decision is taken
   const analysis = page.getByTestId("decision-analysis-set:EX-01");
   await analysis.getByTestId("decision-accept").click();
   await expect(analysis.getByTestId("decision-chosen")).toBeVisible();
-  // another option needs a reason
+  // another option is chosen by picking why, with a click: nothing is typed (the owner's rule 2, plan 2026-11-27 step 2)
   await page.getByTestId("rail-substance").click();
   const solubility = page.getByTestId("decision-solubility-ref");
   await solubility.getByTestId("decision-others").click();
   await solubility.getByTestId("option-sol-1").click();
-  await solubility.getByTestId("decision-reason").fill("the medium nearest the intestine's pH");
-  await solubility.getByTestId("decision-choose").click();
-  await expect(solubility.getByTestId("decision-made")).toBeVisible();
+  await expect(solubility.locator("input[type=text], textarea")).toHaveCount(0);
+  await solubility.getByTestId("decision-reason-2").click();                      // "Better suited to the question"
+  await expect(solubility.getByTestId("decision-made")).toContainText("Better suited to the question");
 
   // a value's source: the synopsis page with the line highlighted, then a sheet with its cell
   await page.getByTestId("rail-substance").click();

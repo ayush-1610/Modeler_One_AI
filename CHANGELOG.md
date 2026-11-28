@@ -13,6 +13,28 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 
 ## [Unreleased] — make the pipeline do real PBPK, S0 → S7
 
+### Changed — the Data room is clicked, never typed: a reason is picked from a short list (2026-11-28)
+- **What:** plan `2026-11-27-one-way-in` step 2, the owner's rule 2.
+  - **A decision:** the suggestion is chosen with one click ("Choose the suggestion"; the optional reason box is gone).
+    Another option is chosen by selecting it and picking why: "The files say otherwise", "Agreed with the client",
+    "Better suited to the question" or "The suggestion's evidence does not hold". The picked words are the reason the
+    record keeps, as before.
+  - **A value entered by hand:** its number and unit are still typed (no file states it), and where it comes from is
+    picked: a document outside the delivery, agreed with the client, the literature, or a modelling assumption.
+  - **A data request:** its wording to the client is shown as drafted; the box to rewrite it is gone. Its status stays
+    three buttons.
+  - **Send to the model:** why now is picked ("The inputs are confirmed", "Confirmed with the client", "A first model to
+    start from", "Sent again after a change") before Send, which still signs with the step-up.
+  - The lists are `apps/web/lib/reasons.ts`; the API is unchanged (it takes the reason as before).
+- **Why:** the owner, 2026-11-27: "anything which the user needs to confirm or select … there must be direct options …
+  there should not be any placeholder to write the reason for the selection." The audit trail still says why (EU GMP
+  Annex 11 §9), in words the person picked.
+- **Verified:** `dataroom.spec.ts` (another option chosen by picking its reason, with no text box on the card) and
+  `dataroom-to-map.spec.ts` (Send waits for why now, picked with a click, then signs), with `dataroom-to-start.spec.ts`:
+  7 passed; typecheck and build pass.
+- **Impact:** the question card on the Data room's Overview is still typed until step 4 makes it one card drafted by A1
+  and A6 for the person to confirm. Pages outside the Data room are unchanged.
+
 ### Changed — one way in: the start page's client files go to the Data room, and its run starts at once (2026-11-27)
 - **What:**
   - **The start page** (`app/projects/start`) keeps one drop zone for everything (the owner, 2026-11-28). Each file has
