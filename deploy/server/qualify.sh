@@ -10,5 +10,6 @@
 set -euo pipefail
 . "$(dirname "$(readlink -f "$0")")/_env.sh"
 
+# whether the web serves HTTPS is decided as the scripts that start it decide (web_tls: a certificate in the secrets file)
 MODELER_REPO="$REPO" MODELER_DATA="$DATA" MODELER_API_PORT="$API_PORT" MODELER_WEB_PORT="$WEB_PORT" \
-  MODELER_WEB_TLS="${MODELER_WEB_TLS:-}" exec python3 "$REPO/deploy/server/qualify.py" "$@"
+  MODELER_WEB_TLS="$(web_tls && echo https || true)" exec python3 "$REPO/deploy/server/qualify.py" "$@"

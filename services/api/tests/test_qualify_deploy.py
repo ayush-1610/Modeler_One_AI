@@ -122,6 +122,37 @@ def test_postgres_migrations_are_checked_against_their_files(repo, tmp_path):
     assert q.postgres(repo, env, lambda cmd: (1, "not running"))["result"] == "fail"
 
 
+def test_the_web_check_knows_https_as_the_scripts_that_start_the_web_do(repo, tmp_path):
+    """qualify.sh, run as on the server: a web served over HTTPS (a certificate in the secrets file, as `keycloak.sh env`
+    prints it) passes when it listens; without one it is asked over HTTP. It once read a variable nothing set, so the
+    HTTPS web was asked over HTTP and failed IQ-10 with "HTTP 0" (adt-server, 2026-11-28)."""
+    import socket
+
+    shutil.copy(ROOT / "deploy" / "server" / "qualify.py", repo / "deploy" / "server" / "qualify.py")
+    with socket.socket() as closed:
+        closed.bind(("127.0.0.1", 0))
+        nothing = closed.getsockname()[1]                       # a port nothing listens on, once this one is closed
+
+    def iq10(secrets: str, port: int) -> dict:
+        (tmp_path / "secrets.env").write_text(secrets, encoding="utf-8")
+        out = tmp_path / "iq.json"
+        env = {"HOME": str(tmp_path), "MODELER_REPO": str(repo), "MODELER_DATA": str(tmp_path / "data"),
+               "MODELER_LOGS": str(tmp_path / "logs"), "MODELER_SECRETS_FILE": str(tmp_path / "secrets.env"),
+               "MODELER_API_PORT": str(nothing), "MODELER_WEB_PORT": str(port)}
+        subprocess.run([shutil.which("bash"), str(ROOT / "deploy" / "server" / "qualify.sh"), "iq", "--out", str(out)],
+                       env=env, capture_output=True, timeout=120, check=False)
+        return next(c for c in json.loads(out.read_text(encoding="utf-8"))["checks"] if c["id"] == "IQ-10")
+
+    with socket.socket() as web:
+        web.bind(("127.0.0.1", 0))
+        web.listen()
+        port = web.getsockname()[1]
+        served = iq10(f"MODELER_WEB_TLS_PFX={tmp_path / 'keycloak.p12'}\n", port)
+    assert (served["result"], served["found"]) == ("pass", f"listening on {port} (HTTPS)")
+    plain = iq10("", nothing)
+    assert (plain["result"], plain["found"]) == ("fail", "HTTP 0")          # asked over HTTP, and nothing answers
+
+
 def test_the_command_writes_the_record_and_fails_on_a_failed_check(repo, tmp_path, monkeypatch, capsys):
     q = _qualify()
     monkeypatch.setattr(q, "_fetch", lambda url: (0, "connection refused"))   # nothing answers: the API is down
