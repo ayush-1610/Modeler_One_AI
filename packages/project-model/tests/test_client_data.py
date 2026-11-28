@@ -209,3 +209,14 @@ def test_an_item_the_client_cannot_send_is_taken_from_the_literature_and_no_long
                     previous=matrix)
     assert first.req_id not in [r.req_id for r in reconcile(ws, matrix).blocking()]
     assert matrix.get(first.req_id).provider == "LITERATURE"
+
+
+def test_a_delimited_dat_export_is_read_as_a_sheet_on_arrival_as_a_csv_is(tmp_path):
+    """The owner's client ZIP (2026-11-27): "Concentration Table.dat" was "Not read: unsupported file type .dat"."""
+    ws, library, brief, matrix, _ = _project(tmp_path)
+    data = b"Subject\tTime (h)\tConc (ng/mL)\n101\t0.5\t12.3\n101\t1\t25.1\n102\t0.5\t11.8\n"
+    sub = ingest(ws, library, data, "17-06-138 - Concentration Table.DAT", by="u", matrix=matrix, brief=brief)
+    assert sub["kind"] == "csv" and [t["sheet"] for t in sub["triage"]] == ["17-06-138 - Concentration Table"]
+    text = ingest(ws, library, b"Cinacalcet assay run 7\nanalyst notes only\n", "notes.dat", by="u", matrix=matrix,
+                  brief=brief)
+    assert text["kind"] == "text" and text["triage"] == []                         # kept and quotable, not a sheet

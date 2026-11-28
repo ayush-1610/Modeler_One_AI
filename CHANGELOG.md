@@ -13,6 +13,32 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 
 ## [Unreleased] — make the pipeline do real PBPK, S0 → S7
 
+### Fixed — a client ZIP's file names, and its .dat tables, on "Start from proposal" (2026-11-27)
+- **What:**
+  - **Names:** a ZIP whose archiver wrote UTF-8 names without the flag that says so (bit 0x800) had them read as CP437,
+    so "17-06-138 – Cinacalcet" showed as "17-06-138 ΓÇô Cinacalcet". `member_name`
+    (`modeler_intake/source/archive.py`), used by `zip_members`, the one place every client ZIP is expanded (the Start
+    upload's intake pipeline, the Data room, the inventory), reads such a name again as UTF-8 when its bytes are valid
+    UTF-8; a flagged name, a plain ASCII name and a true CP437 name are unchanged.
+  - **.dat and other text exports** (`.dat`, `.prn`, `.asc`, `.tab`, `.out`, `.lst`, any case) were refused by the reader
+    the Start upload uses ("unsupported file type .dat"). They are now read as the Data room already read them: a table
+    when most of its lines split alike on a tab, ";", "," or "|" (`sniff_delimiter`, moved from `modeler_intake/room.py`
+    to `modeler_intake/documents.py` so both readers use one copy), as a sheet on arrival as a CSV is (triage and
+    code's sheet reading); otherwise as quotable plain text. Characters are read as written (UTF-8, else Windows-1252:
+    a "µg/mL" stays). Bytes that are not text (a binary SAS dataset) are refused with that reason. Nothing is guessed:
+    no column or unit is added.
+- **Why:** the owner's upload (Aurobindo – Cinacalcet client ZIP) and request, 2026-11-27: "fix the .dat and zip names
+  too". Its "Concentration Table.dat" and "PK Data for SAS.DAT" are likely the observed concentrations.
+- **Verified:** seven new tests (`test_source_archive.py`, `test_documents.py`, `test_client_data.py`,
+  `test_brief_api.py`); six fail on the code before this change, the seventh guards that correct names stay as they
+  are. The API test uploads a ZIP built like the client's (UTF-8 names without the flag, a tab-delimited `.dat`, a
+  binary `.DAT`) through `projects:initiate` with the intake pipeline on, as the server runs it.
+- **Impact:** text exports in a client delivery are read (a delimited one as a sheet) instead of listed as not read.
+  Files already uploaded keep their old answer until uploaded again. The Data room's reader already read them (it hands
+  a delimited one to the parser as `.tsv` or `.csv`). **Known gap:** the intake pipeline's background parser
+  (`modeler_intake.source`, run beside the Start reader) still knows no `.dat` suffix and records such a file as of an
+  unsupported format; not changed here.
+
 ### Fixed — a Data room run could stay "running" for ever while reading its files (2026-11-27)
 - **What:** the room's read stage (`dataroom/reading.py`) reads files in a process pool. Its workers were forks of the
   API, made from the job thread a room run runs on. A child forked from a multi-threaded process can deadlock on a lock
