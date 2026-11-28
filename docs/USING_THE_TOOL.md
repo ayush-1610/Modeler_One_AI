@@ -90,12 +90,11 @@ holds. They store a paper's full text only when it is open access; any other pap
 asks you for it (Inputs lists the request). Under **Added**, each paper an agent stored names where it came from, with
 its link, and says whether the full text or only the abstract is held.
 
-**From a proposal (Step 1 · Start):** **+ Start from proposal** → name the drug, drop the proposal and its annexes in
-the first box and everything the client sent (many files or one zip) in the second. Nothing is tagged: the client's
-files go to the project's **Data room**, its run starts at once, and you land on it to watch the files read (with the
-Data room's agents on a paid model, the page first says what the run should cost and starts it on **Start the run**).
-With no client files you land on Start → the Start screen fills the drug's identity from PubChem and, with an agent
-configured, the brief from the documents.
+**From a proposal (Step 1 · Start):** **+ Start from proposal** → name the drug and drop everything in one go: the
+proposal, its annexes and what the client sent (many files or one zip). Tick **Proposal** on the technical proposal (a
+file named like one is ticked already); nothing else is tagged. The client's files go to the project's **Data room**, its
+run starts at once, and you land on it to watch the files read. With no client files you land on Start → the Start
+screen fills the drug's identity from PubChem and, with an agent configured, the brief from the documents.
 Each value shows its source; click it to see the page it was read from. Anything that still needs you is marked red on
 its own box, with a ⚠ line saying why, and the bar at the bottom counts what is left. The steps after Start stay
 locked until nothing is: Inputs, opened by its address, says what Start still needs and links back. A project that has

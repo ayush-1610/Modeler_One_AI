@@ -254,8 +254,8 @@ async def initiate_project(
     p0-files and p3-upload), then start the extraction.
 
     `dataroom` (plan 2026-11-27 step 1, the owner's D1 and D2; the "Start from proposal" page sends it): the client's
-    files go to the project's Data room as its uploads, untagged (A7 sorts them), and its run starts at once, or, when
-    an agent starts on a paid model, the answer carries the estimate and the run starts on the person's word. Without
+    files go to the project's Data room as its uploads, untagged (A7 sorts them), and its run starts at once, whatever it
+    may cost (the owner, 2026-11-28: no estimate shown; the paid models' run and month caps still pause it). Without
     it (the earlier reader, until step 3 retires it): each client file is read into Inputs, a file that cannot be read
     is answered with the reason and the project still starts; `tags` says what each file is, per file name (plan
     2026-11-03 §3.1), and each answer says the tag kept and any other tag code read from the file's content."""
@@ -315,27 +315,21 @@ async def initiate_project(
 def _to_dataroom(store: ProjectStore, room: DataRoomStore, payloads: list[tuple[str, bytes]], *,
                  by: str) -> dict[str, Any]:
     """A new project's client files into its Data room, as they came (a ZIP is unpacked when they are read), and its run
-    (plan 2026-11-27 step 1; D1, D2): started at once, unless an agent starts on a paid model, when the answer carries the
-    estimate and the run waits for the person's word (`POST …/dataroom/run`), as the Data room's own Run asks. The
-    estimate is a courtesy: when it cannot be made the run starts, and the paid models' hard cap still holds."""
+    started at once (plan 2026-11-27 step 1; D1, D2), whatever it may cost: the owner, 2026-11-28, "no need to show this
+    to the user, irrespective of cost ... continue to start the run". No estimate is made or asked for; the paid
+    models' hard caps (`platform_settings.PaidCaps`: per run and per month) still pause a run that reaches one."""
     empty = [name for name, data in payloads if not data]
     for name, data in payloads:
         if data:
             room.add_upload(name, data, by=by)
     problem = f"{', '.join(empty)}: empty, not added" if empty else ""
-    answer: dict[str, Any] = {"uploads": len(room.uploads()), "run": "not_started", "estimate": None, "problem": problem}
+    answer: dict[str, Any] = {"uploads": len(room.uploads()), "run": "not_started", "problem": problem}
     if not room.uploads():
         return answer
     try:
-        estimate = agent_jobs.dataroom_estimate(room)
-    except Exception:            # noqa: BLE001 - the courtesy failed: the run starts, under the hard cap
-        estimate = None
-    if estimate and estimate.get("paid"):
-        return answer | {"run": "asks", "estimate": estimate}
-    try:
         dataroom_runs.begin(store, room, by=by)
     except HTTPException as exc:
-        return answer | {"run": "not_started", "problem": "; ".join(p for p in (problem, str(exc.detail)) if p)}
+        return answer | {"problem": "; ".join(p for p in (problem, str(exc.detail)) if p)}
     return answer | {"run": "started"}
 
 

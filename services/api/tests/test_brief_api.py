@@ -706,7 +706,7 @@ def test_with_dataroom_the_clients_files_go_to_the_data_room_untagged_and_its_ru
                                              ("client_files", ("Table 2.dat", b"a\tb\tc\n1\t2\t3\n4\t5\t6\n", "text/plain"))])
     pid = data["project_id"]
     assert data["client_files"] == []
-    assert data["dataroom"] == {"uploads": 2, "run": "started", "estimate": None, "problem": ""}
+    assert data["dataroom"] == {"uploads": 2, "run": "started", "problem": ""}
     room = DataRoomStore(Workspace(store, "t1", pid))
     assert sorted(u["name"] for u in room.uploads()) == ["Table 2.dat", "pk.csv"]
     runs = [r.event for r in store.audit("t1").records() if r.event.action == "dataroom.run"]
@@ -719,23 +719,18 @@ def test_with_dataroom_the_clients_files_go_to_the_data_room_untagged_and_its_ru
     assert [d["role"] for d in docs] == ["proposal"]
 
 
-def test_with_dataroom_on_a_paid_model_the_run_waits_for_the_persons_word(client, monkeypatch):
-    """D1: when an agent starts on a paid model, the answer carries what the run should cost and nothing runs until the
-    person says Start (the Data room's own Run asks the same, plan 2026-11-24 §2.4)."""
-    estimate = {"paid": True, "files": 1, "characters": 120, "calls_low": 9, "calls_high": 10, "input_tokens_low": 900,
-                "input_tokens_high": 1200, "output_tokens_low": 9000, "output_tokens_high": 13000, "usd": 0.42,
-                "usd_low": 0.3, "usd_high": 0.55, "agents": [{"agent": "A8", "provider": "anthropic", "model": "m",
-                                                               "paid": True}],
-                "basis": "measured", "run_cap_usd": 5.0, "month_cap_usd": 50.0, "month_spent_usd": 1.0}
-    monkeypatch.setattr(brief_api.agent_jobs, "dataroom_estimate", lambda room: estimate)
+def test_with_dataroom_the_run_starts_whatever_it_may_cost(client, monkeypatch):
+    """The owner, 2026-11-28: "no need to show this to the user, irrespective of cost ... continue to start the run". No
+    estimate is made at the start (one that would fail here), and the run starts; the paid models' run and month caps
+    still pause a run that reaches one (`platform_settings.PaidCaps`)."""
+    def no_estimate(room):
+        raise AssertionError("the start makes no estimate")
+
+    monkeypatch.setattr(brief_api.agent_jobs, "dataroom_estimate", no_estimate)
     c, store = client
     data = _start_with_room(c, client_files=[("client_files", ("pk.csv", CLIENT_CSV, "text/csv"))])
-    pid = data["project_id"]
-    assert data["dataroom"]["run"] == "asks" and data["dataroom"]["estimate"]["usd"] == 0.42
-    assert c.get(f"/api/v1/projects/{pid}/dataroom/run", headers=H).json()["data"]["state"] == "idle"
-    started = c.post(f"/api/v1/projects/{pid}/dataroom/run", headers=H, json={})        # the person's word
-    assert started.status_code == 202, started.text
-    _room_idle(store, pid)
+    assert data["dataroom"]["run"] == "started"
+    _room_idle(store, data["project_id"])
 
 
 def test_without_client_files_dataroom_changes_nothing(client):

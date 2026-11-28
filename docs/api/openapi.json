@@ -5542,18 +5542,8 @@
       },
       "DataroomStarted": {
         "additionalProperties": false,
-        "description": "Where the client's files went when the project started with `dataroom` (plan 2026-11-27 step 1, D1): the Data\nroom's uploads, and its run: `started`; `asks`, when an agent starts on a paid model, with what it should cost\n(the run starts on the person's word, as the Data room's own Run asks); or `not_started`, with the reason.",
+        "description": "Where the client's files went when the project started with `dataroom` (plan 2026-11-27 step 1, D1): the Data\nroom's uploads, and its run: `started` (whatever it may cost: the owner, 2026-11-28), or `not_started` with the\nreason.",
         "properties": {
-          "estimate": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/RoomRunEstimate"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
           "problem": {
             "default": "",
             "title": "Problem",
@@ -5562,7 +5552,6 @@
           "run": {
             "enum": [
               "started",
-              "asks",
               "not_started"
             ],
             "title": "Run",
@@ -46803,7 +46792,7 @@
     },
     "/api/v1/projects:initiate": {
       "post": {
-        "description": "P0: create the project from the drug name, the technical proposal and the client's files (one upload, map rows\np0-files and p3-upload), then start the extraction.\n\n`dataroom` (plan 2026-11-27 step 1, the owner's D1 and D2; the \"Start from proposal\" page sends it): the client's\nfiles go to the project's Data room as its uploads, untagged (A7 sorts them), and its run starts at once, or, when\nan agent starts on a paid model, the answer carries the estimate and the run starts on the person's word. Without\nit (the earlier reader, until step 3 retires it): each client file is read into Inputs, a file that cannot be read\nis answered with the reason and the project still starts; `tags` says what each file is, per file name (plan\n2026-11-03 §3.1), and each answer says the tag kept and any other tag code read from the file's content.",
+        "description": "P0: create the project from the drug name, the technical proposal and the client's files (one upload, map rows\np0-files and p3-upload), then start the extraction.\n\n`dataroom` (plan 2026-11-27 step 1, the owner's D1 and D2; the \"Start from proposal\" page sends it): the client's\nfiles go to the project's Data room as its uploads, untagged (A7 sorts them), and its run starts at once, whatever it\nmay cost (the owner, 2026-11-28: no estimate shown; the paid models' run and month caps still pause it). Without\nit (the earlier reader, until step 3 retires it): each client file is read into Inputs, a file that cannot be read\nis answered with the reason and the project still starts; `tags` says what each file is, per file name (plan\n2026-11-03 §3.1), and each answer says the tag kept and any other tag code read from the file's content.",
         "operationId": "initiate_project_api_v1_projects_initiate_post",
         "parameters": [
           {

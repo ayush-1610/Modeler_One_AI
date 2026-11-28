@@ -17,9 +17,13 @@ test("a project starts from its proposal and the client's file; the file goes to
   async ({ page, request }) => {
   await page.goto("/projects/start");
   await page.getByTestId("drug-name").fill("Dapagliflozin");
-  await page.getByTestId("proposal-files").setInputFiles({ name: "proposal.md", mimeType: "text/markdown", buffer: Buffer.from(PROPOSAL) });
-  await page.getByTestId("client-files").setInputFiles({ name: "client-pk.csv", mimeType: "text/csv", buffer: Buffer.from(CLIENT_CSV) });
-  await expect(page.getByTestId("client-files-list")).toContainText("client-pk.csv");
+  await page.getByTestId("proposal-files").setInputFiles([                            // one drop zone for everything
+    { name: "proposal.md", mimeType: "text/markdown", buffer: Buffer.from(PROPOSAL) },
+    { name: "client-pk.csv", mimeType: "text/csv", buffer: Buffer.from(CLIENT_CSV) },
+  ]);
+  await expect(page.getByTestId("mark-proposal-proposal.md")).toBeChecked();          // named like the proposal
+  await expect(page.getByTestId("mark-proposal-client-pk.csv")).not.toBeChecked();
+  await expect(page.getByTestId("start-files-split")).toHaveText("1 read for the brief · 1 to the Data room");
   await expect(page.locator("select")).toHaveCount(0);                                // no tag is asked (D2)
   await page.screenshot({ path: test.info().outputPath("start-from-proposal.png"), fullPage: true });
   await page.getByTestId("start-project").click();
@@ -66,33 +70,18 @@ test("a project starts from its proposal and the client's file; the file goes to
   await expect(page.getByText("brief/main").first()).toBeVisible();
 });
 
-test("a ZIP dropped with the proposal goes with the client's files", async ({ page }) => {
-  await page.goto("/projects/start");
-  await page.getByTestId("proposal-files").setInputFiles([
-    { name: "proposal.md", mimeType: "text/markdown", buffer: Buffer.from(PROPOSAL) },
-    { name: "delivery.zip", mimeType: "application/zip", buffer: Buffer.from("PK\u0005\u0006" + "\u0000".repeat(18)) },
-  ]);
-  await expect(page.getByTestId("proposal-files-list")).not.toContainText("delivery.zip");
-  await expect(page.getByTestId("client-files-list")).toContainText("delivery.zip");
-});
-
-test("on a paid model the page says what the run should cost, and starts it only on the person's word", async ({ page }) => {
-  // the API is stood in for: with agents off no run is paid (the API's own test covers the answer, test_brief_api.py)
-  const estimate = { paid: true, files: 3, characters: 9000, calls_low: 26, calls_high: 30, input_tokens_low: 9000,
-    input_tokens_high: 12000, output_tokens_low: 27000, output_tokens_high: 39000, usd: 1.25, usd_low: 0.9, usd_high: 1.6,
-    agents: [], basis: "measured", run_cap_usd: 5, month_cap_usd: 50, month_spent_usd: 0 };
-  await page.route("**/api/v1/projects:initiate", (route) => route.fulfill({ status: 201, contentType: "application/json",
-    body: JSON.stringify({ data: { project_id: "paid-demo", name: "Paidamide PBPK", documents: [], client_files: [],
-      brief_version: 1, extraction: null, dataroom: { uploads: 1, run: "asks", estimate, problem: "" } } }) }));
-  await page.goto("/projects/start");
-  await page.getByTestId("drug-name").fill("Paidamide");
-  await page.getByTestId("proposal-files").setInputFiles({ name: "proposal.md", mimeType: "text/markdown", buffer: Buffer.from(PROPOSAL) });
-  await page.getByTestId("client-files").setInputFiles({ name: "client-pk.csv", mimeType: "text/csv", buffer: Buffer.from(CLIENT_CSV) });
-  await page.getByTestId("start-project").click();
-  const ask = page.getByTestId("start-run-estimate");
-  await expect(ask).toContainText("about $1.25");
-  await expect(ask).toContainText("$0.90 to $1.60 for 3 files");
-  await expect(page.getByTestId("start-project")).toBeDisabled();
-  await page.getByTestId("start-run-later").click();
-  await page.waitForURL(/\/projects\/paid-demo\/dataroom$/);
-});
+test("one drop zone: the proposal is marked with one click when its name does not say so, and a ZIP is never it",
+  async ({ page }) => {
+    await page.goto("/projects/start");
+    await page.getByTestId("drug-name").fill("Dapagliflozin");
+    await page.getByTestId("proposal-files").setInputFiles([
+      { name: "TP-2026-114.md", mimeType: "text/markdown", buffer: Buffer.from(PROPOSAL) },
+      { name: "delivery.zip", mimeType: "application/zip", buffer: Buffer.from("PK\u0005\u0006" + "\u0000".repeat(18)) },
+    ]);
+    await expect(page.getByTestId("start-project")).toBeDisabled();
+    await expect(page.getByTestId("start-where")).toHaveText("Mark the technical proposal, or describe the project in Context.");
+    await expect(page.getByTestId("mark-proposal-delivery.zip")).toHaveCount(0);       // a ZIP is the client's files
+    await page.getByTestId("mark-proposal-TP-2026-114.md").click();
+    await expect(page.getByTestId("start-files-split")).toHaveText("1 read for the brief · 1 to the Data room");
+    await expect(page.getByTestId("start-project")).toBeEnabled();
+  });

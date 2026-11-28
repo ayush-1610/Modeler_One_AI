@@ -16,7 +16,6 @@ from modeler_api.views.common import (
     VersionView,
     View,
 )
-from modeler_api.views.dataroom import RoomRunEstimate
 
 
 class ExtractionStart(View):
@@ -41,12 +40,11 @@ class ClientFileStarted(View):
 
 class DataroomStarted(View):
     """Where the client's files went when the project started with `dataroom` (plan 2026-11-27 step 1, D1): the Data
-    room's uploads, and its run: `started`; `asks`, when an agent starts on a paid model, with what it should cost
-    (the run starts on the person's word, as the Data room's own Run asks); or `not_started`, with the reason."""
+    room's uploads, and its run: `started` (whatever it may cost: the owner, 2026-11-28), or `not_started` with the
+    reason."""
 
     uploads: int
-    run: Literal["started", "asks", "not_started"]
-    estimate: RoomRunEstimate | None = None
+    run: Literal["started", "not_started"]
     problem: str = ""
 
 

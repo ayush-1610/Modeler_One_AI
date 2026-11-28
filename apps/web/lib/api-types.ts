@@ -3405,8 +3405,8 @@ export interface paths {
          *     p0-files and p3-upload), then start the extraction.
          *
          *     `dataroom` (plan 2026-11-27 step 1, the owner's D1 and D2; the "Start from proposal" page sends it): the client's
-         *     files go to the project's Data room as its uploads, untagged (A7 sorts them), and its run starts at once, or, when
-         *     an agent starts on a paid model, the answer carries the estimate and the run starts on the person's word. Without
+         *     files go to the project's Data room as its uploads, untagged (A7 sorts them), and its run starts at once, whatever it
+         *     may cost (the owner, 2026-11-28: no estimate shown; the paid models' run and month caps still pause it). Without
          *     it (the earlier reader, until step 3 retires it): each client file is read into Inputs, a file that cannot be read
          *     is answered with the reason and the project still starts; `tags` says what each file is, per file name (plan
          *     2026-11-03 §3.1), and each answer says the tag kept and any other tag code read from the file's content.
@@ -5603,11 +5603,10 @@ export interface components {
         /**
          * DataroomStarted
          * @description Where the client's files went when the project started with `dataroom` (plan 2026-11-27 step 1, D1): the Data
-         *     room's uploads, and its run: `started`; `asks`, when an agent starts on a paid model, with what it should cost
-         *     (the run starts on the person's word, as the Data room's own Run asks); or `not_started`, with the reason.
+         *     room's uploads, and its run: `started` (whatever it may cost: the owner, 2026-11-28), or `not_started` with the
+         *     reason.
          */
         DataroomStarted: {
-            estimate?: components["schemas"]["RoomRunEstimate"] | null;
             /**
              * Problem
              * @default
@@ -5617,7 +5616,7 @@ export interface components {
              * Run
              * @enum {string}
              */
-            run: "started" | "asks" | "not_started";
+            run: "started" | "not_started";
             /** Uploads */
             uploads: number;
         };
