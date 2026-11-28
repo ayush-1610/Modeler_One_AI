@@ -61,16 +61,6 @@ test("a made-up delivery goes from the Data room through Start and Inputs to a s
     expect(made.ok(), await made.text()).toBeTruthy();
   }
 
-  // --- "Send to the model", on the page: nothing blocks it, and it is signed
-  await page.reload();
-  await page.getByTestId("rail-scenarios").click();
-  await expect(page.getByTestId("publish-blocked")).toHaveCount(0);
-  await expect(page.getByTestId("publish-counts")).toContainText("2 observed datasets");
-  await expect(page.getByTestId("publish-send")).toBeDisabled();                   // why now is picked first, with a click
-  await page.getByTestId("publish-reason-1").click();                             // "Confirmed with the client"
-  await page.getByTestId("publish-send").click();
-  await expect(page.getByTestId("publish").getByRole("status")).toContainText("Signed");
-
   // --- Start: the room's question is confirmed with its card (one question card, D3); its applications and scenarios
   // are drafts; the person confirms them and rates M15
   await page.goto(`/projects/${projectId}/start`);
@@ -91,6 +81,16 @@ test("a made-up delivery goes from the Data room through Start and Inputs to a s
   ] } });
   expect(start.ok(), await start.text()).toBeTruthy();
   expect((await start.json()).data.start.problems).toEqual([]);
+
+  // --- "Send to the model", on the page, once Start is finished (the owner's D4: Start's lock is on the send)
+  await page.goto(`/projects/${projectId}/dataroom`);
+  await page.getByTestId("rail-scenarios").click();
+  await expect(page.getByTestId("publish-blocked")).toHaveCount(0);
+  await expect(page.getByTestId("publish-counts")).toContainText("2 observed datasets");
+  await expect(page.getByTestId("publish-send")).toBeDisabled();                   // why now is picked first, with a click
+  await page.getByTestId("publish-reason-1").click();                             // "Confirmed with the client"
+  await page.getByTestId("publish-send").click();
+  await expect(page.getByTestId("publish").getByRole("status")).toContainText("Signed");
 
   // --- Inputs: only what the delivery does not hold is asked for; a modeller enters it (made-up literature values)
   await page.goto(`/projects/${projectId}/inputs`);

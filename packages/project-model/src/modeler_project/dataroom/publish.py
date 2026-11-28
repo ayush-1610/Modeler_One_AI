@@ -552,6 +552,19 @@ def _already_loaded(ws: Workspace, study: RoomStudy, found: list[ObservedDataset
     return ""
 
 
+def _start_waiting(ws: Workspace) -> list[str]:
+    """What Start still needs (the owner's D4, 2026-11-27; plan 2026-11-27-one-way-in step 5): Start's lock is on sending
+    to the model, not on looking at or confirming data, so the send waits for it. A project with no brief has no Start
+    to finish."""
+    from modeler_project.artifacts import ArtifactKind
+    from modeler_project.brief import ProjectBrief
+    from modeler_project.brief_ops import BRIEF_ID
+    from modeler_project.steps import start_problems
+
+    version = ws.latest(ArtifactKind.BRIEF, BRIEF_ID)
+    return start_problems(ProjectBrief.from_content(version.content)) if version is not None else []
+
+
 def plan_publication(view: DataRoomView, *, by: str, ws: Workspace | None = None) -> Publication:
     """What would be sent and what blocks it; nothing is written. With the project's workspace (`ws`), a study already
     in the project through Delivery or Inputs blocks too."""
@@ -563,6 +576,8 @@ def plan_publication(view: DataRoomView, *, by: str, ws: Workspace | None = None
         blocked.append("decisions waiting: " + "; ".join(waiting))
     if not view.question_confirmed:
         blocked.append("the question card is not confirmed")
+    if ws is not None and (start := _start_waiting(ws)):
+        blocked.append("Start is not finished: " + "; ".join(start))
     rows = list(view.inputs)
     literature = literature_files(view)
     decisions = {d.id: d for d in view.decisions}

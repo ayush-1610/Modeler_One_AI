@@ -506,3 +506,16 @@ def test_one_question_card_confirmed_once_is_confirmed_on_start_and_a_persons_wo
     assert "qoi.text" not in confirm_card_in_brief(other, by="Dr Modeller")
     kept = ProjectBrief.from_content(other.latest(ArtifactKind.BRIEF, BRIEF_ID).content).get("qoi.text")
     assert (kept.value, kept.status) == ("Predict exposure of the 50 mg tablet", FieldStatus.EDITED)
+
+
+def test_the_send_to_the_model_waits_for_start_and_a_project_with_no_brief_has_no_start(ws):
+    """The owner's D4 (2026-11-27; plan 2026-11-27-one-way-in step 5): Start's lock moves from opening Inputs to sending
+    to the model. Data is looked at and confirmed while Start is open; the send waits until Start is finished."""
+    from modeler_project.dataroom import DataRoomStore
+    from modeler_project.dataroom.publish import plan_publication
+
+    view = room_view(DataRoomStore(ws))
+    assert not any(b.startswith("Start is not finished") for b in plan_publication(view, by="u1", ws=ws).blocked)
+    save_brief(ws, empty_brief("Exampleamide", by="u1"), actor="u1", reason="project started")
+    waiting = [b for b in plan_publication(view, by="u1", ws=ws).blocked if b.startswith("Start is not finished")]
+    assert len(waiting) == 1 and "Question of interest" in waiting[0]

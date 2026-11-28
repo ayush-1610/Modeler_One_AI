@@ -13,6 +13,26 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 
 ## [Unreleased] — make the pipeline do real PBPK, S0 → S7
 
+### Changed — Start's lock moves from opening Inputs to sending to the model (2026-11-28)
+- **What:** plan `2026-11-27-one-way-in` step 5, the owner's D4.
+  - **Inputs opens before Start is finished.** The block that replaced the page ("Inputs come after Start") is gone; a
+    banner says what Start still needs, that nothing is sent to the model until it is, and links to Start. In the
+    sidebar the Inputs step is no longer locked; Review & sign and Run still wait for Start.
+  - **"Send to the model" waits for Start** (`dataroom/publish._start_waiting`): while Start needs anything, the send
+    is blocked with Start's own reasons. A project with no brief has no Start to finish.
+- **Why:** the owner, 2026-11-27, D4: data can be looked at and confirmed while the brief is open; the science gates
+  stay where data enters the model and at the MAP signature. This replaces decision 7 of 2026-10-29 (Inputs after
+  Start).
+- **Verified:** `test_brief_from_room.py` (new: the send waits for Start; a project with no brief is not held);
+  `start-step.spec.ts` and `start-project.spec.ts` (Inputs open with the banner; Review & sign locked);
+  `dataroom-to-map.spec.ts` and `release-model.spec.ts` now finish Start before they send; the full browser suite
+  passed 186 of 187 before the release-model spec was updated, which then passed. `test_brief_from_room_api.py`
+  expects Start's question confirmed with the card (step 4).
+- **Impact:** a project sends to the model only with Start finished, from the Data room as from anywhere else. The upload
+  is already quick for the client's files (step 1 stores them and the Data room reads them in the background); the
+  proposal is still read in the request, for A1. The earlier reader for client files ("+ Add data", the Inputs page's
+  Files) is **not retired yet** (plan §5).
+
 ### Changed — one question card: confirmed once in the Data room, confirmed on Start (2026-11-28)
 - **What:** plan `2026-11-27-one-way-in` step 4, the owner's D3.
   - **Confirming the Data room's question card confirms Start's question and context of use**, as the person who

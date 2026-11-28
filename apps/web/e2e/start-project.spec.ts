@@ -40,13 +40,13 @@ test("a project starts from its proposal and the client's file; the file goes to
   await expect(page.getByRole("button", { name: /approve/i })).toHaveCount(0);
   const projectId = /\/projects\/([^/]+)\/start$/.exec(startUrl)![1];
 
-  // Inputs comes after Start (page review 1, decision 7): reached by its address, it says what Start still needs
+  // Inputs opens before Start is finished (the owner's D4): a banner says what Start still needs and that nothing is
+  // sent to the model until it is
   await page.goto(startUrl.replace(/\/start$/, "/inputs"));
-  await expect(page.getByTestId("inputs-blocked")).toContainText("Inputs come after Start");
-  await expect(page.getByTestId("add-open-bind.fu")).toHaveCount(0);
+  await expect(page.getByTestId("inputs-start-not-done")).toContainText("Nothing is sent to the model until it is");
   await finishStart(request, projectId);
   await page.reload();
-  await expect(page.getByTestId("inputs-blocked")).toHaveCount(0);
+  await expect(page.getByTestId("inputs-start-not-done")).toHaveCount(0);
 
   // a value typed into its row on Inputs, with its source: converted and graded by code, and in the model with nothing
   // to accept (D-27); the page opens on To do while something is missing, the row is on Compound
