@@ -10,7 +10,7 @@ import { join, resolve } from "node:path";
 
 import { expect, test } from "@playwright/test";
 
-import { AUTH } from "./fixtures/inputs";
+import { AUTH, finishStart } from "./fixtures/inputs";
 
 const REPO = resolve(__dirname, "../../..");
 const FIXTURE = join(__dirname, "fixtures", "dataroom.py");
@@ -45,6 +45,15 @@ test("a formulation held for particle dissolution on Inputs gets its particle in
     expect((await request.post(`${room}/decisions/${encodeURIComponent(d.id)}`, { headers: AUTH,
       data: { chosen: d.suggested, reason: "as suggested" } })).ok()).toBeTruthy();
   }
+  // Start is finished first: the send to the model waits for it (the owner's D4; plan 2026-11-27-one-way-in step 5)
+  const fields = (await (await request.get(`/api/v1/projects/${projectId}/brief`, { headers: AUTH })).json()).data.brief
+    .fields as Record<string, { status: string }>;
+  const scenarios = [0, 1].flatMap((i) => ["route", "food_state", "dose"].map((k) => `scenarios[${i}].${k}`));
+  const drafted = [...Object.entries(fields).filter(([, f]) => f.status === "DRAFTED").map(([path]) => path), ...scenarios]
+    .map((path) => ({ path, status: "CONFIRMED" }));
+  const confirmedStart = await request.put(`/api/v1/projects/${projectId}/brief`, { headers: AUTH, data: { changes: drafted } });
+  expect(confirmedStart.ok(), await confirmedStart.text()).toBeTruthy();
+  await finishStart(request, projectId);
   const sent = await request.post(`${room}/publish`, { headers: AUTH, data: { reason: "sent for the release model" } });
   expect(sent.ok(), await sent.text()).toBeTruthy();
 

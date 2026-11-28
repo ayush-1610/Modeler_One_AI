@@ -31,7 +31,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Upload
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
-from modeler_api import agent_jobs, intake_pipeline_jobs, jobs
+from modeler_api import agent_jobs, dataroom_runs, intake_pipeline_jobs, jobs
 from modeler_api.auth import Principal, require_project
 from modeler_api.compound_jobs import start_compound_job
 from modeler_api.config import SettingsDep
@@ -88,6 +88,7 @@ from modeler_project.brief_from_room import RoomError, draft_brief_from_room
 from modeler_project.brief_ops import BRIEF_ID, EditError, edit_field, locked, resolve_identity, save_brief, summary
 from modeler_project.client_data import ingest
 from modeler_project.data_plan import refresh_data_plan
+from modeler_project.dataroom import DataRoomStore
 from modeler_project.documents import DocumentLibrary, LibraryEntry, LibraryError, document_record
 from modeler_project.evidence import SourceType
 from modeler_project.evidence_register import items as evidence_items
@@ -247,11 +248,17 @@ async def initiate_project(
     context: Annotated[str, Form()] = "",
     extract: Annotated[bool, Form()] = True,
     tags: Annotated[str, Form()] = "",
+    dataroom: Annotated[bool, Form()] = False,
 ) -> dict[str, Any]:
     """P0: create the project from the drug name, the technical proposal and the client's files (one upload, map rows
-    p0-files and p3-upload), then start the extraction. A client file that cannot be read is answered with the reason;
-    the project still starts. `tags`: what each client file is, per file name (plan 2026-11-03 §3.1); each answer says
-    the tag kept and any other tag code read from the file's content."""
+    p0-files and p3-upload), then start the extraction.
+
+    `dataroom` (plan 2026-11-27 step 1, the owner's D1 and D2; the "Start from proposal" page sends it): the client's
+    files go to the project's Data room as its uploads, untagged (A7 sorts them), and its run starts at once, whatever it
+    may cost (the owner, 2026-11-28: no estimate shown; the paid models' run and month caps still pause it). Without
+    it (the earlier reader, until step 3 retires it): each client file is read into Inputs, a file that cannot be read
+    is answered with the reason and the project still starts; `tags` says what each file is, per file name (plan
+    2026-11-03 §3.1), and each answer says the tag kept and any other tag code read from the file's content."""
     given_tags = tags_form(tags)
     read, write = projects
     title = name.strip() or f"{drug_name.strip()} PBPK"
@@ -280,19 +287,50 @@ async def initiate_project(
     version = save_brief(ws, brief, actor=principal.user_id, reason="project started",
                          derived_from=[d.ref for d in documents])
     refresh_data_plan(ws, actor=principal.user_id, reason="derived from the brief")
-    # one delivery for the client's files of this request (the intake pipeline, in `both`); a ZIP is one answer per member
-    delivery = intake_pipeline_jobs.open_delivery(ws, by=principal.user_id) if client_payloads else ""
-    read_files = [answer for filename, data in client_payloads
-                  for answer in _read_client_file(ws, library, brief, filename, data, by=principal.user_id,
-                                                  tag=given_tags.get(filename), delivery=delivery)]
+    room = DataRoomStore(ws) if dataroom and client_payloads else None
+    if room is not None and not room.available:
+        room = None              # a store with no file folder keeps no Data room: the earlier reader takes the files
+    read_files: list[dict[str, Any]] = []
+    if room is None and client_payloads:
+        # one delivery for the client's files of this request (the intake pipeline, in `both`); a ZIP is one answer per
+        # member
+        delivery = intake_pipeline_jobs.open_delivery(ws, by=principal.user_id)
+        read_files = [answer for filename, data in client_payloads
+                      for answer in _read_client_file(ws, library, brief, filename, data, by=principal.user_id,
+                                                      tag=given_tags.get(filename), delivery=delivery)]
     extraction = _start_extraction(store, principal, project_id, context.strip()) if extract else None
     if extract:   # the compound's values from the start, while the person and A1 work on Start (plan 2026-11-05 §3.3)
         start_compound_job(store, principal.tenant_id, project_id, by=principal.user_id)
-    # what code could not do with the client's files, by the agent on arrival (§3.1): queued whatever else starts, so no
-    # file given at the start is missed (plan 2026-11-10, R1)
-    read_later(store, principal.tenant_id, project_id, [r["id"] for r in read_files if r.get("id")], by=principal.user_id)
+    if read_files:
+        # what code could not do with the client's files, by the agent on arrival (§3.1): queued whatever else starts, so
+        # no file given at the start is missed (plan 2026-11-10, R1)
+        read_later(store, principal.tenant_id, project_id, [r["id"] for r in read_files if r.get("id")],
+                   by=principal.user_id)
+    in_room = _to_dataroom(store, room, client_payloads, by=principal.user_id) if room is not None else None
     return envelope({"project_id": project_id, "name": title, "documents": [_document_view(d) for d in documents],
-                     "client_files": read_files, "brief_version": version.version, "extraction": extraction})
+                     "client_files": read_files, "brief_version": version.version, "extraction": extraction,
+                     "dataroom": in_room})
+
+
+def _to_dataroom(store: ProjectStore, room: DataRoomStore, payloads: list[tuple[str, bytes]], *,
+                 by: str) -> dict[str, Any]:
+    """A new project's client files into its Data room, as they came (a ZIP is unpacked when they are read), and its run
+    started at once (plan 2026-11-27 step 1; D1, D2), whatever it may cost: the owner, 2026-11-28, "no need to show this
+    to the user, irrespective of cost ... continue to start the run". No estimate is made or asked for; the paid
+    models' hard caps (`platform_settings.PaidCaps`: per run and per month) still pause a run that reaches one."""
+    empty = [name for name, data in payloads if not data]
+    for name, data in payloads:
+        if data:
+            room.add_upload(name, data, by=by)
+    problem = f"{', '.join(empty)}: empty, not added" if empty else ""
+    answer: dict[str, Any] = {"uploads": len(room.uploads()), "run": "not_started", "problem": problem}
+    if not room.uploads():
+        return answer
+    try:
+        dataroom_runs.begin(store, room, by=by)
+    except HTTPException as exc:
+        return answer | {"problem": "; ".join(p for p in (problem, str(exc.detail)) if p)}
+    return answer | {"run": "started"}
 
 
 def _read_client_file(ws: Workspace, library: DocumentLibrary, brief: ProjectBrief, filename: str, data: bytes, *,

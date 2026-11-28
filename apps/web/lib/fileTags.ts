@@ -27,6 +27,13 @@ const NAME_RULES: [FileTag, RegExp][] = [
 ];
 const TABLE = /\.(xlsx|xlsm|xls|csv|tsv)$/i;
 
+/** Whether a file's name says it is the technical proposal (the first name rule: proposal, quotation, SOW, statement of
+ *  work). The start page marks such a file "Proposal" and the person changes it with one click (plan 2026-11-27 step 1:
+ *  one drop zone, no tags); a ZIP is never the proposal. */
+export function isProposalName(name: string): boolean {
+  return !/\.zip$/i.test(name) && NAME_RULES[0][1].test(name.toLowerCase().replace(/[_\-.]+/g, " "));
+}
+
 /** What a file's name says it is; a table nothing names is "other" client data, a document the proposal or an annex. */
 export function guessTag(name: string): FileTag {
   const text = name.toLowerCase().replace(/[_\-.]+/g, " ");

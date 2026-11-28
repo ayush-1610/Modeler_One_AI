@@ -83,6 +83,8 @@
 .start-question p { margin: 0; font-size: 14px; }
 .start-question input { flex: 1; min-width: 180px; }
 
+/* the start page's drop zone (components/start/DropFiles): one mark per file, "Proposal", set with a click */
+.picked-mark { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; min-height: 24px; }
 /* one upload for the proposal and the client's files (components/start/FilePicker): each file says what it is */
 .file-picker { display: grid; gap: 10px; }
 .picked { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }

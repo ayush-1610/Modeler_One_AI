@@ -1,7 +1,7 @@
-// One upload (map rows p0-files, p3-upload): a project starts from its proposal and the client's file, and lands on
-// Start with both files listed and nothing approved anywhere (D-27). Then a value typed into its row on Inputs, and the
-// history, opened from the Projects page (page review 1). Agents are off in this run (no provider key), so the brief starts
-// from the drug name: the manual path.
+// One way in (plan 2026-11-27 step 1; the owner's D1, D2): a project starts from its proposal, read for the brief, and the
+// client's file, which goes to the Data room untagged; its run starts at once and the person lands on it. Nothing is
+// approved anywhere (D-27). Then Start, a value typed into its row on Inputs, and the history, opened from the Projects
+// page (page review 1). Agents are off in this run (no provider key), so the brief starts from the drug name.
 import { expect, test } from "@playwright/test";
 
 import { finishStart } from "./fixtures/inputs";
@@ -13,33 +13,40 @@ const PROPOSAL = [
 ].join("\n");
 const CLIENT_CSV = "study_id,time_h,conc_ng_ml\nEX-101,1,30.4\n";
 
-test("a project starts from its proposal and the client's file in one upload, with no approval", async ({ page, request }) => {
+test("a project starts from its proposal and the client's file; the file goes to the Data room and its run starts",
+  async ({ page, request }) => {
   await page.goto("/projects/start");
   await page.getByTestId("drug-name").fill("Dapagliflozin");
-  await page.getByTestId("proposal-files").setInputFiles([
+  await page.getByTestId("proposal-files").setInputFiles([                            // one drop zone for everything
     { name: "proposal.md", mimeType: "text/markdown", buffer: Buffer.from(PROPOSAL) },
     { name: "client-pk.csv", mimeType: "text/csv", buffer: Buffer.from(CLIENT_CSV) },
   ]);
-  await expect(page.getByLabel("What client-pk.csv is")).toHaveValue("clinical");      // the tag read from the name
-  await expect(page.getByLabel("What proposal.md is")).toHaveValue("proposal");
+  await expect(page.getByTestId("mark-proposal-proposal.md")).toBeChecked();          // named like the proposal
+  await expect(page.getByTestId("mark-proposal-client-pk.csv")).not.toBeChecked();
+  await expect(page.getByTestId("start-files-split")).toHaveText("1 read for the brief · 1 to the Data room");
+  await expect(page.locator("select")).toHaveCount(0);                                // no tag is asked (D2)
+  await page.screenshot({ path: test.info().outputPath("start-from-proposal.png"), fullPage: true });
   await page.getByTestId("start-project").click();
 
-  await page.waitForURL(/\/projects\/[^/]+\/start$/);
+  // the Data room, its run started by itself (D1): the person watches the files read
+  await page.waitForURL(/\/projects\/[^/]+\/dataroom$/);
+  await expect(page.getByTestId("run-progress")).toBeVisible();
+  await page.screenshot({ path: test.info().outputPath("start-lands-on-the-data-room.png"), fullPage: true });
+  const startUrl = page.url().replace(/\/dataroom$/, "/start");
+  await page.goto(startUrl);
   await expect(page.getByTestId("start-drug-name")).toHaveText("Dapagliflozin");
-  await expect(page.getByTestId("start-files")).toContainText("proposal.md");
-  await expect(page.getByTestId("start-files")).toContainText("client-pk.csv");
+  await expect(page.getByTestId("start-files")).toContainText("proposal.md");          // the proposal, read for the brief
   await expect(page.getByTestId("step-start")).toHaveAttribute("data-state", "needs_you");
   await expect(page.getByRole("button", { name: /approve/i })).toHaveCount(0);
-  const startUrl = page.url();
   const projectId = /\/projects\/([^/]+)\/start$/.exec(startUrl)![1];
 
-  // Inputs comes after Start (page review 1, decision 7): reached by its address, it says what Start still needs
+  // Inputs opens before Start is finished (the owner's D4): a banner says what Start still needs and that nothing is
+  // sent to the model until it is
   await page.goto(startUrl.replace(/\/start$/, "/inputs"));
-  await expect(page.getByTestId("inputs-blocked")).toContainText("Inputs come after Start");
-  await expect(page.getByTestId("add-open-bind.fu")).toHaveCount(0);
+  await expect(page.getByTestId("inputs-start-not-done")).toContainText("Nothing is sent to the model until it is");
   await finishStart(request, projectId);
   await page.reload();
-  await expect(page.getByTestId("inputs-blocked")).toHaveCount(0);
+  await expect(page.getByTestId("inputs-start-not-done")).toHaveCount(0);
 
   // a value typed into its row on Inputs, with its source: converted and graded by code, and in the model with nothing
   // to accept (D-27); the page opens on To do while something is missing, the row is on Compound
@@ -63,34 +70,18 @@ test("a project starts from its proposal and the client's file in one upload, wi
   await expect(page.getByText("brief/main").first()).toBeVisible();
 });
 
-test("each file is tagged at upload, and a tag the content contradicts is proposed and decided in one click",
+test("one drop zone: the proposal is marked with one click when its name does not say so, and a ZIP is never it",
   async ({ page }) => {
-    // plan 2026-11-03 §3.1 (the owner, 2026-11-03): tags on the "Start from proposal" page; a hint, not a fact; no reason
     await page.goto("/projects/start");
-    await page.getByTestId("drug-name").fill("Tagamide");
+    await page.getByTestId("drug-name").fill("Dapagliflozin");
     await page.getByTestId("proposal-files").setInputFiles([
-      { name: "proposal.md", mimeType: "text/markdown", buffer: Buffer.from(PROPOSAL) },
-      { name: "Data_Q3_final.csv", mimeType: "text/csv",
-        buffer: Buffer.from("Subject,Time (h),Conc (ng/mL)\n101-001,1,39.8\n101-001,2,50.1\n") },
-      { name: "EXZ-101_dosing.csv", mimeType: "text/csv", buffer: Buffer.from("arm,dose_mg\nA,10\n") },
+      { name: "TP-2026-114.md", mimeType: "text/markdown", buffer: Buffer.from(PROPOSAL) },
+      { name: "delivery.zip", mimeType: "application/zip", buffer: Buffer.from("PK\u0005\u0006" + "\u0000".repeat(18)) },
     ]);
-    await expect(page.getByLabel("What Data_Q3_final.csv is")).toHaveValue("other");       // the name says nothing
-    await expect(page.getByLabel("What EXZ-101_dosing.csv is")).toHaveValue("clinical");
-    await expect(page.getByLabel("Which study EXZ-101_dosing.csv belongs to")).toHaveValue("EXZ-101");
-    await page.screenshot({ path: test.info().outputPath("start-from-proposal-tags.png"), fullPage: true });
-    await page.getByTestId("start-project").click();
-
-    const proposal = page.getByTestId("tag-proposal-Data_Q3_final.csv");
-    await expect(proposal).toContainText("The content suggests “Clinical study”");
-    await expect(proposal).toContainText("Subject");                                      // what prompted it, quoted
-    await page.screenshot({ path: test.info().outputPath("start-tag-proposal.png"), fullPage: true });
-    await page.getByTestId("tag-use-Data_Q3_final.csv").click();
-    await expect(proposal).toContainText("Tag now “Clinical study”");
-    await page.getByTestId("start-continue").click();
-    await page.waitForURL(/\/projects\/[^/]+\/start$/);
-
-    await page.getByTestId("nav-library").click();
-    await expect(page.getByTestId("library-tag-select-Data_Q3_final.csv")).toHaveValue("clinical");
-    await page.getByTestId("library-tag-select-EXZ-101_dosing.csv").selectOption("formulation");   // option D: any time
-    await expect(page.getByTestId("library-tag-select-EXZ-101_dosing.csv")).toHaveValue("formulation");
+    await expect(page.getByTestId("start-project")).toBeDisabled();
+    await expect(page.getByTestId("start-where")).toHaveText("Mark the technical proposal, or describe the project in Context.");
+    await expect(page.getByTestId("mark-proposal-delivery.zip")).toHaveCount(0);       // a ZIP is the client's files
+    await page.getByTestId("mark-proposal-TP-2026-114.md").click();
+    await expect(page.getByTestId("start-files-split")).toHaveText("1 read for the brief · 1 to the Data room");
+    await expect(page.getByTestId("start-project")).toBeEnabled();
   });

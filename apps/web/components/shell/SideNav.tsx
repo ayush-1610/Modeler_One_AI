@@ -117,7 +117,9 @@ function StepsNav({ projectId, path }: { projectId: string; path: string }) {
       <span className="sn-heading">Workflow</span>
       <ol>
         {rows.map((s) => {
-          const shut = locked && s.step !== "start" && s.state === "not_started" && current !== s.step;
+          // Start's lock is on sending to the model (D4; plan 2026-11-27-one-way-in step 5): Inputs (the Data room) is open
+          // before Start is done; Review & sign and Run wait for it
+          const shut = locked && s.step !== "start" && s.step !== "inputs" && s.state === "not_started" && current !== s.step;
           const title = s.reasons.length ? s.reasons.map((r) => stepReason(r, s.formulation)).join("\n") : `${STEP_LABEL[s.step]}: ${STATE_WORD[s.state]}`;
           const href = s.step === "inputs" ? `${base}/dataroom` : STEP_ROUTES[s.step](encodeURIComponent(projectId));
           const icon = known ? <span className={`sn-icon state-${s.state}`} role="img" aria-label={STATE_WORD[s.state]}><Icon name={STATE_ICON[s.state]} /></span>
@@ -142,7 +144,7 @@ function StepsNav({ projectId, path }: { projectId: string; path: string }) {
                 <ul>
                   {/* the Data room's link was always in the sidebar, whatever Start's state (dataroom.spec.ts) */}
                   <NavItem it={{ href: `${base}/dataroom`, label: "Data room", active: path.startsWith(`${base}/dataroom`), testId: "nav-dataroom", sub: true }} />
-                  {!shut && <NavItem it={{ href: `${base}/inputs`, label: "Inputs", active: path.startsWith(`${base}/inputs`), testId: "nav-inputs", sub: true }} />}
+                  <NavItem it={{ href: `${base}/inputs`, label: "Inputs", active: path.startsWith(`${base}/inputs`), testId: "nav-inputs", sub: true }} />
                   {/* which data the applications require and who provides each (P-13b, read-mostly) */}
                   <NavItem it={{ href: `${base}/data-plan`, label: "Data plan", active: path.startsWith(`${base}/data-plan`), testId: "nav-data-plan", sub: true }} />
                 </ul>

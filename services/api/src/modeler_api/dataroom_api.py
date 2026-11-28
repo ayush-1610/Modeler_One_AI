@@ -275,15 +275,8 @@ def start_dataroom_run(project_id: str, principal: Writer, store: StoreDep, body
         raise HTTPException(status_code=409, detail="nothing to read yet: add the client's files first")
     if jobs.running(store, principal.tenant_id, project_id, "dataroom"):
         raise HTTPException(status_code=409, detail=BUSY)
-    wanted = body.stages if body.stages is not None else known
-    # the run's first record, written now, so the page that started it reads it as running at once
-    room.set_run({"state": "running", "started_at": None, "finished_at": None, "error": "", "agents": {},
-                  "stages": [{"id": sid, "label": label, "agent": agent, "state": "waiting" if sid in wanted else "skipped",
-                              "done": 0, "total": 0, "note": ""} for sid, label, agent in stages]})
-    room.audit(actor=principal.user_id, action="dataroom.run", resource_id="run",
-               after={"stages": list(wanted), "redo": list(body.redo), "files": list(body.files)})
-    dataroom_runs.start(store, principal.tenant_id, project_id, by=principal.user_id, stages=wanted, redo=body.redo,
-                        files=body.files)
+    # the run's first record is written now, so the page that started it reads it as running at once
+    dataroom_runs.begin(store, room, by=principal.user_id, stages=body.stages, redo=body.redo, files=body.files)
     return envelope(_run_view(room, True))
 
 
@@ -307,6 +300,10 @@ def put_dataroom_question(project_id: str, principal: Writer, store: StoreDep, b
     room.set_question(body.card, by=principal.user_id, confirmed=body.confirmed, reason=body.reason)
     if body.confirmed:
         _draft_brief(room, principal)
+        # one question card (D3): the card confirmed here is the question Start holds, confirmed by the same person
+        from modeler_project.brief_from_room import confirm_card_in_brief
+
+        confirm_card_in_brief(room.ws, by=principal.user_id)
     return _answer(room, principal)
 
 

@@ -250,5 +250,34 @@ def draft_brief_from_room(ws: Workspace, *, by: str) -> dict[str, Any]:
             "advice": [a.message for a in room_advice(brief, basis)]}
 
 
-__all__ = ["AGENCIES", "CODE", "PRODUCT_ROLES", "RoomError", "agencies", "draft_brief_from_room", "draft_from_room",
-           "formulation_types", "route_of", "writable"]
+#: the brief's fields the room's question card answers, confirmed with the card (D3)
+CARD_FIELDS = ("qoi.text", "qoi.context_of_use")
+
+
+def confirm_card_in_brief(ws: Workspace, *, by: str) -> list[str]:
+    """One question card (the owner's D3, 2026-11-27; plan 2026-11-27-one-way-in step 4): the person who confirms the Data
+    room's question card has confirmed the question of interest and the context of use, so Start does not ask again.
+    Only the room's own drafts of them (`CODE`, DRAFTED from that card) are confirmed, as `by`; a value a person or a
+    document gave Start is never changed (where it differs, Start advises, `steps.room_advice`). Returns the paths
+    confirmed (none: no new version)."""
+    from modeler_project.brief_ops import edit_field
+
+    with ws.editing(ArtifactKind.BRIEF, BRIEF_ID):
+        version = ws.latest(ArtifactKind.BRIEF, BRIEF_ID)
+        if version is None:
+            return []
+        brief = ProjectBrief.from_content(version.content)
+        done = []
+        for path in CARD_FIELDS:
+            record = brief.get(path)
+            if record.status is FieldStatus.DRAFTED and record.by == CODE and record.value not in (None, "", []):
+                brief = edit_field(brief, path, status=FieldStatus.CONFIRMED, by=by,
+                                   note="confirmed with the Data room's question card")
+                done.append(path)
+        if done:
+            save_brief(ws, brief, actor=by, reason=f"confirmed with the Data room's question card: {', '.join(done)}")
+    return done
+
+
+__all__ = ["AGENCIES", "CARD_FIELDS", "CODE", "PRODUCT_ROLES", "RoomError", "agencies", "confirm_card_in_brief",
+           "draft_brief_from_room", "draft_from_room", "formulation_types", "route_of", "writable"]

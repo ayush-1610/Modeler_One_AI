@@ -46,6 +46,22 @@ def _after(store: ProjectStore, tenant_id: str, project_id: str, doc: dict[str, 
         schedule(store, tenant_id, project_id, (doc.get("pause") or {}).get("resume_at"))
 
 
+def begin(store: ProjectStore, room: DataRoomStore, *, by: str, stages: list[str] | None = None,
+          redo: list[str] | None = None, files: list[str] | None = None) -> None:
+    """Start a run of `room` now: its first record written at once (each wanted stage waiting, the others skipped), so a
+    page reads it as running, the start audited, then the job. The Data room's Run (`POST …/dataroom/run`) and a project
+    started with its client's files (`projects:initiate`, plan 2026-11-27 step 1, D1) start a run this one way."""
+    stages_all = agent_jobs.dataroom_stages()
+    wanted = stages if stages is not None else [sid for sid, _label, _agent in stages_all]
+    room.set_run({"state": "running", "started_at": None, "finished_at": None, "error": "", "agents": {},
+                  "stages": [{"id": sid, "label": label, "agent": agent, "state": "waiting" if sid in wanted else "skipped",
+                              "done": 0, "total": 0, "note": ""} for sid, label, agent in stages_all]})
+    room.audit(actor=by, action="dataroom.run", resource_id="run",
+               after={"stages": list(wanted), "redo": list(redo or ()), "files": list(files or ())})
+    start(store, room.ws.tenant_id, room.ws.project_id, by=by, stages=list(wanted), redo=list(redo or ()),
+          files=list(files or ()))
+
+
 def start(store: ProjectStore, tenant_id: str, project_id: str, *, by: str, stages: list[str] | None,
           redo: list[str], files: list[str]) -> None:
     """Run the project's Data room in the background, started by `by`; 409 while one runs."""

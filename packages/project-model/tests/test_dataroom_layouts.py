@@ -259,7 +259,8 @@ def test_a_single_arm_study_is_tied_to_its_product_and_says_how():
     tied, asked = _single_arm(study, card)
     assert [(a.treatment, a.product, a.role) for a in tied] == [("1", clinical, "reference"), ("7", clinical, "reference")]
     assert all("the study's only arm" in a.tied for a in tied) and asked == []
-    # one arm whose product no document names, on a card of two: it is asked, never guessed
+    # one arm whose product no document names, on a card of two: it is found here, and the room makes it a decision
+    # with a proposal for the person to confirm (step 3 of plan 2026-11-27-one-way-in; the next test)
     blank = arm.model_copy(update={"product": "", "role": "", "tied": ""})
     _, asked = _single_arm(study.model_copy(update={"arms": (blank,)}), card)
     assert [p.code for p in asked] == ["ARM_PRODUCT_UNKNOWN"]
@@ -297,3 +298,48 @@ def test_a_medium_named_without_its_ph_takes_its_conventional_ph_only_once_confi
     # left as written
     kept_diss, _, _ = _media_by_convention(diss, sol, {MEDIA_CONVENTION: {"chosen": "leave"}})
     assert kept_diss[0].ph is None
+
+
+def test_a_single_arm_whose_product_no_file_names_is_proposed_then_confirmed():
+    """The owner's rule 1 (2026-11-27; plan 2026-11-27-one-way-in step 3): "the agent must propose or categorise it
+    first", and the person checks it. A single arm whose product no file names is a decision with a proposal: the product
+    the study's own facts name, quoted; with none, the card's reference product, said to be a proposal. The arm carries
+    it as proposed until the person chooses, then as chosen; the "name it" problem is gone."""
+    from modeler_intake.room_specs import Fact, ProductRef, QuestionCard
+    from modeler_project.dataroom.assemble import _product_decision, _tie_product
+    from modeler_project.dataroom.model import Arm, CheckedFact, Problem, RoomStudy
+
+    test, ref = "Novaprazole 40 mg tablet (new formulation)", "Novaprazole 40 mg tablet (marketed formulation)"
+    card = QuestionCard(question="q", products=[ProductRef(name=test, role="test"), ProductRef(name=ref, role="reference")])
+    said = CheckedFact(ok=True, fact=Fact(field="study.title", subject="NP-104", value="Single dose of the new formulation "
+                                          "in healthy adults", quote="q"))
+    d = _product_decision("NP-104", card, [said], {})
+    assert d.id == "arm-product:NP-104" and d.suggested == test and "new formulation" in d.why
+    assert [(o.id, o.detail) for o in d.options] == [(test, "test"), (ref, "reference")]
+    silent = _product_decision("NP-104", card, [], {})
+    assert silent.suggested == ref and "proposed, the question card's reference product" in silent.why
+
+    study = RoomStudy(study_id="NP-104", arms=(Arm(treatment="A"),), problems=(Problem(code="ARM_PRODUCT_UNKNOWN", message="m"),))
+    proposed = _tie_product(study, d, card)
+    assert [(a.product, a.role, a.tied) for a in proposed.arms] == [(test, "test", "proposed, waiting for your choice")]
+    assert [p.code for p in proposed.problems] == []
+    chosen = _tie_product(study, d.model_copy(update={"chosen": ref, "by": "Dev User"}), card)
+    assert [(a.product, a.role, a.tied) for a in chosen.arms] == [(ref, "reference", "chosen by Dev User")]
+
+
+def test_fed_or_fasted_when_no_file_says_is_proposed_then_confirmed():
+    """The owner's rule 1: fed or fasted is proposed first, from the meal the study names at dosing, else fasted, and
+    the person confirms it (plan 2026-11-27-one-way-in step 3)."""
+    from modeler_intake.room_specs import Fact
+    from modeler_project.dataroom.assemble import _food_decision
+    from modeler_project.dataroom.model import CheckedFact
+
+    def meal(value: str) -> CheckedFact:
+        return CheckedFact(ok=True, fact=Fact(field="study.meal_composition", subject="NP-104", value=value, quote="q"))
+
+    at_dosing = _food_decision("NP-104", [meal("A high-fat breakfast 30 minutes before dosing")])
+    assert (at_dosing.id, at_dosing.suggested) == ("food:NP-104", "fed") and "high-fat breakfast" in at_dosing.why
+    later = _food_decision("NP-104", [meal("Lunch at 4 h")])
+    assert later.suggested == "fasted" and "is not at dosing" in later.why and "check it in the protocol" in later.why
+    nothing = _food_decision("NP-104", [])
+    assert nothing.suggested == "fasted" and [o.id for o in nothing.options] == ["fasted", "fed"]

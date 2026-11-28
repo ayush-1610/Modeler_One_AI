@@ -479,3 +479,43 @@ def test_a_send_recorded_before_the_snapshot_was_kept_reads_the_live_room(ws):
     _send(ws, "pub-20261124T100000Z-cccccc", keep_snapshot=False)
     assert room_basis(ws).source == "live"
     assert not any(line.startswith("Data room: what the MAP") for line in room_limitations(room_basis(ws)))
+
+
+def test_one_question_card_confirmed_once_is_confirmed_on_start_and_a_persons_word_is_kept(ws):
+    """The owner's D3 (2026-11-27; plan 2026-11-27-one-way-in step 4): one question card. Confirming the Data room's card
+    confirms the room's drafts of the question and the context of use on Start, as the person who confirmed the card,
+    so Start does not ask again; a value a person set on Start stays theirs."""
+    from modeler_project.brief_from_room import confirm_card_in_brief
+
+    save_brief(ws, empty_brief("Exampleamide", by="u1"), actor="u1", reason="project started")
+    draft_brief_from_room(ws, by="Dr Modeller")
+    confirmed = confirm_card_in_brief(ws, by="Dr Modeller")
+    brief = ProjectBrief.from_content(ws.latest(ArtifactKind.BRIEF, BRIEF_ID).content)
+    for path in confirmed:
+        record = brief.get(path)
+        assert (record.status, record.by) == (FieldStatus.CONFIRMED, "Dr Modeller")
+    assert "qoi.text" in confirmed and brief.get("qoi.text").value == QUESTION.question
+    assert not any(p.startswith("Question of interest") for p in start_problems(brief))
+    assert confirm_card_in_brief(ws, by="Dr Modeller") == []                 # once: nothing left to confirm
+
+    # a person's own question on Start is never confirmed over, nor changed
+    other = _room(ws.store.root / "other")
+    mine = _person(empty_brief("Exampleamide", by="u1"), "qoi.text", "Predict exposure of the 50 mg tablet")
+    save_brief(other, mine, actor="u1", reason="project started")
+    draft_brief_from_room(other, by="Dr Modeller")
+    assert "qoi.text" not in confirm_card_in_brief(other, by="Dr Modeller")
+    kept = ProjectBrief.from_content(other.latest(ArtifactKind.BRIEF, BRIEF_ID).content).get("qoi.text")
+    assert (kept.value, kept.status) == ("Predict exposure of the 50 mg tablet", FieldStatus.EDITED)
+
+
+def test_the_send_to_the_model_waits_for_start_and_a_project_with_no_brief_has_no_start(ws):
+    """The owner's D4 (2026-11-27; plan 2026-11-27-one-way-in step 5): Start's lock moves from opening Inputs to sending
+    to the model. Data is looked at and confirmed while Start is open; the send waits until Start is finished."""
+    from modeler_project.dataroom import DataRoomStore
+    from modeler_project.dataroom.publish import plan_publication
+
+    view = room_view(DataRoomStore(ws))
+    assert not any(b.startswith("Start is not finished") for b in plan_publication(view, by="u1", ws=ws).blocked)
+    save_brief(ws, empty_brief("Exampleamide", by="u1"), actor="u1", reason="project started")
+    waiting = [b for b in plan_publication(view, by="u1", ws=ws).blocked if b.startswith("Start is not finished")]
+    assert len(waiting) == 1 and "Question of interest" in waiting[0]

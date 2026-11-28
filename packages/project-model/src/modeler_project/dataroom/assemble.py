@@ -472,6 +472,77 @@ def _single_arm(view: RoomStudy, question: QuestionCard | None) -> tuple[tuple[A
     return tuple(arms), problems
 
 
+def _product_decision(sid: str, question: QuestionCard, facts: Sequence[CheckedFact],
+                      batches: Mapping[str, str]) -> RoomDecision:
+    """Which of the question card's products a single-arm study used, when no file of it names one: proposed first,
+    confirmed by the person (the owner's rule 1, 2026-11-27; plan 2026-11-27-one-way-in step 3). Proposed: the product
+    the study's own facts name most (its words, or a batch of it), the fact quoted; with none, the card's reference
+    product, said to be a proposal to check."""
+    products = list(question.products)
+    names = [p.name for p in products]
+    hits: dict[str, list[CheckedFact]] = {n: [] for n in names}
+    for f in facts:
+        if not f.ok:
+            continue
+        text = f"{f.fact.product} {f.fact.value}"
+        card = named_in(text, names) or _set_apart(text, names)
+        if not card:
+            card = next((named_in(of, names) for batch, of in batches.items()
+                         if batch and f" {batch} " in f" {_norm(text)} "), None)
+        if card in hits:
+            hits[card].append(f)
+    ranked = sorted(names, key=lambda n: len(hits[n]), reverse=True)
+    best = ranked[0]
+    if hits[best] and (len(ranked) == 1 or len(hits[best]) > len(hits[ranked[1]])):
+        why = f"the study's files name it: “{hits[best][0].fact.value[:120]}”"
+        chips = tuple(h.chip for h in hits[best][:3] if h.chip)
+    else:
+        best = next((p.name for p in products if p.role == "reference"), names[0])
+        why = (f"no file of {sid} names its product: proposed, the question card's "
+               f"{'reference product' if any(p.role == 'reference' for p in products) else 'first product'}; check it in "
+               "the protocol")
+        chips = ()
+    return RoomDecision(id=f"arm-product:{sid}", title=f"Product of {sid}",
+                        question=f"Study {sid} has one arm, and no file says which product it used. Which was it?",
+                        options=tuple(Option(id=p.name, label=p.name, detail=p.role) for p in products),
+                        suggested=best, why=why, evidence=chips)
+
+
+def _tie_product(view: RoomStudy, choice: RoomDecision, question: QuestionCard) -> RoomStudy:
+    """The single arm's product as the person chose it, or as proposed until then (the send waits for the choice)."""
+    roles = {p.name: p.role for p in question.products}
+    product = _pick(choice)
+    how = f"chosen by {choice.by}" if choice.chosen else "proposed, waiting for your choice"
+    arms = tuple(a.model_copy(update={"product": product, "role": roles.get(product, ""),
+                                      "tied": f"{a.tied}; {how}" if a.tied else how}) if not a.product else a
+                 for a in view.arms)
+    return view.model_copy(update={"arms": arms,
+                                   "problems": tuple(p for p in view.problems if p.code != "ARM_PRODUCT_UNKNOWN")})
+
+
+#: the words that put a meal at dosing (a fed condition), as a study's meal fact may write them
+_AT_DOSING = ("high-fat", "high fat", "before dosing", "before the dose", "pre-dose", "predose", "fed")
+
+
+def _food_decision(sid: str, facts: Sequence[CheckedFact]) -> RoomDecision:
+    """Fed or fasted, when no file of the study says (the owner's rule 1: proposed first, confirmed by the person; plan
+    2026-11-27-one-way-in step 3): fed when the study's meal is named at dosing, else fasted; either way to check."""
+    meal = _first(facts, "study.meal_composition") or _first(facts, "study.meal_times")
+    words = meal.fact.value.lower() if meal else ""
+    fed = any(w in words for w in _AT_DOSING)
+    if fed:
+        why = f"the study names a meal at dosing: “{meal.fact.value[:120]}”"  # type: ignore[union-attr]
+    elif meal:
+        why = f"the meal the files name (“{meal.fact.value[:80]}”) is not at dosing: proposed fasted; check it in the protocol"
+    else:
+        why = "no meal at dosing is named: proposed fasted; check it in the protocol"
+    return RoomDecision(id=f"food:{sid}", title=f"Fed or fasted: {sid}",
+                        question=f"No file of {sid} says whether its subjects were dosed fasted or fed. Which was it?",
+                        options=(Option(id="fasted", label="Fasted"), Option(id="fed", label="Fed")),
+                        suggested="fed" if fed else "fasted", why=why,
+                        evidence=(meal.chip,) if meal and meal.chip else ())
+
+
 #: a table's constants that are numbers of science (a method's conditions): kept only when the delivery says them
 SAID_CONSTANTS = ("medium", "apparatus", "rpm", "speed", "volume", "temperature", "ph")
 _CONSTANT_UNITS = {"rpm": ("rpm", "r/min"), "speed": ("rpm", "r/min"), "volume": ("ml", "l"), "temperature": ("°c", "c")}
@@ -793,9 +864,17 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
         view = _analyte_view(sid, modeled, named=named, concentrations=conc, pk_tables=pk, facts=sfacts, arms=arms,
                              study_values=study_values, release=release, rules=rules, question=question,
                              unnamed_pk=True, treatments=treatments)
+        mark = len(other_analytes)
         other_analytes += [_analyte_view(sid, a, named=named, concentrations=conc, pk_tables=pk, facts=sfacts, arms=arms,
                                          release=release, rules=rules, question=question, treatments=treatments)
                            for a in named if a != modeled]
+        # a single arm whose product no file names: proposed, then confirmed (the owner's rule 1; step 3 of plan
+        # 2026-11-27-one-way-in), applied as proposed until chosen, and the send waits for the choice
+        if question and question.products and any(p.code == "ARM_PRODUCT_UNKNOWN" for p in view.problems):
+            tie = _decision(inputs.decisions, _product_decision(sid, question, sfacts, batch_products(facts)))
+            decisions.append(tie)
+            view = _tie_product(view, tie, question)
+            other_analytes[mark:] = [_tie_product(v, tie, question) for v in other_analytes[mark:]]
         sets = {s.name: s for s in view.sets}
         options = [Option(id=name, label=f"{sets[name].label}: {len(sets[name].subjects)} subjects", detail=sets[name].rule)
                    for name in ("modeling", "client_statistical", "completed", "dosed") if name in sets]
@@ -832,6 +911,10 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
                 why=(f"{males} {'man' if males == 1 else 'men'} and {females} {'woman' if females == 1 else 'women'} in the "
                      "modeling set") if males or females else sex_fact.fact.value,
                 evidence=(sex_fact.chip,) if sex_fact and sex_fact.chip else ())))
+        # fed or fasted, when no file of the study says (the owner's rule 1): proposed, then confirmed; the inputs read it
+        if not any(v.key.startswith(("study.fed", "study.fasting")) for v in view.facts) \
+                and not any(food_of(a.meaning) for a in view.arms):
+            decisions.append(_decision(inputs.decisions, _food_decision(sid, sfacts)))
         meal = _first(sfacts, "study.meal_composition") or _first(sfacts, "study.fed") or _first(sfacts, "study.meal_times")
         if meal:
             high_fat = "high" in meal.fact.value.lower() and "fat" in meal.fact.value.lower()
@@ -1208,6 +1291,13 @@ def assemble(inputs: Inputs, *, rules: Rules | None = None) -> DataRoomView:
             inputs_rows.append(InputRow(block="protocol", owner=sid, name="Food state", label="Fed or fasted",
                                         value=arm_food[said.treatment], status="sponsor",
                                         sources=tuple(a.source for a in view.arms if a.source), note="as each arm says"))
+        elif food is None and (asked := next((d for d in decisions if d.id == f"food:{sid}"), None)) is not None:
+            # no file says it: the person's choice (entered, with the decision's reason), or the proposal until then
+            inputs_rows.append(InputRow(block="protocol", owner=sid, name="Food state", label="Fed or fasted",
+                                        value=_pick(asked), status="entered" if asked.chosen else "missing",
+                                        decision=asked.id, sources=asked.evidence,
+                                        note=(f"chosen by {asked.by}: no file says it" if asked.chosen
+                                              else f"proposed {asked.suggested}: waiting for your choice")))
         else:
             inputs_rows.append(InputRow(block="protocol", owner=sid, name="Food state", label="Fed or fasted", value=food,
                                         status=(fed or fasting).status if food else "missing",  # type: ignore[union-attr]

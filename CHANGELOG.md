@@ -13,6 +13,117 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 
 ## [Unreleased] — make the pipeline do real PBPK, S0 → S7
 
+### Changed — Start's lock moves from opening Inputs to sending to the model (2026-11-28)
+- **What:** plan `2026-11-27-one-way-in` step 5, the owner's D4.
+  - **Inputs opens before Start is finished.** The block that replaced the page ("Inputs come after Start") is gone; a
+    banner says what Start still needs, that nothing is sent to the model until it is, and links to Start. In the
+    sidebar the Inputs step is no longer locked; Review & sign and Run still wait for Start.
+  - **"Send to the model" waits for Start** (`dataroom/publish._start_waiting`): while Start needs anything, the send
+    is blocked with Start's own reasons. A project with no brief has no Start to finish.
+- **Why:** the owner, 2026-11-27, D4: data can be looked at and confirmed while the brief is open; the science gates
+  stay where data enters the model and at the MAP signature. This replaces decision 7 of 2026-10-29 (Inputs after
+  Start).
+- **Verified:** `test_brief_from_room.py` (new: the send waits for Start; a project with no brief is not held);
+  `start-step.spec.ts` and `start-project.spec.ts` (Inputs open with the banner; Review & sign locked);
+  `dataroom-to-map.spec.ts` and `release-model.spec.ts` now finish Start before they send; the full browser suite
+  passed 186 of 187 before the release-model spec was updated, which then passed. `test_brief_from_room_api.py`
+  expects Start's question confirmed with the card (step 4).
+- **Impact:** a project sends to the model only with Start finished, from the Data room as from anywhere else. The upload
+  is already quick for the client's files (step 1 stores them and the Data room reads them in the background); the
+  proposal is still read in the request, for A1. The earlier reader for client files ("+ Add data", the Inputs page's
+  Files) is **not retired yet** (plan §5).
+
+### Changed — one question card: confirmed once in the Data room, confirmed on Start (2026-11-28)
+- **What:** plan `2026-11-27-one-way-in` step 4, the owner's D3.
+  - **Confirming the Data room's question card confirms Start's question and context of use**, as the person who
+    confirmed the card (`brief_from_room.confirm_card_in_brief`, called by the card's route after the room drafts the
+    brief). Only the room's own drafts of them are confirmed; a value a person or a document gave Start is never changed
+    (Start still advises where the two differ). Start no longer asks to confirm the same question again.
+  - **With no card yet** (the question agent has not run), the Data room's card form starts from Start's question and
+    context of use, as A1 drafted them from the proposal or a person set them, instead of an empty form: confirming it
+    there confirms them on Start too. The room's actions now carry the project's id (`useActs`).
+- **Why:** the owner approved D3 on 2026-11-27: A1 drafts the question from the proposal, A6 from the delivery, and
+  the person confirms one card.
+- **Verified:** `test_brief_from_room.py` (new: confirmed once, as the card's confirmer, Start's question no longer
+  waits; a person's own question kept as theirs; a second confirmation changes nothing); `dataroom-to-start.spec.ts`
+  and `dataroom-to-map.spec.ts` now expect the question confirmed on Start (2 passed), with `dataroom.spec.ts`.
+- **Impact:** the applications, agencies and scenarios the room drafts are still drafts for Start to confirm (the card
+  answers the question, not them). The person lands on the Data room's Overview, which already shows the run and "Needs
+  you" (plan §5).
+
+### Changed — the Data room proposes a single arm's product and fed or fasted, for the person to confirm (2026-11-28)
+- **What:** plan `2026-11-27-one-way-in` step 3, the owner's rule 1 (`dataroom/assemble.py`).
+  - **A single-arm study whose product no file names** (it said "name it", `ARM_PRODUCT_UNKNOWN`) is now a decision,
+    `arm-product:<study>`: the question card's products as options with their role (test, reference), and a proposal.
+    The proposal is the product the study's own facts name (its words or one of its batches), quoted; with none, the
+    card's reference product, said plainly to be a proposal to check in the protocol. The arm carries the product and
+    its role as "proposed, waiting for your choice" until the person chooses, then "chosen by …".
+  - **A study that says neither fed nor fasted** (its food state was "missing") is now a decision, `food:<study>`:
+    proposed fed when the study names a meal at dosing (high-fat, pre-dose, before dosing), quoted, else fasted, either
+    way "check it in the protocol". The protocol's Food state row shows the proposal until the choice, then the choice
+    as entered by the person.
+  - Both are ordinary decisions: chosen with one click (step 2), and the send to the model waits while either is open.
+- **Why:** the owner, 2026-11-27: "this must be decided by the agent by looking at the data … maybe have it checked by
+  the user, but the agent must propose or categorise it first."
+- **Verified:** `test_dataroom_layouts.py` (two new tests: each proposal from the files, quoted; the stated fallback;
+  the arm proposed, then chosen; the "name it" problem gone); the Data room, brief and API tests (367 passed) and the
+  Data room browser flows (7 passed) unchanged.
+- **Impact:** nothing reaches the model without the person's choice. Not yet proposed (they still ask, and block the
+  send): a treatment code no file defines, a dissolution batch whose product is none of the card's, and a fed meal no
+  rule can place; plan §5 records them.
+
+### Changed — the Data room is clicked, never typed: a reason is picked from a short list (2026-11-28)
+- **What:** plan `2026-11-27-one-way-in` step 2, the owner's rule 2.
+  - **A decision:** the suggestion is chosen with one click ("Choose the suggestion"; the optional reason box is gone).
+    Another option is chosen by selecting it and picking why: "The files say otherwise", "Agreed with the client",
+    "Better suited to the question" or "The suggestion's evidence does not hold". The picked words are the reason the
+    record keeps, as before.
+  - **A value entered by hand:** its number and unit are still typed (no file states it), and where it comes from is
+    picked: a document outside the delivery, agreed with the client, the literature, or a modelling assumption.
+  - **A data request:** its wording to the client is shown as drafted; the box to rewrite it is gone. Its status stays
+    three buttons.
+  - **Send to the model:** why now is picked ("The inputs are confirmed", "Confirmed with the client", "A first model to
+    start from", "Sent again after a change") before Send, which still signs with the step-up.
+  - The lists are `apps/web/lib/reasons.ts`; the API is unchanged (it takes the reason as before).
+- **Why:** the owner, 2026-11-27: "anything which the user needs to confirm or select … there must be direct options …
+  there should not be any placeholder to write the reason for the selection." The audit trail still says why (EU GMP
+  Annex 11 §9), in words the person picked.
+- **Verified:** `dataroom.spec.ts` (another option chosen by picking its reason, with no text box on the card) and
+  `dataroom-to-map.spec.ts` (Send waits for why now, picked with a click, then signs), with `dataroom-to-start.spec.ts`:
+  7 passed; typecheck and build pass.
+- **Impact:** the question card on the Data room's Overview is still typed until step 4 makes it one card drafted by A1
+  and A6 for the person to confirm. Pages outside the Data room are unchanged.
+
+### Changed — one way in: the start page's client files go to the Data room, and its run starts at once (2026-11-27)
+- **What:**
+  - **The start page** (`app/projects/start`) keeps one drop zone for everything (the owner, 2026-11-28). Each file has
+    one mark, "Proposal" (read for the brief), set or cleared with a click; a file named like one (proposal, quotation,
+    SOW) arrives marked, a ZIP never is. No file is tagged, and the "A look at these files first" list after the upload
+    is gone. With client files the person lands on the project's Data room and watches its run; with none, on Start, as
+    before.
+  - **`POST /projects:initiate` takes `dataroom`** (the start page sends it): the client's files become the Data room's
+    uploads as they came, and its run starts at once, whatever it may cost (the owner, 2026-11-28: no estimate is shown;
+    the paid models' run and month caps still pause a run that reaches one). The answer says so in `dataroom`
+    (`uploads`, `run`: started or not_started, `problem`). Without `dataroom`, or on a store with no file folder, the
+    client's files are read by the earlier reader as before (`docs/api/openapi.json` and `lib/api-types.ts`
+    regenerated).
+  - **`dataroom_runs.begin`** starts a run the one way both callers use: its first record (each stage waiting), the
+    audit event, the job. `POST …/dataroom/run` now calls it; behaviour unchanged.
+- **Why:** the owner, 2026-11-27, after their upload showed about 25 tag choices and many files not read: "why don't we
+  start those agents directly?" The start page fed the earlier reader (no OCR, no `.dat`, a tag per file), and the Data
+  room, where OCR and agents A6–A10 work, never received the files. The owner approved D1 (the run starts by itself,
+  whatever it may cost) and D2 (no tags at upload; A7 sorts the files), with D3, D4 and two rules of their own for the
+  next steps: `docs/plans/2026-11-27-one-way-in.md`; on 2026-11-28, one drop zone as before and no cost question.
+- **Verified:** three API tests (`test_brief_api.py`: the files are the room's uploads, untagged, the run started and
+  audited as the person, none read by the earlier reader; the run starts with no estimate made; with no client files
+  nothing changes); the Data room's API tests unchanged; `start-project.spec.ts` rewritten (one drop zone: the files go
+  to the Data room and its run shows, no tag is asked, the proposal is marked by its name or with one click, a ZIP is
+  never it), with the start-page, Data room, shell and target-size specs.
+- **Impact:** a project's client files are read once, in the Data room, by its OCR, its text and SAS export readers
+  and its agents; they no longer appear on Inputs or in Documents from the start page (the Data room lists them, and
+  "Send to the model" carries the confirmed values on). "+ Add data" and the Inputs page keep the earlier reader until
+  step 5 of the plan. `docs/USING_THE_TOOL.md` says the new way in.
+
 ### Fixed — a client ZIP's file names, and its .dat tables, on "Start from proposal" (2026-11-27)
 - **What:**
   - **Names:** a ZIP whose archiver wrote UTF-8 names without the flag that says so (bit 0x800) had them read as CP437,

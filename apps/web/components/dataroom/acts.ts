@@ -20,6 +20,7 @@ export const PUBLICATION = "/api/v1/projects/{project_id}/dataroom/publication" 
 type Outcome = { problem: string | null };
 
 export type Acts = {
+  projectId: string;
   busy: boolean;
   question: (card: Schema<"QuestionCard">, confirmed: boolean, reason?: string) => Promise<Outcome>;
   decide: (id: string, chosen: string, reason: string) => Promise<Outcome>;
@@ -32,6 +33,7 @@ export function useActs(projectId: string): Acts {
   const params = { project_id: projectId };
   const after: After<Room> = { write: (data, client) => put(client, [ROOM, params, {}], data), reads: [PUBLICATION] };
   return {
+    projectId,
     busy,
     question: (card, confirmed, reason = "") =>
       run(() => send("put", "/api/v1/projects/{project_id}/dataroom/question", params, { card, confirmed, reason }), after),

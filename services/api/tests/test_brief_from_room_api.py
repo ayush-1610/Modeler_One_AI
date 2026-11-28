@@ -107,7 +107,8 @@ def test_start_is_filled_from_the_rooms_confirmed_card_and_advises_where_a_perso
 
 def test_confirming_the_card_and_choosing_the_applications_in_the_room_fill_start_without_a_click(client):
     """The hook-up (plan 2026-11-24 §7, B4): the room's own routes draft Start's brief when the card is confirmed and
-    when the applications are chosen; a person's value stays theirs."""
+    when the applications are chosen; a person's value stays theirs. One question card (the owner's D3; plan
+    2026-11-27-one-way-in step 4): the card confirmed in the room confirms Start's question too, as the same person."""
     c, store = client
     pid = _project(c)
     room = _room(store, pid, confirmed=False)
@@ -116,7 +117,7 @@ def test_confirming_the_card_and_choosing_the_applications_in_the_room_fill_star
                                                            "reason": "as read"})
     assert confirmed.status_code == 200, confirmed.text
     fields = c.get(f"/api/v1/projects/{pid}/brief", headers=H).json()["data"]["brief"]["fields"]
-    assert (fields["qoi.text"]["status"], fields["qoi.text"]["value"]) == ("DRAFTED", QUESTION.question)
+    assert (fields["qoi.text"]["status"], fields["qoi.text"]["value"]) == ("CONFIRMED", QUESTION.question)
     # a person's own context of use, then the applications chosen in the room: drafted around it, never over it
     assert c.put(f"/api/v1/projects/{pid}/brief", headers=H, json={"changes": [
         {"path": "qoi.context_of_use", "status": "EDITED", "value": "Our own words"}]}).status_code == 200

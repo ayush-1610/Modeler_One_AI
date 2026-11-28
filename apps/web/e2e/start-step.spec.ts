@@ -30,12 +30,13 @@ test("Start: each box that waits on the person is marked red, and Start cannot b
   await expect(page.getByTestId("risk-problem")).toContainText("Model risk: not set yet (it is never assumed)");
   await expect(page.getByTestId("start-waiting")).toContainText("marked in red above");
   await expect(page.getByTestId("start-continue")).toBeDisabled();
-  await expect(page.getByTestId("step-inputs-locked")).toBeVisible();
+  // Start's lock is on sending to the model (the owner's D4): Inputs is open, Review & sign waits
+  await expect(page.getByTestId("step-inputs-locked")).toHaveCount(0);
   await expect(page.getByTestId("step-review-locked")).toBeVisible();
-  // reached by its address, Inputs is blocked until Start is done, and says what Start still needs (decision 7)
+  // Inputs, reached by its address, says what Start still needs and links back to it
   await page.goto(startUrl.replace(/\/start$/, "/inputs"));
-  await expect(page.getByTestId("inputs-blocked")).toContainText("Question of interest: confirm the draft");
-  await page.getByTestId("inputs-blocked-start").click();
+  await expect(page.getByTestId("inputs-start-not-done")).toContainText("Question of interest: confirm the draft");
+  await page.getByTestId("inputs-finish-start").click();
   await page.waitForURL(/\/start$/);
 
   // the question: set in place, nothing asks why; the record says who set it; each application says what it adds

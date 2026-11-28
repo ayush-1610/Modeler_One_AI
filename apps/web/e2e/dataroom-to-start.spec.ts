@@ -54,7 +54,9 @@ test("Start is filled from the Data room's confirmed card, and a person's own qu
   await page.goto(`/projects/${projectId}/start`);
   const question = page.getByTestId("start-field-qoi.text");
   await expect(question).toContainText("reformulated Exampleamide tablet");
-  await expect(question).toContainText("draft");
+  // one question card (D3; plan 2026-11-27-one-way-in step 4): confirmed in the room, so confirmed on Start too
+  await expect(question).not.toContainText("draft");
+  await expect(question).not.toHaveClass(/needs-you/);
   await expect(page.getByTestId("start-field-qoi.applications")).toContainText("virtual bioequivalence");
   await expect(page.getByTestId("start-room-advice")).toHaveCount(0);
   await page.getByTestId("start-fill-from-room").click();
