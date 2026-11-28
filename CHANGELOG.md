@@ -13,6 +13,22 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 
 ## [Unreleased] — make the pipeline do real PBPK, S0 → S7
 
+### Fixed — the Installation Qualification failed a web served over HTTPS (2026-11-28)
+- **What:** `deploy/server/qualify.sh` told `qualify.py` whether the web serves HTTPS from `MODELER_WEB_TLS`, a variable
+  nothing sets; the scripts that start the web decide it from a certificate in the secrets file (`web_tls` in
+  `_env.sh`: `MODELER_WEB_TLS_PFX` or `MODELER_WEB_TLS_CERT`). So IQ-10 asked the HTTPS web over plain HTTP, got no
+  answer and failed with "HTTP 0". `qualify.sh` now passes `web_tls`'s answer.
+- **Why:** the first IQ run on adt-server (2026-11-28, `main` @ b608a394) failed IQ-10 only, while
+  `status_modeler.sh` reported the web up over HTTPS. Every other check passed (IQ-03 recorded).
+- **Impact:**
+  - On a server with a certificate, IQ-10 now checks that the web listens on its port, as `qualify.py` was written to.
+    Nothing else changes.
+  - `test_qualify_deploy.py` (new test) runs `qualify.sh` itself: with a certificate in the secrets file IQ-10 passes
+    on a listening port; without one the web is asked over HTTP. On the old script it fails with "HTTP 0", as the
+    server did.
+  - The server's IQ record from 2026-11-28 stays as it was (a FAIL). The IQ passes only once this is deployed and
+    `qualify.sh iq` run again.
+
 ### Fixed — a client ZIP's file names, and its .dat tables, on "Start from proposal" (2026-11-27)
 - **What:**
   - **Names:** a ZIP whose archiver wrote UTF-8 names without the flag that says so (bit 0x800) had them read as CP437,
