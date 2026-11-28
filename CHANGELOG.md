@@ -13,6 +13,27 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 
 ## [Unreleased] — make the pipeline do real PBPK, S0 → S7
 
+### Changed — the Data room proposes a single arm's product and fed or fasted, for the person to confirm (2026-11-28)
+- **What:** plan `2026-11-27-one-way-in` step 3, the owner's rule 1 (`dataroom/assemble.py`).
+  - **A single-arm study whose product no file names** (it said "name it", `ARM_PRODUCT_UNKNOWN`) is now a decision,
+    `arm-product:<study>`: the question card's products as options with their role (test, reference), and a proposal.
+    The proposal is the product the study's own facts name (its words or one of its batches), quoted; with none, the
+    card's reference product, said plainly to be a proposal to check in the protocol. The arm carries the product and
+    its role as "proposed, waiting for your choice" until the person chooses, then "chosen by …".
+  - **A study that says neither fed nor fasted** (its food state was "missing") is now a decision, `food:<study>`:
+    proposed fed when the study names a meal at dosing (high-fat, pre-dose, before dosing), quoted, else fasted, either
+    way "check it in the protocol". The protocol's Food state row shows the proposal until the choice, then the choice
+    as entered by the person.
+  - Both are ordinary decisions: chosen with one click (step 2), and the send to the model waits while either is open.
+- **Why:** the owner, 2026-11-27: "this must be decided by the agent by looking at the data … maybe have it checked by
+  the user, but the agent must propose or categorise it first."
+- **Verified:** `test_dataroom_layouts.py` (two new tests: each proposal from the files, quoted; the stated fallback;
+  the arm proposed, then chosen; the "name it" problem gone); the Data room, brief and API tests (367 passed) and the
+  Data room browser flows (7 passed) unchanged.
+- **Impact:** nothing reaches the model without the person's choice. Not yet proposed (they still ask, and block the
+  send): a treatment code no file defines, a dissolution batch whose product is none of the card's, and a fed meal no
+  rule can place; plan §5 records them.
+
 ### Changed — the Data room is clicked, never typed: a reason is picked from a short list (2026-11-28)
 - **What:** plan `2026-11-27-one-way-in` step 2, the owner's rule 2.
   - **A decision:** the suggestion is chosen with one click ("Choose the suggestion"; the optional reason box is gone).
