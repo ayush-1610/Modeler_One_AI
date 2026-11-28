@@ -344,6 +344,42 @@ def test_an_existing_projects_client_files_open_in_the_data_room_once(tmp_path):
     assert import_existing(store, by="user:m") == [] and len(store.uploads()) == 2
 
 
+def test_files_read_in_parallel_on_a_job_thread_are_read_by_fresh_interpreters_and_alike(tmp_path, monkeypatch):
+    """A room run reads on a job thread of the API: its pool's workers are fresh interpreters (spawn), never forks of a
+    multi-threaded process, which can deadlock (a run that stayed `running` in CI, 2026-11-27), and they read every
+    file as one worker does."""
+    import threading
+    from concurrent.futures import ProcessPoolExecutor
+
+    from modeler_project.dataroom import reading
+    from modeler_project.dataroom.store import DataRoomStore
+    from modeler_project.dataroom.synthetic import delivery
+    from modeler_project.store import FileProjectStore
+    from modeler_project.workspace import Workspace
+
+    def room(name: str) -> DataRoomStore:
+        store = DataRoomStore(Workspace(FileProjectStore(tmp_path / name), "t1", "p1"))
+        for upload, data in delivery().items():
+            store.add_upload(upload, data, by="user:m")
+        return store
+
+    methods: list[str] = []
+
+    def pool(*args, **kwargs):
+        methods.append(kwargs["mp_context"].get_start_method())
+        return ProcessPoolExecutor(*args, **kwargs)
+
+    monkeypatch.setattr(reading, "ProcessPoolExecutor", pool)
+    read: dict[str, list] = {}
+    job = threading.Thread(target=lambda: read.setdefault("pool", reading.read_uploads(room("pool"), use_ocr=False,
+                                                                                         workers=3)))
+    job.start()
+    job.join(timeout=120)
+    assert not job.is_alive() and methods == ["spawn"]
+    one = reading.read_uploads(room("one"), use_ocr=False, workers=1)
+    assert len(one) > 1 and read["pool"] == one
+
+
 # --- the independent review's cases (2026-11-22) -------------------------------------------------------------------
 
 

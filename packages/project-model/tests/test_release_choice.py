@@ -107,3 +107,37 @@ def test_the_readiness_waits_for_the_answer_and_says_why_a_held_formulation_is_n
     checks = {c["check"]: c for c in readiness(cpf, rows, {"problems": []}, None, None, held)["checks"]}
     assert checks["formulations of solid studies"]["detail"] == [f"EX-01-A: {REFORMULATED}: {HELD_WHY}"]
     assert checks["the Data room's proposals confirmed (D1)"]["ok"]
+
+
+def test_a_held_formulations_particle_inputs_are_entered_and_it_is_built_as_particle_dissolution(tmp_path):
+    """Registry 1.3: the radius and the unstirred-layer thickness, as the source states them, converted to the builder's
+    µm and mm and accepted with the type `Particles`; the CPF then builds the formulation as particle dissolution."""
+    from modeler_project.evidence import SourceType
+    from modeler_project.evidence_register import items
+    from modeler_project.inputs import assemble_cpf, choices
+    from modeler_project.release_choice import enter_particles
+    from pbpk_domain.cpf.formulations import PARTICLES, cpf_formulation
+
+    ws, view = _sent(tmp_path)
+    publish(ws, view, by="u", reason="sent")
+    with pytest.raises(ReleaseChoiceError, match="not held for particle dissolution"):
+        enter_particles(ws, REFORMULATED, radius=(50, "µm"), thickness=(0.03, "mm"), source_type=SourceType.PUBLICATION,
+                        by="u")
+    set_release_model(ws, REFORMULATED, model="particles", reason="the plateau is the solubility limit", by="u")
+    with pytest.raises(ReleaseChoiceError, match="radius must be above 0"):
+        enter_particles(ws, REFORMULATED, radius=(0, "µm"), thickness=(0.03, "mm"), source_type=SourceType.PUBLICATION,
+                        by="u")
+    with pytest.raises(ReleaseChoiceError, match="PK-Sim unit"):           # a unit no length converts from: none kept
+        enter_particles(ws, REFORMULATED, radius=(50, "min"), thickness=(0.03, "mm"), source_type=SourceType.PUBLICATION,
+                        by="u")
+    assert not [e for e in items(ws) if e.target == f"form.{REFORMULATED}.type" and e.state is EvidenceState.ACCEPTED]
+    ids = enter_particles(ws, REFORMULATED, radius=(0.05, "mm"), thickness=(30, "µm"), source_type=SourceType.PUBLICATION,
+                          title="Particle size report", quote="d50 100 µm", by="u")
+    assert len(ids) == 3 and release_states(ws) == {}
+    taken = {e.target.rsplit(".", 1)[-1]: e for e in items(ws) if e.id in ids}
+    assert (taken["type"].value, taken["radius"].value_pksim, taken["radius"].unit_pksim) == ("Particles", 50.0, "µm")
+    assert (taken["thickness"].value_pksim, taken["thickness"].unit_pksim) == (pytest.approx(0.03), "mm")
+    assert all(e.state is EvidenceState.ACCEPTED for e in taken.values())
+    cpf, _report, _used = assemble_cpf(ws, "Exampleamide", choices(ws))
+    built = cpf_formulation(cpf, REFORMULATED)
+    assert (built.type, built.radius_um, built.thickness_mm) == (PARTICLES, 50.0, pytest.approx(0.03))

@@ -227,7 +227,7 @@ those files. Approved (D1–D4, and the owner's rules: the agent proposes test o
 choice a click, reasons from a list): `docs/plans/2026-11-27-one-way-in.md`, five steps, each a PR the owner reviews.
 **Step 1** (one way in: the start page's client files go to the Data room untagged, its run starts, the page lands
 there) is in its PR. Before it: #200 (Keycloak's stylesheet named by its content, merged) and #201 (ZIP names and `.dat`
-text exports on the earlier reader, in review).
+text exports on the earlier reader, merged).
 
 ### 4.0g 2026-11-27: the "Graphite" restyle (R1–R4 merged; R5, the sign-in pages, in review)
 The owner chose a new look for the console from design catalogues (a Design Studio artifact) and approved its prototype
@@ -314,12 +314,11 @@ a delivery by file type although most of what clients send never reaches a model
 
 - **The release model on Inputs (5b's deviation, 2026-11-27):** the room's `release-model:` decision is Inputs'; the
   Weibull fit is sent with the suggestion as a proposal (`EvidenceItem.proposed`); Formulations confirms it, holds the
-  formulation for particle dissolution (with a reason) or takes it back (`release_choice`). **Pending the owner:** the
-  particle radius and layer thickness need entries in the locked parameter registry before Inputs can hold them.
+  formulation for particle dissolution (with a reason) or takes it back (`release_choice`). With parameter registry 1.3
+  (ayush-1610/Modeler_One_AI#196, owner-approved), a held formulation takes its particle radius and layer thickness on
+  Formulations and is built as particle dissolution (`enter_particles`). ayush-1610/Modeler_One_AI#195 is merged.
 
 **Next (each needs the owner or the server; nothing code-only is left in this plan):**
-- the particle inputs: entries for `form.<name>.particles.radius` (µm) and `.thickness` (mm) in the parameter registry
-  (locked; harvested names in `pbpk_domain.cpf.formulations.PARTICLE_PARAMETERS`), in their own PR with the owner's go;
 - phase 4: the extractor's dissolution stage column, the checker on Model Input Data first, the writer's new sections
   (prompt changes, scored before and after on the server's in-house model, D6); "NR" as a missing token is a rules
   change (`dataroom_rules.yaml`, SME-governed, the owner's approval and a version bump);

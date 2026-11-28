@@ -2530,6 +2530,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project_id}/formulations/{name}:particles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Post Particle Inputs
+         * @description A formulation held for particle dissolution gets its particle radius and unstirred-layer thickness, with their
+         *     source (the owner's D1; plan 2026-11-26 §8): graded, converted to the builder's units and accepted with its type
+         *     `Particles`, all or none. The inputs are assembled again.
+         */
+        post: operations["post_particle_inputs_api_v1_projects__project_id__formulations__name__particles_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project_id}/formulations/{name}:release-model": {
         parameters: {
             query?: never;
@@ -11622,6 +11644,30 @@ export interface components {
             radius: components["schemas"]["Measured"];
             thickness: components["schemas"]["Measured"];
         };
+        /** ParticleInputs */
+        ParticleInputs: {
+            /** Doi */
+            doi?: string | null;
+            /**
+             * Quote
+             * @default
+             */
+            quote?: string;
+            radius: components["schemas"]["StatedValue"];
+            /**
+             * Source Type
+             * @enum {string}
+             */
+            source_type: "PUBLICATION" | "CLIENT_REPORT" | "REGULATORY_REVIEW" | "DATABASE" | "ASSUMPTION";
+            thickness: components["schemas"]["StatedValue"];
+            /**
+             * Title
+             * @default
+             */
+            title?: string;
+            /** Url */
+            url?: string | null;
+        };
         /** Pathway */
         Pathway: {
             /**
@@ -14720,6 +14766,13 @@ export interface components {
             confirmed_card: boolean;
             /** Question */
             question: string;
+        };
+        /** StatedValue */
+        StatedValue: {
+            /** Unit */
+            unit: string;
+            /** Value */
+            value: number;
         };
         /**
          * StepRow
@@ -20725,6 +20778,44 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Envelope_ResearchStart_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_particle_inputs_api_v1_projects__project_id__formulations__name__particles_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                project_id: string;
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ParticleInputs"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_InputsPage_"];
                 };
             };
             /** @description Validation Error */
