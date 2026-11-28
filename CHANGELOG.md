@@ -13,6 +13,24 @@ Where things stand right now, stage by stage, is in `docs/CONTINUATION_PACKAGE.m
 
 ## [Unreleased] — make the pipeline do real PBPK, S0 → S7
 
+### Changed — one question card: confirmed once in the Data room, confirmed on Start (2026-11-28)
+- **What:** plan `2026-11-27-one-way-in` step 4, the owner's D3.
+  - **Confirming the Data room's question card confirms Start's question and context of use**, as the person who
+    confirmed the card (`brief_from_room.confirm_card_in_brief`, called by the card's route after the room drafts the
+    brief). Only the room's own drafts of them are confirmed; a value a person or a document gave Start is never changed
+    (Start still advises where the two differ). Start no longer asks to confirm the same question again.
+  - **With no card yet** (the question agent has not run), the Data room's card form starts from Start's question and
+    context of use, as A1 drafted them from the proposal or a person set them, instead of an empty form: confirming it
+    there confirms them on Start too. The room's actions now carry the project's id (`useActs`).
+- **Why:** the owner approved D3 on 2026-11-27: A1 drafts the question from the proposal, A6 from the delivery, and
+  the person confirms one card.
+- **Verified:** `test_brief_from_room.py` (new: confirmed once, as the card's confirmer, Start's question no longer
+  waits; a person's own question kept as theirs; a second confirmation changes nothing); `dataroom-to-start.spec.ts`
+  and `dataroom-to-map.spec.ts` now expect the question confirmed on Start (2 passed), with `dataroom.spec.ts`.
+- **Impact:** the applications, agencies and scenarios the room drafts are still drafts for Start to confirm (the card
+  answers the question, not them). The person lands on the Data room's Overview, which already shows the run and "Needs
+  you" (plan §5).
+
 ### Changed — the Data room proposes a single arm's product and fed or fasted, for the person to confirm (2026-11-28)
 - **What:** plan `2026-11-27-one-way-in` step 3, the owner's rule 1 (`dataroom/assemble.py`).
   - **A single-arm study whose product no file names** (it said "name it", `ARM_PRODUCT_UNKNOWN`) is now a decision,

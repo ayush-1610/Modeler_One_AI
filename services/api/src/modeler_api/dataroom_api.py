@@ -300,6 +300,10 @@ def put_dataroom_question(project_id: str, principal: Writer, store: StoreDep, b
     room.set_question(body.card, by=principal.user_id, confirmed=body.confirmed, reason=body.reason)
     if body.confirmed:
         _draft_brief(room, principal)
+        # one question card (D3): the card confirmed here is the question Start holds, confirmed by the same person
+        from modeler_project.brief_from_room import confirm_card_in_brief
+
+        confirm_card_in_brief(room.ws, by=principal.user_id)
     return _answer(room, principal)
 
 

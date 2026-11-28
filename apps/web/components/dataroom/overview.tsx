@@ -6,6 +6,10 @@
 
 import { useState } from "react";
 
+import { narrow } from "@/lib/api";
+import type { BriefView } from "@/lib/brief";
+import { useResource } from "@/lib/hooks";
+
 import { PURPOSE, baseName, conflicts, fullCard, roleColour, type FileView, type NeedItem, type Problem, type QuestionCard as Card_, type Room, type Run } from "@/lib/dataroom";
 
 import { useRoomActs } from "./acts";
@@ -70,6 +74,33 @@ function QuestionForm({ card, onDone }: { card: Card_ | null; onDone: () => void
   );
 }
 
+/** No card yet (the question agent has not run): one question card (the owner's D3; plan 2026-11-27-one-way-in step 4),
+ *  so the form starts from Start's question and context of use as drafted from the proposal (A1) or set there, and
+ *  confirming it here confirms them on Start too. */
+function QuestionFromBrief({ projectId }: { projectId: string }) {
+  const brief = useResource("/api/v1/projects/{project_id}/brief", { project_id: projectId }, {
+    select: (d) => {
+      const fields = narrow<BriefView>(d).brief.fields;
+      return { question: String(fields["qoi.text"]?.value ?? ""), context: String(fields["qoi.context_of_use"]?.value ?? "") };
+    },
+  });
+  if (!brief.data && !brief.problem) {
+    return <Card title="The question" testId="question-card"><Nothing>Reading Start&apos;s question…</Nothing></Card>;
+  }
+  const from = brief.data;
+  const drafted = Boolean(from?.question.trim());
+  const card: Card_ | null = drafted ? { question: from!.question, regulator: "", approach: "", context_of_use: from!.context,
+                                         products: [], checklist: [], quotes: [] } : null;
+  return (
+    <Card title="The question" testId="question-card">
+      <p className="dr-lede" data-testid="question-from-brief">
+        {drafted ? "Start's question, as drafted from the proposal: confirm it here and Start has it too."
+          : "No question card yet: the question agent drafts it when it runs, or write it here."}</p>
+      <QuestionForm key={drafted ? "brief" : "empty"} card={card} onDone={() => undefined} />
+    </Card>
+  );
+}
+
 export function QuestionCard({ room }: { room: Room }) {
   const card = room.question ? fullCard(room.question) : null;
   const acts = useRoomActs();
@@ -77,10 +108,10 @@ export function QuestionCard({ room }: { room: Room }) {
   const [editing, setEditing] = useState(false);
   const [list, setList] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
-  if (editing || (!card && !paper && acts)) {
+  if (!card && !paper && acts) return <QuestionFromBrief projectId={acts.projectId} />;
+  if (editing) {
     return (
       <Card title="The question" testId="question-card">
-        {!card && <p className="dr-lede">No question card yet: the question agent drafts it when it runs, or write it here.</p>}
         <QuestionForm card={card} onDone={() => setEditing(false)} />
       </Card>
     );
